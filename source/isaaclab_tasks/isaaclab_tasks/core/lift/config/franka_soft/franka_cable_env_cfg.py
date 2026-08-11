@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import math
-
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
@@ -40,6 +38,7 @@ from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
 
 _CABLE_SEGMENT_COUNT = 12
 _CABLE_MIDDLE_SEGMENT_INDEX = _CABLE_SEGMENT_COUNT // 2
+
 
 @configclass
 class PhysicsCfg(PresetCfg):
@@ -236,7 +235,6 @@ class RewardsCfg:
         func=mdp.CableSegmentGoalDistance,
         params={
             "std": 0.3,
-            "minimal_height": 0.0,
             "command_name": "cable_pose",
             "success_threshold": 0.05,
             "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,
@@ -248,7 +246,6 @@ class RewardsCfg:
     success_bonus = RewTerm(
         func=mdp.cable_segment_goal_reached,
         params={
-            "minimal_height": 0.0,
             "command_name": "cable_pose",
             "success_threshold": 0.05,
             "segment_index": _CABLE_MIDDLE_SEGMENT_INDEX,

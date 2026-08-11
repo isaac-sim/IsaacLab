@@ -507,13 +507,12 @@ def cable_segment_ee_distance(
 
 def _cable_segment_goal_metrics(
     env: ManagerBasedRLEnv,
-    minimal_height: float,
     command_name: str,
     segment_index: int,
     robot_cfg: SceneEntityCfg,
     asset_cfg: SceneEntityCfg,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Compute cable segment goal distance and lifted state."""
+) -> torch.Tensor:
+    """Compute cable segment goal distance."""
     robot: Articulation = env.scene[robot_cfg.name]
     asset: CableObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
@@ -521,7 +520,7 @@ def _cable_segment_goal_metrics(
         robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3]
     )
     segment_pos_w = asset.data.segment_pose_w.torch[:, segment_index, :3]
-    return torch.linalg.norm(desired_pos_w - segment_pos_w, dim=1), segment_pos_w[:, 2] > minimal_height
+    return torch.linalg.norm(desired_pos_w - segment_pos_w, dim=1)
 
 
 class CableSegmentGoalDistance(ManagerTermBase):
@@ -541,31 +540,25 @@ class CableSegmentGoalDistance(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         std: float,
-        minimal_height: float,
         command_name: str,
         success_threshold: float,
         segment_index: int,
         robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
     ) -> torch.Tensor:
-        distance, is_lifted = _cable_segment_goal_metrics(
-            env, minimal_height, command_name, segment_index, robot_cfg, asset_cfg
-        )
-        self._succeeded |= is_lifted & (distance < success_threshold)
-        return is_lifted.float() * (1.0 - torch.tanh(distance / std))
+        distance = _cable_segment_goal_metrics(env, command_name, segment_index, robot_cfg, asset_cfg)
+        self._succeeded |= distance < success_threshold
+        return 1.0 - torch.tanh(distance / std)
 
 
 def cable_segment_goal_reached(
     env: ManagerBasedRLEnv,
-    minimal_height: float,
     command_name: str,
     success_threshold: float,
     segment_index: int,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
 ) -> torch.Tensor:
-    """Reward a cable segment for reaching the lifted goal."""
-    distance, is_lifted = _cable_segment_goal_metrics(
-        env, minimal_height, command_name, segment_index, robot_cfg, asset_cfg
-    )
-    return (is_lifted & (distance < success_threshold)).float()
+    """Reward a cable segment for reaching the goal."""
+    distance = _cable_segment_goal_metrics(env, command_name, segment_index, robot_cfg, asset_cfg)
+    return (distance < success_threshold).float()
