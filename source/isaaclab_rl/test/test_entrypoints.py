@@ -68,7 +68,17 @@ def test_train_request_maps_checkpoint_to_backend_argument(monkeypatch) -> None:
 
     received.clear()
     api.train(TrainingRequest(backend="rlinf", task="Isaac-Task", checkpoint="model"))
-    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--model_path", "model"]
+    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--checkpoint", "model"]
+
+
+def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
+    """RLinf accepts the public checkpoint and iteration option names."""
+    from isaaclab_rl.entrypoints.backends import train_rlinf
+
+    args = train_rlinf._parse_args(["--config_name", "ppo", "--checkpoint", "latest", "--max_iterations", "10"])
+
+    assert args.checkpoint == "latest"
+    assert args.max_iterations == 10
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
@@ -88,7 +98,7 @@ def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
     assert sys.argv == original_argv
 
 
-def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:
+def test_play_request_uses_unified_checkpoint_argument(monkeypatch) -> None:
     """RLinf requests map shared fields to its focused backend arguments."""
     received: list[str] = []
 
@@ -105,7 +115,7 @@ def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:
         "rlinf",
         "--task",
         "Isaac-Task",
-        "--model_path",
+        "--checkpoint",
         "model",
         "--video",
     ]

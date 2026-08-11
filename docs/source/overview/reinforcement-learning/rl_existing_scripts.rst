@@ -635,7 +635,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             uv run isaaclab train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -644,7 +644,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             ./isaaclab.sh train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
 -  Evaluating a trained VLA agent:
 
@@ -657,7 +657,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             uv run --extra video isaaclab play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -667,7 +667,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             ./isaaclab.sh play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
 All the commands above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
@@ -694,8 +694,9 @@ New training runs also store a ``run.json`` manifest in their run directory. Thi
          ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest
 
 Pass ``--checkpoint best`` to prefer the library-specific best or final checkpoint. For libraries without a
-distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported
-by RL-Games, RSL-RL, skrl, and Stable-Baselines3. RSL-RL training resume continues to require ``--resume``.
+distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported by RL-Games, RSL-RL, skrl, Stable-Baselines3, and RLinf.
+RLinf uses ``--model_path`` for its base VLA model and ``--checkpoint`` for the
+RL-finetuned weights. RSL-RL training resume continues to require ``--resume``.
 
 To view the logs, run:
 
