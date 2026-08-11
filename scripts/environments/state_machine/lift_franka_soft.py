@@ -274,6 +274,7 @@ def main():
 
     with launch_simulation(env_cfg, args_cli):
         env = gym.make(args_cli.task, cfg=env_cfg)
+        is_cable = "cable" in env.unwrapped.scene.keys()
 
         # reset environment at start
         env.reset()
@@ -315,12 +316,21 @@ def main():
                 )
                 tcp_rest_orientation = ee_frame_sensor.data.target_quat_w.torch[..., 0, :].clone()
                 # -- object frame
-                object_data: DeformableObjectData = env.unwrapped.scene["deformable"].data
-                object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
-                object_position += object_local_grasp_position
+                if is_cable:
+                    segment_index = env_cfg.commands.cable_pose.segment_index
+                    object_position = (
+                        env.unwrapped.scene["cable"].data.segment_pose_w.torch[:, segment_index, :3]
+                        - env.unwrapped.scene.env_origins
+                    )
+                    command_name = "cable_pose"
+                else:
+                    object_data: DeformableObjectData = env.unwrapped.scene["deformable"].data
+                    object_position = object_data.root_pos_w.torch - env.unwrapped.scene.env_origins
+                    object_position += object_local_grasp_position
+                    command_name = "deformable_pose"
 
                 # -- target object frame
-                desired_position = env.unwrapped.command_manager.get_command("deformable_pose")[..., :3]
+                desired_position = env.unwrapped.command_manager.get_command(command_name)[..., :3]
 
                 # advance state machine
                 actions = pick_sm.compute(
