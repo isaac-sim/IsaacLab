@@ -21,6 +21,9 @@ from isaaclab_ov.renderers.ovrtx_shader_cache import (
 
 _CACHE_PATH = "/tmp/isaaclab-ovrtx-kitless-cache"
 
+# Only ever forwarded to the patched applier factory, so its contents never matter.
+_CONFIG = object()
+
 
 class _RecordingApplier:
     """Settings applier that records what it was handed and can reject one setting."""
@@ -72,30 +75,49 @@ def test_redirect_is_skipped_when_env_var_is_unset(monkeypatch):
     monkeypatch.setattr(
         ovrtx_shader_cache,
         "_acquire_settings_applier",
-        lambda: pytest.fail("settings must not be queried when the env var is unset"),
+        lambda config: pytest.fail("settings must not be queried when the env var is unset"),
     )
 
-    redirect_shader_cache()
+    redirect_shader_cache(_CONFIG)
 
 
 def test_redirect_applies_settings_when_env_var_is_set(monkeypatch):
     """With the env var set the requested path must reach both settings."""
     applier = _RecordingApplier()
     monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
-    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda: applier)
+    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda config: applier)
 
-    redirect_shader_cache()
+    redirect_shader_cache(_CONFIG)
 
     assert [setting.split("=", 1)[1] for setting in applier.applied] == [_CACHE_PATH, _CACHE_PATH]
+
+
+def test_redirect_forwards_the_renderer_config(monkeypatch):
+    """The renderer's config must reach the applier, which is what initializes the library.
+
+    Initialization runs once per process, so a config dropped here is a config the
+    renderer never gets - losing its log sink and level with no other symptom.
+    """
+    seen = []
+    monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
+    monkeypatch.setattr(
+        ovrtx_shader_cache,
+        "_acquire_settings_applier",
+        lambda config: seen.append(config) or _RecordingApplier(),
+    )
+
+    redirect_shader_cache(_CONFIG)
+
+    assert seen == [_CONFIG]
 
 
 def test_redirect_warns_when_settings_extension_is_unavailable(monkeypatch, caplog):
     """A runtime without the settings extension degrades to a warning, not a failure."""
     monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
-    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda: None)
+    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda config: None)
 
     with caplog.at_level("WARNING", logger=ovrtx_shader_cache.__name__):
-        redirect_shader_cache()
+        redirect_shader_cache(_CONFIG)
 
     assert SHADER_CACHE_PATH_ENV in caplog.text
 
@@ -106,8 +128,8 @@ def test_redirect_propagates_when_a_setting_is_rejected(monkeypatch):
     monkeypatch.setattr(
         ovrtx_shader_cache,
         "_acquire_settings_applier",
-        lambda: _RecordingApplier(reject="driverShaderCachePath"),
+        lambda config: _RecordingApplier(reject="driverShaderCachePath"),
     )
 
     with pytest.raises(RuntimeError, match="driverShaderCachePath"):
-        redirect_shader_cache()
+        redirect_shader_cache(_CONFIG)

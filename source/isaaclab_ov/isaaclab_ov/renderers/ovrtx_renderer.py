@@ -389,13 +389,16 @@ class OVRTXRenderer(BaseRenderer):
         self._init_fields()
 
         logger.info("Creating OVRTX renderer...")
-        redirect_shader_cache()
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
         )
+        # Built before the redirect, not after: the redirect can be what first
+        # loads the ovrtx library, and library initialization only happens once,
+        # so it has to see the same config the renderer below is built with.
+        redirect_shader_cache(OVRTX_CONFIG)
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
             raise RuntimeError(

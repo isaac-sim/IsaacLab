@@ -63,7 +63,24 @@ def python_version(pyproject: dict) -> str:
 
 
 def resolve(specifier: str, python_platform: str, target_python: str) -> str:
-    """Return the concrete version ``specifier`` resolves to for the given target."""
+    """Return the concrete version ``specifier`` resolves to for the given target.
+
+    The flags mirror the plain ``pip install`` the container runs, because a key
+    naming a wheel the container never installs is worse than no key at all - it
+    misses on every consumer while nothing about the installed wheel changed.
+    ``unsafe-best-match`` reproduces pip's "highest version across every index"
+    selection rather than uv's default of stopping at the first index carrying
+    the package, and the default pre-release handling matches pip's, which skips
+    them unless the specifier pins one.
+
+    ``--no-config`` is what makes those flags mean anything. This runs from the
+    repository root, so without it uv would inherit ``[tool.uv]`` from
+    pyproject.toml - which sets ``prerelease = "allow"`` for locking the project
+    as a whole, and would silently key the cache on a pre-release wheel the
+    container's pip would never install. The resolve is deliberately hermetic:
+    it answers "what does pip install" and must not drift when the project's own
+    locking policy changes.
+    """
     result = subprocess.run(
         [
             "uv",
@@ -72,13 +89,15 @@ def resolve(specifier: str, python_platform: str, target_python: str) -> str:
             "-",
             "--no-deps",
             "--quiet",
+            "--no-config",
             "--extra-index-url",
             INDEX_URL,
+            "--index-strategy",
+            "unsafe-best-match",
             "--python-platform",
             python_platform,
             "--python-version",
             target_python,
-            "--prerelease=allow",
         ],
         input=specifier,
         capture_output=True,

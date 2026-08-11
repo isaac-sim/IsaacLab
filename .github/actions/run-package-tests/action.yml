@@ -497,15 +497,26 @@ runs:
     # Not success(): the product is compiled PSO blobs, and those stay valid when
     # a golden-image assertion fails. Cancellation still skips, so a tree the
     # driver was mid-write on is never published.
+    # The count is empty rather than '0' when the growth step aborted before its
+    # inventory ran. Both mean "nothing was measured", so both have to block the
+    # save - an unmeasured tree publishes under a key every consumer prefers over
+    # the last good snapshot. This matches how the verify step below reads the
+    # same outputs.
     - name: Save OVRTX kit shader cache
-      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'' && steps.ovrtx-cache-growth.outputs.kit-files != ''0'''
+      if: >-
+        !cancelled() && inputs.ovrtx-shader-cache == 'save'
+        && steps.ovrtx-cache-growth.outputs.kit-files != ''
+        && steps.ovrtx-cache-growth.outputs.kit-files != '0'
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.ovrtx-cache-key.outputs.kit-dir }}
         key: ${{ steps.ovrtx-cache-key.outputs.kit-key }}
 
     - name: Save OVRTX kitless shader cache
-      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'' && steps.ovrtx-cache-growth.outputs.kitless-files != ''0'''
+      if: >-
+        !cancelled() && inputs.ovrtx-shader-cache == 'save'
+        && steps.ovrtx-cache-growth.outputs.kitless-files != ''
+        && steps.ovrtx-cache-growth.outputs.kitless-files != '0'
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.ovrtx-cache-key.outputs.kitless-dir }}

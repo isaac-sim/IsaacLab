@@ -53,9 +53,21 @@ outputs:
 runs:
   using: composite
   steps:
-    # Only for the metadata-only resolve in resolve_ovrtx_version.py; the tests
-    # themselves install ovrtx inside the container.
+    # Both only for the metadata-only resolve in resolve_ovrtx_version.py; the
+    # tests themselves install ovrtx inside the container. The runners' system
+    # python3 predates ``tomllib``, so the resolve needs its own interpreter -
+    # without one it fails every time and the key silently stops tracking the
+    # wheel. continue-on-error on both: a cache is never worth failing a
+    # rendering job over, and the resolve degrades on its own if either is
+    # missing.
+    - name: Set up Python
+      continue-on-error: true
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      with:
+        python-version: '3.12'
+
     - name: Set up uv
+      continue-on-error: true
       uses: astral-sh/setup-uv@v6
 
     - name: Compute OVRTX shader cache keys
@@ -80,8 +92,12 @@ runs:
 
         # A cache is never worth failing a rendering job over: an unresolvable
         # specifier falls back to its own collection, which misses and compiles
-        # cold, rather than sharing an entry with a wheel it may not match.
-        ovrtx_ver="$(python3 .github/actions/ovrtx-shader-cache-key/resolve_ovrtx_version.py "$python_platform" || echo unresolved)"
+        # cold, rather than sharing an entry with a wheel it may not match. The
+        # fallback carries the run id precisely so it is *not* a shared bucket -
+        # a fixed literal would let every unresolved run inherit and overwrite
+        # every other one, which is the contamination the split key prevents.
+        ovrtx_ver="$(python3 .github/actions/ovrtx-shader-cache-key/resolve_ovrtx_version.py "$python_platform" \
+          || echo "unresolved-${GITHUB_RUN_ID}")"
 
         # Cache keys may not contain commas, and the isaacsim tag is only
         # conventionally bare, so keep both components to a known-safe alphabet.
