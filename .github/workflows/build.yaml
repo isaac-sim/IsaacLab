@@ -949,17 +949,11 @@ jobs:
           baseline_args=(--baseline "$RUNNER_TEMP/performance-baseline.json")
         fi
 
-        set +e
         python3 tools/performance_compare.py \
           --benchmark_result "${results[0]}" \
           "${baseline_args[@]}" \
-          --markdown benchmark-output/comparison.md \
           --output_json benchmark-output/comparison.json \
-          --junit benchmark-output/comparison.xml
-        status=$?
-        set -e
-        cat benchmark-output/comparison.md >> "$GITHUB_STEP_SUMMARY"
-        exit "$status"
+          | tee -a "$GITHUB_STEP_SUMMARY"
     - name: Upload performance results
       if: always()
       uses: actions/upload-artifact@v7

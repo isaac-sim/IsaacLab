@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import json
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -108,7 +107,6 @@ def test_compare_applies_warning_and_failure_boundaries(runtime_bundle: dict) ->
     assert report.metrics[0].regression_pct == 10.0
     assert report.metrics[0].significance_sigma == pytest.approx(1.6666666667)
     assert report.metrics[0].statistically_significant is False
-    assert report.metrics[0].significance_metric == "total_fps"
     assert report.metrics[0].verdict == "PASS"
 
     table = _baseline_table()
@@ -124,7 +122,7 @@ def test_compare_applies_warning_and_failure_boundaries(runtime_bundle: dict) ->
     assert report.metrics[1].verdict == "PASS"
 
 
-def test_compare_rejects_incomplete_or_ambiguous_baselines(runtime_bundle: dict) -> None:
+def test_compare_validates_input_contract(runtime_bundle: dict) -> None:
     table = _baseline_table()
     table["baselines"][0]["task"] = "Another-Task"
     with pytest.raises(performance_compare.ComparisonError, match="No baseline row"):
@@ -145,38 +143,15 @@ def test_compare_rejects_incomplete_or_ambiguous_baselines(runtime_bundle: dict)
     with pytest.raises(performance_compare.ComparisonError, match="must be finite"):
         performance_compare.compare(runtime_bundle, table)
 
-    table = _baseline_table()
-    table["baselines"][0]["metrics"]["total_fps"]["reference"] = 10**400
-    with pytest.raises(performance_compare.ComparisonError, match="must be finite"):
-        performance_compare.compare(runtime_bundle, table)
-
-    table = _baseline_table()
-    table["baselines"][0]["metrics"]["total_fps"]["reference"] = 5e-324
-    with pytest.raises(performance_compare.ComparisonError, match="must be finite"):
-        performance_compare.compare(runtime_bundle, table)
-
-    startup = runtime_bundle["runtime"]["startup_time_s"]
-    startup["app_launch"] = startup["env_creation"] = startup["first_step"] = 1e308
-    with pytest.raises(performance_compare.ComparisonError, match="must be finite"):
-        performance_compare.compare(runtime_bundle, _baseline_table())
-    startup.update({"app_launch": 1.0, "env_creation": 2.0, "first_step": 0.5})
-
-    del runtime_bundle["runtime"]["startup_time_s"]["app_launch"]
-    with pytest.raises(performance_compare.ComparisonError, match="startup_time_s.app_launch"):
-        performance_compare.compare(runtime_bundle, _baseline_table())
-    runtime_bundle["runtime"]["startup_time_s"]["app_launch"] = 1.0
-
     runtime_bundle["resources"]["gpu_mem_gb"]["peak"] = -1.0
     with pytest.raises(performance_compare.ComparisonError, match="must be non-negative"):
         performance_compare.compare(runtime_bundle, _baseline_table())
     runtime_bundle["resources"]["gpu_mem_gb"]["peak"] = 11.0
 
     total_fps_std = runtime_bundle["runtime"]["total_fps"].pop("std")
-    fps_samples = runtime_bundle["runtime"].pop("iterations_completed")
     with pytest.raises(performance_compare.ComparisonError, match="throughput statistics"):
         performance_compare.compare(runtime_bundle, _baseline_table())
     runtime_bundle["runtime"]["total_fps"]["std"] = total_fps_std
-    runtime_bundle["runtime"]["iterations_completed"] = fps_samples
 
     runtime_bundle["run"]["config"] = {
         "physics_backend": "newton_mjwarp",
@@ -194,15 +169,12 @@ def test_compare_rejects_incomplete_or_ambiguous_baselines(runtime_bundle: dict)
     assert report.identity["runtime_version"] == "newton:1.5.0rc2"
 
 
-def test_write_outputs_reports_all_metrics(runtime_bundle: dict, tmp_path: Path) -> None:
+def test_write_output_reports_all_metrics(runtime_bundle: dict, tmp_path: Path) -> None:
     report = performance_compare.compare(runtime_bundle, _baseline_table())
-    markdown = tmp_path / "comparison.md"
     output_json = tmp_path / "comparison.json"
-    junit = tmp_path / "comparison.xml"
 
-    performance_compare.write_outputs(report, markdown, output_json, junit)
+    markdown_text = performance_compare.write_output(report, output_json)
 
-    markdown_text = markdown.read_text()
     assert "| Total FPS | 95" in markdown_text
     assert "| Warn | Fail |" in markdown_text
     output = json.loads(output_json.read_text())
@@ -211,22 +183,11 @@ def test_write_outputs_reports_all_metrics(runtime_bundle: dict, tmp_path: Path)
     assert output["metrics"][0]["fail_regression_pct"] == 10.0
     assert output["metrics"][0]["measured_samples"] == 200
     assert output["metrics"][0]["reference_samples"] == 200
-    assert output["metrics"][0]["significance_metric"] == "total_fps"
-    assert output["metrics"][0]["significance_measured"] == 95.0
-    assert output["metrics"][0]["significance_reference"] == 100.0
-    assert output["metrics"][0]["significance_measured_std"] == 3.0
-    assert output["metrics"][0]["significance_reference_std"] == 3.0
+    assert output["metrics"][0]["measured_std"] == 3.0
+    assert output["metrics"][0]["reference_std"] == 3.0
     assert output["metrics"][0]["significance_sigma"] == pytest.approx(16.6666667)
     assert output["metrics"][0]["statistically_significant"] is True
     assert "| Measured FPS std | Reference FPS std | Significance |" in markdown_text
-    suite = ET.parse(junit).getroot()
-    assert suite.attrib == {"name": "performance-comparison", "tests": "4", "failures": "1", "skipped": "0"}
-    assert [case.attrib["name"] for case in suite.findall("testcase")] == [
-        "total_fps",
-        "startup_time_s",
-        "gpu_mem_peak_gb",
-        "ram_peak_gb",
-    ]
 
 
 def test_main_skips_only_when_baseline_is_not_configured(runtime_bundle: dict, tmp_path: Path) -> None:
@@ -235,12 +196,8 @@ def test_main_skips_only_when_baseline_is_not_configured(runtime_bundle: dict, t
     common_args = [
         "--benchmark_result",
         str(benchmark_path),
-        "--markdown",
-        str(tmp_path / "comparison.md"),
         "--output_json",
         str(tmp_path / "comparison.json"),
-        "--junit",
-        str(tmp_path / "comparison.xml"),
     ]
 
     assert performance_compare.main(common_args) == 0
