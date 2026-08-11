@@ -93,6 +93,7 @@ from .ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
+from .ovrtx_shader_cache import redirect_shader_cache
 from .ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
@@ -124,80 +125,6 @@ _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 # Runtime environment variable used to enable the ovstage code path for ovrtx.
 _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
-
-# Environment variable for redirecting the OVRTXRenderer nv_shadercache path.
-# When set, the two ShaderDb carb settings are applied before Renderer creation
-# so the NVIDIA Vulkan driver PSO cache is written to the specified directory
-# instead of the default location inside the ovrtx package tree.
-# Used by CI to persist the compiled shader cache across runs.
-_SHADER_CACHE_PATH_ENV = "OVRTX_SHADER_CACHE_PATH"
-
-
-def _redirect_ovrtx_shader_cache() -> None:
-    """Redirect the nv_shadercache to ``OVRTX_SHADER_CACHE_PATH`` when set.
-
-    Must be called **before** :class:`~ovrtx.Renderer` is constructed because
-    carb settings are consumed at ``createRTXRenderer`` time and cannot be
-    changed on a live renderer instance.
-
-    The function is idempotent and silently skips when the env var is absent,
-    so it is safe to call unconditionally in every Renderer construction path.
-    """
-    cache_path = os.environ.get(_SHADER_CACHE_PATH_ENV)
-    if not cache_path:
-        return
-
-    try:
-        import ctypes
-
-        from ovrtx._src import bindings as _ovrtx_bindings
-
-        _APPLY_SETTINGS_EXT = b"ovrtx.settings.apply_settings"
-
-        class _ApplySettingsVTable(ctypes.Structure):
-            _fields_ = [
-                (
-                    "apply_settings",
-                    ctypes.CFUNCTYPE(_ovrtx_bindings.ovrtx_result_t, _ovrtx_bindings.ovx_string_t),
-                ),
-            ]
-
-        loader = _ovrtx_bindings._ovrtx_loader
-        if loader._lib is None:
-            loader.create_bindings(_ovrtx_bindings.ovrtx_config_t([]))
-        lib = loader._lib
-
-        lib.ovrtx_query_extension.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
-        lib.ovrtx_query_extension.restype = _ovrtx_bindings.ovrtx_result_t
-
-        vtable_ptr = ctypes.c_void_p()
-        result = lib.ovrtx_query_extension(_APPLY_SETTINGS_EXT, ctypes.byref(vtable_ptr))
-        if result.status != _ovrtx_bindings.OVRTX_API_SUCCESS:
-            logger.warning(
-                "OVRTX_SHADER_CACHE_PATH is set but ovrtx.settings.apply_settings extension"
-                " is unavailable — shader cache redirect skipped (path=%r).",
-                cache_path,
-            )
-            return
-
-        vtable = ctypes.cast(vtable_ptr, ctypes.POINTER(_ApplySettingsVTable)).contents
-        for setting in (
-            f"--/rtx/shaderDb/driverShaderCachePath={cache_path}",
-            f"--/rtx/shaderDb/driverAppShaderCachePath={cache_path}",
-        ):
-            r = vtable.apply_settings(_ovrtx_bindings.ovx_string_t(setting))
-            if r.status != _ovrtx_bindings.OVRTX_API_SUCCESS:
-                logger.warning(
-                    "Failed to apply OVRTX carb setting %r — shader cache may still go to default path.", setting
-                )
-        logger.info("OVRTX kitless nv_shadercache redirected to %r.", cache_path)
-    except Exception as exc:
-        logger.warning(
-            "OVRTX_SHADER_CACHE_PATH is set but shader cache redirect failed: %s — "
-            "rendering will work but cache will not persist to the specified path.",
-            exc,
-        )
-
 
 if _OVSTAGE_AVAILABLE:
     # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
@@ -462,7 +389,7 @@ class OVRTXRenderer(BaseRenderer):
         self._init_fields()
 
         logger.info("Creating OVRTX renderer...")
-        _redirect_ovrtx_shader_cache()
+        redirect_shader_cache()
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
