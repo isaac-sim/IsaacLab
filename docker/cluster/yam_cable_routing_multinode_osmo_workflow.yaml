@@ -1,0 +1,143 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# OSMO 6.3 workflow for one synchronized, multi-node Newton cable-routing run.
+# The default topology is eight L40 nodes with four GPUs each. Every trainer
+# joins the same static torchrun world, so all 32 ranks update one policy.
+
+version: 2
+
+default-values:
+  workflow_name: yam-cable-multinode-32g
+  image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+  source_sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  vcs_ref: 0000000000000000000000000000000000000000
+  platform: ovx-l40s
+  run_mode: multinode
+  num_gpu: 32
+  num_nodes: 8
+  gpus_per_node: 4
+  num_cpu: 16
+  memory_gi: 96
+  storage_gi: 128
+  task: IsaacContrib-CableRouting-YAM-SevenGoals
+  num_envs: 256
+  num_mini_batches: 4
+  max_iterations: 3000
+  seed: 47
+  run_name: yam-cable-multinode-32g-seven-goals-s47
+  wandb_project: yam-cable-routing-newton
+  wandb_entity: nvidia-isaac
+  preflight_task: IsaacContrib-CableRouting-YAM-SevenGoals
+  preflight_num_envs: 256
+  preflight_reset_rounds: 4
+  preflight_warmup_steps: 32
+  preflight_benchmark_steps: 128
+  min_env_steps_per_second: 0
+  newton_revision: release-1.5
+  warp_version: 1.16.0
+  mujoco_version: 3.11.0
+  newton_usd_schemas_version: 0.4.0
+  rank_startup_stagger_seconds: 6
+  master_port: 29400
+  completion_port: 29401
+  source_port: 29402
+  source_startup_wait_seconds: 2400
+  source_fetch_wait_seconds: 2700
+  barrier_startup_timeout_seconds: 7200
+
+workflow:
+  name: "{{ workflow_name }}"
+  resources:
+    trainer:
+      cpu: "{{ num_cpu }}"
+      gpu: "{{ gpus_per_node }}"
+      memory: "{{ memory_gi }}Gi"
+      storage: "{{ storage_gi }}Gi"
+      platform: "{{ platform }}"
+  timeout:
+    exec_timeout: 7d
+    queue_timeout: 1d
+  groups:
+  # Keep source distribution inside the synchronized group. A serial source
+  # group would have to publish through OSMO's external output store. OSMO
+  # exposes authenticated rsync on the group lead, so trainer-node-0 validates
+  # and serves the package to its seven peers before joining torchrun.
+  - name: training
+    tasks:
+# {% for node_index in range(num_nodes) %}
+    - name: trainer-node-{{ node_index }}
+# {% if node_index == 0 %}
+      lead: true
+# {% endif %}
+      image: "{{ image }}"
+      resource: trainer
+      credentials:
+        wandb:
+          WANDB_API_KEY: wandb_api_key
+      command: [bash]
+      args: [/tmp/run-yam-cable-routing-multinode-node.sh]
+      environment:
+        ACCEPT_EULA: "Y"
+        NCCL_ASYNC_ERROR_HANDLING: "1"
+        NCCL_DEBUG: WARN
+        TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"
+        OSMO_CAMPAIGN_INDEX: "0"
+        OSMO_CAMPAIGN_SIZE: "1"
+        OSMO_CAMPAIGN_TASK_MODE: focused
+        OSMO_BARRIER_STARTUP_TIMEOUT_SECONDS: "{{ barrier_startup_timeout_seconds }}"
+        OSMO_COMPLETION_PORT: "{{ completion_port }}"
+        OSMO_IMAGE_REF: "{{ image }}"
+        OSMO_MASTER_ADDR: "{{host:trainer-node-0}}"
+        OSMO_MASTER_PORT: "{{ master_port }}"
+        OSMO_MAX_ITERATIONS: "{{ max_iterations }}"
+        OSMO_MIN_ENV_STEPS_PER_SECOND: "{{ min_env_steps_per_second }}"
+        OSMO_MUJOCO_VERSION: "{{ mujoco_version }}"
+        OSMO_NEWTON_REVISION: "{{ newton_revision }}"
+        OSMO_NEWTON_USD_SCHEMAS_VERSION: "{{ newton_usd_schemas_version }}"
+        OSMO_NODE_RANK: "{{ node_index }}"
+        OSMO_NUM_CPU: "{{ num_cpu }}"
+        OSMO_NUM_ENVS: "{{ num_envs }}"
+        OSMO_NUM_GPU: "{{ gpus_per_node }}"
+        OSMO_NUM_MINI_BATCHES: "{{ num_mini_batches }}"
+        OSMO_NUM_NODES: "{{ num_nodes }}"
+        OSMO_OUTPUT_DIR: "{{output}}"
+        OSMO_PREFLIGHT_BENCHMARK_STEPS: "{{ preflight_benchmark_steps }}"
+        OSMO_PREFLIGHT_NUM_ENVS: "{{ preflight_num_envs }}"
+        OSMO_PREFLIGHT_RESET_ROUNDS: "{{ preflight_reset_rounds }}"
+        OSMO_PREFLIGHT_TASK: "{{ preflight_task }}"
+        OSMO_PREFLIGHT_WARMUP_STEPS: "{{ preflight_warmup_steps }}"
+        OSMO_RANK_STARTUP_STAGGER_SECONDS: "{{ rank_startup_stagger_seconds }}"
+        OSMO_RUN_MODE: "{{ run_mode }}"
+        OSMO_RUN_NAME: "{{ run_name }}"
+        OSMO_SEED: "{{ seed }}"
+        OSMO_SOURCE_SERVE_PORT: "{{ source_port }}"
+        OSMO_SOURCE_FETCH_WAIT_SECONDS: "{{ source_fetch_wait_seconds }}"
+        OSMO_SOURCE_SHA256: "{{ source_sha256 }}"
+        OSMO_SOURCE_STARTUP_WAIT_SECONDS: "{{ source_startup_wait_seconds }}"
+        OSMO_SOURCE_URL: "http://{{host:trainer-node-0}}:{{ source_port }}"
+        OSMO_TASK: "{{ task }}"
+        OSMO_TOTAL_GPU: "{{ num_gpu }}"
+        OSMO_VCS_REF: "{{ vcs_ref }}"
+        OSMO_WARP_VERSION: "{{ warp_version }}"
+        OSMO_WANDB_ENTITY: "{{ wandb_entity }}"
+        OSMO_WANDB_PROJECT: "{{ wandb_project }}"
+        OSMO_WORKFLOW_ID: "{{workflow_id}}"
+      files:
+      - path: /tmp/run-yam-cable-routing-multinode-node.sh
+        localpath: run_yam_cable_routing_multinode_node.sh
+      - path: /tmp/run-yam-cable-routing-osmo.sh
+        localpath: run_yam_cable_routing_osmo.sh
+      - path: /tmp/prepare-yam-cable-routing-source.sh
+        localpath: prepare_yam_cable_routing_source.sh
+      - path: /tmp/yam-cable-routing-ddp-barrier.py
+        localpath: yam_cable_routing_ddp_barrier.py
+      - path: /tmp/yam-cable-routing-rank-entrypoint.py
+        localpath: yam_cable_routing_rank_entrypoint.py
+      - path: /tmp/yam-cable-routing-source-fetch.py
+        localpath: yam_cable_routing_source_fetch.py
+      - path: /tmp/yam-cable-routing-preflight.py
+        localpath: yam_cable_routing_preflight.py
+# {% endfor %}

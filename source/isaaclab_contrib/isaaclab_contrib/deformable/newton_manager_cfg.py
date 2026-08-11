@@ -118,6 +118,16 @@ class VBDSolverCfg(NewtonModelSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for all rigid body contacts [N/m]."""
 
+    rigid_body_contact_buffer_size: int = 64
+    """Per-body body-body contact list capacity.
+
+    Newton emits a ``Per-body rigid contact buffer overflowed N > M`` warning and
+    drops excess contacts when one body sees more than this many contacts in one
+    collision refresh. Dense cable piles commonly require 256 entries. Only used
+    when VBD integrates rigid bodies itself, i.e.
+    :attr:`integrate_with_external_rigid_solver` is ``False``.
+    """
+
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body capacity of the particle, edge, and face soft-contact list.
 

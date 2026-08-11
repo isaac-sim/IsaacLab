@@ -12,6 +12,7 @@ import warp as wp
 from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
+from newton.solvers import SolverVBD
 
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (
@@ -99,6 +100,16 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver: b
 
     assert NewtonManager._solver is solver
     assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
+
+
+def test_vbd_cfg_forwards_per_body_contact_capacities_to_newton():
+    """Test dense-contact capacities reach the Newton SolverVBD constructor."""
+    cfg = VBDSolverCfg(rigid_body_contact_buffer_size=256, rigid_body_particle_contact_buffer_size=512)
+
+    kwargs = NewtonVBDManager._filter_solver_kwargs(SolverVBD, cfg)
+
+    assert kwargs["rigid_body_contact_buffer_size"] == 256
+    assert kwargs["rigid_body_particle_contact_buffer_size"] == 512
 
 
 def test_newton_material_defaults_match_registry_defaults():

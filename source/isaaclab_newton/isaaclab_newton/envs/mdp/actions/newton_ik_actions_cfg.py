@@ -52,3 +52,22 @@ class NewtonInverseKinematicsActionCfg(ActionTermCfg):
 
     controller: NewtonIKSolverCfg = field(default_factory=NewtonIKSolverCfg)
     """Configuration for the Newton IK solver (solver hyperparameters only)."""
+
+    isolate_articulation_model: bool = False
+    """Build IK from only the controlled articulation's composed USD subtree.
+
+    Enable this for coupled scenes whose retained clone prototype contains
+    unrelated articulated systems or articulated deformables. Newton IK uses a
+    dense system sized to the prototype model's total DoF count, so including
+    those unrelated DoFs can make compilation and each solve unnecessarily
+    expensive. The isolated model is used only for kinematics; physics and
+    collision simulation continue to use the complete scene model.
+    """
+
+    use_cuda_graph: bool = False
+    """Capture and replay the fixed-shape Newton IK solve on CUDA.
+
+    This removes per-kernel launch overhead after the first action application.
+    Enable it only when the action's model, objectives, and batch shape remain
+    fixed for the lifetime of the environment.
+    """

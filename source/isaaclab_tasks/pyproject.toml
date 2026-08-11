@@ -39,3 +39,13 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.contrib.cable_routing" = [
+    "assets/manipulationnet/LICENSE",
+    "assets/manipulationnet/*.md",
+    "assets/manipulationnet/*.usdc",
+    "assets/yam/*.md",
+    "assets/yam/*.usda",
+    "assets/yam/i2rt_yam/*.usda",
+    "assets/yam/i2rt_yam/Payload/*.usda",
+    "assets/yam/i2rt_yam/Payload/*.usdc",
+]

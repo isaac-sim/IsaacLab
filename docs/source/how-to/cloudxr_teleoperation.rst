@@ -190,6 +190,14 @@ Complete these steps first:
    For building from source or plugin development, see the `Isaac Teleop GitHub
    <https://github.com/NVIDIA/IsaacTeleop>`_.
 
+   A source checkout that needs immersive XR must install both Isaac Teleop and the
+   Kit OpenXR runtime. The combined extra keeps the checkout's Newton version while
+   installing both stacks in one reproducible sync:
+
+   .. code-block:: bash
+
+      uv sync --extra teleop
+
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the
    client type.
 
@@ -457,6 +465,49 @@ choose the tab that matches your hardware.
 
          See :ref:`isaac-teleop-cloudxr-profiles` for details on the shipped profiles.
 
+      The Newton YAM cable-routing task has a dedicated right-hand AVP configuration. The
+      training environments remain unchanged and use their 14-dimensional relative
+      joint-position action space. The teleoperation variant instead accepts the tracked
+      right thumb-index pinch pose and one pinch command. It holds the left YAM at the pose
+      captured when teleoperation starts, with its gripper open, and drives only the right YAM.
+
+      On the first valid hand sample, the adapter aligns the thumb-index midpoint with the YAM's
+      measured fingertip contact midpoint, so engagement cannot translate the arm. Orientation is
+      reconstructed from the tracked hand geometry instead of copying the runtime-specific wrist
+      quaternion: wrist-to-knuckles maps to the gripper's finger-length ``+Z`` axis and
+      index-to-little maps to its pad-tangent ``+X`` axis. This maps the human hand plane onto the
+      gripper pad's ``+X/+Z`` plane instead of leaving an ambiguous 90-degree roll. The resulting
+      absolute target is independent of the desktop camera or XR-anchor orientation and is
+      transformed into the right-YAM root frame. A native NewtonIK action
+      solves that absolute target with 12 analytic Levenberg-Marquardt iterations, a joint-limit
+      objective, and CUDA-graph replay. IsaacTeleop runs this lightweight retargeting graph
+      synchronously so it uses the current hand sample instead of a previously completed
+      pipelined frame.
+      Its kinematic model contains only the right YAM's composed articulation subtree; the cable,
+      fixtures, left YAM, and their collisions remain in the complete Newton simulation but do
+      not enlarge the dense IK system.
+
+      .. code-block:: bash
+
+         DISPLAY=:1 OMNI_KIT_ACCEPT_EULA=YES \
+         uv run --extra teleop python scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-CableRouting-YAM-AVP-Teleop \
+             --device cuda:0 --visualizer newton --xr --cloudxr_env avp \
+             --disable_external_cameras \
+             --kit_args "--/renderer/multiGpu/enabled=false \
+                         --/renderer/multiGpu/autoEnable=false \
+                         --/renderer/multiGpu/maxGpuCount=1"
+
+      The task deliberately disables its route overlay and does not create the old RGB
+      target, servo-command, or measured-pose arrows. The command above also omits the global
+      ``--enable_debug_visualization`` tracking overlay so the headset view stays uncluttered.
+      It opens the workcell in the Newton viewer while Kit runs the XR bridge headlessly. The
+      renderer overrides keep Newton, RTX, and CloudXR on ``cuda:0`` instead of enabling Kit's
+      XR multi-GPU mode and copying frames through host memory.
+
+      To record the same control stream as demonstrations, replace the script with
+      ``scripts/tools/record_demos.py`` and add ``--dataset_file`` and ``--num_demos``.
+
       .. _build-apple-vision-pro:
 
       .. rubric:: Build and Install the Client App
@@ -479,7 +530,7 @@ choose the tab that matches your hardware.
          +-------------------+---------------------+
          | Isaac Lab Version | Client App Version  |
          +-------------------+---------------------+
-         | 3.0               | v3.0.0              |
+         | 3.0               | v3.0.1              |
          +-------------------+---------------------+
          | 2.3               | v2.3.0              |
          +-------------------+---------------------+
@@ -487,6 +538,13 @@ choose the tab that matches your hardware.
          .. code-block:: bash
 
             git checkout <client_app_version>
+
+         .. important::
+
+            Use client ``v3.0.1`` or newer with Isaac Lab 3.0. Client ``v3.0.0`` can connect,
+            stream video, and publish hand poses, but its **Play**, **Stop**, and **Reset**
+            buttons send on the legacy server-message path instead of the named teleoperation
+            channel. The result looks like valid tracking with a robot that remains paused.
 
       #. Follow the README in the repository to build and install the app on your Apple Vision
          Pro.
@@ -534,6 +592,47 @@ choose the tab that matches your hardware.
 
       #. Click **Play** to begin teleoperating. Use **Play**, **Stop**, and **Reset** to control
          the session.
+
+         For the cable-routing task, place the right hand in a comfortable neutral pose before
+         pressing **Play**. The first valid pose engages at the right YAM's current pinch position,
+         so it does not translate the arm. It does immediately align the gripper orientation with
+         the hand: the direction from the wrist through the knuckles commands the long pad tangent,
+         while index-to-little commands the transverse pad tangent. Thus the complete planar pad,
+         not its normal, follows the human hand plane. The right gripper then follows the thumb-index
+         midpoint 1:1; opening the hand opens the gripper, and pinching closes it. The left arm
+         remains at its captured hold pose and is not retargeted from the left hand.
+
+         This path does not use the former adaptive-DLS controller, Cartesian servo ramp, or
+         per-step joint-delta cap. Each calibrated pose target is passed directly to native
+         NewtonIK and is clamped only to the workcell bounds. Wrist, index- and little-proximal,
+         thumb-tip, and index-tip tracking must all be valid. If one is lost, the anatomical frame
+         is degenerate, or a single sample jumps by more than the safety threshold, the robot holds
+         its current physical pinch pose and retains the last gripper command. The next complete
+         valid sample re-engages at that held position while restoring the current absolute hand
+         orientation; no stale engagement-frame rotation offset is retained.
+
+         The cable task applies a new target on every 120 Hz physics step in simulated time. The
+         right arm alone uses a teleoperation-specific split drive tuned between the Menagerie
+         asset's underdamped response and the RL environment's conservative drive; the left arm
+         and all relative-joint training tasks retain their original dynamics. This changes no
+         YAM collision shape or contact geometry.
+
+         The 120 Hz setting is a nominal control rate, not a guaranteed wall-clock or headset
+         frame rate: Newton physics, Kit rendering, CloudXR encoding, the GPU, and the network
+         determine the observed cadence. In one headless production validation run with a warm
+         Warp kernel cache, the current configuration sustained about 53 environment steps per
+         wall-clock second (18.88 ms mean, 20.34 ms P95). The first tracked command took 19.68 ms
+         including the adapter and complete environment step. XR and RTX rendering were disabled
+         for that measurement, so it is not an expected headset frame rate. Session preparation
+         captures and replays the IK graph, executes one complete Newton hold step, and resets the
+         episode before accepting XR input. This keeps first-use compilation and physics
+         initialization off the first live hand command. A machine with an empty kernel cache may
+         pause longer while Warp compiles the required kernels.
+
+         If tracking is valid but the robot remains stationary, the session is usually paused:
+         press **Play**, focus the Kit window and press ``B``, or relaunch with
+         ``--auto_start_teleop``. Host auto-start is useful with an older client, but updating the
+         client is required for its **Stop** and **Reset** buttons to work.
 
          .. tip::
 

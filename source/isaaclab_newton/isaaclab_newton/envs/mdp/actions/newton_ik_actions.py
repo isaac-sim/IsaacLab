@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from newton import JointType
+from newton import JointType, ModelBuilder
 from newton import Model as NewtonModel
 from newton.selection import ArticulationView
 
@@ -35,6 +36,36 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_prototype_articulation_path(
+    source_path: str, asset_suffix: str, articulation_root_prim_path: str | None
+) -> str:
+    """Resolve the controlled articulation path in the single-environment prototype."""
+    return source_path + asset_suffix + (articulation_root_prim_path or "")
+
+
+def _finalize_prototype_model(builder: ModelBuilder, device: str) -> NewtonModel:
+    """Finalize an IK prototype without consuming geometry shared with the simulation model."""
+    prototype_builder = copy.copy(builder)
+    prototype_builder.shape_source = [
+        copy.copy(geometry) if geometry is not None else None for geometry in prototype_builder.shape_source
+    ]
+    return prototype_builder.finalize(device=device)
+
+
+def _build_isolated_prototype_model(stage, root_path: str, device: str) -> NewtonModel:
+    """Build an IK-only model from one articulation subtree in the composed stage."""
+    prototype_builder = ModelBuilder()
+    prototype_builder.add_usd(
+        stage,
+        root_path=root_path,
+        floating=False,
+        load_visual_shapes=False,
+        load_static_visual_shapes=False,
+        verbose=False,
+    )
+    return prototype_builder.finalize(device=device)
 
 
 @wp.kernel(enable_backward=False)
@@ -180,9 +211,21 @@ class NewtonInverseKinematicsAction(ActionTerm):
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         source_path, _, asset_suffix = cloner.query.path_to_source(plan, self._asset.cfg.prim_path)
         # The proto builder is keyed by the bare clone source; the articulation
-        # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot").
-        self._source_path = source_path + asset_suffix
-        prototype_model = NewtonManager._cl_protos[source_path].finalize(device=NewtonManager.get_model().device)
+        # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot"), optionally
+        # deeper when the asset authors its articulation root on a child prim.
+        self._source_path = _resolve_prototype_articulation_path(
+            source_path, asset_suffix, getattr(self._asset.cfg, "articulation_root_prim_path", None)
+        )
+        if self.cfg.isolate_articulation_model:
+            prototype_model = _build_isolated_prototype_model(
+                sim_utils.get_current_stage(),
+                root_path=source_path + asset_suffix,
+                device=NewtonManager.get_model().device,
+            )
+        else:
+            prototype_model = _finalize_prototype_model(
+                NewtonManager._cl_protos[source_path], device=NewtonManager.get_model().device
+            )
         prototype_view = ArticulationView(
             prototype_model,
             self._source_path,
@@ -224,6 +267,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
         self._joint_pos_des = wp.zeros((self.num_envs, len(self._joint_ids)), dtype=wp.float32, device=self.device)
         self._coord_ids = wp.from_torch(coord_ids.to(torch.int32).contiguous())
         self._controlled_ids = wp.from_torch(controlled_ids.to(torch.int32).contiguous())
+        self._ik_graph = None
+        self._root_orientations_validated = False
 
         self._clip = None
         if self.cfg.clip is not None:
@@ -307,6 +352,23 @@ class NewtonInverseKinematicsAction(ActionTerm):
     def apply_actions(self) -> None:
         # Seed the solver from the live joint positions on top of the prototype
         # default, solve, and write the controlled coordinates back -- all in Warp.
+        if self.cfg.use_cuda_graph and str(self.device).startswith("cuda"):
+            if self._ik_graph is None:
+                with wp.ScopedCapture(device=self.device) as capture:
+                    self._solve_and_gather()
+                self._ik_graph = capture.graph
+                logger.info("Captured Newton IK action graph on %s.", self.device)
+            # Warp capture records the kernels but does not execute them. Replay
+            # on both the capture call and subsequent calls so the first target
+            # written to the articulation is a solved target, never zero-filled
+            # scratch storage.
+            wp.capture_launch(self._ik_graph)
+        else:
+            self._solve_and_gather()
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
+
+    def _solve_and_gather(self) -> None:
+        """Seed, solve, and gather one fixed-shape Newton IK update."""
         wp.copy(self._seed, self._default_seed)
         wp.launch(
             _ik_seed_scatter_kernel,
@@ -321,16 +383,24 @@ class NewtonInverseKinematicsAction(ActionTerm):
             inputs=[solved, self._controlled_ids, self._joint_pos_des],
             device=self.device,
         )
-        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         env_ids = slice(None) if env_ids is None else env_ids
         self._raw_actions[env_ids] = 0.0
 
     def _validate_matching_root_orientations(self) -> None:
-        """Guard the prototype-frame IK assumption for replicated fixed-base roots."""
+        """Validate the fixed-base clone orientations once.
+
+        Fixed-base articulation roots cannot rotate after construction, so the
+        prototype-frame invariant is immutable. Caching this check avoids a
+        device-to-host synchronization on every action while retaining the
+        explicit failure for incorrectly cloned scenes.
+        """
+        if self._root_orientations_validated:
+            return
         root_quat_w = self._asset.data.root_quat_w.torch
         if root_quat_w.shape[0] <= 1:
+            self._root_orientations_validated = True
             return
         # q and -q represent the same orientation, so compare absolute dot products.
         same_orientation = torch.abs(torch.sum(root_quat_w * root_quat_w[0:1], dim=-1)) > 1.0 - 1e-5
@@ -341,6 +411,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
                 f"root orientations differ in env ids {bad_env_ids}. Use identical fixed-base root orientations "
                 "for this action."
             )
+        self._root_orientations_validated = True
 
     def _resolve_isaac_body_index(self, body_name: str) -> int:
         body_ids, body_names = self._asset.find_bodies(body_name)

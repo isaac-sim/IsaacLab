@@ -1,0 +1,135 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# OSMO 6.3 workflow for Newton YAM cable-routing validation and training.
+#
+# The default is a one-GPU, two-iteration smoke run. Campaign mode renders up
+# to 32 independent one-GPU trainers so OSMO can fill fragmented eight-GPU L40
+# nodes. A CPU-only source-preparation task receives the checksum-gated dirty
+# worktree once and fans the exact package out to every trainer.
+
+version: 2
+
+default-values:
+  workflow_name: yam-cable-routing-smoke
+  image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2
+  source_sha256: 0000000000000000000000000000000000000000000000000000000000000000
+  vcs_ref: 0000000000000000000000000000000000000000
+  platform: ovx-l40s
+  run_mode: smoke
+  campaign_task_mode: round_robin
+  num_gpu: 1
+  num_workers: 1
+  gpus_per_worker: 1
+  num_cpu: 4
+  memory_gi: 24
+  storage_gi: 32
+  task: IsaacContrib-CableRouting-YAM
+  num_envs: 16
+  max_iterations: 2
+  seed: 17
+  run_name: yam-cable-routing-smoke
+  wandb_project: yam-cable-routing-newton
+  wandb_entity: nvidia-isaac
+  preflight_task: IsaacContrib-CableRouting-YAM
+  preflight_num_envs: 8
+  preflight_reset_rounds: 4
+  preflight_warmup_steps: 16
+  preflight_benchmark_steps: 64
+  min_env_steps_per_second: 0
+  newton_revision: release-1.5
+  warp_version: 1.16.0
+  mujoco_version: 3.11.0
+  newton_usd_schemas_version: 0.4.0
+  rank_startup_stagger_seconds: 6
+  master_port: 29400
+
+workflow:
+  name: "{{ workflow_name }}"
+  resources:
+    source:
+      cpu: 1
+      gpu: 0
+      memory: 4Gi
+      storage: 32Gi
+      platform: "{{ platform }}"
+    trainer:
+      cpu: "{{ num_cpu }}"
+      gpu: "{{ gpus_per_worker }}"
+      memory: "{{ memory_gi }}Gi"
+      storage: "{{ storage_gi }}Gi"
+      platform: "{{ platform }}"
+  timeout:
+    exec_timeout: 7d
+    queue_timeout: 1d
+  tasks:
+  - name: source-prep
+    image: "{{ image }}"
+    resource: source
+    command: [bash]
+    args: [/tmp/prepare-yam-cable-routing-source.sh]
+    environment:
+      OSMO_OUTPUT_DIR: "{{output}}"
+      OSMO_SOURCE_SHA256: "{{ source_sha256 }}"
+      OSMO_VCS_REF: "{{ vcs_ref }}"
+    files:
+    - path: /tmp/prepare-yam-cable-routing-source.sh
+      localpath: prepare_yam_cable_routing_source.sh
+# {% for worker_index in range(num_workers) %}
+  - name: trainer-{{ worker_index }}
+    image: "{{ image }}"
+    resource: trainer
+    credentials:
+      wandb:
+        WANDB_API_KEY: wandb_api_key
+    command: [bash]
+    args: [/tmp/run-yam-cable-routing-osmo.sh]
+    environment:
+      ACCEPT_EULA: "Y"
+      NCCL_ASYNC_ERROR_HANDLING: "1"
+      NCCL_DEBUG: WARN
+      TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"
+      OSMO_CAMPAIGN_INDEX: "{{ worker_index }}"
+      OSMO_CAMPAIGN_SIZE: "{{ num_workers }}"
+      OSMO_CAMPAIGN_TASK_MODE: "{{ campaign_task_mode }}"
+      OSMO_IMAGE_REF: "{{ image }}"
+      OSMO_MASTER_PORT: "{{ master_port }}"
+      OSMO_MAX_ITERATIONS: "{{ max_iterations }}"
+      OSMO_MIN_ENV_STEPS_PER_SECOND: "{{ min_env_steps_per_second }}"
+      OSMO_MUJOCO_VERSION: "{{ mujoco_version }}"
+      OSMO_NEWTON_REVISION: "{{ newton_revision }}"
+      OSMO_NEWTON_USD_SCHEMAS_VERSION: "{{ newton_usd_schemas_version }}"
+      OSMO_NUM_CPU: "{{ num_cpu }}"
+      OSMO_NUM_ENVS: "{{ num_envs }}"
+      OSMO_NUM_GPU: "{{ gpus_per_worker }}"
+      OSMO_OUTPUT_DIR: "{{output}}"
+      OSMO_PREFLIGHT_BENCHMARK_STEPS: "{{ preflight_benchmark_steps }}"
+      OSMO_PREFLIGHT_NUM_ENVS: "{{ preflight_num_envs }}"
+      OSMO_PREFLIGHT_RESET_ROUNDS: "{{ preflight_reset_rounds }}"
+      OSMO_PREFLIGHT_TASK: "{{ preflight_task }}"
+      OSMO_PREFLIGHT_WARMUP_STEPS: "{{ preflight_warmup_steps }}"
+      OSMO_RANK_STARTUP_STAGGER_SECONDS: "{{ rank_startup_stagger_seconds }}"
+      OSMO_RUN_MODE: "{{ run_mode }}"
+      OSMO_RUN_NAME: "{{ run_name }}"
+      OSMO_SEED: "{{ seed }}"
+      OSMO_SOURCE_SHA256: "{{ source_sha256 }}"
+      OSMO_SOURCE_SYNC: "{{input:0}}/source-package"
+      OSMO_TASK: "{{ task }}"
+      OSMO_TOTAL_GPU: "{{ num_gpu }}"
+      OSMO_VCS_REF: "{{ vcs_ref }}"
+      OSMO_WARP_VERSION: "{{ warp_version }}"
+      OSMO_WANDB_ENTITY: "{{ wandb_entity }}"
+      OSMO_WANDB_PROJECT: "{{ wandb_project }}"
+      OSMO_WORKFLOW_ID: "{{workflow_id}}"
+    files:
+    - path: /tmp/run-yam-cable-routing-osmo.sh
+      localpath: run_yam_cable_routing_osmo.sh
+    - path: /tmp/yam-cable-routing-rank-entrypoint.py
+      localpath: yam_cable_routing_rank_entrypoint.py
+    - path: /tmp/yam-cable-routing-preflight.py
+      localpath: yam_cable_routing_preflight.py
+    inputs:
+    - task: source-prep
+# {% endfor %}
