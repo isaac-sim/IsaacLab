@@ -545,12 +545,11 @@ def show_run_summary(
 ) -> None:
     """Print a summary of the backends and scale a run is about to use.
 
-    Every row names the backend that will run. A backend reached through an automatic
-    selector -- ``physics=physx`` and ``renderer=rtx`` name a family, as does a task
-    config that leaves the choice to launch -- is named on its own, since the run never
-    asked for a different one; the selector itself is reported in the presets row. Only
-    a backend the task pinned and the command line never named is shown as
-    ``default (<resolved>)``.
+    Every row names the backend that will run, alongside the choice the run stopped at.
+    A backend reached through a family the command line named -- ``physics=physx`` and
+    ``renderer=rtx`` name a family that launch resolves -- is shown as
+    ``<family> (<resolved>)``, and a backend the run named neither directly nor by
+    family is shown as ``default (<resolved>)``.
 
     Resolving those selectors mutates *env_cfg* in place, exactly as the following
     :func:`~isaaclab.app.launch_simulation` call would; call this after every other
@@ -567,8 +566,8 @@ def show_run_summary(
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
 
-    # Names read before the scan resolves the automatic selectors, so a row can tell a
-    # backend the run reached through one of them from a backend the task pinned
+    # Names read before the scan resolves the automatic selectors, so a row can report
+    # the family the run asked for next to the backend that family resolved to
     requested_physics = _physics_name(env_cfg.sim.physics)
     requested_renderer = _renderer_name(env_cfg)
     scan(env_cfg, args_cli)
@@ -587,7 +586,7 @@ def show_run_summary(
                 if renderer is None
                 else _label(requested_renderer or renderer, renderer, selected=selected)
             ),
-            "Presets": _additional_preset_names({physics, renderer}),
+            "Presets": _additional_preset_names({requested_physics, physics, requested_renderer, renderer}),
             "Visualizer": _visualizer_name(args_cli, env_cfg),
             "Device": str(device),
             "Environments": str(num_envs),
@@ -596,7 +595,7 @@ def show_run_summary(
 
 
 def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -> str:
-    """Name the backend a row reports, marking the backends the run did not choose.
+    """Name the backend a row reports, and where the run stopped choosing it.
 
     Args:
         requested: Preset name the config carried before launch resolved its automatic
@@ -605,13 +604,15 @@ def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -
         selected: Preset names the command line asked for.
 
     Returns:
-        The resolved name alone when the run asked for that backend or reached it
-        through an automatic selector, and ``default (<resolved>)`` when the task
-        config pinned it.
+        The resolved name when the run asked for that backend, ``<family> (<resolved>)``
+        when it asked for the family the backend was picked from, and
+        ``default (<resolved>)`` when it asked for neither.
     """
-    if requested != resolved:
+    if resolved in selected:
         return resolved
-    return resolved if resolved in selected else f"default ({resolved})"
+    if requested in selected:
+        return f"{requested} ({resolved})"
+    return f"default ({resolved})"
 
 
 def _selected_preset_names() -> set[str]:
@@ -634,13 +635,13 @@ def _additional_preset_names(shown: Container[str | None]) -> str:
     """Return the presets the command line asked for that no other row names.
 
     Domain presets such as ``presets=cube`` do not surface anywhere else in the
-    summary, so they are listed here. So are selectors that name a backend family
-    rather than a backend -- ``renderer=rtx`` is listed next to an ``ovrtx`` renderer
-    row, which is what asking for the family resolved to. A preset naming the backend
-    a row already reports is left out.
+    summary, so they are listed here. A preset a row already reports is left out,
+    whether it names the backend that will run or the family the row resolved it
+    from -- ``renderer=rtx`` is reported by an ``rtx (ovrtx)`` renderer row.
 
     Args:
-        shown: Preset names reported by the physics and renderer rows.
+        shown: Preset names reported by the physics and renderer rows, including
+            the families those rows resolved from.
 
     Returns:
         The remaining preset names in command-line order, comma separated, or

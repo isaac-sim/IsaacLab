@@ -371,12 +371,14 @@ class _RecordingScreen:
 @pytest.mark.parametrize(
     "selectors, expected_physics, expected_renderer, expected_presets",
     [
-        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "ovrtx", "rtx"),
-        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "isaacsim_rtx", "rtx"),
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)", "none"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)", "none"),
         # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
-        (["physics=physx", "renderer=rtx"], "ovphysx", "ovrtx", "physx, rtx"),
+        (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)", "none"),
         # a run that names no backend reports the ones the task pinned as defaults
         ([], "default (isaacsim_physx)", "default (isaacsim_rtx)", "none"),
+        # a domain preset has no row of its own
+        (["physics=physx", "presets=depth"], "physx (isaacsim_physx)", "default (isaacsim_rtx)", "depth"),
     ],
 )
 def test_run_summary_reports_the_backends_the_run_resolves_to(
