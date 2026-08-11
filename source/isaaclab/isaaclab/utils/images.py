@@ -112,8 +112,7 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
         # Motion vectors are per-pixel (u, v) offsets that can be positive or negative. Normalize by the
         # peak magnitude to map into [-1, 1], remap to [0, 1], and pack the two channels into an RGB image
         # (u -> R, v -> G, unused B -> 0) so the result can be composed into a grid and saved as an image.
-        uv = normalized[..., :2]
-        uv = uv * 1000
+        uv = normalized[..., :2].clamp(-1.0, 1.0)
         uv = (uv + 1.0) * 0.5
         blue = torch.zeros_like(uv[..., :1])
         normalized = torch.cat([uv, blue], dim=-1)
