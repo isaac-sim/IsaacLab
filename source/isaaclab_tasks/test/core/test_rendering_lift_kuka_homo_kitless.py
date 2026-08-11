@@ -14,12 +14,20 @@ from rendering_test_utils import (
     make_generate_html_report_fixture,
     make_kitless_rendering_params_lift,
     make_require_ovlibs_install_fixture,
+    make_xfail_rendering_params,
     rendering_test_lift_kuka,
 )
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
-_RENDERING_PARAMS = make_kitless_rendering_params_lift()
+_OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
+_RENDERING_PARAMS = make_xfail_rendering_params(
+    make_kitless_rendering_params_lift(),
+    {
+        (variant, "ovphysx", "ovrtx_renderer", "albedo"): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+        for variant in ("legacy", "ovstage")
+    },
+)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
