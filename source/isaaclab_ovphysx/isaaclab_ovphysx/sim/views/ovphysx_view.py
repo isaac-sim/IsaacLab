@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 import warp as wp
 
@@ -145,6 +145,8 @@ class _BindingLike(Protocol):
     def read(self, tensor: wp.array) -> None: ...
 
     def write(self, tensor: wp.array, indices: wp.array | None = None, mask: wp.array | None = None) -> None: ...
+
+    def destroy(self) -> None: ...
 
 
 class _PhysXLike(Protocol):
@@ -258,6 +260,10 @@ class OvPhysxView:
             Defaults to ``False`` (lazy: bindings are created on first access).
     """
 
+    # Keep views reachable until manager shutdown so cached TensorBinding
+    # DLPack capsules can be destroyed before the OVPhysX runtime is released.
+    _live_views: ClassVar[set[OvPhysxView]] = set()
+
     class OvPhysxViewError(RuntimeError):
         """Base class for all errors raised by :class:`OvPhysxView`."""
 
@@ -331,22 +337,50 @@ class OvPhysxView:
         # destination and binding identities. Reusing the same reinterpret object per binding
         # keeps the wheel's object-identity read cache (the TensorBinding.read fast path) warm.
         self._read_views: dict[tuple[int, int], wp.array] = {}
+        self._closed = False
 
         if eager:
-            explicit = tensor_types is not None
-            requested = tensor_types if explicit else [t for t in TensorType if t.name != "INVALID"]
-            for tt in requested:
-                try:
-                    self._binding(self._resolve(tt))
-                except OvPhysxView.AttributeUnavailable:
-                    if explicit:
-                        raise  # caller named this exact type; surface the failure rather than drop it
-                    logger.debug("eager binding skipped for %s", tt)  # default sweep: skip inapplicable types
-            if not self._bindings:
-                raise OvPhysxView.AttributeUnavailable(
-                    f"Could not create any bindings for {self._target_repr()}; "
-                    "the pattern/prim_paths likely match no prims."
-                )
+            try:
+                explicit = tensor_types is not None
+                requested = tensor_types if explicit else [t for t in TensorType if t.name != "INVALID"]
+                for tt in requested:
+                    try:
+                        self._binding(self._resolve(tt))
+                    except OvPhysxView.AttributeUnavailable:
+                        if explicit:
+                            raise  # caller named this exact type; surface the failure rather than drop it
+                        logger.debug("eager binding skipped for %s", tt)  # default sweep: skip inapplicable types
+                if not self._bindings:
+                    raise OvPhysxView.AttributeUnavailable(
+                        f"Could not create any bindings for {self._target_repr()}; "
+                        "the pattern/prim_paths likely match no prims."
+                    )
+            except Exception:
+                self.close()
+                raise
+
+    def close(self) -> None:
+        """Destroy cached bindings before the OVPhysX runtime is released."""
+        if self._closed:
+            return
+        self._closed = True
+
+        for binding in self._bindings.values():
+            try:
+                binding.destroy()
+            except Exception:
+                logger.warning("Failed to destroy OVPhysX binding during shutdown.", exc_info=True)
+        self._bindings.clear()
+        self._read_views.clear()
+        self._physx = None
+        self._live_views.discard(self)
+
+    @classmethod
+    def _close_all_for(cls, physx: _PhysXLike) -> None:
+        """Close every live view backed by ``physx``."""
+        for view in tuple(cls._live_views):
+            if view._physx is physx:
+                view.close()
 
     # -- core: string-keyed get / set / read-into ------------------------------
 
@@ -589,6 +623,8 @@ class OvPhysxView:
 
     def _binding(self, tensor_type: Any) -> Any:
         """Return the cached ``TensorBinding`` for ``tensor_type``, creating it on first use."""
+        if self._closed:
+            raise OvPhysxView.OvPhysxViewError(f"Cannot access closed {self!r}.")
         binding = self._bindings.get(tensor_type)
         if binding is not None:
             return binding
@@ -612,15 +648,23 @@ class OvPhysxView:
         # The wheel returns a 0-count binding when nothing matches. Access ``count`` directly so a
         # malformed binding (missing ``count``) surfaces as an error rather than a phantom no-match.
         if binding is None or binding.count == 0:
+            if binding is not None:
+                try:
+                    binding.destroy()
+                except Exception:
+                    logger.warning("Failed to destroy empty OVPhysX binding.", exc_info=True)
             raise OvPhysxView.AttributeUnavailable(
                 f"Attribute {tensor_type_name(tensor_type)!r} is not available for {self._target_repr()} "
                 "(no matching prims)."
             )
         self._bindings[tensor_type] = binding
+        self._live_views.add(self)
         return binding
 
     def _sample(self) -> Any:
         """Return any instantiated binding to read view-level metadata from."""
+        if self._closed:
+            raise OvPhysxView.OvPhysxViewError(f"Cannot access closed {self!r}.")
         if not self._bindings:
             raise OvPhysxView.AttributeUnavailable(
                 "No bindings instantiated yet; access an attribute (or construct with eager=True) "

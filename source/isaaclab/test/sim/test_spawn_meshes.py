@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 
+import numpy as np
 import pytest
 
 import isaaclab.sim as sim_utils
@@ -102,6 +103,25 @@ def test_spawn_cuboid(sim):
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Cube/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
+    assert len(prim.GetAttribute("points").Get()) == 8
+    assert len(prim.GetAttribute("faceVertexCounts").Get()) == 12
+
+
+def test_spawn_cuboid_with_edge_refinement(sim):
+    """Test cuboid surface edge refinement."""
+    size = (1.0, 2.0, 3.0)
+    edge_refinement = 3.0
+    cfg = sim_utils.MeshCuboidCfg(size=size, edge_refinement=edge_refinement)
+    cfg.func("/World/RefinedCube", cfg)
+
+    prim = sim.stage.GetPrimAtPath("/World/RefinedCube/geometry/mesh")
+    points = np.asarray(prim.GetAttribute("points").Get())
+    faces = np.asarray(prim.GetAttribute("faceVertexIndices").Get()).reshape(-1, 3)
+    edges = points[faces[:, [0, 1, 1, 2, 2, 0]]].reshape(-1, 2, 3)
+
+    assert len(points) > 8
+    assert len(faces) > 12
+    assert np.linalg.norm(edges[:, 0] - edges[:, 1], axis=1).max() <= np.linalg.norm(size) / edge_refinement
 
 
 def test_spawn_sphere(sim):

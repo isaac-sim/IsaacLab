@@ -179,9 +179,9 @@ A few quick showroom scripts to run and checkout:
 
 -  Fill a Utah teapot with water particles, then tilt it to pour the fluid into a bowl:
 
-   **Physics:** Newton implicit MPM only
+   **Physics:** ``newton_mpm`` only
 
-   **Visualizer:** ``newton_gl`` (recommended), ``kit``
+   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
 
    This demo shows how to sample particles inside a hollow mesh and simulate the resulting
    fluid with Newton's experimental implicit Material Point Method (MPM) backend.

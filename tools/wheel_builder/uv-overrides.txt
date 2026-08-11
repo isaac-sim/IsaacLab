@@ -9,3 +9,5 @@ torchaudio==2.11.0
 typing-extensions>=4.15.0
 websockets>=14.0,<17.0.0
 coverage>=7.6.1
+packaging>=20,<27
+usd-exchange>=2.2 ; platform_machine == 'aarch64'

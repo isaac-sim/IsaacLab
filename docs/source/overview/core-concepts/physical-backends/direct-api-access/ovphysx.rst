@@ -38,9 +38,9 @@ Get the active OvPhysX handle from the manager:
        raise RuntimeError("OvPhysX has not been constructed; initialize and reset the simulation first.")
 
 A non-``None`` handle proves only that the manager constructed an OvPhysX instance; it is not a
-readiness predicate for the current simulation context. The manager can retain that cached handle
-after teardown. Initialize and reset the current context before access, and always reacquire the
-handle before creating new bindings or views.
+readiness predicate for the current simulation context. Manager teardown releases the instance
+and clears this handle. Initialize and reset the current context before access, and always
+reacquire the handle before creating new bindings or views.
 
 Create a raw tensor binding
 ---------------------------
@@ -60,13 +60,16 @@ type:
        pattern="/World/envs/env_*/Object",
        tensor_type=TensorType.RIGID_BODY_POSE,
    )
-   poses = wp.empty(
-       tuple(binding.shape),
-       dtype=wp.float32,
-       device=PhysicsManager.get_device(),
-   )
-   binding.read(poses)
-   binding.write(poses)
+   try:
+       poses = wp.empty(
+           tuple(binding.shape),
+           dtype=wp.float32,
+           device=PhysicsManager.get_device(),
+       )
+       binding.read(poses)
+       binding.write(poses)
+   finally:
+       binding.destroy()
 
 Before allocating a buffer, inspect ``binding.shape``, ``binding.dtype``, the
 binding's count, and its path metadata. Match the binding shape and DLPack scalar
@@ -118,14 +121,16 @@ with the native runtime and a Tensor API pattern:
        pattern="/World/envs/env_*/Object",
        device=PhysicsManager.get_device(),
    )
+   try:
+       if view.try_binding_for("rigid_body_pose") is not None:
+           poses = view.get_attribute("rigid_body_pose")
+           view.set_attribute("rigid_body_pose", poses)
+           view.read_into("rigid_body_pose", poses)
 
-   if view.try_binding_for("rigid_body_pose") is not None:
-       poses = view.get_attribute("rigid_body_pose")
-       view.set_attribute("rigid_body_pose", poses)
-       view.read_into("rigid_body_pose", poses)
-
-   print(view.attribute_names)
-   print(view.available_attributes)
+       print(view.attribute_names)
+       print(view.available_attributes)
+   finally:
+       view.close()
 
 ``attribute_names`` is the installed ``TensorType`` vocabulary, not selection
 availability. ``try_binding_for`` attempts to create a binding for this
@@ -157,13 +162,16 @@ as structured Warp values, but it does not move data between CPU and GPU.
 
 Use ``try_binding_for`` when a tensor type might not apply to the selected
 prims. Reacquire raw bindings and convenience views after reset paths that
-rebuild the stage or runtime, or after teardown.
+rebuild the stage or runtime, or after teardown. Destroy raw bindings and close
+custom views before they are no longer needed. Manager teardown closes tracked
+``OvPhysxView`` instances before releasing the runtime, but explicit cleanup
+avoids retaining their bindings for the rest of a long-lived simulation.
 
 Authoritative references
 ------------------------
 
 The generated Isaac Lab reference for
 :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` documents the convenience
-manager. The repository metadata pins OvPhysX to a version but does not provide
+view. The repository metadata pins OvPhysX to a version but does not provide
 a versioned official OvPhysX documentation URL, so inspect the installed
 ``TensorType`` and binding metadata at runtime.

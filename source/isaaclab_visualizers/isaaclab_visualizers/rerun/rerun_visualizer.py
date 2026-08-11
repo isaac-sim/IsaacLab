@@ -214,12 +214,12 @@ class NewtonViewerRerun(ViewerRerun):
                         rrb.Vertical(*manager_views),
                         column_shares=[4, 1],
                     ),
-                    rrb.TimePanel(timeline="time", state="collapsed"),
+                    rrb.TimePanel(state="hidden"),
                     collapse_panels=True,
                 )
             return rrb.Blueprint(
                 streaming_panel,
-                rrb.TimePanel(timeline="time", state="collapsed"),
+                rrb.TimePanel(state="hidden"),
                 collapse_panels=True,
             )
 
@@ -241,12 +241,12 @@ class NewtonViewerRerun(ViewerRerun):
                     rrb.Vertical(*manager_views),
                     column_shares=[4, 1],
                 ),
-                rrb.TimePanel(timeline="time", state="collapsed"),
+                rrb.TimePanel(state="hidden"),
                 collapse_panels=True,
             )
         return rrb.Blueprint(
             view_3d,
-            rrb.TimePanel(timeline="time", state="collapsed"),
+            rrb.TimePanel(state="hidden"),
             collapse_panels=True,
         )
 
@@ -704,6 +704,7 @@ class RerunVisualizer(BaseVisualizer):
                     ),
                     row_shares=[20, 1],
                 ),
+                rrb.TimePanel(state="hidden"),
                 collapse_panels=True,
             )
         )

@@ -113,6 +113,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
+        NewtonManager._supports_rigid_body_force_input = True
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:
