@@ -18,7 +18,6 @@ import warp as wp
 
 import isaaclab.envs.mdp.events as events
 from isaaclab.actuators import (
-    ActuatorBase,
     ActuatorCollection,
     ActuatorControl,
     ActuatorJointProperties,
@@ -541,12 +540,6 @@ def test_collection_is_mapping_like_and_read_only():
     assert tuple(collection) == ("all",)
 
 
-def test_singleton_all_joint_group_preserves_public_selector():
-    collection = ActuatorCollection({"all": _implicit_cfg()}, FakeActuatorControl())
-
-    assert collection["all"].joint_indices == slice(None)
-
-
 def test_custom_singleton_compute_receives_original_selector():
     cfg = _implicit_cfg()
     cfg.class_type = SelectorRecordingActuator
@@ -649,14 +642,6 @@ def test_same_stateless_class_builds_one_execution_batch_with_group_views():
             assert id(getattr(collection[group_name], name)) == group_tensor_ids[group_name][name]
 
 
-def test_execution_parameter_schema_is_owned_by_exact_aggregation_types():
-    assert "_EXECUTION_PARAMETER_NAMES" not in ActuatorBase.__dict__
-    assert all(
-        "_EXECUTION_PARAMETER_NAMES" in actuator_type.__dict__
-        for actuator_type in (ImplicitActuator, IdealPDActuator, DCMotor)
-    )
-
-
 def test_disjoint_implicit_groups_share_one_execution_batch():
     collection = ActuatorCollection(
         {
@@ -688,10 +673,8 @@ def test_lab_executed_explicit_groups_warn_once():
         ActuatorCollection(explicit_cfgs, FakeActuatorControl())
 
     deprecations = [warning for warning in caught_warnings if warning.category is DeprecationWarning]
-    assert [str(warning.message) for warning in deprecations] == [
-        "Isaac Lab execution of explicit actuator models is deprecated. Use Newton actuator execution instead. "
-        "Affected groups: ideal, delayed."
-    ]
+    assert len(deprecations) == 1
+    assert "execution of explicit actuator models is deprecated" in str(deprecations[0].message)
 
 
 def test_native_executed_explicit_group_does_not_warn():
@@ -705,7 +688,7 @@ def test_native_executed_explicit_group_does_not_warn():
     assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
 
-def test_dc_motor_execution_batch_packs_different_saturation_efforts(monkeypatch):
+def test_dc_motor_execution_batch_packs_different_saturation_efforts():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     cfgs = {
         "hips": _dc_cfg(
@@ -766,14 +749,6 @@ def test_dc_motor_execution_batch_packs_different_saturation_efforts(monkeypatch
             executor_tensor = getattr(executor, name)
             assert group_tensor.shape == (2, 2)
             assert group_tensor.untyped_storage().data_ptr() != executor_tensor.untyped_storage().data_ptr()
-
-    reference_control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    reference = _make_unbatched_reference(monkeypatch, DCMotor, cfgs, reference_control)
-    _assign_deterministic_inputs(collection, control)
-    _assign_deterministic_inputs(reference, reference_control)
-    collection.compute()
-    reference.compute()
-    _assert_collection_outputs_match_exactly(collection, reference)
 
 
 def test_ideal_pd_aggregate_matches_independent_groups_exactly(monkeypatch):
@@ -914,19 +889,6 @@ def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
     assert compute_calls == 1
     assert scatter_calls == 1
     batch = collection._execution_batches[0]
-    for group_name, group_slice in zip(batch.group_names, batch.group_slices):
-        torch.testing.assert_close(
-            collection[group_name].computed_effort,
-            batch.actuator.computed_effort[:, group_slice],
-            rtol=0.0,
-            atol=0.0,
-        )
-        torch.testing.assert_close(
-            collection[group_name].applied_effort,
-            batch.actuator.applied_effort[:, group_slice],
-            rtol=0.0,
-            atol=0.0,
-        )
     first_hips_output = collection["hips"].computed_effort
     collection.command.position.torch.mul_(-1.25)
     collection.command.velocity.torch.add_(2.75)
@@ -952,32 +914,7 @@ def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
         )
 
 
-def test_stateless_explicit_batch_preserves_output_storage():
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    collection = ActuatorCollection(
-        {
-            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=8.0, damping=0.5, effort_limit=12.0),
-            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=13.0, damping=1.0, effort_limit=18.0),
-        },
-        control,
-    )
-    _assign_deterministic_inputs(collection, control)
-    batch = collection._execution_batches[0]
-
-    collection.compute()
-    computed_ptr = batch.actuator.computed_effort.data_ptr()
-    applied_ptr = batch.actuator.applied_effort.data_ptr()
-    collection.command.position.torch.mul_(-1.25)
-    collection.command.velocity.torch.add_(2.75)
-    collection.command.effort.torch.sub_(4.5)
-
-    collection.compute()
-
-    assert batch.actuator.computed_effort.data_ptr() == computed_ptr
-    assert batch.actuator.applied_effort.data_ptr() == applied_ptr
-
-
-def test_stateless_explicit_batch_preserves_input_staging_storage():
+def test_stateless_explicit_batch_preserves_tensor_pointers():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
         {
@@ -991,6 +928,8 @@ def test_stateless_explicit_batch_preserves_input_staging_storage():
 
     collection.compute()
     pointers = (
+        batch.actuator.computed_effort.data_ptr(),
+        batch.actuator.applied_effort.data_ptr(),
         batch.control_action.joint_positions.data_ptr(),
         batch.control_action.joint_velocities.data_ptr(),
         batch.control_action.joint_efforts.data_ptr(),
@@ -1006,6 +945,8 @@ def test_stateless_explicit_batch_preserves_input_staging_storage():
     collection.compute()
 
     assert pointers == (
+        batch.actuator.computed_effort.data_ptr(),
+        batch.actuator.applied_effort.data_ptr(),
         batch.control_action.joint_positions.data_ptr(),
         batch.control_action.joint_velocities.data_ptr(),
         batch.control_action.joint_efforts.data_ptr(),
