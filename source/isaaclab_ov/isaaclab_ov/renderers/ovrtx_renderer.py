@@ -198,31 +198,6 @@ def ovrtx_use_ovstage_enabled() -> bool:
     return value == "1"
 
 
-class _SceneBackendOperation:
-    """Resolves a scene operation to the backend implementation the renderer selected.
-
-    The ovstage and legacy paths own the scene differently -- ovstage publishes into a stage OVRTX
-    reads, the legacy path writes OVRTX bindings directly -- but implement the same set of
-    operations, named ``_<operation>_ovstage`` and ``_<operation>_legacy``. Declaring an operation as
-    this descriptor routes it to the selected backend, so call sites carry no branching, and
-    :meth:`__set_name__` rejects a declaration whose pair is incomplete.
-    """
-
-    def __set_name__(self, owner: type, name: str) -> None:
-        self._ovstage_name = f"{name}_ovstage"
-        self._legacy_name = f"{name}_legacy"
-        # Runs after the class body is evaluated, so both implementations are already visible: a
-        # half-implemented operation fails at class creation instead of on first dispatch.
-        for attr in (self._ovstage_name, self._legacy_name):
-            if not callable(getattr(owner, attr, None)):
-                raise TypeError(f"{owner.__name__} declares {name!r} but has no {attr!r} method")
-
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-        return getattr(instance, self._ovstage_name if instance._use_ovstage else self._legacy_name)
-
-
 def _resolve_render_strategy(cfg: OVRTXRendererCfg) -> _RenderStrategy:
     """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
@@ -1513,27 +1488,52 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = False
 
     # ---------------------------------------------------------------------------
-    # Scene backend — binds each scene operation to the selected implementation
+    # Dispatch methods — route to ovstage or legacy implementation
     # ---------------------------------------------------------------------------
 
-    _init_fields = _SceneBackendOperation()
-    _initialize_from_spec = _SceneBackendOperation()
-    _setup_xform_bindings = _SceneBackendOperation()
-    _setup_deformable_bindings = _SceneBackendOperation()
-    _setup_particle_bindings = _SceneBackendOperation()
-    _update_transforms = _SceneBackendOperation()
-    _update_geometries = _SceneBackendOperation()
-    _update_camera = _SceneBackendOperation()
-    _render = _SceneBackendOperation()
-    _close = _SceneBackendOperation()
+    def _init_fields(self) -> None:
+        if self._use_ovstage:
+            self._init_fields_ovstage()
+        else:
+            self._init_fields_legacy()
+
+    def _initialize_from_spec(self, spec: CameraRenderSpec) -> None:
+        if self._use_ovstage:
+            self._initialize_from_spec_ovstage(spec)
+        else:
+            self._initialize_from_spec_legacy(spec)
+
+    def _setup_xform_bindings(self) -> None:
+        if self._use_ovstage:
+            self._setup_xform_bindings_ovstage()
+        else:
+            self._setup_xform_bindings_legacy()
+
+    def _setup_deformable_bindings(self, num_envs: int) -> None:
+        if self._use_ovstage:
+            self._setup_deformable_bindings_ovstage(num_envs)
+        else:
+            self._setup_deformable_bindings_legacy(num_envs)
+
+    def _setup_particle_bindings(self) -> None:
+        if self._use_ovstage:
+            self._setup_particle_bindings_ovstage()
+        else:
+            self._setup_particle_bindings_legacy()
 
     def update_transforms(self) -> None:
         """Sync transforms to OVRTX."""
-        self._update_transforms()
+        if self._use_ovstage:
+            self._update_transforms_ovstage()
+        else:
+            self._update_transforms_legacy()
 
     def update_geometries(self) -> None:
         """Sync geometries to OVRTX."""
-        self._update_geometries()
+        if self._use_ovstage:
+            self._update_geometries_ovstage()
+        else:
+            self._update_geometries_legacy()
 
     def update_camera(
         self,
@@ -1543,11 +1543,17 @@ class OVRTXRenderer(BaseRenderer):
         intrinsics: ProxyArray,
     ) -> None:
         """Update camera transforms in OVRTX."""
-        self._update_camera(render_data, positions, orientations, intrinsics)
+        if self._use_ovstage:
+            self._update_camera_ovstage(render_data, positions, orientations, intrinsics)
+        else:
+            self._update_camera_legacy(render_data, positions, orientations, intrinsics)
 
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""
-        self._render(render_data)
+        if self._use_ovstage:
+            self._render_ovstage(render_data)
+        else:
+            self._render_legacy(render_data)
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
@@ -1569,7 +1575,10 @@ class OVRTXRenderer(BaseRenderer):
         # is None because :meth:`cleanup` already released the per-camera buffers, so queued renders are
         # only waited on, not consumed.
         self._strategy.cleanup(None, self._consume_products)
-        self._close()
+        if self._use_ovstage:
+            self._close_ovstage()
+        else:
+            self._close_legacy()
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
