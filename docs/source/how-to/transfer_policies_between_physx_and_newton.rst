@@ -531,8 +531,8 @@ independently.
 Transfer demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Each video shows a PhysX-trained policy deployed in Newton MJWarp without retraining.
-The two backends are rendered side by side for direct comparison.
+These videos demonstrate PhysX-trained policies running in Newton MJWarp without retraining.
+They do not represent full PP/PN/NN/NP validation. The backends are shown side by side.
 
 **ANYmal-D rough-terrain locomotion** (``Isaac-Velocity-Rough-AnymalD``)
 
