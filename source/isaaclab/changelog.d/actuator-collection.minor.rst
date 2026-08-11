@@ -27,6 +27,9 @@ Changed
 * Changed :attr:`~isaaclab.actuators.ImplicitActuatorCfg.velocity_limit` to
   populate the actuator soft velocity-limit view. Use ``velocity_limit_sim``
   to configure the solver velocity clamp.
+* **Breaking:** Removed the actuator stiffness and damping writer methods from
+  articulations and actuator collections. Use ``randomize_actuator_gains`` for
+  managed domain randomization.
 * **Breaking:** Changed actuator collection membership to be fixed at
   construction. Configure groups through
   :attr:`~isaaclab.assets.ArticulationCfg.actuators` before constructing the

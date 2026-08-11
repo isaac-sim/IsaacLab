@@ -616,12 +616,9 @@ def _build_dr_term(env, asset_name, joint_ids=None):
 class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
     """End-to-end DR test for the Newton backend.
 
-    Drives ``randomize_actuator_gains`` (events.py) and verifies the new
-    kp/kd values land on the controllers of the articulation's Newton
-    actuators — exercising the full path: events →
-    ``write_actuator_stiffness_to_sim`` → per-actuator
-    ``ArticulationView.set_actuator_parameter`` (with the per-DOF mapping
-    silently skipping actuators that belong to other articulations).
+    Drives ``randomize_actuator_gains`` and verifies that kp/kd values reach
+    the controllers of the articulation's Newton actuators through
+    ``ArticulationView.set_actuator_parameter``.
 
     With ``operation="abs"`` and ``distribution="uniform"`` over a
     degenerate range ``(K, K)``, every randomized cell is set to exactly

@@ -1085,9 +1085,9 @@ Actuator API Moves to ``ActuatorCollection``
 
 In Isaac Lab 3.x, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a
 backend-neutral :class:`~isaaclab.actuators.ActuatorCollection`, available as
-:attr:`~isaaclab.assets.Articulation.actuators`. Actuator command setters, actuator gain writers, and
-per-joint actuator telemetry now live on the collection, so the same code path drives every
-physics backend. The collection setters are keyword-only.
+:attr:`~isaaclab.assets.Articulation.actuators`. Actuator command setters and per-joint actuator
+telemetry now live on the collection, so the same code path drives every physics backend. The
+collection setters are keyword-only.
 
 
 Method Relocations
@@ -1108,10 +1108,6 @@ The old methods are deprecated and will be removed in a future release:
 | ``set_joint_{position,velocity,effort}_target_index/_mask``   | ``actuators.command.set_{position,velocity,``   |
 |                                                               | ``effort}_index/_mask``                         |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``write_actuator_stiffness_to_sim`` /                         | same names on ``articulation.actuators``        |
-| ``write_actuator_damping_to_sim``                             |                                                 |
-+---------------------------------------------------------------+-------------------------------------------------+
-
 
 Property Relocations (Data Class)
 ---------------------------------

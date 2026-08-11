@@ -372,31 +372,6 @@ class _MockActuatorCollection(dict):
     def applied_torque(self):
         return self._applied_torque_ta
 
-    def write_actuator_stiffness_to_sim(self, *, stiffness, env_ids, joint_ids) -> None:
-        self._write_actuator_gain("kp", stiffness, env_ids, joint_ids)
-
-    def write_actuator_damping_to_sim(self, *, damping, env_ids, joint_ids) -> None:
-        self._write_actuator_gain("kd", damping, env_ids, joint_ids)
-
-    def _write_actuator_gain(self, attr, values, env_ids, joint_ids) -> None:
-        device = self._control.device
-        env_ids = self._control.resolve_env_ids(env_ids)
-        joint_ids = self._control.resolve_joint_ids(joint_ids)
-        if isinstance(env_ids, wp.array):
-            env_ids = wp.to_torch(env_ids)
-        if isinstance(joint_ids, wp.array):
-            joint_ids = wp.to_torch(joint_ids)
-        env_ids = env_ids.to(device, dtype=torch.long)
-        joint_ids = joint_ids.to(device, dtype=torch.long)
-        values_snapshot = values.to(device, dtype=torch.float32).contiguous().clone()
-        self._control.assert_shape_and_dtype(
-            values_snapshot,
-            (env_ids.shape[0], joint_ids.shape[0]),
-            wp.float32,
-            "values",
-        )
-        self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
-
     def _write_index_target(self, target, env_ids, joint_ids, buffer, full_data, command_name) -> None:
         from isaaclab.actuators import actuator_kernels
 

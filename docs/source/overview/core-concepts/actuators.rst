@@ -224,14 +224,7 @@ Parameter reference
 Each subsection below isolates one parameter on a five-way pendulum comparison and shows the
 resulting response. All clips come from the same demo, a single-joint pendulum stepped at
 :math:`dt = 1/360\text{ s}` with commands issued at 60 Hz; the stiffness, damping, and armature
-sweeps run on the *implicit* path. You can regenerate every clip and curve on this page with:
-
-.. code-block:: bash
-
-    ./isaaclab.sh -p tools/actuator_parameters.py --record --all --viz none --enable_cameras
-
-Run a single comparison interactively (with the visualizer) via
-``--parameter <name>`` (e.g. ``--parameter stiffness``); ``--list_parameters`` prints the keys.
+sweeps run on the *implicit* path.
 
 .. important::
 
@@ -580,18 +573,10 @@ during ``write_data_to_sim()``. Read the underlying arrays through ``.torch`` (o
 and :attr:`~isaaclab.actuators.ActuatorCollection.applied_torque` is the value after clipping (for
 implicit actuators these are the approximate torques the model records for reward/telemetry use).
 
-**Randomizing gains.** To change actuator stiffness or damping at runtime -- for example in a domain
-randomization event -- use the write helpers, which update matching actuator gain buffers and
-forward the values to native controllers when active:
-
-.. code-block:: python
-
-    robot.actuators.write_actuator_stiffness_to_sim(
-        stiffness=new_kp, env_ids=env_ids, joint_ids=joint_ids
-    )
-    robot.actuators.write_actuator_damping_to_sim(
-        damping=new_kd, env_ids=env_ids, joint_ids=joint_ids
-    )
+**Randomizing gains.** Runtime gain updates depend on the actuator implementation. Managed
+environments should use the ``randomize_actuator_gains`` event, which updates actuator-owned values,
+implicit solver drives, and native-controller parameters through the appropriate path. There is no
+generic collection-level stiffness or damping writer.
 
 **Lifecycle.** You do not call ``compute()`` or ``submit_commands()`` yourself. The articulation
 runs ``actuators.reset()`` on environment resets. Each call to

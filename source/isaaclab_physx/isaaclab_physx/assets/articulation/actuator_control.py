@@ -40,7 +40,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             articulation: PhysX articulation that owns backend simulation handles.
         """
         super().__init__(articulation)
-        self._native_active = False
         self._physx_actuator_wrapper = None
         self._all_env_mask: wp.array(dtype=wp.bool) | None = None
         self._all_joint_mask: wp.array(dtype=wp.bool) | None = None
@@ -112,7 +111,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
 
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
-        self._native_active = True
+        self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
 
         native_group_names = {
@@ -151,7 +150,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         return native_group_names
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
-        if not self._native_active:
+        if not self._native_actuator_path_active:
             return
         from isaaclab_newton.actuators import build_implicit_dof_mask  # noqa: PLC0415
 
@@ -181,7 +180,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             )
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
-        if not self._native_active:
+        if not self._native_actuator_path_active:
             return False
 
         articulation = self._articulation
@@ -323,7 +322,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             articulation.root_view.set_dof_velocity_targets(vel_target, articulation._ALL_INDICES)
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        if self._native_active and self._articulation.newton_actuator_adapter is not None:
+        if self._native_actuator_path_active and self._articulation.newton_actuator_adapter is not None:
             self._articulation.newton_actuator_adapter.reset(env_ids)
 
     def write_native_actuator_gain(

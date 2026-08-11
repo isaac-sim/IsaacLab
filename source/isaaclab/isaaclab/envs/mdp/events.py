@@ -1447,11 +1447,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 data, params, dim_0_ids=None, dim_1_ids=actuator_indices, operation=operation, distribution=distribution
             )
 
-        actuator_writer = getattr(self.asset, "actuators", self.asset)
-        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
-            actuator_writer = self.asset
-        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
-            actuator_writer = None
+        actuator_collection = self.asset.actuators if isinstance(self.asset.actuators, ActuatorCollection) else None
 
         # Loop through actuators and randomize gains
         for actuator_name, actuator in self.asset.actuators.items():
@@ -1493,17 +1489,12 @@ class randomize_actuator_gains(ManagerTermBase):
                     self.asset.write_joint_stiffness_to_sim_index(
                         stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
-                if isinstance(actuator_writer, ActuatorCollection):
-                    actuator_writer._write_actuator_gain(
+                if actuator_collection is not None:
+                    actuator_collection._write_native_actuator_gain(
                         "kp",
-                        actuator=actuator,
                         values=stiffness[:, actuator_indices],
                         env_ids=env_ids,
                         joint_ids=writer_joint_ids,
-                    )
-                elif actuator_writer is not None:
-                    actuator_writer.write_actuator_stiffness_to_sim(
-                        stiffness=stiffness[:, actuator_indices], env_ids=env_ids, joint_ids=writer_joint_ids
                     )
             # Randomize damping
             if damping_distribution_params is not None:
@@ -1517,17 +1508,12 @@ class randomize_actuator_gains(ManagerTermBase):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
-                if isinstance(actuator_writer, ActuatorCollection):
-                    actuator_writer._write_actuator_gain(
+                if actuator_collection is not None:
+                    actuator_collection._write_native_actuator_gain(
                         "kd",
-                        actuator=actuator,
                         values=damping[:, actuator_indices],
                         env_ids=env_ids,
                         joint_ids=writer_joint_ids,
-                    )
-                elif actuator_writer is not None:
-                    actuator_writer.write_actuator_damping_to_sim(
-                        damping=damping[:, actuator_indices], env_ids=env_ids, joint_ids=writer_joint_ids
                     )
 
 

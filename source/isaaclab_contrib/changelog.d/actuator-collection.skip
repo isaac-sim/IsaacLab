@@ -1,4 +1,0 @@
-Internal-only change: adapted ``Multirotor`` thruster storage to the actuator
-collection reset contract introduced by the actuator-collection refactor.
-Behavior is unchanged (thrusters still reset per environment on
-``Multirotor.reset``), so no user-facing changelog entry is warranted.

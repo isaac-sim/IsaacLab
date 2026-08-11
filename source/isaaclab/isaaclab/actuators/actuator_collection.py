@@ -314,7 +314,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._build_execution_batches()
         if debug_value_resolution:
             self._print_value_resolution_table()
-        if not getattr(self._control, "native_active", False):
+        if not self._control.native_actuator_path_active:
             explicit_group_names = [
                 name for name, actuator in self._groups.items() if isinstance(actuator, IdealPDActuator)
             ]
@@ -457,40 +457,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
         self._control.submit_commands(self)
-
-    def write_actuator_stiffness_to_sim(
-        self,
-        *,
-        stiffness: torch.Tensor,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
-    ) -> None:
-        """Write actuator stiffness values and propagate them to native controllers.
-
-        Args:
-            stiffness: Actuator stiffness values [N/m or N·m/rad, depending on joint type], shape
-                ``(len(env_ids), len(joint_ids))``.
-            env_ids: Environment indices to update.
-            joint_ids: Articulation joint indices to update.
-        """
-        self._write_actuator_gain("kp", stiffness, env_ids, joint_ids)
-
-    def write_actuator_damping_to_sim(
-        self,
-        *,
-        damping: torch.Tensor,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
-    ) -> None:
-        """Write actuator damping values and propagate them to native controllers.
-
-        Args:
-            damping: Actuator damping values [N·s/m or N·m·s/rad, depending on joint type], shape
-                ``(len(env_ids), len(joint_ids))``.
-            env_ids: Environment indices to update.
-            joint_ids: Articulation joint indices to update.
-        """
-        self._write_actuator_gain("kd", damping, env_ids, joint_ids)
 
     """
     Internal helpers.
@@ -666,7 +632,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         return batch
 
     def _build_execution_batches(self) -> None:
-        native_active = getattr(self._control, "native_active", False)
+        native_actuator_path_active = self._control.native_actuator_path_active
         batch_by_group: dict[str, ActuatorCollection._ExecutionBatch] = {}
         if not self._groups:
             self._execution_batches = []
@@ -683,7 +649,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             joint_indices = [group_joint_indices[name] for name in names]
             parameter_names = actuator_type.__dict__.get("_EXECUTION_PARAMETER_NAMES")
 
-            if native_active or parameter_names is None:
+            if native_actuator_path_active or parameter_names is None:
                 for name, group, indices in zip(names, groups, joint_indices):
                     batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
                 continue
@@ -938,50 +904,22 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 device=self.device,
             )
 
-    def _write_actuator_gain(
+    def _write_native_actuator_gain(
         self,
         attr: str,
         values: torch.Tensor,
         env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
         joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
-        actuator: ActuatorBase | None = None,
     ) -> None:
         env_ids = self._as_torch_indices(self._control.resolve_env_ids(env_ids))
         joint_ids = self._as_torch_indices(self._control.resolve_joint_ids(joint_ids))
         values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
-        actuator_attr = {"kp": "stiffness", "kd": "damping"}[attr]
-        if actuator is None:
-            self._write_execution_parameter(actuator_attr, values_snapshot, env_ids, joint_ids)
-        else:
-            group_joint_ids = self._joint_indices_as_torch(actuator).to(dtype=torch.long)
-            requested_columns, group_columns = torch.where(joint_ids[:, None] == group_joint_ids[None, :])
-            getattr(actuator, actuator_attr)[env_ids[:, None], group_columns[None, :]] = values_snapshot[
-                :, requested_columns
-            ]
         self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
 
     def _as_torch_indices(self, indices: torch.Tensor | _WarpIndex) -> torch.Tensor:
         if isinstance(indices, wp.array):
             indices = wp.to_torch(indices)
         return indices.to(self.device, dtype=torch.long)
-
-    def _write_execution_parameter(
-        self,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        values = values.to(self.device, dtype=torch.float32)
-        env_ids = env_ids.to(self.device, dtype=torch.long)
-        joint_ids = joint_ids.to(self.device, dtype=torch.long)
-        for batch in self._execution_batches:
-            batch_joint_ids = batch.joint_indices.to(dtype=torch.long)
-            requested_columns, batch_columns = torch.where(joint_ids[:, None] == batch_joint_ids[None, :])
-            if requested_columns.numel() == 0:
-                continue
-            target = getattr(batch.actuator, attr)
-            target[env_ids[:, None], batch_columns[None, :]] = values[:, requested_columns]
 
     def _validate_coverage(self) -> None:
         if self.num_joints == 0:

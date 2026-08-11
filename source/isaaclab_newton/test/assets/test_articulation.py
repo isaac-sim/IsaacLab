@@ -1005,10 +1005,10 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.parametrize("use_newton_actuators", [True])
-def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
+def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
     sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators
 ):
-    """Map partial public-order gain writes to Newton controller backend columns."""
+    """Map selected public joint IDs to Newton-controller columns."""
     articulation_cfg = generate_articulation_cfg(articulation_type).replace(
         actuators={
             "legs": IdealPDActuatorCfg(
@@ -1022,35 +1022,28 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
-
     assert use_newton_actuators
     assert articulation.joint_ordering is not None
     assert articulation.newton_actuator_adapter is not None
 
-    def gather_controller_parameter(name: str) -> torch.Tensor:
-        parameter = torch.zeros(
+    def gather_stiffness() -> torch.Tensor:
+        stiffness = torch.zeros(
             (articulation.num_instances, articulation.num_joints),
             device=articulation.device,
         )
         for actuator in articulation.newton_actuator_adapter.actuators:
-            if hasattr(actuator.controller, name):
-                parameter += wp.to_torch(
-                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, name)
+            if hasattr(actuator.controller, "kp"):
+                stiffness += wp.to_torch(
+                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, "kp")
                 )
-        return parameter
+        return stiffness
 
-    stiffness_before = gather_controller_parameter("kp").clone()
-    damping_before = gather_controller_parameter("kd").clone()
-    legs = articulation.actuators["legs"]
-    legs_stiffness_before = legs.stiffness.clone()
-    legs_damping_before = legs.damping.clone()
+    stiffness_before = gather_stiffness()
     env_ids = torch.tensor([1], device=articulation.device, dtype=torch.long)
     joint_ids = torch.tensor([1, 6, 10], device=articulation.device, dtype=torch.long)
     stiffness = torch.tensor([[101.0, 106.0, 110.0]], device=articulation.device)
-    damping = torch.tensor([[11.0, 16.0, 20.0]], device=articulation.device)
 
-    articulation.write_actuator_stiffness_to_sim(stiffness=stiffness, env_ids=env_ids, joint_ids=joint_ids)
-    articulation.write_actuator_damping_to_sim(damping=damping, env_ids=env_ids, joint_ids=joint_ids)
+    articulation.actuators._write_native_actuator_gain("kp", stiffness, env_ids, joint_ids)
 
     backend_joint_ids = torch.tensor(
         articulation.joint_ordering.user_to_backend_indices,
@@ -1058,19 +1051,8 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
         dtype=torch.long,
     )[joint_ids]
     expected_stiffness = stiffness_before.clone()
-    expected_damping = damping_before.clone()
     expected_stiffness[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = stiffness
-    expected_damping[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = damping
-    torch.testing.assert_close(gather_controller_parameter("kp"), expected_stiffness)
-    torch.testing.assert_close(gather_controller_parameter("kd"), expected_damping)
-    legs_joint_ids = torch.arange(articulation.num_joints, device=articulation.device)
-    requested_columns, legs_columns = torch.where(joint_ids[:, None] == legs_joint_ids[None, :])
-    expected_legs_stiffness = legs_stiffness_before.clone()
-    expected_legs_damping = legs_damping_before.clone()
-    expected_legs_stiffness[env_ids[:, None], legs_columns[None, :]] = stiffness[:, requested_columns]
-    expected_legs_damping[env_ids[:, None], legs_columns[None, :]] = damping[:, requested_columns]
-    torch.testing.assert_close(legs.stiffness, expected_legs_stiffness)
-    torch.testing.assert_close(legs.damping, expected_legs_damping)
+    torch.testing.assert_close(gather_stiffness(), expected_stiffness)
 
 
 @pytest.mark.parametrize("num_articulations", [1])

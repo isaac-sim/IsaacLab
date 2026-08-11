@@ -39,7 +39,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             articulation: Newton articulation that owns backend simulation handles.
         """
         super().__init__(articulation)
-        self._native_active = False
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation
@@ -60,7 +59,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not (use_newton_actuators and _HAS_NEWTON_ACTUATORS):
             return set()
 
-        self._native_active = True
+        self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
         SimulationManager.activate_newton_actuator_path()
 
@@ -80,7 +79,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         )
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
-        if not self._native_active:
+        if not self._native_actuator_path_active:
             return
 
         from newton import Model as NewtonModel  # noqa: PLC0415
@@ -154,11 +153,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         SimulationManager.register_post_actuator_callback(_post_actuator)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
-        return self._native_active
+        return self._native_actuator_path_active
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        if self._native_active:
+        if self._native_actuator_path_active:
             # Raw targets go directly to Newton's control object. Newton PD
             # consumes ``joint_act`` for explicit (Newton-managed) joints; the
             # solver's built-in joint drive does the PD for implicit joints
@@ -226,7 +225,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             )
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        if self._native_active and SimulationManager._adapter is not None:
+        if self._native_actuator_path_active and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
 
     def write_native_actuator_gain(

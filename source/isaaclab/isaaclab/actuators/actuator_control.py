@@ -261,6 +261,11 @@ class ActuatorControl(ABC):
             joint_mask: Selected joints, or None for an index write.
         """
 
+    @property
+    def native_actuator_path_active(self) -> bool:
+        """Whether backend handling replaces the Isaac Lab actuator loop."""
+        return False
+
     def prepare_native_actuators(
         self, collection: ActuatorCollection, actuator_cfgs: dict[str, ActuatorBaseCfg]
     ) -> set[str]:
@@ -342,11 +347,12 @@ class ArticulationActuatorControl(ActuatorControl):
 
     def __init__(self, articulation):
         self._articulation = articulation
+        self._native_actuator_path_active = False
 
     @property
-    def native_active(self) -> bool:
-        """Whether a backend-native actuator path is active."""
-        return getattr(self, "_native_active", False)
+    def native_actuator_path_active(self) -> bool:
+        """Whether backend handling replaces the Isaac Lab actuator loop."""
+        return self._native_actuator_path_active
 
     @property
     def num_instances(self) -> int:

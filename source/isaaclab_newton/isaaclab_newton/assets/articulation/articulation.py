@@ -1677,38 +1677,6 @@ class Articulation(BaseArticulation):
             env_mask=env_mask,
         )
 
-    def write_actuator_stiffness_to_sim(
-        self,
-        *,
-        stiffness: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.write_actuator_stiffness_to_sim`."""
-        warnings.warn(
-            "Articulation.write_actuator_stiffness_to_sim is deprecated. Use"
-            " articulation.actuators.write_actuator_stiffness_to_sim instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.write_actuator_stiffness_to_sim(stiffness=stiffness, env_ids=env_ids, joint_ids=joint_ids)
-
-    def write_actuator_damping_to_sim(
-        self,
-        *,
-        damping: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Deprecated. Use :meth:`ActuatorCollection.write_actuator_damping_to_sim`."""
-        warnings.warn(
-            "Articulation.write_actuator_damping_to_sim is deprecated. Use"
-            " articulation.actuators.write_actuator_damping_to_sim instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.actuators.write_actuator_damping_to_sim(damping=damping, env_ids=env_ids, joint_ids=joint_ids)
-
     def write_joint_position_limit_to_sim_index(
         self,
         *,
@@ -3426,7 +3394,7 @@ class Articulation(BaseArticulation):
             debug_value_resolution=self.cfg.actuator_value_resolution_debug_print,
         )
         self._has_implicit_actuators = self.actuators.has_implicit_actuators
-        self._has_newton_actuators = self._actuator_control.native_active
+        self._has_newton_actuators = self._actuator_control.native_actuator_path_active
         self._data.bind_actuator_collection(self.actuators)
 
     def _process_tendons(self):

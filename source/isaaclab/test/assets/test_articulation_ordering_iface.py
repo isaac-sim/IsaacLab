@@ -2174,18 +2174,9 @@ class TestArticulationOperations:
         backend_to_user = _expected_backend_to_user(joint_ordering, backend_joint_names)
         np.testing.assert_allclose(captured["forces"], user_forces_np[:, backend_to_user])
 
-    @pytest.mark.parametrize(
-        ("method_name", "value_name", "controller_attr"),
-        [
-            ("write_actuator_stiffness_to_sim", "stiffness", "kp"),
-            ("write_actuator_damping_to_sim", "damping", "kd"),
-        ],
-    )
     @_requires_physx
-    def test_physx_newton_actuator_gain_updates_use_public_joint_ids(
-        self, method_name: str, value_name: str, controller_attr: str
-    ):
-        """Route PhysX Newton-actuator gain updates by public joint ID."""
+    def test_physx_native_actuator_gain_update_uses_public_joint_ids(self):
+        """Map selected public joint IDs to native-controller columns."""
         art, _ = get_articulation(
             "physx",
             1,
@@ -2194,29 +2185,21 @@ class TestArticulationOperations:
             device="cpu",
             joint_ordering=("joint_2", "joint_1", "joint_0"),
         )
-        controller = MagicMock(
-            kp=wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"),
-            kd=wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"),
-        )
+        controller = MagicMock(kp=wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"))
         actuator = MagicMock(
             controller=controller,
             indices=wp.array([0, 1, 2], dtype=wp.uint32, device="cpu"),
         )
-        adapter = MagicMock(actuators=[actuator])
-        object.__setattr__(art, "newton_actuator_adapter", adapter)
+        object.__setattr__(art, "newton_actuator_adapter", MagicMock(actuators=[actuator]))
 
-        getattr(art, method_name)(
-            **{
-                value_name: torch.tensor([[99.0]], dtype=torch.float32),
-                "env_ids": torch.tensor([0], dtype=torch.int32),
-                "joint_ids": torch.tensor([0], dtype=torch.int32),
-            }
+        art.actuators._control.write_native_actuator_gain(
+            "kp",
+            torch.tensor([[99.0]], dtype=torch.float32),
+            torch.tensor([0], dtype=torch.int32),
+            torch.tensor([0], dtype=torch.int32),
         )
 
-        np.testing.assert_array_equal(
-            getattr(controller, controller_attr).numpy(),
-            np.asarray([99.0, 2.0, 3.0], dtype=np.float32),
-        )
+        np.testing.assert_array_equal(controller.kp.numpy(), np.asarray([99.0, 2.0, 3.0], dtype=np.float32))
 
     @_requires_physx
     def test_physx_validate_cfg_reports_velocity_limits_in_public_joint_order(self):
