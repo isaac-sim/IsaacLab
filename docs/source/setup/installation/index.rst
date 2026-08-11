@@ -304,8 +304,8 @@ Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ or
 
 ``-i`` always installs the core source packages. With no value, it also installs the optional
 ``mimic`` and ``teleop`` submodules plus the default Newton, RL, and visualizer dependencies.
-It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim; request those
-explicitly when needed.
+It does not install ``tetrahedralization``, ``contrib``, ``ov``, ``importers``, or Isaac Sim;
+request those explicitly when needed.
 
 Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list of selectors:
 
@@ -330,6 +330,9 @@ Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list o
      - Contrib runtime dependencies for RLinF.
    * - ``ov[<runtime>]``
      - OV runtime wheels. Select ``ovrtx``, ``ovphysx``, or ``all``.
+   * - ``importers``
+     - Standalone URDF/MJCF importers, for asset conversion without Isaac Sim. Cannot be
+       combined with ``isaacsim`` or ``teleop``. See :ref:`installation-standalone-importers`.
    * - ``isaacsim``
      - The Isaac Sim pip package.
 
@@ -589,6 +592,9 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
      - Imitation learning / XR teleoperation.
+   * - ``importers``
+     - Standalone URDF/MJCF importers, for asset conversion without Isaac Sim. See
+       :ref:`installation-standalone-importers`.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
@@ -599,12 +605,12 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
    * - ``test``
      - Developer test and documentation tooling.
 
-Extras can be combined freely: none of them conflict, so any set of extras -- including
-the Isaac Sim and OV backend stacks together -- resolves into a single environment.
-Use ``all`` to get every backend, RL library, and visualizer in one flag. The
-specialized extras (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
-``leapp``) and the developer ``test`` tooling are not part of ``all``; request them by
-name.
+Extras can be combined freely -- including the Isaac Sim and OV backend stacks together --
+except for ``importers``, which cannot share an environment with ``isaacsim`` or ``teleop``
+because both provide the same ``isaacsim.asset`` importers. Use ``all`` to get every backend,
+RL library, and visualizer in one flag. The specialized extras (``rlinf``, ``mimic``,
+``teleop``, ``tetrahedralization``, ``video``, ``leapp``, ``importers``) and the developer
+``test`` tooling are not part of ``all``; request them by name.
 
 .. isaaclab-uv-wheel-install::
 
