@@ -46,35 +46,38 @@ Standalone URDF/MJCF importers
 The URDF and MJCF converter scripts run without Isaac Sim, using the standalone
 ``isaacsim-asset-isolated`` importers. They ship in the ``importers`` extra, which is not
 installed by default because it cannot share an environment with Isaac Sim -- both provide the
-same ``isaacsim.asset`` importers. Install it from a source checkout:
+same ``isaacsim.asset`` importers. Install it from a source checkout (``--inexact`` keeps
+existing packages untouched):
+
+.. code-block:: bash
+
+   uv sync --inexact --extra importers
+
+With the legacy installer:
 
 .. code-block:: bash
 
    ./isaaclab.sh --install 'newton,rl[rsl-rl],importers'
 
-or into an environment built from the published wheel. The converters require
-``tinyobjloader>=2.0.0rc13``, which only a pre-release satisfies, so pre-releases must be
-enabled -- a source checkout supplies this through ``[tool.uv]``:
+Run conversion in the kit-less environment:
 
 .. code-block:: bash
 
-   uv pip install 'isaaclab[importers]' --prerelease allow
-
-Run conversion in the kit-less environment. Optionally pass ``--viz newton`` (or ``rerun`` /
-``viser``) to preview the converted asset in a kit-less Isaac Lab visualizer:
-
-.. code-block:: bash
-
-   python scripts/tools/convert_urdf.py \
+   uv run --extra importers python scripts/tools/convert_urdf.py \
      path/to/robot.urdf path/to/output_dir --merge_joints
 
-   python scripts/tools/convert_mjcf.py \
+   uv run --extra importers python scripts/tools/convert_mjcf.py \
      path/to/model.xml path/to/output.usd --merge_mesh
 
-The two cannot share an environment: both provide ``isaacsim.asset``, and the wheel displaces
-the Kit extension, so conversion fails with ``No module named 'isaacsim.asset'``. ``uv sync`` refuses the combination because it reads
-``[tool.uv].conflicts``; ``uv pip install`` and ``pip`` do not -- install ``importers`` only where Isaac
-Sim is absent.
+Optionally pass ``--viz`` to preview the converted asset in a kit-less Isaac Lab visualizer:
+
+.. code-block:: bash
+
+   uv run --extra importers --extra rerun --extra viser python scripts/tools/convert_urdf.py \
+     path/to/robot.urdf path/to/output_dir --merge_joints --viz newton,rerun,viser
+
+Do not install ``importers`` where Isaac Sim is present: both provide ``isaacsim.asset``, and the
+wheel displaces the Kit extension, so conversion fails with ``No module named 'isaacsim.asset'``.
 
 
 Using URDF Importer
