@@ -312,6 +312,7 @@ jobs:
           "0bsd"
           "apache-2.0"
           "apache-2.0 and cnri-python"
+          "apache-2.0 and mit"
           "apache-2.0 with llvm-exception"
           "bsd-0-clause"
           "bsd-1-clause"
