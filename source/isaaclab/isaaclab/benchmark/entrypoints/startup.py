@@ -24,6 +24,9 @@ Usage example::
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 \\
         presets=newton_mjwarp
+
+Use ``isaaclab benchmark startup-multigpu`` to profile rank 0 while every GPU launches
+concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 
 from __future__ import annotations
@@ -55,6 +58,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Parsed arguments and the remaining Hydra overrides.
     """
     from isaaclab.app import add_launcher_args
+    from isaaclab.benchmark.distributed import add_distributed_arg
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -86,6 +90,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         default=None,
         help="Path to YAML file with per-phase fnmatch patterns. Overrides --top_n for listed phases.",
     )
+    add_distributed_arg(parser)
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
@@ -189,11 +194,14 @@ def _timer_totals(since: dict[str, float] | None = None) -> dict[str, float]:
     return {name: seconds for name, seconds in elapsed.items() if seconds > 1e-6}
 
 
-def run(argv: list[str]) -> BenchmarkResult:
+def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the startup benchmark and write the selected formatter outputs.
 
     Args:
         argv: Command-line arguments excluding the script path.
+
+    Returns:
+        Completed startup result, or ``None`` on a distributed rank other than global rank 0.
     """
     start_utc = datetime.now(timezone.utc).isoformat()
     imports_profile = cProfile.Profile()
@@ -207,6 +215,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkResult, builders, capture, console, stepping
+    from isaaclab.benchmark.distributed import DistributedContext
     from isaaclab.benchmark.profiling import parse_cprofile_stats
     from isaaclab.benchmark.schema import CProfileFunction, StartupPhase
 
@@ -230,6 +239,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     whitelist = _load_whitelist(args.whitelist_config)
     if args.top_n is None:
         args.top_n = 5 if whitelist else 30
+    distributed = DistributedContext.from_env(args.distributed, workflow="startup")
 
     app_launch_profile = cProfile.Profile()
     app_launch_time_begin = time.perf_counter_ns()
@@ -243,7 +253,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
         if args.num_envs is not None:
             env_cfg.scene.num_envs = args.num_envs
-        if args.device is not None:
+        # A distributed launch already pinned this rank to its own GPU; honoring --device here
+        # would move every rank onto the same one.
+        if args.device is not None and not distributed.enabled:
             env_cfg.sim.device = args.device
         if args.seed is not None:
             env_cfg.seed = args.seed
@@ -282,6 +294,11 @@ def run(argv: list[str]) -> BenchmarkResult:
                 torch.cuda.synchronize()
             first_step_time_end = time.perf_counter_ns()
             end_utc = capture.now_utc_iso()
+
+            # Every rank profiles its own startup so the ranks contend as they would in a real
+            # distributed launch, but only rank 0 reports.
+            if not distributed.is_main:
+                return None
 
             # Ordered chronologically: the bundle and the console summary preserve this order.
             phase_profiles: dict[str, tuple[cProfile.Profile, float]] = {
@@ -331,7 +348,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 formatter_type=args.benchmark_formatter,
                 output_path=args.output_path,
                 use_recorders=True,
-                output_prefix=f"benchmark_startup_{args.task}",
+                output_prefix=f"benchmark_startup{'_multigpu' if distributed.enabled else ''}_{args.task}",
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args.task},
@@ -339,10 +356,17 @@ def run(argv: list[str]) -> BenchmarkResult:
                         {"name": "num_envs", "data": args.num_envs},
                         {"name": "top_n", "data": args.top_n},
                         {"name": "presets", "data": ",".join(cfg.presets)},
+                        {"name": "world_size", "data": distributed.world_size},
                     ]
                 },
             )
             benchmark.update_manual_recorders()
+
+            extra: dict[str, float | int | str | bool] = {
+                f"env_creation.{name}_s": seconds for name, seconds in env_creation_detail.items()
+            }
+            if distributed.enabled:
+                extra.update(distributed.bundle_metadata(workload_scope="rank0"))
 
             bundle = builders.build_startup_bundle(
                 run=run_identity,
@@ -351,7 +375,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 phases=phases,
                 top_n=args.top_n,
                 whitelist=args.whitelist_config,
-                extra={f"env_creation.{name}_s": seconds for name, seconds in env_creation_detail.items()},
+                extra=extra,
             )
             benchmark.attach_bundle(bundle)
             output_paths = benchmark.finalize()

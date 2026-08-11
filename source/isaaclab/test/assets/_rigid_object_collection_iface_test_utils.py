@@ -63,7 +63,7 @@ try:
     from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
-    from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError:
     pass
 else:

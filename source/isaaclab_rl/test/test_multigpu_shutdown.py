@@ -21,7 +21,7 @@ import time
 
 import pytest
 
-from isaaclab_rl.entrypoints import multigpu
+from isaaclab.cli import multigpu
 
 pytestmark = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
 
@@ -69,7 +69,7 @@ def _run_and_interrupt(monkeypatch, child_source: str) -> int:
 
     monkeypatch.setattr(subprocess, "Popen", _capture)
     threading.Timer(1.0, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
-    multigpu._run_distributed_command([sys.executable, "-c", _PARENT_WITH_CHILD.format(child=child_source)])
+    multigpu.run_launch_command([sys.executable, "-c", _PARENT_WITH_CHILD.format(child=child_source)])
     return grandchild["pid"]
 
 
@@ -84,7 +84,7 @@ def test_child_runs_in_its_own_process_group():
 
     subprocess.Popen = _record
     try:
-        assert multigpu._run_distributed_command([sys.executable, "-c", "pass"]) == 0
+        assert multigpu.run_launch_command([sys.executable, "-c", "pass"]) == 0
     finally:
         subprocess.Popen = real_popen
     assert recorded["new_session"] is True
@@ -106,4 +106,4 @@ def test_worker_ignoring_signals_is_killed(monkeypatch):
 
 
 def test_successful_run_returns_its_exit_code():
-    assert multigpu._run_distributed_command([sys.executable, "-c", "raise SystemExit(7)"]) == 7
+    assert multigpu.run_launch_command([sys.executable, "-c", "raise SystemExit(7)"]) == 7

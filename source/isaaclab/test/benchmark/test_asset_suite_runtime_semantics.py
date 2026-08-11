@@ -426,7 +426,7 @@ def test_ovphysx_factories_use_exported_binding_set_signature(
 def test_mock_ovphysx_binding_reads_latest_data_without_optional_runtime(monkeypatch, read_mode) -> None:
     """Repository mock reads should support every consumer mode and reflect subsequent writes."""
     monkeypatch.setitem(sys.modules, "isaaclab_ov.tensor_types", SimpleNamespace())
-    bindings_module = importlib.import_module("isaaclab_ov.test.mock_interfaces.views.mock_ovphysx_bindings")
+    bindings_module = importlib.import_module("isaaclab_ov.test.fixtures.views.mock_ovphysx_bindings")
     binding = bindings_module.MockTensorBinding(tensor_type=0, shape=(2, 7), count=2)
     first = np.arange(14, dtype=np.float32).reshape(2, 7)
     latest = first + 100.0

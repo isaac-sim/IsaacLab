@@ -25,7 +25,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets.articulation.articulation import Articulation  # noqa: E402
 from isaaclab_ov.physics import OvPhysxManager  # noqa: E402
-from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
+from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 
 wp.init()
 
@@ -121,7 +121,7 @@ def test_process_tendons_scopes_to_articulation_root():
 def test_mock_binding_set_rigid_object_shapes():
     pytest.importorskip("isaaclab_ov.tensor_types").RIGID_BODY_POSE  # gates on wheel
     from isaaclab_ov import tensor_types as TT
-    from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 
     bindings = MockOvPhysxBindingSet(
         num_instances=4,

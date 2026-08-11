@@ -2130,7 +2130,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "3.2.0"
+version = "3.2.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },

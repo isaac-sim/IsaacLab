@@ -20,7 +20,7 @@ import warp as wp
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
-from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
+from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 
 wp.init()
 

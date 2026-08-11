@@ -49,7 +49,7 @@ try:
 
     from isaaclab_ov.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
     from isaaclab_ov.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
-    from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError:
     pass
 else:

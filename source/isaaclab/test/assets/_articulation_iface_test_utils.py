@@ -50,7 +50,7 @@ try:
 
     from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
-    from isaaclab_ov.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
