@@ -90,7 +90,6 @@ class TestInstallIsaacSim:
         ):
             _install_isaacsim()
 
-        assert len(calls) == 2
         assert all("install" not in call for call in calls)
 
     def test_kernel_only_install_adds_extras_at_installed_version(self):

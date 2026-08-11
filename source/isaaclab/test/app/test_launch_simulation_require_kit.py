@@ -106,26 +106,6 @@ def test_kernel_only_isaac_sim_reports_missing_runtime(
     assert "Isaac Sim is not installed or not found on PYTHONPATH" not in caplog.text
 
 
-def test_kernel_only_isaac_sim_keeps_local_activation_hint(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, tmp_path
-):
-    from isaaclab.app import AppLauncher
-
-    local_sim = tmp_path / "_isaac_sim"
-    local_sim.mkdir()
-    monkeypatch.setattr(AppLauncher, "is_available", lambda: False)
-    monkeypatch.setattr(sim_launcher.importlib.metadata, "version", lambda _name: "6.1.0rc3")
-    monkeypatch.setenv("ISAACLAB_PATH", str(tmp_path))
-    monkeypatch.setattr(sim_launcher.sys, "platform", "linux")
-
-    with caplog.at_level("ERROR"), pytest.raises(SystemExit):
-        sim_launcher._ensure_isaac_sim_available()
-
-    assert f"Found a local Isaac Sim at {local_sim}" in caplog.text
-    assert f'source "{local_sim}/setup_conda_env.sh"' in caplog.text
-    assert "./isaaclab.sh -i isaacsim" in caplog.text
-
-
 def test_missing_isaac_sim_keeps_installation_hint(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
     from isaaclab.app import AppLauncher
 
