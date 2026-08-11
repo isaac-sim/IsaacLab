@@ -55,8 +55,9 @@ class SinglePushCurriculum(ManagerTermBase):
         else:
             env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device)
         if env.common_step_counter > 0 and env_ids.numel() > 0:
-            self._levels[env_ids] += env.success_this_step[env_ids].long()
-            self._levels[env_ids].clamp_(max=self._maximum_level)
+            self._levels[env_ids] = (self._levels[env_ids] + env.success_this_step[env_ids].long()).clamp_max(
+                self._maximum_level
+            )
         return {
             "mean_level": self._levels.float().mean(),
             "randomization_scale": self._scales[self._levels].mean(),
