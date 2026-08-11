@@ -424,7 +424,8 @@ class Articulation(BaseArticulation):
                         self._ALL_BODY_MASK,
                     ],
                 )
-        self._instantaneous_wrench_composer.reset()
+        if self._instantaneous_wrench_composer.active:
+            self._instantaneous_wrench_composer.reset()
 
         # Compute processed actuator commands (native path is a no-op here) and
         # submit them to the backend through the collection's control adapter.
