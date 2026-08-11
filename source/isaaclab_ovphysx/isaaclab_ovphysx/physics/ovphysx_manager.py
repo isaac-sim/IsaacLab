@@ -602,6 +602,10 @@ class OvPhysxManager(PhysicsManager):
                 # dependencies in physics-only population.
                 domains=ovstage.PopulationDomain.ALL,
             )
+            # ovphysx reads sealed data only: population completes the writes but never
+            # commits the ordinal, so attaching at an unsealed ordinal fails the parse
+            # and silently yields an empty scene.
+            stage.advance_write_floor(ordinal=1).wait()
             cls._physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
             stage.destroy()
