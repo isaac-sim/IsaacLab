@@ -139,7 +139,7 @@ def test_version_single_source_matches_literal_pins():
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.10"
+    assert versions["ovphysx"] == "0.5.9"
     assert "omniverseclient==2.72.3" in dependencies
 
     # Isaac Sim extra mirrors the table, and the teleop extra repeats the same pin.
