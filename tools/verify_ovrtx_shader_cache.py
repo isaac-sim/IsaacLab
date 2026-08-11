@@ -3,15 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Verify that the OVRTX kitless shader cache is mounted and writable.
+"""Verify that the directory named by OVRTX_SHADER_CACHE_PATH is mounted and writable.
 
-Run inside the test container before tests start to catch mount problems early
-rather than discovering them as slow shader compilation mid-test.
-
-The kit/ sub-tree is validated separately by the run_tests.sh mount setup
-(the Docker nested bind mount either works or the container fails to start);
-this script only checks the kitless path exposed via OVRTX_SHADER_CACHE_PATH
-because that variable is what OVRTXRenderer reads at Renderer-creation time.
+Run inside the test container before tests start, so a bad mount surfaces here
+rather than as unexplained slow shader compilation mid-test.
 
 Exit 0 on success; non-zero on any misconfiguration.
 """
