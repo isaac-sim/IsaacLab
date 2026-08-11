@@ -173,15 +173,9 @@ class CommandTerm(ManagerTermBase):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
-            # only enable debug_vis if omniverse is available
-            from isaaclab.sim.simulation_context import SimulationContext
-
-            sim_context = SimulationContext.instance()
-            if not sim_context.has_omniverse_visualizer():
-                return False
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                self._debug_vis_handle = sim_context.vis_marker_registry.add_debug_vis_callback(self)
+                self._debug_vis_handle = self._env.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # remove the subscriber if it exists
             self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)

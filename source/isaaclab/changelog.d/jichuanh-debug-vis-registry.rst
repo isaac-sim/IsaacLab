@@ -6,9 +6,9 @@ Changed
   :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` debug visualization toggles, to register
   their callbacks through the simulation context's visualization marker registry instead of the
   deprecated Kit ``IApp.get_post_update_event_stream`` API. This matches how assets, sensors and
-  the managers already register. Debug visualization callbacks now run when a marker-capable
-  visualizer dispatches them, rather than on every Kit post-update tick, so they no longer run
-  when nothing is drawing them.
+  the managers already register. Debug visualization callbacks now run when a visualizer
+  dispatches them, rather than on every Kit post-update tick, so they no longer run when nothing
+  is consuming them.
 
 Fixed
 ^^^^^
@@ -16,3 +16,10 @@ Fixed
 * Fixed debug visualization failing in kitless mode. Enabling it raised
   ``NameError: name 'omni' is not defined`` because ``omni.kit.app`` is imported only when Kit is
   present but was used unconditionally. The registry path has no Kit dependency.
+
+* Fixed live-plot panels never updating when the active visualizer had markers disabled and live
+  plots enabled. Marker callbacks and live-plot panels share one registry, but dispatch was gated
+  on marker support alone even though the two visualizer flags are independent.
+
+* Fixed a visualization marker callback whose owner had been garbage collected aborting the whole
+  dispatch with ``ReferenceError``. Stale callbacks are now dropped instead.
