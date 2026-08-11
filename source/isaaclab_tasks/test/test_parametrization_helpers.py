@@ -123,6 +123,16 @@ def test_lift_factory_applies_shared_native_crash_policy() -> None:
     assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
 
 
+def test_lift_factory_adds_texture_readiness_policy() -> None:
+    """Lift should scope the optional OVRTX texture-readiness xfail."""
+    params = {param.id: param for param in make_kitless_rendering_params_lift(include_texture_readiness_xfail=True)}
+
+    for variant in ("legacy", "ovstage"):
+        param = params[f"{variant}-ovphysx-ovrtx-albedo"]
+        assert [mark.name for mark in param.marks] == ["xfail"]
+        assert "NVBUG#6505191" in param.marks[0].kwargs["reason"]
+
+
 def test_franka_factory_adds_cloth_only_motion_policy() -> None:
     """Only the cloth suite should carry the motion-vector xfail."""
     soft_params = {param.id: param for param in make_kitless_rendering_params_franka()}
