@@ -103,67 +103,13 @@ articulation so the mimic constraint can move it.
 Articulation joint and body ordering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-PhysX and MJWarp traverse the same USD articulation differently, so the joint and body axes of
-their state and command tensors are permutations of each other for any robot whose kinematic tree
-branches. A checkpoint stores column positions, not names. Replaying it in the other backend
-without correction silently feeds each joint's observation to a different joint's action.
+PhysX and MJWarp may order joints and bodies differently for branched robots. For cross-backend
+playback, set **both** ``joint_ordering`` and ``body_ordering`` to the backend used for training;
+``physics=`` still selects the target backend. The per-task commands below already include the
+correct overrides.
 
-Set both ordering fields on the robot to the convention the **source** checkpoint was trained
-under. ``physics=`` still selects the target backend.
-
-PN: replay a PhysX-trained checkpoint in Newton
-
-.. code-block:: bash
-
-   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp \
-       env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
-
-NP: replay a Newton-trained checkpoint in PhysX
-
-.. code-block:: bash
-
-   uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx \
-       env.scene.robot.joint_ordering=mjwarp env.scene.robot.body_ordering=mjwarp
-
-.. warning::
-   Set **both** fields. Setting only ``joint_ordering`` leaves bodies in backend order, which
-   mismatches any checkpoint whose observations use body-indexed quantities.
-
-Whether the override is needed depends on the robot's topology, so check each task rather than
-assuming. Serial chains agree between the backends. Branched robots do not:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 22 48
-
-   * - Task
-     - Override needed
-     - Native order
-   * - ``Isaac-Lift-Franka``
-     - No
-     - Identical joint and body order in both backends.
-   * - ``Isaac-Velocity-Rough-G1``
-     - Yes
-     - PhysX groups by tree depth. MJWarp emits each limb depth-first.
-   * - ``Isaac-Velocity-Rough-AnymalD``
-     - Yes
-     - PhysX yields ``LF_HAA, LH_HAA, RF_HAA, ...``. MJWarp yields
-       ``LF_HAA, LF_HFE, LF_KFE, ...``.
-
-To confirm the resolved axes, compare
-:attr:`~isaaclab.assets.Articulation.joint_names` with
-:attr:`~isaaclab.assets.Articulation.backend_joint_names` (and the body equivalents) after the
-environment starts. An override that already matches the backend's native order is normalized to
-the zero-conversion identity, so it costs nothing where it is unnecessary.
-
-.. seealso::
-
-   :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering` is the
-   reference for this mechanism. Go there for the full ordering contract, every accepted
-   convention value, the per-step conversion cost, and how to convert raw backend-view
-   indices, tensors, Jacobians, and mass matrices by hand.
+See :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering` for the full
+ordering contract, accepted values, and troubleshooting.
 
 A scrambled axis has a distinctive signature: a locomotion policy falls within a few dozen steps
 in every environment rather than degrading gracefully. Rule ordering out before attributing such a
