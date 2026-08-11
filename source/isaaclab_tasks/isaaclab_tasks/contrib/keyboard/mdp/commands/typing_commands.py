@@ -30,8 +30,8 @@ from isaaclab.utils.math import (
 
 from isaaclab_tasks.core.lift.mdp.events import SuccessMonitor
 from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
+from isaaclab_tasks.core.lift.mdp.utils import get_reset_state, set_reset_state
 
-from ..states import get_reset_state, set_reset_state
 from . import typing_vis
 
 if TYPE_CHECKING:
