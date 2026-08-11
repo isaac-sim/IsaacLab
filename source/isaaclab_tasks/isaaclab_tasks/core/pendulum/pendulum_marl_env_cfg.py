@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import math
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -15,7 +17,7 @@ from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
 
 
 @configclass
-class PendulumEnvCfg(DirectMARLEnvCfg):
+class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     """Configuration for the multi-agent cart-double-pendulum balancing environment."""
 
     # env
@@ -42,6 +44,10 @@ class PendulumEnvCfg(DirectMARLEnvCfg):
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
     initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
     initial_pendulum_angle_range = [-0.25, 0.25]  # the range in which the pendulum angle is sampled from on reset [rad]
+
+    # success metric
+    success_upright_angle = math.pi / 12  # both physical links must remain within this angle [rad]
+    success_duration_s = 1.0  # required consecutive upright duration [s]
 
     # action scales
     cart_action_scale = 100.0  # [N]
