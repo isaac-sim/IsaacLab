@@ -314,7 +314,9 @@ independently.
              --task Isaac-Lift-Franka \
              --num_envs 32 \
              --checkpoint "$PHYSX_CHECKPOINT" \
-             physics=newton_mjwarp
+             physics=newton_mjwarp \
+             env.scene.robot.joint_ordering=physx \
+             env.scene.robot.body_ordering=physx
 
       **Newton source**
 
