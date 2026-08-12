@@ -41,7 +41,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     articulation-wide commands, processed commands, telemetry, and lifecycle.
     Configure membership through :attr:`isaaclab.assets.ArticulationCfg.actuators`
     before construction; assigning or deleting mapping entries raises
-    :class:`TypeError`.
+    :class:`TypeError`. Each joint can belong to at most one group; overlapping
+    joint selections raise :class:`ValueError` during construction.
     """
 
     @dataclass
@@ -304,11 +305,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._has_implicit_actuators = False
         self._launch_cache = _WarpLaunchCache(self.device)
 
+        resolved_group_joints = self._resolve_group_joints(actuator_cfgs)
         self._allocate_buffers()
         self._command = self.Command(self)
         self._joint_command = self.JointCommand(self)
         self._native_group_names = self._control.prepare_native_actuators(self, actuator_cfgs)
-        self._build_groups(actuator_cfgs)
+        self._build_groups(actuator_cfgs, resolved_group_joints)
         self._control.finalize_native_actuators(self)
         self._validate_coverage()
         self._build_execution_batches()
@@ -485,7 +487,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._computed_torque_ta = ProxyArray(self._computed_torque)
         self._applied_torque_ta = ProxyArray(self._applied_torque)
 
-    def _build_groups(self, actuator_cfgs: dict[str, ActuatorBaseCfg]) -> None:
+    def _resolve_group_joints(
+        self, actuator_cfgs: dict[str, ActuatorBaseCfg]
+    ) -> dict[str, tuple[list[int] | ProxyArray, list[str]]]:
+        """Resolve group selectors and reject joints assigned to multiple groups."""
+        resolved: dict[str, tuple[list[int] | ProxyArray, list[str]]] = {}
+        joint_owners: dict[str, str] = {}
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = self._control.find_joints(actuator_cfg.joint_names_expr)
             if len(joint_names) == 0:
@@ -493,6 +500,24 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
+            for joint_name in joint_names:
+                owner = joint_owners.get(joint_name)
+                if owner is not None and owner != actuator_name:
+                    raise ValueError(
+                        f"Joint '{joint_name}' is assigned to multiple actuator groups: '{owner}' and"
+                        f" '{actuator_name}'."
+                    )
+                joint_owners[joint_name] = actuator_name
+            resolved[actuator_name] = (joint_ids, joint_names)
+        return resolved
+
+    def _build_groups(
+        self,
+        actuator_cfgs: dict[str, ActuatorBaseCfg],
+        resolved_group_joints: dict[str, tuple[list[int] | ProxyArray, list[str]]],
+    ) -> None:
+        for actuator_name, actuator_cfg in actuator_cfgs.items():
+            joint_ids, joint_names = resolved_group_joints[actuator_name]
             if len(joint_names) == self.num_joints:
                 actuator_joint_ids: slice | torch.Tensor = slice(None)
             elif isinstance(joint_ids, ProxyArray):
@@ -638,14 +663,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._execution_batches = []
             return
         group_joint_indices = {name: self._joint_indices_as_torch(group) for name, group in self._groups.items()}
-        joint_use_count = torch.bincount(
-            torch.cat(list(group_joint_indices.values())).to(dtype=torch.long),
-            minlength=self.num_joints,
-        )
 
         for actuator_type in self._groups_by_class:
             names = tuple(name for name, group in self._groups.items() if type(group) is actuator_type)
-            groups = [self._groups[name] for name in names]
+            groups = tuple(self._groups[name] for name in names)
             joint_indices = [group_joint_indices[name] for name in names]
             parameter_names = actuator_type.__dict__.get("_EXECUTION_PARAMETER_NAMES")
 
@@ -654,31 +675,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
                 continue
 
-            # Overlapping groups stay separate so configuration order defines joint ownership.
-            safe = [
-                (name, group, indices)
-                for name, group, indices in zip(names, groups, joint_indices)
-                if torch.all(joint_use_count[indices.to(dtype=torch.long)] == 1)
-            ]
-            safe_names_set = {name for name, _, _ in safe}
-            unsafe = [
-                (name, group, indices)
-                for name, group, indices in zip(names, groups, joint_indices)
-                if name not in safe_names_set
-            ]
-            for name, group, indices in unsafe:
-                batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
-            if len(safe) < 2:
-                for name, group, indices in safe:
+            if len(groups) < 2:
+                for name, group, indices in zip(names, groups, joint_indices):
                     batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
                 continue
 
-            safe_names, safe_groups, safe_indices = zip(*safe)
-            combined = torch.cat(safe_indices)
-            executor = actuator_type._build_execution_actuator(safe_groups)
-            batch = self._make_execution_batch(safe_names, safe_groups, combined, executor=executor)
-            self._bind_execution_batch_parameters(batch, safe_groups, parameter_names)
-            for name in safe_names:
+            combined = torch.cat(joint_indices)
+            executor = actuator_type._build_execution_actuator(groups)
+            batch = self._make_execution_batch(names, groups, combined, executor=executor)
+            self._bind_execution_batch_parameters(batch, groups, parameter_names)
+            for name in names:
                 batch_by_group[name] = batch
 
         # Restore configuration order and emit each shared batch once.

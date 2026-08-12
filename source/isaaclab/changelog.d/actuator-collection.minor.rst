@@ -35,6 +35,9 @@ Changed
   :attr:`~isaaclab.assets.ArticulationCfg.actuators` before constructing the
   articulation; runtime assignment to or deletion from
   :attr:`~isaaclab.assets.Articulation.actuators` raises :class:`TypeError`.
+* **Breaking:** Rejected actuator configurations that assign a joint to more
+  than one group. Use disjoint joint-name expressions so each joint belongs to
+  at most one actuator group.
 
 Fixed
 ^^^^^

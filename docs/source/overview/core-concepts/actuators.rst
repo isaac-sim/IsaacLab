@@ -40,8 +40,8 @@ exception described in :ref:`actuators-migrating-setters`.
 Quick usage
 -----------
 
-Declare one or more actuator groups on the articulation config. Each group matches a set of joints
-by regular expression and picks a model:
+Declare one or more actuator groups on the articulation config. Each group matches a disjoint set
+of joints by regular expression and picks a model:
 
 .. code-block:: python
 
@@ -522,11 +522,10 @@ Logical groups and execution batches
 
 Named entries such as ``hips`` and ``knees`` retain separate configuration and access identities.
 Isaac Lab may combine disjoint compatible stateless groups for execution without changing the
-group tensors returned by ``robot.actuators["hips"]``. Groups remain separate when they overlap,
-use incompatible classes, are stateful or neural-network models, or run through a native controller.
-Overlapping Isaac Lab-managed groups execute in configuration order; the later group owns the
-collection-wide processed-command and torque-telemetry entries for every shared joint. Avoid
-overlap unless that precedence is intentional.
+group tensors returned by ``robot.actuators["hips"]``. Each joint can belong to at most one group;
+construction raises :class:`ValueError` when resolved joint selections overlap. Groups remain
+separate when they use incompatible classes, are stateful or neural-network models, or run through
+a native controller.
 Set commands and perform lifecycle operations through the articulation and its
 :class:`~isaaclab.actuators.ActuatorCollection`; execution batching is private.
 

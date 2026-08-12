@@ -16,7 +16,6 @@ import pytest
 import torch
 import warp as wp
 
-import isaaclab.envs.mdp.events as events
 from isaaclab.actuators import (
     ActuatorCollection,
     ActuatorControl,
@@ -31,7 +30,6 @@ from isaaclab.actuators import (
     actuator_kernels,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
-from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -492,37 +490,18 @@ def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeyp
     assert articulation.calls[-1][1]["damping"] == 0.0
 
 
-def test_overlapping_unset_gains_capture_defaults_before_solver_writes():
-    articulation = FakeArticulation()
-    authored_stiffness = torch.tensor([[11.0, 17.0, 23.0]]).expand(2, -1).clone()
-    authored_damping = torch.tensor([[1.0, 3.0, 5.0]]).expand(2, -1).clone()
-    articulation.data.joint_stiffness.torch = authored_stiffness.clone()
-    articulation.data.joint_damping.torch = authored_damping.clone()
-
-    collection = ActuatorCollection(
-        {
-            "first": IdealPDActuatorCfg(
-                joint_names_expr=["joint_0", "joint_1"],
-                stiffness=None,
-                damping=None,
-                effort_limit=100.0,
-                velocity_limit=10.0,
-            ),
-            "second": IdealPDActuatorCfg(
-                joint_names_expr=["joint_1", "joint_2"],
-                stiffness=None,
-                damping=None,
-                effort_limit=100.0,
-                velocity_limit=10.0,
-            ),
-        },
-        FakeArticulationActuatorControl(articulation),
-    )
-
-    torch.testing.assert_close(collection["first"].stiffness, authored_stiffness[:, :2])
-    torch.testing.assert_close(collection["first"].damping, authored_damping[:, :2])
-    torch.testing.assert_close(collection["second"].stiffness, authored_stiffness[:, 1:])
-    torch.testing.assert_close(collection["second"].damping, authored_damping[:, 1:])
+def test_overlapping_groups_are_rejected():
+    with pytest.raises(
+        ValueError,
+        match="Joint 'joint_1' is assigned to multiple actuator groups: 'first' and 'second'",
+    ):
+        ActuatorCollection(
+            {
+                "first": _ideal_cfg(["joint_0", "joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0),
+                "second": _ideal_cfg(["joint_1", "joint_2"], stiffness=2.0, damping=2.0, effort_limit=20.0),
+            },
+            FakeActuatorControl(),
+        )
 
 
 def test_collection_is_mapping_like_and_read_only():
@@ -955,7 +934,7 @@ def test_stateless_explicit_batch_preserves_tensor_pointers():
     )
 
 
-def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
+def test_stateful_subclasses_and_incompatible_classes_remain_separate():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     delayed = ActuatorCollection(
         {
@@ -970,15 +949,6 @@ def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
     )
     assert len(delayed._execution_batches) == 2
 
-    overlapping = ActuatorCollection(
-        {
-            "first": _ideal_cfg(["joint_0", "joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0),
-            "second": _ideal_cfg(["joint_1", "joint_2"], stiffness=2.0, damping=2.0, effort_limit=20.0),
-        },
-        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2"]),
-    )
-    assert len(overlapping._execution_batches) == 2
-
     cross_class = ActuatorCollection(
         {
             "ideal_a": _ideal_cfg(["joint_0"], stiffness=1.0, damping=1.0, effort_limit=10.0),
@@ -990,81 +960,11 @@ def test_stateful_subclasses_and_overlapping_groups_remain_unbatched():
                 velocity_limit=10.0,
                 saturation_effort=30.0,
             ),
-            "ideal_b": _ideal_cfg(["joint_1"], stiffness=3.0, damping=3.0, effort_limit=30.0),
+            "ideal_b": _ideal_cfg(["joint_3"], stiffness=3.0, damping=3.0, effort_limit=30.0),
         },
-        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2"]),
+        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2", "joint_3"]),
     )
-    assert len(cross_class._execution_batches) == 3
-
-
-@pytest.mark.parametrize(
-    ("operation", "random_value", "expected_first", "expected_second"),
-    [
-        ("add", 10.0, 11.0, 12.0),
-        ("scale", 10.0, 10.0, 20.0),
-    ],
-)
-def test_gain_randomization_preserves_overlapping_group_values(
-    operation: str, random_value: float, expected_first: float, expected_second: float
-):
-    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0", "joint_1", "joint_2"])
-    collection = ActuatorCollection(
-        {
-            "first": IdealPDActuatorCfg(
-                joint_names_expr=["joint_0", "joint_1"],
-                stiffness=1.0,
-                damping=1.0,
-                effort_limit=100.0,
-                velocity_limit=10.0,
-            ),
-            "second": IdealPDActuatorCfg(
-                joint_names_expr=["joint_1", "joint_2"],
-                stiffness=2.0,
-                damping=2.0,
-                effort_limit=100.0,
-                velocity_limit=20.0,
-            ),
-        },
-        control,
-    )
-    asset = SimpleNamespace(
-        actuators=collection,
-        data=SimpleNamespace(
-            joint_stiffness=SimpleNamespace(torch=torch.zeros((1, 3))),
-            joint_damping=SimpleNamespace(torch=torch.zeros((1, 3))),
-        ),
-        device="cpu",
-        num_joints=3,
-        write_joint_stiffness_to_sim_index=lambda **kwargs: None,
-        write_joint_damping_to_sim_index=lambda **kwargs: None,
-    )
-    asset_cfg = SceneEntityCfg("robot")
-
-    class Scene(dict):
-        num_envs = 1
-
-    env = SimpleNamespace(scene=Scene(robot=asset), num_envs=1, device="cpu")
-    cfg = EventTermCfg(func=events.randomize_actuator_gains, params={"asset_cfg": asset_cfg, "operation": operation})
-    term = events.randomize_actuator_gains(cfg, env)
-    term(
-        env,
-        torch.tensor([0]),
-        asset_cfg,
-        stiffness_distribution_params=(random_value, random_value),
-        operation=operation,
-    )
-
-    torch.testing.assert_close(collection["first"].stiffness, torch.full((1, 2), expected_first))
-    torch.testing.assert_close(collection["second"].stiffness, torch.full((1, 2), expected_second))
-    collection.command.position.torch.fill_(1.0)
-    collection.compute()
-
-    # Groups run in declaration order, so the later group owns their shared joint.
-    expected_effort = torch.tensor([[expected_first, expected_second, expected_second]])
-    torch.testing.assert_close(collection.joint_command.effort.torch, expected_effort)
-    torch.testing.assert_close(collection.computed_torque.torch, expected_effort)
-    torch.testing.assert_close(collection.applied_torque.torch, expected_effort)
-    torch.testing.assert_close(wp.to_torch(collection._soft_joint_vel_limits), torch.tensor([[10.0, 20.0, 20.0]]))
+    assert len(cross_class._execution_batches) == 2
 
 
 def test_native_execution_bypasses_lab_aggregation(monkeypatch):

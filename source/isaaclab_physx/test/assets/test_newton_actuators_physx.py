@@ -885,66 +885,6 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             torch.testing.assert_close(actuator.stiffness[1:], stiffness_before[1:])
             torch.testing.assert_close(actuator.damping[1:], damping_before[1:])
 
-    def test_implicit_subset_preserves_overlapping_solver_gains(self):
-        """Leave overlapped implicit-solver gains unchanged when their joint is not selected."""
-        sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=False)
-        with build_simulation_context(
-            device="cuda:0",
-            gravity_enabled=True,
-            add_ground_plane=True,
-            sim_cfg=sim_cfg,
-        ) as sim:
-            sim._app_control_on_stop_handle = None
-            for i in range(NUM_ENVS):
-                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-            art_cfg = ANYMAL_C_CFG.replace(
-                actuators={
-                    "first": ImplicitActuatorCfg(
-                        joint_names_expr=list(_ANYMAL_C_PHYSX_JOINT_NAMES[:2]), stiffness=10.0, damping=1.0
-                    ),
-                    "second": ImplicitActuatorCfg(
-                        joint_names_expr=list(_ANYMAL_C_PHYSX_JOINT_NAMES[1:3]), stiffness=20.0, damping=2.0
-                    ),
-                },
-                prim_path="/World/Env_.*/Robot",
-            )
-            anymal = Articulation(art_cfg)
-            sim.reset()
-
-            expected_stiffness = torch.tensor([[10.0, 20.0, 20.0], [10.0, 20.0, 20.0]], device=anymal.device)
-            expected_damping = torch.tensor([[1.0, 2.0, 2.0], [1.0, 2.0, 2.0]], device=anymal.device)
-            torch.testing.assert_close(anymal.data.joint_stiffness.torch[:, :3], expected_stiffness)
-            torch.testing.assert_close(anymal.data.joint_damping.torch[:, :3], expected_damping)
-
-            env = _MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
-            term, asset_cfg = _build_dr_term(env, "robot", joint_ids=[0])
-            env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
-            term(
-                env,
-                env_ids=env_ids,
-                asset_cfg=asset_cfg,
-                stiffness_distribution_params=(50.0, 50.0),
-                damping_distribution_params=(5.0, 5.0),
-                operation="abs",
-                distribution="uniform",
-            )
-
-            expected_stiffness[0, 0] = 50.0
-            expected_damping[0, 0] = 5.0
-            expected_first_stiffness = torch.tensor([[50.0, 10.0], [10.0, 10.0]], device=anymal.device)
-            expected_first_damping = torch.tensor([[5.0, 1.0], [1.0, 1.0]], device=anymal.device)
-            expected_second_stiffness = torch.full((NUM_ENVS, 2), 20.0, device=anymal.device)
-            expected_second_damping = torch.full((NUM_ENVS, 2), 2.0, device=anymal.device)
-            torch.testing.assert_close(anymal.actuators["first"].stiffness, expected_first_stiffness)
-            torch.testing.assert_close(anymal.actuators["first"].damping, expected_first_damping)
-            torch.testing.assert_close(anymal.actuators["second"].stiffness, expected_second_stiffness)
-            torch.testing.assert_close(anymal.actuators["second"].damping, expected_second_damping)
-            solver_gains = torch.stack(
-                (anymal.data.joint_stiffness.torch[:, :3], anymal.data.joint_damping.torch[:, :3])
-            )
-            expected_gains = torch.stack((expected_stiffness, expected_damping))
-            torch.testing.assert_close(solver_gains, expected_gains)
-
     def test_single_articulation(self):
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
         with build_simulation_context(
