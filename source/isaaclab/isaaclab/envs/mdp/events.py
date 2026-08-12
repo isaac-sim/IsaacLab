@@ -385,7 +385,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
     OVPhysX runs the PhysX solver, so PhysX's 64000 unique-material limit applies and this
     mirrors the PhysX bucket approach: ``num_buckets`` materials are pre-sampled once and
     randomly assigned to shapes. Materials are written through the asset's
-    :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-collision-shape
+    :class:`~isaaclab_ov.sim.views.OvPhysxView` on the per-collision-shape
     ``shape_friction_and_restitution`` binding (shape ``[N, S, 3]`` = static friction,
     dynamic friction, restitution).
 
@@ -398,8 +398,8 @@ class _RandomizeRigidBodyMaterialOvPhysx:
     def __init__(
         self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
     ):
-        import isaaclab_ovphysx.tensor_types as ovphysx_tt  # noqa: PLC0415
-        from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
+        import isaaclab_ov.tensor_types as ovphysx_tt  # noqa: PLC0415
+        from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
 
         from isaaclab.assets import BaseArticulation  # noqa: PLC0415
 
@@ -582,7 +582,7 @@ class randomize_rigid_body_material(ManagerTermBase):
       Kamino solver shares contact materials across shapes and environments, so it instead
       samples one value per build-time material group and broadcasts it to every environment.
     - **OVPhysX**: Runs the PhysX solver, so the same 3-tuple, bucket-based assignment is used,
-      written through the :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-shape
+      written through the :class:`~isaaclab_ov.sim.views.OvPhysxView` on the per-shape
       ``shape_friction_and_restitution`` binding. Articulation body subsets are addressed through
       rigid-body material bindings for the selected links.
 

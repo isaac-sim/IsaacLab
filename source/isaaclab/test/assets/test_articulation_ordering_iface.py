@@ -141,7 +141,7 @@ def _seed_backend_com_poses(backend: str, art, raw_backend, coms: np.ndarray) ->
     if backend == "physx":
         raw_backend._coms = wp.array(coms, dtype=wp.float32, device="cpu")
     elif backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         raw_backend.bindings[TT.BODY_COM_POSE]._data = coms.copy()
     else:
@@ -158,7 +158,7 @@ def _read_backend_com_poses(backend: str, art, raw_backend) -> np.ndarray:
     if backend == "physx":
         return raw_backend.get_coms().numpy().reshape(art.num_instances, art.num_bodies, 7).copy()
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         return (
             art.root_view.get_attribute(TT.BODY_COM_POSE).numpy().reshape(art.num_instances, art.num_bodies, 7).copy()
@@ -193,7 +193,7 @@ def _seed_backend_joint_state(
         art.data._joint_vel.timestamp = -1.0
         return
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         raw_backend.bindings[TT.DOF_POSITION]._data = position.copy()
         raw_backend.bindings[TT.DOF_VELOCITY]._data = velocity.copy()
@@ -225,7 +225,7 @@ def _mutate_backend_joint_state(
         raw_backend._dof_velocities.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
         return
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         raw_backend.bindings[TT.DOF_POSITION]._data = position.copy()
         raw_backend.bindings[TT.DOF_VELOCITY]._data = velocity.copy()
@@ -238,7 +238,7 @@ def _read_backend_joint_state(backend: str, art, raw_backend) -> tuple[np.ndarra
     if backend == "physx":
         return raw_backend._dof_positions.numpy().copy(), raw_backend._dof_velocities.numpy().copy()
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         position = np.asarray(raw_backend.bindings[TT.DOF_POSITION]._data).copy()
         velocity = np.asarray(raw_backend.bindings[TT.DOF_VELOCITY]._data).copy()
@@ -645,7 +645,7 @@ def _set_body_ordering_backend_data(
         raw_backend._link_accelerations = wp.array(body_acc, dtype=wp.float32, device=art.device)
         raw_backend._coms = wp.array(com_pose_b, dtype=wp.float32, device="cpu")
     elif backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         raw_backend.bindings[TT.ROOT_POSE]._data = root_pose.copy()
         raw_backend.bindings[TT.ROOT_VELOCITY]._data = root_vel.copy()
@@ -691,7 +691,7 @@ def _set_identity_body_poses(backend: str, art, raw_backend) -> None:
         return
     if backend != "ovphysx":
         return
-    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ov import tensor_types as TT
 
     poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
     poses[..., 6] = 1.0
@@ -706,7 +706,7 @@ def _read_backend_wrench(backend: str, art, raw_backend, captured: dict) -> tupl
     if backend == "newton":
         wrench = art.data._sim_bind_body_external_wrench.numpy()
         return wrench[..., :3], wrench[..., 3:6]
-    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ov import tensor_types as TT
 
     wrench = raw_backend.bindings[TT.LINK_WRENCH]._data
     return wrench[..., :3], wrench[..., 3:6]
@@ -787,7 +787,7 @@ def _read_backend_root_state(backend: str, art, raw_backend) -> tuple[np.ndarray
             art.data.root_com_vel_w.warp.numpy().copy(),
         )
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         return (
             raw_backend.bindings[TT.ROOT_POSE]._data.copy(),
@@ -834,7 +834,7 @@ def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[
             "viscous_friction": friction_properties[..., 2],
         }
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         friction_properties = _clone_backend_tensor(raw_backend.bindings[TT.DOF_FRICTION_PROPERTIES]._data)
         return {
@@ -876,7 +876,7 @@ def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[s
             "inertia": _clone_backend_tensor(raw_backend.get_inertias()),
         }
     if backend == "ovphysx":
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         return {
             "mass": _clone_backend_tensor(raw_backend.bindings[TT.BODY_MASS]._data),
@@ -995,7 +995,7 @@ class TestArticulationDataBodyState:
         _ = _clone_proxy_tensor(art.data.body_link_pose_w)
         _ = _clone_proxy_tensor(art.data.body_com_vel_w)
 
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         next_link_pose = raw_data[2].copy()
         next_link_pose[..., 0] += 1000.0
@@ -1018,7 +1018,7 @@ class TestArticulationDataBodyState:
         art, raw_backend = get_articulation(
             "ovphysx", 2, 1, 3, device="cpu", body_ordering=("body_2", "body_1", "body_0")
         )
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         raw_data = list(_make_body_ordering_backend_data(2, 3))
         raw_data[3][..., :3] = 0.0
@@ -1059,7 +1059,7 @@ class TestArticulationDataBodyState:
         _ = art.data.body_com_vel_w
         _ = art.data.root_link_vel_w
 
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         link_velocity_reads = [call for call in binding_read.call_args_list if call.args[0] == TT.LINK_VELOCITY]
         assert len(link_velocity_reads) == 1
@@ -1552,7 +1552,7 @@ class TestArticulationOrderingComWrites:
         if backend == "physx":
             raw_backend._root_transforms = wp.array(root_pose, dtype=wp.float32, device=art.device)
         else:
-            from isaaclab_ovphysx import tensor_types as TT
+            from isaaclab_ov import tensor_types as TT
 
             raw_backend.bindings[TT.ROOT_POSE]._data = root_pose.copy()
         _seed_backend_com_poses(backend, art, raw_backend, backend_seed)
@@ -1827,11 +1827,11 @@ class TestArticulationOrderingWriteParity:
         from the raw commanded target, e.g. once explicit actuators clip or otherwise transform it)
         to the ``DOF_ACTUATION_FORCE`` binding. That push must use its own backend-order scratch
         buffer rather than ``_joint_effort_target_backend``, because the latter is also the staging
-        that :meth:`~isaaclab_ovphysx.assets.articulation.Articulation.set_joint_effort_target_index`
+        that :meth:`~isaaclab_ov.assets.articulation.Articulation.set_joint_effort_target_index`
         reuses for unselected joints on a partial write. If the two were the same buffer, a partial
         write would resurrect stale applied torque for every joint it did not touch.
         """
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         num_instances = 2
         num_joints = 3
@@ -1883,7 +1883,7 @@ class TestArticulationDataJointState:
         """Finite-difference OVPhysX joint velocity entirely in public joint order."""
         art, raw_backend = get_articulation("ovphysx", 2, 3, 2, device="cpu")
         user_to_backend = _install_reversed_joint_ordering(art)
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         first = np.asarray([[1.0, 2.0, 4.0], [10.0, 20.0, 40.0]], dtype=np.float32)
         second = first + np.asarray([[3.0, 5.0, 7.0], [11.0, 13.0, 17.0]], dtype=np.float32)
@@ -2050,7 +2050,7 @@ class TestArticulationOperations:
     @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
     def test_ovphysx_implicit_targets_are_written_in_backend_order(self, ordering_mode: str) -> None:
         """Write implicit position and velocity targets under their matching backend joint names."""
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         num_instances, num_joints = 2, 3
         backend_joint_names = tuple(f"joint_{index}" for index in range(num_joints))
