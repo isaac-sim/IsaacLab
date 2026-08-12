@@ -43,11 +43,9 @@ below shows where to toggle between the interactive viewport and the streaming c
 
 .. note::
 
-   The Kit streaming view requires the ``--enable_cameras`` flag, which is passed
-   automatically when the scene config contains a Kit camera sensor.  The
-   ``run_tiled_camera_visualizer.py`` script auto-creates its cameras at runtime, so
-   ``--enable_cameras`` is resolved automatically by Isaac Lab's launch logic and no
-   additional flag is needed.
+   The Kit streaming view requires camera rendering to be enabled. Isaac Lab's launch
+   logic enables it automatically when ``streaming_view=True`` is set on a
+   :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. No additional flags are needed.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
