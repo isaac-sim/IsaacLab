@@ -64,3 +64,50 @@ Available Pink IK Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: NullSpacePostureTask
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.controllers.pink_ik` API.
+
+.. currentmodule:: isaaclab.controllers.pink_ik
+
+.. autosummary::
+   :nosignatures:
+
+   DampingTask
+   DampingTaskCfg
+   FrameTask
+   FrameTaskCfg
+   LocalFrameTask
+   LocalFrameTaskCfg
+   NullSpacePostureTaskCfg
+   PinkIKTaskCfg
+   PinkKinematicsConfiguration
+
+.. autoclass:: DampingTask
+   :show-inheritance:
+
+.. autoclass:: DampingTaskCfg
+   :show-inheritance:
+
+.. autoclass:: FrameTask
+   :show-inheritance:
+
+.. autoclass:: FrameTaskCfg
+   :show-inheritance:
+
+.. autoclass:: LocalFrameTask
+   :show-inheritance:
+
+.. autoclass:: LocalFrameTaskCfg
+   :show-inheritance:
+
+.. autoclass:: NullSpacePostureTaskCfg
+   :show-inheritance:
+
+.. autoclass:: PinkIKTaskCfg
+   :show-inheritance:
+
+.. autoclass:: PinkKinematicsConfiguration
+   :show-inheritance:
