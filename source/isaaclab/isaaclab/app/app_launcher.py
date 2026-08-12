@@ -1065,6 +1065,29 @@ class AppLauncher:
         # avoid creating new stage at startup by default for performance reasons
         launcher_args["create_new_stage"] = False
 
+    @staticmethod
+    def _physical_device_id(logical_id: int) -> int:
+        """Map a CUDA device index to the physical index the renderer expects.
+
+        ``CUDA_VISIBLE_DEVICES`` renumbers devices for CUDA but not for the graphics stack, so
+        ``cuda:1`` may be physical GPU 5. ``/renderer/activeGpu`` resolves against the unfiltered
+        enumeration and therefore needs the physical index.
+
+        Args:
+            logical_id: CUDA device index, as reported after masking.
+
+        Returns:
+            The physical device index. Falls back to ``logical_id`` when no mask is set, or when the
+            mask uses a non-numeric form such as ``GPU-<uuid>`` or a MIG identifier.
+        """
+        visible = [entry.strip() for entry in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if entry.strip()]
+        if not visible or logical_id >= len(visible):
+            return logical_id
+        try:
+            return int(visible[logical_id])
+        except ValueError:
+            return logical_id
+
     def _resolve_device_settings(self, launcher_args: dict):
         """Resolve simulation GPU device related settings."""
         self.device_id = 0
@@ -1125,8 +1148,10 @@ class AppLauncher:
 
         # set rendering device. We do not need to set physics_gpu because it will automatically pick the same one
         # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
+        # physics_gpu becomes /physics/cudaDevice, a CUDA setting, so it takes the masked index; active_gpu becomes
+        # /renderer/activeGpu, which the graphics stack resolves against the unmasked enumeration.
         launcher_args["physics_gpu"] = self.device_id
-        launcher_args["active_gpu"] = self.device_id
+        launcher_args["active_gpu"] = self._physical_device_id(self.device_id)
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
