@@ -34,6 +34,12 @@ Usage:
     # CI invocation on every pull_request:
     cli.py check <base-branch>
 
+    # Local invocation used by pre-commit (defaults to develop):
+    cli.py check --include-worktree
+
+    # Override the local base for a release branch:
+    ISAACLAB_CHANGELOG_BASE_REF=release/6.0 cli.py check --include-worktree
+
     # ── compile ───────────────────────────────────────────────────
     # Normal release-time invocation — bump every managed package
     # from accumulated fragments, write entries, delete fragments:
@@ -59,6 +65,7 @@ incremental bumps, not for jumps.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -725,12 +732,31 @@ class PRDiff:
     added: set[str]
 
     @classmethod
-    def from_git(cls, base_ref: str) -> PRDiff:
-        """Run ``git diff`` against ``origin/<base_ref>...HEAD`` to populate the diff."""
+    def from_git(cls, base_ref: str, *, include_worktree: bool = False) -> PRDiff:
+        """Collect the branch diff against ``origin/<base_ref>``.
+
+        Args:
+            base_ref: Base branch name.
+            include_worktree: Whether to include staged and unstaged tracked
+                changes in addition to committed branch changes.
+        """
+
+        remote_base = f"origin/{base_ref}"
+        if include_worktree:
+            merge_base = subprocess.run(
+                ["git", "merge-base", remote_base, "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=REPO_ROOT,
+            ).stdout.strip()
+            diff_target = merge_base
+        else:
+            diff_target = f"{remote_base}...HEAD"
 
         def _diff(extra_args: list[str]) -> set[str]:
             result = subprocess.run(
-                ["git", "diff", "--name-only", *extra_args, f"origin/{base_ref}...HEAD"],
+                ["git", "diff", "--name-only", *extra_args, diff_target],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -738,7 +764,9 @@ class PRDiff:
             )
             return {f for f in result.stdout.splitlines() if f}
 
-        return cls(changed=_diff([]), added=_diff(["--diff-filter=A"]))
+        changed = _diff([])
+        added = _diff(["--diff-filter=A"])
+        return cls(changed=changed, added=added)
 
     def evaluate(
         self,
@@ -933,7 +961,7 @@ def cmd_compile(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
 
 def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     try:
-        diff = PRDiff.from_git(args.base_ref)
+        diff = PRDiff.from_git(args.base_ref, include_worktree=args.include_worktree)
     except subprocess.CalledProcessError as e:
         print(f"ERROR: git diff failed: {e.stderr}", file=sys.stderr)
         return 1
@@ -1092,10 +1120,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_check.set_defaults(func=cmd_check)
     p_check.add_argument(
         "base_ref",
+        nargs="?",
+        default=os.environ.get("ISAACLAB_CHANGELOG_BASE_REF", "develop"),
         help=(
             "Base branch to diff against (e.g. 'main' or 'develop'). "
-            "The diff is taken against ``origin/<base_ref>...HEAD``."
+            "Defaults to ISAACLAB_CHANGELOG_BASE_REF or 'develop'."
         ),
+    )
+    p_check.add_argument(
+        "--include-worktree",
+        action="store_true",
+        help=("Include staged and unstaged tracked changes in the branch diff. Used by the local pre-commit hook."),
     )
 
     return parser
