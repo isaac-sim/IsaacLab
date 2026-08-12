@@ -6,7 +6,6 @@
 __all__ = [
     "HandoverCommand",
     "HandoverCommandCfg",
-    "reset_handover_hands",
     "fingertip_pos",
     "fingertip_quat",
     "fingertip_vel",
@@ -17,7 +16,6 @@ __all__ = [
 ]
 
 from .commands import HandoverCommand, HandoverCommandCfg
-from .events import reset_handover_hands
 from .observations import (
     fingertip_pos,
     fingertip_quat,

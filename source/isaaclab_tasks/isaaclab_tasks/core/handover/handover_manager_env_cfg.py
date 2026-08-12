@@ -6,7 +6,7 @@
 """Manager-based counterpart of the Shadow Hand handover task."""
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -19,14 +19,15 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.handover.mdp as mdp
+import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.core.handover.handover_common import (
     ACTUATED_JOINT_NAMES_PRESET,
     FINGERTIP_BODY_NAMES,
 )
 from isaaclab_tasks.core.handover.handover_env_cfg import (
+    BALL_CFG,
     LEFT_HAND_CFG,
     RIGHT_HAND_CFG,
-    ObjectCfg,
     PhysicsCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
@@ -46,7 +47,7 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
     )
     right_hand: PresetCfg = RIGHT_HAND_CFG
     left_hand: PresetCfg = LEFT_HAND_CFG
-    object: ObjectCfg = ObjectCfg()
+    object: RigidObjectCfg = BALL_CFG
     light = AssetBaseCfg(
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
@@ -87,46 +88,102 @@ def _fingertip_entity(name: str) -> SceneEntityCfg:
 
 
 @configclass
+class PolicyCfg(ObsGroup):
+    # Right agent: 133 hand dimensions followed by 24 object/goal dimensions.
+    # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
+    right_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("right_hand")})
+    right_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("right_hand")})
+    right_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("right_hand")})
+    right_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("right_hand")})
+    right_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("right_hand")})
+    right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
+    right_object_goal = ObsTerm(
+        func=mdp.object_goal,
+        params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
+    )
+
+    # Left agent: the same 157-dimensional layout.
+    # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
+    left_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("left_hand")})
+    left_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("left_hand")})
+    left_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("left_hand")})
+    left_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("left_hand")})
+    left_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("left_hand")})
+    left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
+    left_object_goal = ObsTerm(
+        func=mdp.object_goal,
+        params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
+    )
+
+    def __post_init__(self):
+        self.enable_corruption = False
+        self.concatenate_terms = True
+
+
+@configclass
 class ObservationsCfg:
     """Single-agent observations matching the Direct MARL adapter."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        # Right agent: 133 hand dimensions followed by 24 object/goal dimensions.
-        # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
-        right_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("right_hand")})
-        right_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("right_hand")})
-        right_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("right_hand")})
-        right_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("right_hand")})
-        right_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("right_hand")})
-        right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
-        right_object_goal = ObsTerm(
-            func=mdp.object_goal,
-            params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
-        )
-
-        # Left agent: the same 157-dimensional layout.
-        # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
-        left_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("left_hand")})
-        left_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("left_hand")})
-        left_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("left_hand")})
-        left_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("left_hand")})
-        left_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("left_hand")})
-        left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
-        left_object_goal = ObsTerm(
-            func=mdp.object_goal,
-            params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = True
 
     policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
-class EventCfg:
+class RandomizationEventCfg:
+    """Randomization of both hands and the object, applied on every physics backend."""
+
+    right_hand_joint_stiffness_and_damping = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        min_step_count_between_reset=720,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("right_hand"),
+            "stiffness_distribution_params": (0.75, 1.5),
+            "damping_distribution_params": (0.3, 3.0),
+            "operation": "scale",
+            "distribution": "log_uniform",
+        },
+    )
+    left_hand_joint_stiffness_and_damping = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        min_step_count_between_reset=720,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("left_hand"),
+            "stiffness_distribution_params": (0.75, 1.5),
+            "damping_distribution_params": (0.3, 3.0),
+            "operation": "scale",
+            "distribution": "log_uniform",
+        },
+    )
+    object_scale_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        min_step_count_between_reset=720,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "mass_distribution_params": (0.5, 1.5),
+            "operation": "scale",
+            "distribution": "uniform",
+            "recompute_inertia": False,
+        },
+    )
+
+    # -- scene
+    reset_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="interval",
+        is_global_time=True,
+        interval_range_s=(36.0, 36.0),  # time_s = num_steps * (decimation * dt)
+        params={
+            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.4]),
+            "operation": "add",
+            "distribution": "gaussian",
+        },
+    )
+
+
+@configclass
+class ResetEventCfg:
     """Reset distributions matching the Direct handover environment."""
 
     reset_object = EventTerm(
@@ -139,14 +196,37 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("object"),
         },
     )
-    reset_hands = EventTerm(
-        func=mdp.reset_handover_hands,
+    reset_right_hand = EventTerm(
+        func=reorient_mdp.reset_reorient_hand,
         mode="reset",
         params={
             "joint_position_noise": 0.2,  # [rad]
             "joint_velocity_noise": 0.0,  # [rad/s]
+            "robot_cfg": SceneEntityCfg("right_hand"),
         },
     )
+    reset_left_hand = EventTerm(
+        func=reorient_mdp.reset_reorient_hand,
+        mode="reset",
+        params={
+            "joint_position_noise": 0.2,  # [rad]
+            "joint_velocity_noise": 0.0,  # [rad/s]
+            "robot_cfg": SceneEntityCfg("left_hand"),
+        },
+    )
+
+
+@configclass
+class HandoverEventCfg(RandomizationEventCfg, ResetEventCfg):
+    """Randomization plus the state reset the manager task applies on every episode."""
+
+
+@configclass
+class HandoverEventPresetCfg(PresetCfg):
+    """``presets=randomized`` adds the domain-randomization terms to the reset."""
+
+    randomized = HandoverEventCfg()
+    default = ResetEventCfg()
 
 
 @configclass
@@ -189,7 +269,7 @@ class HandoverManagerEnvCfg(ManagerBasedRLEnvCfg):
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: HandoverEventPresetCfg = HandoverEventPresetCfg()
 
     def __post_init__(self):
         self.decimation = 2

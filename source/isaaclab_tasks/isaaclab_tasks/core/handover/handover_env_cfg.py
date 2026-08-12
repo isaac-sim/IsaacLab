@@ -94,67 +94,37 @@ LEFT_HAND_CFG = _shadow_hand_cfg(
 )
 
 
-@configclass
-class ObjectCfg(PresetCfg):
-    """Hand-over object preset.
-
-    Both backends spawn the same procedural sphere as a free rigid body:
-    Newton's :class:`~isaaclab_newton.assets.RigidObject` resolves the
-    asset via the ``UsdPhysics.RigidBodyAPI`` that
-    :class:`~isaaclab.sim.RigidBodyPropertiesCfg` applies. The Newton
-    variant drops PhysX-only knobs (per-shape solver iterations, sleep
-    thresholds, max depenetration velocity, custom physics material).
-    """
-
-    physx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.SphereCfg(
-            radius=OBJECT_RADIUS,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
+BALL_CFG = RigidObjectCfg(
+    prim_path="/World/envs/env_.*/object",
+    spawn=sim_utils.SphereCfg(
+        radius=OBJECT_RADIUS,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
+        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            kinematic_enabled=False,
+            disable_gravity=False,
+            enable_gyroscopic_forces=True,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+            sleep_threshold=0.005,
+            stabilization_threshold=0.0025,
+            max_depenetration_velocity=1000.0,
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    newton_mjwarp = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.SphereCfg(
-            radius=OBJECT_RADIUS,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    ovphysx = physx
-    isaacsim_physx = physx
-    default = newton_mjwarp
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(density=500.0),
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
+)
+"""Hand-over ball, thrown from one Shadow hand to the other."""
 
 
 @configclass
 class PhysicsCfg(PresetCfg):
     """Physics-backend preset (PhysX vs Newton/MJWarp).
 
-    Newton settings mirror the single-agent ShadowHand Newton port: elliptic
-    cone, ``impratio=10`` (favors normal contacts over friction), 100 solver
-    iterations, 2 substeps. Empirically converges on the single-agent ShadowHand
-    tasks; tuning may be needed for handover-specific contact dynamics.
+    Newton mirrors the single-agent Shadow Hand Newton port: an elliptic friction
+    cone with ``impratio=10``, which weights normal contacts over friction, 100
+    solver iterations and 2 substeps.
     """
 
     isaacsim_physx = PhysxCfg(
@@ -208,7 +178,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     fingertip_body_names = FINGERTIP_BODY_NAMES
 
     # in-hand object
-    object_cfg: ObjectCfg = ObjectCfg()
+    object_cfg: RigidObjectCfg = BALL_CFG
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG
     # scene
