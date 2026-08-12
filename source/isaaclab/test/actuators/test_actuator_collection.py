@@ -174,6 +174,19 @@ class FakeActuatorControl(ActuatorControl):
         self._device = device
         self._joint_pos = ProxyArray(wp.zeros((num_envs, len(self._joint_names)), dtype=wp.float32, device=device))
         self._joint_vel = ProxyArray(wp.zeros((num_envs, len(self._joint_names)), dtype=wp.float32, device=device))
+        shape = (num_envs, len(self._joint_names))
+        zeros = torch.zeros(shape, dtype=torch.float32, device=device)
+        ones = torch.ones(shape, dtype=torch.float32, device=device)
+        self._current_joint_properties = ActuatorJointProperties(
+            stiffness=zeros.clone(),
+            damping=zeros.clone(),
+            armature=zeros.clone(),
+            friction=zeros.clone(),
+            dynamic_friction=zeros.clone(),
+            viscous_friction=zeros.clone(),
+            effort_limit=ones * 100.0,
+            velocity_limit=ones * 10.0,
+        )
         self.written_properties: list[tuple[ActuatorJointProperties, torch.Tensor | slice, bool, bool]] = []
         self.native_gain_writes: list[tuple[str, torch.Tensor, torch.Tensor, torch.Tensor]] = []
         self.staged_commands: list[str] = []
@@ -257,22 +270,31 @@ class FakeActuatorControl(ActuatorControl):
         self.assert_shape_and_dtype(tensor, tuple(mask.shape[0] for mask in masks), dtype, name)
 
     def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
-        if isinstance(joint_ids, slice):
-            num_joints = self.num_joints
-        else:
-            num_joints = joint_ids.shape[0]
-        shape = (self.num_instances, num_joints)
-        zeros = torch.zeros(shape, dtype=torch.float32, device=self.device)
-        ones = torch.ones(shape, dtype=torch.float32, device=self.device)
+        current = self.get_current_joint_properties(joint_ids)
         return ActuatorJointProperties(
-            stiffness=zeros,
-            damping=zeros,
-            armature=zeros,
-            friction=zeros,
-            dynamic_friction=zeros,
-            viscous_friction=zeros,
-            effort_limit=ones * 100.0,
-            velocity_limit=ones * 10.0,
+            stiffness=current.stiffness.clone(),
+            damping=current.damping.clone(),
+            armature=current.armature.clone(),
+            friction=current.friction.clone(),
+            dynamic_friction=current.dynamic_friction.clone(),
+            viscous_friction=current.viscous_friction.clone(),
+            effort_limit=current.effort_limit.clone(),
+            velocity_limit=current.velocity_limit.clone(),
+        )
+
+    def get_current_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
+        if isinstance(joint_ids, wp.array):
+            joint_ids = wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
+        properties = self._current_joint_properties
+        return ActuatorJointProperties(
+            stiffness=properties.stiffness[:, joint_ids],
+            damping=properties.damping[:, joint_ids],
+            armature=properties.armature[:, joint_ids],
+            friction=properties.friction[:, joint_ids],
+            dynamic_friction=properties.dynamic_friction[:, joint_ids],
+            viscous_friction=properties.viscous_friction[:, joint_ids],
+            effort_limit=properties.effort_limit[:, joint_ids],
+            velocity_limit=properties.velocity_limit[:, joint_ids],
         )
 
     def write_resolved_joint_properties(
@@ -316,6 +338,10 @@ class NativeFakeActuatorControl(FakeActuatorControl):
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         return True
+
+
+def test_actuator_control_requires_current_joint_property_source():
+    assert "get_current_joint_properties" in ActuatorControl.__abstractmethods__
 
 
 def test_deprecated_joint_limit_aliases_warn_and_forward():
@@ -509,6 +535,32 @@ def test_articulation_control_provides_common_forwarding_and_property_writes():
     control.resolve_joint_ids(range(1, 3))
     assert articulation.resolved_env_ids == [[1]]
     assert articulation.resolved_joint_ids == [[1, 2]]
+
+
+def test_articulation_control_projects_warp_joint_property_selectors():
+    articulation = FakeArticulation()
+    control = FakeArticulationActuatorControl(articulation)
+    articulation.data.joint_armature.torch.copy_(
+        torch.tensor(
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.0, 6.0],
+            ]
+        )
+    )
+    joint_ids = wp.array([2, 0], dtype=wp.int32, device="cpu")
+
+    current = control.get_current_joint_properties(joint_ids)
+    defaults = control.get_default_joint_properties(joint_ids)
+
+    expected = torch.tensor(
+        [
+            [3.0, 1.0],
+            [6.0, 4.0],
+        ]
+    )
+    torch.testing.assert_close(current.armature, expected)
+    torch.testing.assert_close(defaults.armature, expected)
 
 
 def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeypatch):
@@ -721,6 +773,24 @@ def test_joint_property_access_resolves_current_articulation_values():
         armature = group.armature
     with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
         effort_limit_sim = group.effort_limit_sim
+
+    torch.testing.assert_close(armature, torch.tensor([[7.0], [8.0]]))
+    torch.testing.assert_close(effort_limit_sim, torch.tensor([[9.0], [10.0]]))
+
+
+def test_joint_property_access_resolves_current_non_articulation_control_values():
+    control = FakeActuatorControl()
+    collection = ActuatorCollection(
+        {"elbow": _ideal_cfg(["joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
+        control,
+    )
+    control._current_joint_properties.armature[:, 1] = torch.tensor([7.0, 8.0])
+    control._current_joint_properties.effort_limit[:, 1] = torch.tensor([9.0, 10.0])
+
+    with pytest.warns(DeprecationWarning):
+        armature = collection["elbow"].armature
+    with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
+        effort_limit_sim = collection["elbow"].effort_limit_sim
 
     torch.testing.assert_close(armature, torch.tensor([[7.0], [8.0]]))
     torch.testing.assert_close(effort_limit_sim, torch.tensor([[9.0], [10.0]]))

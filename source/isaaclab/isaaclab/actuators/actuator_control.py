@@ -230,12 +230,9 @@ class ActuatorControl(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
     def get_current_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
         """Return current joint properties for deprecated group-level accessors.
-
-        The base fallback preserves direct control implementations that only
-        expose construction defaults. Articulation controls override it with
-        live, non-owning projections of their current joint buffers.
 
         Args:
             joint_ids: Articulation joints in the actuator group.
@@ -243,7 +240,7 @@ class ActuatorControl(ABC):
         Returns:
             Current properties for the selected joints.
         """
-        return self.get_default_joint_properties(joint_ids)
+        raise NotImplementedError
 
     @abstractmethod
     def write_resolved_joint_properties(
@@ -458,6 +455,7 @@ class ArticulationActuatorControl(ActuatorControl):
         )
 
     def get_current_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
+        joint_ids = self._as_torch_joint_ids(joint_ids)
         data = self._articulation.data
         stiffness = data.joint_stiffness.torch[:, joint_ids]
         return ActuatorJointProperties(
@@ -470,6 +468,12 @@ class ArticulationActuatorControl(ActuatorControl):
             effort_limit=data.joint_effort_limits.torch[:, joint_ids],
             velocity_limit=data.joint_vel_limits.torch[:, joint_ids],
         )
+
+    def _as_torch_joint_ids(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> torch.Tensor | slice:
+        """Normalize an optional Warp joint selector for Torch property projections."""
+        if isinstance(joint_ids, wp.array):
+            return wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
+        return joint_ids
 
     def write_resolved_joint_properties(
         self,
