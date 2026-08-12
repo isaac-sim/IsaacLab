@@ -57,7 +57,9 @@ class ActuatorBase(ABC):
     """
 
     effort_limit: torch.Tensor
-    """The effort limit for the actuator group. Shape is (num_envs, num_joints).
+    """The effort limit [N or N·m, depending on joint type] for the actuator group.
+
+    Shape is (num_envs, num_joints).
 
     This limit is used differently depending on the actuator type:
 

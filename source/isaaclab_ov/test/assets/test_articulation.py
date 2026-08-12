@@ -2298,10 +2298,12 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("vel_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 @pytest.mark.parametrize("add_ground_plane", [False])
-def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane):
+def test_setting_velocity_limit_implicit(
+    sim, num_articulations, device, joint_velocity_limit, vel_limit, add_ground_plane
+):
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
@@ -2314,13 +2316,13 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
         sim: The simulation fixture
         num_articulations: Number of articulations to test
         device: The device to run the simulation on
-        vel_limit_sim: The velocity limit to set in simulation
+        joint_velocity_limit: The velocity limit to set in simulation
         vel_limit: The velocity limit to set in actuator
     """
     # create simulation
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
-        joint_velocity_limit=vel_limit_sim,
+        joint_velocity_limit=joint_velocity_limit,
         velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
@@ -2334,16 +2336,16 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     # read the values set into the simulation
     physx_vel_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_VELOCITY, device)
     # check data buffer
-    torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, physx_vel_limit)
+    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # Keep one warning-covered compatibility projection while canonical data owns the solver value.
     with pytest.warns(DeprecationWarning, match="velocity_limit_sim"):
         torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit)
 
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
-    if vel_limit_sim is None:
+    if joint_velocity_limit is None:
         sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
-        sim_limit = vel_limit_sim
+        sim_limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(physx_vel_limit, sim_limit)
     torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
 
@@ -2356,13 +2358,13 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("vel_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_limit_sim, vel_limit):
+def test_setting_velocity_limit_explicit(sim, num_articulations, device, joint_velocity_limit, vel_limit):
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_explicit",
-        joint_velocity_limit=vel_limit_sim,
+        joint_velocity_limit=joint_velocity_limit,
         velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
@@ -2377,8 +2379,8 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     physx_vel_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_VELOCITY, device)
     actuator_vel_limit = articulation.actuators["joint"].velocity_limit
 
-    # check data buffer for joint_velocity_limits
-    torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, physx_vel_limit)
+    # check data buffer for joint_vel_limits
+    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
 
     if vel_limit is not None:
         expected_actuator_vel_limit = torch.full(
@@ -2395,8 +2397,8 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         torch.testing.assert_close(actuator_vel_limit, physx_vel_limit)
 
     # simulation velocity limit is set to USD value unless user overrides
-    if vel_limit_sim is not None:
-        limit = vel_limit_sim
+    if joint_velocity_limit is not None:
+        limit = joint_velocity_limit
     else:
         limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     # check physx is set to expected value

@@ -481,12 +481,12 @@ G1_29DOF_CFG = ArticulationCfg(
             joint_names_expr=[
                 "waist_.*_joint",
             ],
-            effort_limit={
+            joint_effort_limit={
                 "waist_yaw_joint": 88.0,
                 "waist_roll_joint": 50.0,
                 "waist_pitch_joint": 50.0,
             },
-            velocity_limit={
+            joint_velocity_limit={
                 "waist_yaw_joint": 32.0,
                 "waist_roll_joint": 37.0,
                 "waist_pitch_joint": 37.0,
@@ -511,8 +511,8 @@ G1_29DOF_CFG = ArticulationCfg(
                 ".*_elbow_joint",
                 ".*_wrist_.*_joint",
             ],
-            effort_limit=300,
-            velocity_limit=100,
+            joint_effort_limit=300,
+            joint_velocity_limit=100,
             stiffness=3000.0,
             damping=10.0,
             armature={
@@ -527,8 +527,8 @@ G1_29DOF_CFG = ArticulationCfg(
                 ".*_middle_.*",
                 ".*_thumb_.*",
             ],
-            effort_limit=300,
-            velocity_limit=100,
+            joint_effort_limit=300,
+            joint_velocity_limit=100,
             stiffness=20,
             damping=2,
             armature=0.001,
@@ -585,8 +585,8 @@ G1_INSPIRE_FTP_CFG.actuators["arms"] = ImplicitActuatorCfg(
         ".*_elbow_joint",
         ".*_wrist_.*_joint",
     ],
-    effort_limit=300,
-    velocity_limit=100,
+    joint_effort_limit=300,
+    joint_velocity_limit=100,
     stiffness=3000.0,
     damping=100.0,
     armature={
@@ -743,8 +743,8 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
         ),
         "waist": ImplicitActuatorCfg(
             joint_names_expr=["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"],
-            effort_limit=1000.0,
-            velocity_limit=0.0,
+            joint_effort_limit=1000.0,
+            joint_velocity_limit=0.0,
             stiffness={"waist_yaw_joint": 10000.0, "waist_roll_joint": 10000.0, "waist_pitch_joint": 10000.0},
             damping={"waist_yaw_joint": 10000.0, "waist_roll_joint": 10000.0, "waist_pitch_joint": 10000.0},
             armature=None,

@@ -161,7 +161,8 @@ similarly own their controller gains; those gains are not joint solver gains.
 particular, an explicit actuator's ``effort_limit`` clips its model output, while
 ``joint_effort_limit`` constrains the solver. ``velocity_limit`` is the model's rated joint-side
 speed or implicit soft-limit snapshot; ``joint_velocity_limit`` requests a solver constraint.
-Solver velocity enforcement is backend-dependent, so it is not a portable clamp.
+Solver velocity enforcement is backend-dependent, so it is not a portable clamp. For implicit
+actuators, bare ``effort_limit`` remains only as a deprecated alias for ``joint_effort_limit``.
 
 .. note::
 
@@ -256,13 +257,11 @@ sweeps run on the *implicit* path.
 
 .. important::
 
-    **Model limits versus joint limits.** :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit`
-    clips an explicit actuator model. :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit`
-    is a solver limit written at construction; explicit groups default it to ``1.0e9`` to avoid a
-    second clip. ``velocity_limit`` is a model rated speed or implicit soft-limit snapshot, whereas
-    ``joint_velocity_limit`` requests a solver constraint. These are independent values. Solver
-    velocity enforcement remains backend-dependent; see
-    :doc:`physical-backends/newton/migrating-assets-from-physx-to-newton`.
+    **Explicit solver effort default.** Explicit groups default
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit` to ``1.0e9`` so their model
+    output is not clipped by the solver a second time. See
+    :ref:`actuators-joint-property-ownership` for model-limit, joint-limit, and implicit-alias
+    semantics.
 
 
 Stiffness

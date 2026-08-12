@@ -154,7 +154,7 @@ KINOVA_GEN3_N7_CFG = ArticulationCfg(
     actuators={
         "arm": ImplicitActuatorCfg(
             joint_names_expr=["joint_[1-7]"],
-            effort_limit={
+            joint_effort_limit={
                 "joint_[1-4]": 39.0,
                 "joint_[5-7]": 9.0,
             },

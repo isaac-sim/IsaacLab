@@ -109,8 +109,8 @@ to combine them into a single actuator model.
       actuators={
          "all_joints": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            effort_limit=400.0,
-            velocity_limit=100.0,
+            joint_effort_limit=400.0,
+            joint_velocity_limit=100.0,
             stiffness={"slider_to_cart": 0.0, "cart_to_pole": 0.0},
             damping={"slider_to_cart": 10.0, "cart_to_pole": 0.0},
          ),
@@ -199,49 +199,49 @@ if unmatching value is found, we log the resolution:
 This resolution info is emitted as a warning table only when discrepancies exist.
 Here's an example of what you'll see::
 
-    +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
-    |     Group      |      Property      |         Name        | ID |  USD Value  | ActuatorCfg Value  | Applied  |
-    +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
-    | panda_shoulder | joint_velocity_limit |    panda_joint1     |  0 |    2.17e+00 |   Not Specified    | 2.17e+00 |
-    |                |                    |    panda_joint2     |  1 |    2.17e+00 |   Not Specified    | 2.17e+00 |
-    |                |                    |    panda_joint3     |  2 |    2.17e+00 |   Not Specified    | 2.17e+00 |
-    |                |                    |    panda_joint4     |  3 |    2.17e+00 |   Not Specified    | 2.17e+00 |
-    |                |     stiffness      |    panda_joint1     |  0 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |                    |    panda_joint2     |  1 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |                    |    panda_joint3     |  2 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |                    |    panda_joint4     |  3 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |      damping       |    panda_joint1     |  0 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |                    |    panda_joint2     |  1 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |                    |    panda_joint3     |  2 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |                    |    panda_joint4     |  3 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |      armature      |    panda_joint1     |  0 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint2     |  1 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint3     |  2 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint4     |  3 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    | panda_forearm  | joint_velocity_limit |    panda_joint5     |  4 |    2.61e+00 |   Not Specified    | 2.61e+00 |
-    |                |                    |    panda_joint6     |  5 |    2.61e+00 |   Not Specified    | 2.61e+00 |
-    |                |                    |    panda_joint7     |  6 |    2.61e+00 |   Not Specified    | 2.61e+00 |
-    |                |     stiffness      |    panda_joint5     |  4 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |                    |    panda_joint6     |  5 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |                    |    panda_joint7     |  6 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
-    |                |      damping       |    panda_joint5     |  4 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |                    |    panda_joint6     |  5 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |                    |    panda_joint7     |  6 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
-    |                |      armature      |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |      friction      |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |  panda_hand    | joint_velocity_limit | panda_finger_joint1 |  7 |    2.00e-01 |   Not Specified    | 2.00e-01 |
-    |                |                    | panda_finger_joint2 |  8 |    2.00e-01 |   Not Specified    | 2.00e-01 |
-    |                |     stiffness      | panda_finger_joint1 |  7 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
-    |                |                    | panda_finger_joint2 |  8 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
-    |                |      armature      | panda_finger_joint1 |  7 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    | panda_finger_joint2 |  8 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |      friction      | panda_finger_joint1 |  7 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |                |                    | panda_finger_joint2 |  8 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
+    +----------------+------------------------+---------------------+----+-------------+--------------------+----------+
+    |     Group      |      Property          |         Name        | ID |  USD Value  | ActuatorCfg Value  | Applied  |
+    +----------------+------------------------+---------------------+----+-------------+--------------------+----------+
+    | panda_shoulder | joint_velocity_limit   |    panda_joint1     |  0 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |                        |    panda_joint2     |  1 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |                        |    panda_joint3     |  2 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |                        |    panda_joint4     |  3 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    |                |     stiffness          |    panda_joint1     |  0 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                        |    panda_joint2     |  1 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                        |    panda_joint3     |  2 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                        |    panda_joint4     |  3 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |      damping           |    panda_joint1     |  0 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                        |    panda_joint2     |  1 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                        |    panda_joint3     |  2 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                        |    panda_joint4     |  3 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |      armature          |    panda_joint1     |  0 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint2     |  1 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint3     |  2 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint4     |  3 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    | panda_forearm  | joint_velocity_limit   |    panda_joint5     |  4 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    |                |                        |    panda_joint6     |  5 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    |                |                        |    panda_joint7     |  6 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    |                |     stiffness          |    panda_joint5     |  4 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                        |    panda_joint6     |  5 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |                        |    panda_joint7     |  6 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
+    |                |      damping           |    panda_joint5     |  4 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                        |    panda_joint6     |  5 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |                        |    panda_joint7     |  6 |    4.58e+03 |      4.00e+00      | 4.00e+00 |
+    |                |      armature          |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |      friction          |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |  panda_hand    | joint_velocity_limit   | panda_finger_joint1 |  7 |    2.00e-01 |   Not Specified    | 2.00e-01 |
+    |                |                        | panda_finger_joint2 |  8 |    2.00e-01 |   Not Specified    | 2.00e-01 |
+    |                |     stiffness          | panda_finger_joint1 |  7 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
+    |                |                        | panda_finger_joint2 |  8 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
+    |                |      armature          | panda_finger_joint1 |  7 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        | panda_finger_joint2 |  8 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |      friction          | panda_finger_joint1 |  7 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    |                |                        | panda_finger_joint2 |  8 |    0.00e+00 |   Not Specified    | 0.00e+00 |
+    +----------------+------------------------+---------------------+----+-------------+--------------------+----------+
 
 To keep the cleaniness of logging, :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`
 default to False, remember to turn it on when wishes.

@@ -25,7 +25,9 @@ from ... import mdp
 FRANKA_PANDA_LIFT_CFG = FRANKA_PANDA_CFG.copy()
 FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_PANDA_LIFT_CFG.actuators = {
-    # inspired by libfranka's joint_impedance_control.cpp
+    # Inspired by libfranka's joint_impedance_control.cpp. ``velocity_limit``
+    # remains the soft task-limit snapshot; ``joint_velocity_limit`` is the
+    # separate solver request.
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
         joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},

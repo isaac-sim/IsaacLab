@@ -22,6 +22,11 @@ Deprecated
 * Deprecated ``effort_limit_sim`` and ``velocity_limit_sim`` in favor of
   ``joint_effort_limit`` and ``joint_velocity_limit``. The deprecated names
   remain available through Isaac Lab 3.x and will be removed in 4.0.
+* Deprecated :attr:`~isaaclab.actuators.ActuatorBase.effort_limit_sim` and
+  :attr:`~isaaclab.actuators.ActuatorBase.velocity_limit_sim` group accessors.
+  Read :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits` and
+  :attr:`~isaaclab.assets.ArticulationData.joint_vel_limits` instead; the
+  accessors will be removed in 4.0.
 
 Changed
 ^^^^^^^
