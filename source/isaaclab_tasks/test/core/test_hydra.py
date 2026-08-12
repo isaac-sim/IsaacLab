@@ -1340,6 +1340,36 @@ def test_scalar_override_within_preset_path(class_presets):
     assert env_cfg.backend.substeps == 4
 
 
+def test_scalar_override_kamino_solver_config():
+    """Concrete Kamino solver fields can be overridden through Hydra scalar paths."""
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, NewtonCfg
+
+    @configclass
+    class KaminoPhysicsPreset(PresetCfg):
+        default: NewtonCfg = NewtonCfg()
+        newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True))
+
+    @configclass
+    class KaminoEnvCfg:
+        physics: KaminoPhysicsPreset = KaminoPhysicsPreset()
+
+    env_cfg = KaminoEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(
+        env_cfg,
+        agent_cfg,
+        hydra_cfg,
+        ["newton_kamino"],
+        [],
+        [("env.physics.solver_cfg.dynamics_solver_cfg.max_iterations", "25")],
+        presets,
+    )
+    assert isinstance(env_cfg.physics.solver_cfg, KaminoPADMMSolverCfg)
+    assert env_cfg.physics.solver_cfg.dynamics_solver_cfg.max_iterations == 25
+
+
 # =============================================================================
 # Tests: resolve_presets idempotency
 # =============================================================================

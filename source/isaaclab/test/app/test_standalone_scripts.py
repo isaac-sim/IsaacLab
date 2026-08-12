@@ -552,7 +552,11 @@ if __name__ == '__main__':
 
 @pytest.mark.parametrize(
     ("backend", "package"),
-    [("isaacsim_physx", "isaaclab_physx"), ("newton_mjwarp", "isaaclab_newton")],
+    [
+        ("isaacsim_physx", "isaaclab_physx"),
+        ("newton_mjwarp", "isaaclab_newton"),
+        ("ovphysx", "isaaclab_ov"),
+    ],
 )
 def test_backend_availability_resolves_implementation_package(monkeypatch, backend, package):
     """Backend gating must query the package that implements each declared backend."""

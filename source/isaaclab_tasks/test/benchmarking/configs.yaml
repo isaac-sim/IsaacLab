@@ -247,14 +247,14 @@ full:
       episode_length: 300
     upper_thresholds:
       duration: 10000
-  Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct:
+  IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
       episode_length: 50
     upper_thresholds:
       duration: 15000
-  Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct:
+  IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct:
     max_iterations: 3000
     lower_thresholds:
       reward: 1000
