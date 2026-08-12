@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
+    "BACKEND_MIRROR_NAMES",
     "RL_LIBRARY_PRIORITY",
     "DiscoveredTask",
     "DiscoveryError",
@@ -46,7 +47,7 @@ _SKIP_PHYSICS = frozenset({"newton_mjwarp_vbd_proxy"})
 # ``presets=`` token would be a duplicate at best and wrong at worst. A per-task
 # check is not enough: a task can list ``newton_mjwarp`` under DOMAIN without
 # declaring it under PHYSICS.
-_BACKEND_MIRROR_NAMES = frozenset(
+BACKEND_MIRROR_NAMES = frozenset(
     {
         "newton_kamino",
         "newton_mjwarp",
@@ -89,8 +90,14 @@ class DiscoveredTask:
             order. Empty for registered environments with no RL entry point, such as
             IK, teleop and mimic tasks.
         declared: Preset names the task declares, keyed by axis (``physics``,
-            ``renderer``, ``presets``). Backend mirrors are already removed from
-            ``presets``.
+            ``renderer``, ``presets``), exactly as the registry reports them, or
+            ``None`` when the config could not be loaded at all. ``None`` and an
+            all-empty mapping are different answers: the first means unknown, the
+            second means the task declares nothing and runs on a fixed backend.
+            Nothing is filtered out: names that mirror a backend selector, and
+            selectors themselves, are all present. Consumers narrow this with
+            :data:`BACKEND_MIRROR_NAMES` and ``selectors`` according to what they
+            are reporting.
         selectors: Declared names that are automatic selectors rather than concrete
             backends, keyed by axis. ``physics=physx`` and ``renderer=rtx`` resolve to
             a backend at launch, so a selector and its target are the same run.
@@ -122,7 +129,7 @@ class DiscoveredTask:
     task_id: str
     scope: str
     rl_libraries: tuple[str, ...]
-    declared: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    declared: dict[str, tuple[str, ...]] | None = field(default_factory=dict)
     selectors: dict[str, tuple[str, ...]] = field(default_factory=dict)
     modes: tuple[DiscoveredTask.Mode, ...] = ()
     resolved: bool = False
@@ -147,8 +154,13 @@ def _selector_names(task_id: str) -> dict[str, tuple[str, ...]]:
 
     try:
         walked = collect_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"))
+    except ImportError:
+        # A task whose config needs an extra that is not installed (teleop, mimic)
+        # simply cannot be inspected here. That is a property of the environment,
+        # not a broken registry, so report no selectors and carry on.
+        return {}
     except _INFRASTRUCTURE_ERRORS as exc:
-        # A structural failure here returns no selectors, which is indistinguishable
+        # Anything else structural returns no selectors, which is indistinguishable
         # from a task that genuinely has none — so it would silently disable
         # selector-aware filtering for every task. Fail loudly instead.
         raise DiscoveryError(f"selector detection for {task_id!r} could not run: {type(exc).__name__}: {exc}") from exc
@@ -182,7 +194,7 @@ def _canonical_physics(names: tuple[str, ...]) -> tuple[str, ...]:
 
 def _domain_presets(names: list[str]) -> tuple[str, ...]:
     """Return domain presets, dropping names that mirror a backend selector."""
-    return tuple(sorted(name for name in names if name not in _BACKEND_MIRROR_NAMES))
+    return tuple(sorted(name for name in names if name not in BACKEND_MIRROR_NAMES))
 
 
 def _is_training_task(task_id: str) -> bool:
@@ -250,10 +262,15 @@ def _mode_resolves(task_id: str, physics: str | None, renderer: str | None, pres
         config_scan = scan(env_cfg, args)
         _validate_runtime(config_scan, _get_kit_runtime_sources(config_scan, args))
         return True
+    except ImportError:
+        # The task's config needs an extra that is not installed, so this
+        # combination cannot run in this environment. That is the same answer as a
+        # rejected combination, and it keeps discovery usable from a partial install.
+        return False
     except _INFRASTRUCTURE_ERRORS as exc:
         raise DiscoveryError(
             f"preset validation for {task_id!r} could not run: {type(exc).__name__}: {exc}. This is an Isaac Lab"
-            " import or API failure, not a rejected preset combination."
+            " API failure, not a rejected preset combination."
         ) from exc
     except Exception:  # noqa: BLE001 - any other failure means the combination cannot run
         return False
@@ -290,13 +307,14 @@ def _build_modes(
     return tuple(modes)
 
 
-def discover_tasks(*, resolve: bool = True) -> list[DiscoveredTask]:
+def discover_tasks(specs: list[Any] | None = None, *, resolve: bool = True) -> list[DiscoveredTask]:
     """Walk the Gym registry and return every registered training task.
 
     Imports Isaac Lab, so it needs the project environment. Contrib tasks are included
     when ``isaaclab_tasks_experimental`` is importable.
 
     Args:
+        specs: Gym specs to walk. When ``None``, the whole registry is scanned.
         resolve: When ``True``, every backend combination is built and checked against
             the runtime validator, and only combinations that can actually run are
             returned. When ``False``, combinations are reported as declared, which is
@@ -322,8 +340,11 @@ def discover_tasks(*, resolve: bool = True) -> list[DiscoveredTask]:
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401
 
+    if specs is None:
+        specs = list(gym.registry.values())
+
     tasks: list[DiscoveredTask] = []
-    for spec in gym.registry.values():
+    for spec in specs:
         if not _is_training_task(spec.id) or spec.kwargs.get("deprecated"):
             continue
         # Tasks without an RL entry point (IK, teleop, mimic) are still registered
@@ -340,7 +361,15 @@ def discover_tasks(*, resolve: bool = True) -> list[DiscoveredTask]:
                 task_id=spec.id,
                 scope="contrib" if spec.id.startswith("IsaacContrib-") else "core",
                 rl_libraries=libraries,
-                declared={"physics": physics, "renderer": renderers, "presets": domains},
+                declared=(
+                    None
+                    if preset_map is None
+                    else {
+                        "physics": tuple(sorted(preset_map.get(PresetTarget.PHYSICS, []))),
+                        "renderer": renderers,
+                        "presets": tuple(sorted(preset_map.get(PresetTarget.DOMAIN, []))),
+                    }
+                ),
                 selectors=_selector_names(spec.id),
                 modes=_build_modes(spec.id, physics, renderers, domains, resolve=resolve),
                 resolved=resolve,
