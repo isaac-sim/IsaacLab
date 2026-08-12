@@ -78,6 +78,25 @@ JSON. ``schema`` writes the stable, typed JSON bundle used for programmatic
 comparison. With multiple formatters, their filenames include ``_summary`` and
 ``_schema`` respectively.
 
+OVRTX camera tasks can compare synchronous against asynchronous (one-frame-latency) rendering
+through a Hydra override on the camera's renderer configuration (use ``False`` to force
+synchronous):
+
+.. code-block:: bash
+
+   uv run isaaclab benchmark runtime \
+       --task Isaac-Cartpole-Camera-Direct \
+       --num_envs 256 \
+       --warmup_frames 30 \
+       --num_frames 200 \
+       --benchmark_formatter schema,omniperf \
+       --output_path ./results/ovrtx_async \
+       physics=newton_mjwarp renderer=ovrtx presets=rgb \
+       env.tiled_camera.renderer_cfg.async_rendering=True
+
+``OVRTX_ASYNC_RENDERING=1`` in the environment toggles the same path for any task, which avoids
+naming a camera that a given task may not define.
+
 Warm-Up
 ~~~~~~~
 

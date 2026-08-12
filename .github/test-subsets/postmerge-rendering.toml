@@ -31,6 +31,8 @@ rendering-correctness-kitless-legacy = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-albedo]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-rgb]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-semantic_segmentation]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless_async[legacy-newton-ovrtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless_async[legacy-ovphysx-ovrtx-rgb]",
 ]
 
 rendering-correctness-kitless-ovstage = [
@@ -39,4 +41,6 @@ rendering-correctness-kitless-ovstage = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-albedo]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-rgb]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-semantic_segmentation]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless_async[ovstage-newton-ovrtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless_async[ovstage-ovphysx-ovrtx-rgb]",
 ]

@@ -10,7 +10,11 @@ How it fits together
 - **ovrtx_renderer.py** (this file): Orchestrates the pipeline. Owns the OVRTX Renderer,
   USD loading/cloning, camera and object bindings, and output buffers. Each frame it:
   updates camera/object transforms (using kernels), steps the renderer, then extracts
-  tiles from the tiled framebuffer (kernels).
+  tiles from the tiled framebuffer (kernels). It delegates *how* a frame is executed
+  (synchronously or pipelined) to a render strategy.
+
+- **ovrtx_renderer_strategies.py**: Sync vs async render-execution strategies — how transform
+  writes are staged and how the OVRTX step is dispatched and consumed (Strategy pattern).
 
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
@@ -62,6 +66,7 @@ try:
         PrimMode,
         Renderer,
         RendererConfig,
+        RenderProductSetOutputs,
         Semantic,
     )
 except ModuleNotFoundError as exc:
@@ -93,6 +98,12 @@ from .ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
+from .ovrtx_renderer_strategies import (
+    _RENDER_DELTA_TIME,
+    _AsyncRenderStrategy,
+    _RenderStrategy,
+    _SyncRenderStrategy,
+)
 from .ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
@@ -113,6 +124,7 @@ _RTX_MINIMAL_MODES = {
     RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL.value: 2,
     RenderBufferKind.SIMPLE_SHADING_FULL_MDL.value: 3,
 }
+
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
@@ -184,6 +196,18 @@ def ovrtx_use_ovstage_enabled() -> bool:
             "'ovstage>=0.1.0,<0.2.0')."
         )
     return value == "1"
+
+
+def _resolve_render_strategy(cfg: OVRTXRendererCfg) -> _RenderStrategy:
+    """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
+
+    Both scene-ownership paths support asynchronous rendering. Under ovstage the renderer reads the
+    stage's storage in place, so a scene write could otherwise mutate data a queued render is still
+    reading; every ovstage write drains the queue first via
+    :meth:`_RenderStrategy.settle_before_scene_write`, leaving each render to observe exactly the
+    publication its ordinal names.
+    """
+    return _AsyncRenderStrategy.try_create(cfg) or _SyncRenderStrategy()
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
@@ -359,12 +383,6 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
 
-    @property
-    def _device_id(self) -> int:
-        """CUDA device index extracted from ``self._device`` for OVRTX ``binding.map()`` calls."""
-        parts = self._device.split(":")
-        return int(parts[1]) if len(parts) > 1 else 0
-
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
@@ -386,6 +404,7 @@ class OVRTXRenderer(BaseRenderer):
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
         self._use_ovstage = ovrtx_use_ovstage_enabled()
+        self._strategy: _RenderStrategy = _resolve_render_strategy(cfg)
         self._init_fields()
 
         logger.info("Creating OVRTX renderer...")
@@ -402,6 +421,11 @@ class OVRTXRenderer(BaseRenderer):
                 " value. Check that ovrtx is installed correctly and its native dependencies are available."
             )
         logger.info("OVRTX renderer created successfully")
+
+    @property
+    def is_async_rendering_enabled(self) -> bool:
+        """Whether asynchronous rendering is enabled."""
+        return isinstance(self._strategy, _AsyncRenderStrategy)
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
@@ -536,6 +560,7 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         self._initialized_scene = True
+        self._strategy.initialize(num_envs)
 
         self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
@@ -847,6 +872,7 @@ class OVRTXRenderer(BaseRenderer):
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
         self._device = spec.device
+        self._strategy.set_device(self._device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, self._device)
@@ -899,12 +925,14 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with self._object_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-            ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+        # The state stages the transforms (mapped OVRTX buffer when sync, a double-buffered slot when
+        # async) and publishes them to the binding when the context exits.
+        num_objects = len(self._object_newton_indices)
+        with self._strategy.stage_object_transforms(self._object_xform_binding, num_objects) as object_transforms:
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
-                dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
+                dim=num_objects,
+                inputs=[object_transforms, self._object_newton_indices, body_q],
                 device=self._device,
             )
 
@@ -1007,26 +1035,28 @@ class OVRTXRenderer(BaseRenderer):
         intrinsics: ProxyArray,
     ) -> None:
         """Update camera transforms in OVRTX binding."""
+        if self._camera_xform_binding is None:
+            return
         num_envs = positions.shape[0]
-        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
-        convert_camera_frame_orientation_convention_wp(
-            src=orientations.warp,
-            dst=converted_wp,
-            origin="world",
-            target="opengl",
-            device=self._device,
-        )
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
-        wp.launch(
-            kernel=create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[positions, converted_wp, camera_transforms],
-            device=self._device,
-        )
-        if self._camera_xform_binding is not None:
-            with self._camera_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-                wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.copy(wp_transforms_view, camera_transforms)
+        # The state stages the quaternion scratch + transform buffers and publishes the transforms to
+        # the binding when the context exits (mapped copy when sync, queued async write when async).
+        with self._strategy.stage_camera_transforms(self._camera_xform_binding, num_envs) as (
+            converted_wp,
+            camera_transforms,
+        ):
+            convert_camera_frame_orientation_convention_wp(
+                src=orientations.warp,
+                dst=converted_wp,
+                origin="world",
+                target="opengl",
+                device=self._device,
+            )
+            wp.launch(
+                kernel=create_camera_transforms_kernel,
+                dim=num_envs,
+                inputs=[positions, converted_wp, camera_transforms],
+                device=self._device,
+            )
 
     def read_output(
         self,
@@ -1296,7 +1326,7 @@ class OVRTXRenderer(BaseRenderer):
         # FIXME: OVRTX render var mapping can select a different CUDA device
         # than the camera/output buffers on MGPU systems. Keep this PPISP-only
         # bridge until render var mapping can be constrained like transform
-        # bindings, which use ``device_id=self._device_id``.
+        # binding maps, which pin the CUDA device via ``device_id``.
         return wp.clone(tiled_data, device=output_device)
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
@@ -1391,10 +1421,16 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self._renderer is None or len(self._render_product_paths) == 0:
             return
-        products = self._renderer.step(
-            render_products=set(self._render_product_paths),
-            delta_time=1.0 / 60.0,
+
+        self._strategy.render(
+            self._renderer,
+            set(self._render_product_paths),
+            _RENDER_DELTA_TIME,
+            render_data,
+            self._consume_products,
         )
+
+    def _consume_products(self, render_data: OVRTXRenderData, products: RenderProductSetOutputs) -> None:
         product_path = self._render_product_paths[0]
         if product_path in products and len(products[product_path].frames) > 0:
             self._process_render_frame(
@@ -1524,7 +1560,8 @@ class OVRTXRenderer(BaseRenderer):
 
         The stage queries, tensor bindings and render products this renderer holds are shared by
         every camera that resolves to it, so releasing them here would tear the scene down while
-        the other cameras are still rendering. :meth:`close` releases them instead.
+        the other cameras are still rendering. :meth:`close` releases them instead. The render
+        strategy is shared the same way, so its in-flight work is drained in :meth:`close` too.
         """
         if render_data is None:
             return
@@ -1534,6 +1571,10 @@ class OVRTXRenderer(BaseRenderer):
 
     def close(self) -> None:
         """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
+        # Drain in-flight work before either backend releases the renderer it belongs to. ``render_data``
+        # is None because :meth:`cleanup` already released the per-camera buffers, so queued renders are
+        # only waited on, not consumed.
+        self._strategy.cleanup(None, self._consume_products)
         if self._use_ovstage:
             self._close_ovstage()
         else:
@@ -1551,6 +1592,16 @@ class OVRTXRenderer(BaseRenderer):
     #   ``omni:xform``/``points`` are  lanes=16/3 while warp's DLPack export is always lanes=1.
     #   ovstage 0.1.1 will address this.
     # ---------------------------------------------------------------------------
+
+    def _write_attribute_ovstage(self, *args, **kwargs) -> None:
+        """Write one ovstage attribute after draining any render that must not observe the change.
+
+        All ovstage scene mutations funnel through here. OVRTX reads the stage's storage in place, so
+        this write would land in memory a queued render is still reading; the strategy drains those
+        renders first. Under synchronous rendering nothing is ever in flight, so the drain is a no-op.
+        """
+        self._strategy.settle_before_scene_write()
+        self._stage.write_attribute(*args, **kwargs).wait()
 
     def _init_fields_ovstage(self) -> None:
         self._stage = None
@@ -1638,14 +1689,14 @@ class OVRTXRenderer(BaseRenderer):
             camera_target_ids = np.array(
                 [self._stage_paths.intern_path(path) for path in camera_paths], dtype=np.uint64
             )
-            self._stage.write_attribute(
+            self._write_attribute_ovstage(
                 render_product_query,
                 camera_attribute,
                 ordinal=self._current_ordinal,
                 tensors=camera_target_ids,
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
-            ).wait()
+            )
         self._stage_paths.destroy_path_list(render_product_paths)
 
         self._camera_paths_list = self._stage_paths.create_path_list_from_strings(camera_paths)
@@ -1657,13 +1708,13 @@ class OVRTXRenderer(BaseRenderer):
 
         # Resetting the xform stack makes omni:xform the absolute world transform, preventing
         # ancestor transforms (env root, asset root) from compounding on top of the camera pose.
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._camera_xform_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(num_envs, True, dtype=np.bool_),
             is_array=False,
-        ).wait()
+        )
 
         self._setup_xform_bindings_ovstage()
         self._setup_deformable_bindings_ovstage(num_envs)
@@ -1751,14 +1802,14 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
         # Restore the pre-clone xforms.
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             env_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(env_root_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
+        )
         self._env_root_xforms = None
         logger.info("Restored per-env root transforms after cloning")
 
@@ -1776,28 +1827,28 @@ class OVRTXRenderer(BaseRenderer):
 
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             env_query,
             "primvars:omni:scenePartition",
             ordinal=self._current_ordinal,
             tensors=token_ids,
             is_array=False,
             semantic=ovstage.AttributeSemantic.TOKEN_ID,
-        ).wait()
+        )
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
         logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
 
         cam_paths_list = self._stage_paths.create_path_list_from_strings(camera_prim_paths)
         cam_query = self._stage.query_from_path_list(cam_paths_list)
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             cam_query,
             "omni:scenePartition",
             ordinal=self._current_ordinal,
             tensors=token_ids,
             is_array=False,
             semantic=ovstage.AttributeSemantic.TOKEN_ID,
-        ).wait()
+        )
         self._stage.release_query(cam_query).wait()
         self._stage_paths.destroy_path_list(cam_paths_list)
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
@@ -1838,13 +1889,13 @@ class OVRTXRenderer(BaseRenderer):
         self._object_paths_list = self._stage_paths.create_path_list_from_strings(object_paths)
         self._object_xform_query = self._stage.query_from_path_list(self._object_paths_list)
 
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._object_xform_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(len(object_paths), True, dtype=np.bool_),
             is_array=False,
-        ).wait()
+        )
 
         if self._object_xform_query is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
@@ -1915,23 +1966,23 @@ class OVRTXRenderer(BaseRenderer):
 
         # particle_q is already in world space, so resetting the xform stack and pinning an identity
         # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._deformable_points_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(prim_count, True, dtype=np.bool_),
             is_array=False,
-        ).wait()
+        )
 
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._deformable_points_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(identity_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
+        )
 
         if self._deformable_points_query is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
@@ -1971,23 +2022,23 @@ class OVRTXRenderer(BaseRenderer):
         #
         # particle_q is already in world space, so resetting the xform stack and pinning an identity
         # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._particle_points_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(prim_count, True, dtype=np.bool_),
             is_array=False,
-        ).wait()
+        )
 
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._particle_points_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(identity_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
+        )
 
         if self._particle_points_query is None:
             raise RuntimeError("Failed to create OVRTX particle point bindings")
@@ -2026,14 +2077,14 @@ class OVRTXRenderer(BaseRenderer):
         # dtype override on numpy arrays, not DLPack producers. wp.mat44d exports as (N,4,4) lanes=1
         # via DLPack, which conflicts with the lanes=16 omni:xform column created at population time.
         wp.synchronize_device(self._device)
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             self._object_xform_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=_xform_tensor_from_numpy(object_transforms.numpy().reshape(-1, 4, 4)),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
+        )
 
     def _update_geometries_ovstage(self) -> None:
         if self._deformable_points_query is None and self._particle_points_query is None:
@@ -2099,14 +2150,14 @@ class OVRTXRenderer(BaseRenderer):
             for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
         ]
 
-        self._stage.write_attribute(
+        self._write_attribute_ovstage(
             query,
             "points",
             ordinal=self._current_ordinal,
             tensors=particle_slices,
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
-        ).wait()
+        )
 
     def _update_camera_ovstage(
         self,
@@ -2134,14 +2185,14 @@ class OVRTXRenderer(BaseRenderer):
         if self._camera_xform_query is not None:
             # Synchronize then copy to CPU numpy: same lanes=16 constraint as object transforms above.
             wp.synchronize_device(self._device)
-            self._stage.write_attribute(
+            self._write_attribute_ovstage(
                 self._camera_xform_query,
                 "omni:xform",
                 ordinal=self._current_ordinal,
                 tensors=_xform_tensor_from_numpy(camera_transforms.numpy().reshape(-1, 4, 4)),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-            ).wait()
+            )
 
     def _render_ovstage(self, render_data: OVRTXRenderData) -> None:
         if not self._initialized_scene:
@@ -2151,27 +2202,15 @@ class OVRTXRenderer(BaseRenderer):
         # Commit all per-frame writes (transforms, geometries, camera) then step.
         # advance_write_floor must precede step — the renderer rejects ordinal > write_floor.
         self._stage.advance_write_floor(ordinal=self._current_ordinal).wait()
-        products = self._renderer.step(
-            render_products=set(self._render_product_paths),
-            delta_time=1.0 / 60.0,
+        self._strategy.render(
+            self._renderer,
+            set(self._render_product_paths),
+            _RENDER_DELTA_TIME,
+            render_data,
+            self._consume_products,
             ordinal=self._current_ordinal,
         )
         self._current_ordinal += 1
-        product_path = self._render_product_paths[0]
-        if product_path in products and len(products[product_path].frames) > 0:
-            self._process_render_frame(
-                render_data,
-                products[product_path].frames[0],
-                render_data.warp_buffers,
-            )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-            )
 
     def _close_ovstage(self) -> None:
         """Release the renderer's stage queries, path lists and ovstage stage. See :meth:`close`."""

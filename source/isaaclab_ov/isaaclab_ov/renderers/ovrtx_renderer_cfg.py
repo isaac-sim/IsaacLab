@@ -67,3 +67,14 @@ class OVRTXRendererCfg(RendererCfg):
     If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
     If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
     """
+
+    async_rendering: bool = False
+    """Whether to render asynchronously. Defaults to False.
+
+    When True, the renderer submits a render and returns immediately, overlapping rendering with
+    simulation and Python work to improve throughput, at the cost of camera outputs arriving one
+    frame later.
+
+    For tests this can be overridden with the ``OVRTX_ASYNC_RENDERING`` environment variable
+    (``0``/``false``/``no``/``off`` disable, any other non-empty value enables).
+    """

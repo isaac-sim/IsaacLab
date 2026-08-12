@@ -43,24 +43,46 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
+# Entries are ``[synchronous, asynchronous]``: pipelined rendering captures a slightly different render
+# state, so it carries its own tolerance. Read via :func:`max_different_pixels_percentage_for`.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
-    "cartpole": 1.5,
+    "cartpole": [1.5, 2.5],
     # Aliasing artifacts of shadow on the table.
-    "franka_cloth": 8.0,
-    "franka_soft": 8.0,
+    "franka_cloth": [8.0, 8.0],
+    "franka_soft": [8.0, 8.0],
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
-    "shadow_hand": 5.0,
+    "shadow_hand": [5.0, 5.0],
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "lift_kuka_homo": 8.0,
-    "lift_kuka_hetero": 8.0,
+    "lift_kuka_homo": [8.0, 8.0],
+    "lift_kuka_hetero": [8.0, 8.0],
 }
 
 # Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled. The
 # deterministic Warp rasterizer and the Isaac RTX reference path keep the stricter env-wide threshold.
 _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
+
+
+def _async_rendering_enabled() -> bool:
+    """Whether asynchronous (pipelined) rendering is active, per the ``OVRTX_ASYNC_RENDERING`` toggle."""
+    value = os.environ.get("OVRTX_ASYNC_RENDERING", "").strip().lower()
+    return value not in ("", "0", "false", "no", "off")
+
+
+def max_different_pixels_percentage_for(env_name: str) -> float:
+    """Return ``env_name``'s pixel-diff tolerance for the render path this run uses.
+
+    Args:
+        env_name: Key into :data:`MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME`.
+
+    Returns:
+        The synchronous or asynchronous tolerance, per :func:`_async_rendering_enabled`.
+    """
+    synchronous, asynchronous = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+    return asynchronous if _async_rendering_enabled() else synchronous
+
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
@@ -1388,7 +1410,7 @@ def rendering_test_shadow_hand(
             physics_backend,
             renderer,
             env._tiled_camera.data.output,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
+            max_different_pixels_percentage=max_different_pixels_percentage_for("shadow_hand"),
             comparison_scores=comparison_scores,
         )
 
@@ -1471,7 +1493,7 @@ def rendering_test_shadow_hand_yellow_bg(
             physics_backend,
             renderer,
             env._tiled_camera.data.output,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
+            max_different_pixels_percentage=max_different_pixels_percentage_for("shadow_hand"),
             comparison_scores=comparison_scores,
         )
     finally:
@@ -1585,9 +1607,11 @@ def rendering_test_cartpole(
             data_type,
             compare_golden=compare_golden and data_type == "rgb",
         )
-        max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
+        max_different_pixels_percentage = max_different_pixels_percentage_for("cartpole")
         if renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
-            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
+            max_different_pixels_percentage = max(
+                max_different_pixels_percentage, _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
+            )
         validate_camera_outputs(
             "cartpole",
             physics_backend,
@@ -1744,7 +1768,7 @@ def rendering_test_lift_kuka(
             physics_backend,
             renderer,
             env.scene.sensors["base_camera"].data.output,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            max_different_pixels_percentage=max_different_pixels_percentage_for(test_name),
             comparison_scores=comparison_scores,
         )
     finally:
@@ -1839,7 +1863,7 @@ def rendering_test_franka_cloth(
             physics_backend,
             renderer,
             env.scene.sensors["base_camera"].data.output,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            max_different_pixels_percentage=max_different_pixels_percentage_for(test_name),
             comparison_scores=comparison_scores,
         )
     finally:
@@ -1911,7 +1935,7 @@ def rendering_test_franka_soft(
             physics_backend,
             renderer,
             env.scene.sensors["base_camera"].data.output,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            max_different_pixels_percentage=max_different_pixels_percentage_for(test_name),
             comparison_scores=comparison_scores,
         )
     finally:
