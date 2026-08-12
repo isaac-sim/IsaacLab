@@ -41,12 +41,6 @@ The Kit Visualizer shows the streaming camera view in a separate tab inside the 
 Viewport window, labelled **Streaming View**. The highlighted tab area in the figures
 below shows where to toggle between the interactive viewport and the streaming camera view.
 
-.. note::
-
-   The Kit streaming view requires camera rendering to be enabled. Isaac Lab's launch
-   logic enables it automatically when ``streaming_view=True`` is set on a
-   :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. No additional flags are needed.
-
 .. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
    :alt: Kit visualizer interactive viewport for AnymalD robots
