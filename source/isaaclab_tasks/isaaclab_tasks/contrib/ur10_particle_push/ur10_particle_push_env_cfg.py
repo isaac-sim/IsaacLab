@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pxr import Usd
 
+    from .heightmap_visualizer import _ParticlePushHeightmapVisualizer
+
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionPropertiesCfg
@@ -1044,5 +1046,16 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             show_particles=True,
             particle_color=MPM_VISUAL_COLOR,
         )
-        self.sim.visualizer_cfgs = [NewtonGLVisualizerCfg()]
+        self.sim.visualizer_cfgs = [_ParticlePushNewtonGLVisualizerCfg()]
         configure_sparse_mpm_capacities(self)
+
+
+@configclass
+class _ParticlePushNewtonGLVisualizerCfg(NewtonGLVisualizerCfg):
+    """Newton GL configuration with the task-local CNN heightmap overlay."""
+
+    def create_visualizer(self) -> _ParticlePushHeightmapVisualizer:
+        """Create the task-specific Newton GL visualizer."""
+        from .heightmap_visualizer import _ParticlePushHeightmapVisualizer
+
+        return _ParticlePushHeightmapVisualizer(self)

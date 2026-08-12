@@ -118,6 +118,10 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         configure_sparse_mpm_capacities(cfg)
         self._particle_max_velocity = float(cfg.particle_max_velocity)
         super().__init__(cfg, render_mode, **kwargs)
+        for visualizer in self.sim.visualizers:
+            bind_heightmap_source = getattr(visualizer, "bind_heightmap_source", None)
+            if callable(bind_heightmap_source):
+                bind_heightmap_source(self)
 
     def load_managers(self) -> None:
         """Bind task state before constructing terms that infer their tensor shapes."""
