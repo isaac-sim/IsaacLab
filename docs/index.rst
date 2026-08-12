@@ -140,6 +140,12 @@ Table of Contents
    source/features/ray
    source/features/reproducibility
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/index
+
 
 .. toctree::
    :maxdepth: 3
