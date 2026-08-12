@@ -11,6 +11,7 @@ backend/task export then runs in its own subprocess against those checkpoints.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,10 @@ _CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkp
 _SUBPROCESS_TIMEOUT = 600
 _CHECKPOINT_BATCH_TIMEOUT = 1200
 _OUTPUT_TAIL_CHARS = 5000
+# TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases
+# can corrupt the heap while parsing the Newton Franka payload concurrently.
+# These settings mirror SimulationApp(limit_cpu_threads=1) for the export subprocess.
+_LEAPP_TEST_CPU_THREAD_LIMIT = 1
 
 
 @dataclass(frozen=True)
@@ -131,6 +136,11 @@ def _run_checked(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env={
+                **os.environ,
+                "PXR_WORK_THREAD_LIMIT": str(_LEAPP_TEST_CPU_THREAD_LIMIT),
+                "OPENBLAS_NUM_THREADS": str(_LEAPP_TEST_CPU_THREAD_LIMIT),
+            },
         )
     except subprocess.TimeoutExpired as exc:
         stdout = _ensure_text(exc.stdout)
@@ -207,6 +217,11 @@ def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Pat
         "--export_save_path",
         str(export_root),
         "--disable_graph_visualization",
+        "--kit_args",
+        (
+            f"--/plugins/carb.tasking.plugin/threadCount={_LEAPP_TEST_CPU_THREAD_LIMIT} "
+            f"--/plugins/omni.tbb.globalcontrol/maxThreadCount={_LEAPP_TEST_CPU_THREAD_LIMIT}"
+        ),
     ]
     preset = _preset_for_task(task_name)
     if preset is not None:
