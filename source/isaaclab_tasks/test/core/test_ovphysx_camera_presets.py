@@ -8,8 +8,8 @@
 import sys
 
 import pytest
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
 
 from isaaclab.app import scan
 from isaaclab.sim import CuboidCfg
