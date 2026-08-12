@@ -82,9 +82,7 @@ parser.add_argument(
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
-# The MJCF importer ships as a Kit extension unless the standalone importers are reachable, so Kit
-# is only required when they are not. Prefer the kit-less path: it converts without paying Kit
-# startup, and the kitless visualizers can host the preview.
+# Prefer kit-less: it skips Kit startup and the kitless visualizers can host the preview.
 args_cli.require_kit = not standalone_importers_available()
 
 # ``launch_simulation`` receives a bare ``PhysicsCfg()`` placeholder, so name the backend the

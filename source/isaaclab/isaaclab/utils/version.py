@@ -41,15 +41,10 @@ def has_kit() -> bool:
 def standalone_importers_available() -> bool:
     """Check whether the standalone URDF/MJCF importers can be imported in this environment.
 
-    Being installed is not enough. The ``isaacsim-asset-isolated`` wheel contributes
+    Being installed is not enough: the ``isaacsim-asset-isolated`` wheel contributes
     ``isaacsim.asset`` as a PEP 420 namespace portion, and the Isaac Sim runtime ships
-    ``isaacsim`` as a regular package. A regular package discards every namespace portion for
-    that name, so the wheel is unusable whenever the runtime is on :attr:`sys.path` even though
-    its distribution is present. Callers that treat installation as availability pick the
-    kit-less path and then fail to import the importer.
-
-    Resolving the spec answers this without importing ``isaacsim``, so the result stays usable
-    before a launch decision, where importing a simulation module is not allowed.
+    ``isaacsim`` as a regular package, which discards every portion for that name. Resolving the
+    spec detects that without importing ``isaacsim``, so this stays safe before a launch decision.
 
     Returns:
         Whether the standalone importers are installed and reachable.
