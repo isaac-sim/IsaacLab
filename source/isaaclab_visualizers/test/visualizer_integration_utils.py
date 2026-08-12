@@ -175,15 +175,7 @@ _TILED_CAMERA_MOTION_CHANNEL_DIFF_THRESHOLD = 5
 _TILED_CAMERA_MOTION_MIN_DIFFERING_PIXELS = 25
 """Minimum differing pixels for tiled camera motion checks."""
 
-# NVBUG 6570125 — RTX ResponsiveDenoising (turned on by Kit 9e5dd32c, driver-gated at R580+) keeps
-# refining the denoised image after physics stops, so two captures taken while paused differ by a
-# small number of high-amplitude pixels.  Amplitude separates that residue from real motion and the
-# pixel count does not: at the shared threshold of 50 the paused noise reaches 1.55x the weakest real
-# motion signal, so any count-based gate loose enough to be quiet is also blind.  Measured on L40 /
-# driver 595.58.03 / Isaac Sim 6.1.0-alpha.47.  Each override straddles the 100-pixel gate evenly:
-# at 160 the tiled cell measures 49 paused pixels against 213 for real motion over 24 runs.  The
-# Newton ViewerGL pause checks rasterise without DLSS, see none of this, and must keep the strict
-# default.  Remove both overrides once OVRTX 0.5 ships the fix and paused frames are stable again.
+# NVBUG 6570125 — Remove both overrides once it ships the fix and paused frames are stable again.
 _KIT_PAUSED_VIEWPORT_CHANNEL_DIFF_THRESHOLD = 80
 """Per-channel threshold for paused Kit viewport comparisons (0–255 space)."""
 
