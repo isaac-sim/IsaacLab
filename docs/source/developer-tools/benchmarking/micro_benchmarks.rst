@@ -1,4 +1,4 @@
-.. _testing_micro_benchmarks:
+.. _developer_tools_benchmarking_micro:
 
 Write micro-benchmarks
 ======================
@@ -7,13 +7,13 @@ Micro-benchmarks answer isolated performance questions. Asset benchmarks use
 backend-specific **mock views** to measure an asset method or data property;
 sensor benchmarks use **live simulation scenes** to measure a production sensor
 update after physics has completed. Neither predicts end-to-end environment or
-training throughput. Use :ref:`testing_benchmarks` when the question includes
+training throughput. Use :ref:`developer_tools_benchmarking_run` when the question includes
 environment logic, policy inference, learning, or application startup.
 
 .. seealso::
 
    For the typed Python API, formatter and recorder internals, or custom
-   producers, see :ref:`testing_benchmark_framework`.
+   producers, see :ref:`developer_tools_benchmarking_api`.
 
 Choose a suite and backend
 --------------------------

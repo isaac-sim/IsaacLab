@@ -483,5 +483,5 @@ For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node
 skrl JAX multi-node jobs, pass ``--nnodes``, ``--node_rank``, and ``--coordinator_address``.
 
 To measure aggregate throughput and timing rather than to train a policy, use the multi-GPU
-benchmark workflows instead; see :ref:`testing_benchmarks_multigpu`. They take the same launcher
+benchmark workflows instead; see :ref:`developer_tools_benchmarking_multigpu`. They take the same launcher
 options and support RSL-RL, RL-Games, and skrl with Torch.

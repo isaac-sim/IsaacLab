@@ -1,12 +1,12 @@
-.. _testing_benchmarks:
+.. _developer_tools_benchmarking_run:
 
 Run benchmarks
 ==============
 
 This guide covers the ``runtime``, ``play``, ``training``, and ``startup``
 benchmark workflows. For isolated operations, see
-:ref:`testing_micro_benchmarks`; for Python use and framework extensions, see
-:ref:`testing_benchmark_framework`. The :ref:`testing_benchmarks_multigpu`
+:ref:`developer_tools_benchmarking_micro`; for Python use and framework extensions, see
+:ref:`developer_tools_benchmarking_api`. The :ref:`developer_tools_benchmarking_multigpu`
 section covers the supported workflows across several GPUs.
 
 Choose a workflow
@@ -310,7 +310,7 @@ Do not treat a faster environment-step rate as proof of faster end-to-end
 training or equivalent learning. Do not compare short training curves as if
 they established final policy quality.
 
-.. _testing_benchmarks_multigpu:
+.. _developer_tools_benchmarking_multigpu:
 
 Multi-GPU
 ---------

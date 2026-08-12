@@ -1,4 +1,4 @@
-.. _testing_benchmark_framework:
+.. _developer_tools_benchmarking_api:
 
 Use the benchmark API
 =====================
@@ -6,8 +6,8 @@ Use the benchmark API
 This guide is for automation authors who need to run supported benchmarks from
 Python, consume typed results, or add a benchmark producer. For day-to-day
 benchmarking, start with the CLI workflows and interpretation guidance in
-:ref:`testing_benchmarks`. To isolate one asset method, cached property, or
-sensor update, use :ref:`testing_micro_benchmarks` instead.
+:ref:`developer_tools_benchmarking_run`. To isolate one asset method, cached property, or
+sensor update, use :ref:`developer_tools_benchmarking_micro` instead.
 
 Run one workflow
 ----------------
@@ -314,7 +314,7 @@ Consume typed fields rather than scraping terminal text or depending on keys in
 The common ``run``, ``versions``, and ``hardware`` fields carry the comparison
 context. ``runtime`` separates collection throughput, total throughput, startup
 time, and environment-step timing. For measurement definitions, see
-:ref:`testing_benchmarks`; use the public API reference for every schema field.
+:ref:`developer_tools_benchmarking_run`; use the public API reference for every schema field.
 
 Handle errors and process lifetime
 ----------------------------------
@@ -456,7 +456,7 @@ and device-synchronized timing boundaries. Use
 :class:`~isaaclab.benchmark.LatencyBenchmarkRunner` to report those structured
 latency samples. Neither isolated result predicts end-to-end environment or
 training throughput; command matrices and extension protocol are in
-:ref:`testing_micro_benchmarks`.
+:ref:`developer_tools_benchmarking_micro`.
 
 Troubleshooting
 ---------------
@@ -473,5 +473,5 @@ benchmark service is not present; it does not invalidate non-frametime phases.
 
 For a new supported end-to-end workflow, keep typed request construction,
 dispatch, schema output, summary output, and CLI behavior aligned. For an
-isolated operation, continue with :ref:`testing_micro_benchmarks` before adding
+isolated operation, continue with :ref:`developer_tools_benchmarking_micro` before adding
 a new runner or timing convention.
