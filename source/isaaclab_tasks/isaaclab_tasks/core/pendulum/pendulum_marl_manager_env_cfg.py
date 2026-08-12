@@ -118,22 +118,12 @@ class ResetEventCfg:
     """Reset events matching the final direct Pendulum state writes."""
 
     reset_scene = EventTerm(func=base_mdp.reset_scene_to_default, mode="reset")
-    reset_pole_position = EventTerm(
-        func=base_mdp.reset_joints_by_offset,
+    reset_pendulum_joints = EventTerm(
+        func=mdp.reset_pendulum_joints,
         mode="reset",
         params={
-            "asset_cfg": _POLE_CFG,
-            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
-    reset_pendulum_position = EventTerm(
-        func=base_mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": _PENDULUM_CFG,
-            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
-            "velocity_range": (0.0, 0.0),
+            "pole_cfg": _POLE_CFG,
+            "pendulum_cfg": _PENDULUM_CFG,
         },
     )
 

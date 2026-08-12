@@ -58,14 +58,15 @@ class ConsecutiveUprightSuccess(ManagerTermBase):
         """Log completed episode success and clear only the selected environments."""
         if env_ids is None:
             env_ids = slice(None)
-        termination_manager = self._env.termination_manager
-        success = compute_success(
-            termination_manager.time_outs[env_ids],
-            termination_manager.terminated[env_ids],
-            self._upright_steps[env_ids],
-            self._success_required_steps,
-        )
-        self._env.parent.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean().item()
+        if hasattr(self._env.parent, "time_out_dict") and hasattr(self._env.parent, "terminated_dict"):
+            termination_manager = self._env.termination_manager
+            success = compute_success(
+                termination_manager.time_outs[env_ids],
+                termination_manager.terminated[env_ids],
+                self._upright_steps[env_ids],
+                self._success_required_steps,
+            )
+            self._env.parent.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean().item()
         self._upright_steps[env_ids] = 0
 
     def __call__(

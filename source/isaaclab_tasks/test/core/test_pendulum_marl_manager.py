@@ -5,6 +5,7 @@
 
 """Static contract tests for the manager-based Pendulum MARL task."""
 
+import inspect
 from types import SimpleNamespace
 
 import gymnasium as gym
@@ -43,6 +44,20 @@ def test_manager_config_preserves_agents_spaces_timing_and_state() -> None:
     assert cfg.agents["cart"].observations.policy.observations.func is mdp.cart_observation
     assert cfg.agents["pendulum"].observations.policy.observations.func is mdp.pendulum_observation
     assert cfg.state.state.observations.func is mdp.state
+    assert cfg.events.reset_pendulum_joints.func is mdp.reset_pendulum_joints
+    assert set(cfg.events.reset_pendulum_joints.params) == {"pole_cfg", "pendulum_cfg"}
+
+
+def test_manager_reset_event_matches_direct_sampling_order_without_velocity_draws() -> None:
+    """Keep reset position sampling ordered and avoid velocity randomization or clamping."""
+    source = inspect.getsource(mdp.reset_pendulum_joints)
+
+    assert source.count("sample_uniform(") == 2
+    assert source.index("joint_pos[:, pole_cfg.joint_ids] += sample_uniform") < source.index(
+        "joint_pos[:, pendulum_cfg.joint_ids] += sample_uniform"
+    )
+    assert "clamp" not in source
+    assert "write_joint_velocity" not in source
 
 
 def test_reward_terms_produce_expected_final_7025_values() -> None:
@@ -88,7 +103,7 @@ def test_reward_terms_produce_expected_final_7025_values() -> None:
 
 
 def test_success_tracker_updates_once_and_resets_selected_envs() -> None:
-    """Update once per control step and retain tracker state for unselected environments."""
+    """Log only completed episodes and retain tracker state for unselected environments."""
     parent = SimpleNamespace(extras={"log": {}})
     agent = SimpleNamespace(
         parent=parent,
@@ -107,6 +122,13 @@ def test_success_tracker_updates_once_and_resets_selected_envs() -> None:
     assert torch.equal(tracker._upright_steps, torch.tensor([2, 0]))
 
     tracker._upright_steps[1] = 5
+    tracker.reset(torch.tensor([0]))
+    assert "Metrics/success_rate" not in parent.extras["log"]
+    assert torch.equal(tracker._upright_steps, torch.tensor([0, 5]))
+
+    parent.time_out_dict = {"cart": torch.tensor([True, True])}
+    parent.terminated_dict = {"cart": torch.tensor([False, True])}
+    tracker._upright_steps[0] = 2
     tracker.reset(torch.tensor([0]))
     assert parent.extras["log"]["Metrics/success_rate"] == 1.0
     assert torch.equal(tracker._upright_steps, torch.tensor([0, 5]))

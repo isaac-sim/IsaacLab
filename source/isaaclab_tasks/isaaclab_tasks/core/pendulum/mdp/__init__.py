@@ -5,6 +5,7 @@
 
 """Manager terms and shared tensor calculations for the Pendulum MARL task."""
 
+from .events import reset_pendulum_joints
 from .observations import cart_observation, pendulum_observation, state
 from .rewards import alive, cart_action_l2, cart_velocity_l1, lower_link_position, lower_link_velocity_l1
 from .rewards import pole_position, pole_velocity_l1, terminated, upright
@@ -30,6 +31,7 @@ __all__ = [
     "pendulum_observation",
     "pole_position",
     "pole_velocity_l1",
+    "reset_pendulum_joints",
     "state",
     "terminated",
     "time_out",
