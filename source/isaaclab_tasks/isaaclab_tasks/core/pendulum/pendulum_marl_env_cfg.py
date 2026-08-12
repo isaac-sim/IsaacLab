@@ -57,7 +57,8 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     rew_scale_alive = 1.0
     rew_scale_terminated = -2.0
     rew_scale_cart_vel = -0.01
-    rew_scale_pole_pos = -1.0
+    rew_scale_pole_pos = 1.0
     rew_scale_pole_vel = -0.01
-    rew_scale_pendulum_pos = -1.0
+    rew_scale_pendulum_pos = 1.0
     rew_scale_pendulum_vel = -0.01
+    rew_scale_action = -0.01

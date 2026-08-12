@@ -94,7 +94,7 @@ class PendulumMARLEnv(DirectMARLEnv):
         return observations
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
-        team_reward = compute_quadratic_team_reward(
+        team_reward = compute_cosine_team_reward(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_cart_vel,
@@ -102,11 +102,14 @@ class PendulumMARLEnv(DirectMARLEnv):
             self.cfg.rew_scale_pole_vel,
             self.cfg.rew_scale_pendulum_pos,
             self.cfg.rew_scale_pendulum_vel,
+            self.cfg.rew_scale_action,
             self.joint_vel[:, self._cart_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
             self.joint_vel[:, self._pole_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]),
             self.joint_vel[:, self._pendulum_dof_idx[0]],
+            self.actions["cart"],
+            self.actions["pendulum"],
             math.prod(self.terminated_dict.values()),
             self.step_dt,
         )
@@ -237,6 +240,50 @@ def compute_success(
 
 
 @torch.jit.script
+def compute_cosine_team_reward(
+    rew_scale_alive: float,
+    rew_scale_terminated: float,
+    rew_scale_cart_vel: float,
+    rew_scale_pole_pos: float,
+    rew_scale_pole_vel: float,
+    rew_scale_pendulum_pos: float,
+    rew_scale_pendulum_vel: float,
+    rew_scale_action: float,
+    cart_vel: torch.Tensor,
+    pole_pos: torch.Tensor,
+    pole_vel: torch.Tensor,
+    pendulum_pos: torch.Tensor,
+    pendulum_vel: torch.Tensor,
+    cart_action: torch.Tensor,
+    pendulum_action: torch.Tensor,
+    reset_terminated: torch.Tensor,
+    step_dt: float,
+) -> torch.Tensor:
+    lower_angle = normalize_angle(pole_pos + pendulum_pos)
+    lower_velocity = pole_vel + pendulum_vel
+    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
+    rew_termination = rew_scale_terminated * reset_terminated.float()
+    rew_pole_pos = rew_scale_pole_pos * torch.cos(pole_pos)
+    rew_pendulum_pos = rew_scale_pendulum_pos * torch.cos(lower_angle)
+    rew_cart_vel = rew_scale_cart_vel * torch.abs(cart_vel)
+    rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
+    rew_pendulum_vel = rew_scale_pendulum_vel * torch.abs(lower_velocity)
+    rew_action = rew_scale_action * (
+        torch.sum(torch.square(cart_action), dim=1) + torch.sum(torch.square(pendulum_action), dim=1)
+    )
+    return (
+        rew_alive
+        + rew_termination
+        + rew_pole_pos
+        + rew_pendulum_pos
+        + rew_cart_vel
+        + rew_pole_vel
+        + rew_pendulum_vel
+        + rew_action
+    ) * step_dt
+
+
+@torch.jit.script
 def compute_quadratic_team_reward(
     rew_scale_alive: float,
     rew_scale_terminated: float,
@@ -262,11 +309,5 @@ def compute_quadratic_team_reward(
     rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
     rew_pendulum_vel = rew_scale_pendulum_vel * torch.abs(pendulum_vel)
     return (
-        rew_alive
-        + rew_termination
-        + rew_pole_pos
-        + rew_pendulum_pos
-        + rew_cart_vel
-        + rew_pole_vel
-        + rew_pendulum_vel
+        rew_alive + rew_termination + rew_pole_pos + rew_pendulum_pos + rew_cart_vel + rew_pole_vel + rew_pendulum_vel
     ) * step_dt
