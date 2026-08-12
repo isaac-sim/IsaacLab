@@ -87,11 +87,8 @@ try:
 except metadata.PackageNotFoundError:
     args_cli.require_kit = True
 
-# The config handed to ``launch_simulation`` is a bare ``PhysicsCfg()`` placeholder, so name the
-# backend it resolves to; without this the preview builds a simulation with no physics manager.
-# The backend has to match the runtime: Kit registers the PhysX USD schemas, so the converted asset
-# composes ``PhysxJointAPI`` that only PhysX reads. Kitless, those schemas are absent and Newton --
-# which ships with the base install -- hosts the preview.
+# ``launch_simulation`` receives a bare ``PhysicsCfg()`` placeholder, so name the backend the
+# runtime provides; without it the preview builds a simulation with no physics manager.
 args_cli.physics = "isaacsim_physx" if args_cli.require_kit else "newton_mjwarp"
 
 # Report the missing importer before converting anything. Without this the launcher reports only

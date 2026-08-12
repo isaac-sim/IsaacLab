@@ -141,16 +141,8 @@ class SmokeResult:
     fatal_patterns: tuple[str, ...] = ()
 
 
-# The asset converters take positional input and output paths. The URDF ships with the repository;
-# the MJCF comes from ``newton``, a base dependency, as in ``test_mjcf_converter.py``.
-_newton_spec = importlib.util.find_spec("newton")
-_newton_root = Path(_newton_spec.origin).parent if _newton_spec and _newton_spec.origin else ROOT
-_CONVERTER_URDF = ROOT / "source" / "isaaclab" / "test" / "sim" / "urdfs" / "test_merge_joints.urdf"
-_CONVERTER_MJCF = _newton_root / "examples" / "assets" / "nv_ant.xml"
-_CONVERTER_OUTPUT = Path(tempfile.gettempdir()) / "isaaclab_converter_smoke"
-# Printed once conversion succeeds, so the preview -- which is what exercises the launch contract --
-# falls inside the post-readiness soak instead of the startup window.
-_CONVERTER_READINESS_PATTERN = r"Generated USD file:"
+# newton ships the same NVIDIA Ant model the Kit importer bundles, as in test_mjcf_converter.py.
+_NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
@@ -228,16 +220,18 @@ OVERRIDES = {
         visualizers=("none",),
         required_modules=("ovrtx",),
     ),
-    # The converters pick the backend themselves from the runtime, so no ``--physics`` is passed and
-    # the default label applies -- it is PhysX here because the harness runs them under Kit.
+    # Readiness fires once conversion succeeds, so the preview runs inside the soak.
     "scripts/tools/convert_urdf.py": ScriptOverride(
-        args=(str(_CONVERTER_URDF), str(_CONVERTER_OUTPUT / "urdf"), "--merge_joints"),
-        readiness_pattern=_CONVERTER_READINESS_PATTERN,
+        args=(
+            str(ROOT / "source" / "isaaclab" / "test" / "sim" / "urdfs" / "test_merge_joints.urdf"),
+            str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "urdf"),
+            "--merge_joints",
+        ),
+        readiness_pattern=r"Generated USD file:",
     ),
     "scripts/tools/convert_mjcf.py": ScriptOverride(
-        args=(str(_CONVERTER_MJCF), str(_CONVERTER_OUTPUT / "mjcf")),
-        readiness_pattern=_CONVERTER_READINESS_PATTERN,
-        required_modules=("newton",),
+        args=(_NEWTON_MJCF, str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "mjcf")),
+        readiness_pattern=r"Generated USD file:",
     ),
     "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=("none", "kit")),
