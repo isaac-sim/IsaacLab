@@ -454,7 +454,7 @@ _SHADOW_HAND_NEWTON = SHADOW_HAND_NEWTON_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(semantic_tags=[("class", "robot")]),
 )
-_SHADOW_OBJECT_PHYSX = RigidObjectCfg(
+_SHADOW_OBJECT = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
@@ -468,22 +468,12 @@ _SHADOW_OBJECT_PHYSX = RigidObjectCfg(
             stabilization_threshold=0.0025,
             max_depenetration_velocity=1000.0,
         ),
-        mass_props=sim_utils.MassPropertiesCfg(density=567.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
+        ),
         semantic_tags=[("class", "cube")],
     ),
-    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6)),
-)
-_SHADOW_OBJECT_NEWTON = ArticulationCfg(
-    prim_path="{ENV_REGEX_NS}/object",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-        semantic_tags=[("class", "cube")],
-        scale=(0.9, 0.9, 0.9),
-    ),
-    init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -0.36, 0.535), joint_pos={}, joint_vel={}),
-    actuators={},
-    articulation_root_prim_path="",
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
 )
 _SHADOW_LIGHT = AssetBaseCfg(
     prim_path="/World/Light",
@@ -512,7 +502,7 @@ class ShadowHandRenderingSceneCfg(RenderingSceneCfg):
     fill_light = _SHADOW_LIGHT.copy()
     camera: CameraCfg = _SHADOW_CAMERA.copy()
     robot: ArticulationCfg = _SHADOW_HAND_NEWTON.copy()
-    object: ArticulationCfg | RigidObjectCfg = _SHADOW_OBJECT_NEWTON.copy()
+    object: RigidObjectCfg = _SHADOW_OBJECT.copy()
 
 
 @dataclass(frozen=True)
@@ -597,7 +587,7 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
         cfg.robot = {"physx": _SHADOW_HAND_PHYSX, "ovphysx": _SHADOW_HAND_OVPHYSX, "newton": _SHADOW_HAND_NEWTON}[
             physics
         ].copy()
-        cfg.object = (_SHADOW_OBJECT_NEWTON if physics == "newton" else _SHADOW_OBJECT_PHYSX).copy()
+        cfg.object = _SHADOW_OBJECT.copy()
         return RenderingSceneSpec(
             cfg=cfg,
             camera_eye=(0.0, -0.35, 1.0),

@@ -213,6 +213,7 @@ def test_scene_composition_has_one_downstream_owner() -> None:
 def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
     """Scene-specific geometry and tolerances do not leak into the runner."""
     scene_path = _SUITE_DIR / "rendering_scene_cfgs.py"
+    scene_tree = ast.parse(scene_path.read_text())
     classes = _defined_classes(scene_path)
     expected_scenes = {"franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand"}
     assert {
@@ -226,6 +227,14 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
     assert {case.scene for _, case in SPECIALIZED_KITLESS_CASES} == expected_scenes - {"kuka_heterogeneous"}
     assert KIT_RENDERING_CASES == KIT_CASES + SPECIALIZED_KIT_CASES
     assert KITLESS_RENDERING_CASES == KITLESS_CASES + SPECIALIZED_KITLESS_CASES
+    shadow_objects = {
+        target.id
+        for node in scene_tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id.startswith("_SHADOW_OBJECT")
+    }
+    assert shadow_objects == {"_SHADOW_OBJECT"}
 
     runner_source = (_SUITE_DIR / "rendering_runner.py").read_text()
     assert not [scene for scene in expected_scenes if f'"{scene}"' in runner_source]
