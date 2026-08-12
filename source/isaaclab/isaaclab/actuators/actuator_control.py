@@ -117,22 +117,28 @@ class ActuatorControl(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
     def joint_stiffness(self) -> ProxyArray:
         """Current joint stiffness values [N/m or N·m/rad, depending on joint type]."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            "ActuatorControl.joint_stiffness is required for Lab implicit actuator execution. "
+            "The subclass must provide the current articulation-order joint stiffness as a ProxyArray."
+        )
 
     @property
-    @abstractmethod
     def joint_damping(self) -> ProxyArray:
         """Current joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            "ActuatorControl.joint_damping is required for Lab implicit actuator execution. "
+            "The subclass must provide the current articulation-order joint damping as a ProxyArray."
+        )
 
     @property
-    @abstractmethod
     def joint_effort_limits(self) -> ProxyArray:
         """Current joint effort limits [N or N·m, depending on joint type]."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            "ActuatorControl.joint_effort_limits is required for Lab implicit actuator execution. "
+            "The subclass must provide the current articulation-order joint effort limits as a ProxyArray."
+        )
 
     @abstractmethod
     def find_joints(self, name_keys: str | Sequence[str]) -> tuple[list[int] | ProxyArray, list[str]]:

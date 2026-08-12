@@ -82,7 +82,7 @@ class ImplicitActuator(ActuatorBase):
 
     @stiffness.setter
     def stiffness(self, value: torch.Tensor) -> None:
-        self._stiffness = value
+        self._set_joint_drive_property("stiffness", value)
 
     @property
     def damping(self) -> torch.Tensor:
@@ -92,7 +92,7 @@ class ImplicitActuator(ActuatorBase):
 
     @damping.setter
     def damping(self, value: torch.Tensor) -> None:
-        self._damping = value
+        self._set_joint_drive_property("damping", value)
 
     @property
     def effort_limit(self) -> torch.Tensor:
@@ -102,7 +102,21 @@ class ImplicitActuator(ActuatorBase):
 
     @effort_limit.setter
     def effort_limit(self, value: torch.Tensor) -> None:
-        self._effort_limit = value
+        self._set_joint_drive_property("effort_limit", value)
+
+    def _set_joint_drive_property(self, name: str, value: torch.Tensor) -> None:
+        """Store a construction value or reject assignment after articulation binding."""
+        if "_joint_drive" in self.__dict__:
+            writer_name = {
+                "stiffness": "write_joint_stiffness_to_sim_index",
+                "damping": "write_joint_damping_to_sim_index",
+                "effort_limit": "write_joint_effort_limit_to_sim_index",
+            }[name]
+            raise AttributeError(
+                f"ImplicitActuator.{name} is articulation-owned after binding. Use "
+                f"Articulation.{writer_name}() or randomize_actuator_gains() to update it."
+            )
+        self.__dict__[f"_{name}"] = value
 
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits

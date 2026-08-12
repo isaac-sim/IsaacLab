@@ -362,9 +362,26 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
 
-def test_actuator_control_requires_current_joint_property_source():
+def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays():
+    drive_property_names = {"joint_stiffness", "joint_damping", "joint_effort_limits"}
+    legacy_members = {
+        name: FakeActuatorControl.__dict__[name] for name in ActuatorControl.__abstractmethods__ - drive_property_names
+    }
+    legacy_control_type = type(
+        "LegacyActuatorControl",
+        (ActuatorControl,),
+        {"__init__": FakeActuatorControl.__init__, **legacy_members},
+    )
+
+    control = legacy_control_type()
+
     assert "get_current_joint_properties" in ActuatorControl.__abstractmethods__
-    assert {"joint_stiffness", "joint_damping", "joint_effort_limits"} <= ActuatorControl.__abstractmethods__
+    for name in drive_property_names:
+        with pytest.raises(
+            NotImplementedError,
+            match=rf"{name}.*Lab implicit actuator execution.*articulation-order.*ProxyArray",
+        ):
+            getattr(control, name)
 
 
 def test_deprecated_joint_limit_aliases_warn_and_forward():
@@ -879,6 +896,11 @@ def test_disjoint_implicit_groups_share_one_execution_batch():
     assert torch.equal(group.damping, torch.tensor([[2.0, 3.0]]))
     assert torch.equal(group.effort_limit, torch.tensor([[7.0, 9.0]]))
     assert torch.equal(group.velocity_limit, velocity_limit_snapshot)
+    with pytest.raises(
+        AttributeError,
+        match=r"ImplicitActuator.stiffness.*write_joint_stiffness_to_sim_index.*randomize_actuator_gains",
+    ):
+        group.stiffness = torch.zeros_like(group.stiffness)
 
 
 def test_lab_executed_explicit_groups_warn_once():
