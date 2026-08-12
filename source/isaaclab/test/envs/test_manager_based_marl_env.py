@@ -343,6 +343,45 @@ def test_reset_synchronizes_scene_and_replaces_agent_logs(env: ManagerBasedMARLE
     assert "transient" not in env.extras["left"]["log"]
 
 
+def test_reset_to_returns_per_agent_observations_and_preserves_reset_lifecycle(
+    env: ManagerBasedMARLEnv, monkeypatch: pytest.MonkeyPatch
+):
+    """Reset-to synchronizes the scene and returns per-agent observations without singular managers."""
+    calls: list[str] = []
+    captured_env_ids = None
+    record_pre_reset = env.recorder_manager.record_pre_reset
+    record_post_reset = env.recorder_manager.record_post_reset
+    scene_reset_to = env.scene.reset_to
+    forward = env.sim.forward
+
+    def track_scene_reset_to(state, env_ids, is_relative=False):
+        nonlocal captured_env_ids
+        calls.append("scene_reset_to")
+        captured_env_ids = env_ids
+        return scene_reset_to(state, env_ids, is_relative=is_relative)
+
+    monkeypatch.setattr(
+        env.recorder_manager,
+        "record_pre_reset",
+        lambda env_ids: (calls.append("record_pre_reset"), record_pre_reset(env_ids))[1],
+    )
+    monkeypatch.setattr(env.scene, "reset_to", track_scene_reset_to)
+    monkeypatch.setattr(env.sim, "forward", lambda: (calls.append("forward"), forward())[1])
+    monkeypatch.setattr(
+        env.recorder_manager,
+        "record_post_reset",
+        lambda env_ids: (calls.append("record_post_reset"), record_post_reset(env_ids))[1],
+    )
+
+    observations, extras = env.reset_to(env.scene.get_state(), env_ids=None)
+
+    assert calls == ["record_pre_reset", "scene_reset_to", "forward", "record_post_reset"]
+    assert torch.equal(captured_env_ids, torch.arange(env.num_envs, dtype=torch.int32, device=env.device))
+    assert list(observations) == env.possible_agents
+    assert all(observation.shape == (env.num_envs, 1) for observation in observations.values())
+    assert extras is env.extras
+
+
 def test_state_returns_none_when_disabled(env: ManagerBasedMARLEnv):
     """Centralized state is absent when no state manager is configured."""
     assert env.state() is None

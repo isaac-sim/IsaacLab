@@ -243,6 +243,40 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
                 self.sim.render()
         return self.obs_dict, self.extras
 
+    def reset_to(
+        self,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
+        env_ids: Sequence[int] | None,
+        seed: int | None = None,
+        is_relative: bool = False,
+    ) -> tuple[dict[str, ObsType], dict]:
+        """Reset selected sub-environments to scene state and return per-agent observations.
+
+        Args:
+            state: Scene state produced by :meth:`isaaclab.scene.InteractiveScene.get_state`.
+            env_ids: Environment indices to reset. Defaults to None, which resets all environments.
+            seed: Seed for randomization. Defaults to None, which preserves the existing seed.
+            is_relative: Whether state positions are relative to environment origins. Defaults to False.
+
+        Returns:
+            Per-agent observations and environment extras.
+        """
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
+
+        self.recorder_manager.record_pre_reset(env_ids)
+        if seed is not None:
+            self.seed(seed)
+        self._reset_idx(env_ids)
+        self.scene.reset_to(state, env_ids, is_relative=is_relative)
+        self.sim.forward()
+        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
+        self.recorder_manager.record_post_reset(env_ids)
+        self.obs_dict = self._get_observations(update_history=True)
+        return self.obs_dict, self.extras
+
     def step(self, actions: dict[str, ActionType]) -> EnvStepReturn:
         """Advance the simulation once using one action tensor for every fixed agent."""
         expected = set(self.possible_agents)
