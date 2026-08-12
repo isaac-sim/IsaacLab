@@ -5,8 +5,11 @@
 
 import newton
 import pytest
+import torch
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import ClonePlan
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 
@@ -116,3 +119,34 @@ def test_newton_imports_cable_with_adjacent_collision_filtering():
 
     assert all(flag & newton.ShapeFlags.COLLIDE_SHAPES for flag in builder.shape_flags)
     assert filter_pairs == {(0, 1), (1, 2)}
+
+
+def test_collect_cable_segment_shapes_resolves_kitless_clones(monkeypatch: pytest.MonkeyPatch):
+    """Cable discovery validates clone destinations against their source prototype."""
+    stage = sim_utils.create_new_stage()
+    cfg = CableCfg(
+        positions=[(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.4, 0.0, 0.0)],
+        physics_material=CableMaterialCfg(),
+    )
+    cfg.func("/World/envs/env_0/Cable", cfg)
+
+    builder = newton.ModelBuilder()
+    builder.add_usd(stage, root_path="/World/envs/env_0")
+    source_labels = list(builder.shape_label)
+    clone_labels = [label.replace("/env_0/", "/env_1/") for label in source_labels]
+    monkeypatch.setattr(NewtonManager, "_model", type("Model", (), {"shape_label": source_labels + clone_labels})())
+
+    clone_plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool),
+        env_ids=torch.arange(2),
+    )
+
+    cable_path = "/World/envs/env_0/Cable/geometry/mesh"
+    clone_path = "/World/envs/env_1/Cable/geometry/mesh"
+    assert not stage.GetPrimAtPath(clone_path).IsValid()
+    assert NewtonManager.collect_cable_segment_shapes(clone_plan=clone_plan) == {
+        cable_path: [0, 1],
+        clone_path: [2, 3],
+    }

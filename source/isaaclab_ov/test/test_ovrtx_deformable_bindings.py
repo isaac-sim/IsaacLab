@@ -95,6 +95,7 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer.cfg = OVRTXRendererCfg()
     renderer._device = device
     renderer._camera_rel_path = "Camera"
+    renderer._clone_plan = None
     renderer._renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
     renderer._deformable_particle_offsets = []
@@ -471,7 +472,7 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
 
 def _cable_registry(shapes: dict[str, list[int]]):
     """Return a ``collect_cable_segment_shapes`` replacement yielding ``shapes``."""
-    return classmethod(lambda cls: dict(shapes))
+    return classmethod(lambda cls, clone_plan=None: dict(shapes))
 
 
 def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch):
@@ -496,6 +497,24 @@ def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch
     # World-space points are written directly, so the inherited env transform must be neutralised
     # or it is applied twice -- the same contract the deformable path relies on.
     assert [write["attribute_name"] for write in backend.writes] == ["omni:resetXformStack", "omni:xform"]
+
+
+def test_setup_cable_bindings_passes_clone_plan(monkeypatch: pytest.MonkeyPatch):
+    """Cable discovery receives the plan needed to resolve kit-less clone destinations."""
+    renderer, _ = _make_renderer_without_backend()
+    clone_plan = object()
+    renderer._clone_plan = clone_plan
+    received_plans = []
+
+    def collect_cable_segment_shapes(cls, clone_plan=None):  # noqa: ARG001
+        received_plans.append(clone_plan)
+        return {"/World/envs/env_0/Cable/geometry/mesh": [0, 1]}
+
+    monkeypatch.setattr(NewtonManager, "collect_cable_segment_shapes", classmethod(collect_cable_segment_shapes))
+
+    renderer._setup_cable_bindings()
+
+    assert received_plans == [clone_plan]
 
 
 def test_setup_cable_bindings_offsets_span_every_curve(monkeypatch: pytest.MonkeyPatch):

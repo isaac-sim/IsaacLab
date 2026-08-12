@@ -78,6 +78,7 @@ from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
+from isaaclab.cloner.query import iter_sources, path_to_source
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.scene_data.deformable_vis_remap import (
@@ -108,6 +109,8 @@ from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 
 if TYPE_CHECKING:
     from newton.solvers import SolverBase
+
+    from isaaclab.cloner import ClonePlan
 
     from isaaclab_newton.actuators import NewtonActuatorAdapter
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -1695,12 +1698,20 @@ class NewtonManager(PhysicsManager):
         fabric_hierarchy.update_world_xforms()
 
     @classmethod
-    def collect_cable_segment_shapes(cls) -> dict[str, list[int]]:
+    def collect_cable_segment_shapes(cls, clone_plan: ClonePlan | None = None) -> dict[str, list[int]]:
         """Map each renderable cable prim path to its ordered Newton segment shape ids.
 
-        Derived from the Newton model labels and the USD stage only, with no Fabric or Kit
-        dependency, so kit-less renderers (OVRTX) can drive cable points without the Fabric
-        sync path that :meth:`_initialize_fabric_cable_prims` sets up for Kit.
+        Shape ids and concrete destination paths come from the Newton model labels. Cable topology
+        is validated against the corresponding USD prim. In kit-less replicated scenes, only source
+        prototypes exist on the host USD stage, so :paramref:`clone_plan` maps destination paths
+        back to their source prims for validation.
+
+        Args:
+            clone_plan: Replication layout used to resolve destination paths to source prototypes.
+                Defaults to None, in which case every concrete cable prim must exist on the host stage.
+
+        Returns:
+            Concrete cable prim paths mapped to ordered Newton segment shape ids.
         """
         if cls._model is None:
             return {}
@@ -1713,11 +1724,23 @@ class NewtonManager(PhysicsManager):
             prim_path, separator, suffix = label.rpartition("_edge_capsule_")
             if not separator or not suffix.isdigit():
                 continue
-            cable_shapes.setdefault(prim_path, {})[int(suffix)] = shape_id
+            segment = int(suffix)
+            segments = cable_shapes.setdefault(prim_path, {})
+            if segment in segments:
+                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
+            segments[segment] = shape_id
 
         ordered: dict[str, list[int]] = {}
+        prototype_paths: set[str] = set()
         for prim_path, segments in cable_shapes.items():
             usd_prim = usd_stage.GetPrimAtPath(prim_path)
+            validation_path = prim_path
+            if not usd_prim.IsValid() and clone_plan is not None:
+                resolved = path_to_source(clone_plan, prim_path)
+                if resolved is not None:
+                    source_path, _, asset_suffix = resolved
+                    validation_path = source_path + asset_suffix
+                    usd_prim = usd_stage.GetPrimAtPath(validation_path)
             if not usd_prim.IsValid() or not usd_prim.IsA(UsdGeom.BasisCurves):
                 continue
             if not has_deformable_curve_api(usd_prim):
@@ -1733,8 +1756,26 @@ class NewtonManager(PhysicsManager):
                 continue
             segment_count = int(counts[0]) - 1
             if set(segments) != set(range(segment_count)):
-                continue
+                raise RuntimeError(
+                    f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
+                )
             ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
+            if validation_path == prim_path:
+                prototype_paths.add(prim_path)
+
+        if clone_plan is not None:
+            expected_paths: set[str] = set()
+            for prototype_path in prototype_paths:
+                for source_root, destination, source_path, env_ids in iter_sources(clone_plan, prototype_path):
+                    source_root = source_root.rstrip("/") or "/"
+                    suffix = source_path[len(source_root) :]
+                    expected_paths.update(f"{destination.format(env_id)}{suffix}" for env_id in env_ids)
+            missing_paths = sorted(expected_paths.difference(ordered))
+            if missing_paths:
+                raise RuntimeError(
+                    "Cable visualization is missing Newton segment shapes for cloned curve prims: "
+                    + ", ".join(missing_paths)
+                )
         return ordered
 
     @classmethod

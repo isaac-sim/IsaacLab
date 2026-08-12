@@ -819,7 +819,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping cable point bindings")
             return
 
-        cable_shapes = NewtonManager.collect_cable_segment_shapes()
+        cable_shapes = NewtonManager.collect_cable_segment_shapes(clone_plan=self._clone_plan)
         if not cable_shapes:
             logger.debug("No renderable Newton cables registered, skipping cable point bindings")
             return
@@ -2074,7 +2074,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping cable point bindings")
             return
 
-        cable_shapes = NewtonManager.collect_cable_segment_shapes()
+        cable_shapes = NewtonManager.collect_cable_segment_shapes(clone_plan=self._clone_plan)
         if not cable_shapes:
             logger.debug("No renderable Newton cables registered, skipping cable point bindings")
             return
