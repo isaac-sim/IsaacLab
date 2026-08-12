@@ -207,11 +207,13 @@ compatibility projections remain during the migration cycle.
 ## Backend-native actuators
 
 Native Newton controller parameters remain owned by Newton's controller storage.
-Lab-side named-group actuator parameters are group-shaped projections of that
-storage, not a second canonical copy. Reads resolve the current controller value;
-supported gain randomization and writes route through the collection's native
-backend hook. The randomization path must not mutate a Lab mirror and then
-forward it. An indexed projection may materialize on public access, and direct
+Lab-side named-group parameters that support runtime mutation are group-shaped
+projections of that storage, not a second canonical copy. Gain reads resolve the
+current controller value, while gain randomization and writes route through the
+collection's native backend hook. The randomization path must not mutate a Lab
+mirror and then forward it. Immutable controller parameters may remain resolved
+configuration snapshots on the facade because they have no public runtime write
+contract. An indexed projection may materialize on public access, and direct
 in-place mutation of such a materialized tensor is not a native-controller write.
 Joint-property overrides are written independently to the Newton model. Native
 controller storage must never become the owner of joint armature, joint friction,
