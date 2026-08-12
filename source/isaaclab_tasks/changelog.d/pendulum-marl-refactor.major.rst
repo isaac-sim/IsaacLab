@@ -9,9 +9,9 @@ Changed
   reward aligned with upright balancing, including a bonus when both links
   enter the success cone. Retrain policies created with the previous split
   per-agent rewards.
-* Changed ``Isaac-Pendulum-MARL-Direct`` to support the ``newton_mjwarp`` and
-  ``ovphysx`` physics backends. Select them with ``physics=newton_mjwarp`` or
-  ``physics=ovphysx``.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to support the ``newton_kamino``,
+  ``newton_mjwarp``, and ``ovphysx`` physics backends. Select them with
+  ``physics=newton_kamino``, ``physics=newton_mjwarp``, or ``physics=ovphysx``.
 * Changed ``Isaac-Pendulum-MARL-Direct`` to use ``0.05 kg m^2`` of armature
   on the lower pendulum joint, aligning its full-scale ``50 N m`` response
   between PhysX and MJWarp. Retrain policies created without the armature.
