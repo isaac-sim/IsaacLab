@@ -20,11 +20,11 @@ Choose a suite and backend
 
 Run commands from the repository root through ``./isaaclab.sh``. The active
 Python environment must contain the backend being measured. PhysX and Newton
-asset benchmarks launch Isaac Sim; Newton sensor benchmarks run kitless with the
-installed Newton runtime. OVPhysX runs kitless with its optional ``ovphysx``
-runtime wheel. Use CUDA for representative GPU numbers; CPU execution is useful
-for correctness or profiling but is a different workload and must not be mixed
-with CUDA results.
+asset benchmarks run kitless with mock views. PhysX sensor benchmarks launch
+Isaac Sim; Newton sensor benchmarks run kitless with the installed Newton
+runtime. OVPhysX runs kitless with its optional ``ovphysx`` runtime wheel. Use
+CUDA for representative GPU numbers; CPU execution is useful for correctness or
+profiling but is a different workload and must not be mixed with CUDA results.
 
 .. list-table::
    :header-rows: 1
@@ -262,14 +262,16 @@ Asset arguments
 
 Asset-specific dimensions include ``--num_bodies`` and ``--num_joints``.
 Defaults differ by file; use ``--help`` before creating a comparison command.
-``torch_list`` passes selection IDs as Python lists and includes list-to-tensor
-conversion. ``torch_tensor`` uses pre-allocated Torch tensors, removing that
-conversion. ``warp_mask`` uses pre-allocated Warp Boolean masks for supported
-Newton and OVPhysX APIs. Compare a mode only where it means the same thing on
-both sides.
 
 Asset input modes
 ~~~~~~~~~~~~~~~~~
+
+To isolate one selector representation, name its exact mode:
+
+.. code-block:: bash
+
+   ./isaaclab.sh microbenchmark --component articulation physics=physx \
+       --mode torch_tensor_int64
 
 Methods indexed only by ``env_ids`` support five selector modes:
 

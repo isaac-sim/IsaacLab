@@ -443,8 +443,8 @@ Read the wall time and attributed functions under each entry in ``phases``.
 
 .. code-block:: text
 
-   phases.<phase>.wall_time
-   phases.<phase>.profile
+   phases.<phase>.total_time_s
+   phases.<phase>.top_functions
 
 Pass ``--whitelist_config scripts/benchmarks/startup_whitelist.yaml`` to select
 stable ``fnmatch`` patterns for specific phases. Whitelist mode ignores
@@ -495,7 +495,7 @@ The primary rates have these boundaries:
      - Collection and policy update together.
    * - ``runtime.environment_step_timing.environment_step_fps`` (training)
      - ``env.step()`` only; inference and learning are excluded.
-   * - ``phases.<phase>.wall_time`` (startup)
+   * - ``phases.<phase>.total_time_s`` (startup)
      - Cold startup work; it is not steady-state throughput.
 
 The same schema field name and the same
@@ -610,7 +610,7 @@ Runtime, play, and training accept this optional diagnostic flag:
 
 .. code-block:: bash
 
-   --measure_synchronized_step_breakdown
+   --measure_sync_step
 
 It changes ``measurement_mode`` from ``host_return`` to
 ``serialized_synchronized``. The diagnostic synchronizes before environment
