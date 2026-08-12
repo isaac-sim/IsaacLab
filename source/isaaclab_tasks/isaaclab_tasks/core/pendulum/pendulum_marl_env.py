@@ -24,7 +24,7 @@ class PendulumMARLEnv(DirectMARLEnv):
     """Multi-agent cart-double-pendulum balancing environment.
 
     Two agents (``cart`` and ``pendulum``) cooperate to keep the double pendulum upright. They
-    share a common termination signal but observe and are rewarded independently.
+    share common reward and termination signals while observing independently.
     """
 
     cfg: PendulumMARLEnvCfg
