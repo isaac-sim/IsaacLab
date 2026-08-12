@@ -10,8 +10,8 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -23,8 +23,8 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
+import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
@@ -34,20 +34,15 @@ from isaaclab_assets.robots.shadow_hand import (
 
 
 @configclass
-class NewtonEventCfg:
-    """Event randomization config for the Newton physics backend.
-
-    Includes joint-parameter, mass, and gravity randomization.
-    Material and tendon randomization are omitted: Newton does not expose
-    per-body friction-material buckets or fixed-tendon APIs.
-    """
+class ShadowHandRandomizationEventCfg:
+    """Randomization of the hand and the object, applied on every physics backend."""
 
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
         min_step_count_between_reset=720,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
             "stiffness_distribution_params": (0.75, 1.5),
             "damping_distribution_params": (0.3, 3.0),
             "operation": "scale",
@@ -93,10 +88,6 @@ class NewtonEventCfg:
         },
     )
 
-
-@configclass
-class PhysxEventCfg:
-    # -- robot
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
@@ -109,20 +100,7 @@ class PhysxEventCfg:
             "num_buckets": 250,
         },
     )
-    robot_tendon_properties = EventTerm(
-        func=mdp.randomize_fixed_tendon_parameters,
-        min_step_count_between_reset=720,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
-    )
 
-    # -- object
     object_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         min_step_count_between_reset=720,
@@ -138,13 +116,40 @@ class PhysxEventCfg:
 
 
 @configclass
-class ShadowHandEventCfg(PresetCfg):
-    physx = PhysxEventCfg()
-    isaacsim_physx = physx
-    newton_mjwarp = NewtonEventCfg()
-    ovphysx = physx  # OvPhysX is PhysX-based; reuse the PhysX randomization terms
-    default = newton_mjwarp
-    newton_kamino = newton_mjwarp
+class ShadowHandManagerResetEventCfg:
+    """Only the per-episode state reset, with no domain randomization."""
+
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_with_random_orientation,
+        mode="reset",
+        params={
+            # the Direct task jitters the drop position and samples a random orientation
+            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
+    )
+    reset_hand = EventTerm(
+        func=reorient_mdp.reset_reorient_hand,
+        mode="reset",
+        params={
+            "joint_position_noise": 0.2,  # [rad]
+            "joint_velocity_noise": 0.0,  # [rad/s]
+        },
+    )
+
+
+@configclass
+class ShadowHandManagerEventCfg(ShadowHandRandomizationEventCfg, ShadowHandManagerResetEventCfg):
+    """Randomization plus the state reset the manager tasks apply on every episode."""
+
+
+@configclass
+class ShadowHandManagerEventPresetCfg(PresetCfg):
+    """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
+
+    randomized = ShadowHandManagerEventCfg()
+    default = ShadowHandManagerResetEventCfg()
 
 
 @configclass
@@ -172,49 +177,30 @@ class ShadowHandRobotCfg(PresetCfg):
         ),
     )
     default = newton_mjwarp
-    newton_kamino = newton_mjwarp
 
 
-@configclass
-class ObjectCfg(PresetCfg):
-    physx = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(density=567.0),
-            semantic_tags=[("class", "cube")],
+CUBE_CFG = RigidObjectCfg(
+    prim_path="/World/envs/env_.*/object",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            kinematic_enabled=False,
+            disable_gravity=False,
+            enable_gyroscopic_forces=True,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+            sleep_threshold=0.005,
+            stabilization_threshold=0.0025,
+            max_depenetration_velocity=1000.0,
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-    isaacsim_physx = physx
-
-    newton_mjwarp = ArticulationCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-            semantic_tags=[("class", "cube")],
-            scale=(0.9, 0.9, 0.9),
+        collision_props=sim_utils.CollisionPropertiesCfg(
+            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
         ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, -0.36, 0.535), rot=(0.0, 0.0, 0.0, 1.0), joint_pos={}, joint_vel={}
-        ),
-        actuators={},
-        articulation_root_prim_path="",
-    )
-    ovphysx = physx  # OvPhysX is PhysX-based; use the rigid-body cube, not Newton's articulation
-    default = newton_mjwarp
-    newton_kamino = newton_mjwarp
+        semantic_tags=[("class", "cube")],
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
+)
+"""In-hand cube for the Shadow Hand reorientation tasks."""
 
 
 @configclass
@@ -238,30 +224,13 @@ class PhysicsCfg(PresetCfg):
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
 
-
-# Scene pieces shared verbatim by the manager-based variants.
-ROBOT_CFG = ShadowHandRobotCfg()
-OBJECT_CFG = ObjectCfg()
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(
     prim_path="/Visuals/goal_marker",
     markers={
         "goal": sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(1.0, 1.0, 1.0),
         )
     },
-)
-
-
-# Per-step gaussian noise + reset-sampled bias, shared verbatim by the manager-based variant.
-OPENAI_ACTION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
-)
-OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
 )
