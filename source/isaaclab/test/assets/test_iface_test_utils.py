@@ -83,7 +83,7 @@ sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
 real_import = builtins.__import__
 
 def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-    backend_prefixes = ("isaaclab_physx.", "isaaclab_newton.", "isaaclab_ovphysx.")
+    backend_prefixes = ("isaaclab_physx.", "isaaclab_newton.", "isaaclab_ov.")
     if name == "ovphysx" or name.startswith(backend_prefixes):
         raise ModuleNotFoundError("backend dependency unavailable", name="backend_dependency")
     return real_import(name, globals, locals, fromlist, level)

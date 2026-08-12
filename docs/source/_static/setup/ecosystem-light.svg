@@ -54,7 +54,7 @@
 
   <!-- PhysX and Omniverse packages (left) -->
   <rect x="16"  y="288" width="376" height="100" rx="7" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
-  <text x="204" y="310" text-anchor="middle" class="lbl"  font-size="12" fill="#e65100">isaaclab_physx &#183; isaaclab_ovphysx &#183; isaaclab_ov</text>
+  <text x="204" y="310" text-anchor="middle" class="lbl"  font-size="12" fill="#e65100">isaaclab_physx &#183; isaaclab_ov</text>
   <text x="204" y="329" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Articulation &#183; Rigid Body &#183; Rigid Object Collection &#183; Deformable</text>
   <text x="204" y="347" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Fabric Views &#183; Camera &#183; USD spawners</text>
   <text x="204" y="365" text-anchor="middle" class="body" font-size="10.5" fill="#bf360c">Isaac RTX Renderer &#183; OvRTX Renderer</text>

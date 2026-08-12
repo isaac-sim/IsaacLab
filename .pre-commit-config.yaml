@@ -77,6 +77,12 @@ repos:
       - id: rst-inline-touching-normal
   - repo: local
     hooks:
+      - id: check-changelog-fragments
+        name: check changelog fragments
+        entry: python tools/changelog/cli.py check --include-worktree
+        language: python
+        always_run: true
+        pass_filenames: false
       - id: check-git-lfs-pointers
         name: check Git LFS pointers
         entry: tools/pre_commit/check_git_lfs_pointers.sh
