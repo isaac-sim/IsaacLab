@@ -1,58 +1,93 @@
 .. _testing_micro_benchmarks:
 
-Micro-Benchmarks for Performance Testing
-========================================
+Write micro-benchmarks
+======================
 
-Micro-benchmarks measure a narrow Isaac Lab operation while excluding as much
-unrelated work as possible. They answer questions such as:
-
-* Did an asset API change make a property read or state write slower?
-* How much host conversion or backend-binding overhead does an API call add?
-* How expensive is a production sensor update after physics has completed?
-* Is a regression in Isaac Lab code, a backend read, or the workload around it?
-
-Isolation makes these benchmarks quick to repeat and easier to diagnose than a
-full training run. It also limits what they prove: micro-benchmarks do **not**
-predict end-to-end environment or training throughput. Use
-:ref:`testing_benchmarks` when the question includes environment logic, policy
-inference, learning, or application startup.
+Micro-benchmarks answer isolated performance questions. Asset benchmarks use
+backend-specific **mock views** to measure an asset method or data property;
+sensor benchmarks use **live simulation scenes** to measure a production sensor
+update after physics has completed. Neither predicts end-to-end environment or
+training throughput. Use :ref:`testing_benchmarks` when the question includes
+environment logic, policy inference, learning, or application startup.
 
 .. seealso::
 
    For the typed Python API, formatter and recorder internals, or custom
    producers, see :ref:`testing_benchmark_framework`.
 
-Choosing a Benchmark
---------------------
+Choose a suite and backend
+--------------------------
+
+Run commands from the repository root through ``./isaaclab.sh``. The active
+Python environment must contain the backend being measured. PhysX launches Isaac
+Sim, Newton runs kitless with its installed runtime, and OVPhysX runs kitless
+with its optional ``ovphysx`` runtime wheel. Use CUDA for representative GPU
+numbers; CPU execution is useful for correctness or profiling but is a different
+workload and must not be mixed with CUDA results.
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 35 35
+   :widths: 24 28 22 26
 
    * - Question
-     - Use
-     - Deliberately excluded
+     - Workload
+     - Simulation mode
+     - Supported backends
    * - How fast is one asset method or data property?
-     - Asset method/data micro-benchmark
-     - Scene creation, simulation, sensors, and environment logic
+     - ``articulation``
+     - Backend-specific mock view; no physics
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
+   * - How fast is one asset method or data property?
+     - ``rigid_object``
+     - Backend-specific mock view; no physics
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
+   * - How fast is one asset method or data property?
+     - ``rigid_object_collection``
+     - Backend-specific mock view; no physics
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
    * - How fast is one production sensor update?
-     - Sensor update micro-benchmark
-     - Timed physics stepping, environment logic, and learning
-   * - How fast does an environment step or policy train?
-     - Runtime, play, or training benchmark
-     - Nothing required by that workflow
+     - ``contact_sensor``
+     - Live scene; physics step is untimed
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
+   * - How fast is one production sensor update?
+     - ``frame_transformer``
+     - Live scene; physics step is untimed
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
+   * - How fast is one production sensor update?
+     - ``imu`` or ``pva``
+     - Live scene; physics step is untimed
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
+   * - How fast is one production sensor update?
+     - ``joint_wrench``
+     - Live scene; physics step is untimed
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
+   * - How fast is one production sensor update?
+     - ``ray_caster``
+     - Live scene; physics step is untimed
+     - ``physics=physx``, ``physics=newton_mjwarp``,
+       ``physics=newton_kamino``, ``physics=ovphysx``
 
-Benchmark Families
-------------------
+Asset entry points are retained under each backend's ``benchmark/assets``
+directory and sensor entry points under ``benchmark/sensors``. The top-level
+command selects one exact variant and component; use the same component,
+dimensions, mode, and selector when comparing results.
 
-Asset Method and Data Benchmarks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Run an asset benchmark
+----------------------
 
-Asset benchmarks instantiate Isaac Lab asset classes against backend-specific
-**mock views**. The mocks reproduce relevant data shapes and binding behavior
-without running physics. Measurements isolate Python input handling,
-tensor/index conversion, Isaac Lab method logic, backend binding calls, and
-data-property computation.
+Asset benchmarks isolate Python input handling, tensor or index conversion,
+Isaac Lab method logic, backend binding calls, and data-property computation.
+They run method then data-property phases and write separate historical method
+and data artifacts, so existing result ingestion remains valid. Methods cover
+supported state writes, targets, forces, and material or mass properties; data
+benchmarks cover backend-supported cached and derived properties.
 
 Equivalent sets exist under:
 
@@ -89,80 +124,7 @@ by the asset. Data benchmarks time backend-supported cached and derived
 properties. Use the same file, dimensions, and mode when comparing backends or
 commits.
 
-Sensor Update Benchmarks
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Sensor benchmarks build **live simulation scenes** and exercise production
-sensor implementations. They step the selected backend so fresh source data
-exists, but place ``sim.step()`` outside the timed region. Reported latency
-therefore measures sensor update work rather than the solver.
-
-Equivalent workloads exist under each backend ``benchmark/sensors`` directory:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 34 22 22 22
-
-   * - Benchmark file
-     - PhysX
-     - Newton
-     - OVPhysX
-   * - ``benchmark_contact_sensor.py``
-     - Yes
-     - Yes
-     - Yes
-   * - ``benchmark_frame_transformer.py``
-     - Yes
-     - Yes
-     - Yes
-   * - ``benchmark_imu_pva.py``
-     - IMU and PVA
-     - IMU and PVA
-     - IMU and PVA
-   * - ``benchmark_joint_wrench.py``
-     - Yes
-     - Yes
-     - Yes
-   * - ``benchmark_ray_caster.py``
-     - Yes
-     - Yes
-     - Yes
-
-Every sensor benchmark validates output after timing. A fast run with missing
-contacts, non-finite transforms, zero wrenches, or invalid ray hits fails instead
-of reporting a misleading performance result.
-
-Prerequisites
--------------
-
-Run commands from the repository root through ``./isaaclab.sh -p``. The active
-Python environment must contain the backend being measured.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 18 41 41
-
-   * - Backend
-     - Asset benchmarks
-     - Sensor benchmarks
-   * - PhysX
-     - Run kitless with mocked PhysX views
-     - Launch Isaac Sim and build a live PhysX scene
-   * - Newton
-     - Run kitless with mocked Newton views
-     - Run kitless with the installed Newton runtime
-   * - OVPhysX
-     - Run kitless; require the optional ``ovphysx`` runtime wheel
-     - Run kitless; require the optional ``ovphysx`` runtime wheel
-
-Use a CUDA device for representative GPU numbers. CPU execution is useful for
-correctness or profiling, but is a different workload and must not be mixed with
-CUDA results.
-
-Running Asset Benchmarks
-------------------------
-
-Use the top-level component command with an exact physics selector:
+For example, run the complete PhysX articulation workload:
 
 .. code-block:: bash
 
@@ -176,29 +138,97 @@ Use the top-level component command with an exact physics selector:
        --backend json \
        --output_dir results/physx_articulation
 
-   ./isaaclab.sh microbenchmark --component articulation physics=newton_mjwarp \
-       --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+Use ``rigid_object`` or ``rigid_object_collection`` for the other asset
+components. The additional exact backend variants are:
 
-   ./isaaclab.sh microbenchmark --component articulation physics=newton_kamino \
-       --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+.. dropdown:: Additional asset backend commands
 
-   ./isaaclab.sh microbenchmark --component articulation physics=ovphysx \
-       --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+   .. code-block:: bash
 
-To isolate one item-selector representation, select its mode explicitly:
+      ./isaaclab.sh microbenchmark --component articulation physics=newton_mjwarp \
+          --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component articulation physics=newton_kamino \
+          --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component articulation physics=ovphysx \
+          --num_instances 4096 --warmup_steps 10 --num_iterations 1000
+
+Run a sensor benchmark
+----------------------
+
+Sensor benchmarks build a live scene and exercise production sensors. Their
+defaults amortize timing noise: 4096 environments, 50 warm-up updates, and 500
+timed updates. The benchmark steps the selected backend to create fresh source
+data, but does not time that physics step.
+
+For example, run the complete PhysX contact-sensor workload:
 
 .. code-block:: bash
 
-   ./isaaclab.sh microbenchmark --component articulation physics=physx \
-       --mode torch_tensor_int64
+   ./isaaclab.sh microbenchmark --component contact_sensor physics=physx \
+       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+       --decimation 4 --history_length 0
 
-Replace ``articulation`` with ``rigid_object`` or
-``rigid_object_collection``. Each command measures both API surfaces and emits
-separate method and data artifacts. The three retained scripts under each
-backend's ``benchmark/assets`` directory remain available for direct execution.
+The contact commands below retain their backend-specific cadence controls. Other
+components are ``frame_transformer``, ``imu``, ``pva``, ``joint_wrench``, and
+``ray_caster``.
 
-Asset Arguments
-~~~~~~~~~~~~~~~
+.. dropdown:: Additional sensor backend and component commands
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component contact_sensor physics=newton_mjwarp \
+          --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+          --decimation 4 --history_length 0
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component contact_sensor physics=ovphysx \
+          --num_envs 4096 --warmup_steps 50 --num_steps 500
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component frame_transformer physics=newton_mjwarp \
+          --num_envs 4096 --num_target_frames 4 --warmup_steps 50 --num_steps 500
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component imu physics=newton_kamino \
+          --num_envs 4096 --warmup_steps 50 --num_steps 500
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component pva physics=physx \
+          --num_envs 4096 --warmup_steps 50 --num_steps 500
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component joint_wrench physics=ovphysx \
+          --num_envs 4096 --warmup_steps 50 --num_steps 500 \
+          --benchmark_formatter summary --output_path results/sensors
+
+   .. code-block:: bash
+
+      ./isaaclab.sh microbenchmark --component ray_caster physics=newton_mjwarp \
+          --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
+          --warmup_steps 50 --num_steps 500
+
+Ray-caster commands run matched plane and deterministic seeded rough-terrain
+workloads by default. They report ``plane_sensor_update`` and
+``rough_sensor_update`` separately, with matching observer and validation
+phases. Pass ``--terrain plane`` or ``--terrain rough`` to run only one
+workload.
+
+Change the workload
+-------------------
+
+Asset arguments
+~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -212,27 +242,32 @@ Asset Arguments
      - Timed calls per method or property
    * - ``--warmup_steps``
      - 10
-     - Untimed calls used to compile and warm caches
+     - Untimed calls that compile code and warm caches
    * - ``--num_instances``
      - 4096
      - Asset instances represented by the mock view
    * - ``--mode``
      - ``all``
-     - Input/index modes to run; method benchmarks only
+     - Input or index modes to run; method benchmarks only
    * - ``--backend``
      - ``json``
      - Output formatter: ``json``, ``osmo``, ``omniperf``, or ``summary``
    * - ``--output_dir``
      - current directory
-     - Directory for the timestamped method and data result files
+     - Directory for timestamped method and data result files
    * - ``--no_shape_checks``
      - false
      - Disable method input shape checks when supported
 
 Asset-specific dimensions include ``--num_bodies`` and ``--num_joints``.
 Defaults differ by file; use ``--help`` before creating a comparison command.
+``torch_list`` passes selection IDs as Python lists and includes list-to-tensor
+conversion. ``torch_tensor`` uses pre-allocated Torch tensors, removing that
+conversion. ``warp_mask`` uses pre-allocated Warp Boolean masks for supported
+Newton and OVPhysX APIs. Compare a mode only where it means the same thing on
+both sides.
 
-Asset Input Modes
+Asset input modes
 ~~~~~~~~~~~~~~~~~
 
 Methods indexed only by ``env_ids`` support five selector modes:
@@ -262,7 +297,7 @@ pre-allocated Warp boolean masks.
 Not every backend or method supports every mode. Compare a mode only when it has
 the same meaning on both sides.
 
-Articulation Finder Phases
+Articulation finder phases
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Articulation method artifacts also contain actual ``find_bodies`` and
@@ -280,62 +315,7 @@ using the device can dominate microsecond-scale differences; correctness-only
 CPU runs and results collected on a busy GPU must not be presented as speed
 comparisons.
 
-Running Sensor Benchmarks
--------------------------
-
-Common sensor defaults are substantial enough to amortize timing noise: 4096
-environments, 50 warm-up updates, and 500 timed updates. Override them for a
-quick smoke test or scaling study.
-
-Select the same component across exact physics variants through the top-level
-command. Contact examples differ because PhysX and Newton expose cadence
-controls:
-
-.. code-block:: bash
-
-   ./isaaclab.sh microbenchmark --component contact_sensor physics=physx \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
-       --decimation 4 --history_length 0
-
-   ./isaaclab.sh microbenchmark --component contact_sensor physics=newton_mjwarp \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
-       --decimation 4 --history_length 0
-
-   ./isaaclab.sh microbenchmark --component contact_sensor physics=ovphysx \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500
-
-Other component names are ``frame_transformer``, ``imu``, ``pva``,
-``joint_wrench``, and ``ray_caster``:
-
-.. code-block:: bash
-
-   ./isaaclab.sh microbenchmark --component frame_transformer physics=newton_mjwarp \
-       --num_envs 4096 --num_target_frames 4 --warmup_steps 50 --num_steps 500
-
-   ./isaaclab.sh microbenchmark --component imu physics=newton_kamino \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500
-
-   ./isaaclab.sh microbenchmark --component pva physics=physx \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500
-
-   ./isaaclab.sh microbenchmark --component joint_wrench physics=ovphysx \
-       --num_envs 4096 --warmup_steps 50 --num_steps 500 \
-       --benchmark_formatter summary --output_path results/sensors
-
-   ./isaaclab.sh microbenchmark --component ray_caster physics=newton_mjwarp \
-       --num_envs 4096 --grid_size 1.0 --grid_resolution 0.25 \
-       --warmup_steps 50 --num_steps 500
-
-The retained scripts under each backend's ``benchmark/sensors`` directory
-remain available for direct execution.
-
-Ray-caster commands run matched plane and deterministic seeded rough-terrain
-workloads by default. Results are reported separately as
-``plane_sensor_update`` and ``rough_sensor_update`` phases with matching
-observer and validation phases. Pass ``--terrain plane`` or ``--terrain rough``
-to run only one workload.
-
-Sensor Arguments
+Sensor arguments
 ~~~~~~~~~~~~~~~~
 
 .. list-table::
@@ -382,165 +362,19 @@ Sensor Arguments
      - 0.25
      - Ray-grid spacing [m]
 
-The default ``summary`` formatter prints a terminal report and writes JSON. Add
-``--output_path results/sensors`` to keep artifacts outside the repository root.
-PhysX scripts also expose ``--disable_graph`` or
-``--disable_recorded_launch`` where applicable. These are diagnostic controls
-for comparing production cached or graph paths with eager launches; leave them
-disabled when measuring default production behavior.
+The default sensor ``summary`` formatter prints a terminal report and writes
+JSON. Add ``--output_path results/sensors`` to keep artifacts outside the
+repository root. ``--benchmark_formatter json`` writes JSON without the terminal
+summary; ``osmo`` and ``omniperf`` select their ingestion formats. PhysX scripts
+also expose ``--disable_graph`` or ``--disable_recorded_launch`` where
+applicable. These diagnostic controls compare production cached or graph paths
+with eager launches; leave them disabled when measuring default production
+behavior.
 
-Understanding the Outputs
--------------------------
+Understand the timing boundary
+------------------------------
 
-Asset Output
-~~~~~~~~~~~~
-
-Asset scripts print mean and standard deviation for every method/mode pair in
-microseconds. Articulation method artifacts additionally contain the finder and
-raw index-kernel phases described above:
-
-.. code-block:: text
-
-   [1/30] [TORCH_LIST] write_root_state_to_sim... 132.02 +/- 6.79 us
-   [1/30] [TORCH_TENSOR_INT64] write_root_state_to_sim... 65.44 +/- 3.06 us
-
-They also write a timestamped JSON file to ``--output_dir`` by default. It
-contains benchmark configuration, hardware/software metadata, phase names, and
-recorded measurements. Select ``--backend osmo`` or ``--backend omniperf`` for
-those ingestion formats. The script prints the exact output path at completion.
-
-Sensor Output
-~~~~~~~~~~~~~
-
-The default ``summary`` formatter prints the aggregate result and writes the
-same phases to a timestamped JSON file. An abbreviated report looks like:
-
-.. code-block:: text
-
-   Results written to: results/sensors/newton_joint_wrench_sensor_2026-07-20_16-09-38.json
-   +------------------------------------------------------------------------------------+
-   |                                   Summary Report                                   |
-   +------------------------------------------------------------------------------------+
-   | workflow_name: newton_joint_wrench_sensor                                         |
-   | num_envs: 4096                                                                    |
-   +------------------------------------------------------------------------------------+
-   | Phase: sensor_update                                                              |
-   | Synchronized Completion: 0.120 ms                                                 |
-   | Synchronized Completion p50: 0.118 ms                                             |
-   | Synchronized Completion p95: 0.126 ms                                             |
-   | Host Submission: 0.115 ms                                                         |
-   | Host Submission p50: 0.113 ms                                                     |
-   | Host Submission p95: 0.122 ms                                                     |
-   +------------------------------------------------------------------------------------+
-   | Phase: observer                                                                   |
-   | Synchronized Observer Floor: 0.002 ms                                             |
-   +------------------------------------------------------------------------------------+
-   | Phase: validation                                                                 |
-   | Finite Wrenches: 8192 count                                                       |
-   | Nonzero Wrenches: 8192 count                                                      |
-   +------------------------------------------------------------------------------------+
-
-The numbers above illustrate the output shape; they are not reference
-performance values. Use the generated artifact for analysis. Its statistical
-measurements contain ``mean``, sample ``std``, ``n``, and ``unit`` fields, while
-p50 and p95 are separate measurements in the same phase. For example:
-
-.. code-block:: json
-
-   {
-       "name": "newton_joint_wrench_sensor sensor_update Synchronized Completion",
-       "mean": 0.038223,
-       "std": 0.00010748023074035611,
-       "n": 2,
-       "unit": "ms",
-       "type": "statistical"
-   }
-
-``Synchronized Completion``
-   Wall-clock latency from immediately before the sensor operation until all
-   work it submitted completes. A device synchronization before the timer
-   excludes earlier simulation, policy, or unrelated kernels. The matching
-   post-boundary synchronization makes this the primary comparison metric.
-
-``Host Submission``
-   Host time until the sensor operation returns, before the post-boundary
-   synchronization. This measures enqueue and dispatch cost, not GPU execution.
-
-``Synchronized Observer Floor``
-   Cost of the same synchronized timing boundary around a no-op. It quantifies
-   measurement overhead and is never subtracted automatically. Contact cadence
-   reports an observer sample with the same ``decimation + 1`` boundaries as its
-   sensor sample. Ray-caster benchmarks report a matching observer phase for
-   each selected terrain workload.
-
-``p50`` and ``p95``
-   Median and 95th-percentile latency within one process. They expose jitter that
-   a mean can hide. Use the JSON ``std`` to quantify within-process variation.
-
-``Synchronized Native Read``
-   OVPhysX scripts report this phase when the blocking backend read can be
-   isolated. A missing phase means that backend does not expose an equivalent
-   read, not that the read costs zero.
-
-``Estimated Synchronized Non-read Time``
-   OVPhysX may report full synchronized update mean minus native-read mean. It is
-   derived from separately sampled phases and can be dominated by noise when the
-   values are close; it is not direct kernel timing.
-
-``validation``
-   Counts prove that the workload produced expected contacts, finite frames,
-   sensor outputs, nonzero wrenches, or ray hits. The script exits with an error
-   instead of writing a valid-looking result when these checks fail. Ray-caster
-   validation is terrain-specific: plane hits are checked against z=0, while
-   rough-terrain validation reports the finite hit-height range.
-
-Use ``--benchmark_formatter json`` for JSON without the terminal summary, or
-``osmo`` and ``omniperf`` for their ingestion formats.
-
-Making Fair Comparisons
------------------------
-
-For a performance claim:
-
-1. Use the same workstation, GPU and CPU conditions, software environment,
-   device, benchmark file, dimensions, warm-up count, and timed count. CPU model,
-   frequency, and load still affect Python, dispatch, and synchronization costs
-   when the measured tensors live on the GPU. For ray-caster results, compare
-   the same plane or rough-terrain phase.
-2. Run baseline and candidate configurations from separate clean processes.
-3. Use at least three repetitions per configuration and report the mean plus
-   between-run standard deviation.
-4. Check validation output and retain the raw JSON files.
-5. Compare the same metric. Do not compare asset microseconds with sensor
-   milliseconds, submission with synchronized latency, or sensor latency with
-   environment FPS.
-6. Treat startup separately. Compilation, scene creation, physics initialization,
-   and CUDA graph construction occur outside reported sensor update latency but
-   still affect total command duration.
-
-Published Isaac Lab performance comparisons must be collected on the project
-designated benchmark workstation with complete hardware and run provenance.
-Local runs are appropriate for correctness checks and investigation, but should
-not be presented as official reference numbers.
-
-.. important::
-
-   Contact workloads are not yet identical across all backends. PhysX and
-   Newton measure a configurable cadence of ``--decimation`` physics steps plus
-   a data read. OVPhysX measures one forced update after each physics step. Use
-   contact results for within-backend regressions unless protocols are aligned.
-
-Architecture
-------------
-
-Asset benchmarks isolate method/data code with mocks:
-
-.. code-block:: text
-
-   generated inputs -> Isaac Lab asset method/property -> backend mock view
-                    -> MethodBenchmarkRunner -> console + metrics formatter
-
-Sensor benchmarks isolate a live sensor update from simulation:
+Sensor timing is deliberately bounded as follows:
 
 .. code-block:: text
 
@@ -553,70 +387,187 @@ Sensor benchmarks isolate a live sensor update from simulation:
        -> validate output [untimed]
 
 The shared :func:`~isaaclab.benchmark.measure_latency` helper enforces both
-boundaries and returns paired host-submission and synchronized-completion times.
-The runner measures a synchronized no-op separately to expose observer cost.
-The pre-boundary synchronization is intentional: without it, pending simulation,
-policy, or unrelated kernels could be charged to the sensor sample.
+synchronization boundaries and returns host-submission and
+synchronized-completion times. The pre-boundary synchronization prevents pending
+simulation, policy, or unrelated kernels from being charged to the sensor
+sample. The runner separately measures the same synchronized no-op boundary to
+show observer cost. Asset benchmarks instead time their individual method or
+property calls after their untimed warm-up.
 
-Adding New Benchmarks
----------------------
+Read the result
+---------------
 
-Adding an Asset Method or Property
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Asset scripts print the mean and standard deviation for every method or mode
+pair in microseconds, then mode comparisons when applicable. They write a
+timestamped JSON file to ``--output_dir`` containing configuration,
+hardware/software metadata, phase names, and recorded measurements. The script
+prints the output path when it finishes. Articulation method artifacts also
+contain the finder and raw index-kernel phases described above.
+
+.. dropdown:: Illustrative sensor terminal summary (not reference performance)
+
+   .. code-block:: text
+
+      Results written to: results/sensors/newton_joint_wrench_sensor_2026-07-20_16-09-38.json
+      +------------------------------------------------------------------------------------+
+      |                                   Summary Report                                   |
+      +------------------------------------------------------------------------------------+
+      | workflow_name: newton_joint_wrench_sensor                                         |
+      | num_envs: 4096                                                                    |
+      +------------------------------------------------------------------------------------+
+      | Phase: sensor_update                                                              |
+      | Synchronized Completion: 0.120 ms                                                 |
+      | Synchronized Completion p50: 0.118 ms                                             |
+      | Synchronized Completion p95: 0.126 ms                                             |
+      | Host Submission: 0.115 ms                                                         |
+      | Host Submission p50: 0.113 ms                                                     |
+      | Host Submission p95: 0.122 ms                                                     |
+      +------------------------------------------------------------------------------------+
+      | Phase: observer                                                                   |
+      | Synchronized Observer Floor: 0.002 ms                                             |
+      +------------------------------------------------------------------------------------+
+      | Phase: validation                                                                 |
+      | Finite Wrenches: 8192 count                                                       |
+      | Nonzero Wrenches: 8192 count                                                      |
+      +------------------------------------------------------------------------------------+
+
+.. dropdown:: Illustrative JSON measurement (not reference performance)
+
+   .. code-block:: json
+
+      {
+          "name": "newton_joint_wrench_sensor sensor_update Synchronized Completion",
+          "mean": 0.038223,
+          "std": 0.00010748023074035611,
+          "n": 2,
+          "unit": "ms",
+          "type": "statistical"
+      }
+
+Generated sensor artifacts contain ``mean``, sample ``std``, ``n``, and
+``unit`` for each statistical measurement; p50 and p95 are separate
+measurements in the same phase.
+
+``Synchronized Completion``
+   Wall-clock latency from immediately before the sensor operation until all
+   work it submitted completes. It is the primary comparison metric.
+
+``Host Submission``
+   Host time until the operation returns, before post-boundary synchronization.
+   It measures enqueue and dispatch cost, not GPU execution.
+
+``Synchronized Observer Floor``
+   Cost of the same synchronized timing boundary around a no-op. It quantifies
+   measurement overhead and is never subtracted automatically. Contact cadence
+   uses the same ``decimation + 1`` boundaries as its sensor sample; ray-caster
+   benchmarks report a matching observer phase for every selected terrain.
+
+``p50`` and ``p95``
+   Median and 95th-percentile latency within one process. They expose jitter a
+   mean can hide; use JSON ``std`` for within-process variation.
+
+``Synchronized Native Read``
+   An OVPhysX phase reported when its blocking backend read can be isolated. A
+   missing phase means no equivalent read is exposed, not that it costs zero.
+
+``Estimated Synchronized Non-read Time``
+   An OVPhysX full synchronized-update mean minus native-read mean. It derives
+   from separately sampled phases, can be dominated by noise when they are
+   close, and is not direct kernel timing.
+
+``validation``
+   Counts demonstrating expected contacts, finite frames, sensor outputs,
+   nonzero wrenches, or ray hits. Invalid output exits with an error rather than
+   a valid-looking result. Ray-caster validation is terrain-specific: plane
+   hits are checked against z=0 and rough-terrain validation reports the finite
+   hit-height range.
+
+Compare runs
+------------
+
+For a performance claim:
+
+1. Use the same designated benchmark workstation, GPU and CPU conditions,
+   software environment, device, benchmark file, dimensions, warm-up count, and
+   timed count. CPU model, frequency, and load affect Python, dispatch, and
+   synchronization costs even when measured tensors are on the GPU. Compare the
+   same ray-caster terrain phase.
+2. Run baseline and candidate configurations in separate clean processes.
+3. Use at least three repetitions per configuration and report the mean plus
+   between-run standard deviation.
+4. Check validation output and retain the raw JSON artifacts.
+5. Compare the same metric: not asset microseconds with sensor milliseconds,
+   host submission with synchronized latency, or sensor latency with environment
+   FPS.
+6. Treat startup separately. Compilation, scene creation, physics
+   initialization, and CUDA graph construction are outside reported sensor
+   update latency but affect total command duration.
+
+.. important::
+
+   Contact protocols are not yet identical across backends. PhysX and Newton
+   measure a configurable ``--decimation`` physics-step cadence plus a data
+   read. OVPhysX measures one forced update after every physics step. Use contact
+   results for within-backend regressions unless the protocols are aligned.
+
+Add a benchmark
+---------------
+
+Add an asset case
+~~~~~~~~~~~~~~~~~
 
 Add shared input generators and
 :class:`~isaaclab.benchmark.MethodBenchmarkDefinition` entries to
-``isaaclab.benchmark.asset_suites``. Put only backend-specific target
+``isaaclab.benchmark.asset_suites``. Keep only backend-specific target
 construction, refresh behavior, capabilities, and generator overrides in the
 backend adapter. Allocate inputs before the timed call. For a data property,
-list prerequisite properties through ``derived_from`` so dependencies are
-populated before timing.
+declare prerequisite properties with ``derived_from`` so dependencies are
+populated before timing. Keep equivalent backend behavior aligned where the API
+is shared, but do not register a mode or property a backend cannot implement
+meaningfully.
 
-Keep equivalent backends aligned where the API is shared, but do not register a
-mode or property that a backend cannot implement meaningfully.
-
-Adding a Sensor Workload
-~~~~~~~~~~~~~~~~~~~~~~~~
+Add a sensor workload
+~~~~~~~~~~~~~~~~~~~~~
 
 1. Build the smallest live scene that exercises the production sensor path.
 2. Warm simulation and sensor updates before collecting samples.
-3. Keep ``sim.step()`` and validation outside the timed region.
+3. Keep ``sim.step()`` and validation untimed.
 4. Collect samples with :func:`~isaaclab.benchmark.measure_latency`; do not
    duplicate clock, synchronization, percentile, or unit-conversion logic.
-5. Publish the samples through
-   :class:`~isaaclab.benchmark.LatencyBenchmarkRunner` and include a matched
+5. Publish samples through
+   :class:`~isaaclab.benchmark.LatencyBenchmarkRunner` with a matched
    synchronized observer floor.
 6. Add workload dimensions and modes as metadata, and validation values as
    measurements.
 7. Fail when output shapes, finite values, or physical signals are invalid.
-8. Document every backend-specific timing phase or protocol difference.
+8. Document each backend-specific timing phase or protocol difference.
 
 Troubleshooting
 ---------------
 
-Import or Backend Errors
+Import or backend errors
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Confirm the backend is installed in the Python environment selected by
-``./isaaclab.sh -p``. OVPhysX requires its optional runtime wheel. PhysX
-sensor benchmarks require Isaac Sim.
+``./isaaclab.sh``. OVPhysX requires its optional runtime wheel; PhysX sensor
+benchmarks require Isaac Sim.
 
-CUDA Out of Memory
+CUDA out of memory
 ~~~~~~~~~~~~~~~~~~
 
 Reduce ``--num_instances`` for assets or ``--num_envs`` for sensors. Record the
 reduced size because latency scaling changes with workload size.
 
-Slow First Process
+Slow first process
 ~~~~~~~~~~~~~~~~~~
 
-The command may compile Warp kernels, build a scene, initialize physics, or
+The command can compile Warp kernels, build a scene, initialize physics, or
 capture CUDA graphs before measurement. Warm-up excludes this work from reported
-operation latency, but not from total command duration.
+operation latency, but not total command duration.
 
-Noisy Results
+Noisy results
 ~~~~~~~~~~~~~
 
-Ensure no other GPU workload is active. Increase timed iterations, repeat the
-command in independent processes, and report between-run variation. A difference
-smaller than normal variation is not evidence of a regression or improvement.
+Ensure no other GPU workload is active. Increase timed iterations, repeat in
+independent processes, and report between-run variation. A difference smaller
+than normal variation is not evidence of a regression or improvement.
