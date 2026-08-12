@@ -17,6 +17,15 @@ from isaaclab.envs import DirectMARLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
+from isaaclab_tasks.core.pendulum.mdp import (
+    compute_cart_observation,
+    compute_pendulum_observation,
+    compute_rewards,
+    compute_success,
+    links_upright,
+    normalize_angle,
+    update_upright_steps,
+)
 from isaaclab_tasks.core.pendulum.pendulum_marl_env_cfg import PendulumMARLEnvCfg
 
 
@@ -72,26 +81,19 @@ class PendulumMARLEnv(DirectMARLEnv):
     def _get_observations(self) -> dict[str, torch.Tensor]:
         pole_joint_pos = normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]].unsqueeze(dim=1))
         pendulum_joint_pos = normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1))
-        observations = {
-            "cart": torch.cat(
-                (
-                    self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                    self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                    pole_joint_pos,
-                    self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                ),
-                dim=-1,
+        return {
+            "cart": compute_cart_observation(
+                self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                pole_joint_pos,
+                self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
             ),
-            "pendulum": torch.cat(
-                (
-                    pole_joint_pos + pendulum_joint_pos,
-                    pendulum_joint_pos,
-                    self.joint_vel[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1),
-                ),
-                dim=-1,
+            "pendulum": compute_pendulum_observation(
+                pole_joint_pos,
+                pendulum_joint_pos,
+                self.joint_vel[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1),
             ),
         }
-        return observations
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
         team_reward = compute_rewards(
@@ -180,114 +182,3 @@ class PendulumMARLEnv(DirectMARLEnv):
         self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
         self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
-
-
-@torch.jit.script
-def normalize_angle(angle):
-    """Wrap an angle [rad] to the range ``[-pi, pi]``."""
-    return (angle + math.pi) % (2 * math.pi) - math.pi
-
-
-def links_upright(
-    pole_pos: torch.Tensor,
-    pendulum_pos: torch.Tensor,
-    max_angle: float,
-) -> torch.Tensor:
-    """Return whether both physical links are within the upright angle limit.
-
-    Args:
-        pole_pos: Upper-link joint angle [rad], shape ``(num_envs,)``, dtype ``torch.float``.
-        pendulum_pos: Lower-link angle relative to the upper link [rad], shape ``(num_envs,)``,
-            dtype ``torch.float``.
-        max_angle: Maximum permitted absolute world-relative link angle [rad].
-
-    Returns:
-        Whether both links are upright, shape ``(num_envs,)``, dtype ``torch.bool``.
-    """
-    upper_upright = normalize_angle(pole_pos).abs() <= max_angle
-    lower_upright = normalize_angle(pole_pos + pendulum_pos).abs() <= max_angle
-    return upper_upright & lower_upright
-
-
-def update_upright_steps(upright_steps: torch.Tensor, upright: torch.Tensor) -> torch.Tensor:
-    """Update per-environment consecutive upright control-step counts.
-
-    Args:
-        upright_steps: Current consecutive upright-step counts, shape ``(num_envs,)``, dtype
-            ``torch.long``.
-        upright: Whether each environment is upright, shape ``(num_envs,)``, dtype ``torch.bool``.
-
-    Returns:
-        Updated consecutive upright-step counts, shape ``(num_envs,)``, dtype ``torch.long``.
-    """
-    return torch.where(upright, upright_steps + 1, torch.zeros_like(upright_steps))
-
-
-def compute_success(
-    time_out: torch.Tensor,
-    terminated: torch.Tensor,
-    upright_steps: torch.Tensor,
-    required_steps: int,
-) -> torch.Tensor:
-    """Return successful episodes from timeout, failure, and upright-window state.
-
-    Args:
-        time_out: Whether each episode reached its time limit, shape ``(num_envs,)``, dtype
-            ``torch.bool``.
-        terminated: Whether each episode terminated before its time limit, shape ``(num_envs,)``,
-            dtype ``torch.bool``.
-        upright_steps: Consecutive upright-step counts, shape ``(num_envs,)``, dtype ``torch.long``.
-        required_steps: Minimum consecutive upright-step count required for success.
-
-    Returns:
-        Whether each episode succeeded, shape ``(num_envs,)``, dtype ``torch.bool``.
-    """
-    return time_out & ~terminated & (upright_steps >= required_steps)
-
-
-@torch.jit.script
-def compute_rewards(
-    rew_scale_alive: float,
-    rew_scale_terminated: float,
-    rew_scale_cart_vel: float,
-    rew_scale_pole_pos: float,
-    rew_scale_pole_vel: float,
-    rew_scale_pendulum_pos: float,
-    rew_scale_pendulum_vel: float,
-    rew_scale_upright: float,
-    rew_scale_action: float,
-    cart_vel: torch.Tensor,
-    pole_pos: torch.Tensor,
-    pole_vel: torch.Tensor,
-    pendulum_pos: torch.Tensor,
-    pendulum_vel: torch.Tensor,
-    upright: torch.Tensor,
-    cart_action: torch.Tensor,
-    pendulum_action: torch.Tensor,
-    reset_terminated: torch.Tensor,
-    step_dt: float,
-) -> torch.Tensor:
-    lower_angle = normalize_angle(pole_pos + pendulum_pos)
-    lower_velocity = pole_vel + pendulum_vel
-    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
-    rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.cos(pole_pos)
-    rew_pendulum_pos = rew_scale_pendulum_pos * torch.cos(lower_angle)
-    rew_cart_vel = rew_scale_cart_vel * torch.abs(cart_vel)
-    rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
-    rew_pendulum_vel = rew_scale_pendulum_vel * torch.abs(lower_velocity)
-    rew_upright = rew_scale_upright * upright.float()
-    rew_action = rew_scale_action * (
-        torch.sum(torch.square(cart_action), dim=1) + torch.sum(torch.square(pendulum_action), dim=1)
-    )
-    return (
-        rew_alive
-        + rew_termination
-        + rew_pole_pos
-        + rew_pendulum_pos
-        + rew_cart_vel
-        + rew_pole_vel
-        + rew_pendulum_vel
-        + rew_upright
-        + rew_action
-    ) * step_dt
