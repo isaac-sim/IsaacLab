@@ -38,6 +38,34 @@ def has_kit() -> bool:
         return False
 
 
+def standalone_importers_available() -> bool:
+    """Check whether the standalone URDF/MJCF importers can be imported in this environment.
+
+    Being installed is not enough. The ``isaacsim-asset-isolated`` wheel contributes
+    ``isaacsim.asset`` as a PEP 420 namespace portion, and the Isaac Sim runtime ships
+    ``isaacsim`` as a regular package. A regular package discards every namespace portion for
+    that name, so the wheel is unusable whenever the runtime is on :attr:`sys.path` even though
+    its distribution is present. Callers that treat installation as availability pick the
+    kit-less path and then fail to import the importer.
+
+    Resolving the spec answers this without importing ``isaacsim``, so the result stays usable
+    before a launch decision, where importing a simulation module is not allowed.
+
+    Returns:
+        Whether the standalone importers are installed and reachable.
+    """
+    import importlib.machinery
+    from importlib import metadata
+
+    try:
+        metadata.distribution("isaacsim-asset-isolated")
+    except metadata.PackageNotFoundError:
+        return False
+    found = importlib.machinery.PathFinder().find_spec("isaacsim")
+    # ``origin`` is None only for a namespace package; a regular package reports its __init__.py
+    return found is not None and found.origin is None
+
+
 @functools.lru_cache(maxsize=1)
 def get_isaac_sim_version() -> Version:
     """Get the Isaac Sim version as a Version object, cached for performance.

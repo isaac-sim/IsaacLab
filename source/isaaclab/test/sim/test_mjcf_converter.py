@@ -5,19 +5,15 @@
 
 """Run the converter from the standalone importer wheel when installed; otherwise launch Isaac Sim."""
 
-from importlib import metadata
-
 from isaaclab.app import AppLauncher
+from isaaclab.utils.version import standalone_importers_available
 
-# Prefer the standalone importer wheel: when it is installed the MJCF converter resolves its
-# importer from it and these tests run kitlessly (no Kit app, no extension manager). Fall back to
-# the full Isaac Sim runtime only when the wheel is absent. Distribution metadata is used so that
-# no Isaac Lab simulation module is imported before the launch decision.
-try:
-    metadata.distribution("isaacsim-asset-isolated")
-    _USE_KIT = False
-except metadata.PackageNotFoundError:
-    _USE_KIT = AppLauncher.is_available()
+# Prefer the standalone importers: when they are reachable the MJCF converter resolves its importer
+# from them and these tests run kitlessly (no Kit app, no extension manager). Fall back to the full
+# Isaac Sim runtime otherwise -- including when the wheel is installed but the runtime owns the
+# ``isaacsim`` name, where the wheel cannot be imported. The check resolves specs only, so no Isaac
+# Lab simulation module is imported before the launch decision.
+_USE_KIT = not standalone_importers_available() and AppLauncher.is_available()
 simulation_app = AppLauncher(headless=True).app if _USE_KIT else None
 
 """Rest everything follows."""

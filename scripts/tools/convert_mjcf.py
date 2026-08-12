@@ -36,9 +36,9 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
-from importlib import metadata
 
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
 parser.add_argument("input", type=str, help="The path to the input MJCF file.")
@@ -82,14 +82,10 @@ parser.add_argument(
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
-# The MJCF importer ships as a Kit extension unless the standalone importer wheel is installed, so
-# Kit is only required when the wheel is absent. With the wheel present the conversion runs kitlessly
-# and the kitless visualizers can host the preview.
-try:
-    metadata.distribution("isaacsim-asset-isolated")
-    args_cli.require_kit = False
-except metadata.PackageNotFoundError:
-    args_cli.require_kit = True
+# The MJCF importer ships as a Kit extension unless the standalone importers are reachable, so Kit
+# is only required when they are not. Prefer the kit-less path: it converts without paying Kit
+# startup, and the kitless visualizers can host the preview.
+args_cli.require_kit = not standalone_importers_available()
 
 # ``launch_simulation`` receives a bare ``PhysicsCfg()`` placeholder, so name the backend the
 # runtime provides; without it the preview builds a simulation with no physics manager.
