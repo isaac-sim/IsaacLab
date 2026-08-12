@@ -1680,11 +1680,14 @@ class NewtonManager(PhysicsManager):
             fabric_hierarchy.update_world_xforms()
 
     @classmethod
-    def _inject_terrain_heightfields(cls, stage: Usd.Stage, builder: ModelBuilder) -> list[str]:
+    def _inject_terrain_heightfields(
+        cls, stage: Usd.Stage, builder: ModelBuilder, root_paths: Iterable[str] | None = None
+    ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
-        Scans the stage for prims carrying the ``newton:heightfield:resolution``
-        attribute authored by :class:`~isaaclab.terrains.TerrainImporter`. For each,
+        Scans the requested clone-external roots for prims carrying the
+        ``newton:heightfield:resolution`` attribute authored by
+        :class:`~isaaclab.terrains.TerrainImporter`. For each,
         the collision mesh is rasterized into a :class:`newton.Heightfield` through
         :meth:`newton.Heightfield.create_from_mesh` and added to *builder* as a
         static heightfield shape. The tagged prim paths are returned so the caller
@@ -1698,13 +1701,24 @@ class NewtonManager(PhysicsManager):
         Args:
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
+            root_paths: Clone-external roots to inspect. If ``None``, inspect the
+                entire stage for compatibility with direct callers.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
         """
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
-        for prim in stage.Traverse():
+        if root_paths is None:
+            prims = stage.Traverse()
+        else:
+            prims = (
+                prim
+                for root_path in root_paths
+                for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path))
+                if prim.IsValid()
+            )
+        for prim in prims:
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
                 continue

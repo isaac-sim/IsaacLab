@@ -65,6 +65,45 @@ def newton_builder_world_hook(
             hooks.remove(hook)
 
 
+def _global_import_roots(stage: Usd.Stage, sources: Sequence[str]) -> list[str]:
+    """Return clone-external stage roots that Newton must import once.
+
+    Newton's importer still traverses descendants of ignored prims. Passing the
+    pseudo-root with ``/World/envs`` in ``ignore_paths`` therefore scales with the
+    fully replicated USD stage. Importing each clone-external top-level subtree by
+    ``root_path`` makes the work proportional to global scene content instead.
+    """
+    source_roots = tuple(source.rstrip("/") or "/" for source in sources)
+
+    def contains_source(path: str) -> bool:
+        path_prefix = path.rstrip("/") + "/"
+        return any(source == path or source.startswith(path_prefix) for source in source_roots)
+
+    roots: list[str] = []
+    for prim in stage.GetPseudoRoot().GetChildren():
+        path = prim.GetPath().pathString
+        if not contains_source(path):
+            roots.append(path)
+            continue
+        for child in prim.GetChildren():
+            child_path = child.GetPath().pathString
+            if not contains_source(child_path):
+                roots.append(child_path)
+    return roots
+
+
+def _merge_import_result(target: dict | None, incoming: dict) -> dict:
+    """Merge Newton USD-import metadata from independently scoped roots."""
+    if target is None:
+        return incoming
+    for key, value in incoming.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            target[key].update(value)
+        elif target.get(key) is None and value is not None:
+            target[key] = value
+    return target
+
+
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -92,15 +131,22 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
+    global_roots = _global_import_roots(stage, sources)
     # Swap height-field-tagged terrain colliders for Newton heightfields before the
     # mesh import, and skip those prims in add_usd so the terrain is not imported twice.
-    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
-    stage_info = builder.add_usd(
-        stage,
-        ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
-        schema_resolvers=schema_resolvers,
-        load_visual_shapes=load_visual_shapes,
-    )
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=global_roots)
+    stage_info = None
+    for root_path in global_roots:
+        import_result = builder.add_usd(
+            stage,
+            root_path=root_path,
+            ignore_paths=hf_ignore_paths,
+            schema_resolvers=schema_resolvers,
+            load_visual_shapes=load_visual_shapes,
+        )
+        stage_info = _merge_import_result(stage_info, import_result)
+    if stage_info is None:
+        stage_info = {"path_shape_map": {}}
     _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"], load_visual_shapes)
     replace_newton_builder_shape_colors(builder, stage)
 
