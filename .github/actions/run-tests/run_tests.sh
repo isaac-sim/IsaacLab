@@ -380,7 +380,12 @@ run_tests() {
       fi
       if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
         echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
-        ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+        # Without the NVIDIA index, ovrtx/ovphysx resolve to the wheel-stub
+        # placeholder sdist on public PyPI, whose build hook re-downloads the
+        # real wheel unretried and hard-asserts its sha256 - a truncated
+        # multi-gigabyte transfer then fails the job with a misleading
+        # \"index not reachable\" error. Naming the index installs the wheel directly.
+        ./isaaclab.sh -p -m pip install --extra-index-url https://pypi.nvidia.com/ \${TEST_EXTRA_PIP_PACKAGES}
         case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
           *\" leapp\"*)
             echo \"Resolved LEAPP package:\"
