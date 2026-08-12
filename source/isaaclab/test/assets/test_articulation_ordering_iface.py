@@ -2105,7 +2105,7 @@ class TestArticulationOperations:
         self, selector_kind: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Convert indexed effort-target environment selectors for the OVPhysX binding."""
-        from isaaclab_ovphysx import tensor_types as TT
+        from isaaclab_ov import tensor_types as TT
 
         art, raw_backend = get_articulation("ovphysx", 2, 3, 2, device="cpu")
         object.__setattr__(art, "_can_write_effort", True)

@@ -79,7 +79,7 @@ def create_test_articulation(
 
     from isaaclab.actuators import ActuatorCollection
 
-    from isaaclab_ovphysx.assets.articulation.actuator_control import OvPhysxActuatorControl
+    from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl
 
     control = OvPhysxActuatorControl(articulation)
     object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
