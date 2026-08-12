@@ -42,8 +42,9 @@ reward = (
 ```
 
 The alive and termination terms retain their current weights of `1.0` and
-`-2.0`. Actions are the normalized policy actions, so the effort term treats
-both agents consistently despite their different physical action scales.
+`-2.0`. The effort term uses policy-space actions before their different
+physical effort scales are applied, so it regularizes both policies on the same
+numeric basis. These action spaces are not clipped by the environment.
 
 This candidate directly rewards both physical links being upright, bounds the
 angle contribution, damps physical link motion, and discourages unnecessarily
