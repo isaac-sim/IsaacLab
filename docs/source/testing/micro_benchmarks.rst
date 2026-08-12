@@ -524,15 +524,16 @@ Add a benchmark
 Add an asset case
 ~~~~~~~~~~~~~~~~~
 
-Add shared input generators and
-:class:`~isaaclab.benchmark.MethodBenchmarkDefinition` entries to
-``isaaclab.benchmark.asset_suites``. Keep only backend-specific target
-construction, refresh behavior, capabilities, and generator overrides in the
-backend adapter. Allocate inputs before the timed call. For a data property,
-declare prerequisite properties with ``derived_from`` so dependencies are
-populated before timing. Keep equivalent backend behavior aligned where the API
-is shared, but do not register a mode or property a backend cannot implement
-meaningfully.
+Define shared methods with
+:class:`~isaaclab.benchmark.asset_suites.AssetMethodSpec` and shared data
+properties with :class:`~isaaclab.benchmark.asset_suites.AssetPropertySpec`.
+Declare shared property prerequisites through ``AssetPropertySpec.dependencies``;
+use adapter ``property_dependency_overrides`` only when a backend needs
+different dependencies. Keep only backend-specific target construction,
+refresh behavior, capabilities, and generator overrides in the backend adapter.
+Allocate inputs before the timed call. Keep equivalent backend behavior aligned
+where the API is shared, but do not register a mode or property a backend cannot
+implement meaningfully.
 
 Add a sensor workload
 ~~~~~~~~~~~~~~~~~~~~~
