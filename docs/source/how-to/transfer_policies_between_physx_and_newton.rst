@@ -637,7 +637,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 
 .. raw:: html
 
-   <video controls style="width:100%; max-width:960px; margin-bottom:1.5em;">
+   <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
      <source src="../../_static/sim2sim_allegro_transfer.mp4" type="video/mp4">
    </video>
 
