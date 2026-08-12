@@ -8,3 +8,5 @@ Changed
 * Changed ``Isaac-Pendulum-MARL-Direct`` to give both agents a shared team
   reward aligned with upright balancing. Retrain policies created with the
   previous split per-agent rewards.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to support the ``newton_mjwarp``
+  physics preset. Select it with ``presets=newton_mjwarp``.

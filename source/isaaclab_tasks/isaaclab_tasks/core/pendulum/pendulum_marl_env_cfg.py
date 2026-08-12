@@ -7,13 +7,38 @@ from __future__ import annotations
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
+
+
+@configclass
+class PendulumPhysicsCfg(PresetCfg):
+    """Physics presets for the multi-agent pendulum environment."""
+
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    default = isaacsim_physx
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
 
 
 @configclass
@@ -29,7 +54,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     state_space = -1
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PendulumPhysicsCfg())
 
     # robot
     robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
