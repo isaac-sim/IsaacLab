@@ -90,6 +90,22 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 
+def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str) -> bool:
+    """Render a checkbox greyed out with a tooltip when *available* is False."""
+    if not available:
+        imgui.begin_disabled()
+    _, new_val = imgui.checkbox(label, value)
+    if not available:
+        imgui.end_disabled()
+        try:
+            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+                imgui.set_tooltip(tip)
+        except Exception:
+            pass
+        return value
+    return new_val
+
+
 def _eye_lookat_to_pitch_yaw(
     eye: tuple[float, float, float],
     lookat: tuple[float, float, float],
@@ -331,12 +347,34 @@ class _NewtonViewerUIMixin:
                             _, renderer.arrow_scale = imgui.slider_float(
                                 "Contact Width", renderer.arrow_scale, 0.25, 5.0
                             )
-                    _c, viewer.show_particles = imgui.checkbox("Show Particles", viewer.show_particles)
-                    _c, viewer.show_springs = imgui.checkbox("Show Springs", viewer.show_springs)
+                    _model = viewer.model
+                    _has_particles = _model is not None and int(getattr(_model, "particle_count", 0)) > 0
+                    _has_springs = _model is not None and int(getattr(_model, "spring_count", 0)) > 0
+                    _has_cloth = _model is not None and int(getattr(_model, "tri_count", 0)) > 0
+                    viewer.show_particles = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Particles",
+                        viewer.show_particles,
+                        _has_particles,
+                        "No particle bodies in this environment",
+                    )
+                    viewer.show_springs = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Springs",
+                        viewer.show_springs,
+                        _has_springs,
+                        "No spring constraints in this environment",
+                    )
                     _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
                     if viewer.show_com and renderer is not None and hasattr(renderer, "com_scale"):
                         _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
-                    _c, viewer.show_triangles = imgui.checkbox("Show Cloth", viewer.show_triangles)
+                    viewer.show_triangles = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Cloth",
+                        viewer.show_triangles,
+                        _has_cloth,
+                        "No cloth/triangle meshes in this environment",
+                    )
                     _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
                     if renderer is not None and hasattr(renderer, "draw_edges"):
                         _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
