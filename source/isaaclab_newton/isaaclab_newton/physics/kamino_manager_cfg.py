@@ -223,7 +223,7 @@ class KaminoMaterialsCfg:
 
 
 @configclass
-class _KaminoSolverCfgBase(NewtonSolverCfg):
+class KaminoSolverCfgBase(NewtonSolverCfg):
     """Common configuration for Kamino solver-related parameters.
 
     Kamino simulates constrained rigid multi-body systems in maximal coordinates with
@@ -393,7 +393,7 @@ class _KaminoSolverCfgBase(NewtonSolverCfg):
 
 
 @configclass
-class KaminoPADMMSolverCfg(_KaminoSolverCfgBase):
+class KaminoPADMMSolverCfg(KaminoSolverCfgBase):
     """Configuration for Kamino with the P-ADMM forward-dynamics solver."""
 
     dynamics_solver_cfg: KaminoPADMMCfg = field(default_factory=KaminoPADMMCfg)
@@ -405,7 +405,7 @@ class KaminoPADMMSolverCfg(_KaminoSolverCfgBase):
 
 
 @configclass
-class KaminoDVISolverCfg(_KaminoSolverCfgBase):
+class KaminoDVISolverCfg(KaminoSolverCfgBase):
     """Configuration for Kamino with the DVI forward-dynamics solver."""
 
     dynamics_solver_cfg: KaminoDVICfg = field(default_factory=KaminoDVICfg)

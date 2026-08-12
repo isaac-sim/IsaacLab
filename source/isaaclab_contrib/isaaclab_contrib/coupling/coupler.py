@@ -12,8 +12,7 @@ from functools import partial
 
 import warp as wp
 from isaaclab_newton.physics import (
-    KaminoDVISolverCfg,
-    KaminoPADMMSolverCfg,
+    KaminoSolverCfgBase,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
@@ -64,7 +63,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         """
         if isinstance(solver_cfg, MJWarpSolverCfg):
             return not solver_cfg.use_mujoco_contacts
-        if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
+        if isinstance(solver_cfg, KaminoSolverCfgBase):
             return not solver_cfg.use_collision_detector
         if isinstance(solver_cfg, MPMSolverCfg):
             return False
@@ -153,7 +152,7 @@ class NewtonCouplerManager(NewtonVBDManager):
                     f"CouplerEntryCfg {entry.name!r} uses {type(nested_cfg).__name__}, whose manager "
                     "does not implement nested solver construction."
                 )
-            if isinstance(nested_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
+            if isinstance(nested_cfg, KaminoSolverCfgBase):
                 raise NotImplementedError(
                     f"CouplerEntryCfg {entry.name!r} uses a Kamino solver config, whose manager-specific FK/reset "
                     "lifecycle cannot yet be preserved inside Newton's coupled-solver entry API."

@@ -15,7 +15,7 @@ from newton.solvers import SolverKamino
 
 from isaaclab.physics import PhysicsManager
 
-from .kamino_manager_cfg import _KaminoSolverCfgBase
+from .kamino_manager_cfg import KaminoSolverCfgBase
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
@@ -58,12 +58,12 @@ class NewtonKaminoManager(NewtonManager):
     _solver: SolverKamino
 
     @classmethod
-    def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:
+    def _get_kamino_solver_cfg(cls) -> KaminoSolverCfgBase:
         cfg = PhysicsManager._cfg
         if cfg is None:
             raise RuntimeError("Physics manager is not initialized.")
         solver_cfg = getattr(cfg, "solver_cfg", None)
-        if not isinstance(solver_cfg, _KaminoSolverCfgBase):
+        if not isinstance(solver_cfg, KaminoSolverCfgBase):
             raise TypeError(f"Expected a Kamino solver configuration, got {type(solver_cfg).__name__}.")
         return solver_cfg
 
@@ -112,12 +112,12 @@ class NewtonKaminoManager(NewtonManager):
         """
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: _KaminoSolverCfgBase) -> SolverKamino:
+    def _create_solver(cls, model: Model, solver_cfg: KaminoSolverCfgBase) -> SolverKamino:
         """Construct the configured Kamino solver."""
         return SolverKamino(model, solver_cfg.to_solver_config())
 
     @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: _KaminoSolverCfgBase) -> None:
+    def _build_solver(cls, model: Model, solver_cfg: KaminoSolverCfgBase) -> None:
         """Construct :class:`SolverKamino` and populate the base-class slots.
 
         Sets :attr:`NewtonManager._needs_collision_pipeline` to ``True`` only
