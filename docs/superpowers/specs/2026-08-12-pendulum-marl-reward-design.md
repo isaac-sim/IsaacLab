@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Pendulum MARL Reward Experiment
 
 ## Goal

@@ -1015,7 +1015,7 @@ Classic
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
     | World                  | Environment ID                     | Description                                                                                                           | Presets                      |
     +========================+====================================+=======================================================================================================================+==============================+
-    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task.                  |                              |
+    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task.                 |                              |
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
