@@ -58,6 +58,7 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
 
     # robot
     robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg.actuators["pendulum_actuator"].armature = 0.05
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
     pendulum_dof_name = "pole_to_pendulum"
