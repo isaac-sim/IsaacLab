@@ -570,6 +570,10 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
 
+    def get_frame(self) -> np.ndarray:
+        """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
+        return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
         super()._init_window()
@@ -1984,11 +1988,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
 
     Use :class:`NewtonRTXVisualizerCfg` (factory type ``"newton_rtx"``) to select this backend.
 
-    Current limitations (stubs pending Newton-side support):
-
-    - ``render_rgb_array()`` returns ``None``. ``ViewerRTX`` does not yet expose
-      ``get_frame()`` for GPU framebuffer readback. Once available, replace the stub.
-    - Tiled camera panel is disabled for the same reason.
+    ``render_rgb_array()`` reads back the path-traced LDR render product directly.
+    The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
+    display sink.
 
     .. note::
         RTX render quality settings (fps, lighting environment, denoiser, etc.)
@@ -2071,20 +2073,19 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             )
         return False
 
-    def render_rgb_array(self) -> np.ndarray | None:
-        """Return the latest RGB frame — currently a stub for the RTX backend.
+    def render_rgb_array(self) -> np.ndarray:
+        """Return the latest RGB frame rendered by the Newton RTX viewer.
 
-        Returns:
-            ``None``. ``ViewerRTX`` does not yet expose ``get_frame()`` for GPU
-            framebuffer readback. Also returns ``None`` when the viewer was skipped
-            due to the SONAME guard (see :meth:`_create_viewer`). Once the Newton
-            team adds ``get_frame()``, replace this with
-            ``return self._viewer.get_frame().numpy()``.
+        In headless mode, render the state captured during the latest simulation step
+        before reading back the path-traced LDR framebuffer.
         """
-        # TODO: replace with ``return self._viewer.get_frame().numpy()`` once
-        # ViewerRTX.get_frame() is available from the Newton SDK.  Until then,
-        # video recording with source="visualizer:newton_rtx" produces no frames;
-        # use source="visualizer:newton_gl" (or a sensor source) instead.
         if self._viewer is None:
-            return None
-        return None
+            raise RuntimeError("NewtonRTXVisualizer must be initialized before capturing an RGB frame.")
+        if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
+            self._pre_step()
+            self._viewer.begin_frame(self._sim_time)
+            try:
+                self._viewer.log_state(self._state)
+            finally:
+                self._viewer.end_frame()
+        return self._viewer.get_frame()

@@ -812,21 +812,20 @@ instead:
 **Newton RTX Visualizer (Experimental)**
 
 The Newton RTX visualizer (``--viz newton_rtx`` / :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg`)
-is currently experimental. The following features are **not yet supported** and will be added in a future release:
+is currently experimental. Its path-traced LDR framebuffer is available through
+``render_rgb_array()`` and ``--video``. Frame capture performs a GPU-to-CPU readback.
+
+The following features are **not yet supported** and will be added in a future release:
 
 * **Visualization markers** — debug-draw geometry (:class:`~isaaclab.markers.VisualizationMarkers`) is skipped.
 * **Live plots** — per-step scalar streaming (reward, episode length, manager terms) is disabled.
 * **Streaming camera panel** — the ``streaming_view`` option has no display sink in the RTX viewer;
   use :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg` or
   :class:`~isaaclab_visualizers.viser.ViserVisualizerCfg` alongside Newton RTX for streaming output.
-* **``render_rgb_array()`` / video recording** — framebuffer readback requires
-  ``ViewerRTX.get_frame()`` support from the Newton team; the method currently returns ``None``.
-  As a result, ``--video`` with ``source="visualizer:newton_rtx"`` produces no frames.
-  Use ``source="visualizer:newton_gl"`` or a sensor source (``source="sensor:<name>"``) instead.
 * **Pause rendering** — the path-tracer runs at full cost every tick even while paused (unlike GL's
   lightweight update).
 
-All of the above features are available in the other three visualizer backends (Newton GL, Rerun, Viser).
+Use Newton GL, Rerun, or Viser when one of these interactive features is required.
 
 
 See Also

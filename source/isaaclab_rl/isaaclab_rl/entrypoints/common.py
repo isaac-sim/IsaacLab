@@ -909,9 +909,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         # same as "no visualizer specified" for the purpose of picking a recorder source.
         active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
 
-        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
-        # expose a local frame-capture API and cannot serve as video recording sources.
-        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+        # Streaming visualizers do not expose a local frame-capture API.
+        _NO_CAPTURE = {"rerun", "viser"}
 
         if active_cli_visualizers:
             # Partition into capture-capable and no-capture lists.
@@ -923,15 +922,15 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 example_cfg = {
                     "rerun": "RerunVisualizerCfg",
                     "viser": "ViserVisualizerCfg",
-                    "newton_rtx": "NewtonRTXVisualizerCfg",
                 }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
                 raise ValueError(
                     f"--video is not supported with --viz {names}: {names} "
                     f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
                     "and do not expose a local frame-capture API.\n\n"
-                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "Supported recording backends (all support headless mode for zero UI overhead):\n"
                     "  --viz kit        Kit/Omniverse viewport\n"
-                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n"
+                    "  --viz newton_rtx Newton OVRTX path-traced viewport\n\n"
                     f"To run {names} alongside video recording, add a headless capture backend\n"
                     "to sim.visualizer_cfgs in your environment config, for example:\n\n"
                     f"  sim_cfg.visualizer_cfgs = [\n"
