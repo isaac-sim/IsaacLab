@@ -156,6 +156,7 @@ class RigidObject(BaseRigidObject):
                 inputs=[
                     composer.out_force_b,
                     composer.out_torque_b,
+                    self._data.body_link_pose_w.warp,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,

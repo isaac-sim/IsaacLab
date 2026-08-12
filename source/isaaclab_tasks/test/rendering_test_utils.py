@@ -58,7 +58,8 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "lift_kuka_hetero": 8.0,
 }
 
-# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled.
+# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled. The
+# deterministic Warp rasterizer and the Isaac RTX reference path keep the stricter env-wide threshold.
 _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
@@ -159,7 +160,7 @@ _OVRTX_TEXTURE_READINESS_DATA_TYPES = (
 )
 _OVRTX_TEXTURE_READINESS_XFAIL_REASON = "OVRTX 0.4 may return before textured materials are ready (NVBUG#6505191)."
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
-_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX rendering may crash or time out (NVBUG#6524987)."
+_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX MDL rendering can kill the test process (NVBUG#6524987)."
 _OVRTX_CLOTH_MOTION_XFAIL_REASON = "Missing cloth in OVRTX 0.4 motion vectors (NVBUG#6489754)."
 
 
@@ -315,13 +316,30 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 )
 
 
-def make_kitless_rendering_params_lift() -> list[pytest.param]:
-    """Create kitless Lift parameters with known native-crash cases skipped."""
+def make_kitless_rendering_params_lift(*, include_texture_readiness_xfail: bool = False) -> list[pytest.param]:
+    """Create kitless Lift parameters with known failures isolated.
+
+    Args:
+        include_texture_readiness_xfail: Whether to mark the OVPhysX OVRTX albedo cases as expected failures.
+    """
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    if include_texture_readiness_xfail:
+        params = make_xfail_rendering_params(
+            params,
+            {
+                (variant, "ovphysx", "ovrtx_renderer", "albedo"): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+                for variant in _KITLESS_STAGE_VARIANTS
+            },
+        )
+
+    # Both backends can SIGSEGV on the MDL AOVs, which loses the JUnit report for the whole file,
+    # so xfail cannot express these.
     return make_skip_rendering_params(
-        make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+        params,
         {
-            (variant, "newton", "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
+            (variant, physics_backend, "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
+            for physics_backend in ("newton", "ovphysx")
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
         },
     )
@@ -634,7 +652,7 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
     Args:
         env_cfg: The resolved environment config, exposing ``sim.physics`` as a
             :class:`~isaaclab_physx.physics.PhysxCfg` when ``physics_backend == "physx"``, or an
-            :class:`~isaaclab_ovphysx.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
+            :class:`~isaaclab_ov.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
         physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
         data_type: The camera data type under test.
     """
@@ -1568,7 +1586,7 @@ def rendering_test_cartpole(
             compare_golden=compare_golden and data_type == "rgb",
         )
         max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
-        if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
+        if renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
             max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
@@ -1844,6 +1862,10 @@ def rendering_test_franka_soft(
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
+
+    # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
+    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and data_type == "depth":
+        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 

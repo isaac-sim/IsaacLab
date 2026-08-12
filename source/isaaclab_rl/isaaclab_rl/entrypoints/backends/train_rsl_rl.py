@@ -18,7 +18,7 @@ from datetime import datetime
 
 from packaging import version
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, report_activity
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
@@ -30,9 +30,12 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     scoped_torch_backend_flags,
     set_hydra_args,
+    show_run_summary,
+    startup_screen,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -122,95 +125,106 @@ def _run(args_cli: argparse.Namespace) -> None:
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
     installed_version = _check_rsl_rl_version()
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
-    with launch_simulation(env_cfg, args_cli):
-        agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
-        apply_env_overrides(args_cli, env_cfg)
-        agent_cfg.max_iterations = (
-            args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
-        )
-
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
-
-        env_cfg.seed = agent_cfg.seed
-        validate_distributed_device(args_cli)
-
-        if args_cli.distributed:
-            global_rank = int(os.getenv("RANK", "0"))
-            agent_cfg.device = env_cfg.sim.device
-
-            seed = agent_cfg.seed + global_rank
-            env_cfg.seed = seed
-            agent_cfg.seed = seed
-
-        log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-        print(f"[INFO] Logging experiment in directory: {log_root_path}")
-        log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        print(f"Exact experiment name requested from command line: {log_dir}")
-        if agent_cfg.run_name:
-            log_dir += f"_{agent_cfg.run_name}"
-        log_dir = os.path.join(log_root_path, log_dir)
-        write_run_manifest(
-            log_dir,
-            library="rsl_rl",
-            task=args_cli.task,
-            metadata={"agent": args_cli.agent},
-        )
-
-        configure_io_descriptors(env_cfg, args_cli, logger)
-        env_cfg.log_dir = log_dir
-        apply_video_recording(env_cfg, log_dir, args_cli)
-
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-        )
-
-        if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-                resume_path = resolve_checkpoint_selector(
-                    log_root_path,
-                    args_cli.checkpoint,
-                    library="rsl_rl",
-                    task=args_cli.task,
-                    checkpoint_pattern=r"model_.*\.pt",
-                    metadata={"agent": args_cli.agent},
-                )
-            else:
-                resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-
-        env = wrap_training_capture(env, log_dir, args_cli)
-
-        start_time = time.time()
-        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-
-        if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-        elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-        else:
-            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-
-        # configure_seed must run after runner construction so torch determinism does not disturb its initialization
-        if args_cli.deterministic:
-            configure_seed(env_cfg.seed, torch_deterministic=True)
-
-        runner.add_git_repo_to_log(__file__)
-        if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-            runner.load(resume_path)
-
-        dump_train_configs(log_dir, env_cfg, agent_cfg)
-
-        try:
-            runner.learn(
-                num_learning_iterations=agent_cfg.max_iterations,
-                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+    with startup_screen(args_cli, num_stages=3) as screen:
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+        pre_launch_video_config(env_cfg, args_cli=args_cli)
+        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+        screen.stage("Launching simulation")
+        with launch_simulation(env_cfg, args_cli):
+            agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+            apply_env_overrides(args_cli, env_cfg)
+            agent_cfg.max_iterations = (
+                args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
             )
-            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
-        except KeyboardInterrupt:
-            pass
+
+            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+
+            env_cfg.seed = agent_cfg.seed
+            validate_distributed_device(args_cli)
+
+            if args_cli.distributed:
+                global_rank = int(os.getenv("RANK", "0"))
+                agent_cfg.device = env_cfg.sim.device
+
+                seed = agent_cfg.seed + global_rank
+                env_cfg.seed = seed
+                agent_cfg.seed = seed
+
+            log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
+            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            print(f"Exact experiment name requested from command line: {log_dir}")
+            if agent_cfg.run_name:
+                log_dir += f"_{agent_cfg.run_name}"
+            log_dir = os.path.join(log_root_path, log_dir)
+            write_run_manifest(
+                log_dir,
+                library="rsl_rl",
+                task=args_cli.task,
+                metadata={"agent": args_cli.agent},
+            )
+
+            configure_io_descriptors(env_cfg, args_cli, logger)
+            env_cfg.log_dir = log_dir
+            apply_video_recording(env_cfg, log_dir, args_cli)
+
+            screen.stage("Creating environment")
+            env = create_isaaclab_env(
+                args_cli.task,
+                env_cfg,
+                args_cli,
+                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+            )
+
+            if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+                if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                    resume_path = resolve_checkpoint_selector(
+                        log_root_path,
+                        args_cli.checkpoint,
+                        library="rsl_rl",
+                        task=args_cli.task,
+                        checkpoint_pattern=r"model_.*\.pt",
+                        metadata={"agent": args_cli.agent},
+                    )
+                else:
+                    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+
+            env = wrap_training_capture(env, log_dir, args_cli)
+
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+            report_activity(None)
+
+            report_activity("Building policy")
+            if agent_cfg.class_name == "OnPolicyRunner":
+                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+            elif agent_cfg.class_name == "DistillationRunner":
+                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+            else:
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+            report_activity(None)
+
+            # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
+
+            runner.add_git_repo_to_log(__file__)
+            if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                runner.load(resume_path)
+
+            dump_train_configs(log_dir, env_cfg, agent_cfg)
+
+            screen.close()
+            try:
+                runner.learn(
+                    num_learning_iterations=agent_cfg.max_iterations,
+                    init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+                )
+                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                env.close()
+            except KeyboardInterrupt:
+                pass

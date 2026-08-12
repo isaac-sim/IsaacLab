@@ -175,6 +175,7 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert camera_case.command()[3:5] == ["--num_envs", "1"]
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
+    assert camera_case.spec.startup_timeout == 900.0
 
     kitless_case = next(
         case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
@@ -259,20 +260,23 @@ def test_cable_demo_accepts_explicit_newton_vbd_selector():
     assert spec.physics_backends == (("--physics", "newton_vbd"),)
 
 
-def test_multi_mesh_raycaster_opens_requested_rerun_viewer():
-    """The interactive raycaster demo must open Rerun when the user explicitly requests it."""
+def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
+    """The interactive raycaster demo must let CLI requests create default visualizer configs."""
     path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    rerun_cfg_calls = [
+    simulation_cfg_calls = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "RerunVisualizerCfg"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "SimulationCfg"
     ]
-    assert any(
-        keyword.arg == "open_browser" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True
-        for call in rerun_cfg_calls
-        for keyword in call.keywords
-    )
+    assert len(simulation_cfg_calls) == 1
+
+    visualizer_cfg_values = [
+        keyword.value for keyword in simulation_cfg_calls[0].keywords if keyword.arg == "visualizer_cfgs"
+    ]
+    assert len(visualizer_cfg_values) == 1
+    assert isinstance(visualizer_cfg_values[0], ast.Constant)
+    assert visualizer_cfg_values[0].value is None
 
 
 def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_policy():
@@ -329,6 +333,98 @@ def test_subprocess_supervisor_soaks_then_stops_process_group():
     assert result.ready
     assert result.stopped_after_soak
     assert result.elapsed < 2.0
+
+
+def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(monkeypatch):
+    """Fatal-looking output caused by intentional teardown must not fail a healthy launch."""
+
+    class FakeStdout:
+        def fileno(self):
+            return 1
+
+    class FakeProcess:
+        stdout = FakeStdout()
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self, timeout):
+            return b"Traceback (most recent call last):\n", None
+
+    class FakeSelector:
+        selections = 0
+
+        def register(self, fileobj, events):
+            self.fileobj = fileobj
+
+        def select(self, timeout):
+            self.selections += 1
+            if self.selections > 1:
+                return []
+            key = type("Key", (), {"fileobj": self.fileobj})()
+            return [(key, script_cases.selectors.EVENT_READ)]
+
+        def close(self):
+            pass
+
+    process = FakeProcess()
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert "Traceback (most recent call last):" in result.output
+    assert not result.fatal_patterns
+
+
+def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(monkeypatch):
+    """Fatal output already buffered at the soak deadline must remain test-failing."""
+
+    class FakeStdout:
+        def fileno(self):
+            return 1
+
+    class FakeProcess:
+        stdout = FakeStdout()
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self, timeout):
+            return b"post-teardown output\n", None
+
+    class FakeSelector:
+        selections = 0
+
+        def register(self, fileobj, events):
+            self.fileobj = fileobj
+
+        def select(self, timeout):
+            self.selections += 1
+            if self.selections > 2:
+                return []
+            key = type("Key", (), {"fileobj": self.fileobj})()
+            return [(key, script_cases.selectors.EVENT_READ)]
+
+        def close(self):
+            pass
+
+    process = FakeProcess()
+    chunks = iter((b"READY\n", b"Traceback (most recent call last):\n"))
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: next(chunks))
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert "Traceback (most recent call last):" in result.fatal_patterns
 
 
 def test_subprocess_supervisor_accepts_clean_exit_after_readiness():
@@ -456,7 +552,11 @@ if __name__ == '__main__':
 
 @pytest.mark.parametrize(
     ("backend", "package"),
-    [("isaacsim_physx", "isaaclab_physx"), ("newton_mjwarp", "isaaclab_newton")],
+    [
+        ("isaacsim_physx", "isaaclab_physx"),
+        ("newton_mjwarp", "isaaclab_newton"),
+        ("ovphysx", "isaaclab_ov"),
+    ],
 )
 def test_backend_availability_resolves_implementation_package(monkeypatch, backend, package):
     """Backend gating must query the package that implements each declared backend."""
