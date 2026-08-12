@@ -597,36 +597,6 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
-def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
-    """Point OVRTX renderer logs at process stdout for kitless rendering tests.
-
-    Walks camera cfgs (``env_cfg.tiled_camera`` for direct envs, ``env_cfg.scene.base_camera`` / ``wrist_camera`` for
-    manager-based envs) and sets :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_file_path` on each camera whose
-    resolved ``renderer_cfg.renderer_type`` is ``"ovrtx"``. Uses ``/dev/stdout`` on Linux and ``CON`` on Windows so
-    pytest captures OVRTX renderer log.
-    """
-    camera_cfgs: list[Any] = []
-
-    # direct envs
-    tiled_camera = getattr(env_cfg, "tiled_camera", None)
-    if tiled_camera is not None:
-        camera_cfgs.append(tiled_camera)
-
-    # manager-based envs
-    scene = getattr(env_cfg, "scene", None)
-    if scene is not None:
-        for camera_name in ("base_camera", "wrist_camera", "tiled_camera"):
-            camera_cfg = getattr(scene, camera_name, None)
-            if camera_cfg is not None:
-                camera_cfgs.append(camera_cfg)
-
-    # redirect OVRTX renderer log to stdout
-    for camera_cfg in camera_cfgs:
-        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
-        if renderer_cfg is not None and getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
-            renderer_cfg.log_file_path = "CON" if os.name == "nt" else "/dev/stdout"
-
-
 def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: str, data_type: str) -> None:
     """Trade PhysX solver performance for determinism/accuracy when testing ``motion_vectors``.
 
@@ -1353,9 +1323,6 @@ def rendering_test_shadow_hand(
 
     env_cfg.scene.num_envs = 4
 
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
     if data_type in {"depth", "distance_to_camera", "distance_to_image_plane", "motion_vectors"}:
@@ -1447,9 +1414,6 @@ def rendering_test_shadow_hand_yellow_bg(
     env_cfg.scene.num_envs = 4
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},rgb"])
 
-    if renderer == "ovrtx":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     env = None
     try:
         env = ShadowHandCameraEnv(env_cfg)
@@ -1538,9 +1502,6 @@ def rendering_test_cartpole(
     env_cfg.scene.num_envs = 4
     if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
-
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -1698,9 +1659,6 @@ def rendering_test_lift_kuka(
 
     env_cfg.scene.num_envs = 4
 
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
@@ -1802,9 +1760,6 @@ def rendering_test_franka_cloth(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
 
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
     test_name = "franka_cloth"
@@ -1867,9 +1822,6 @@ def rendering_test_franka_soft(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
-
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
