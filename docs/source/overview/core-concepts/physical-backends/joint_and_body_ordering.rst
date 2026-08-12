@@ -1,25 +1,16 @@
 Joint and Body Ordering
 =======================
 
-A physics backend chooses the order of the joint and body axes in every state
-and command tensor it exposes. PhysX and MJWarp traverse the same USD
-articulation differently, so those axes are permutations of each other for any
-robot whose kinematic tree branches. Articulation ordering pins a chosen order
-to the public API, so a name always maps to the same vector element no matter
-which backend is active.
-
-This page is the reference for that mechanism: why the orders differ, which
-conventions exist, how to select one, what it costs, and how to convert indices
-and tensors by hand. For backend capabilities, selection, and maturity, start
-with the :doc:`Physics Backends overview <index>`.
+PhysX and MJWarp may order an articulation's joints and bodies differently. Set
+``joint_ordering`` and ``body_ordering`` to keep names mapped to the same tensor elements
+across backends. This page explains the supported conventions, conversion costs, and direct
+backend-view access. For backend selection and capabilities, see the :doc:`Physics Backends
+overview <index>`.
 
 .. seealso::
 
-    To replay a trained checkpoint in a different backend, follow
-    :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. That
-    how-to is the entry point for sim-to-sim transfer: it covers the full
-    environment contract, the tasks validated in both directions with their
-    exact commands, and everything besides ordering that transfer depends on.
+    For policy transfer instructions and validated examples, see
+    :doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
 
 
 Why Articulation Orders Differ
