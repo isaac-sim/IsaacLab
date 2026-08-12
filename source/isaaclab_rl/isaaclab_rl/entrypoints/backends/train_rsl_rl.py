@@ -117,9 +117,9 @@ def _run(args_cli: argparse.Namespace) -> None:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.seed import configure_seed
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
     from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
@@ -174,7 +174,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli.task,
                 env_cfg,
                 args_cli,
-                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                convert_marl_to_single_agent=is_marl_env_cfg(env_cfg),
             )
 
             if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":

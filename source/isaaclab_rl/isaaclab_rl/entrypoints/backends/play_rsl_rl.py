@@ -17,7 +17,7 @@ from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -25,9 +25,11 @@ from isaaclab.utils.string import list_intersection, string_to_callable
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
+    MARLEnvCfg,
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    is_marl_env_cfg,
     pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_play_task_name,
@@ -116,7 +118,7 @@ installed_version = metadata.version("rsl-rl-lib")
 
 
 @hydra_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | MARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
     pre_launch_video_config(env_cfg, args_cli=args_cli)
     with startup_screen(args_cli, num_stages=3) as screen:
@@ -167,7 +169,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 args_cli.task,
                 env_cfg,
                 args_cli,
-                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                convert_marl_to_single_agent=is_marl_env_cfg(env_cfg),
             )
 
             screen.stage("Loading policy")

@@ -22,7 +22,6 @@ import torch
 from packaging import version
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
@@ -30,6 +29,7 @@ from isaaclab_rl.entrypoints.common import (
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    is_marl_env_cfg,
     pre_launch_video_config,
     preserve_attribute,
     resolve_checkpoint_selector,
@@ -217,7 +217,7 @@ def _main():
                 args_cli.task,
                 env_cfg,
                 args_cli,
-                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
+                convert_marl_to_single_agent=is_marl_env_cfg(env_cfg) and algorithm in ["ppo"],
             )
 
             try:

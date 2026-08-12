@@ -22,7 +22,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
+from isaaclab.envs import DirectMARLEnv, ManagerBasedMARLEnv, multi_agent_to_single_agent
 
 from isaaclab_rl.rl_games import RlGamesVecEnvWrapper
 
@@ -75,7 +75,7 @@ def test_random_actions(registered_tasks):
             # create environment
             env = gym.make(task_name, cfg=env_cfg)
             # convert to single-agent instance if required by the RL algorithm
-            if isinstance(env.unwrapped, DirectMARLEnv):
+            if isinstance(env.unwrapped, (DirectMARLEnv, ManagerBasedMARLEnv)):
                 env = multi_agent_to_single_agent(env)
             # wrap environment
             env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)

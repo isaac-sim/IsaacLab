@@ -20,7 +20,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
+from isaaclab.envs import DirectMARLEnv, ManagerBasedMARLEnv, multi_agent_to_single_agent
 
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
@@ -67,7 +67,7 @@ def test_random_actions(registered_tasks):
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
             # create environment
             env = gym.make(task_name, cfg=env_cfg)
-            if isinstance(env.unwrapped, DirectMARLEnv):
+            if isinstance(env.unwrapped, (DirectMARLEnv, ManagerBasedMARLEnv)):
                 env = multi_agent_to_single_agent(env)
             # wrap environment
             env = SkrlVecEnvWrapper(env)

@@ -76,8 +76,9 @@ def _create_rsl_rl_checkpoint(
     import gymnasium as gym
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
-    from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
+    from isaaclab.envs import multi_agent_to_single_agent
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
     _set_single_env(env_cfg)
@@ -91,7 +92,7 @@ def _create_rsl_rl_checkpoint(
     env = None
     try:
         env = gym.make(task_name, cfg=env_cfg, render_mode=None)
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+        if is_marl_env_cfg(env.unwrapped.cfg):
             env = multi_agent_to_single_agent(env)
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
@@ -122,8 +123,9 @@ def _create_rl_games_checkpoint(
     from rl_games.common import env_configurations, vecenv
     from rl_games.torch_runner import Runner
 
-    from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
+    from isaaclab.envs import multi_agent_to_single_agent
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     agent_cfg = copy.deepcopy(agent_cfg)
@@ -144,7 +146,7 @@ def _create_rl_games_checkpoint(
     env = None
     try:
         env = gym.make(task_name, cfg=env_cfg, render_mode=None)
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+        if is_marl_env_cfg(env.unwrapped.cfg):
             env = multi_agent_to_single_agent(env)
         env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 
@@ -181,8 +183,9 @@ def _create_skrl_checkpoint(
     import gymnasium as gym
     from skrl.utils.runner.torch import Runner
 
-    from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
+    from isaaclab.envs import multi_agent_to_single_agent
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
     agent_cfg = copy.deepcopy(agent_cfg)
@@ -199,7 +202,7 @@ def _create_skrl_checkpoint(
     env = None
     try:
         env = gym.make(task_name, cfg=env_cfg, render_mode=None)
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and getattr(args_cli, "algorithm", "ppo").lower() == "ppo":
+        if is_marl_env_cfg(env.unwrapped.cfg) and getattr(args_cli, "algorithm", "ppo").lower() == "ppo":
             env = multi_agent_to_single_agent(env)
         env = SkrlVecEnvWrapper(env, ml_framework="torch")
 
@@ -225,7 +228,7 @@ def _create_sb3_checkpoint(
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import VecNormalize
 
-    from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnv, multi_agent_to_single_agent
+    from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
@@ -240,8 +243,6 @@ def _create_sb3_checkpoint(
         env = gym.make(task_name, cfg=env_cfg, render_mode=None)
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
             raise NotImplementedError("SB3 LEAPP export currently supports manager-based environments only.")
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-            env = multi_agent_to_single_agent(env)
         env = Sb3VecEnvWrapper(env, fast_variant=True)
 
         agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)

@@ -49,6 +49,7 @@ from isaaclab.envs import VecEnvObs
 if TYPE_CHECKING:
     from isaaclab.envs import (
         DirectRLEnv,
+        ManagerBasedMARLEnv,
         ManagerBasedRLEnv,
     )
 
@@ -96,7 +97,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
 
     def __init__(
         self,
-        env: ManagerBasedRLEnv | DirectRLEnv,
+        env: ManagerBasedRLEnv | DirectRLEnv | ManagerBasedMARLEnv,
         rl_device: str,
         clip_obs: float,
         clip_actions: float,
@@ -120,7 +121,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
         """
         # check that input is valid
         # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-        from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+        from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedMARLEnv, ManagerBasedRLEnv
 
         try:
             from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
@@ -128,7 +129,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
             DirectRLEnvWarp = None
             ManagerBasedRLEnvWarp = None
 
-        allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)
+        allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv, ManagerBasedMARLEnv)
         if DirectRLEnvWarp is not None:
             allowed_types += (DirectRLEnvWarp,)
         if ManagerBasedRLEnvWarp is not None:
@@ -136,8 +137,8 @@ class RlGamesVecEnvWrapper(IVecEnv):
 
         if not isinstance(env.unwrapped, allowed_types):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                " ManagerBasedRLEnvWarp. Environment type:"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectMARLEnv /"
+                " ManagerBasedMARLEnv / DirectRLEnvWarp / ManagerBasedRLEnvWarp. Environment type:"
                 f" {type(env)}"
             )
         # initialize the wrapper

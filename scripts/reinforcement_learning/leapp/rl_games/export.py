@@ -24,7 +24,6 @@ env_configurations = None
 vecenv = None
 Runner = None
 BasePlayer = None
-DirectMARLEnvCfg = None
 ManagerBasedRLEnv = None
 RlGamesGpuEnv = None
 RlGamesVecEnvWrapper = None
@@ -37,6 +36,7 @@ get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
 is_two_tensor_lstm_state = None
+is_marl_env_cfg = None
 state_dict_from_sequence = None
 state_sequence_from_registered = None
 
@@ -61,11 +61,12 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
 def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
-    global BasePlayer, DirectMARLEnvCfg, ManagerBasedRLEnv, RlGamesGpuEnv, RlGamesVecEnvWrapper, Runner
+    global BasePlayer, ManagerBasedRLEnv, RlGamesGpuEnv, RlGamesVecEnvWrapper, Runner
     global annotate, configure_seed, env_configurations, get_checkpoint_path, gym, leapp
     global ensure_env_spec_id, get_published_pretrained_checkpoint, hydra_task_config, multi_agent_to_single_agent
     global patch_env_for_export, retrieve_file_path, torch, vecenv
     global is_two_tensor_lstm_state, state_dict_from_sequence, state_sequence_from_registered
+    global is_marl_env_cfg
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -83,7 +84,6 @@ def _load_runtime_dependencies() -> None:
     from rl_games.common.player import BasePlayer as BasePlayerCls
     from rl_games.torch_runner import Runner as RunnerCls
 
-    from isaaclab.envs import DirectMARLEnvCfg as DirectMARLEnvCfgCls
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.envs import multi_agent_to_single_agent as multi_agent_to_single_agent_fn
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
@@ -100,6 +100,7 @@ def _load_runtime_dependencies() -> None:
         state_sequence_from_registered as state_sequence_from_registered_fn,
     )
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg as is_marl_env_cfg_fn
     from isaaclab_rl.rl_games import RlGamesGpuEnv as RlGamesGpuEnvCls
     from isaaclab_rl.rl_games import RlGamesVecEnvWrapper as RlGamesVecEnvWrapperCls
     from isaaclab_rl.utils.pretrained_checkpoint import (
@@ -118,7 +119,6 @@ def _load_runtime_dependencies() -> None:
     vecenv = vecenv_module
     Runner = RunnerCls
     BasePlayer = BasePlayerCls
-    DirectMARLEnvCfg = DirectMARLEnvCfgCls
     ManagerBasedRLEnv = ManagerBasedRLEnvCls
     RlGamesGpuEnv = RlGamesGpuEnvCls
     RlGamesVecEnvWrapper = RlGamesVecEnvWrapperCls
@@ -131,6 +131,7 @@ def _load_runtime_dependencies() -> None:
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
     is_two_tensor_lstm_state = is_two_tensor_lstm_state_fn
+    is_marl_env_cfg = is_marl_env_cfg_fn
     state_dict_from_sequence = state_dict_from_sequence_fn
     state_sequence_from_registered = state_sequence_from_registered_fn
     _RUNTIME_IMPORTS_LOADED = True
@@ -225,7 +226,7 @@ def export_rl_games_agent(
                 required_obs_groups=_required_obs_groups(agent_cfg),
             )
 
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+        if is_marl_env_cfg(env.unwrapped.cfg):
             env = multi_agent_to_single_agent(env)
 
         env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)

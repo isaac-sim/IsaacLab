@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 
-from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv, ManagerBasedMARLEnv
 from isaaclab.envs.utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
 
 pytestmark = pytest.mark.unit
@@ -39,7 +39,7 @@ class _FakeMultiAgentEnv:
         self.closed_count += 1
 
 
-@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
+@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv, ManagerBasedMARLEnv])
 def test_env_destructor_closes_before_shutdown(env_cls, monkeypatch):
     """Environment destructors should still close open envs during normal runtime."""
 
@@ -58,7 +58,7 @@ def test_env_destructor_closes_before_shutdown(env_cls, monkeypatch):
     assert closed
 
 
-@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
+@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv, ManagerBasedMARLEnv])
 def test_env_destructor_skips_close_when_already_closed(env_cls, monkeypatch):
     """Environment destructors should not re-enter close after normal cleanup."""
 
@@ -72,7 +72,7 @@ def test_env_destructor_skips_close_when_already_closed(env_cls, monkeypatch):
     env.__del__()
 
 
-@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
+@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv, ManagerBasedMARLEnv])
 def test_env_destructor_skips_close_after_import_shutdown(env_cls, monkeypatch):
     """Environment destructors should not run cleanup after import machinery is torn down."""
 

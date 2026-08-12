@@ -15,9 +15,12 @@ import torch
 from ..common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
 from ..direct_marl_env import DirectMARLEnv
 from ..direct_rl_env import DirectRLEnv
+from ..manager_based_marl_env import ManagerBasedMARLEnv
 
 
-def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
+def multi_agent_to_single_agent(
+    env: DirectMARLEnv | ManagerBasedMARLEnv, state_as_observation: bool = False
+) -> DirectRLEnv:
     """Convert the multi-agent environment instance to a single-agent environment instance.
 
     The converted environment will be an instance of the single-agent environment interface class
@@ -42,21 +45,24 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
 
     Raises:
         AssertionError: If the environment state cannot be used as observation since it was explicitly defined
-            as unconstructed (:attr:`DirectMARLEnvCfg.state_space`).
+            as unconstructed (:attr:`state_space`).
     """
 
     class Env(DirectRLEnv):
-        def __init__(self, env: DirectMARLEnv) -> None:
-            self.env: DirectMARLEnv = env.unwrapped
+        def __init__(self, env: DirectMARLEnv | ManagerBasedMARLEnv) -> None:
+            self.env: DirectMARLEnv | ManagerBasedMARLEnv = env.unwrapped
             self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as single-agent observation
             self._state_as_observation = state_as_observation
             if self._state_as_observation:
-                assert self.env.cfg.state_space != 0, (
-                    "The environment state cannot be used as observation since it was explicitly defined as"
-                    " unconstructed"
-                )
+                if isinstance(self.env, DirectMARLEnv):
+                    assert self.env.cfg.state_space != 0, (
+                        "The environment state cannot be used as observation since it was explicitly defined as"
+                        " unconstructed"
+                    )
+                else:
+                    assert self.env.state_space is not None, "The environment state cannot be used as observation."
 
             # create single-agent properties to expose in the converted environment
             self.cfg = self.env.cfg
@@ -148,7 +154,9 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
     return Env(env)
 
 
-def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectMARLEnv:
+def multi_agent_with_one_agent(
+    env: DirectMARLEnv | ManagerBasedMARLEnv, state_as_observation: bool = False
+) -> DirectMARLEnv:
     """Convert the multi-agent environment instance to a multi-agent environment instance with only one agent.
 
     The converted environment will be an instance of the multi-agent environment interface class
@@ -172,21 +180,24 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
 
     Raises:
         AssertionError: If the environment state cannot be used as observation since it was explicitly defined
-            as unconstructed (:attr:`DirectMARLEnvCfg.state_space`).
+            as unconstructed (:attr:`state_space`).
     """
 
     class Env(DirectMARLEnv):
-        def __init__(self, env: DirectMARLEnv) -> None:
-            self.env: DirectMARLEnv = env.unwrapped
+        def __init__(self, env: DirectMARLEnv | ManagerBasedMARLEnv) -> None:
+            self.env: DirectMARLEnv | ManagerBasedMARLEnv = env.unwrapped
             self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as agent observation
             self._state_as_observation = state_as_observation
             if self._state_as_observation:
-                assert self.env.cfg.state_space != 0, (
-                    "The environment state cannot be used as observation since it was explicitly defined as"
-                    " unconstructed"
-                )
+                if isinstance(self.env, DirectMARLEnv):
+                    assert self.env.cfg.state_space != 0, (
+                        "The environment state cannot be used as observation since it was explicitly defined as"
+                        " unconstructed"
+                    )
+                else:
+                    assert self.env.state_space is not None, "The environment state cannot be used as observation."
 
             # create agent properties to expose in the converted environment
             self._agent_id = "single-agent"

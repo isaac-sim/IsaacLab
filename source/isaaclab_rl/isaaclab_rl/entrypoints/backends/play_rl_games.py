@@ -20,7 +20,6 @@ from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -29,6 +28,7 @@ from isaaclab_rl.entrypoints.common import (
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    is_marl_env_cfg,
     pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_play_task_name,
@@ -163,7 +163,7 @@ def main():
                 args_cli.task,
                 env_cfg,
                 args_cli,
-                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                convert_marl_to_single_agent=is_marl_env_cfg(env_cfg),
             )
 
             screen.stage("Loading policy")

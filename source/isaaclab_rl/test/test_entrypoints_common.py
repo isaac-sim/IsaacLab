@@ -16,6 +16,8 @@ import gymnasium as gym
 import pytest
 import torch
 
+from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedMARLEnvCfg
+
 from isaaclab_rl.entrypoints import common as _rl_common
 from isaaclab_rl.entrypoints.common import (
     CaptureEnvSensors,
@@ -23,6 +25,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dispatch_library_entrypoint,
     enable_cameras_for_video,
+    is_marl_env_cfg,
     resolve_play_task_name,
     wrap_sensor_capture,
 )
@@ -60,6 +63,13 @@ def _make_capture_wrapper(tmp_path: Path, **kwargs: Any) -> Any:
     }
     defaults.update(kwargs)
     return CaptureEnvSensors(**defaults)
+
+
+def test_is_marl_env_cfg_recognizes_direct_and_manager_based_configs() -> None:
+    """The launch helper recognizes both supported MARL configuration workflows."""
+    assert is_marl_env_cfg(object.__new__(DirectMARLEnvCfg))
+    assert is_marl_env_cfg(object.__new__(ManagerBasedMARLEnvCfg))
+    assert not is_marl_env_cfg(object())
 
 
 def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(

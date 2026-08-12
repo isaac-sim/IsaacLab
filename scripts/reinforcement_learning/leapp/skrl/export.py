@@ -23,7 +23,6 @@ gym = None
 skrl = None
 version = None
 Runner = None
-DirectMARLEnvCfg = None
 ManagerBasedRLEnv = None
 SkrlVecEnvWrapper = None
 configure_seed = None
@@ -35,6 +34,7 @@ get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
 is_two_tensor_lstm_state = None
+is_marl_env_cfg = None
 state_dict_from_sequence = None
 state_sequence_from_registered = None
 
@@ -70,10 +70,11 @@ def _algorithm_from_agent_entry_point(agent_cfg_entry_point: str) -> str:
 def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
-    global DirectMARLEnvCfg, ManagerBasedRLEnv, Runner, SkrlVecEnvWrapper, annotate, get_checkpoint_path, gym, leapp
+    global ManagerBasedRLEnv, Runner, SkrlVecEnvWrapper, annotate, get_checkpoint_path, gym, leapp
     global ensure_env_spec_id, get_published_pretrained_checkpoint, hydra_task_config, multi_agent_to_single_agent
     global patch_env_for_export, retrieve_file_path, skrl, torch, version
     global configure_seed, is_two_tensor_lstm_state, state_dict_from_sequence, state_sequence_from_registered
+    global is_marl_env_cfg
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -90,7 +91,6 @@ def _load_runtime_dependencies() -> None:
     from packaging import version as version_module
     from skrl.utils.runner.torch import Runner as RunnerCls
 
-    from isaaclab.envs import DirectMARLEnvCfg as DirectMARLEnvCfgCls
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.envs import multi_agent_to_single_agent as multi_agent_to_single_agent_fn
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
@@ -107,6 +107,7 @@ def _load_runtime_dependencies() -> None:
         state_sequence_from_registered as state_sequence_from_registered_fn,
     )
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg as is_marl_env_cfg_fn
     from isaaclab_rl.skrl import SkrlVecEnvWrapper as SkrlVecEnvWrapperCls
     from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
@@ -130,7 +131,6 @@ def _load_runtime_dependencies() -> None:
     skrl = skrl_module
     version = version_module
     Runner = RunnerCls
-    DirectMARLEnvCfg = DirectMARLEnvCfgCls
     ManagerBasedRLEnv = ManagerBasedRLEnvCls
     SkrlVecEnvWrapper = SkrlVecEnvWrapperCls
     configure_seed = configure_seed_fn
@@ -142,6 +142,7 @@ def _load_runtime_dependencies() -> None:
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
     is_two_tensor_lstm_state = is_two_tensor_lstm_state_fn
+    is_marl_env_cfg = is_marl_env_cfg_fn
     state_dict_from_sequence = state_dict_from_sequence_fn
     state_sequence_from_registered = state_sequence_from_registered_fn
     _RUNTIME_IMPORTS_LOADED = True
@@ -227,7 +228,7 @@ def export_skrl_agent(
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
             patch_env_for_export(env, export_method=args_cli.export_method, required_obs_groups={"policy"})
 
-        if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:
+        if is_marl_env_cfg(env.unwrapped.cfg) and algorithm in ["ppo"]:
             env = multi_agent_to_single_agent(env)
 
         env = SkrlVecEnvWrapper(env, ml_framework="torch")

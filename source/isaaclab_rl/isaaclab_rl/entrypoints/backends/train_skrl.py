@@ -120,10 +120,10 @@ def _run(args_cli: argparse.Namespace) -> None:
     import skrl
 
     from isaaclab.app import launch_simulation
-    from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
     from isaaclab.utils.seed import configure_seed
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
     from isaaclab_tasks.utils import resolve_task_config
@@ -213,7 +213,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli.task,
                 env_cfg,
                 args_cli,
-                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
+                convert_marl_to_single_agent=is_marl_env_cfg(env_cfg) and algorithm in ["ppo"],
             )
             env = wrap_training_capture(env, log_dir, args_cli)
 

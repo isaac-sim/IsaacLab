@@ -28,7 +28,7 @@ import torch
 from PIL import Image
 
 from isaaclab.app import AppLauncher, LoadingScreen, scan
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -45,6 +45,15 @@ RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
 _MISSING = object()
+
+# This remains local to the reinforcement-learning integration layer. The core
+# environment package intentionally has no common MARL configuration base class.
+MARLEnvCfg = DirectMARLEnvCfg | ManagerBasedMARLEnvCfg
+
+
+def is_marl_env_cfg(cfg: object) -> bool:
+    """Return whether *cfg* configures a direct or manager-based MARL environment."""
+    return isinstance(cfg, (DirectMARLEnvCfg, ManagerBasedMARLEnvCfg))
 
 
 @contextmanager
@@ -662,7 +671,9 @@ def _workflow_name(env_cfg: Any) -> str:
     """Return the task workflow *env_cfg* belongs to."""
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         return "manager-based"
-    return "direct (multi-agent)" if isinstance(env_cfg, DirectMARLEnvCfg) else "direct"
+    if is_marl_env_cfg(env_cfg):
+        return "manager-based (multi-agent)" if isinstance(env_cfg, ManagerBasedMARLEnvCfg) else "direct (multi-agent)"
+    return "direct"
 
 
 def _physics_name(physics_cfg: Any) -> str:
@@ -723,7 +734,7 @@ def create_isaaclab_env(
         task: Task name to instantiate.
         env_cfg: Isaac Lab environment config.
         args_cli: Parsed command-line arguments.
-        convert_marl_to_single_agent: Whether to convert direct MARL environments to single-agent environments.
+        convert_marl_to_single_agent: Whether to convert MARL environments to single-agent environments.
 
     Returns:
         The created Gymnasium environment.
@@ -736,7 +747,7 @@ def create_isaaclab_env(
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
-    if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+    if convert_marl_to_single_agent and is_marl_env_cfg(env.unwrapped.cfg):
         from isaaclab.envs import multi_agent_to_single_agent
 
         env = multi_agent_to_single_agent(env)

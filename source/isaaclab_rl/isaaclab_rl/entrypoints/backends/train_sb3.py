@@ -92,9 +92,9 @@ def run(argv: list[str]) -> None:
     from stable_baselines3.common.vec_env import VecNormalize
 
     from isaaclab.app import launch_simulation
-    from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.seed import configure_seed
 
+    from isaaclab_rl.entrypoints.common import is_marl_env_cfg
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     from isaaclab_tasks.utils import resolve_task_config
@@ -147,7 +147,7 @@ def run(argv: list[str]) -> None:
                 args_cli.task,
                 env_cfg,
                 args_cli,
-                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                convert_marl_to_single_agent=is_marl_env_cfg(env_cfg),
             )
             env = wrap_training_capture(env, log_dir, args_cli)
 

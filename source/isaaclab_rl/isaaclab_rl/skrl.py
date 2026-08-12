@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import (
         DirectMARLEnv,
         DirectRLEnv,
+        ManagerBasedMARLEnv,
         ManagerBasedRLEnv,
     )
 
@@ -42,7 +43,7 @@ Vectorized environment wrapper.
 
 
 def SkrlVecEnvWrapper(
-    env: ManagerBasedRLEnv | DirectRLEnv | DirectMARLEnv,
+    env: ManagerBasedRLEnv | DirectRLEnv | DirectMARLEnv | ManagerBasedMARLEnv,
     ml_framework: Literal["torch", "jax", "warp"] = "torch",
     wrapper: Literal["auto", "isaaclab", "isaaclab-single-agent", "isaaclab-multi-agent"] = "isaaclab",
 ):
@@ -68,7 +69,7 @@ def SkrlVecEnvWrapper(
     """
     # check that input is valid
     # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-    from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+    from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedMARLEnv, ManagerBasedRLEnv
 
     try:
         from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
@@ -76,7 +77,7 @@ def SkrlVecEnvWrapper(
         DirectRLEnvWarp = None
         ManagerBasedRLEnvWarp = None
 
-    allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)
+    allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv, ManagerBasedMARLEnv)
     if DirectRLEnvWarp is not None:
         allowed_types += (DirectRLEnvWarp,)
     if ManagerBasedRLEnvWarp is not None:
@@ -85,6 +86,7 @@ def SkrlVecEnvWrapper(
     if not isinstance(env.unwrapped, allowed_types):
         raise ValueError(
             "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv,"
+            " ManagerBasedMARLEnv,"
             f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env)}"
         )
 
@@ -101,6 +103,9 @@ def SkrlVecEnvWrapper(
         raise ValueError(
             f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax', 'warp'"
         )
+
+    if wrapper == "auto" and isinstance(env.unwrapped, ManagerBasedMARLEnv):
+        wrapper = "isaaclab-multi-agent"
 
     # wrap and return the environment
     return wrap_env(env, wrapper)
