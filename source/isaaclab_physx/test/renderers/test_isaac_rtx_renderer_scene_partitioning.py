@@ -50,9 +50,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
-_PARTITION_XFAIL = pytest.mark.xfail(
-    reason="NVBug 6264822: Kit c0b875cd scene partitioning regression", strict=False, run=False
-)
 
 
 @pytest.fixture()
@@ -87,7 +84,6 @@ def test_partitioning_disabled_by_default(monkeypatch):
 
 
 @pytest.mark.isaacsim_ci
-@_PARTITION_XFAIL
 def test_partitioning_isolates_rigid_object(enable_scene_partition):
     """Per-env :class:`~isaaclab.assets.RigidObject` instances at unique world positions render
     as visibly different per-env tiles when RTX honors ``primvars:omni:scenePartition``."""
@@ -155,7 +151,6 @@ def test_partitioning_isolates_rigid_object(enable_scene_partition):
 
 
 @pytest.mark.isaacsim_ci
-@_PARTITION_XFAIL
 def test_partitioning_isolates_articulation(enable_scene_partition):
     """Per-env :class:`~isaaclab.assets.Articulation` instances driven to wildly different joint
     poses render as visibly different per-env tiles when RTX honors top-level scene partitions."""

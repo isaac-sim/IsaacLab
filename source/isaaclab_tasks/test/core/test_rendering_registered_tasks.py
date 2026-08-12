@@ -86,8 +86,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 
 
 @pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-# TODO: Restore enable_scene_partition after NVBug 6264822 is fixed.
-def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str):
+def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str, enable_scene_partition):
     """Test registered tasks rendering correctness."""
     env = None
 
