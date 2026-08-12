@@ -51,6 +51,7 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
+    "franka_cable": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -1580,8 +1581,6 @@ def rendering_test_lift_kuka(
     setup_homogeneous_envs: bool,
     comparison_scores: list[dict],
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
-
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils.configclass import configclass
@@ -1848,6 +1847,107 @@ def rendering_test_franka_soft(
             renderer,
             env.scene.sensors["base_camera"].data.output,
             max_different_pixels_percentage=_max_different_pixels_percentage(test_name, renderer, data_type),
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _configure_franka_cable_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
+    """Apply deterministic golden rendering overrides to a Franka cable camera config."""
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.utils.configclass import configclass
+
+    @configclass
+    class TestFrankaCableCameraObservationsCfg:
+        """Image-only observations for Franka cable golden rendering tests."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    env_cfg.scene.num_envs = 4
+    env_cfg.scene.env_spacing = 3.0
+    env_cfg.scene.replicate_physics = True
+    env_cfg.scene.base_camera.data_types = [data_type]
+    env_cfg.observations = TestFrankaCableCameraObservationsCfg()
+    if hasattr(env_cfg.events, "variable_gravity"):
+        env_cfg.events.variable_gravity.params["gravity_distribution_params"] = (
+            [0.0, 0.0, -9.81],
+            [0.0, 0.0, -9.81],
+        )
+
+
+def rendering_test_franka_cable(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    """Golden-image AOV coverage for the Franka four-cable pile camera env.
+
+    Newton cables under CouplerProxy have no PhysX preset; unsupported backends skip via
+    ``_skip_if_physics_preset_unsupported``. Settle with zero actions so the pile drapes
+    deterministically before capture. OVRTX may still cull animated BasisCurves after large
+    motion; these goldens intentionally exercise the full pile binding surface.
+    """
+    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+        pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cable (NVBUG#6463802).")
+
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_cable_env_cfg import FrankaCableCameraEnvCfg
+
+    env_cfg = FrankaCableCameraEnvCfg()
+
+    physics_preset_name = _physics_preset_name_deformable(physics_backend)
+    _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
+
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
+    _configure_franka_cable_camera_test_env_cfg(env_cfg, data_type)
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
+    test_name = "franka_cable"
+    env = None
+
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        # Let the cable pile settle under gravity so golden frames are not first-frame spawn poses.
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        env.step(zero_actions)
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
     finally:
