@@ -54,6 +54,12 @@ def _find(asset: _TestAsset, indices, *, domain: str = "joint", as_proxy: bool =
     )
 
 
+def test_destructor_tolerates_partial_initialization():
+    asset = object.__new__(_TestAsset)
+
+    asset.__del__()
+
+
 def test_equivalent_indices_reuse_proxy_and_storage():
     asset = _make_asset()
 
