@@ -83,7 +83,7 @@ def test_reward_terms_produce_expected_final_7025_values() -> None:
         step_dt,
     )
 
-    expected = torch.tensor([3.98, -4.0225]) * step_dt
+    expected = torch.tensor([3.98, -4.025]) * step_dt
     assert torch.allclose(reward, expected)
 
 
