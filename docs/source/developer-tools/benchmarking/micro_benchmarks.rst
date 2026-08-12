@@ -1,3 +1,8 @@
+.. Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+.. All rights reserved.
+..
+.. SPDX-License-Identifier: BSD-3-Clause
+
 .. _developer_tools_benchmarking_micro:
 
 Write micro-benchmarks
@@ -7,7 +12,8 @@ Micro-benchmarks answer isolated performance questions. Asset benchmarks use
 backend-specific **mock views** to measure an asset method or data property;
 sensor benchmarks use **live simulation scenes** to measure a production sensor
 update after physics has completed. Neither predicts end-to-end environment or
-training throughput. Use :ref:`developer_tools_benchmarking_run` when the question includes
+training throughput. Use :ref:`developer_tools_benchmarking_run` when the
+question includes
 environment logic, policy inference, learning, or application startup.
 
 .. seealso::

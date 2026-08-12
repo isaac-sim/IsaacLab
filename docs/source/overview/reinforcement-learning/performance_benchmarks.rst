@@ -16,8 +16,9 @@ Multi-GPU and multi-node training performance results are also outlined.
 Benchmark Results
 -----------------
 
-All benchmarking results were performed with the RL Games library in headless mode on Ubuntu 22.04.
-``Isaac-Velocity-Rough-G1`` environment benchmarks were performed with the RSL RL library.
+All benchmarking results except ``Isaac-Velocity-Rough-G1`` used the RL Games
+library in headless mode on Ubuntu 22.04. ``Isaac-Velocity-Rough-G1`` used the
+RSL RL library.
 The PhysX backend was used for all benchmarks.
 
 
@@ -42,7 +43,7 @@ Memory Consumption
 .. |cartpole-cam| image:: ../../_static/benchmarks/cartpole_camera.jpg
     :width: 80
     :height: 45
-.. |g1| image:: ../../_static/benchmarks/g1_rough.jpg
+.. |g1| image:: ../../_static/benchmarks/g1_rough.png
     :width: 80
     :height: 45
 .. |shadow| image:: ../../_static/benchmarks/shadow.jpg
