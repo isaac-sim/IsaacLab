@@ -40,7 +40,11 @@ class VBDSolverCfg(NewtonSolverCfg):
     """Self-contact detection margin [m]."""
 
     particle_collision_detection_interval: int = -1
-    """How often particle self-contact detection runs."""
+    """How often particle self-contact detection is applied.
+
+    ``< 0``: once before initialization. ``0``: once before and once after
+    initialization. ``k >= 1``: before every ``k`` VBD iterations.
+    """
 
     particle_vertex_contact_buffer_size: int = 32
     """Preallocation size for each vertex contact buffer."""

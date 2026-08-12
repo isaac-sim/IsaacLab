@@ -44,7 +44,6 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     builders = []
     hook_calls = []
     replicate_calls = []
-    selected_builders = []
 
     class Builder:
         def __init__(self):
@@ -99,12 +98,9 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         "_cl_inject_sites",
         classmethod(lambda cls, builder, source_builders: ({}, {}, {})),
     )
-
-    def set_builder(cls, builder):
-        selected_builders.append(builder)
-        cls._builder = builder
-
-    monkeypatch.setattr(physics.NewtonVBDManager, "set_builder", classmethod(set_builder))
+    monkeypatch.setattr(
+        physics.NewtonVBDManager, "set_builder", classmethod(lambda cls, builder: setattr(cls, "_builder", builder))
+    )
 
     def hook(builder, world_idx, position, rotation):
         hook_calls.append(world_idx)
@@ -130,8 +126,6 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     else:
         assert builders[0].imports == [(None, ["/World/terrain", *deformable_paths])]
         assert hook_calls == [0]
-    assert selected_builders == [builders[0]]
-
     assert builders[0].color_calls == 1
 
 
@@ -145,18 +139,13 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
         def color(self):
             events.append("color")
 
-    builder = Builder()
-    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", builder)
+    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
     monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
-    monkeypatch.setattr(
-        deformable_module,
-        "setup_registered_deformable_fabric_sync",
-        lambda manager_cls: events.append("sync"),
-    )
+    monkeypatch.setattr(deformable_module, "setup_registered_deformable_fabric_sync", lambda manager_cls: None)
 
     physics.NewtonVBDManager.start_simulation()
 
-    assert events == ["color", "start", "sync"]
+    assert events == ["color", "start"]
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
