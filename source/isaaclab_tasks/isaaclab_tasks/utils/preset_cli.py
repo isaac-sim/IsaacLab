@@ -359,9 +359,16 @@ def _auto_select_agent(
 
     if active_presets:
         # Rule 1: preset-based selection via agent_preset_compatibility.
-        matches = [ep for ep, declared in compatibility.items() if active_presets.issubset(set(declared))]
-        if len(matches) == 1:
-            args.agent = matches[0]
+        # Filter to only the presets that appear in the compatibility map: physics
+        # and renderer tokens can arrive via the presets= broadcast but are never
+        # declared as agent constraints, so including them would make issubset fail
+        # for every entry point and silently fall back to the wrong default.
+        all_declared = {p for declared in compatibility.values() for p in declared}
+        domain_presets = active_presets & all_declared
+        if domain_presets:
+            matches = [ep for ep, declared in compatibility.items() if domain_presets.issubset(set(declared))]
+            if len(matches) == 1:
+                args.agent = matches[0]
         return
 
     # Rule 2: default-absent selection.
