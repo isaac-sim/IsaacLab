@@ -173,7 +173,11 @@ The following modules are available in the ``isaaclab_ov`` extension:
 .. autosummary::
    :toctree: lab_ov
 
+   assets
+   cloner
+   physics
    renderers
+   sim.views
 
 isaaclab_assets extension
 -------------------------
@@ -202,23 +206,6 @@ The following modules are available in the ``isaaclab_visualizers`` extension:
    newton
    rerun
    viser
-
-
-isaaclab_ovphysx extension
----------------------------
-
-The following modules are available in the ``isaaclab_ovphysx`` extension:
-
-.. currentmodule:: isaaclab_ovphysx
-
-.. autosummary::
-   :toctree: lab_ovphysx
-
-   assets
-   cloner
-   physics
-   sim.views
-
 
 isaaclab_experimental extension
 --------------------------------
@@ -261,7 +248,7 @@ The following public modules provide additional specialized APIs:
    lab_newton/isaaclab_newton.envs.mdp
    lab_newton/isaaclab_newton.ik
    lab_newton/isaaclab_newton.sim.views
-   lab_ovphysx/isaaclab_ovphysx.sensors
-   lab_ovphysx/isaaclab_ovphysx.sensors.ray_caster
+   lab_ov/isaaclab_ov.sensors
+   lab_ov/isaaclab_ov.sensors.ray_caster
    lab_physx/isaaclab_physx.sim.views
    lab_ppisp/isaaclab_ppisp

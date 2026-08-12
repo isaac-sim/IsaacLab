@@ -57,7 +57,7 @@ jobs:
           ^source/[^/]+/pyproject\.toml$ :: Package manifests
           ^source/isaaclab/isaaclab/cli/ :: Install CLI implementation
           ^source/isaaclab/isaaclab/test/fixtures/ :: Isolated asset fixture implementation
-          ^source/isaaclab_(physx|newton|ovphysx)/isaaclab_.*/test/fixtures/ :: Backend fixture implementation
+          ^source/isaaclab_(physx|newton|ov)/isaaclab_.*/test/fixtures/ :: Backend fixture implementation
           ^source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics\.py$ :: Kit-less pytest subset
           ^\.github/workflows/kitless-docker\.yml$ :: This workflow file
           ^\.github/actions/detect-changes/ :: Change-detection action
