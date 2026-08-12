@@ -310,8 +310,19 @@ class _NewtonViewerUIMixin:
                     _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
                     if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
                         _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
+                    _contacts_available = getattr(viewer, "_contacts_available", True)
+                    if not _contacts_available:
+                        imgui.begin_disabled()
                     _c, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
-                    if viewer.show_contacts and renderer is not None:
+                    if not _contacts_available:
+                        imgui.end_disabled()
+                        try:
+                            _hovered = imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled)
+                        except Exception:
+                            _hovered = False
+                        if _hovered:
+                            imgui.set_tooltip("No contact sensors in this environment")
+                    if viewer.show_contacts and _contacts_available and renderer is not None:
                         if hasattr(renderer, "arrow_length_scale"):
                             _, renderer.arrow_length_scale = imgui.slider_float(
                                 "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
@@ -988,6 +999,12 @@ class NewtonVisualizer(BaseVisualizer):
                 " rigid-body force input."
             )
         self._is_initialized = True
+        # Inform the viewer whether contact data is available so the UI can grey
+        # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
+        # exists in the scene.
+        if self._viewer is not None:
+            contact_sensors = self._scene_data_provider.get_contact_sensors() if self._scene_data_provider else {}
+            self._viewer._contacts_available = newton_backend_active or bool(contact_sensors)
 
     def _apply_model_visualization_options(self) -> None:
         """Apply configured options reset by Newton model changes."""
