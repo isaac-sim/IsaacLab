@@ -163,14 +163,14 @@ same random-action stepping workload.
         }
       }
 
-Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
-GPU, Ubuntu 24.04.3, revision
-f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. Both runs used PhysX, seed 42,
-50 warm-up steps, and a 1000-step measured window. The headless run used
-Isaac-Cartpole-Direct with 4096 environments; the rendered run used
-Isaac-Cartpole-Camera-Direct with 1024 environments, RTX rendering, and the RGB
-preset. The approved balanced power profile used intel_pstate with powersave
-governors and balance_performance energy preferences.
+   Capture provenance: Intel(R) Core(TM) i9-14900K CPU, NVIDIA GeForce RTX 5090
+   GPU, Ubuntu 24.04.3, revision
+   f02ca894a91f9db3a9ab0d42fcf23a5bc5eae22d. Both runs used PhysX, seed 42,
+   50 warm-up steps, and a 1000-step measured window. The headless run used
+   Isaac-Cartpole-Direct with 4096 environments; the rendered run used
+   Isaac-Cartpole-Camera-Direct with 1024 environments, RTX rendering, and the RGB
+   preset. The approved balanced power profile used intel_pstate with powersave
+   governors and balance_performance energy preferences.
 
 ``--warmup_steps`` runs the exact number of excluded environment steps before
 the measured window. Runtime executes ``warmup_steps + num_steps`` total
@@ -569,7 +569,8 @@ typed schema paths:
    jq '.runtime.environment_step_timing' benchmark_*_schema.json
    jq '.phases' benchmark_startup_*_schema.json
 
-With multiple formatters, the ``_schema`` suffix identifies the typed bundle.
+With multiple formatters, filenames include ``_summary`` and ``_schema`` for
+the summary and typed bundle respectively.
 
 Evidence levels
 ~~~~~~~~~~~~~~~
@@ -592,6 +593,8 @@ Compare runs
 Report individual run values, paired deltas, and dispersion or confidence
 intervals. Label a result inconclusive when the interval for the delta crosses
 zero. Avoid reporting only the best run or only an aggregate.
+
+Control background activity and record any changes to it alongside each run.
 
 Every advertised result must identify the CPU model, physical core count, RAM,
 GPU, OS, physics backend, software versions, revision, task, environment count,
@@ -655,5 +658,5 @@ Mismatched measurement modes
 
 Foreign GPU workloads
    Stop unrelated GPU jobs and background activity, then repeat the paired
-   runs. Record execution order and power mode so thermal or contention effects
-   are visible.
+   runs. Record execution order, power mode, and background-activity changes so
+   thermal or contention effects are visible.
