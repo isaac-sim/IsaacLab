@@ -383,6 +383,7 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_visual_offsets: list[int] = []
         self._particle_visual_counts: list[int] = []
         self._initialized_scene = False
+        self._pending_scene_attribute_updates: list[tuple[list[str], str, Any, bool]] = []
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
@@ -541,6 +542,7 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         self._initialized_scene = True
+        self._flush_pending_scene_attribute_updates()
 
         self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
@@ -1455,6 +1457,7 @@ class OVRTXRenderer(BaseRenderer):
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
+        self._pending_scene_attribute_updates.clear()
 
     # ---------------------------------------------------------------------------
     # Dispatch methods — route to ovstage or legacy implementation
@@ -1503,6 +1506,123 @@ class OVRTXRenderer(BaseRenderer):
             self._update_geometries_ovstage()
         else:
             self._update_geometries_legacy()
+
+    def update_scene_attribute(
+        self,
+        prim_paths: list[str],
+        attribute_name: str,
+        values: Any,
+        *,
+        is_asset_path: bool = False,
+    ) -> None:
+        """Synchronize one scalar scene attribute to the private OVRTX stage.
+
+        Updates submitted before the stage is initialized are copied and applied after OVRTX has
+        loaded and cloned the scene. This lets pre-startup environment events use the same API as
+        reset and interval events.
+
+        Args:
+            prim_paths: Target prim paths. Each path corresponds to one element in ``values``.
+            attribute_name: USD attribute name shared by the target prims.
+            values: Per-prim scalar values as a NumPy array, tensor, or list.
+            is_asset_path: Whether string values carry the USD ``asset`` semantic.
+        """
+        if not self._initialized_scene:
+            self._pending_scene_attribute_updates.append(
+                (list(prim_paths), attribute_name, self._copy_scene_attribute_values(values), is_asset_path)
+            )
+            return
+        self._write_scene_attribute(prim_paths, attribute_name, values, is_asset_path)
+
+    @staticmethod
+    def _copy_scene_attribute_values(values: Any) -> Any:
+        """Copy caller-owned values retained until scene initialization."""
+        if isinstance(values, np.ndarray):
+            return values.copy()
+        if isinstance(values, torch.Tensor):
+            return values.clone()
+        if isinstance(values, list):
+            return list(values)
+        if isinstance(values, tuple):
+            return tuple(values)
+        return values
+
+    def _flush_pending_scene_attribute_updates(self) -> None:
+        """Apply queued scene updates in submission order after initialization."""
+        while self._pending_scene_attribute_updates:
+            prim_paths, attribute_name, values, is_asset_path = self._pending_scene_attribute_updates[0]
+            self._write_scene_attribute(prim_paths, attribute_name, values, is_asset_path)
+            self._pending_scene_attribute_updates.pop(0)
+
+    def _write_scene_attribute(
+        self,
+        prim_paths: list[str],
+        attribute_name: str,
+        values: Any,
+        is_asset_path: bool,
+    ) -> None:
+        """Write an attribute through the selected OVRTX stage API."""
+        if self._use_ovstage:
+            if self._stage is None or self._stage_paths is None:
+                raise RuntimeError("OVRTX ovstage scene is marked initialized without a stage")
+            path_list = self._stage_paths.create_path_list_from_strings(prim_paths)
+            try:
+                with self._stage.query_from_path_list(path_list) as query:
+                    if is_asset_path:
+                        if not isinstance(values, (list, tuple)) or not all(isinstance(value, str) for value in values):
+                            raise TypeError("Asset-path scene attributes require a list or tuple of strings")
+                        if not all(os.path.isabs(value) for value in values):
+                            raise ValueError("Asset-path scene attributes require absolute paths")
+                        # USD population stores scalar assets in a fixed-width token-pair column,
+                        # while ovstage runtime asset writes use ragged ASSET_STRING rows. Recreate
+                        # the column at the same ordinal before publishing the write floor so
+                        # consumers only observe the correctly typed replacement.
+                        self._stage.delete_attributes(
+                            query,
+                            [attribute_name],
+                            ordinal=self._current_ordinal,
+                        ).wait()
+                        byte_rows = [np.frombuffer(value.encode("utf-8"), dtype=np.uint8) for value in values]
+                        self._stage.write_attribute(
+                            query,
+                            attribute_name,
+                            ordinal=self._current_ordinal,
+                            tensors=byte_rows,
+                            is_array=True,
+                            semantic=ovstage.AttributeSemantic.ASSET_STRING,
+                        ).wait()
+                    elif isinstance(values, (list, tuple)) and all(isinstance(value, str) for value in values):
+                        token_ids = np.array(
+                            [self._stage_paths.intern_token(value) for value in values],
+                            dtype=np.uint64,
+                        )
+                        self._stage.write_attribute(
+                            query,
+                            attribute_name,
+                            ordinal=self._current_ordinal,
+                            tensors=token_ids,
+                            is_array=False,
+                            semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                        ).wait()
+                    else:
+                        self._stage.write_attribute(
+                            query,
+                            attribute_name,
+                            ordinal=self._current_ordinal,
+                            tensors=values,
+                            is_array=False,
+                        ).wait()
+            finally:
+                self._stage_paths.destroy_path_list(path_list)
+            return
+
+        if self._renderer is None:
+            raise RuntimeError("OVRTX scene is marked initialized without a renderer")
+        self._renderer.write_attribute(
+            prim_paths=prim_paths,
+            attribute_name=attribute_name,
+            tensor=values,
+        )
 
     def update_camera(
         self,
@@ -1631,6 +1751,7 @@ class OVRTXRenderer(BaseRenderer):
             self._update_scene_partitions_after_clone_ovstage(num_envs)
 
         self._initialized_scene = True
+        self._flush_pending_scene_attribute_updates()
 
         camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
 
@@ -2244,3 +2365,4 @@ class OVRTXRenderer(BaseRenderer):
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
         self._current_ordinal = 0
+        self._pending_scene_attribute_updates.clear()
