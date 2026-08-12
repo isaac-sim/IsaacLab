@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -510,6 +510,17 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
     callback(object())
     assert visualizer._viewer_picking_binding._retained_picking is None
+
+
+def test_newton_rtx_ui_callback_registration_does_not_duplicate_pending_callback():
+    viewer = object.__new__(NewtonViewerRTX)
+    registration = (viewer._render_training_controls, "side")
+    viewer.gui = None
+    viewer._pending_ui_callbacks = [registration]
+
+    viewer._register_isaaclab_ui_callbacks()
+
+    assert viewer._pending_ui_callbacks == [registration]
 
 
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):

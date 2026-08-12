@@ -132,7 +132,9 @@ class _NewtonViewerUIMixin:
 
     def _register_isaaclab_ui_callbacks(self) -> None:
         """Register model-dependent Isaac Lab viewer controls."""
-        self.register_ui_callback(self._render_training_controls, position="side")
+        registration = (self._render_training_controls, "side")
+        if registration not in getattr(self, "_pending_ui_callbacks", ()):
+            self.register_ui_callback(*registration)
 
     def _patch_scalar_plot_width(self) -> None:
         """Set up ImPlot and suppress Newton's built-in floating Plots window.
