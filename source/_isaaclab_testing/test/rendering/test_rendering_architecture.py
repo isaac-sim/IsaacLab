@@ -69,10 +69,10 @@ def test_testing_project_owns_rendering_suite() -> None:
         "isaaclab-contrib",
         "isaaclab-newton",
         "isaaclab-ov",
-        "isaaclab-ovphysx",
         "isaaclab-physx",
         "isaaclab-visualizers",
     } <= dependencies
+    assert "isaaclab-ovphysx" not in dependencies
     assert manifest["project"]["name"] == "isaaclab-testing"
     assert manifest["tool"]["setuptools"]["packages"] == []
     assert manifest["tool"]["setuptools"]["py-modules"] == []

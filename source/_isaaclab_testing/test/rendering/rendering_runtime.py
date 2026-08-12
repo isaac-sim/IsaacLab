@@ -234,7 +234,7 @@ def make_rendering_physics_cfg(physics_backend: str) -> PhysicsCfg:
 
         return PhysxCfg(enable_enhanced_determinism=True, enable_external_forces_every_iteration=True)
     elif physics_backend == "ovphysx":
-        from isaaclab_ovphysx.physics import OvPhysxCfg
+        from isaaclab_ov.physics import OvPhysxCfg
 
         return OvPhysxCfg(enable_enhanced_determinism=True, enable_external_forces_every_iteration=True)
     elif physics_backend == "newton":
