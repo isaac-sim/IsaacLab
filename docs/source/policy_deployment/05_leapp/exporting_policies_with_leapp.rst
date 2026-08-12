@@ -24,8 +24,9 @@ deploys it through :class:`~envs.LeappDeploymentEnv`.
 **Physics backend:** The manager-based exporter relies on the environment's manager interfaces and does
 not select a physics backend itself. This includes **Newton** for tasks that expose a Newton
 preset. The LEAPP integration test creates an RSL-RL ``Isaac-Humanoid`` checkpoint and exports it
-with **Isaac Sim PhysX** (``presets=isaacsim_physx``), **OV PhysX** (``presets=ovphysx``), and
-**Newton MJWarp** (``presets=newton_mjwarp``).
+with **Isaac Sim PhysX** (``presets=isaacsim_physx``) and **Newton MJWarp**
+(``presets=newton_mjwarp``). When its optional runtime is installed, the same test also covers
+**OV PhysX** (``presets=ovphysx``).
 
 You do not need to specify a preset when using the task's default backend. To select a backend,
 append its ``presets=<PRESET_NAME>`` argument to both the training and export commands. Use the

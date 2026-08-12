@@ -5,12 +5,12 @@
 
 """Cross-backend LEAPP export integration tests.
 
-All initialized checkpoints are created in one Kit subprocess first. Each
-backend/task export then runs in its own subprocess against those checkpoints.
+Each initialized checkpoint and backend/task export runs in its own subprocess.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -26,7 +26,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 _LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
 _CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkpoints.py"
 _SUBPROCESS_TIMEOUT = 600
-_CHECKPOINT_BATCH_TIMEOUT = 1200
+_CHECKPOINT_TIMEOUT = 1200
 _OUTPUT_TAIL_CHARS = 5000
 # TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases can
 # corrupt the heap while parsing the Newton Franka payload concurrently. OpenUSD
@@ -113,7 +113,18 @@ _SIM_PRESET = "newton_mjwarp"
 # Exercise the manager-based Humanoid export path with each physics backend the
 # task exposes. The checkpoints are generated through the standard RSL-RL
 # runner and then passed to the same LEAPP export CLI as the main export matrix.
-_HUMANOID_PHYSICS_PRESETS = ("isaacsim_physx", "ovphysx", "newton_mjwarp")
+_HUMANOID_PHYSICS_PRESETS = (
+    pytest.param("isaacsim_physx", id="isaacsim_physx"),
+    pytest.param(
+        "ovphysx",
+        id="ovphysx",
+        marks=pytest.mark.skipif(
+            importlib.util.find_spec("ovphysx") is None,
+            reason="requires the optional OV PhysX runtime",
+        ),
+    ),
+    pytest.param("newton_mjwarp", id="newton_mjwarp"),
+)
 
 # These tasks reject any preset token; export uses their authored default backend.
 _TASKS_WITHOUT_PRESET = frozenset({"IsaacContrib-Lift-Cube-Franka"})
@@ -244,33 +255,31 @@ def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
 
 @pytest.fixture(scope="module")
 def initialized_checkpoints(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Create every export-flow checkpoint in one Kit subprocess."""
+    """Create each export-flow checkpoint in an isolated subprocess."""
     checkpoint_root = tmp_path_factory.mktemp("isaaclab-leapp-checkpoints")
-    command = [
-        sys.executable,
-        str(_CHECKPOINT_SCRIPT),
-        "--checkpoint_root",
-        str(checkpoint_root),
-        "--preset",
-        _SIM_PRESET,
-    ]
     for backend_id, task_name in _checkpoint_specs():
+        command = [
+            sys.executable,
+            str(_CHECKPOINT_SCRIPT),
+            "--checkpoint_root",
+            str(checkpoint_root),
+            "--spec",
+            backend_id,
+            task_name,
+        ]
         preset = _preset_for_task(task_name)
-        if preset is None:
-            # ``_`` clears the default ``--preset`` for this spec.
-            command.extend(("--spec", backend_id, task_name, "_"))
-        else:
-            command.extend(("--spec", backend_id, task_name))
-    _run_checked(
-        command,
-        label="batched initialized checkpoint creation",
-        timeout=_CHECKPOINT_BATCH_TIMEOUT,
-    )
+        if preset is not None:
+            command.append(preset)
+        _run_checked(
+            command,
+            label=f"initialized checkpoint creation for {backend_id}/{task_name}",
+            timeout=_CHECKPOINT_TIMEOUT,
+        )
     return checkpoint_root
 
 
 def test_initialized_checkpoints(initialized_checkpoints: Path):
-    """Assert the shared Kit subprocess created every expected checkpoint.
+    """Assert the isolated subprocesses created every expected checkpoint.
     This task is purely for generating mock checkpoints for the export flow.
     """
     missing = [
@@ -322,7 +331,7 @@ def test_rsl_rl_humanoid_export_across_physics_backends(physics_preset: str, tmp
             physics_preset,
         ],
         label=f"RSL-RL Humanoid checkpoint creation with {physics_preset}",
-        timeout=_CHECKPOINT_BATCH_TIMEOUT,
+        timeout=_CHECKPOINT_TIMEOUT,
     )
 
     checkpoint_path = _read_checkpoint_path(checkpoint_root, "rsl_rl", "Isaac-Humanoid")
