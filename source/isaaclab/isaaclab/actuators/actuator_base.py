@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
@@ -17,6 +18,7 @@ from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
+    from .actuator_control import ActuatorControl
 
 
 class ActuatorBase(ABC):
@@ -64,16 +66,6 @@ class ActuatorBase(ABC):
     - **Implicit actuators**: Same as :attr:`effort_limit_sim` (aliased for consistency).
     """
 
-    effort_limit_sim: torch.Tensor
-    """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
-
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
-
-    - **Explicit actuators**: Typically set to a large value (1.0e9) to avoid double-clipping,
-      since the actuator model already clips efforts using :attr:`effort_limit`.
-    - **Implicit actuators**: Same as :attr:`effort_limit` (both values are synchronized).
-    """
-
     velocity_limit: torch.Tensor
     """The joint velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
 
@@ -83,36 +75,17 @@ class ActuatorBase(ABC):
     :attr:`velocity_limit_sim` when only the solver clamp is configured.
     """
 
-    velocity_limit_sim: torch.Tensor
-    """The requested solver velocity clamp [rad/s or m/s]. Shape is (num_envs, num_joints).
-
-    This value is resolved independently of :attr:`velocity_limit`. Enforcement depends on the
-    active simulation backend.
-    """
-
     stiffness: torch.Tensor
     """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
 
     damping: torch.Tensor
     """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
 
-    armature: torch.Tensor
-    """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    friction: torch.Tensor
-    """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    dynamic_friction: torch.Tensor
-    """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    viscous_friction: torch.Tensor
-    """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
-
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
 
-    If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit
-    actuator, then this value is used.
+    If :attr:`ActuatorBaseCfg.joint_effort_limit` is not specified and the actuator is an explicit
+    actuator, then this value is used for the construction-time solver property.
     """
 
     def __init__(
@@ -174,50 +147,39 @@ class ActuatorBase(ABC):
         self._joint_names = joint_names
         self._joint_indices = joint_ids
         self.joint_property_resolution_table: dict[str, list] = {}
-        # For explicit models, we do not want to enforce the effort limit through the solver
-        # (unless it is explicitly set)
-        if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
-            self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
+        self._joint_property_snapshot = self._resolve_joint_property_snapshot(
+            armature=armature,
+            friction=friction,
+            dynamic_friction=dynamic_friction,
+            viscous_friction=viscous_friction,
+            effort_limit=effort_limit,
+            velocity_limit=velocity_limit,
+        )
 
-        # resolve usd, actuator configuration values
-        # case 1: if usd_value == actuator_cfg_value: all good,
-        # case 2: if usd_value != actuator_cfg_value: we use actuator_cfg_value
-        # case 3: if actuator_cfg_value is None: we use usd_value
-
-        to_check = [
-            ("velocity_limit_sim", velocity_limit),
-            ("effort_limit_sim", effort_limit),
-            ("stiffness", stiffness),
-            ("damping", damping),
-            ("armature", armature),
-            ("friction", friction),
-            ("dynamic_friction", dynamic_friction),
-            ("viscous_friction", viscous_friction),
-        ]
-        for param_name, usd_val in to_check:
-            cfg_val = getattr(self.cfg, param_name)
-            setattr(self, param_name, self._parse_joint_parameter(cfg_val, usd_val))
-            new_val = getattr(self, param_name)
-
+        for parameter_name, default_value in (("stiffness", stiffness), ("damping", damping)):
+            cfg_value = getattr(self.cfg, parameter_name)
+            value = self._parse_joint_parameter(cfg_value, default_value)
+            setattr(self, parameter_name, value)
             allclose = (
-                torch.all(new_val == usd_val) if isinstance(usd_val, (float, int)) else torch.allclose(new_val, usd_val)
+                torch.all(value == default_value)
+                if isinstance(default_value, (float, int))
+                else torch.allclose(value, default_value)
             )
-            if cfg_val is None or not allclose:
+            if cfg_value is None or not allclose:
                 self._record_actuator_resolution(
-                    cfg_val=getattr(self.cfg, param_name),
-                    new_val=new_val[0],  # new val always has the shape of (num_envs, num_joints)
-                    usd_val=usd_val,
+                    cfg_val=cfg_value,
+                    new_val=value[0],
+                    usd_val=default_value,
                     joint_names=joint_names,
                     joint_ids=joint_ids,
-                    actuator_param=param_name,
+                    actuator_param=parameter_name,
                 )
 
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        # Parse effort_limit with special default handling:
-        # - If cfg.effort_limit is None, use the original USD value (effort_limit parameter from constructor)
-        # - Otherwise, use effort_limit_sim as the default
-        # Please refer to the documentation of the effort_limit and effort_limit_sim parameters for more details.
-        effort_default = effort_limit if self.cfg.effort_limit is None else self.effort_limit_sim
+        self.velocity_limit = self._parse_joint_parameter(
+            self.cfg.velocity_limit,
+            self._joint_property_snapshot["velocity_limit"],
+        )
+        effort_default = self._joint_property_snapshot["effort_limit"] if self.is_implicit_model else effort_limit
         self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_default)
 
         # create commands buffers for allocation
@@ -265,6 +227,66 @@ class ActuatorBase(ABC):
             We do this to avoid unnecessary indexing of the joints for performance reasons.
         """
         return self._joint_indices
+
+    @property
+    def effort_limit_sim(self) -> torch.Tensor:
+        """Deprecated solver effort limit [N or N·m, depending on joint type].
+
+        .. deprecated:: 3.0
+            Read :attr:`isaaclab.assets.ArticulationData.joint_effort_limits` instead.
+            This compatibility accessor will be removed in 4.0.
+        """
+        return self._get_deprecated_joint_property("effort_limit_sim", "effort_limit")
+
+    @property
+    def velocity_limit_sim(self) -> torch.Tensor:
+        """Deprecated solver velocity limit [m/s or rad/s, depending on joint type].
+
+        .. deprecated:: 3.0
+            Read :attr:`isaaclab.assets.ArticulationData.joint_vel_limits` instead.
+            This compatibility accessor will be removed in 4.0.
+        """
+        return self._get_deprecated_joint_property("velocity_limit_sim", "velocity_limit")
+
+    @property
+    def armature(self) -> torch.Tensor:
+        """Deprecated joint armature [kg or kg·m², depending on joint type].
+
+        .. deprecated:: 3.0
+            Read :attr:`isaaclab.assets.ArticulationData.joint_armature` instead.
+            This compatibility accessor will be removed in 4.0.
+        """
+        return self._get_deprecated_joint_property("armature", "armature")
+
+    @property
+    def friction(self) -> torch.Tensor:
+        """Deprecated static joint friction.
+
+        .. deprecated:: 3.0
+            Read :attr:`isaaclab.assets.ArticulationData.joint_friction_coeff` instead.
+            This compatibility accessor will be removed in 4.0.
+        """
+        return self._get_deprecated_joint_property("friction", "friction")
+
+    @property
+    def dynamic_friction(self) -> torch.Tensor:
+        """Deprecated dynamic joint friction [N or N·m, depending on joint type].
+
+        .. deprecated:: 3.0
+            Read :attr:`isaaclab.assets.ArticulationData.joint_dynamic_friction_coeff` instead.
+            This compatibility accessor will be removed in 4.0.
+        """
+        return self._get_deprecated_joint_property("dynamic_friction", "dynamic_friction")
+
+    @property
+    def viscous_friction(self) -> torch.Tensor:
+        """Deprecated viscous joint friction [N·s/m or N·m·s/rad, depending on joint type].
+
+        .. deprecated:: 3.0
+            Read :attr:`isaaclab.assets.ArticulationData.joint_viscous_friction_coeff` instead.
+            This compatibility accessor will be removed in 4.0.
+        """
+        return self._get_deprecated_joint_property("viscous_friction", "viscous_friction")
 
     """
     Operations.
@@ -314,6 +336,55 @@ class ActuatorBase(ABC):
         executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
         executor.applied_effort = torch.zeros_like(executor.computed_effort)
         return executor
+
+    def _bind_joint_properties(self, control: ActuatorControl) -> None:
+        """Bind deprecated joint-property accessors to the owning articulation control."""
+        self._joint_property_control = control
+        self.__dict__.pop("_joint_property_snapshot", None)
+
+    def _get_deprecated_joint_property(self, accessor_name: str, property_name: str) -> torch.Tensor:
+        """Return one deprecated joint-property projection without owning its storage."""
+        warnings.warn(
+            f"{type(self).__name__}.{accessor_name} is deprecated. Read the corresponding "
+            "ArticulationData joint property instead; this accessor will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        control = self.__dict__.get("_joint_property_control")
+        if control is not None:
+            return getattr(control.get_current_joint_properties(self.joint_indices), property_name)
+        return self._joint_property_snapshot[property_name]
+
+    def _resolve_joint_property_snapshot(
+        self,
+        *,
+        armature: torch.Tensor | float,
+        friction: torch.Tensor | float,
+        dynamic_friction: torch.Tensor | float,
+        viscous_friction: torch.Tensor | float,
+        effort_limit: torch.Tensor | float,
+        velocity_limit: torch.Tensor | float,
+    ) -> dict[str, torch.Tensor]:
+        """Resolve direct-construction snapshots for deprecated joint-property accessors."""
+        effort_cfg = self.cfg.joint_effort_limit
+        if effort_cfg is None:
+            effort_cfg = self.cfg.effort_limit_sim
+        if effort_cfg is None and self.is_implicit_model:
+            effort_cfg = self.cfg.effort_limit
+        effort_default = effort_limit if self.is_implicit_model else self._DEFAULT_MAX_EFFORT_SIM
+
+        velocity_cfg = self.cfg.joint_velocity_limit
+        if velocity_cfg is None:
+            velocity_cfg = self.cfg.velocity_limit_sim
+
+        return {
+            "effort_limit": self._parse_joint_parameter(effort_cfg, effort_default),
+            "velocity_limit": self._parse_joint_parameter(velocity_cfg, velocity_limit),
+            "armature": self._parse_joint_parameter(self.cfg.armature, armature),
+            "friction": self._parse_joint_parameter(self.cfg.friction, friction),
+            "dynamic_friction": self._parse_joint_parameter(self.cfg.dynamic_friction, dynamic_friction),
+            "viscous_friction": self._parse_joint_parameter(self.cfg.viscous_friction, viscous_friction),
+        }
 
     def _record_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
         if actuator_param not in self.joint_property_resolution_table:

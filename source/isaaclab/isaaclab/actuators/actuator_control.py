@@ -17,7 +17,6 @@ import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
-from .actuator_base import ActuatorBase
 from .actuator_base_cfg import ActuatorBaseCfg
 from .actuator_pd import ImplicitActuator
 
@@ -231,12 +230,36 @@ class ActuatorControl(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
-    def write_resolved_joint_properties(self, actuator: ActuatorBase, *, native_managed: bool) -> None:
-        """Write actuator-resolved joint properties to the backend.
+    def get_current_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
+        """Return current joint properties for deprecated group-level accessors.
+
+        The base fallback preserves direct control implementations that only
+        expose construction defaults. Articulation controls override it with
+        live, non-owning projections of their current joint buffers.
 
         Args:
-            actuator: Actuator group whose properties are written.
+            joint_ids: Articulation joints in the actuator group.
+
+        Returns:
+            Current properties for the selected joints.
+        """
+        return self.get_default_joint_properties(joint_ids)
+
+    @abstractmethod
+    def write_resolved_joint_properties(
+        self,
+        properties: ActuatorJointProperties,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+        *,
+        implicit: bool,
+        native_managed: bool,
+    ) -> None:
+        """Write construction-resolved joint properties to the backend.
+
+        Args:
+            properties: Resolved joint properties for one configured group.
+            joint_ids: Articulation joints in the configured group.
+            implicit: Whether the group uses an implicit solver drive.
             native_managed: Whether the backend executes this group natively.
         """
         raise NotImplementedError
@@ -422,45 +445,66 @@ class ArticulationActuatorControl(ActuatorControl):
         self._articulation.assert_shape_and_dtype_mask(tensor, masks, dtype, name)
 
     def get_default_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
+        current = self.get_current_joint_properties(joint_ids)
+        return ActuatorJointProperties(
+            stiffness=current.stiffness.clone(),
+            damping=current.damping.clone(),
+            armature=current.armature.clone(),
+            friction=current.friction.clone(),
+            dynamic_friction=current.dynamic_friction.clone(),
+            viscous_friction=current.viscous_friction.clone(),
+            effort_limit=current.effort_limit.clone(),
+            velocity_limit=current.velocity_limit.clone(),
+        )
+
+    def get_current_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
         data = self._articulation.data
-        # Explicit actuators keep these authored gains after their solver drives are disabled.
-        stiffness = data.joint_stiffness.torch[:, joint_ids].clone()
+        stiffness = data.joint_stiffness.torch[:, joint_ids]
         return ActuatorJointProperties(
             stiffness=stiffness,
-            damping=data.joint_damping.torch[:, joint_ids].clone(),
+            damping=data.joint_damping.torch[:, joint_ids],
             armature=data.joint_armature.torch[:, joint_ids],
             friction=data.joint_friction_coeff.torch[:, joint_ids],
             dynamic_friction=self._joint_property_or_zeros("joint_dynamic_friction_coeff", joint_ids, stiffness),
             viscous_friction=self._joint_property_or_zeros("joint_viscous_friction_coeff", joint_ids, stiffness),
-            effort_limit=data.joint_effort_limits.torch[:, joint_ids].clone(),
+            effort_limit=data.joint_effort_limits.torch[:, joint_ids],
             velocity_limit=data.joint_vel_limits.torch[:, joint_ids],
         )
 
-    def write_resolved_joint_properties(self, actuator: ActuatorBase, *, native_managed: bool) -> None:
+    def write_resolved_joint_properties(
+        self,
+        properties: ActuatorJointProperties,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+        *,
+        implicit: bool,
+        native_managed: bool,
+    ) -> None:
         articulation = self._articulation
         articulation.write_joint_effort_limit_to_sim_index(
-            limits=actuator.effort_limit_sim,
-            joint_ids=actuator.joint_indices,
+            limits=properties.effort_limit,
+            joint_ids=joint_ids,
         )
         articulation.write_joint_velocity_limit_to_sim_index(
-            limits=actuator.velocity_limit_sim,
-            joint_ids=actuator.joint_indices,
+            limits=properties.velocity_limit,
+            joint_ids=joint_ids,
         )
-        articulation.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-        self._write_joint_friction_properties(actuator)
-        if isinstance(actuator, ImplicitActuator) and not native_managed:
-            articulation.write_joint_stiffness_to_sim_index(
-                stiffness=actuator.stiffness, joint_ids=actuator.joint_indices
-            )
-            articulation.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
+        articulation.write_joint_armature_to_sim_index(armature=properties.armature, joint_ids=joint_ids)
+        self._write_joint_friction_properties(properties, joint_ids)
+        if implicit and not native_managed:
+            articulation.write_joint_stiffness_to_sim_index(stiffness=properties.stiffness, joint_ids=joint_ids)
+            articulation.write_joint_damping_to_sim_index(damping=properties.damping, joint_ids=joint_ids)
         else:
-            articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
-            articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
+            articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=joint_ids)
+            articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=joint_ids)
 
-    def _write_joint_friction_properties(self, actuator: ActuatorBase) -> None:
+    def _write_joint_friction_properties(
+        self,
+        properties: ActuatorJointProperties,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+    ) -> None:
         self._articulation.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=actuator.friction,
-            joint_ids=actuator.joint_indices,
+            joint_friction_coeff=properties.friction,
+            joint_ids=joint_ids,
         )
 
     def _joint_property_or_zeros(

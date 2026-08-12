@@ -12,8 +12,8 @@ from typing import TypeAliasType
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorBase, ActuatorCollection
-from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.actuators import ActuatorCollection
+from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 
 from isaaclab_ov import tensor_types as TT
@@ -26,13 +26,17 @@ _WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
 class OvPhysxActuatorControl(ArticulationActuatorControl):
     """Actuator control adapter for the OVPhysX backend."""
 
-    def _write_joint_friction_properties(self, actuator: ActuatorBase) -> None:
+    def _write_joint_friction_properties(
+        self,
+        properties: ActuatorJointProperties,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+    ) -> None:
         # OVPhysX writes all friction components through one packed binding.
         self._articulation.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=actuator.friction,
-            joint_dynamic_friction_coeff=actuator.dynamic_friction,
-            joint_viscous_friction_coeff=actuator.viscous_friction,
-            joint_ids=actuator.joint_indices,
+            joint_friction_coeff=properties.friction,
+            joint_dynamic_friction_coeff=properties.dynamic_friction,
+            joint_viscous_friction_coeff=properties.viscous_friction,
+            joint_ids=joint_ids,
         )
 
     def stage_user_command(

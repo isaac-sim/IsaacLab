@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorBase, ActuatorCollection
-from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.actuators import ActuatorCollection
+from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl, _WarpIndex
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
 
@@ -74,16 +74,20 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
         return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
 
-    def _write_joint_friction_properties(self, actuator: ActuatorBase) -> None:
+    def _write_joint_friction_properties(
+        self,
+        properties: ActuatorJointProperties,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+    ) -> None:
         articulation = self._articulation
-        super()._write_joint_friction_properties(actuator)
+        super()._write_joint_friction_properties(properties, joint_ids)
         articulation.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=actuator.dynamic_friction,
-            joint_ids=actuator.joint_indices,
+            joint_dynamic_friction_coeff=properties.dynamic_friction,
+            joint_ids=joint_ids,
         )
         articulation.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=actuator.viscous_friction,
-            joint_ids=actuator.joint_indices,
+            joint_viscous_friction_coeff=properties.viscous_friction,
+            joint_ids=joint_ids,
         )
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:

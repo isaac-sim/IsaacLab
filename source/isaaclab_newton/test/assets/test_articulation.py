@@ -51,7 +51,7 @@ import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ActuatorBase, ActuatorJointProperties, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
 from isaaclab.controllers import (
@@ -677,15 +677,23 @@ def test_native_configured_viscous_friction_reaches_newton_property_writer():
         write_joint_friction_coefficient_to_sim_index=lambda **kwargs: writes.update(static=kwargs),
         write_joint_viscous_friction_coefficient_to_sim_index=lambda **kwargs: writes.update(viscous=kwargs),
     )
-    actuator = SimpleNamespace(
-        friction=torch.tensor([[0.4]]), viscous_friction=torch.tensor([[0.2]]), joint_indices=[0]
+    properties = ActuatorJointProperties(
+        stiffness=torch.zeros((1, 1)),
+        damping=torch.zeros((1, 1)),
+        armature=torch.zeros((1, 1)),
+        friction=torch.tensor([[0.4]]),
+        dynamic_friction=torch.zeros((1, 1)),
+        viscous_friction=torch.tensor([[0.2]]),
+        effort_limit=torch.zeros((1, 1)),
+        velocity_limit=torch.zeros((1, 1)),
     )
+    joint_ids = torch.tensor([0], dtype=torch.int32)
 
-    NewtonActuatorControl(articulation)._write_joint_friction_properties(actuator)
+    NewtonActuatorControl(articulation)._write_joint_friction_properties(properties, joint_ids)
 
-    assert writes["static"]["joint_friction_coeff"] is actuator.friction
-    assert writes["viscous"]["joint_viscous_friction_coeff"] is actuator.viscous_friction
-    assert writes["viscous"]["joint_ids"] == actuator.joint_indices
+    assert writes["static"]["joint_friction_coeff"] is properties.friction
+    assert writes["viscous"]["joint_viscous_friction_coeff"] is properties.viscous_friction
+    assert writes["viscous"]["joint_ids"] is joint_ids
 
 
 @pytest.mark.parametrize(

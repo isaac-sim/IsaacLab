@@ -28,17 +28,11 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
-_STATELESS_EXECUTION_PARAMETER_NAMES = (
+_MODEL_EXECUTION_PARAMETER_NAMES = (
     "effort_limit",
-    "effort_limit_sim",
     "velocity_limit",
-    "velocity_limit_sim",
     "stiffness",
     "damping",
-    "armature",
-    "friction",
-    "dynamic_friction",
-    "viscous_friction",
 )
 
 """
@@ -58,7 +52,7 @@ class ImplicitActuator(ActuatorBase):
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _STATELESS_EXECUTION_PARAMETER_NAMES
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _MODEL_EXECUTION_PARAMETER_NAMES
 
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
@@ -178,7 +172,7 @@ class IdealPDActuator(ActuatorBase):
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _STATELESS_EXECUTION_PARAMETER_NAMES
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _MODEL_EXECUTION_PARAMETER_NAMES
 
     """
     Operations.
@@ -266,7 +260,7 @@ class DCMotor(IdealPDActuator):
     cfg: DCMotorCfg
     """The configuration for the actuator model."""
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _STATELESS_EXECUTION_PARAMETER_NAMES
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = IdealPDActuator._EXECUTION_PARAMETER_NAMES
 
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)

@@ -61,28 +61,38 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
     torch.testing.assert_close(actuator.effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
+    for name in ("effort_limit_sim", "velocity_limit_sim", "armature", "friction"):
+        assert name not in actuator.__dict__
+    with pytest.warns(DeprecationWarning):
+        effort_limit_sim = actuator.effort_limit_sim
     torch.testing.assert_close(
-        actuator.effort_limit_sim, actuator._DEFAULT_MAX_EFFORT_SIM * torch.ones(num_envs, num_joints, device=device)
+        effort_limit_sim, actuator._DEFAULT_MAX_EFFORT_SIM * torch.ones(num_envs, num_joints, device=device)
     )
     torch.testing.assert_close(actuator.velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
-    torch.testing.assert_close(actuator.velocity_limit_sim, torch.inf * torch.ones(num_envs, num_joints, device=device))
+    with pytest.warns(DeprecationWarning):
+        velocity_limit_sim = actuator.velocity_limit_sim
+    torch.testing.assert_close(velocity_limit_sim, torch.inf * torch.ones(num_envs, num_joints, device=device))
 
     if not usd_default:
         torch.testing.assert_close(actuator.stiffness, stiffness * torch.ones(num_envs, num_joints, device=device))
         torch.testing.assert_close(actuator.damping, damping * torch.ones(num_envs, num_joints, device=device))
-        torch.testing.assert_close(actuator.armature, armature * torch.ones(num_envs, num_joints, device=device))
-        torch.testing.assert_close(actuator.friction, friction * torch.ones(num_envs, num_joints, device=device))
+        with pytest.warns(DeprecationWarning):
+            armature_value = actuator.armature
+        torch.testing.assert_close(armature_value, armature * torch.ones(num_envs, num_joints, device=device))
+        with pytest.warns(DeprecationWarning):
+            friction_value = actuator.friction
+        torch.testing.assert_close(friction_value, friction * torch.ones(num_envs, num_joints, device=device))
     else:
         torch.testing.assert_close(
             actuator.stiffness, stiffness_default * torch.ones(num_envs, num_joints, device=device)
         )
         torch.testing.assert_close(actuator.damping, damping_default * torch.ones(num_envs, num_joints, device=device))
-        torch.testing.assert_close(
-            actuator.armature, armature_default * torch.ones(num_envs, num_joints, device=device)
-        )
-        torch.testing.assert_close(
-            actuator.friction, friction_default * torch.ones(num_envs, num_joints, device=device)
-        )
+        with pytest.warns(DeprecationWarning):
+            armature_value = actuator.armature
+        torch.testing.assert_close(armature_value, armature_default * torch.ones(num_envs, num_joints, device=device))
+        with pytest.warns(DeprecationWarning):
+            friction_value = actuator.friction
+        torch.testing.assert_close(friction_value, friction_default * torch.ones(num_envs, num_joints, device=device))
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
@@ -137,8 +147,10 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
     torch.testing.assert_close(
         actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
     )
+    with pytest.warns(DeprecationWarning):
+        effort_limit_sim = actuator.effort_limit_sim
     torch.testing.assert_close(
-        actuator.effort_limit_sim, effort_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
+        effort_limit_sim, effort_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 
@@ -190,8 +202,10 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
     torch.testing.assert_close(
         actuator.velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
     )
+    with pytest.warns(DeprecationWarning):
+        velocity_limit_sim = actuator.velocity_limit_sim
     torch.testing.assert_close(
-        actuator.velocity_limit_sim, vel_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
+        velocity_limit_sim, vel_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 

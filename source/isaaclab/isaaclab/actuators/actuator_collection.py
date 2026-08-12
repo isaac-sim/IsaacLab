@@ -17,6 +17,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
@@ -24,7 +25,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from .actuator_base import ActuatorBase
 from .actuator_base_cfg import ActuatorBaseCfg
-from .actuator_control import ActuatorControl
+from .actuator_control import ActuatorControl, ActuatorJointProperties
 from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
@@ -302,12 +303,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._groups: dict[str, ActuatorBase] = {}
         self._groups_by_class: dict[type[ActuatorBase], list[ActuatorBase]] = {}
         self._native_group_names: set[str] = set()
+        self._joint_property_resolution_rows: dict[str, dict[str, tuple[tuple[object, ...], ...]]] = {}
         self._has_implicit_actuators = False
         self._launch_cache = _WarpLaunchCache(self.device)
 
         resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
         for name, cfg in resolved_cfgs.items():
             self._resolve_deprecated_limit_aliases(name, cfg)
+            self._resolve_implicit_effort_limit_alias(name, cfg)
 
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         self._allocate_buffers()
@@ -540,11 +543,34 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     f"deprecated '{alias_name}' values."
                 )
 
+    def _resolve_implicit_effort_limit_alias(self, actuator_name: str, cfg: ActuatorBaseCfg) -> None:
+        """Retain the implicit ``effort_limit`` compatibility alias on a copied config."""
+        if not self._is_implicit_cfg(cfg) or cfg.effort_limit is None:
+            return
+        if cfg.joint_effort_limit is None:
+            cfg.joint_effort_limit = cfg.effort_limit
+        elif cfg.joint_effort_limit != cfg.effort_limit:
+            raise ValueError(
+                f"Implicit actuator group '{actuator_name}' has conflicting 'joint_effort_limit' and "
+                "'effort_limit' values. Use 'joint_effort_limit' for the solver limit."
+            )
+
+    @staticmethod
+    def _is_implicit_cfg(cfg: ActuatorBaseCfg) -> bool:
+        """Return whether an actuator configuration constructs an implicit model."""
+        class_type = cfg.class_type
+        return (
+            "ImplicitActuator" in class_type
+            if isinstance(class_type, str)
+            else issubclass(class_type, ImplicitActuator)
+        )
+
     def _build_groups(
         self,
         actuator_cfgs: dict[str, ActuatorBaseCfg],
         resolved_group_joints: dict[str, tuple[list[int] | ProxyArray, list[str]]],
     ) -> None:
+        construction_records: list[tuple[ActuatorJointProperties, torch.Tensor | slice, bool, bool]] = []
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = resolved_group_joints[actuator_name]
             if len(joint_names) == self.num_joints:
@@ -555,8 +581,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
 
             defaults = self._control.get_default_joint_properties(actuator_joint_ids)
-            # Construction resolves missing simulation limits in-place; copy the
-            # config without copying its tensor-valued fields.
+            implicit = self._is_implicit_cfg(actuator_cfg)
+            properties, resolution_rows = self._resolve_joint_properties(
+                actuator_cfg,
+                defaults,
+                joint_names,
+                actuator_joint_ids,
+                implicit=implicit,
+            )
             cfg = actuator_cfg.copy()
             actuator: ActuatorBase = cfg.class_type(
                 cfg=cfg,
@@ -564,26 +596,140 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 joint_ids=actuator_joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=defaults.stiffness,
-                damping=defaults.damping,
-                armature=defaults.armature,
-                friction=defaults.friction,
-                dynamic_friction=defaults.dynamic_friction,
-                viscous_friction=defaults.viscous_friction,
-                effort_limit=defaults.effort_limit,
-                velocity_limit=defaults.velocity_limit,
+                stiffness=properties.stiffness,
+                damping=properties.damping,
+                effort_limit=properties.effort_limit if implicit else defaults.effort_limit,
+                velocity_limit=properties.velocity_limit,
             )
+            actuator._bind_joint_properties(self._control)
 
             self._groups[actuator_name] = actuator
             self._groups_by_class.setdefault(type(actuator), []).append(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
-
-        # Resolve every group from authored defaults before writing shared joint properties.
-        for actuator_name, actuator in self._groups.items():
-            self._control.write_resolved_joint_properties(
-                actuator,
-                native_managed=actuator_name in self._native_group_names,
+            for property_name, rows in actuator.joint_property_resolution_table.items():
+                resolution_rows.setdefault(property_name, tuple(tuple(row) for row in rows))
+            self._joint_property_resolution_rows[actuator_name] = resolution_rows
+            actuator.__dict__.pop("joint_property_resolution_table", None)
+            construction_records.append(
+                (
+                    properties,
+                    actuator_joint_ids,
+                    implicit,
+                    actuator_name in self._native_group_names,
+                )
             )
+
+        for properties, joint_ids, implicit, native_managed in construction_records:
+            self._control.write_resolved_joint_properties(
+                properties,
+                joint_ids,
+                implicit=implicit,
+                native_managed=native_managed,
+            )
+
+    def _resolve_joint_properties(
+        self,
+        cfg: ActuatorBaseCfg,
+        defaults: ActuatorJointProperties,
+        joint_names: list[str],
+        joint_ids: torch.Tensor | slice,
+        *,
+        implicit: bool,
+    ) -> tuple[ActuatorJointProperties, dict[str, tuple[tuple[object, ...], ...]]]:
+        """Resolve fresh construction-only joint properties for one actuator group."""
+        effort_default = (
+            defaults.effort_limit
+            if implicit
+            else torch.full_like(
+                defaults.effort_limit,
+                ActuatorBase._DEFAULT_MAX_EFFORT_SIM,
+            )
+        )
+        values: dict[str, torch.Tensor] = {}
+        resolution_rows: dict[str, tuple[tuple[object, ...], ...]] = {}
+        for property_name, cfg_name, default_value in (
+            ("stiffness", "stiffness", defaults.stiffness),
+            ("damping", "damping", defaults.damping),
+            ("armature", "armature", defaults.armature),
+            ("friction", "friction", defaults.friction),
+            ("dynamic_friction", "dynamic_friction", defaults.dynamic_friction),
+            ("viscous_friction", "viscous_friction", defaults.viscous_friction),
+            ("effort_limit", "joint_effort_limit", effort_default),
+            ("velocity_limit", "joint_velocity_limit", defaults.velocity_limit),
+        ):
+            cfg_value = getattr(cfg, cfg_name)
+            value = self._resolve_joint_property(cfg_value, default_value, joint_names)
+            values[property_name] = value
+            rows = self._joint_property_resolution_rows_for(
+                cfg_value,
+                value,
+                default_value,
+                joint_names,
+                joint_ids,
+            )
+            if rows:
+                resolution_rows[cfg_name] = rows
+
+        return (
+            ActuatorJointProperties(
+                stiffness=values["stiffness"],
+                damping=values["damping"],
+                armature=values["armature"],
+                friction=values["friction"],
+                dynamic_friction=values["dynamic_friction"],
+                viscous_friction=values["viscous_friction"],
+                effort_limit=values["effort_limit"],
+                velocity_limit=values["velocity_limit"],
+            ),
+            resolution_rows,
+        )
+
+    def _resolve_joint_property(
+        self,
+        cfg_value: float | dict[str, float] | None,
+        default_value: torch.Tensor,
+        joint_names: list[str],
+    ) -> torch.Tensor:
+        """Resolve one fresh group-shaped joint property from config and authored defaults."""
+        if cfg_value is None:
+            return default_value.clone()
+        if isinstance(cfg_value, (float, int)):
+            return torch.full_like(default_value, float(cfg_value))
+        if isinstance(cfg_value, dict):
+            value = torch.zeros_like(default_value)
+            indices, _, parsed_values = string_utils.resolve_matching_names_values(cfg_value, joint_names)
+            value[:, indices] = torch.tensor(parsed_values, dtype=torch.float32, device=self.device)
+            return value
+        raise TypeError(
+            f"Invalid type for parameter value: {type(cfg_value)} for actuator on joints {joint_names}. "
+            "Expected float or dict."
+        )
+
+    def _joint_property_resolution_rows_for(
+        self,
+        cfg_value: float | dict[str, float] | None,
+        value: torch.Tensor,
+        default_value: torch.Tensor,
+        joint_names: list[str],
+        joint_ids: torch.Tensor | slice,
+    ) -> tuple[tuple[object, ...], ...]:
+        """Format construction-time joint-property resolution rows without retaining tensors."""
+        if cfg_value is not None and torch.allclose(value, default_value):
+            return ()
+        if isinstance(joint_ids, slice):
+            ids = range(self.num_joints)
+        else:
+            ids = tuple(int(joint_id) for joint_id in joint_ids.tolist())
+        return tuple(
+            (
+                name,
+                ids[index],
+                float(default_value[0, index]),
+                "Not Specified" if cfg_value is None else float(value[0, index]),
+                float(default_value[0, index]) if cfg_value is None else float(value[0, index]),
+            )
+            for index, name in enumerate(joint_names)
+        )
 
     def _joint_indices_as_wp(self, actuator: ActuatorBase) -> wp.array(dtype=wp.int32):
         if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
@@ -901,9 +1047,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def _print_value_resolution_table(self) -> None:
         table = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActuatorCfg Value", "Applied"])
-        for actuator_group, actuator in self._groups.items():
+        for actuator_group in self._groups:
             group_count = 0
-            for property_name, resolution_details in actuator.joint_property_resolution_table.items():
+            for property_name, resolution_details in self._joint_property_resolution_rows[actuator_group].items():
                 for prop_idx, resolution_detail in enumerate(resolution_details):
                     actuator_group_str = actuator_group if group_count == 0 else ""
                     property_str = property_name if prop_idx == 0 else ""
