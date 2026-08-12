@@ -706,6 +706,11 @@ def test_native_group_gains_project_live_controller_values_without_local_mirrors
     control.native_gains["kd"][1, 2] = 1.7
     assert group.stiffness[1, 2] == 17.0
     assert group.damping[1, 2] == 1.7
+    for attr, value in (("stiffness", torch.ones((2, 3))), ("damping", torch.ones((2, 3)))):
+        with pytest.raises(AttributeError, match=rf"{attr}.*randomize_actuator_gains.*native gain"):
+            setattr(group, attr, value)
+    assert "_stiffness" not in group.__dict__
+    assert "_damping" not in group.__dict__
 
     control.native_gains.pop("kd")
     unsupported = ActuatorCollection(

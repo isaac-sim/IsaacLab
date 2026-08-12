@@ -247,7 +247,7 @@ class ActuatorBase(ABC):
 
     @stiffness.setter
     def stiffness(self, value: torch.Tensor) -> None:
-        self._stiffness = value
+        self._set_actuator_gain_property("stiffness", value)
 
     @property
     def damping(self) -> torch.Tensor:
@@ -257,7 +257,7 @@ class ActuatorBase(ABC):
 
     @damping.setter
     def damping(self, value: torch.Tensor) -> None:
-        self._damping = value
+        self._set_actuator_gain_property("damping", value)
 
     @property
     def effort_limit_sim(self) -> torch.Tensor:
@@ -381,6 +381,15 @@ class ActuatorBase(ABC):
         self._native_actuator_gains = native_gains
         self.__dict__.pop("_stiffness", None)
         self.__dict__.pop("_damping", None)
+
+    def _set_actuator_gain_property(self, name: Literal["stiffness", "damping"], value: torch.Tensor) -> None:
+        """Store a construction gain or reject assignment after native binding."""
+        if "_native_actuator_gains" in self.__dict__:
+            raise AttributeError(
+                f"{type(self).__name__}.{name} is controller-owned after native binding. Use "
+                "randomize_actuator_gains() or the backend native gain API to update it."
+            )
+        self.__dict__[f"_{name}"] = value
 
     def _get_deprecated_joint_property(self, accessor_name: str, property_name: str) -> torch.Tensor:
         """Return one deprecated joint-property projection without owning its storage."""
