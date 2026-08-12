@@ -319,16 +319,21 @@ def _auto_select_agent(
     agent_library: str,
     argv: list[str],
 ) -> None:
-    """Set ``args.agent`` from ``agent_preset_compatibility`` when the active preset uniquely maps to one entry point.
+    """Set ``args.agent`` when the task unambiguously implies one entry point.
 
-    Scans *argv* for ``presets=<name>`` tokens, then checks whether exactly one
-    registered agent entry point declares compatibility with every active preset.
-    When that condition holds and ``args.agent`` is still ``None``, the entry
-    point is written to ``args.agent`` so callers receive the correct config
-    without requiring the user to pass ``--agent`` explicitly.
+    Two independent selection rules are applied in order:
 
-    Does nothing when ``agent_preset_compatibility`` is absent, when no preset
-    token is found, or when the match is ambiguous.
+    1. **Preset-based**: scans *argv* for ``presets=<name>`` tokens and checks
+       ``agent_preset_compatibility``. When exactly one registered entry point
+       declares compatibility with every active preset, that entry point is used.
+
+    2. **Default-absent**: when no preset is active and the canonical default
+       entry point (``<library>_cfg_entry_point``) is not registered for the
+       task, but exactly one other entry point is, that sole entry point is used.
+       This handles tasks such as ``IsaacContrib-Humanoid-AMP-*`` that only
+       support a non-default algorithm (AMP) and never register the PPO default.
+
+    Does nothing when the match is absent or ambiguous.
 
     Args:
         args: Parsed namespace to update in-place.
@@ -347,19 +352,22 @@ def _auto_select_agent(
                 if name:
                     active_presets.add(name)
 
-    if not active_presets:
-        return
-
     try:
-        _, compatibility = _enumerate_agents(task_name, agent_library)
+        agents, compatibility = _enumerate_agents(task_name, agent_library)
     except Exception:  # noqa: BLE001
         return
 
-    # Reverse map: entry_point → set of compatible presets declared for it.
-    # Keep only entry points whose declared presets cover every active preset.
-    matches = [ep for ep, declared in compatibility.items() if active_presets.issubset(set(declared))]
-    if len(matches) == 1:
-        args.agent = matches[0]
+    if active_presets:
+        # Rule 1: preset-based selection via agent_preset_compatibility.
+        matches = [ep for ep, declared in compatibility.items() if active_presets.issubset(set(declared))]
+        if len(matches) == 1:
+            args.agent = matches[0]
+        return
+
+    # Rule 2: default-absent selection.
+    default_ep = f"{agent_library}_cfg_entry_point"
+    if default_ep not in agents and len(agents) == 1:
+        args.agent = agents[0]
 
 
 class _ArgvHelper:
