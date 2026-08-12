@@ -1,62 +1,64 @@
 .. _testing_benchmarks:
 
-Benchmarking Isaac Lab
-======================
+Run benchmarks
+==============
 
-Isaac Lab provides supported benchmark workflows for environment stepping,
-trained-policy playback, reinforcement-learning training, and startup profiling,
-each of which can also be run across several GPUs. This guide explains which
-workflow to use, how to run it, and how to interpret its results.
+This guide covers the ``runtime``, ``play``, ``training``, and ``startup``
+benchmark workflows. For isolated operations, see
+:ref:`testing_micro_benchmarks`; for Python use and framework extensions, see
+:ref:`testing_benchmark_framework`. The :ref:`testing_benchmarks_multigpu`
+section covers the supported workflows across several GPUs.
 
-.. seealso::
-
-   To call workflows from Python or extend the framework, see
-   :ref:`testing_benchmark_framework`. To isolate individual asset or sensor
-   operations, see :ref:`testing_micro_benchmarks`.
-
-Choose A Workflow
+Choose a workflow
 -----------------
 
 .. list-table::
    :header-rows: 1
-   :widths: 55 20
+   :widths: 15 35 25 25
 
-   * - Question
-     - Workflow
-   * - Large environment-step capacity change
-     - ``runtime``
-   * - Trained-policy behavior or deployment throughput
-     - ``play``
-   * - End-to-end learning throughput or learning behavior
-     - ``training``
-   * - Launch, import, configuration, scene creation, or first-step latency
-     - ``startup``
-   * - Any of the above across several GPUs
-     - ``<workflow>-multigpu``
-   * - One asset or sensor operation
-     - :ref:`testing_micro_benchmarks`
+   * - Workflow
+     - Use it to measure
+     - Primary result
+     - Excludes from the primary result
+   * - ``runtime``
+     - Environment-step capacity under random actions
+     - Environment-step FPS
+     - Policy inference and learning
+   * - ``play``
+     - Trained-policy rollout
+     - Collection FPS
+     - Learning updates
+   * - ``training``
+     - End-to-end learning
+     - Total FPS and learning metrics
+     - Startup
+   * - ``startup``
+     - Launch, imports, configuration, scene creation, and first step
+     - Phase duration [s]
+     - Steady-state throughput
+   * - ``*-multigpu``
+     - A supported workflow with one rank per GPU
+     - The corresponding workflow result, with its scope recorded in ``extra``
+     - Single-GPU and cross-scope inference
 
-Use these rules for every comparison:
+For every comparison:
 
-* Compare identical scopes. A collection rate, an environment-step rate, and an
-  end-to-end rate answer different questions even when they share FPS units.
-* Separate startup from steady state. Cold launch and first-step costs are not
-  part of steady-state throughput.
-* Control the CPU, GPU, software revision and versions, task workload, seed,
-  power mode, and background activity. Record changes to any of them.
+* Keep the workload and provenance fixed.
+* Compare identical schema fields and measurement modes.
+* Separate cold startup from steady state.
 
-Runtime Quick Start
--------------------
+Runtime
+-------
 
-Use It When
-~~~~~~~~~~~
+When to use it
+~~~~~~~~~~~~~~
 
 Use ``runtime`` to measure a task's environment-step capacity without policy
 inference or learning. This is the shortest supported path for screening a
 large change in simulation or task throughput.
 
-Command
-~~~~~~~
+Run it
+~~~~~~
 
 From a source installation, run:
 
@@ -73,22 +75,7 @@ From a source installation, run:
        --output_path ./benchmark_results \
        physics=isaacsim_physx
 
-``summary`` prints a human-readable terminal report and writes its flat metrics
-JSON. ``schema`` writes the stable, typed JSON bundle used for programmatic
-comparison. With multiple formatters, their filenames include ``_summary`` and
-``_schema`` respectively.
-
-Warm-Up
-~~~~~~~
-
-``--warmup_steps`` runs the exact number of excluded environment steps before
-the measured window. Runtime executes ``warmup_steps + num_steps`` total
-``env.step()`` calls, while the throughput window always contains exactly
-``num_steps`` calls. With nonzero warm-up, the first warm-up step supplies the
-separate ``first_step`` startup diagnostic. With zero warm-up, the first measured
-step supplies that diagnostic without being removed from the measured window.
-
-Read The Result
+Read the result
 ~~~~~~~~~~~~~~~
 
 A throughput and resource summary is printed to the console when the run
@@ -185,55 +172,32 @@ Isaac-Cartpole-Camera-Direct with 1024 environments, RTX rendering, and the RGB
 preset. The approved balanced power profile used intel_pstate with powersave
 governors and balance_performance energy preferences.
 
-Do Not Infer
-~~~~~~~~~~~~
+``--warmup_steps`` runs the exact number of excluded environment steps before
+the measured window. Runtime executes ``warmup_steps + num_steps`` total
+``env.step()`` calls, while the throughput window always contains exactly
+``num_steps`` calls. With nonzero warm-up, the first warm-up step supplies the
+separate ``first_step`` startup diagnostic. With zero warm-up, the first measured
+step supplies that diagnostic without being removed from the measured window.
+
+What not to infer
+~~~~~~~~~~~~~~~~~
 
 Do not infer policy-serving or training performance from a runtime result. It
 contains neither policy inference nor a policy update. Do not compare its FPS
 against a rendered, differently sized, or differently instrumented workload.
 
-Measurement Boundaries
-----------------------
-
-The primary rates have these boundaries:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
-
-   * - Field and workflow
-     - Measured scope
-   * - Runtime environment-step FPS
-     - ``env.step()`` under random actions; random-action generation is excluded.
-   * - Play collection FPS
-     - Policy inference and rollout, including ``env.step()``.
-   * - Play environment-step FPS
-     - ``env.step()`` only; policy inference is excluded.
-   * - Training collection FPS
-     - Rollout collection; policy update is excluded.
-   * - Training total FPS
-     - Collection and policy update together.
-   * - Training environment-step FPS
-     - ``env.step()`` only; inference and learning are excluded.
-   * - Startup phase time
-     - Cold startup work; it is not steady-state throughput.
-
-The same schema field name and the same
-``runtime.environment_step_timing.measurement_mode`` are prerequisites for a
-valid comparison. Matching FPS units alone is insufficient.
-
 Play
 ----
 
-Use It When
-~~~~~~~~~~~
+When to use it
+~~~~~~~~~~~~~~
 
 Use ``play`` to measure a trained policy's rollout throughput or evaluate its
 behavior. First run ``training`` to produce a checkpoint for the same RL library
 and task, or supply another compatible checkpoint.
 
-Command
-~~~~~~~
+Run it
+~~~~~~
 
 .. code-block:: bash
 
@@ -250,14 +214,7 @@ Command
        --output_path ./benchmark_results/play \
        physics=isaacsim_physx
 
-Warm-Up
-~~~~~~~
-
-``--warmup_steps`` excludes only the first N ``env.step()`` calls from
-``runtime.environment_step_timing``. It does not exclude those steps from
-collection FPS, total FPS, policy evaluation, episode statistics, or wall time.
-
-Read The Result
+Read the result
 ~~~~~~~~~~~~~~~
 
 Use ``runtime.collection_fps`` or ``runtime.total_fps`` for policy inference
@@ -267,13 +224,23 @@ plus rollout; they describe the same scope in play. Use
 computed only from completed episodes and can be ``null`` when the measured
 window completes no episodes or the task reports no success value.
 
+.. code-block:: text
+
+   runtime.collection_fps
+   runtime.total_fps
+   runtime.environment_step_timing.environment_step_fps
+
+``--warmup_steps`` excludes only the first N ``env.step()`` calls from
+``runtime.environment_step_timing``. It does not exclude those steps from
+collection FPS, total FPS, policy evaluation, episode statistics, or wall time.
+
 The typed result adds play-specific ``reward``, ``ep_length``,
 ``success_rate``, and ``checkpoint_path`` fields to the canonical runtime
 envelope shown above. Capture the same hardware, software revision, workload,
 seed, warm-up, rendering, and power-profile provenance for comparisons.
 
-Do Not Infer
-~~~~~~~~~~~~
+What not to infer
+~~~~~~~~~~~~~~~~~
 
 Do not interpret play collection FPS as environment-only performance, and do
 not interpret absent episode metrics as zero reward or zero success. A play run
@@ -282,15 +249,15 @@ does not measure learning or policy-update throughput.
 Training
 --------
 
-Use It When
-~~~~~~~~~~~
+When to use it
+~~~~~~~~~~~~~~
 
 Use ``training`` to measure end-to-end learning throughput and learning
 behavior. The run writes the RL library's normal logs and checkpoints; use a
 compatible saved checkpoint as the input to ``play``.
 
-Command
-~~~~~~~
+Run it
+~~~~~~
 
 .. code-block:: bash
 
@@ -306,15 +273,7 @@ Command
        --output_path ./benchmark_results/training \
        physics=isaacsim_physx
 
-Warm-Up
-~~~~~~~
-
-``--warmup_steps`` excludes only the first N ``env.step()`` calls from
-``runtime.environment_step_timing``. It does not exclude work from collection
-FPS, total FPS, learning curves, policy evaluation, episode statistics, or wall
-time.
-
-Read The Result
+Read the result
 ~~~~~~~~~~~~~~~
 
 A throughput, resource, and learning summary is printed to the console when the
@@ -326,13 +285,26 @@ Use ``runtime.collection_fps`` for rollout collection without policy update,
 stepping. Inspect ``learning.reward`` and ``learning.ep_length`` for learning
 behavior instead of reducing training to one throughput value.
 
+.. code-block:: text
+
+   runtime.collection_fps
+   runtime.total_fps
+   runtime.environment_step_timing.environment_step_fps
+   learning.reward
+   learning.ep_length
+
+``--warmup_steps`` excludes only the first N ``env.step()`` calls from
+``runtime.environment_step_timing``. It does not exclude work from collection
+FPS, total FPS, learning curves, policy evaluation, episode statistics, or wall
+time.
+
 The typed result adds training-specific ``run.framework``,
 ``run.max_iterations``, ``learning``, ``success_rate``, and
 ``checkpoint_path`` fields to the canonical runtime envelope shown above.
 Capture the same provenance plus the RL library and training-iteration count.
 
-Do Not Infer
-~~~~~~~~~~~~
+What not to infer
+~~~~~~~~~~~~~~~~~
 
 Do not treat a faster environment-step rate as proof of faster end-to-end
 training or equivalent learning. Do not compare short training curves as if
@@ -343,16 +315,16 @@ they established final policy quality.
 Multi-GPU
 ---------
 
-Use It When
-~~~~~~~~~~~
+When to use it
+~~~~~~~~~~~~~~
 
 Append ``-multigpu`` to ``startup``, ``runtime``, or ``training`` to run the same
 workflow with one rank per GPU. Use it to measure synchronized multi-GPU training
 throughput, or to measure how much a workflow slows down when every GPU on the
 node is busy.
 
-Command
-~~~~~~~
+Run it
+~~~~~~
 
 .. code-block:: bash
 
@@ -388,7 +360,7 @@ does not support skrl JAX or SB3, and it rejects ``--video``,
 ``--capture_env_sensors``, and ``--check_success``, none of which are meaningful
 across ranks. Use :ref:`train-multigpu-command` for general distributed training.
 
-Read The Result
+Read the result
 ~~~~~~~~~~~~~~~
 
 ``--num_envs`` is the number of environments **per rank**, and each rank creates its
@@ -418,8 +390,8 @@ bundle covers depends on the workflow, and ``extra`` records it:
        single-node run shows all ranks. ``resources.gpu_util_pct`` and
        ``resources.gpu_mem_gb`` remain scoped to rank 0's own device.
 
-Do Not Infer
-~~~~~~~~~~~~
+What not to infer
+~~~~~~~~~~~~~~~~~
 
 Do not compare a multi-GPU result against a single-GPU result at the same
 ``--num_envs``: the multi-GPU run has ``world_size`` times as many environments. To
@@ -428,11 +400,11 @@ times the throughput of a single-GPU run at the same per-rank environment count.
 not read ``startup-multigpu`` or ``runtime-multigpu`` throughput as a global rate;
 their ``workload_scope`` is ``rank0``, and the other ranks were not measured.
 
-Startup Profiling
------------------
+Startup
+-------
 
-Use It When
-~~~~~~~~~~~
+When to use it
+~~~~~~~~~~~~~~
 
 Use ``startup`` when launch or cold initialization is the subject of the
 investigation. Startup latency is paid in edit-run-debug cycles, so reducing
@@ -445,8 +417,8 @@ separates five cold phases:
 * ``env_creation`` runs ``gym.make()`` and the initial ``env.reset()``.
 * ``first_step`` runs the first ``env.step()`` and waits for device completion.
 
-Command
-~~~~~~~
+Run it
+~~~~~~
 
 .. code-block:: bash
 
@@ -460,13 +432,7 @@ Command
        --output_path ./benchmark_results/startup \
        physics=isaacsim_physx
 
-Warm-Up
-~~~~~~~
-
-Startup deliberately has no warm-up: cold work is the measurement. Run it in a
-fresh process and control cache state and execution order when comparing runs.
-
-Read The Result
+Read the result
 ~~~~~~~~~~~~~~~
 
 A per-phase wall-time summary is printed to the console when the run finishes,
@@ -474,6 +440,12 @@ including the timers that ran during ``env_creation``. The JSON output holds the
 full profile.
 
 Read the wall time and attributed functions under each entry in ``phases``.
+
+.. code-block:: text
+
+   phases.<phase>.wall_time
+   phases.<phase>.profile
+
 Pass ``--whitelist_config scripts/benchmarks/startup_whitelist.yaml`` to select
 stable ``fnmatch`` patterns for specific phases. Whitelist mode ignores
 ``--top_n`` for listed phases. A pattern that matches no profiled function is
@@ -490,14 +462,47 @@ The typed result replaces runtime throughput fields with startup-specific
 profile entries. Capture the same provenance plus cache state, process order,
 ``top_n``, and whitelist configuration.
 
-Do Not Infer
-~~~~~~~~~~~~
+Startup deliberately has no warm-up: cold work is the measurement. Run it in a
+fresh process and control cache state and execution order when comparing runs.
+
+What not to infer
+~~~~~~~~~~~~~~~~~
 
 ``cProfile`` is an attribution tool with observer cost. Treat phase wall times
 and function attribution as cold-start diagnostics, not as steady-state
 throughput or an unperturbed timing trace.
 
-Rendered Workloads
+Measurement boundaries
+----------------------
+
+The primary rates have these boundaries:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Field and workflow
+     - Measured scope
+   * - ``runtime.environment_step_timing.environment_step_fps`` (runtime)
+     - ``env.step()`` under random actions; random-action generation is excluded.
+   * - ``runtime.collection_fps`` (play)
+     - Policy inference and rollout, including ``env.step()``.
+   * - ``runtime.environment_step_timing.environment_step_fps`` (play)
+     - ``env.step()`` only; policy inference is excluded.
+   * - ``runtime.collection_fps`` (training)
+     - Rollout collection; policy update is excluded.
+   * - ``runtime.total_fps`` (training)
+     - Collection and policy update together.
+   * - ``runtime.environment_step_timing.environment_step_fps`` (training)
+     - ``env.step()`` only; inference and learning are excluded.
+   * - ``phases.<phase>.wall_time`` (startup)
+     - Cold startup work; it is not steady-state throughput.
+
+The same schema field name and the same
+``runtime.environment_step_timing.measurement_mode`` are prerequisites for a
+valid comparison. Matching FPS units alone is insufficient.
+
+Rendered workloads
 ------------------
 
 Rendering changes the workload. Use a camera task, camera enablement, renderer,
@@ -524,7 +529,7 @@ environments, RTX renderer, and RGB preset make this a different workload from
 the headless ``Isaac-Cartpole-Direct`` walkthrough; do not compare their FPS as
 a backend-only delta.
 
-Physics Backends
+Physics backends
 ----------------
 
 Keep the command fixed and substitute one physics selector:
@@ -540,8 +545,8 @@ renderer, warm-up, measured window, and measurement mode identical. A renderer
 or task that is valid for one backend may be incompatible with another; choose
 a common supported workload before collecting the comparison.
 
-Interpret The Output
---------------------
+Read the output
+---------------
 
 ``--benchmark_formatter`` accepts a comma-separated list. The formatters serve
 different consumers:
@@ -566,19 +571,23 @@ typed schema paths:
 
 With multiple formatters, the ``_schema`` suffix identifies the typed bundle.
 
-Evidence Levels
----------------
+Evidence levels
+~~~~~~~~~~~~~~~
 
 Choose the evidence level before collecting data:
 
 * **One-run exploration:** use one controlled run to check direction, find a
   bottleneck, or validate the benchmark setup. Do not publish a performance
   claim from it.
-* **Gross regression screening:** use at least three paired runs with rotated
-  seeds and execution order. Pair baseline and candidate runs collected under
-  the same conditions.
-* **Performance claims:** use longer, repeated training runs that cover the
-  behavior being claimed, not only a short throughput probe.
+* **Gross regression screening:** use at least three paired independent
+  processes with rotated seeds and execution order. Pair baseline and candidate
+  runs collected under the same conditions.
+* **Performance claims:** use at least three independent processes and longer,
+  repeated training runs that cover the behavior being claimed, not only a
+  short throughput probe.
+
+Compare runs
+------------
 
 Report individual run values, paired deltas, and dispersion or confidence
 intervals. Label a result inconclusive when the interval for the delta crosses
@@ -586,13 +595,13 @@ zero. Avoid reporting only the best run or only an aggregate.
 
 Every advertised result must identify the CPU model, physical core count, RAM,
 GPU, OS, physics backend, software versions, revision, task, environment count,
-seed, warm-up, measured window, and execution order. Benchmark performance is a
-property of the whole CPU, GPU, software, and workload configuration, not the
-GPU alone. Process CPU utilization is aggregated across cores and can therefore
-exceed 100%.
+seed, warm-up, measured window, rendering configuration, power profile, and
+execution order. Benchmark performance is a property of the whole CPU, GPU,
+software, and workload configuration, not the GPU alone. Process CPU utilization
+is aggregated across cores and can therefore exceed 100%.
 
-Synchronized Step Diagnostic
-----------------------------
+Synchronized-step diagnostics
+---------------------------------
 
 Runtime, play, and training accept this optional diagnostic flag:
 
