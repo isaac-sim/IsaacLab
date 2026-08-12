@@ -37,7 +37,7 @@ Choosing a Backend
   solver. Selected via :class:`~isaaclab_newton.physics.NewtonCfg`.
 * **OvPhysX** — a **highly experimental** kit-less PhysX backend that reads
   scene-level parameters from the USD ``PhysicsScene`` prim. Selected via
-  :class:`~isaaclab_ovphysx.physics.OvPhysxCfg`. Not recommended for general use yet.
+  :class:`~isaaclab_ov.physics.OvPhysxCfg`. Not recommended for general use yet.
 
 The active backend is selected at simulation construction time and applies to every
 asset, sensor, and renderer instantiated thereafter:
@@ -128,7 +128,7 @@ per-task support, see each backend's own ``limitations`` page.
     * - Solver configuration source
       - :class:`~isaaclab_physx.physics.PhysxCfg`
       - :class:`~isaaclab_newton.physics.NewtonCfg` + solver config
-      - USD ``PhysicsScene`` + :class:`~isaaclab_ovphysx.physics.OvPhysxCfg`
+      - USD ``PhysicsScene`` + :class:`~isaaclab_ov.physics.OvPhysxCfg`
 
 
 Selecting Backends per Task
@@ -142,7 +142,7 @@ declares all three backends side by side:
 
     from isaaclab.physics import PhysxAutoCfg
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
     @configclass

@@ -48,9 +48,9 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
-    from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
-    from isaaclab_ovphysx.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
+    from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
@@ -121,7 +121,7 @@ def create_physx_articulation(
     data.fixed_tendon_names = fixed_tendon_names
     data.spatial_tendon_names = spatial_tendon_names
 
-    # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
+    # Create wrench composers (pass articulation which has num_instances, num_bodies, device properties)
     mock_inst_wrench = WrenchComposer(articulation)
     mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
@@ -304,7 +304,7 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
 
-    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ov import tensor_types as TT
 
     object.__setattr__(articulation, "_can_write_effort", articulation._get_binding(TT.DOF_ACTUATION_FORCE) is not None)
     object.__setattr__(articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None)
@@ -403,7 +403,7 @@ def create_newton_articulation(
     data.fixed_tendon_names = fixed_tendon_names
     data.spatial_tendon_names = []
 
-    # Mock wrench composers
+    # Wrench composers
     mock_inst_wrench = WrenchComposer(articulation)
     mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
