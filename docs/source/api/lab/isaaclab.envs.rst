@@ -57,6 +57,12 @@ Manager Based RL Environment
 Manager Based Multi-Agent RL Environment
 ----------------------------------------
 
+``ManagerBasedMARLEnv`` keeps a fixed, ordered set of agent identifiers from
+the insertion order of :attr:`ManagerBasedMARLEnvCfg.agents`. Configure each
+agent with :class:`ManagerBasedMARLEnvCfg.AgentCfg`; configure centralized
+state explicitly with :attr:`ManagerBasedMARLEnvCfg.state` when it is needed.
+The state configuration must expose one observation group.
+
 .. autoclass:: ManagerBasedMARLEnv
     :members:
     :inherited-members:
@@ -67,6 +73,10 @@ Manager Based Multi-Agent RL Environment
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+.. autoclass:: ManagerBasedMARLEnvCfg.AgentCfg
+    :members:
+    :show-inheritance:
 
 Direct RL Environment
 ---------------------

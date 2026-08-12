@@ -34,6 +34,10 @@ Based on these workflows, there are the following environment classes for single
 
 **Multi-Agent RL (MARL):**
 
+* :class:`ManagerBasedMARLEnv`: The manager-based workflow MARL task
+  environment with a fixed, ordered set of agents. Each agent owns its action,
+  observation, reward, and termination managers, while shared task state is
+  configured explicitly through :class:`ManagerBasedMARLEnvCfg`.
 * :class:`DirectMARLEnv`: The direct workflow MARL task environment which provides implementations for
   implementing scene setup, computing dones, performing resets, and computing reward and observation.
 

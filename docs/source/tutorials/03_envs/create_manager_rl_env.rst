@@ -26,6 +26,36 @@ for balancing the pole upright. We will learn how to specify the task using rewa
 curriculum and commands.
 
 
+Manager-based multi-agent RL
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The manager workflow also supports fixed-agent multi-agent tasks through
+:class:`envs.ManagerBasedMARLEnv` and :class:`envs.ManagerBasedMARLEnvCfg`.
+Define each agent in ``cfg.agents`` in the desired stable order. Every agent
+must provide its own action, observation, reward, and termination manager
+configuration; the inherited top-level ``actions`` and ``observations``
+fields are unused. The following compact example shows the configuration
+shape used by the registered ``Isaac-Pendulum-MARL`` task:
+
+.. code-block:: python
+
+   from isaaclab_tasks.core.pendulum import PendulumMARLManagerEnvCfg
+
+   cfg = PendulumMARLManagerEnvCfg()
+   assert list(cfg.agents) == ["cart", "pendulum"]
+
+   # Centralized state is opt-in and explicitly configured.
+   assert cfg.state is not None
+
+At runtime, observations, rewards, and termination flags are dictionaries
+keyed by ``"cart"`` and ``"pendulum"``. The environment exposes the same
+fixed identifiers through ``possible_agents`` and ``agents``. Use
+``env.get_agent(agent_id)`` when a manager term needs an agent-local manager;
+the parent environment intentionally has no ambiguous singular manager
+alias. The optional centralized value is returned by ``env.state()`` and its
+space by ``env.state_space``.
+
+
 The Code
 ~~~~~~~~
 

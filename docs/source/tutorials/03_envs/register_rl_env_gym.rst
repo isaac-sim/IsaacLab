@@ -58,8 +58,10 @@ are running simultaneously in the same process, and all the data is returned in 
 fashion.
 
 Similarly, the :class:`envs.DirectRLEnv` class also inherits from the :class:`gymnasium.Env` class
-for the direct workflow. For :class:`envs.DirectMARLEnv`, although it does not inherit
-from Gymnasium, it can be registered and created in the same way.
+for the direct workflow. The manager-based multi-agent class
+:class:`envs.ManagerBasedMARLEnv` follows the same Gymnasium registration
+pattern. For :class:`envs.DirectMARLEnv`, although it does not inherit from
+Gymnasium, it can also be registered and created in the same way.
 
 Using the gym registry
 ----------------------
@@ -96,6 +98,10 @@ The ``entry_point`` argument is the entry point to the environment class. The en
 of the form ``<module>:<class>``. In the case of the cartpole environment, the entry point is
 ``isaaclab.envs:ManagerBasedRLEnv``. The entry point is used to import the environment class
 when creating the environment instance.
+
+Manager-based MARL tasks use ``isaaclab.envs:ManagerBasedMARLEnv`` as their
+entry point. Their configuration supplies a fixed ordered ``agents`` mapping
+and may explicitly supply a centralized ``state`` observation manager.
 
 The ``env_cfg_entry_point`` argument specifies the default configuration for the environment. The default
 configuration is loaded using the :meth:`isaaclab_tasks.utils.parse_env_cfg` function.

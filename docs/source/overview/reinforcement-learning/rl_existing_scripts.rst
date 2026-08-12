@@ -555,6 +555,18 @@ comma-separated list when needed. For example:
             :: run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
             isaaclab.bat play --rl_library skrl --task Isaac-Shadow-Handover-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
+   - Training the manager-based multi-agent environment ``Isaac-Pendulum-MARL`` with skrl:
+
+     .. code-block:: bash
+
+        # Native multi-agent training supports IPPO and MAPPO.
+        uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Pendulum-MARL --algorithm IPPO
+        uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Pendulum-MARL --algorithm MAPPO
+
+     The manager-based task uses the same fixed-agent MARL interface as direct
+     tasks. Libraries without native MARL support use the standard
+     single-agent conversion path.
+
 Stable-Baselines3
 -----------------
 

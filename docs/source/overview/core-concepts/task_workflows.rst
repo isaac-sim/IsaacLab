@@ -54,6 +54,14 @@ When developing new training environments, it is often beneficial to break the e
 For reinforcement learning, much of this has been done for you already! In most cases, it will be enough to write your environment to inherit from
 :class:`envs.ManagerBasedRLEnv` and your configuration from :class:`envs.ManagerBasedRLEnvCfg`.
 
+For multi-agent reinforcement learning, use :class:`envs.ManagerBasedMARLEnv`
+with :class:`envs.ManagerBasedMARLEnvCfg`. Its agents are fixed for the
+environment lifetime and retain the insertion order of ``cfg.agents``. Each
+agent has its own action, observation, reward, and termination manager
+configuration. If a centralized critic state is needed, configure
+``cfg.state`` explicitly with one observation group; the manager-based MARL
+workflow does not infer or concatenate state automatically.
+
 .. dropdown:: Example for defining the reward function for the Cartpole task using the manager-style
     :icon: plus
 

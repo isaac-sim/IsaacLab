@@ -1021,10 +1021,15 @@ Classic
     |                        |                                    |                                                                                                                       | ``newton_mjwarp``,           |
     |                        |                                    |                                                                                                                       | ``ovphysx``                  |
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
+    | |cart-double-pendulum| | |cart-double-pendulum-manager-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task with the       | ``newton_kamino``,           |
+    |                        |                                    | manager-based workflow.                                                                                               | ``newton_mjwarp``,           |
+    |                        |                                    |                                                                                                                       | ``ovphysx``                  |
+    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
 
 .. |cart-double-pendulum-direct-link| replace:: :isaaclab-source:`Isaac-Pendulum-MARL-Direct <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_marl_env.py>`
+.. |cart-double-pendulum-manager-link| replace:: :isaaclab-source:`Isaac-Pendulum-MARL <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_marl_manager_env_cfg.py>`
 
 Manipulation
 ~~~~~~~~~~~~
@@ -1162,6 +1167,10 @@ including disabling runtime perturbations used for training.
       -
     * - Isaac-Pendulum-MARL-Direct
       - Direct
+      - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Pendulum-MARL
+      - Manager Based
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reach-Franka

@@ -16,11 +16,20 @@ from .manager_based_env_cfg import ManagerBasedEnvCfg
 
 @configclass
 class ManagerBasedMARLEnvCfg(ManagerBasedEnvCfg):
-    """Configuration for a fixed-agent manager-based reinforcement-learning environment."""
+    """Configuration for a fixed-agent manager-based reinforcement-learning environment.
+
+    Configure every agent under :attr:`agents` in the desired stable order.
+    The inherited top-level ``actions`` and ``observations`` fields are unused;
+    each :attr:`AgentCfg` supplies its own action, observation, reward, and
+    termination manager configuration. Set :attr:`state` to an observation
+    manager configuration when the task needs centralized state. The state
+    manager must expose exactly one output group; no implicit state
+    concatenation is provided.
+    """
 
     @configclass
     class AgentCfg:
-        """Manager configurations belonging to one agent."""
+        """Action, observation, reward, and termination managers for one agent."""
 
         actions: object = MISSING
         observations: object = MISSING

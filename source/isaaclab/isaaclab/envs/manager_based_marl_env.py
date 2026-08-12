@@ -32,6 +32,13 @@ from .manager_based_marl_env_cfg import ManagerBasedMARLEnvCfg
 class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
     """The fixed-agent manager-based workflow multi-agent RL environment.
 
+    The agent identifiers and order come from the insertion order of
+    :attr:`ManagerBasedMARLEnvCfg.agents` and remain fixed for the lifetime of
+    the environment. Actions, observations, rewards, and termination signals
+    are dictionaries keyed by those identifiers. A centralized state is
+    available only when :attr:`ManagerBasedMARLEnvCfg.state` explicitly
+    configures one observation manager with one output group.
+
     Agent-local terms receive an :class:`Agent` facade, so existing manager terms can
     continue to use ``env.action_manager`` and related manager properties. Shared terms
     receive this environment. They must explicitly select an agent with :meth:`get_agent`
