@@ -31,3 +31,10 @@ Changed
 
 * Changed ``./isaaclab.sh --install`` to reject extras that ``pyproject.toml`` declares conflicting.
   Drop one of the tokens to proceed.
+
+* Changed :meth:`~isaaclab.sim.utils.select_usd_variants` to raise when a variant set exists on the
+  prim but does not offer the requested variant, which includes
+  :attr:`~isaaclab.sim.UsdFileCfg.variants` at spawn time. USD accepts such a selection and composes
+  the prim as if nothing were selected, so the asset used to spawn silently without what the variant
+  carries. A variant set the prim does not have is still skipped with a warning. Set a variant the
+  asset offers, or drop the entry.
