@@ -44,10 +44,9 @@ Standalone URDF/MJCF importers
 ------------------------------
 
 The URDF and MJCF converter scripts run without Isaac Sim, using the standalone
-``isaacsim-asset-isolated`` importers. They ship in the ``importers`` extra, which is not
-installed by default because it cannot share an environment with Isaac Sim -- both provide the
-same ``isaacsim.asset`` importers. Install it from a source checkout (``--inexact`` keeps
-existing packages untouched):
+``isaacsim-asset-isolated`` importers. They ship in the ``importers`` extra, which is opt-in
+because it is only needed for asset conversion. Install it from a source checkout
+(``--inexact`` keeps existing packages untouched):
 
 .. code-block:: bash
 
@@ -76,8 +75,9 @@ Optionally pass ``--viz`` to preview the converted asset in a kit-less Isaac Lab
    uv run --extra importers --extra rerun --extra viser python scripts/tools/convert_urdf.py \
      path/to/robot.urdf path/to/output_dir --merge_joints --viz newton,rerun,viser
 
-Do not install ``importers`` where Isaac Sim is present: both provide ``isaacsim.asset``, and the
-wheel displaces the Kit extension, so conversion fails with ``No module named 'isaacsim.asset'``.
+The extra installs beside Isaac Sim. Kit serves ``isaacsim.asset`` from its extension roots when
+the runtime is present, so the converters use the Kit importer there and the standalone one
+otherwise.
 
 
 Using URDF Importer

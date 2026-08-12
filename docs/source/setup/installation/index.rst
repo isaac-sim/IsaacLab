@@ -331,8 +331,8 @@ Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list o
    * - ``ov[<runtime>]``
      - OV runtime wheels. Select ``ovrtx``, ``ovphysx``, or ``all``.
    * - ``importers``
-     - Standalone URDF/MJCF importers, for asset conversion without Isaac Sim. Cannot be
-       combined with ``isaacsim`` or ``teleop``. See :ref:`installation-standalone-importers`.
+     - Standalone URDF/MJCF importers, for asset conversion without Isaac Sim.
+       See :ref:`installation-standalone-importers`.
    * - ``isaacsim``
      - The Isaac Sim pip package.
 
@@ -605,12 +605,12 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
    * - ``test``
      - Developer test and documentation tooling.
 
-Extras can be combined freely -- including the Isaac Sim and OV backend stacks together --
-except for ``importers``, which cannot share an environment with ``isaacsim`` or ``teleop``
-because both provide the same ``isaacsim.asset`` importers. Use ``all`` to get every backend,
-RL library, and visualizer in one flag. The specialized extras (``rlinf``, ``mimic``,
-``teleop``, ``tetrahedralization``, ``video``, ``leapp``, ``importers``) and the developer
-``test`` tooling are not part of ``all``; request them by name.
+Extras can be combined freely: none of them conflict, so any set of extras -- including
+the Isaac Sim and OV backend stacks together -- resolves into a single environment.
+Use ``all`` to get every backend, RL library, and visualizer in one flag. The
+specialized extras (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
+``leapp``, ``importers``) and the developer ``test`` tooling are not part of ``all``;
+request them by name.
 
 .. isaaclab-uv-wheel-install::
 
