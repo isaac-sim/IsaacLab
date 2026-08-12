@@ -21,7 +21,7 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.core.handover.handover_common import (
-    ACTUATED_JOINT_NAMES_PRESET,
+    ACTUATED_JOINT_NAMES,
     FINGERTIP_BODY_NAMES,
 )
 from isaaclab_tasks.core.handover.handover_env_cfg import (
@@ -67,13 +67,13 @@ class ActionsCfg:
 
     right_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="right_hand",
-        joint_names=ACTUATED_JOINT_NAMES_PRESET,
+        joint_names=ACTUATED_JOINT_NAMES,
         alpha=1.0,
         rescale_to_limits=True,
     )
     left_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="left_hand",
-        joint_names=ACTUATED_JOINT_NAMES_PRESET,
+        joint_names=ACTUATED_JOINT_NAMES,
         alpha=1.0,
         rescale_to_limits=True,
     )
