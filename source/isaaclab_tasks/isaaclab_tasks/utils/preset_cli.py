@@ -342,7 +342,7 @@ def _auto_select_agent(
     active_presets: set[str] = set()
     for token in argv:
         if token.startswith("presets="):
-            for name in token[len("presets="):].split(","):
+            for name in token[len("presets=") :].split(","):
                 name = name.strip()
                 if name:
                     active_presets.add(name)
