@@ -102,12 +102,18 @@ class PendulumMARLEnv(DirectMARLEnv):
             self.cfg.rew_scale_pole_vel,
             self.cfg.rew_scale_pendulum_pos,
             self.cfg.rew_scale_pendulum_vel,
+            self.cfg.rew_scale_upright,
             self.cfg.rew_scale_action,
             self.joint_vel[:, self._cart_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
             self.joint_vel[:, self._pole_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]),
             self.joint_vel[:, self._pendulum_dof_idx[0]],
+            links_upright(
+                self.joint_pos[:, self._pole_dof_idx[0]],
+                self.joint_pos[:, self._pendulum_dof_idx[0]],
+                self.cfg.success_upright_angle,
+            ),
             self.actions["cart"],
             self.actions["pendulum"],
             math.prod(self.terminated_dict.values()),
@@ -248,12 +254,14 @@ def compute_rewards(
     rew_scale_pole_vel: float,
     rew_scale_pendulum_pos: float,
     rew_scale_pendulum_vel: float,
+    rew_scale_upright: float,
     rew_scale_action: float,
     cart_vel: torch.Tensor,
     pole_pos: torch.Tensor,
     pole_vel: torch.Tensor,
     pendulum_pos: torch.Tensor,
     pendulum_vel: torch.Tensor,
+    upright: torch.Tensor,
     cart_action: torch.Tensor,
     pendulum_action: torch.Tensor,
     reset_terminated: torch.Tensor,
@@ -268,6 +276,7 @@ def compute_rewards(
     rew_cart_vel = rew_scale_cart_vel * torch.abs(cart_vel)
     rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
     rew_pendulum_vel = rew_scale_pendulum_vel * torch.abs(lower_velocity)
+    rew_upright = rew_scale_upright * upright.float()
     rew_action = rew_scale_action * (
         torch.sum(torch.square(cart_action), dim=1) + torch.sum(torch.square(pendulum_action), dim=1)
     )
@@ -279,5 +288,6 @@ def compute_rewards(
         + rew_cart_vel
         + rew_pole_vel
         + rew_pendulum_vel
+        + rew_upright
         + rew_action
     ) * step_dt
