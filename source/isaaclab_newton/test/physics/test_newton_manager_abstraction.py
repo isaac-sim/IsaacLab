@@ -33,7 +33,11 @@ import pytest
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
-    KaminoSolverCfg,
+    KaminoDVICfg,
+    KaminoDVISolverCfg,
+    KaminoDynamicsCfg,
+    KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCfg,
@@ -94,7 +98,7 @@ SOLVER_MATRIX = [
         id="featherstone",
     ),
     pytest.param(
-        lambda: KaminoSolverCfg(use_collision_detector=True),
+        lambda: KaminoPADMMSolverCfg(use_collision_detector=True),
         NewtonKaminoManager,
         SolverKamino,
         False,
@@ -102,7 +106,7 @@ SOLVER_MATRIX = [
         id="kamino_internal_contacts",
     ),
     pytest.param(
-        lambda: KaminoSolverCfg(use_collision_detector=False),
+        lambda: KaminoPADMMSolverCfg(use_collision_detector=False),
         NewtonKaminoManager,
         SolverKamino,
         False,
@@ -195,7 +199,7 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
 @pytest.mark.parametrize(
     "solver_cfg",
     [
-        pytest.param(KaminoSolverCfg(), id="kamino"),
+        pytest.param(KaminoPADMMSolverCfg(), id="kamino_padmm"),
         pytest.param(MPMSolverCfg(), id="implicit_mpm"),
         pytest.param(MJWarpSolverCfg(use_mujoco_cpu=True), id="mujoco_cpu"),
         pytest.param(MJWarpSolverCfg(), id="mujoco_warp_sensors"),
@@ -425,6 +429,112 @@ def test_mpm_solver_cfg_forwards_every_solver_field(field_name, value):
         f"{field_name!r} disappeared from SolverImplicitMPM.Config — MPMSolverCfg needs to drop or rename it."
     )
     assert getattr(newton_cfg, field_name) == value
+
+
+_KAMINO_PADMM_FIELD_VALUES = [
+    ("max_iterations", 13),
+    ("primal_tolerance", 1.0e-5),
+    ("dual_tolerance", 1.0e-5),
+    ("compl_tolerance", 1.0e-5),
+    ("restart_tolerance", 0.5),
+    ("rho_0", 0.5),
+    ("rho_min", 1.0e-4),
+    ("a_0", 0.5),
+    ("alpha", 11.0),
+    ("tau", 1.6),
+    ("eta", 1.0e-4),
+    ("penalty_update_freq", 2),
+    ("penalty_update_method", "balanced"),
+    ("linear_solver_tolerance", 1.0e-3),
+    ("linear_solver_tolerance_ratio", 0.1),
+    ("use_acceleration", False),
+    ("use_graph_conditionals", False),
+    ("warmstart_mode", "none"),
+    ("contact_warmstart_method", "geom_pair_net_force"),
+]
+
+_KAMINO_DVI_FIELD_VALUES = [
+    ("tolerance", 1.0e-4),
+    ("regularization", 1.0e-5),
+    ("omega", 1.5),
+    ("max_alternating_iterations", 15),
+    ("inequality_sweeps_per_iteration", 2),
+    ("bilateral_solve_interval", 2),
+    ("bilateral_solver_type", "LLTBRCM"),
+    ("bilateral_solver_kwargs", {"block_size": 32}),
+    ("warmstart_mode", "internal"),
+    ("contact_warmstart_method", "geom_pair_net_force"),
+]
+
+_KAMINO_DYNAMICS_FIELD_VALUES = [
+    ("preconditioning", False),
+    ("linear_solver_type", "LLTBRCM"),
+    ("linear_solver_kwargs", {"maxiter": 9}),
+]
+
+
+@pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
+def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
+    """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
+    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
+    newton_cfg = solver_cfg.to_solver_config()
+    assert hasattr(newton_cfg.padmm, field_name), (
+        f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
+    )
+    assert getattr(newton_cfg.padmm, field_name) == value
+
+
+@pytest.mark.parametrize("field_name, value", _KAMINO_DVI_FIELD_VALUES)
+def test_kamino_solver_cfg_forwards_dvi_fields(field_name, value):
+    """Every tunable DVI cfg field round-trips into ``DVISolverConfig``."""
+    solver_cfg = KaminoDVISolverCfg(
+        dynamics=KaminoDynamicsCfg(preconditioning=False),
+        dynamics_solver_cfg=KaminoDVICfg(**{field_name: value}),
+    )
+    newton_cfg = solver_cfg.to_solver_config()
+    assert hasattr(newton_cfg.dvi, field_name), (
+        f"{field_name!r} disappeared from DVISolverConfig — KaminoDVICfg needs to drop or rename it."
+    )
+    assert getattr(newton_cfg.dvi, field_name) == value
+
+
+@pytest.mark.parametrize("field_name, value", _KAMINO_DYNAMICS_FIELD_VALUES)
+def test_kamino_solver_cfg_forwards_dynamics_fields(field_name, value):
+    """Every tunable dynamics cfg field round-trips into ``ConstrainedDynamicsConfig``."""
+    solver_type = KaminoDVISolverCfg if field_name == "preconditioning" and value is False else KaminoPADMMSolverCfg
+    solver_cfg = solver_type(dynamics=KaminoDynamicsCfg(**{field_name: value}))
+    newton_cfg = solver_cfg.to_solver_config()
+    assert hasattr(newton_cfg.dynamics, field_name), (
+        f"{field_name!r} disappeared from ConstrainedDynamicsConfig — KaminoDynamicsCfg needs updating."
+    )
+    assert getattr(newton_cfg.dynamics, field_name) == value
+
+
+def test_kamino_to_solver_config_metadata_excluded():
+    """Isaac Lab metadata and manager-only fields do not leak into Newton config."""
+    solver_cfg = KaminoPADMMSolverCfg(
+        solver_type="isaaclab_metadata_should_not_forward",
+        max_contacts_per_world=32,
+    )
+    newton_cfg = solver_cfg.to_solver_config()
+    assert not hasattr(newton_cfg, "class_type")
+    assert not hasattr(newton_cfg, "solver_type")
+    assert not hasattr(newton_cfg, "max_contacts_per_world")
+
+
+def test_kamino_concrete_solver_configs_select_their_backends():
+    """Concrete solver config types select their corresponding Newton backends."""
+    padmm_cfg = KaminoPADMMSolverCfg(sparse_jacobian=True)
+    dvi_cfg = KaminoDVISolverCfg()
+    assert padmm_cfg.to_solver_config().dynamics_solver == "padmm"
+    assert dvi_cfg.to_solver_config().dynamics_solver == "dvi"
+
+
+def test_kamino_dvi_rejects_preconditioning():
+    """DVI preserves Newton's preconditioning compatibility check."""
+    solver_cfg = KaminoDVISolverCfg(dynamics=KaminoDynamicsCfg(preconditioning=True))
+    with pytest.raises(ValueError, match="preconditioning"):
+        solver_cfg.to_solver_config()
 
 
 def test_mpm_register_builder_attributes_is_idempotent():
@@ -960,7 +1070,7 @@ def test_initialize_solver_populates_canonical_state(
             # something to work with.
             body = builder.add_body(mass=1.0)
             builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
-            if isinstance(solver_cfg, KaminoSolverCfg) and solver_cfg.use_collision_detector:
+            if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)) and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
         NewtonManager.set_builder(builder)
@@ -1175,7 +1285,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         device="cuda:0",
         gravity=(0.0, 0.0, -9.81),
         physics=NewtonCfg(
-            solver_cfg=KaminoSolverCfg(),
+            solver_cfg=KaminoPADMMSolverCfg(),
             num_substeps=1,
             use_cuda_graph=False,
         ),

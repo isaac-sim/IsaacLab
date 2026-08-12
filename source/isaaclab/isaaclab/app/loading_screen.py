@@ -223,10 +223,11 @@ def _format_elapsed(elapsed: float) -> str:
 class LoadingScreen:
     """Staged progress display that owns the console while a run starts up.
 
-    While the screen is open, everything the startup path writes to standard
-    output and error -- including native libraries writing straight to the
-    underlying file descriptors -- is spooled to a temporary file instead of the
-    console, so it cannot break the progress bar. Alongside the bar the screen
+    While the screen is open, the startup path writes to standard output and
+    error are spooled to a temporary file instead of the console, so they cannot
+    break the progress bar. POSIX also captures native writes to the underlying
+    file descriptors; Windows and macOS preserve their console descriptors and
+    capture Python-level output. Alongside the bar the screen
     shows the step currently running, as reported by :func:`report_activity`,
     and a clock that keeps ticking through long silent steps. The spool is
     replayed when startup fails and dropped when it succeeds. Closing the screen
@@ -283,6 +284,7 @@ class LoadingScreen:
         self._render_lock = threading.RLock()
         self._spool: IO[str] | None = None
         self._saved_fds: tuple[int, int] | None = None
+        self._saved_streams: tuple[IO[str], IO[str]] | None = None
         self._started = 0.0
         self._index = 0
         self._stage = ""
@@ -412,7 +414,8 @@ class LoadingScreen:
             if final_header:
                 self._write(f"\n{final_header}\n\n")
         finally:
-            if self._saved_fds is not None:
+            close_console = self._saved_fds is not None
+            if self._saved_fds is not None or self._saved_streams is not None:
                 hidden = self._restore()
                 try:
                     if replay:
@@ -425,7 +428,8 @@ class LoadingScreen:
                             f"({lines} lines of startup output hidden; use --info to show)\n\n"
                         )
                 finally:
-                    self._console.close()
+                    if close_console:
+                        self._console.close()
                     self._console = sys.stdout
 
     def _stage_progress(self) -> float:
@@ -482,7 +486,10 @@ class LoadingScreen:
         self._console.flush()
 
     def _redirect(self) -> None:
-        """Point the standard output and error file descriptors at a spool file."""
+        """Redirect output to a spool without disrupting the live console."""
+        if sys.platform in {"darwin", "win32"}:
+            self._redirect_streams()
+            return
         try:
             console_fd = os.dup(sys.stdout.fileno())
         except (AttributeError, OSError, ValueError):
@@ -498,16 +505,31 @@ class LoadingScreen:
         os.dup2(self._spool.fileno(), 1)
         os.dup2(self._spool.fileno(), 2)
 
+    def _redirect_streams(self) -> None:
+        """Spool Python output without replacing platform-specific console descriptors."""
+        self._spool = tempfile.TemporaryFile(mode="w+", errors="replace")  # noqa: SIM115
+        self._saved_streams = (sys.stdout, sys.stderr)
+        sys.stdout = self._spool
+        sys.stderr = self._spool
+
     def _restore(self) -> str:
-        """Restore the standard file descriptors and return the spooled output."""
-        sys.stdout.flush()
-        sys.stderr.flush()
-        saved_out, saved_err = self._saved_fds
-        os.dup2(saved_out, 1)
-        os.dup2(saved_err, 2)
-        os.close(saved_out)
-        os.close(saved_err)
-        self._saved_fds = None
+        """Restore redirected output and return the spooled text."""
+        if self._saved_fds is not None:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            saved_out, saved_err = self._saved_fds
+            os.dup2(saved_out, 1)
+            os.dup2(saved_err, 2)
+            os.close(saved_out)
+            os.close(saved_err)
+            self._saved_fds = None
+        elif self._saved_streams is not None:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            sys.stdout, sys.stderr = self._saved_streams
+            self._saved_streams = None
+        else:
+            raise RuntimeError("Loading screen output was not redirected.")
         self._spool.seek(0)
         spooled = self._spool.read()
         self._spool.close()

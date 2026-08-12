@@ -30,7 +30,6 @@ dependencies = [
     "isaaclab-experimental",
     "isaaclab-newton",
     "isaaclab-ov",
-    "isaaclab-ovphysx",
     "isaaclab-physx",
     "isaaclab-ppisp",
     "isaaclab-rl",
@@ -413,7 +412,6 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
-"isaaclab-ovphysx" = { path = "source/isaaclab_ovphysx", editable = true }
 "isaaclab-physx" = { path = "source/isaaclab_physx", editable = true }
 "isaaclab-ppisp" = { path = "source/isaaclab_ppisp", editable = true }
 "isaaclab-rl" = { path = "source/isaaclab_rl", editable = true }

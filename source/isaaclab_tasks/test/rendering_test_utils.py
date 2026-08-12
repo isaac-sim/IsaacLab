@@ -316,13 +316,26 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 )
 
 
-def make_kitless_rendering_params_lift() -> list[pytest.param]:
-    """Create kitless Lift parameters with known native-crash cases skipped."""
+def make_kitless_rendering_params_lift(*, include_texture_readiness_xfail: bool = False) -> list[pytest.param]:
+    """Create kitless Lift parameters with known failures isolated.
+
+    Args:
+        include_texture_readiness_xfail: Whether to mark the OVPhysX OVRTX albedo cases as expected failures.
+    """
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    if include_texture_readiness_xfail:
+        params = make_xfail_rendering_params(
+            params,
+            {
+                (variant, "ovphysx", "ovrtx_renderer", "albedo"): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+                for variant in _KITLESS_STAGE_VARIANTS
+            },
+        )
+
     # Both backends can SIGSEGV on the MDL AOVs, which loses the JUnit report for the whole file,
-    # so xfail cannot express these. Albedo does not crash, so it keeps whatever the shared matrix
-    # assigns it.
+    # so xfail cannot express these.
     return make_skip_rendering_params(
-        make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+        params,
         {
             (variant, physics_backend, "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
@@ -639,7 +652,7 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
     Args:
         env_cfg: The resolved environment config, exposing ``sim.physics`` as a
             :class:`~isaaclab_physx.physics.PhysxCfg` when ``physics_backend == "physx"``, or an
-            :class:`~isaaclab_ovphysx.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
+            :class:`~isaaclab_ov.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
         physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
         data_type: The camera data type under test.
     """

@@ -10,6 +10,7 @@ import torch
 from gymnasium.envs.registration import registry
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.differential_ik import DifferentialIKController
 
 import isaaclab_tasks  # noqa: F401
@@ -184,12 +185,15 @@ def test_reach_success_requires_position_and_orientation():
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
 
 
-def test_reach_osc_uses_menagerie_franka_effort_actuator():
+def test_reach_osc_uses_explicit_effort_limited_actuator():
     cfg = load_cfg_from_registry(_OSC_TASK, "env_cfg_entry_point")
+    arm_actuator = cfg.scene.robot.actuators["panda_arm"]
 
     assert cfg.scene.robot.spawn.usd_path.endswith("/Robots/FrankaEmika/franka_panda.usda")
-    assert cfg.scene.robot.actuators["panda_arm"].stiffness == 0.0
-    assert cfg.scene.robot.actuators["panda_arm"].damping == 0.0
+    assert isinstance(arm_actuator, IdealPDActuatorCfg)
+    assert arm_actuator.effort_limit is None
+    assert arm_actuator.stiffness == 0.0
+    assert arm_actuator.damping == 0.0
 
 
 def test_reach_newton_uses_high_frequency_solver_timing():

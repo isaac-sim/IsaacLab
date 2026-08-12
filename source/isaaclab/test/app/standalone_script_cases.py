@@ -348,6 +348,8 @@ def backend_is_available(backend: str) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if backend in {"physx", "isaacsim_physx"}:
         package = "isaaclab_physx"
+    elif backend == "ovphysx":
+        package = "isaaclab_ov"
     else:
         package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
     return importlib.util.find_spec(package) is not None
