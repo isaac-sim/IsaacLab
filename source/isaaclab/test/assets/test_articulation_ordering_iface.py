@@ -2192,12 +2192,12 @@ class TestArticulationOperations:
         )
         object.__setattr__(art, "newton_actuator_adapter", MagicMock(actuators=[actuator]))
 
-        art.actuators._control.write_native_actuator_gain(
-            "kp",
-            torch.tensor([[99.0]], dtype=torch.float32),
-            torch.tensor([0], dtype=torch.int32),
-            torch.tensor([0], dtype=torch.int32),
-        )
+        with pytest.warns(DeprecationWarning, match="write_actuator_stiffness_to_sim"):
+            art.write_actuator_stiffness_to_sim(
+                stiffness=torch.tensor([[99.0]], dtype=torch.float32),
+                env_ids=torch.tensor([0], dtype=torch.int32),
+                joint_ids=torch.tensor([0], dtype=torch.int32),
+            )
 
         np.testing.assert_array_equal(controller.kp.numpy(), np.asarray([99.0, 2.0, 3.0], dtype=np.float32))
 

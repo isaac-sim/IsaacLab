@@ -51,7 +51,13 @@ import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ActuatorBase, ActuatorJointProperties, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import (
+    ActuatorBase,
+    ActuatorJointProperties,
+    IdealPDActuatorCfg,
+    ImplicitActuator,
+    ImplicitActuatorCfg,
+)
 from isaaclab.assets import ArticulationCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
 from isaaclab.controllers import (
@@ -187,6 +193,10 @@ SIM_CFGs = {
         ),
     ),
 }
+
+
+class CustomDrive(ImplicitActuator):
+    """Implicit actuator with a class name that does not encode its execution type."""
 
 
 def generate_articulation_cfg(
@@ -715,6 +725,13 @@ def test_native_configured_viscous_friction_reaches_newton_property_writer():
             [0, -2, 1, -3],
         ),
         (
+            ImplicitActuatorCfg(
+                class_type=f"{__name__}:CustomDrive", joint_names_expr=[".*"], stiffness=10.0, damping=2.0
+            ),
+            JointTargetMode.POSITION_VELOCITY,
+            [0, -2, 1, -3],
+        ),
+        (
             ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0),
             JointTargetMode.EFFORT,
             None,
@@ -1051,7 +1068,12 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
     joint_ids = torch.tensor([1, 6, 10], device=articulation.device, dtype=torch.long)
     stiffness = torch.tensor([[101.0, 106.0, 110.0]], device=articulation.device)
 
-    articulation.actuators._write_native_actuator_gain("kp", stiffness, env_ids, joint_ids)
+    with pytest.warns(DeprecationWarning, match="write_actuator_stiffness_to_sim"):
+        articulation.write_actuator_stiffness_to_sim(
+            stiffness=stiffness,
+            env_ids=env_ids,
+            joint_ids=joint_ids,
+        )
 
     backend_joint_ids = torch.tensor(
         articulation.joint_ordering.user_to_backend_indices,

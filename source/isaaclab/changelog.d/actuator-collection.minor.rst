@@ -22,11 +22,16 @@ Deprecated
 * Deprecated ``effort_limit_sim`` and ``velocity_limit_sim`` in favor of
   ``joint_effort_limit`` and ``joint_velocity_limit``. The deprecated names
   remain available through Isaac Lab 3.x and will be removed in 4.0.
-* Deprecated :attr:`~isaaclab.actuators.ActuatorBase.effort_limit_sim` and
-  :attr:`~isaaclab.actuators.ActuatorBase.velocity_limit_sim` group accessors.
-  Read :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits` and
-  :attr:`~isaaclab.assets.ArticulationData.joint_vel_limits` instead; the
-  accessors will be removed in 4.0.
+* Deprecated group-level ``effort_limit_sim``, ``velocity_limit_sim``,
+  ``armature``, ``friction``, ``dynamic_friction``, and ``viscous_friction``
+  accessors. Use the corresponding :class:`~isaaclab.assets.ArticulationData`
+  joint property and ``write_joint_*_to_sim_index`` writer instead; the
+  accessors remain forwarding bridges through 3.x and will be removed in 4.0.
+* Deprecated ``write_actuator_stiffness_to_sim`` and
+  ``write_actuator_damping_to_sim``. These backend-specific writers remain
+  available through 3.x; use
+  :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed
+  randomization.
 
 Changed
 ^^^^^^^
@@ -41,9 +46,6 @@ Changed
   state. Read live limits, armature, and friction through
   :class:`~isaaclab.assets.ArticulationData`; ordinary actuator groups retain
   only actuator-model state.
-* **Breaking:** Removed the actuator stiffness and damping writer methods from
-  articulations and actuator collections. Use ``randomize_actuator_gains`` for
-  managed domain randomization.
 * **Breaking:** Changed actuator collection membership to be fixed at
   construction. Configure groups through
   :attr:`~isaaclab.assets.ArticulationCfg.actuators` before constructing the

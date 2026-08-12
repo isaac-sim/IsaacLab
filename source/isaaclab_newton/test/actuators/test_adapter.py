@@ -8,6 +8,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
 from isaaclab_newton.actuators import NewtonActuatorAdapter
@@ -15,10 +16,29 @@ from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositio
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
+from isaaclab.utils.configclass import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
+
+
+@configclass
+class UnsupportedNewtonActuatorCfg(ActuatorBaseCfg):
+    """Explicit actuator config intentionally unsupported by Newton authoring."""
+
+    class_type: str = "unsupported:ExplicitActuator"
+
+
+@configclass
+class CustomDCMotorCfg(DCMotorCfg):
+    """DC motor config that selects a custom Lab actuator implementation."""
+
+    class_type: str = "unsupported:CustomDCMotor"
+
+
+class MisleadingImplicitActuatorDCMotor(DCMotor):
+    """Explicit actuator whose class name contains ``ImplicitActuator``."""
 
 
 def test_live_gain_projection_follows_controller_values_in_public_order():
@@ -163,22 +183,68 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     } == {(10.0, 20.0), (11.0, 21.0)}
 
 
-def test_from_usd_ignores_an_all_zero_delay_group():
-    """Treat an authored zero-step delay as an undelayed actuator."""
+@pytest.mark.parametrize(
+    ("group_name", "cfg"),
+    [
+        ("unsupported", UnsupportedNewtonActuatorCfg(joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0)),
+        (
+            "custom_dc",
+            CustomDCMotorCfg(
+                joint_names_expr=["pd_a"],
+                stiffness=0.0,
+                damping=0.0,
+                effort_limit=1.0,
+                velocity_limit=1.0,
+                saturation_effort=1.0,
+            ),
+        ),
+        (
+            "invalid_class_type",
+            UnsupportedNewtonActuatorCfg(
+                class_type=0,
+                joint_names_expr=["pd_a"],
+                stiffness=0.0,
+                damping=0.0,
+            ),
+        ),
+        (
+            "misleading_name",
+            CustomDCMotorCfg(
+                class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
+                joint_names_expr=["pd_a"],
+                stiffness=0.0,
+                damping=0.0,
+                effort_limit=1.0,
+                velocity_limit=1.0,
+                saturation_effort=1.0,
+            ),
+        ),
+    ],
+)
+def test_schema_authoring_rejects_unsupported_explicit_cfg_before_removal(group_name, cfg):
+    """Leave existing actuator prims intact when native authoring rejects a config."""
     stage = _make_actuator_stage()
-    for name in ("pd_a_pd_a_actuator", "pd_b_pd_b_actuator"):
-        actuator_prim = stage.GetPrimAtPath(f"/World/Robot/{name}")
-        actuator_prim.GetAttribute("newton:delaySteps").Set(0)
-        actuator_prim.GetAttribute("newton:maxDelay").Set(0)
+    actuator_path = "/World/Robot/pd_a_pd_a_actuator"
 
-    actuators = NewtonActuatorAdapter.from_usd(
-        stage=stage,
-        joint_names=_JOINT_NAMES,
-        num_envs=2,
-        num_joints=len(_JOINT_NAMES),
-        device="cpu",
-        articulation_prim_path="/World/Robot",
-    ).actuators
+    with pytest.raises(ValueError, match=rf"{group_name}.*{type(cfg).__name__}.*use_newton_actuators"):
+        _author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
 
-    pd = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingMaxEffort])
-    assert pd.delay is None
+    assert stage.GetPrimAtPath(actuator_path).IsValid()
+
+
+def test_schema_authoring_accepts_supported_public_actuator_alias():
+    """Accept a public import path that resolves to a supported actuator class."""
+    stage = _make_actuator_stage()
+    cfg = DCMotorCfg(
+        class_type="isaaclab.actuators:DCMotor",
+        joint_names_expr=["pd_a"],
+        stiffness=1.0,
+        damping=0.1,
+        effort_limit=2.0,
+        velocity_limit=3.0,
+        saturation_effort=4.0,
+    )
+
+    _author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
+
+    assert stage.GetPrimAtPath("/World/Robot/public_alias_pd_a_actuator").IsValid()

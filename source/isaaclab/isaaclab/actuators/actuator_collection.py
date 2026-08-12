@@ -24,7 +24,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from . import actuator_kernels
 from .actuator_base import ActuatorBase
-from .actuator_base_cfg import ActuatorBaseCfg
+from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from .actuator_control import ActuatorControl, ActuatorJointProperties
 from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
@@ -106,7 +106,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             """Set desired positions using indices.
 
             Args:
-                value: Desired positions [m or rad, depending on joint type].
+                value: Desired positions [m or rad, depending on joint type]. Shape is
+                    ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                    :paramref:`full_data` is true.
                 joint_ids: Joint indices. Defaults to all joints.
                 env_ids: Environment indices. Defaults to all environments.
                 full_data: Whether :paramref:`value` is a full articulation command buffer.
@@ -134,7 +136,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             """Set desired velocities using indices.
 
             Args:
-                value: Desired velocities [m/s or rad/s, depending on joint type].
+                value: Desired velocities [m/s or rad/s, depending on joint type]. Shape is
+                    ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                    :paramref:`full_data` is true.
                 joint_ids: Joint indices. Defaults to all joints.
                 env_ids: Environment indices. Defaults to all environments.
                 full_data: Whether :paramref:`value` is a full articulation command buffer.
@@ -162,7 +166,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             """Set effort commands using indices.
 
             Args:
-                value: Effort commands [N or N·m, depending on joint type].
+                value: Effort commands [N or N·m, depending on joint type]. Shape is
+                    ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                    :paramref:`full_data` is true.
                 joint_ids: Joint indices. Defaults to all joints.
                 env_ids: Environment indices. Defaults to all environments.
                 full_data: Whether :paramref:`value` is a full articulation command buffer.
@@ -189,7 +195,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             """Set desired positions using masks.
 
             Args:
-                value: Full articulation position commands [m or rad, depending on joint type].
+                value: Full articulation position commands [m or rad, depending on joint type]. Shape is
+                    ``(num_instances, num_joints)``.
                 joint_mask: Joint selection mask. Defaults to all joints.
                 env_mask: Environment selection mask. Defaults to all environments.
             """
@@ -214,7 +221,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             """Set desired velocities using masks.
 
             Args:
-                value: Full articulation velocity commands [m/s or rad/s, depending on joint type].
+                value: Full articulation velocity commands [m/s or rad/s, depending on joint type]. Shape is
+                    ``(num_instances, num_joints)``.
                 joint_mask: Joint selection mask. Defaults to all joints.
                 env_mask: Environment selection mask. Defaults to all environments.
             """
@@ -239,7 +247,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             """Set effort commands using masks.
 
             Args:
-                value: Full articulation effort commands [N or N·m, depending on joint type].
+                value: Full articulation effort commands [N or N·m, depending on joint type]. Shape is
+                    ``(num_instances, num_joints)``.
                 joint_mask: Joint selection mask. Defaults to all joints.
                 env_mask: Environment selection mask. Defaults to all environments.
             """
@@ -308,11 +317,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._launch_cache = _WarpLaunchCache(self.device)
 
         resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
-        for name, cfg in resolved_cfgs.items():
-            self._resolve_deprecated_limit_aliases(name, cfg)
-            self._resolve_implicit_effort_limit_alias(name, cfg)
-
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
+        for name, cfg in resolved_cfgs.items():
+            self._resolve_deprecated_limit_aliases(name, cfg, resolved_group_joints[name][1])
+            self._resolve_implicit_effort_limit_alias(name, cfg, resolved_group_joints[name][1])
+
         self._allocate_buffers()
         self._command = self.Command(self)
         self._joint_command = self.JointCommand(self)
@@ -520,7 +529,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             resolved[actuator_name] = (joint_ids, joint_names)
         return resolved
 
-    def _resolve_deprecated_limit_aliases(self, actuator_name: str, cfg: ActuatorBaseCfg) -> None:
+    def _resolve_deprecated_limit_aliases(
+        self, actuator_name: str, cfg: ActuatorBaseCfg, joint_names: list[str]
+    ) -> None:
         """Resolve deprecated solver-limit aliases on a copied actuator config."""
         for canonical_name, alias_name in (
             ("joint_effort_limit", "effort_limit_sim"),
@@ -539,19 +550,38 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             )
             if canonical_value is None:
                 setattr(cfg, canonical_name, alias_value)
-            elif canonical_value != alias_value:
+            elif self._resolve_joint_limit_values(canonical_value, joint_names) != self._resolve_joint_limit_values(
+                alias_value, joint_names
+            ):
                 raise ValueError(
                     f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
                     f"deprecated '{alias_name}' values."
                 )
 
-    def _resolve_implicit_effort_limit_alias(self, actuator_name: str, cfg: ActuatorBaseCfg) -> None:
+    @staticmethod
+    def _resolve_joint_limit_values(
+        value: dict[str, float | int] | float | int, joint_names: list[str]
+    ) -> tuple[float, ...]:
+        """Resolve a limit configuration to values in group joint order."""
+        if isinstance(value, (float, int)):
+            return (float(value),) * len(joint_names)
+        joint_ids, _, values = string_utils.resolve_matching_names_values(value, joint_names)
+        resolved_values = [0.0] * len(joint_names)
+        for joint_id, resolved_value in zip(joint_ids, values, strict=True):
+            resolved_values[joint_id] = float(resolved_value)
+        return tuple(resolved_values)
+
+    def _resolve_implicit_effort_limit_alias(
+        self, actuator_name: str, cfg: ActuatorBaseCfg, joint_names: list[str]
+    ) -> None:
         """Retain the implicit ``effort_limit`` compatibility alias on a copied config."""
         if not self._is_implicit_cfg(cfg) or cfg.effort_limit is None:
             return
         if cfg.joint_effort_limit is None:
             cfg.joint_effort_limit = cfg.effort_limit
-        elif cfg.joint_effort_limit != cfg.effort_limit:
+        elif self._resolve_joint_limit_values(cfg.joint_effort_limit, joint_names) != self._resolve_joint_limit_values(
+            cfg.effort_limit, joint_names
+        ):
             raise ValueError(
                 f"Implicit actuator group '{actuator_name}' has conflicting 'joint_effort_limit' and "
                 "'effort_limit' values. Use 'joint_effort_limit' for the solver limit."
@@ -560,12 +590,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     @staticmethod
     def _is_implicit_cfg(cfg: ActuatorBaseCfg) -> bool:
         """Return whether an actuator configuration constructs an implicit model."""
-        class_type = cfg.class_type
-        return (
-            "ImplicitActuator" in class_type
-            if isinstance(class_type, str)
-            else issubclass(class_type, ImplicitActuator)
-        )
+        return _is_implicit_actuator_cfg(cfg)
 
     def _build_groups(
         self,

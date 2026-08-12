@@ -111,16 +111,22 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         if not (use_newton_actuators and _HAS_NEWTON_ACTUATORS):
             return set()
 
+        from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
+
+        _validate_newton_native_actuator_cfgs(actuator_cfgs)
+
         from isaaclab_newton.actuators import NewtonActuatorAdapter, PhysxActuatorWrapper  # noqa: PLC0415
 
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
-        self._native_actuator_path_active = True
-        articulation._has_newton_actuators = True
-
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not self._is_implicit_cfg(actuator_cfg)
         }
+        if not native_group_names:
+            return set()
+
+        self._native_actuator_path_active = True
+        articulation._has_newton_actuators = True
 
         self._physx_actuator_wrapper = PhysxActuatorWrapper.create(
             num_envs=self.num_instances,

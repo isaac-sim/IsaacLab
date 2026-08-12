@@ -209,6 +209,40 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
     )
 
 
+@pytest.mark.parametrize(
+    ("property_name", "value", "as_scalar"),
+    [
+        ("effort_limit_sim", 4.0, True),
+        ("velocity_limit_sim", 5.0, False),
+        ("armature", 6.0, False),
+        ("friction", 7.0, False),
+        ("dynamic_friction", 8.0, False),
+        ("viscous_friction", 9.0, False),
+    ],
+)
+def test_deprecated_joint_property_assignment_remains_available_before_binding(property_name, value, as_scalar):
+    """Test deprecated assignment remains available before an actuator is bound to an articulation."""
+    cfg = IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=1.0, damping=1.0)
+    actuator = cfg.class_type(
+        cfg,
+        joint_names=["joint"],
+        joint_ids=[0],
+        num_envs=1,
+        device="cpu",
+        stiffness=1.0,
+        damping=1.0,
+    )
+    updated_value = torch.full((1, 1), value)
+
+    assignment = value if as_scalar else updated_value
+    with pytest.warns(DeprecationWarning, match=property_name):
+        setattr(actuator, property_name, assignment)
+    with pytest.warns(DeprecationWarning, match=property_name):
+        actual_value = getattr(actuator, property_name)
+
+    torch.testing.assert_close(actual_value, updated_value)
+
+
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

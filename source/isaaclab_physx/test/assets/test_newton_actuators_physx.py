@@ -483,16 +483,10 @@ def test_newton_actuator_identity_ordering_uses_current_joint_state() -> None:
 
 
 def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
-    """Regression test: a non-identity ordering must not lag PhysX's true joint state by one step.
+    """Regression test: non-identity joint ordering must preserve current-state torque evaluation.
 
-    ``_apply_actuator_model_newton`` binds ``w.joint_q``/``w.joint_qd`` once, at actuator setup, to
-    ``data.joint_pos``/``data.joint_vel``. With identity joint ordering those bindings alias PhysX-owned
-    memory directly and are always current. With non-identity ordering they alias an owned shadow buffer
-    that is only refreshed when the ``joint_pos``/``joint_vel`` *public* getters run -- which
-    :meth:`_apply_actuator_model_newton` itself only triggers *after* stepping the adapter (for torque
-    telemetry), i.e. one step too late for the adapter to see it. Explicit Newton PD actuators then
-    silently compute torques from one-physics-step-stale joint state whenever nothing else in that step
-    happens to read ``data.joint_pos``/``data.joint_vel`` first.
+    The adapter must resolve joint state in articulation order before evaluating the actuator model,
+    regardless of the backend view ordering.
     """
     reversed_joint_names = tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES))
     _assert_newton_actuator_uses_current_joint_state(reversed_joint_names)

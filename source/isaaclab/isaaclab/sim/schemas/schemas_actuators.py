@@ -20,16 +20,61 @@ side effect of asset construction.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
 
 from pxr import Sdf, Usd
 
-from isaaclab.actuators import ImplicitActuator
+from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_actuator_class
 from isaaclab.utils.string import resolve_matching_names
 
-logger = logging.getLogger(__name__)
+
+def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
+    """Return whether an actuator config can be authored as a Newton actuator."""
+    from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from isaaclab.actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
+    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
+    from isaaclab.actuators.actuator_pd import (  # noqa: PLC0415
+        DCMotor,
+        DelayedPDActuator,
+        IdealPDActuator,
+        RemotizedPDActuator,
+    )
+    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    supported_cfg_types = (
+        (ActuatorNetMLPCfg, ActuatorNetMLP),
+        (ActuatorNetLSTMCfg, ActuatorNetLSTM),
+        (RemotizedPDActuatorCfg, RemotizedPDActuator),
+        (DelayedPDActuatorCfg, DelayedPDActuator),
+        (DCMotorCfg, DCMotor),
+        (IdealPDActuatorCfg, IdealPDActuator),
+    )
+    try:
+        resolved_class = _resolve_actuator_class(cfg.class_type)
+    except ValueError:
+        return False
+    for cfg_type, actuator_type in supported_cfg_types:
+        if isinstance(cfg, cfg_type):
+            return resolved_class is actuator_type
+    return False
+
+
+def _validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None:
+    """Reject explicit actuator configurations that Newton cannot author."""
+    unsupported_groups = []
+    for group_name, cfg in actuator_cfgs.items():
+        try:
+            is_implicit = _is_implicit_actuator_cfg(cfg)
+        except ValueError:
+            is_implicit = False
+        if not is_implicit and not _is_newton_native_actuator_cfg(cfg):
+            unsupported_groups.append(f"'{group_name}' ({type(cfg).__name__})")
+    if unsupported_groups:
+        raise ValueError(
+            "Newton-native actuator execution does not support "
+            f"{', '.join(unsupported_groups)}. Disable 'use_newton_actuators' or use a supported actuator config."
+        )
 
 
 def resolve_per_dof(
@@ -111,6 +156,9 @@ def define_actuator_properties(
             :class:`~isaaclab.actuators.ActuatorBaseCfg`.
         stage: USD stage to author on. When ``None``, the current stage
             is used.
+
+    Raises:
+        ValueError: If Newton-native execution is enabled and an explicit actuator config is unsupported.
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
@@ -143,6 +191,8 @@ def _author_actuator_prims(
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
 
+    _validate_newton_native_actuator_cfgs(actuator_cfgs)
+
     joint_inventory = _collect_joint_prims(art_prim)
     all_joint_names = list(joint_inventory.keys())
 
@@ -150,11 +200,7 @@ def _author_actuator_prims(
 
     cfg_entries: list[tuple[str, Any, list[str]]] = []
     for group_name, cfg in actuator_cfgs.items():
-        cls_type = cfg.class_type
-        is_implicit = (
-            "ImplicitActuator" in cls_type if isinstance(cls_type, str) else issubclass(cls_type, ImplicitActuator)
-        )
-        if is_implicit:
+        if _is_implicit_actuator_cfg(cfg):
             continue
 
         _ids, joint_names = resolve_matching_names(cfg.joint_names_expr, all_joint_names)
@@ -169,26 +215,9 @@ def _author_actuator_prims(
 
     from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
     from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
-
-    _SUPPORTED_CFG_TYPES = (
-        IdealPDActuatorCfg,
-        DCMotorCfg,
-        DelayedPDActuatorCfg,
-        RemotizedPDActuatorCfg,
-        ActuatorNetMLPCfg,
-        ActuatorNetLSTMCfg,
-    )
+    from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
     for group_name, cfg, joint_names in cfg_entries:
-        if not isinstance(cfg, _SUPPORTED_CFG_TYPES):
-            logger.warning(
-                "Actuator group '%s' uses config type '%s' which is not supported by Newton-native"
-                " actuator authoring. The group will be skipped.",
-                group_name,
-                type(cfg).__name__,
-            )
-            continue
         stiffness_map = resolve_per_dof(getattr(cfg, "stiffness", None), joint_names)
         damping_map = resolve_per_dof(getattr(cfg, "damping", None), joint_names)
         effort_map = resolve_per_dof(getattr(cfg, "effort_limit", None), joint_names)

@@ -401,20 +401,24 @@ class BaseArticulationData(ABC):
     @property
     @leapp_tensor_semantics(kind="state/joint/computed_torque")
     def computed_torque(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.computed_torque`` instead.
+        """Computed actuator torques before clipping [N or N·m, depending on joint type].
 
-        Joint torques computed from the actuator model before clipping [N or N·m,
-        depending on joint type]. Shape is (num_instances, num_joints), dtype = wp.float32.
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.computed_torque`` instead.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
     @leapp_tensor_semantics(kind="state/joint/applied_torque")
     def applied_torque(self) -> ProxyArray:
-        """Deprecated. Use ``articulation.actuators.applied_torque`` instead.
+        """Actuator torques applied after clipping [N or N·m, depending on joint type].
 
-        Joint torques applied from the actuator model after clipping [N or N·m,
-        depending on joint type]. Shape is (num_instances, num_joints), dtype = wp.float32.
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.applied_torque`` instead.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 

@@ -17,8 +17,7 @@ import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
-from .actuator_base_cfg import ActuatorBaseCfg
-from .actuator_pd import ImplicitActuator
+from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 
 if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
@@ -26,23 +25,34 @@ if TYPE_CHECKING:
 _WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
 _WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
 _WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
+_DeprecatedActuatorJointPropertyName = TypeAliasType(
+    "_DeprecatedActuatorJointPropertyName",
+    Literal[
+        "effort_limit",
+        "velocity_limit",
+        "armature",
+        "friction",
+        "dynamic_friction",
+        "viscous_friction",
+    ],
+)
 
 
 @dataclass(frozen=True)
 class ActuatorJointProperties:
-    """Default joint properties used to construct actuator models."""
+    """Resolved joint-property payload exchanged between the collection and backend control."""
 
     stiffness: torch.Tensor
-    """Default joint stiffness values [N/m or N·m/rad, depending on joint type]."""
+    """Joint stiffness values [N/m or N·m/rad, depending on joint type]."""
 
     damping: torch.Tensor
-    """Default joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
+    """Joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
 
     armature: torch.Tensor
-    """Default joint armature values [kg or kg·m², depending on joint type]."""
+    """Joint armature values [kg or kg·m², depending on joint type]."""
 
     friction: torch.Tensor
-    """Default backend-specific joint friction values.
+    """Backend-specific joint friction values.
 
     The physical meaning and units depend on the concrete backend and solver. See
     :attr:`isaaclab.assets.ArticulationData.joint_friction_coeff` for the active
@@ -50,7 +60,7 @@ class ActuatorJointProperties:
     """
 
     dynamic_friction: torch.Tensor
-    """Default backend-specific dynamic friction values.
+    """Backend-specific dynamic friction values.
 
     PhysX interprets these as dynamic friction efforts [N or N·m, depending on
     joint type]. OVPhysX interprets them as dimensionless Coulomb friction
@@ -59,13 +69,13 @@ class ActuatorJointProperties:
     """
 
     viscous_friction: torch.Tensor
-    """Default passive joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
+    """Passive joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
 
     effort_limit: torch.Tensor
-    """Default joint effort limits [N or N·m, depending on joint type]."""
+    """Joint effort limits [N or N·m, depending on joint type]."""
 
     velocity_limit: torch.Tensor
-    """Default joint velocity limits [m/s or rad/s, depending on joint type]."""
+    """Joint velocity limits [m/s or rad/s, depending on joint type]."""
 
 
 class ActuatorControl(ABC):
@@ -265,6 +275,24 @@ class ActuatorControl(ABC):
             Current properties for the selected joints.
         """
         raise NotImplementedError
+
+    def _write_deprecated_joint_property(
+        self,
+        property_name: _DeprecatedActuatorJointPropertyName,
+        value: torch.Tensor | float,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+    ) -> None:
+        """Write one deprecated group-level joint-property assignment.
+
+        Args:
+            property_name: Current joint property name.
+            value: Full group value to write.
+            joint_ids: Articulation joints in the actuator group.
+        """
+        raise NotImplementedError(
+            "ActuatorControl._write_deprecated_joint_property is required for deprecated actuator joint-property "
+            "assignment. Write the corresponding Articulation joint property instead."
+        )
 
     @abstractmethod
     def write_resolved_joint_properties(
@@ -522,6 +550,37 @@ class ArticulationActuatorControl(ActuatorControl):
             velocity_limit=data.joint_vel_limits.torch[:, joint_ids],
         )
 
+    def _write_deprecated_joint_property(
+        self,
+        property_name: _DeprecatedActuatorJointPropertyName,
+        value: torch.Tensor | float,
+        joint_ids: torch.Tensor | _WarpIndex | slice,
+    ) -> None:
+        """Forward a deprecated group-level assignment to an articulation joint-property writer."""
+        writer_name, value_name = {
+            "effort_limit": ("write_joint_effort_limit_to_sim_index", "limits"),
+            "velocity_limit": ("write_joint_velocity_limit_to_sim_index", "limits"),
+            "armature": ("write_joint_armature_to_sim_index", "armature"),
+            "friction": ("write_joint_friction_coefficient_to_sim_index", "joint_friction_coeff"),
+            "dynamic_friction": (
+                "write_joint_dynamic_friction_coefficient_to_sim_index",
+                "joint_dynamic_friction_coeff",
+            ),
+            "viscous_friction": (
+                "write_joint_viscous_friction_coefficient_to_sim_index",
+                "joint_viscous_friction_coeff",
+            ),
+        }[property_name]
+        writer = getattr(self._articulation, writer_name, None)
+        if writer is None:
+            raise NotImplementedError(
+                f"The active backend does not support writing the deprecated '{property_name}' actuator property."
+            )
+        if isinstance(value, (float, int)):
+            current = getattr(self.get_current_joint_properties(joint_ids), property_name)
+            value = torch.full_like(current, float(value))
+        writer(**{value_name: value, "joint_ids": joint_ids})
+
     def _as_torch_joint_ids(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> torch.Tensor | slice:
         """Normalize an optional Warp joint selector for Torch property projections."""
         if isinstance(joint_ids, wp.array):
@@ -577,9 +636,4 @@ class ArticulationActuatorControl(ActuatorControl):
 
     @staticmethod
     def _is_implicit_cfg(actuator_cfg: ActuatorBaseCfg) -> bool:
-        class_type = actuator_cfg.class_type
-        return (
-            "ImplicitActuator" in class_type
-            if isinstance(class_type, str)
-            else issubclass(class_type, ImplicitActuator)
-        )
+        return _is_implicit_actuator_cfg(actuator_cfg)

@@ -1482,6 +1482,50 @@ class Articulation(BaseArticulation):
         )
         self.root_view.set_dof_dampings(wp.clone(joint_damping_backend, device="cpu"), indices=cpu_env_ids)
 
+    def write_actuator_stiffness_to_sim(
+        self,
+        *,
+        stiffness: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write native actuator stiffness [N/m or N·m/rad, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
+            managed randomization. Direct controller-gain writes have no public
+            replacement. This method will be removed in 4.0.
+
+        Args:
+            stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
+            env_ids: Articulation instance indices.
+            joint_ids: Articulation-local joint indices.
+        """
+        self._write_deprecated_native_actuator_gain(
+            "write_actuator_stiffness_to_sim", "kp", stiffness, env_ids, joint_ids
+        )
+
+    def write_actuator_damping_to_sim(
+        self,
+        *,
+        damping: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Write native actuator damping [N·s/m or N·m·s/rad, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
+            managed randomization. Direct controller-gain writes have no public
+            replacement. This method will be removed in 4.0.
+
+        Args:
+            damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
+            env_ids: Articulation instance indices.
+            joint_ids: Articulation-local joint indices.
+        """
+        self._write_deprecated_native_actuator_gain("write_actuator_damping_to_sim", "kd", damping, env_ids, joint_ids)
+
     def write_joint_damping_to_sim_mask(
         self,
         *,

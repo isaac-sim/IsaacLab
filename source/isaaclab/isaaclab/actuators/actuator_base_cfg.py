@@ -8,6 +8,28 @@ from __future__ import annotations
 from dataclasses import MISSING
 
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.string import string_to_callable
+
+
+def _resolve_actuator_class(class_type: type | str) -> type:
+    """Resolve and validate an actuator class reference."""
+    from .actuator_base import ActuatorBase  # noqa: PLC0415
+
+    if isinstance(class_type, str):
+        try:
+            class_type = string_to_callable(str(class_type))
+        except (AttributeError, ImportError, ValueError) as error:
+            raise ValueError(f"Unable to resolve actuator class '{class_type}'.") from error
+    if not isinstance(class_type, type) or not issubclass(class_type, ActuatorBase):
+        raise ValueError(f"Actuator class must derive from ActuatorBase, got {class_type!r}.")
+    return class_type
+
+
+def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
+    """Return whether an actuator configuration resolves to an implicit actuator class."""
+    from .actuator_pd import ImplicitActuator  # noqa: PLC0415
+
+    return issubclass(_resolve_actuator_class(cfg.class_type), ImplicitActuator)
 
 
 @configclass

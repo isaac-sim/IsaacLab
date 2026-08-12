@@ -150,6 +150,13 @@ the articulation is built. Their live runtime state belongs to
 articulation data and joint writers; :class:`~isaaclab.actuators.ActuatorCollection` deliberately
 has no joint-property API.
 
+The deprecated group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
+``friction``, ``dynamic_friction``, and ``viscous_friction`` remain forwarding views through 3.x.
+Assignment emits a warning and forwards the group selection and value through
+the corresponding articulation joint writer. It does not recreate an actuator
+or collection-level property buffer. See
+:ref:`actuators-solver-limit-migration` for the replacement data views and writers.
+
 Ordinary explicit actuators retain only model state, such as their ``effort_limit``, rated
 ``velocity_limit``, gains, delay, and motor curve. They do not own solver-limit or friction copies.
 Implicit actuators are different because the backend executes their drives: their stiffness,
@@ -661,9 +668,8 @@ CUDA-graph-captured region. Implicit actuators are unaffected: their gains are w
 solver and PD runs there as before, so implicit joints keep working exactly the same. The PhysX
 backend can also consume these Newton-authored actuators through its adapter, so the authoring is
 shared across backends. On CUDA, PhysX attempts to capture graphable Newton actuator staging, model
-execution, and telemetry publication. Unsupported models and capture failures fall back to eager
-execution. Stateful Newton actuators cannot be nested inside a caller-owned CUDA graph; let the
-PhysX adapter manage them instead.
+execution, and telemetry publication. Capture failures fall back to eager execution. Stateful Newton
+actuators cannot be nested inside a caller-owned CUDA graph; let the PhysX adapter manage them instead.
 
 Newton owns a separate native execution aggregation path. When native actuator handling is active,
 the native controller remains the execution owner. Isaac Lab retains the named logical groups as the
@@ -697,9 +703,9 @@ joints and let the config drive the rest.
 
 .. warning::
 
-    A config type the native path does not support is **skipped with a warning** rather than run by
-    Isaac Lab: that joint gets no actuator. Check the logs when enabling native actuators on a robot
-    with custom or unsupported actuator configs.
+    With ``use_newton_actuators=True``, every explicit actuator config must be supported. An
+    unsupported config raises before native authoring. Disable ``use_newton_actuators`` to use the
+    Isaac Lab execution path, or select a supported config.
 
 .. note::
 

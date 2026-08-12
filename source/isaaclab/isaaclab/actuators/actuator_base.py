@@ -271,6 +271,10 @@ class ActuatorBase(ABC):
         """
         return self._get_deprecated_joint_property("effort_limit_sim", "effort_limit")
 
+    @effort_limit_sim.setter
+    def effort_limit_sim(self, value: torch.Tensor | float) -> None:
+        self._set_deprecated_joint_property("effort_limit_sim", "effort_limit", value)
+
     @property
     def velocity_limit_sim(self) -> torch.Tensor:
         """Deprecated solver velocity limit [m/s or rad/s, depending on joint type].
@@ -280,6 +284,10 @@ class ActuatorBase(ABC):
             This compatibility accessor will be removed in 4.0.
         """
         return self._get_deprecated_joint_property("velocity_limit_sim", "velocity_limit")
+
+    @velocity_limit_sim.setter
+    def velocity_limit_sim(self, value: torch.Tensor | float) -> None:
+        self._set_deprecated_joint_property("velocity_limit_sim", "velocity_limit", value)
 
     @property
     def armature(self) -> torch.Tensor:
@@ -291,6 +299,10 @@ class ActuatorBase(ABC):
         """
         return self._get_deprecated_joint_property("armature", "armature")
 
+    @armature.setter
+    def armature(self, value: torch.Tensor | float) -> None:
+        self._set_deprecated_joint_property("armature", "armature", value)
+
     @property
     def friction(self) -> torch.Tensor:
         """Deprecated static joint friction.
@@ -300,6 +312,10 @@ class ActuatorBase(ABC):
             This compatibility accessor will be removed in 4.0.
         """
         return self._get_deprecated_joint_property("friction", "friction")
+
+    @friction.setter
+    def friction(self, value: torch.Tensor | float) -> None:
+        self._set_deprecated_joint_property("friction", "friction", value)
 
     @property
     def dynamic_friction(self) -> torch.Tensor:
@@ -311,6 +327,10 @@ class ActuatorBase(ABC):
         """
         return self._get_deprecated_joint_property("dynamic_friction", "dynamic_friction")
 
+    @dynamic_friction.setter
+    def dynamic_friction(self, value: torch.Tensor | float) -> None:
+        self._set_deprecated_joint_property("dynamic_friction", "dynamic_friction", value)
+
     @property
     def viscous_friction(self) -> torch.Tensor:
         """Deprecated viscous joint friction [N·s/m or N·m·s/rad, depending on joint type].
@@ -320,6 +340,10 @@ class ActuatorBase(ABC):
             This compatibility accessor will be removed in 4.0.
         """
         return self._get_deprecated_joint_property("viscous_friction", "viscous_friction")
+
+    @viscous_friction.setter
+    def viscous_friction(self, value: torch.Tensor | float) -> None:
+        self._set_deprecated_joint_property("viscous_friction", "viscous_friction", value)
 
     """
     Operations.
@@ -405,6 +429,32 @@ class ActuatorBase(ABC):
         if control is not None:
             return getattr(control.get_current_joint_properties(self.joint_indices), property_name)
         return self._joint_property_snapshot[property_name]
+
+    def _set_deprecated_joint_property(
+        self,
+        accessor_name: str,
+        property_name: Literal[
+            "effort_limit", "velocity_limit", "armature", "friction", "dynamic_friction", "viscous_friction"
+        ],
+        value: torch.Tensor | float,
+    ) -> None:
+        """Write one deprecated joint-property accessor without restoring actuator-owned storage."""
+        warnings.warn(
+            f"{type(self).__name__}.{accessor_name} is deprecated. Write the corresponding Articulation joint "
+            "property instead; this accessor will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        control = self.__dict__.get("_joint_property_control")
+        if control is not None:
+            control._write_deprecated_joint_property(property_name, value, self.joint_indices)
+            return
+        if isinstance(value, torch.Tensor):
+            self._joint_property_snapshot[property_name] = value
+        else:
+            self._joint_property_snapshot[property_name] = torch.full_like(
+                self._joint_property_snapshot[property_name], value
+            )
 
     def _resolve_joint_property_snapshot(
         self,

@@ -1655,6 +1655,24 @@ class BaseArticulation(AssetBase):
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
+    def _write_deprecated_native_actuator_gain(
+        self,
+        writer_name: Literal["write_actuator_stiffness_to_sim", "write_actuator_damping_to_sim"],
+        gain_name: Literal["kp", "kd"],
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Warn and forward a legacy native-controller gain write."""
+        warnings.warn(
+            f"{writer_name} is deprecated in 3.x and will be removed in 4.0. Use "
+            "randomize_actuator_gains for managed randomization; direct controller-gain writes have no public "
+            "replacement.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        self.actuators._write_native_actuator_gain(gain_name, values, env_ids, joint_ids)
+
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(
         self,

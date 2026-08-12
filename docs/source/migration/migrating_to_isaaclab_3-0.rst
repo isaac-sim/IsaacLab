@@ -20,6 +20,8 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
+.. _actuators-solver-limit-migration:
+
 Actuator joint-limit names
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -48,6 +50,41 @@ actuator-model fields: the former clips explicit model output, and the latter de
 or an implicit soft-limit snapshot. ``joint_velocity_limit`` only requests solver enforcement,
 which is backend-dependent. See :ref:`actuators-joint-property-ownership` for the full ownership
 model.
+
+Deprecated group properties remain readable and assignable through 3.x. Assignment emits a
+warning and forwards the group selection and value to the articulation. It does
+not create an actuator-owned mirror. Migrate each property to its articulation
+data view and indexed writer:
+
+.. list-table:: Deprecated group-property migration
+   :header-rows: 1
+   :widths: 26 38 36
+
+   * - Deprecated group property
+     - Read
+     - Write
+   * - ``effort_limit_sim``
+     - :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits`
+     - :meth:`~isaaclab.assets.Articulation.write_joint_effort_limit_to_sim_index`
+   * - ``velocity_limit_sim``
+     - :attr:`~isaaclab.assets.ArticulationData.joint_vel_limits`
+     - :meth:`~isaaclab.assets.Articulation.write_joint_velocity_limit_to_sim_index`
+   * - ``armature``
+     - :attr:`~isaaclab.assets.ArticulationData.joint_armature`
+     - :meth:`~isaaclab.assets.Articulation.write_joint_armature_to_sim_index`
+   * - ``friction``
+     - :attr:`~isaaclab.assets.ArticulationData.joint_friction_coeff`
+     - :meth:`~isaaclab.assets.Articulation.write_joint_friction_coefficient_to_sim_index`
+   * - ``dynamic_friction``
+     - ``data.joint_dynamic_friction_coeff`` (PhysX and OVPhysX)
+     - ``write_joint_dynamic_friction_coefficient_to_sim_index`` (PhysX and OVPhysX)
+   * - ``viscous_friction``
+     - ``data.joint_viscous_friction_coeff``
+     - ``write_joint_viscous_friction_coefficient_to_sim_index``
+
+The dynamic-friction view and writer are backend-specific; Newton raises
+:class:`NotImplementedError` for the deprecated assignment because it has no corresponding joint
+property.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and
 its canonical replacement are present in the same group, use only the canonical name; equivalent
@@ -1226,8 +1263,8 @@ Here's a complete example showing how to update your code:
    applied = robot.actuators.applied_torque.torch
    position_command = robot.actuators.command.position.torch
 
-For the full runtime API of the actuator collection -- command setters, telemetry buffers, and
-gain writers -- see :ref:`actuators-runtime-api`.
+For the full runtime API of the actuator collection -- command setters and telemetry buffers --
+see :ref:`actuators-runtime-api`.
 
 
 Quaternion Format

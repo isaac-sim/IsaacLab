@@ -209,6 +209,7 @@ exclude_patterns = [
     "README.md",
     "licenses/*",
     "plans",
+    "superpowers",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
     "source/setup/installation/include/*",
 ]
