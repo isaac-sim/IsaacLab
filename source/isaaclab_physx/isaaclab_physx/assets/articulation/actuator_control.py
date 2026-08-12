@@ -145,8 +145,8 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             wrapper.joint_qd = articulation._data.joint_vel.warp.reshape(-1)
             wrapper.joint_target_q = collection.command.position.warp.reshape(-1)
             wrapper.joint_target_qd = collection.command.velocity.warp.reshape(-1)
-            wrapper.joint_target_pos = collection.command.position.warp.reshape(-1)
-            wrapper.joint_target_vel = collection.command.velocity.warp.reshape(-1)
+            wrapper.joint_target_pos = wrapper.joint_target_q
+            wrapper.joint_target_vel = wrapper.joint_target_qd
             wrapper.joint_act = collection.command.effort.warp.reshape(-1)
             adapter.finalize(wrapper)
             articulation.newton_actuator_adapter = adapter

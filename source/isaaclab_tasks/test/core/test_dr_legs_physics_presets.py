@@ -27,8 +27,8 @@ def test_dr_legs_physx_uses_assembled_joint_reset_and_bounded_joint_velocity() -
     assert isinstance(env_cfg.scene.contact_forces, PhysXContactSensorCfg)
     assert env_cfg.actions.joint_pos.scale == 0.1
     assert env_cfg.scene.robot == DR_LEGS_IMPLICIT_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    assert env_cfg.scene.robot.actuators["driven_joints"].velocity_limit_sim == 100.0
-    assert env_cfg.scene.robot.actuators["passive_joints"].velocity_limit_sim == 100.0
+    assert env_cfg.scene.robot.actuators["driven_joints"].joint_velocity_limit == 100.0
+    assert env_cfg.scene.robot.actuators["passive_joints"].joint_velocity_limit == 100.0
     assert env_cfg.events.reset_robot_joints.params["position_range"] == (0.0, 0.0)
     assert env_cfg.events.reset_robot_joints.params["velocity_range"] == (0.0, 0.0)
     assert env_cfg.events.reset_base.params["pose_range"]["x"] == (-0.05, 0.05)

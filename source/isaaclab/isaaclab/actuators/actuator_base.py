@@ -63,7 +63,7 @@ class ActuatorBase(ABC):
 
     - **Explicit actuators**: Used for internal torque clipping within the actuator model
       (e.g., motor torque limits in DC motor models).
-    - **Implicit actuators**: Same as :attr:`effort_limit_sim` (aliased for consistency).
+    - **Implicit actuators**: Live projection of the articulation joint effort limit.
     """
 
     velocity_limit: torch.Tensor
@@ -72,7 +72,7 @@ class ActuatorBase(ABC):
     The peak velocity of the actuated joint (the actuator's rated speed reflected at the joint,
     after any gearbox). Feeds the articulation data buffers (e.g. soft joint velocity limits) and
     explicit-model effort clipping; it is not pushed to the physics solver. Defaults to
-    :attr:`velocity_limit_sim` when only the solver clamp is configured.
+    ``joint_velocity_limit`` when only the solver constraint is configured.
     """
 
     stiffness: torch.Tensor

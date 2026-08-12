@@ -6,6 +6,8 @@ Added
   views.
 * Added execution aggregation for disjoint stateless actuator groups while
   preserving named group configuration and access.
+* Added ``joint_effort_limit`` and ``joint_velocity_limit`` as canonical
+  construction-time joint-property overrides for actuator configurations.
 
 Deprecated
 ^^^^^^^^^^
@@ -17,6 +19,9 @@ Deprecated
 * Deprecated Isaac Lab execution of explicit actuator models. Enable
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these
   models with Newton instead.
+* Deprecated ``effort_limit_sim`` and ``velocity_limit_sim`` in favor of
+  ``joint_effort_limit`` and ``joint_velocity_limit``. The deprecated names
+  remain available through Isaac Lab 3.x and will be removed in 4.0.
 
 Changed
 ^^^^^^^
@@ -25,8 +30,12 @@ Changed
   their configuration and access identity while compatible groups can share
   execution.
 * Changed :attr:`~isaaclab.actuators.ImplicitActuatorCfg.velocity_limit` to
-  populate the actuator soft velocity-limit view. Use ``velocity_limit_sim``
+  populate the actuator soft velocity-limit view. Use ``joint_velocity_limit``
   to configure the solver velocity clamp.
+* Changed actuator joint-property overrides to write articulation-owned runtime
+  state. Read live limits, armature, and friction through
+  :class:`~isaaclab.assets.ArticulationData`; ordinary actuator groups retain
+  only actuator-model state.
 * **Breaking:** Removed the actuator stiffness and damping writer methods from
   articulations and actuator collections. Use ``randomize_actuator_gains`` for
   managed domain randomization.

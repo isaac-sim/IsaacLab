@@ -72,10 +72,17 @@ class ActuatorBaseCfg:
     """
 
     joint_effort_limit: dict[str, float] | float | None = None
-    """Joint solver effort limit [N or N·m, depending on joint type]."""
+    """Construction-time joint solver effort override [N or N·m, depending on joint type].
+
+    The live value is owned by :class:`isaaclab.assets.ArticulationData`.
+    """
 
     joint_velocity_limit: dict[str, float] | float | None = None
-    """Requested joint solver velocity limit [m/s or rad/s, depending on joint type]."""
+    """Construction-time requested joint solver velocity limit [m/s or rad/s, depending on joint type].
+
+    The live value is owned by :class:`isaaclab.assets.ArticulationData`; enforcement is
+    backend-dependent.
+    """
 
     effort_limit_sim: dict[str, float] | float | None = None
     """Deprecated alias for :attr:`joint_effort_limit`.

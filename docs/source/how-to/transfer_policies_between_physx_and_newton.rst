@@ -107,7 +107,7 @@ Transferring control behavior
 
 Match the nominal actuator response before tuning the policy:
 
-* distinguish physical ``velocity_limit`` from numerical ``velocity_limit_sim``;
+* distinguish actuator-model ``velocity_limit`` from solver ``joint_velocity_limit``;
 * use per-joint effort, stiffness, damping, friction, and armature;
 * preserve ``dt * decimation`` and action hold;
 * keep targets away from hard joint stops;

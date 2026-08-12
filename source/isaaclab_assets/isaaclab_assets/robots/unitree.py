@@ -220,7 +220,7 @@ H1_CFG = ArticulationCfg(
     actuators={
         "legs": ImplicitActuatorCfg(
             joint_names_expr=[".*_hip_yaw", ".*_hip_roll", ".*_hip_pitch", ".*_knee", "torso"],
-            effort_limit_sim=300,
+            joint_effort_limit=300,
             stiffness={
                 ".*_hip_yaw": 150.0,
                 ".*_hip_roll": 150.0,
@@ -238,13 +238,13 @@ H1_CFG = ArticulationCfg(
         ),
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle"],
-            effort_limit_sim=100,
+            joint_effort_limit=100,
             stiffness={".*_ankle": 20.0},
             damping={".*_ankle": 4.0},
         ),
         "arms": ImplicitActuatorCfg(
             joint_names_expr=[".*_shoulder_pitch", ".*_shoulder_roll", ".*_shoulder_yaw", ".*_elbow"],
-            effort_limit_sim=300,
+            joint_effort_limit=300,
             stiffness={
                 ".*_shoulder_pitch": 40.0,
                 ".*_shoulder_roll": 40.0,
@@ -316,7 +316,7 @@ G1_CFG = ArticulationCfg(
                 ".*_knee_joint",
                 "torso_joint",
             ],
-            effort_limit_sim=300,
+            joint_effort_limit=300,
             stiffness={
                 ".*_hip_yaw_joint": 150.0,
                 ".*_hip_roll_joint": 150.0,
@@ -338,7 +338,7 @@ G1_CFG = ArticulationCfg(
             },
         ),
         "feet": ImplicitActuatorCfg(
-            effort_limit_sim=20,
+            joint_effort_limit=20,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             stiffness=20.0,
             damping=2.0,
@@ -359,7 +359,7 @@ G1_CFG = ArticulationCfg(
                 ".*_one_joint",
                 ".*_two_joint",
             ],
-            effort_limit_sim=300,
+            joint_effort_limit=300,
             stiffness=40.0,
             damping=10.0,
             armature={
@@ -605,8 +605,8 @@ G1_INSPIRE_FTP_CFG.actuators["hands"] = ImplicitActuatorCfg(
         ".*_ring_.*",
         ".*_pinky_.*",
     ],
-    effort_limit_sim=30.0,
-    velocity_limit_sim=10.0,
+    joint_effort_limit=30.0,
+    joint_velocity_limit=10.0,
     stiffness=10.0,
     damping=0.2,
     armature=0.001,

@@ -20,6 +20,40 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
+Actuator joint-limit names
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Actuator configurations now use joint-qualified names for solver limits. Update active
+configurations to the canonical fields below. The former names remain accepted with a
+``DeprecationWarning`` through the 3.x release line and will be removed in 4.0.
+
+.. list-table:: Actuator solver-limit migration
+   :header-rows: 1
+   :widths: 38 38 24
+
+   * - Deprecated configuration field
+     - Canonical configuration field
+     - Runtime owner
+   * - ``effort_limit_sim``
+     - ``joint_effort_limit``
+     - :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits`
+   * - ``velocity_limit_sim``
+     - ``joint_velocity_limit``
+     - :attr:`~isaaclab.assets.ArticulationData.joint_vel_limits`
+
+The fields remain construction-time overrides selected by an actuator group's joint expression;
+they are not stored on ordinary runtime actuators. Use articulation joint writers or supported
+randomization helpers to mutate live joint state. ``effort_limit`` and ``velocity_limit`` remain
+actuator-model fields: the former clips explicit model output, and the latter describes rated speed
+or an implicit soft-limit snapshot. ``joint_velocity_limit`` only requests solver enforcement,
+which is backend-dependent. See :ref:`actuators-joint-property-ownership` for the full ownership
+model.
+
+Named regular-expression groups retain their configuration behavior. If both a deprecated name and
+its canonical replacement are present in the same group, use only the canonical name; equivalent
+values warn and select the canonical value, whereas conflicting values raise :class:`ValueError`.
+
+
 Visualizer CLI and Headless Behavior
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

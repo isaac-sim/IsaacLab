@@ -131,49 +131,33 @@ to combine them into a single actuator model.
 ActuatorCfg velocity/effort limits considerations
 -------------------------------------------------
 
-In Isaac Lab 3.0, the plain ``velocity_limit`` and ``effort_limit`` fields describe actuator-side
-constraints, while ``velocity_limit_sim`` and ``effort_limit_sim`` request solver-side constraints.
-For explicit actuators, ``effort_limit`` clips the actuator output. ``velocity_limit`` populates the
-resolved velocity-limit view and is consumed computationally only by speed-dependent models such as
-``DCMotor``; ``IdealPDActuator``, ``DelayedPDActuator``, and ``RemotizedPDActuator`` do not use it in
-their computation. The ``_sim`` fields are submitted to the physics solver.
+Use the following fields in an actuator configuration. They select joints and are resolved when the
+articulation is constructed; the canonical runtime values live on
+:class:`~isaaclab.assets.ArticulationData`. See :ref:`actuators-joint-property-ownership` for the
+ownership model and runtime mutation paths.
 
-For implicit actuators, ``velocity_limit`` populates the actuator-resolved soft velocity-limit view
-without being submitted to the solver. ``effort_limit`` is a deprecated alias of
-``effort_limit_sim``. Solver velocity enforcement is backend-dependent; set
-``velocity_limit_sim`` only when requesting the backend's solver-side clamp.
+.. list-table:: Limit configuration
+    :header-rows: 1
+    :widths: 28 36 36
 
+    * - Field
+      - Implicit actuator
+      - Explicit actuator
+    * - ``joint_effort_limit``
+      - Writes the solver drive effort limit.
+      - Writes the solver effort limit; defaults high to avoid a second model clip.
+    * - ``joint_velocity_limit``
+      - Requests a solver velocity constraint.
+      - Requests a solver velocity constraint.
+    * - ``effort_limit``
+      - Deprecated implicit alias for ``joint_effort_limit``.
+      - Clips actuator-model output.
+    * - ``velocity_limit``
+      - Creates the soft velocity-limit snapshot; it is not a solver request.
+      - Describes the actuator rated speed; speed-dependent models use it in their torque curve.
 
-.. table:: Limit Options Comparison
-
-    .. list-table::
-      :header-rows: 1
-      :widths: 20 40 40
-
-      * - **Attribute**
-        - **Implicit Actuator**
-        - **Explicit Actuator**
-      * - ``velocity_limit``
-        - Populates the soft velocity-limit view; not sent to the solver
-        - Populates the resolved view; used computationally only by speed-dependent models (e.g.
-          ``DCMotor``), not sent to the solver
-      * - ``effort_limit``
-        - Deprecated (alias for ``effort_limit_sim``)
-        - Clips actuator output; not sent to the solver
-      * - ``velocity_limit_sim``
-        - Requested from the solver; enforcement is backend-dependent
-        - Requested from the solver; enforcement is backend-dependent
-      * - ``effort_limit_sim``
-        - Set into simulation
-        - Set into simulation
-
-
-
-Users who want to tune the underlying physics-solver limits should set the ``_sim`` fields. PhysX
-consumes its supported velocity clamp and Newton's Kamino solver honors it, while MJWarp currently
-does not enforce ``velocity_limit_sim``. Do not treat that field as a backend-independent safety
-boundary. See :ref:`overview-actuators` and :ref:`newton-velocity-limits` for current backend
-behavior.
+Solver velocity enforcement is backend-dependent. ``joint_velocity_limit`` records the requested
+joint state but is not a backend-independent safety clamp; see :ref:`newton-velocity-limits`.
 
 
 USD vs. ActuatorCfg discrepancy resolution
@@ -218,7 +202,7 @@ Here's an example of what you'll see::
     +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
     |     Group      |      Property      |         Name        | ID |  USD Value  | ActuatorCfg Value  | Applied  |
     +----------------+--------------------+---------------------+----+-------------+--------------------+----------+
-    | panda_shoulder | velocity_limit_sim |    panda_joint1     |  0 |    2.17e+00 |   Not Specified    | 2.17e+00 |
+    | panda_shoulder | joint_velocity_limit |    panda_joint1     |  0 |    2.17e+00 |   Not Specified    | 2.17e+00 |
     |                |                    |    panda_joint2     |  1 |    2.17e+00 |   Not Specified    | 2.17e+00 |
     |                |                    |    panda_joint3     |  2 |    2.17e+00 |   Not Specified    | 2.17e+00 |
     |                |                    |    panda_joint4     |  3 |    2.17e+00 |   Not Specified    | 2.17e+00 |
@@ -234,7 +218,7 @@ Here's an example of what you'll see::
     |                |                    |    panda_joint2     |  1 |    0.00e+00 |   Not Specified    | 0.00e+00 |
     |                |                    |    panda_joint3     |  2 |    0.00e+00 |   Not Specified    | 0.00e+00 |
     |                |                    |    panda_joint4     |  3 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    | panda_forearm  | velocity_limit_sim |    panda_joint5     |  4 |    2.61e+00 |   Not Specified    | 2.61e+00 |
+    | panda_forearm  | joint_velocity_limit |    panda_joint5     |  4 |    2.61e+00 |   Not Specified    | 2.61e+00 |
     |                |                    |    panda_joint6     |  5 |    2.61e+00 |   Not Specified    | 2.61e+00 |
     |                |                    |    panda_joint7     |  6 |    2.61e+00 |   Not Specified    | 2.61e+00 |
     |                |     stiffness      |    panda_joint5     |  4 |    2.29e+04 |      8.00e+01      | 8.00e+01 |
@@ -249,7 +233,7 @@ Here's an example of what you'll see::
     |                |      friction      |    panda_joint5     |  4 |    0.00e+00 |   Not Specified    | 0.00e+00 |
     |                |                    |    panda_joint6     |  5 |    0.00e+00 |   Not Specified    | 0.00e+00 |
     |                |                    |    panda_joint7     |  6 |    0.00e+00 |   Not Specified    | 0.00e+00 |
-    |  panda_hand    | velocity_limit_sim | panda_finger_joint1 |  7 |    2.00e-01 |   Not Specified    | 2.00e-01 |
+    |  panda_hand    | joint_velocity_limit | panda_finger_joint1 |  7 |    2.00e-01 |   Not Specified    | 2.00e-01 |
     |                |                    | panda_finger_joint2 |  8 |    2.00e-01 |   Not Specified    | 2.00e-01 |
     |                |     stiffness      | panda_finger_joint1 |  7 |    1.00e+06 |      2.00e+03      | 2.00e+03 |
     |                |                    | panda_finger_joint2 |  8 |    1.00e+06 |      2.00e+03      | 2.00e+03 |

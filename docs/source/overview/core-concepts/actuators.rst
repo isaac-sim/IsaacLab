@@ -55,7 +55,7 @@ of joints by regular expression and picks a model:
                 joint_names_expr=[".*_hip_.*", ".*_knee_.*"],
                 stiffness=40.0,
                 damping=2.0,
-                effort_limit_sim=80.0,
+                joint_effort_limit=80.0,
             ),
         },
     )
@@ -135,6 +135,34 @@ The actuator gains configured on a named group are distinct from
 they match implicit actuator gains after those gains are written to the solver, and are zero for
 explicit actuator joints. They are not a collection-wide mirror of the actuator-model gains.
 
+
+.. _actuators-joint-property-ownership:
+
+Joint and actuator property ownership
+--------------------------------------
+
+An actuator configuration uses its joint expression as a convenient way to select joints, but its
+joint-property fields are construction-time overrides. Isaac Lab resolves and writes
+``joint_effort_limit``, ``joint_velocity_limit``, armature, friction, and implicit drive gains when
+the articulation is built. Their live runtime state belongs to
+:class:`~isaaclab.assets.ArticulationData`, including ``joint_effort_limits``, ``joint_vel_limits``,
+``joint_armature``, and the supported friction properties. Read or change those values through the
+articulation data and joint writers; :class:`~isaaclab.actuators.ActuatorCollection` deliberately
+has no joint-property API.
+
+Ordinary explicit actuators retain only model state, such as their ``effort_limit``, rated
+``velocity_limit``, gains, delay, and motor curve. They do not own solver-limit or friction copies.
+Implicit actuators are different because the backend executes their drives: their stiffness,
+damping, and effort projection read the live articulation properties. Native backend controllers
+similarly own their controller gains; those gains are not joint solver gains.
+
+``effort_limit`` and ``velocity_limit`` describe an actuator model. ``joint_effort_limit`` and
+``joint_velocity_limit`` describe a joint/solver request and may have different values. In
+particular, an explicit actuator's ``effort_limit`` clips its model output, while
+``joint_effort_limit`` constrains the solver. ``velocity_limit`` is the model's rated joint-side
+speed or implicit soft-limit snapshot; ``joint_velocity_limit`` requests a solver constraint.
+Solver velocity enforcement is backend-dependent, so it is not a portable clamp.
+
 .. note::
 
     Each call to :meth:`~isaaclab.assets.Articulation.write_data_to_sim` runs collection staging and
@@ -162,7 +190,7 @@ predictor. Pick the simplest model that captures the effect you need.
     * - :class:`~isaaclab.actuators.ImplicitActuator`
         (:class:`~isaaclab.actuators.ImplicitActuatorCfg`)
       - Solver runs the PD law from the written gains.
-      - ``effort_limit_sim`` clips in the solver.
+      - ``joint_effort_limit`` clips in the solver.
       - --
     * - :class:`~isaaclab.actuators.IdealPDActuator`
         (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
@@ -228,26 +256,13 @@ sweeps run on the *implicit* path.
 
 .. important::
 
-    **effort_limit vs. effort_limit_sim.** These two fields look alike but act at different stages:
-
-    * :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit` clips the torque **inside an explicit
-      actuator model** (for implicit actuators it is treated as an alias of ``effort_limit_sim``).
-    * :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim` is the **solver's** hard effort
-      clip. For explicit actuators it defaults to ``1.0e9`` so the solver does not clip a second
-      time after the model already has; for implicit actuators it defaults to the value on the USD
-      joint prim. Set it as a safety ceiling only.
-
-    For **implicit** actuators, ``effort_limit`` and ``effort_limit_sim`` are equivalent; prefer
-    ``effort_limit_sim`` because it names the stage it acts on. The analogous
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit` populates the actuator-resolved soft
-    velocity-limit view for implicit actuators but is not sent to the solver; only
-    ``velocity_limit_sim`` is requested from the solver. Enforcement is backend-dependent: PhysX
-    consumes its supported clamp and Newton's Kamino solver honors it, while MJWarp currently does
-    not enforce it. Do not treat ``velocity_limit_sim`` as a portable safety boundary. See
-    :doc:`physical-backends/newton/migrating-assets-from-physx-to-newton` for details. Explicit
-    models such as the DC motor use ``velocity_limit`` for their model. Setting ``effort_limit`` on
-    an implicit group logs a deprecation warning, and setting both fields to conflicting values
-    raises an error.
+    **Model limits versus joint limits.** :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit`
+    clips an explicit actuator model. :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit`
+    is a solver limit written at construction; explicit groups default it to ``1.0e9`` to avoid a
+    second clip. ``velocity_limit`` is a model rated speed or implicit soft-limit snapshot, whereas
+    ``joint_velocity_limit`` requests a solver constraint. These are independent values. Solver
+    velocity enforcement remains backend-dependent; see
+    :doc:`physical-backends/newton/migrating-assets-from-physx-to-newton`.
 
 
 Stiffness
@@ -419,7 +434,7 @@ the achievable torque decreases linearly as the joint approaches it, defining th
 torque-speed envelope. The curve below is that envelope for a range of velocity limits -- a lower
 limit shrinks the usable speed band and clamps torque earlier. A DC motor consumes ``velocity_limit``
 for this torque-speed clipping. An implicit group exposes it through the soft velocity-limit view,
-while ``velocity_limit_sim`` requests a solver clamp. Whether that clamp is enforced depends on the
+while ``joint_velocity_limit`` requests a solver constraint. Whether that constraint is enforced depends on the
 backend, as described in :ref:`newton-velocity-limits`.
 
 .. figure:: ../../_static/actuators/velocity-limit-curve-light.png
@@ -620,8 +635,8 @@ To see exactly which value won for each joint, set
 :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` on the
 articulation config; the collection logs a table of USD value, config value, and applied value for
 every joint whose sources disagree or whose config field was left unspecified (shown as
-``Not Specified``). For the full precedence walk-through and the ``velocity_limit``
-vs. ``velocity_limit_sim`` table, see :ref:`how-to-write-articulation-config`.
+``Not Specified``). For configuration examples and the compact limit table, see
+:ref:`how-to-write-articulation-config`.
 
 
 .. _actuators-native:

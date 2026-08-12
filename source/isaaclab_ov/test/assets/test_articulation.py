@@ -260,8 +260,8 @@ def generate_articulation_cfg(
     damping: float | None = 2.0,
     velocity_limit: float | None = None,
     effort_limit: float | None = None,
-    velocity_limit_sim: float | None = None,
-    effort_limit_sim: float | None = None,
+    joint_velocity_limit: float | None = None,
+    joint_effort_limit: float | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -277,9 +277,9 @@ def generate_articulation_cfg(
             and "single_joint_explicit".
         effort_limit: Effort limit for the actuators. Only currently used for "single_joint_implicit"
             and "single_joint_explicit".
-        velocity_limit_sim: Velocity limit for the actuators (set into the simulation).
+        joint_velocity_limit: Velocity limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
-        effort_limit_sim: Effort limit for the actuators (set into the simulation).
+        joint_effort_limit: Effort limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
 
     Returns:
@@ -310,8 +310,8 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=velocity_limit_sim,
+                    joint_effort_limit=joint_effort_limit,
+                    joint_velocity_limit=joint_velocity_limit,
                     effort_limit=effort_limit,
                     velocity_limit=velocity_limit,
                     stiffness=2000.0,
@@ -334,8 +334,8 @@ def generate_articulation_cfg(
             actuators={
                 "joint": IdealPDActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=velocity_limit_sim,
+                    joint_effort_limit=joint_effort_limit,
+                    joint_velocity_limit=joint_velocity_limit,
                     effort_limit=effort_limit,
                     velocity_limit=velocity_limit,
                     stiffness=0.0,
@@ -2305,7 +2305,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
-    1. The solver clamp ``velocity_limit_sim`` is applied to the simulation; when unset, the
+    1. The solver clamp ``joint_velocity_limit`` is applied to the simulation; when unset, the
        USD-authored value is kept
     2. The joint velocity limit ``velocity_limit`` is never pushed to the solver and keeps its
        configured value; when unset, it falls back to the solver clamp
@@ -2320,7 +2320,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     # create simulation
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
-        velocity_limit_sim=vel_limit_sim,
+        joint_velocity_limit=vel_limit_sim,
         velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
@@ -2339,7 +2339,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     with pytest.warns(DeprecationWarning, match="velocity_limit_sim"):
         torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit)
 
-    # the solver clamp comes from velocity_limit_sim when set, otherwise the USD-authored value
+    # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if vel_limit_sim is None:
         sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
@@ -2362,7 +2362,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_explicit",
-        velocity_limit_sim=vel_limit_sim,
+        joint_velocity_limit=vel_limit_sim,
         velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
@@ -2377,7 +2377,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     physx_vel_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_VELOCITY, device)
     actuator_vel_limit = articulation.actuators["joint"].velocity_limit
 
-    # check data buffer for joint_velocity_limits_sim
+    # check data buffer for joint_velocity_limits
     torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, physx_vel_limit)
 
     if vel_limit is not None:
@@ -2406,9 +2406,9 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("effort_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
 @pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
-def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_limit_sim, effort_limit):
+def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_effort_limit, effort_limit):
     """Test setting of effort limit for implicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -2418,7 +2418,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
     """
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
-        effort_limit_sim=effort_limit_sim,
+        joint_effort_limit=joint_effort_limit,
         effort_limit=effort_limit,
     )
     articulation, _ = generate_articulation(
@@ -2427,7 +2427,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
         device=device,
     )
     # Play sim
-    if effort_limit_sim is not None and effort_limit is not None:
+    if joint_effort_limit is not None and effort_limit is not None:
         with pytest.raises(ValueError):
             sim.reset()
         return
@@ -2445,11 +2445,11 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
 
     # decide the limit based on what is set
-    if effort_limit_sim is None and effort_limit is None:
+    if joint_effort_limit is None and effort_limit is None:
         limit = articulation_cfg.spawn.joint_drive_props.max_force
-    elif effort_limit_sim is not None and effort_limit is None:
-        limit = effort_limit_sim
-    elif effort_limit_sim is None and effort_limit is not None:
+    elif joint_effort_limit is not None and effort_limit is None:
+        limit = joint_effort_limit
+    elif joint_effort_limit is None and effort_limit is not None:
         limit = effort_limit
 
     # check that the max force is what we set
@@ -2459,9 +2459,9 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("effort_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
 @pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
-def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_limit_sim, effort_limit):
+def test_setting_effort_limit_explicit(sim, num_articulations, device, joint_effort_limit, effort_limit):
     """Test setting of effort limit for explicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -2473,7 +2473,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
 
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_explicit",
-        effort_limit_sim=effort_limit_sim,
+        joint_effort_limit=joint_effort_limit,
         effort_limit=effort_limit,
     )
     articulation, _ = generate_articulation(
@@ -2504,8 +2504,8 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
         torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
 
     # when using explicit actuators, the limits are set to high unless user overrides
-    if effort_limit_sim is not None:
-        limit = effort_limit_sim
+    if joint_effort_limit is not None:
+        limit = joint_effort_limit
     else:
         limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
     # check physx internal value matches the expected sim value

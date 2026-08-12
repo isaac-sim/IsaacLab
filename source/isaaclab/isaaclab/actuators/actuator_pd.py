@@ -145,7 +145,7 @@ class ImplicitActuator(ActuatorBase):
         # reflected at the joint): it feeds the data buffers
         # (:attr:`ArticulationData.soft_joint_vel_limits`, read by e.g. the
         # ``joint_vel_out_of_limit`` termination) but is NOT pushed to the physics
-        # solver. 'velocity_limit_sim' is a solver-level hard clamp (PhysX
+        # solver. 'joint_velocity_limit' is a solver-level hard clamp (PhysX
         # ``maxJointVelocity``) with no physical counterpart -- a physical actuator
         # limits joint speed through its torque curve, not a kinematic clamp. The
         # two are therefore resolved independently: when only the sim clamp is
