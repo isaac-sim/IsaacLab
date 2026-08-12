@@ -30,7 +30,7 @@ Running this script demonstrates two ways to use the streaming camera view:
 
    .. literalinclude:: ../../../scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py
       :language: python
-      :emphasize-lines: 72-78,87-94
+      :emphasize-lines: 72-78,81-83,89-96,107-109
       :linenos:
 
 
