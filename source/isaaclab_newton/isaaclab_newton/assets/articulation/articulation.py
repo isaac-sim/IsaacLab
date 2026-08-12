@@ -97,6 +97,7 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
     articulation_ids, _ = resolve_matching_names(
         root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
     )
+    resolved_modes: dict[tuple, tuple[tuple[int, int], ...]] = {}
     for articulation_id in articulation_ids:
         joint_start = builder.articulation_start[articulation_id]
         joint_end = builder.articulation_end[articulation_id]
@@ -116,29 +117,43 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
                 dof_ids.append(dof_id)
                 dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
 
-        for actuator_cfg in cfg.actuators.values():
-            matched_indices, matched_names = resolve_matching_names(
-                actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
-            )
-            if not matched_indices:
-                continue
-            selected_dof_ids = [dof_ids[index] for index in matched_indices]
-            stiffness_values = _resolve_actuator_gain_values(
-                actuator_cfg.stiffness,
-                matched_names,
-                [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
-            )
-            damping_values = _resolve_actuator_gain_values(
-                actuator_cfg.damping,
-                matched_names,
-                [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
-            )
-            for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
-                builder.joint_target_mode[dof_id] = int(
-                    _target_mode_from_gains(stiffness, damping)
-                    if _is_implicit_actuator_cfg(actuator_cfg)
-                    else JointTargetMode.EFFORT
+        signature = (
+            tuple(dof_names),
+            tuple(builder.joint_target_ke[dof_id] for dof_id in dof_ids),
+            tuple(builder.joint_target_kd[dof_id] for dof_id in dof_ids),
+        )
+        modes = resolved_modes.get(signature)
+        if modes is None:
+            mode_by_local_dof: dict[int, int] = {}
+            for actuator_cfg in cfg.actuators.values():
+                matched_indices, matched_names = resolve_matching_names(
+                    actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
                 )
+                if not matched_indices:
+                    continue
+                selected_dof_ids = [dof_ids[index] for index in matched_indices]
+                stiffness_values = _resolve_actuator_gain_values(
+                    actuator_cfg.stiffness,
+                    matched_names,
+                    [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
+                )
+                damping_values = _resolve_actuator_gain_values(
+                    actuator_cfg.damping,
+                    matched_names,
+                    [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
+                )
+                for local_dof, stiffness, damping in zip(
+                    matched_indices, stiffness_values, damping_values, strict=True
+                ):
+                    mode_by_local_dof[local_dof] = int(
+                        _target_mode_from_gains(stiffness, damping)
+                        if _is_implicit_actuator_cfg(actuator_cfg)
+                        else JointTargetMode.EFFORT
+                    )
+            modes = tuple(mode_by_local_dof.items())
+            resolved_modes[signature] = modes
+        for local_dof, mode in modes:
+            builder.joint_target_mode[dof_ids[local_dof]] = mode
 
 
 class Articulation(BaseArticulation):

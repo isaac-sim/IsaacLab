@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -133,12 +134,28 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = ArticulationView(
-            model,
-            root_prim_path_expr.replace(".*", "*"),
-            verbose=False,
-            exclude_joint_types=[JointType.FREE, JointType.FIXED],
+        root_pattern = root_prim_path_expr.replace(".*", "*").rstrip("/")
+        self._root_view = next(
+            (
+                view
+                for view in NewtonManager.get_physics_sim_view()
+                if isinstance(view, ArticulationView)
+                and view.model is model
+                and view.link_labels
+                and (
+                    fnmatchcase(view.link_labels[0], root_pattern)
+                    or fnmatchcase(view.link_labels[0], root_pattern + "/*")
+                )
+            ),
+            None,
         )
+        if self._root_view is None:
+            self._root_view = ArticulationView(
+                model,
+                root_pattern,
+                verbose=False,
+                exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            )
         self._num_joints = self._root_view.joint_count
         if self._num_joints == 0:
             raise RuntimeError(
