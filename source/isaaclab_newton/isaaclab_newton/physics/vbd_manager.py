@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from newton import Model, ModelBuilder
+from newton import Model
 from newton.solvers import SolverVBD
 
 from .newton_manager import NewtonManager
@@ -37,6 +37,8 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def start_simulation(cls) -> None:
         """Start simulation and bind registered deformables to Fabric."""
+        if cls._builder is not None:
+            cls._builder.color()
         super().start_simulation()
         try:
             from isaaclab_contrib.deformable.deformable_object import setup_registered_deformable_fabric_sync
@@ -47,17 +49,19 @@ class NewtonVBDManager(NewtonManager):
             setup_registered_deformable_fabric_sync(cls)
 
     @classmethod
+    def instantiate_builder_from_stage(cls) -> None:
+        """Create and color the VBD builder from the USD stage."""
+        super().instantiate_builder_from_stage()
+        if cls._builder is None:
+            raise RuntimeError("Newton stage import did not create a builder.")
+        cls._builder.color()
+
+    @classmethod
     def _get_usd_import_ignore_paths(cls) -> list[str]:
         """Return registered deformable mesh paths excluded from USD import."""
         return [
             path for entry in cls._deformable_registry for path in (entry.sim_mesh_prim_path, entry.vis_mesh_prim_path)
         ]
-
-    @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Color the completed VBD builder before finalization."""
-        super()._prepare_builder_for_finalize(builder)
-        builder.color()
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:

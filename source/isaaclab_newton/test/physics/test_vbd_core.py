@@ -49,10 +49,14 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     class Builder:
         def __init__(self):
             self.imports = []
+            self.color_calls = 0
 
         def add_usd(self, stage, *, root_path=None, ignore_paths=(), schema_resolvers=()):
             self.imports.append((root_path, list(ignore_paths)))
             return {"path_shape_map": {}}
+
+        def color(self):
+            self.color_calls += 1
 
     children = [
         SimpleNamespace(
@@ -95,11 +99,12 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         "_cl_inject_sites",
         classmethod(lambda cls, builder, source_builders: ({}, {}, {})),
     )
-    monkeypatch.setattr(
-        physics.NewtonVBDManager,
-        "set_builder",
-        classmethod(lambda cls, builder: selected_builders.append(builder)),
-    )
+
+    def set_builder(cls, builder):
+        selected_builders.append(builder)
+        cls._builder = builder
+
+    monkeypatch.setattr(physics.NewtonVBDManager, "set_builder", classmethod(set_builder))
 
     def hook(builder, world_idx, position, rotation):
         hook_calls.append(world_idx)
@@ -110,6 +115,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         "_deformable_registry",
         [SimpleNamespace(sim_mesh_prim_path="/World/soft/sim", vis_mesh_prim_path="/World/soft/visual")],
     )
+    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
     monkeypatch.setattr(NewtonManager, "_world_xforms", [])
     monkeypatch.setattr(NewtonManager, "_num_envs", 0)
@@ -126,21 +132,31 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         assert hook_calls == [0]
     assert selected_builders == [builders[0]]
 
+    assert builders[0].color_calls == 1
 
-def test_vbd_colors_builder_before_finalize():
-    """VBD colors the completed builder during finalization preparation."""
+
+def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
+    """VBD colors a prebuilt builder before starting simulation."""
     physics = importlib.import_module("isaaclab_newton.physics")
+    deformable_module = importlib.import_module("isaaclab_contrib.deformable.deformable_object")
+    events = []
 
     class Builder:
-        color_calls = 0
-
         def color(self):
-            self.color_calls += 1
+            events.append("color")
 
     builder = Builder()
-    physics.NewtonVBDManager._prepare_builder_for_finalize(builder)
+    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", builder)
+    monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
+    monkeypatch.setattr(
+        deformable_module,
+        "setup_registered_deformable_fabric_sync",
+        lambda manager_cls: events.append("sync"),
+    )
 
-    assert builder.color_calls == 1
+    physics.NewtonVBDManager.start_simulation()
+
+    assert events == ["color", "start", "sync"]
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
