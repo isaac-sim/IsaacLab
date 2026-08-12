@@ -118,7 +118,7 @@ full:
   Isaac-Pendulum-MARL-Direct:
     max_iterations: 300
     lower_thresholds:
-      reward: 23.5
+      reward: 30.3
       episode_length: 150
     upper_thresholds:
       duration: 500
