@@ -304,9 +304,6 @@ runs:
         fi
         echo "OVRTX_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
 
-        python3 .github/actions/run-package-tests/ovrtx_shader_cache_inventory.py \
-          "$HOST_DIR" "OVRTX shader cache restored"
-
     - name: Setup wheelhouse registry authentication
       if: inputs.wheelhouse-image != ''
       uses: ./.github/actions/_lib/setup-docker-config
@@ -491,14 +488,22 @@ runs:
 
         echo "OVRTX shader cache: restored ${before} MB, ended at ${after} MB (+${grew} MB) - ${verdict}"
         echo "🔵 OVRTX shader cache: ${before} -> ${after} MB (+${grew}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
-        python3 .github/actions/run-package-tests/ovrtx_shader_cache_inventory.py \
-          "$HOST_DIR" "OVRTX shader cache final"
+
+        # Files, not bytes: an empty tree still measures ~1 MB, so only a per-tree
+        # count separates a populated tree from one the tests never filled. tr
+        # strips wc's padding - a stray space would make the '0' comparisons in
+        # the save gates below miss and publish an empty tree.
+        for tree in kit kitless; do
+          files="$(find "$HOST_DIR/$tree" -type f 2>/dev/null | wc -l | tr -d '[:space:]' || true)"
+          echo "  ${tree}/ ${files:-0} file(s)"
+          echo "${tree}-files=${files:-0}" >> "$GITHUB_OUTPUT"
+        done
 
     # Not success(): the product is compiled PSO blobs, and those stay valid when
     # a golden-image assertion fails. Cancellation still skips, so a tree the
     # driver was mid-write on is never published.
-    # The count is empty rather than '0' when the growth step aborted before its
-    # inventory ran. Both mean "nothing was measured", so both have to block the
+    # The count is empty rather than '0' when the growth step aborted before it
+    # counted. Both mean "nothing was measured", so both have to block the
     # save - an unmeasured tree publishes under a key every consumer prefers over
     # the last good snapshot. This matches how the verify step below reads the
     # same outputs.
