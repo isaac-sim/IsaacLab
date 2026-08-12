@@ -201,7 +201,8 @@ def compose_streaming_grid(
         n_gt: Number of GT types per environment.
         target_aspect: Desired width-to-height ratio for the composite image.
             Defaults to ``1.0`` (square).  Use ``window_width / window_height``
-            to fill the visualizer panel.
+            to fill the visualizer panel.  Must be positive and finite; invalid
+            values (zero, negative, NaN, inf) fall back to ``1.0``.
 
     Returns:
         Single ``uint8 (total_H, total_W, 3)`` composite image, or a 1×1 black
@@ -209,6 +210,8 @@ def compose_streaming_grid(
     """
     if not frames:
         return np.zeros((1, 1, 3), dtype=np.uint8)
+    if not (math.isfinite(target_aspect) and target_aspect > 0):
+        target_aspect = 1.0
     h, w = frames[0].shape[:2]
     env_cols = _best_streaming_cols(n_envs, n_gt, h, w, target_aspect=target_aspect)
     env_rows = math.ceil(n_envs / env_cols)

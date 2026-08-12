@@ -1963,7 +1963,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
                 frames.append(frame)
 
         n_envs = len(self._camera_sensor_indices)
-        target_aspect = self.cfg.window_width / self.cfg.window_height
+        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
         composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
         self._last_streaming_composite = composite
         self._composite_step = self._step_counter
