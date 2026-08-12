@@ -505,7 +505,7 @@ independently.
 
       .. code-block:: bash
 
-         NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/mjwarp_source/RUN_DIRECTORY/model_ITERATION.pt"
+         NEWTON_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/RUN_DIRECTORY/model_ITERATION.pt"
 
       NN: reproduce source baseline in Newton
 
