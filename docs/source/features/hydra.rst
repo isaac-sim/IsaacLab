@@ -311,7 +311,7 @@ Physics backend selection uses the same preset system. A task can define a
 .. code-block:: python
 
     from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ovphysx.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
     from isaaclab.physics import PhysxAutoCfg

@@ -205,8 +205,8 @@ def test_shadow_hand_num_envs_override():
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
     cfg = ShadowHandEnvCfg()
-    cfg.scene.num_envs = 8
-    assert cfg.scene.num_envs == 8
+    cfg.scene.newton_mjwarp.num_envs = 8
+    assert cfg.scene.newton_mjwarp.num_envs == 8
 
 
 def test_streaming_cfg_fields_on_visualizer_cfg():

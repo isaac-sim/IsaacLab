@@ -9,11 +9,11 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 
 
 @configclass
-class AllegroHandManagerPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class AllegroCubePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
     save_interval = 50
-    experiment_name = "allegro_hand"
+    experiment_name = "allegro_cube"
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",
@@ -42,11 +42,11 @@ class AllegroHandManagerPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
-class AllegroHandDirectPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class AllegroHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
     max_iterations = 10000
     save_interval = 250
-    experiment_name = "allegro_hand_direct"
+    experiment_name = "allegro_hand"
     actor = RslRlMLPModelCfg(
         hidden_dims=[1024, 512, 256, 128],
         activation="elu",

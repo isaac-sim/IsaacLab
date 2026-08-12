@@ -164,8 +164,8 @@ When you instantiate an asset class from the ``isaaclab`` package (e.g., ``Artic
    robot = Articulation(cfg=ArticulationCfg(...))
 
 The factory works by convention: for a class defined in ``isaaclab.assets.articulation``, it
-imports the matching class from the active backend package. The ``isaaclab_physx``,
-``isaaclab_newton``, and ``isaaclab_ov`` packages mirror the ``isaaclab`` module structure.
+imports the matching class from ``isaaclab_{backend}.assets.articulation``. This means the
+``isaaclab_physx`` and ``isaaclab_newton`` packages mirror the ``isaaclab`` module structure.
 
 .. note::
 
@@ -707,7 +707,7 @@ when no CLI override is given. Other fields are named presets selectable with
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
-   from isaaclab_ov.physics import OvPhysxCfg
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
@@ -766,7 +766,7 @@ subclass that carries both a PhysX and a Newton variant.
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-   from isaaclab_ov.physics import OvPhysxCfg
+   from isaaclab_ovphysx.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 

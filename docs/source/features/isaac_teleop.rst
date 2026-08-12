@@ -411,13 +411,13 @@ Prerequisites
 
   .. code-block:: bash
 
-     uvx --from "lerobot[hardware]" lerobot-find-port
+     uvx --from lerobot lerobot-find-port
 
   Alternatively, plug in the USB cable and immediately run:
 
   .. code-block:: bash
 
-     sudo dmesg | grep tty | tail -1
+     dmesg | grep tty | tail -1
 
   Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
   names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.

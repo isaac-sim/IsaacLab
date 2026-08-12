@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils.configclass import configclass
@@ -17,14 +16,9 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Use an explicit actuator to enforce the USD-authored effort limits for effort control.
-        arm_actuator = self.scene.robot.actuators["panda_arm"]
-        self.scene.robot.actuators["panda_arm"] = IdealPDActuatorCfg(
-            joint_names_expr=arm_actuator.joint_names_expr,
-            velocity_limit_sim=arm_actuator.velocity_limit_sim,
-            stiffness=0.0,
-            damping=0.0,
-        )
+        # Remove stiffness and damping from the arm for effort control.
+        self.scene.robot.actuators["panda_arm"].stiffness = 0.0
+        self.scene.robot.actuators["panda_arm"].damping = 0.0
         self.scene.robot.spawn.rigid_props.disable_gravity = True
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot

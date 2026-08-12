@@ -457,24 +457,6 @@ def get_workflow(entry_point: str) -> str:
     return "Direct"
 
 
-def _task_sort_key(row) -> tuple:
-    """Order tasks by base name, then state before vision, then Direct before manager.
-
-    A task's variants share a base identifier, so they stay adjacent; within a base
-    the camera variants follow the state ones, and each workflow pair reads Direct
-    first because the Direct task is the reference its manager counterpart mirrors.
-    """
-    name = row.task_name
-    is_direct = name.endswith("-Direct")
-    base = name[: -len("-Direct")] if is_direct else name
-    is_vision = base.endswith(("-Camera", "-Camera-Benchmark"))
-    for suffix in ("-Camera-Benchmark", "-Camera"):
-        if base.endswith(suffix):
-            base = base[: -len(suffix)]
-            break
-    return (base, is_vision, not is_direct)
-
-
 def collect_environment_doc_rows(
     specs: list[EnvSpec] | None = None,
 ) -> list[EnvironmentDocRow]:
@@ -510,7 +492,7 @@ def collect_environment_doc_rows(
             )
         )
 
-    rows.sort(key=_task_sort_key)
+    rows.sort(key=lambda row: row.task_name)
     return rows
 
 

@@ -1,4 +1,4 @@
-# Isaac Lab: Omniverse Integrations
+# Isaac Lab: Omniverse Renderers
 
-This extension provides the kit-less OVPhysX simulation backend and Omniverse
-renderers for Isaac Lab, including OVRTX for RTX-based tiled camera rendering.
+This extension provides Omniverse renderers for tiled camera rendering in Isaac Lab,
+including OVRTX for RTX-based path tracing without requiring Isaac Sim.

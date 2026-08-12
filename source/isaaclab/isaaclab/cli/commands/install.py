@@ -641,6 +641,7 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab_experimental",
     "isaaclab_newton",
     "isaaclab_ov",
+    "isaaclab_ovphysx",
     "isaaclab_physx",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",
