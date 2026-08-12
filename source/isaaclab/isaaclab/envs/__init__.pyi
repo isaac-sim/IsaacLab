@@ -16,6 +16,8 @@ __all__ = [
     "ManagerBasedEnvCfg",
     "ManagerBasedRLEnv",
     "ManagerBasedRLEnvCfg",
+    "ManagerBasedMARLEnv",
+    "ManagerBasedMARLEnvCfg",
     "ManagerBasedRLMimicEnv",
     "multi_agent_to_single_agent",
     "multi_agent_with_one_agent",
@@ -40,6 +42,8 @@ from .manager_based_env import ManagerBasedEnv
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .manager_based_rl_env import ManagerBasedRLEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+from .manager_based_marl_env import ManagerBasedMARLEnv
+from .manager_based_marl_env_cfg import ManagerBasedMARLEnvCfg
 from .manager_based_rl_mimic_env import ManagerBasedRLMimicEnv
 from .utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
 from .mimic_env_cfg import (

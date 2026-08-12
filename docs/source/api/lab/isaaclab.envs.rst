@@ -18,6 +18,8 @@
     ManagerBasedEnvCfg
     ManagerBasedRLEnv
     ManagerBasedRLEnvCfg
+    ManagerBasedMARLEnv
+    ManagerBasedMARLEnvCfg
     DirectRLEnv
     DirectRLEnvCfg
     DirectMARLEnv
@@ -47,6 +49,20 @@ Manager Based RL Environment
     :show-inheritance:
 
 .. autoclass:: ManagerBasedRLEnvCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Manager Based Multi-Agent RL Environment
+----------------------------------------
+
+.. autoclass:: ManagerBasedMARLEnv
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: ManagerBasedMARLEnvCfg
     :members:
     :inherited-members:
     :show-inheritance:
