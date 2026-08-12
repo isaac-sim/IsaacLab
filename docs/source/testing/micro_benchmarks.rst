@@ -19,11 +19,12 @@ Choose a suite and backend
 --------------------------
 
 Run commands from the repository root through ``./isaaclab.sh``. The active
-Python environment must contain the backend being measured. PhysX launches Isaac
-Sim, Newton runs kitless with its installed runtime, and OVPhysX runs kitless
-with its optional ``ovphysx`` runtime wheel. Use CUDA for representative GPU
-numbers; CPU execution is useful for correctness or profiling but is a different
-workload and must not be mixed with CUDA results.
+Python environment must contain the backend being measured. PhysX and Newton
+asset benchmarks launch Isaac Sim; Newton sensor benchmarks run kitless with the
+installed Newton runtime. OVPhysX runs kitless with its optional ``ovphysx``
+runtime wheel. Use CUDA for representative GPU numbers; CPU execution is useful
+for correctness or profiling but is a different workload and must not be mixed
+with CUDA results.
 
 .. list-table::
    :header-rows: 1
