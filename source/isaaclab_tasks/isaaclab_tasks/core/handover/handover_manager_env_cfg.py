@@ -79,23 +79,22 @@ class ActionsCfg:
     )
 
 
-def _hand_entity(name: str) -> SceneEntityCfg:
-    return SceneEntityCfg(name, joint_names=".*")
-
-
-def _fingertip_entity(name: str) -> SceneEntityCfg:
-    return SceneEntityCfg(name, body_names=FINGERTIP_BODY_NAMES)
-
-
 @configclass
 class PolicyCfg(ObsGroup):
     # Right agent: 133 hand dimensions followed by 24 object/goal dimensions.
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
-    right_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("right_hand")})
-    right_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("right_hand")})
-    right_fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": _fingertip_entity("right_hand")})
+    right_joint_pos = ObsTerm(
+        func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
+    )
+    right_joint_vel = ObsTerm(
+        func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
+    )
+    right_fingertip_pose = ObsTerm(
+        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_BODY_NAMES)}
+    )
     right_fingertip_vel = ObsTerm(
-        func=reorient_mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("right_hand")}
+        func=reorient_mdp.fingertip_vel,
+        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_BODY_NAMES)},
     )
     right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
@@ -110,10 +109,19 @@ class PolicyCfg(ObsGroup):
 
     # Left agent: the same 157-dimensional layout.
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
-    left_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("left_hand")})
-    left_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("left_hand")})
-    left_fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": _fingertip_entity("left_hand")})
-    left_fingertip_vel = ObsTerm(func=reorient_mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("left_hand")})
+    left_joint_pos = ObsTerm(
+        func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
+    )
+    left_joint_vel = ObsTerm(
+        func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
+    )
+    left_fingertip_pose = ObsTerm(
+        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_BODY_NAMES)}
+    )
+    left_fingertip_vel = ObsTerm(
+        func=reorient_mdp.fingertip_vel,
+        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_BODY_NAMES)},
+    )
     left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
 
     def __post_init__(self):
