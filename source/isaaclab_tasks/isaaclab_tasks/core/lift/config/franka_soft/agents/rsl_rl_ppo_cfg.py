@@ -90,3 +90,8 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
     )
     algorithm = ALGO_CFG.replace(num_mini_batches=8)
+
+
+@configclass
+class FrankaCableCameraPPORunnerCfg(FrankaDeformableCameraPPORunnerCfg):
+    experiment_name = "lift_cable_camera"
