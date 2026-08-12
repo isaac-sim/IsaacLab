@@ -8,7 +8,7 @@ Using the Visualizer Streaming Camera View
 For general visualizer documentation, see :doc:`/source/overview/core-concepts/visualization`.
 
 The visualizer streaming camera view is a live monitoring and debugging tool. It composites
-per-environment ground-truth camera frames — RGB, depth, segmentation, or surface normals —
+per-environment ground-truth camera frames — RGB, depth, or segmentation —
 into a single panel that updates every step. The panel can display cameras that follow the
 robots automatically, or stream from existing scene camera sensors.
 
