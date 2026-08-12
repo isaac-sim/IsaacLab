@@ -266,6 +266,8 @@ autodoc_mock_imports = [
     "pinocchio",
     "qpsolvers",
     "flatdict",
+    "leapp",
+    "ovrtx",
     "filelock",
     "IPython",
     "cv2",
