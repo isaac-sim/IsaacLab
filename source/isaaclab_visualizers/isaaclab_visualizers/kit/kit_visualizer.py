@@ -832,7 +832,8 @@ class KitVisualizer(BaseVisualizer):
                     )
                 )
         n_envs = len(self._camera_sensor_indices)
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types))
+        target_aspect = self.cfg.window_width / self.cfg.window_height
+        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
         self._last_streaming_composite = composite
         if self._camera_image_provider is not None:
             self._upload_camera_image_to_panel(composite)

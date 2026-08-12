@@ -533,7 +533,19 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
-    if needs_kit and config_scan.has_kit_camera:
+    # Auto-enable cameras when (a) the scene has Kit camera sensors, or (b) a KitVisualizerCfg
+    # with streaming_view=True is present.  The streaming-view camera is created dynamically at
+    # runtime and therefore does not appear in the scene config tree walked by scan(); we check
+    # visualizer_cfgs directly here instead.
+    _vis_cfgs = getattr(getattr(cfg, "sim", None), "visualizer_cfgs", None) or []
+    if not isinstance(_vis_cfgs, list):
+        _vis_cfgs = [_vis_cfgs]
+    _has_kit_streaming = any(
+        getattr(c, "visualizer_type", None) == "kit" and bool(getattr(c, "streaming_view", False))
+        for c in _vis_cfgs
+        if c is not None
+    )
+    if needs_kit and (config_scan.has_kit_camera or _has_kit_streaming):
         if not _get_arg(launcher_args, "enable_cameras", False):
             logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
             _set_arg(launcher_args, "enable_cameras", True)
