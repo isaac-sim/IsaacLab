@@ -25,7 +25,11 @@ from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .utils.io_descriptors import export_articulations_data, export_scene_data
+from .utils.io_descriptors import (
+    _warn_io_descriptors_deprecated,
+    export_articulations_data,
+    export_scene_data,
+)
 from .utils.video_recorder import VideoRecorder
 
 # import logger
@@ -287,18 +291,31 @@ class ManagerBasedEnv:
     def get_IO_descriptors(self):
         """Get the IO descriptors for the environment.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
+
+    def _collect_io_descriptors(self):
+        """Collect IO descriptors without emitting a deprecation warning."""
         return {
-            "observations": self.observation_manager.get_IO_descriptors,
-            "actions": self.action_manager.get_IO_descriptors,
+            "observations": self.observation_manager._collect_io_descriptors(),
+            "actions": self.action_manager._collect_io_descriptors(),
             "articulations": export_articulations_data(self),
             "scene": export_scene_data(self),
         }
 
     def export_IO_descriptors(self, output_dir: str | None = None):
         """Export the IO descriptors for the environment.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
 
         Args:
             output_dir: The directory to export the IO descriptors to.
@@ -307,7 +324,8 @@ class ManagerBasedEnv:
 
         import yaml
 
-        IO_descriptors = self.get_IO_descriptors
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        IO_descriptors = self._collect_io_descriptors()
 
         if output_dir is None:
             if self.cfg.log_dir is not None:

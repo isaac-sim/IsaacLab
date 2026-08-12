@@ -395,7 +395,12 @@ def add_common_train_args(
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
     )
-    parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
+    parser.add_argument(
+        "--export_io_descriptors",
+        action="store_true",
+        default=False,
+        help="Deprecated: export IO descriptors (removed in Isaac Lab 3.2).",
+    )
     parser.add_argument(
         "--ray-proc-id",
         "-rid",
