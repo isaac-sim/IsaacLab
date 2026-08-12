@@ -359,29 +359,52 @@ jobs:
         warp-cache: restore
         container-name: isaac-lab-core-3-test
 
-  test-standalone-demos:
-    name: standalone demos runner (headless, ${{ matrix.runtime-label }})
+  # Kit and non-Kit are written out rather than expressed as a matrix: these job
+  # names are required status checks, and a skipped matrix job publishes its
+  # check run with the matrix expression unexpanded, so the required context
+  # never appears and branch protection blocks the pull request.
+  test-standalone-demos-kit:
+    name: standalone demos (headless, Kit)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
       needs.build.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - runtime-group: kit
-          runtime-label: Kit
-        - runtime-group: non-kit
-          runtime-label: non-Kit
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "demos"
+        standalone-script-visualizer: "none"
+        standalone-script-runtime-group: kit
+        result-file: "test-standalone-demos-kit-report.xml"
+        container-name: isaac-lab-standalone-demos-kit-test
+        omni-github-test-type: standalone-demo
+
+  test-standalone-demos-non-kit:
+    name: standalone demos (headless, non-Kit)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
     - name: Resolve OVPhysX runtime pin from pyproject
-      if: matrix.runtime-group == 'non-kit'
       uses: ./.github/actions/resolve-ov-pins
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
@@ -396,10 +419,41 @@ jobs:
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
-        standalone-script-runtime-group: ${{ matrix.runtime-group }}
-        result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
-        container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
+        standalone-script-runtime-group: non-kit
+        result-file: "test-standalone-demos-non-kit-report.xml"
+        container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
+
+  test-standalone-tutorials:
+    name: standalone scripts (headless, tutorials)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - name: Resolve OVPhysX runtime pin from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ steps.ov_pins.outputs.ovphysx }}
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "tutorials"
+        standalone-script-visualizer: "none"
+        result-file: "test-standalone-tutorials-report.xml"
+        container-name: isaac-lab-standalone-tutorials-test
+        omni-github-test-type: standalone-tutorial
 
   test-isaaclab-rl:
     name: isaaclab_rl
@@ -785,22 +839,18 @@ jobs:
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
-  test-rendering-correctness-kitless:
-    name: "rendering-correctness-kitless runner (${{ matrix.variant }})"
+  # Written out per variant rather than as a matrix: `rendering-correctness-kitless
+  # (legacy)` is a required status check, and a skipped matrix job publishes its
+  # check run with the matrix expression unexpanded. Writing the variants out also
+  # lets ovstage carry its own `if:`, which a matrix could only express through a
+  # synthetic event_name axis plus an exclude entry.
+  test-rendering-correctness-kitless-legacy:
+    name: "rendering-correctness-kitless (legacy)"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
-    continue-on-error: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && matrix.variant == 'ovstage') }}
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [legacy, ovstage]
-        event_name:
-        - ${{ github.event_name }}
-        exclude:
-        - variant: ovstage
-          event_name: pull_request
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -829,11 +879,55 @@ jobs:
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
           test_rendering_shadow_hand_kitless.py
-        test-k-expr: ${{ matrix.variant }}
+        test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && format('rendering-correctness-kitless-{0}', matrix.variant) || '' }}
-        container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
-        omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
+        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
+        container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
+        omni-github-test-type: "rendering-correctness-kitless-legacy"
+
+  # ovstage is post-merge only; it never ran on pull requests.
+  test-rendering-correctness-kitless-ovstage:
+    name: "rendering-correctness-kitless (ovstage)"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: [build, config]
+    if: >-
+      github.event_name != 'pull_request' &&
+      needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        include-files: >-
+          test_rendering_cartpole_kitless.py,
+          test_rendering_lift_kuka_hetero_kitless.py,
+          test_rendering_lift_kuka_homo_kitless.py,
+          test_rendering_franka_cloth_kitless.py,
+          test_rendering_franka_soft_kitless.py,
+          test_rendering_shadow_hand_kitless.py
+        test-k-expr: ovstage
+        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
+        container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
+        omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
@@ -890,103 +984,6 @@ jobs:
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
-
-  # These compatibility jobs preserve the exact status names currently required
-  # by branch protection.  The matrix job names above are not stable status
-  # contexts on pull requests, so docs-only runs would otherwise leave the old
-  # required checks in the Expected state.
-  required-standalone-demos-kit:
-    name: standalone demos (headless, Kit)
-    runs-on: ubuntu-latest
-    needs: [changes, test-standalone-demos]
-    if: always() && github.event_name == 'pull_request'
-    steps:
-    - name: Check standalone demo result
-      env:
-        CHANGES_RESULT: ${{ needs.changes.result }}
-        SHOULD_RUN: ${{ needs.changes.outputs.should_run }}
-        TEST_RESULT: ${{ needs.test-standalone-demos.result }}
-      run: |
-        set -euo pipefail
-
-        if [ "$CHANGES_RESULT" != "success" ]; then
-          echo "Change detection failed with result: $CHANGES_RESULT"
-          exit 1
-        fi
-
-        if [ "$SHOULD_RUN" != "true" ]; then
-          echo "Standalone demo tests are not required for this change."
-          exit 0
-        fi
-
-        if [ "$TEST_RESULT" != "success" ]; then
-          echo "Standalone demo tests did not pass: $TEST_RESULT"
-          exit 1
-        fi
-
-        echo "Standalone demo tests passed."
-
-  required-standalone-demos-non-kit:
-    name: standalone demos (headless, non-Kit)
-    runs-on: ubuntu-latest
-    needs: [changes, test-standalone-demos]
-    if: always() && github.event_name == 'pull_request'
-    steps:
-    - name: Check standalone demo result
-      env:
-        CHANGES_RESULT: ${{ needs.changes.result }}
-        SHOULD_RUN: ${{ needs.changes.outputs.should_run }}
-        TEST_RESULT: ${{ needs.test-standalone-demos.result }}
-      run: |
-        set -euo pipefail
-
-        if [ "$CHANGES_RESULT" != "success" ]; then
-          echo "Change detection failed with result: $CHANGES_RESULT"
-          exit 1
-        fi
-
-        if [ "$SHOULD_RUN" != "true" ]; then
-          echo "Standalone demo tests are not required for this change."
-          exit 0
-        fi
-
-        if [ "$TEST_RESULT" != "success" ]; then
-          echo "Standalone demo tests did not pass: $TEST_RESULT"
-          exit 1
-        fi
-
-        echo "Standalone demo tests passed."
-
-  required-rendering-correctness-kitless-legacy:
-    name: rendering-correctness-kitless (legacy)
-    runs-on: ubuntu-latest
-    needs: [changes, test-rendering-correctness-kitless]
-    if: always() && github.event_name == 'pull_request'
-    steps:
-    - name: Check kit-less rendering result
-      env:
-        CHANGES_RESULT: ${{ needs.changes.result }}
-        SHOULD_RUN: ${{ needs.changes.outputs.should_run }}
-        TEST_RESULT: ${{ needs.test-rendering-correctness-kitless.result }}
-      run: |
-        set -euo pipefail
-
-        if [ "$CHANGES_RESULT" != "success" ]; then
-          echo "Change detection failed with result: $CHANGES_RESULT"
-          exit 1
-        fi
-
-        if [ "$SHOULD_RUN" != "true" ]; then
-          echo "Kit-less rendering tests are not required for this change."
-          exit 0
-        fi
-
-        if [ "$TEST_RESULT" != "success" ]; then
-          echo "Kit-less rendering tests did not pass: $TEST_RESULT"
-          exit 1
-        fi
-
-        echo "Kit-less rendering tests passed."
   #endregion
 
 #region disabled quarantined tests

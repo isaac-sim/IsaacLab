@@ -155,3 +155,106 @@ Deformable Body
 
 Schema define and modify functions remain unified in
 :mod:`isaaclab.sim.schemas`.
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_physx.sim.schemas` API.
+
+.. currentmodule:: isaaclab_physx.sim.schemas
+
+.. autosummary::
+   :nosignatures:
+
+   ArticulationRootPropertiesCfg
+   CollisionPropertiesCfg
+   ConvexDecompositionPropertiesCfg
+   ConvexHullPropertiesCfg
+   FixedTendonPropertiesCfg
+   JointDrivePropertiesCfg
+   MeshCollisionPropertiesCfg
+   PhysxArticulationCfg
+   PhysxCollisionCfg
+   PhysxConvexDecompositionCfg
+   PhysxConvexHullCfg
+   PhysxFixedTendonCfg
+   PhysxJointCfg
+   PhysxRigidBodyCfg
+   PhysxSDFMeshCfg
+   PhysxSpatialTendonCfg
+   PhysxTriangleMeshCfg
+   PhysxTriangleMeshSimplificationCfg
+   RigidBodyPropertiesCfg
+   SDFMeshPropertiesCfg
+   SpatialTendonPropertiesCfg
+   TriangleMeshPropertiesCfg
+   TriangleMeshSimplificationPropertiesCfg
+
+.. autoclass:: ArticulationRootPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: CollisionPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: ConvexDecompositionPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: ConvexHullPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: FixedTendonPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: JointDrivePropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: MeshCollisionPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxArticulationCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxCollisionCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxConvexDecompositionCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxConvexHullCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxFixedTendonCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxJointCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxRigidBodyCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxSDFMeshCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxSpatialTendonCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxTriangleMeshCfg
+   :show-inheritance:
+
+.. autoclass:: PhysxTriangleMeshSimplificationCfg
+   :show-inheritance:
+
+.. autoclass:: RigidBodyPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: SDFMeshPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: SpatialTendonPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: TriangleMeshPropertiesCfg
+   :show-inheritance:
+
+.. autoclass:: TriangleMeshSimplificationPropertiesCfg
+   :show-inheritance:

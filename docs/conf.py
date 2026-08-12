@@ -31,8 +31,6 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks_experimental/isaaclab_tasks_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_physx/isaaclab_physx"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_ovphysx/isaaclab_ovphysx"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
@@ -268,6 +266,8 @@ autodoc_mock_imports = [
     "pinocchio",
     "qpsolvers",
     "flatdict",
+    "leapp",
+    "ovrtx",
     "filelock",
     "IPython",
     "cv2",
