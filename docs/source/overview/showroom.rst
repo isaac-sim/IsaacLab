@@ -14,13 +14,16 @@ A few quick showroom scripts to run and checkout:
    scripts use Isaac Sim and default to its PhysX or Kit-backed runtime. A fresh checkout does not
    install that optional dependency group unless the command requests it.
 
+   The canonical Newton visualizers are ``newton_gl`` and the experimental ``newton_rtx``.
+   The deprecated ``newton`` name remains an alias for ``newton_gl``.
+
 .. rst-class:: showroom-demo-list
 
 -  Spawn different arms and apply random joint position commands:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -58,7 +61,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -96,7 +99,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``newton_vbd`` only
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -139,7 +142,7 @@ A few quick showroom scripts to run and checkout:
    **Physics:** ``isaacsim_physx``, ``newton_vbd``, ``ovphysx``
 
    **Visualizer:** ``none`` for every physics backend; ``kit`` with Isaac Sim
-   PhysX and Newton VBD; ``newton``, ``rerun``, and ``viser`` with Newton VBD only
+   PhysX and Newton VBD; ``newton_gl``, ``newton_rtx``, ``rerun``, and ``viser`` with Newton VBD only
 
    .. tab-set::
       :sync-group: os
@@ -181,7 +184,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``newton_mpm`` only
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    This demo shows how to sample particles inside a hollow mesh and simulate the resulting
    fluid with Newton's experimental implicit Material Point Method (MPM) backend.
@@ -264,7 +267,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -302,7 +305,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx`` only
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -340,7 +343,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -378,7 +381,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx`` only
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -422,7 +425,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -512,7 +515,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    Haply hardware is required.
 
@@ -563,7 +566,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx`` only
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -602,7 +605,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -640,7 +643,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``kit``, ``newton``, ``rerun``, ``viser``
+   **Visualizer:** ``none``, ``kit``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``
 
    .. tab-set::
       :sync-group: os
@@ -678,7 +681,7 @@ A few quick showroom scripts to run and checkout:
 
    **Physics:** ``isaacsim_physx``, ``newton_mjwarp``
 
-   **Visualizer:** ``none``, ``newton``, ``rerun``, ``viser`` with either physics
+   **Visualizer:** ``none``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser`` with either physics
    backend; ``kit`` with PhysX only
 
    .. tab-set::

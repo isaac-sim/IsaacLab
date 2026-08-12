@@ -17,7 +17,7 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionPropertiesCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.newton import NewtonVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -578,9 +578,9 @@ class EventsCfg:
 
 @configclass
 class CurriculumCfg:
-    """Competence-based expansion of the single-push reset distribution."""
+    """Persistent coverage of the single-push reset distributions."""
 
-    reset_randomization = CurrTerm(func=mdp.SinglePushCurriculum, params={"initial_level": 0})
+    reset_randomization = CurrTerm(func=mdp.SinglePushCurriculum)
 
 
 @configclass
@@ -623,11 +623,12 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         (14, 0.75),
         (14, 1.25),
     )
-    # The reset event samples a startup-only bank of collision-screened robot starts. Successful
-    # environments advance immediately from a nearby pile to the full reset distribution. Every
-    # level remains the same one-pile, one-sweep task and keeps all particles outside the bin.
+    # The reset event samples a startup-only bank of collision-screened robot starts. Retain every
+    # difficulty throughout training while exposing the policy to full randomization immediately.
+    # Every level remains the same one-pile, one-sweep task and keeps all particles outside the bin.
     reset_pile_center_x: tuple[float, ...] = (0.78, 0.72, PILE_NOMINAL_CENTER[0])
     reset_randomization_scales: tuple[float, ...] = (0.35, 0.65, 1.0)
+    reset_level_probabilities: tuple[float, ...] = (0.20, 0.40, 0.40)
     reset_seed: int = 17
     reset_pose_count: int = 192
     reset_cycle: bool = False
@@ -718,6 +719,12 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         level_count = len(self.reset_randomization_scales)
         if level_count < 1 or len(self.reset_pile_center_x) != level_count:
             raise ValueError("The reset curriculum must contain matching center and scale sequences.")
+        if (
+            len(self.reset_level_probabilities) != level_count
+            or any(not math.isfinite(value) or value < 0.0 for value in self.reset_level_probabilities)
+            or not math.isclose(sum(self.reset_level_probabilities), 1.0)
+        ):
+            raise ValueError("Reset-level probabilities must be finite, non-negative, and sum to one.")
         if (
             isinstance(self.reset_pose_count, bool)
             or not isinstance(self.reset_pose_count, int)
@@ -1029,13 +1036,13 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         self.heightmap_xy_noise_std = 0.0
         self.heightmap_dropout_probability = 0.0
         self.reset_cycle = True
-        self.curriculum.reset_randomization.params["initial_level"] = len(self.reset_randomization_scales) - 1
-        # Newton's generic viewer defaults to hidden particles. Enable them only for playback so
-        # training remains renderer-free unless a visualizer is explicitly requested.
-        self.sim.visualizer_cfgs = [
-            NewtonVisualizerCfg(
-                show_particles=True,
-                particle_color=MPM_VISUAL_COLOR,
-            )
-        ]
+        self.reset_level_probabilities = (0.0,) * (len(self.reset_randomization_scales) - 1) + (1.0,)
+        camera_cfg = self.sim.default_visualizer_cfg
+        self.sim.default_visualizer_cfg = NewtonRTXVisualizerCfg(
+            eye=camera_cfg.eye,
+            lookat=camera_cfg.lookat,
+            show_particles=True,
+            particle_color=MPM_VISUAL_COLOR,
+        )
+        self.sim.visualizer_cfgs = [NewtonGLVisualizerCfg()]
         configure_sparse_mpm_capacities(self)

@@ -170,10 +170,11 @@ def create_visualizer_cfgs():
     if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
         return []
 
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
+    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
-        NewtonGLVisualizerCfg(
+        cfg_type(
             show_particles=True,
             particle_color=WATER_COLOR,
         )

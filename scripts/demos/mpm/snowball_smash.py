@@ -104,13 +104,14 @@ CAMERA_TARGET = (0.0, 0.0, 0.9)
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for the requested backends."""
-    if "newton" not in (args_cli.visualizer or []):
+    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
         return []
 
-    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
+    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
-        NewtonVisualizerCfg(
+        cfg_type(
             show_particles=True,
             particle_color=SNOW_COLOR,
         )
