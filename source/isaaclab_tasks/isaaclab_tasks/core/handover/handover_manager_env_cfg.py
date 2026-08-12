@@ -93,27 +93,28 @@ class PolicyCfg(ObsGroup):
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
     right_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("right_hand")})
     right_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("right_hand")})
-    right_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("right_hand")})
-    right_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("right_hand")})
-    right_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("right_hand")})
+    right_fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": _fingertip_entity("right_hand")})
+    right_fingertip_vel = ObsTerm(
+        func=reorient_mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("right_hand")}
+    )
     right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
-    right_object_goal = ObsTerm(
-        func=mdp.object_goal,
-        params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
+    object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+    object_quat = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+    object_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
+    object_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")})
+    goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+    goal_quat_diff = ObsTerm(
+        func=reorient_mdp.goal_quat_diff,
+        params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
     )
 
     # Left agent: the same 157-dimensional layout.
     # soft limits equal the hard limits here: soft_joint_pos_limits_factor defaults to 1.0
     left_joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": _hand_entity("left_hand")})
     left_joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": _hand_entity("left_hand")})
-    left_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("left_hand")})
-    left_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("left_hand")})
-    left_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("left_hand")})
+    left_fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": _fingertip_entity("left_hand")})
+    left_fingertip_vel = ObsTerm(func=reorient_mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("left_hand")})
     left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
-    left_object_goal = ObsTerm(
-        func=mdp.object_goal,
-        params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
-    )
 
     def __post_init__(self):
         self.enable_corruption = False

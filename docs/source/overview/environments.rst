@@ -297,7 +297,7 @@ for the lift-cube environment:
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``albedo``, ``depth``,     |
-    |                         |                              |                                                                             | ``full``, ``rgb``, ``rgb_depth``,       |
+    |                         |                              |                                                                             | ``full``, ``rgb``,                      |
     |                         |                              |                                                                             | ``semantic_segmentation``,              |
     |                         |                              |                                                                             | ``simple_shading_constant_diffuse``,    |
     |                         |                              |                                                                             | ``simple_shading_diffuse_mdl``,         |
@@ -1199,13 +1199,13 @@ including disabling runtime perturbations used for training.
       - **rl_games** (PPO), **rsl_rl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``rgb_depth``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Cube-Shadow-Camera
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``full``, ``randomized``, ``rgb``, ``rgb_depth``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``randomized``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1229,7 +1229,8 @@ including disabling runtime perturbations used for training.
     * - Isaac-Shadow-Handover
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``randomized``
     * - Isaac-Velocity-Flat-AnymalD
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)

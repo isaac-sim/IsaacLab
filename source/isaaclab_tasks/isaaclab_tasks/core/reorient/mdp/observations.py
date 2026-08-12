@@ -137,12 +137,6 @@ def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Te
     return positions.reshape(env.num_envs, -1)
 
 
-def fingertip_quat(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Flattened fingertip ``(x, y, z, w)`` orientations, shape ``(num_envs, num_fingertips * 4)``."""
-    asset = env.scene[asset_cfg.name]
-    return asset.data.body_quat_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1)
-
-
 def fingertip_vel(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Flattened fingertip spatial velocities [m/s, rad/s], shape ``(num_envs, num_fingertips * 6)``."""
     asset = env.scene[asset_cfg.name]

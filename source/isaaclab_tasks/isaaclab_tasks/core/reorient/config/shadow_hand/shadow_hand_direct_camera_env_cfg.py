@@ -63,8 +63,8 @@ def validate_shadow_hand_camera_settings(
 class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     """Base camera configuration for the shadow hand vision environment.
 
-    This is a module-level config used by :class:`ShadowHandTiledCameraCfg` presets, by
-    derived env configs that hard-code a specific data type, and by the rendering tests. It embeds
+    This is an internal config used by :class:`ShadowHandTiledCameraCfg` presets and
+    by derived env configs that hard-code a specific data type. It embeds
     :class:`~isaaclab_tasks.utils.MultiBackendRendererCfg` so the renderer backend can
     still be selected via the ``presets`` CLI argument.
     """
@@ -92,7 +92,6 @@ class ShadowHandTiledCameraCfg(PresetCfg):
     Select a data-type preset via the ``presets`` CLI argument, e.g.::
 
         presets = rgb  # RGB only (3 channels)
-        presets = rgb_depth  # RGB + depth (4 channels)
         presets = albedo  # albedo (3 channels)
         presets = simple_shading_constant_diffuse  # simple shading, constant diffuse (3 channels)
 
@@ -113,9 +112,6 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
     rgb: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"])
     """RGB only (3 CNN input channels)."""
-
-    rgb_depth: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth"])
-    """RGB and depth (4 CNN input channels)."""
 
     albedo: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["albedo"])
     """Albedo (3 CNN input channels)."""
@@ -179,9 +175,11 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
         validate_shadow_hand_camera_settings(self.tiled_camera, self.feature_extractor)
 
     def play_mode(self):
+        # play-mode overrides of parent
         super().play_mode()
-        # the tiled camera needs more environments than the shared play default
+
+        # scene
         self.scene.num_envs = 64
-        # mutate rather than replace: subclasses may have disabled the CNN
+        # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

@@ -8,7 +8,6 @@ __all__ = [
     "ReorientCommandCfg",
     "reset_reorient_hand",
     "fingertip_pos",
-    "fingertip_quat",
     "fingertip_vel",
     "goal_quat_diff",
     "ShadowHandCameraFeatures",
@@ -24,7 +23,6 @@ from .commands import ReorientCommand, ReorientCommandCfg
 from .events import reset_reorient_hand
 from .observations import (
     fingertip_pos,
-    fingertip_quat,
     fingertip_vel,
     goal_quat_diff,
     ShadowHandCameraFeatures,
