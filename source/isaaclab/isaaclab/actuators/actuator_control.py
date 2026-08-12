@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAliasType
+from typing import TYPE_CHECKING, Literal, TypeAliasType
 
 import torch
 import warp as wp
@@ -375,6 +375,23 @@ class ActuatorControl(ABC):
             env_ids: Environment indices to update.
             joint_ids: Articulation joint indices to update.
         """
+
+    def get_native_actuator_gain(
+        self,
+        attr: Literal["kp", "kd"],
+        joint_ids: torch.Tensor | slice,
+    ) -> torch.Tensor | None:
+        """Return controller-owned gains for one native actuator group.
+
+        Args:
+            attr: Controller gain name.
+            joint_ids: Articulation joint indices in public order.
+
+        Returns:
+            Current controller gains, or ``None`` when the selected group is
+            not completely managed by a supported native controller.
+        """
+        return None
 
 
 class ArticulationActuatorControl(ActuatorControl):

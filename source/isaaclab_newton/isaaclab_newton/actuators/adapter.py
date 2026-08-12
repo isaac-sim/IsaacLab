@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 import numpy as np
 import torch
@@ -336,9 +336,76 @@ class NewtonActuatorAdapter:
 
 
 # ---------------------------------------------------------------------------
-# Per-articulation initial-gain snapshot — consumed by
-# ``randomize_actuator_gains`` to seed ``default_joint_*`` baselines.
+# Per-articulation controller-gain projections.
 # ---------------------------------------------------------------------------
+
+
+def read_newton_actuator_gain(
+    actuators: list[Actuator],
+    attr: Literal["kp", "kd"],
+    num_envs: int,
+    num_joints: int,
+    dof_offset: int,
+    env_stride: int,
+    device: str,
+    joint_user_to_backend_indices: Sequence[int] | None = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Project one live Newton controller gain into public joint order.
+
+    Args:
+        actuators: Newton actuators visible to the model.
+        attr: Controller gain name.
+        num_envs: Number of articulation environments.
+        num_joints: Articulation-local joint count.
+        dof_offset: Offset of this articulation's DOFs in the model buffer.
+        env_stride: Model DOFs per environment.
+        device: Torch and Warp device.
+        joint_user_to_backend_indices: Optional public-to-backend joint mapping.
+
+    Returns:
+        The live controller gain and a public-order mask that identifies joints
+        covered by a controller exposing :paramref:`attr`.
+
+    Raises:
+        ValueError: If the requested joint mapping is not a complete permutation.
+    """
+    user_to_backend: tuple[int, ...] | None = None
+    if joint_user_to_backend_indices is not None:
+        user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
+        if sorted(user_to_backend) != list(range(num_joints)):
+            raise ValueError(
+                "joint_user_to_backend_indices must contain each backend joint index exactly once; "
+                f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
+            )
+
+    articulation_actuators = [
+        actuator for actuator in actuators if dof_offset <= int(actuator.indices.numpy()[0]) < dof_offset + num_joints
+    ]
+    covered = torch.zeros(num_joints, dtype=torch.bool, device=device)
+    wp_device = wp.get_device(device)
+    flat_gains = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
+    for actuator in articulation_actuators:
+        controller = actuator.controller
+        if not hasattr(controller, attr):
+            continue
+        per_actuator = actuator.indices.shape[0] // num_envs
+        for global_dof in actuator.indices.numpy()[:per_actuator]:
+            local_dof = int(global_dof) - dof_offset
+            if 0 <= local_dof < num_joints:
+                covered[local_dof] = True
+        wp.launch(
+            scatter_gain_kernel,
+            dim=actuator.indices.shape[0],
+            inputs=[getattr(controller, attr), flat_gains, actuator.indices, dof_offset, num_joints, env_stride],
+            device=wp_device,
+        )
+
+    gains = wp.to_torch(flat_gains.reshape((num_envs, num_joints)))
+    if user_to_backend is not None:
+        backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=device)
+        gains = gains.index_select(1, backend_column_indices)
+        covered = covered.index_select(0, backend_column_indices)
+    return gains, covered
 
 
 def build_newton_actuator_defaults(
@@ -394,15 +461,6 @@ def build_newton_actuator_defaults(
         ValueError: If :paramref:`joint_user_to_backend_indices` is not a
             complete permutation of all adapter-local joint indices.
     """
-    user_to_backend: tuple[int, ...] | None = None
-    if joint_user_to_backend_indices is not None:
-        user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
-        if sorted(user_to_backend) != list(range(num_joints)):
-            raise ValueError(
-                "joint_user_to_backend_indices must contain each backend joint index exactly once; "
-                f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
-            )
-
     arti_actuators = [act for act in actuators if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints]
 
     managed_local: set[int] = set()
@@ -418,33 +476,28 @@ def build_newton_actuator_defaults(
     else:
         joint_indices = torch.tensor(sorted(managed_local), dtype=torch.int32, device=device)
 
-    wp_device = wp.get_device(device)
-    flat_stiffness = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
-    flat_damping = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
-    for act in arti_actuators:
-        ctrl = act.controller
-        if hasattr(ctrl, "kp"):
-            wp.launch(
-                scatter_gain_kernel,
-                dim=act.indices.shape[0],
-                inputs=[ctrl.kp, flat_stiffness, act.indices, dof_offset, num_joints, env_stride],
-                device=wp_device,
-            )
-        if hasattr(ctrl, "kd"):
-            wp.launch(
-                scatter_gain_kernel,
-                dim=act.indices.shape[0],
-                inputs=[ctrl.kd, flat_damping, act.indices, dof_offset, num_joints, env_stride],
-                device=wp_device,
-            )
-    stiffness = wp.to_torch(flat_stiffness.reshape((num_envs, num_joints)))
-    damping = wp.to_torch(flat_damping.reshape((num_envs, num_joints)))
-    if user_to_backend is not None:
-        # ``index_select(1, backend_column_indices)`` gathers backend-order columns into user-order
-        # positions: for each user position ``u`` it holds the backend column ``user_to_backend[u]``.
-        backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=device)
-        stiffness = stiffness.index_select(1, backend_column_indices)
-        damping = damping.index_select(1, backend_column_indices)
+    stiffness, _ = read_newton_actuator_gain(
+        actuators,
+        "kp",
+        num_envs,
+        num_joints,
+        dof_offset,
+        env_stride,
+        device,
+        joint_user_to_backend_indices,
+    )
+    damping, _ = read_newton_actuator_gain(
+        actuators,
+        "kd",
+        num_envs,
+        num_joints,
+        dof_offset,
+        env_stride,
+        device,
+        joint_user_to_backend_indices,
+    )
+    if joint_user_to_backend_indices is not None:
+        user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
         if not isinstance(joint_indices, slice):
             backend_to_user = [0] * num_joints
             for user_index, backend_index in enumerate(user_to_backend):

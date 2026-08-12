@@ -905,6 +905,9 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
             adapter = anymal.newton_actuator_adapter
             self.assertIsNotNone(adapter, "PhysX per-articulation adapter should exist")
+            legs = anymal.actuators["legs"]
+            self.assertNotIn("_stiffness", legs.__dict__)
+            self.assertNotIn("_damping", legs.__dict__)
             n = anymal.num_joints
             kp_before = self._gather_param(adapter, NUM_ENVS, n, "kp", anymal.device).clone()
             kd_before = self._gather_param(adapter, NUM_ENVS, n, "kd", anymal.device).clone()
@@ -927,6 +930,9 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             kd_after = self._gather_param(adapter, NUM_ENVS, n, "kd", anymal.device)
             torch.testing.assert_close(kp_after[0], torch.full((n,), 100.0, device=anymal.device))
             torch.testing.assert_close(kd_after[0], torch.full((n,), 5.0, device=anymal.device))
+            # Named native-group reads project the controller values immediately.
+            torch.testing.assert_close(legs.stiffness[0], torch.full((n,), 100.0, device=anymal.device))
+            torch.testing.assert_close(legs.damping[0], torch.full((n,), 5.0, device=anymal.device))
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(kp_after[env_idx], kp_before[env_idx])
                 torch.testing.assert_close(kd_after[env_idx], kd_before[env_idx])

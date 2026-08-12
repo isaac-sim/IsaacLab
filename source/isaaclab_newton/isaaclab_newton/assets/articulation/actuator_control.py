@@ -10,7 +10,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
@@ -210,6 +210,43 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
+
+    def get_native_actuator_gain(
+        self,
+        attr: Literal["kp", "kd"],
+        joint_ids: torch.Tensor | slice,
+    ) -> torch.Tensor | None:
+        """Return a complete native controller-gain projection in public joint order."""
+        articulation = self._articulation
+        adapter = articulation.newton_actuator_adapter
+        if adapter is None:
+            return None
+
+        from newton import Model as NewtonModel  # noqa: PLC0415
+
+        from isaaclab_newton.actuators.adapter import read_newton_actuator_gain  # noqa: PLC0415
+
+        dof_layout = articulation._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+        if dof_layout.slice is not None:
+            dof_offset = dof_layout.slice.start
+        elif dof_layout.indices is not None:
+            dof_offset = int(dof_layout.indices.numpy()[0])
+        else:
+            dof_offset = 0
+        joint_ordering = articulation.data.joint_ordering
+        gains, covered = read_newton_actuator_gain(
+            adapter.actuators,
+            attr,
+            self.num_instances,
+            self.num_joints,
+            dof_offset,
+            adapter.num_joints,
+            self.device,
+            joint_ordering.user_to_backend_indices if joint_ordering is not None else None,
+        )
+        if not bool(torch.all(covered[joint_ids])):
+            return None
+        return gains[:, joint_ids]
 
     def write_native_actuator_gain(
         self,

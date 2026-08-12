@@ -362,6 +362,38 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
 
+class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
+    """Native control whose gains model controller-owned storage."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        shape = (self.num_instances, self.num_joints)
+        self.native_gains = {
+            "kp": torch.zeros(shape, dtype=torch.float32, device=self.device),
+            "kd": torch.zeros(shape, dtype=torch.float32, device=self.device),
+        }
+
+    def get_native_actuator_gain(self, attr, joint_ids: torch.Tensor | slice) -> torch.Tensor | None:
+        gains = self.native_gains.get(attr)
+        return None if gains is None else gains[:, joint_ids]
+
+    def write_native_actuator_gain(self, attr, values, env_ids, joint_ids) -> None:
+        super().write_native_actuator_gain(attr, values, env_ids, joint_ids)
+        self.native_gains[attr][env_ids[:, None], joint_ids] = values
+
+
+class RecordingNativeGainFakeActuatorControl(NativeGainFakeActuatorControl):
+    """Native controller fake that captures state before the supported writer runs."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.native_gain_values_before_writes: list[torch.Tensor] = []
+
+    def write_native_actuator_gain(self, attr, values, env_ids, joint_ids) -> None:
+        self.native_gain_values_before_writes.append(self.native_gains[attr].clone())
+        super().write_native_actuator_gain(attr, values, env_ids, joint_ids)
+
+
 def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays():
     drive_property_names = {"joint_stiffness", "joint_damping", "joint_effort_limits"}
     legacy_members = {
@@ -652,6 +684,74 @@ def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeyp
     torch.testing.assert_close(articulation.data.joint_damping.torch, torch.zeros((2, 3)))
     assert articulation.calls[-2][1]["stiffness"] == 0.0
     assert articulation.calls[-1][1]["damping"] == 0.0
+
+
+def test_native_group_gains_project_live_controller_values_without_local_mirrors():
+    """Read native group gains from controllers and retain local values only for unsupported controls."""
+    control = NativeGainFakeActuatorControl()
+    control.native_gains["kp"].copy_(torch.tensor([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]))
+    control.native_gains["kd"].copy_(torch.tensor([[0.2, 0.3, 0.4], [0.5, 0.6, 0.7]]))
+
+    collection = ActuatorCollection(
+        {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
+    )
+    group = collection["native"]
+
+    assert "_stiffness" not in group.__dict__
+    assert "_damping" not in group.__dict__
+    torch.testing.assert_close(group.stiffness, control.native_gains["kp"])
+    torch.testing.assert_close(group.damping, control.native_gains["kd"])
+
+    control.native_gains["kp"][1, 2] = 17.0
+    control.native_gains["kd"][1, 2] = 1.7
+    assert group.stiffness[1, 2] == 17.0
+    assert group.damping[1, 2] == 1.7
+
+    control.native_gains.pop("kd")
+    unsupported = ActuatorCollection(
+        {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
+    )["native"]
+    assert "_stiffness" in unsupported.__dict__
+    assert "_damping" in unsupported.__dict__
+
+
+def test_native_gain_randomization_updates_controllers_only():
+    """Route native gain randomization through the controller writer without a direct group mutation."""
+    from isaaclab.envs.mdp.events import randomize_actuator_gains
+
+    control = RecordingNativeGainFakeActuatorControl()
+    control.native_gains["kp"].fill_(2.0)
+    control.native_gains["kd"].fill_(0.2)
+    collection = ActuatorCollection(
+        {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
+    )
+    asset = SimpleNamespace(
+        actuators=collection,
+        device="cpu",
+        num_joints=control.num_joints,
+    )
+    term = object.__new__(randomize_actuator_gains)
+    term.asset = asset
+    term.asset_cfg = SimpleNamespace(joint_ids=slice(None))
+    term._native_group_names = {"native"}
+    term.default_actuator_stiffness = {"native": control.native_gains["kp"].clone()}
+    term.default_actuator_damping = {"native": control.native_gains["kd"].clone()}
+    env = SimpleNamespace(scene=SimpleNamespace(num_envs=control.num_instances))
+
+    term(
+        env,
+        env_ids=torch.tensor([0]),
+        asset_cfg=term.asset_cfg,
+        stiffness_distribution_params=(100.0, 100.0),
+        damping_distribution_params=(5.0, 5.0),
+    )
+
+    torch.testing.assert_close(control.native_gain_values_before_writes[0], torch.full((2, 3), 2.0))
+    torch.testing.assert_close(control.native_gain_values_before_writes[1], torch.full((2, 3), 0.2))
+    torch.testing.assert_close(control.native_gains["kp"][0], torch.full((3,), 100.0))
+    torch.testing.assert_close(control.native_gains["kd"][0], torch.full((3,), 5.0))
+    assert "_stiffness" not in collection["native"].__dict__
+    assert "_damping" not in collection["native"].__dict__
 
 
 def test_overlapping_groups_are_rejected():

@@ -319,6 +319,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._control.finalize_native_actuators(self)
+        for actuator_name in self._native_group_names:
+            self._groups[actuator_name]._bind_native_actuator_gains(self._control)
         self._validate_coverage()
         self._build_execution_batches()
         if debug_value_resolution:

@@ -9,7 +9,7 @@ import copy
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import torch
 
@@ -80,6 +80,17 @@ class ActuatorBase(ABC):
 
     damping: torch.Tensor
     """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
+
+    class _NativeActuatorGains:
+        """Live controller-owned gain projection for one native actuator group."""
+
+        def __init__(self, control: ActuatorControl, joint_indices: slice | torch.Tensor):
+            self._control = control
+            self._joint_indices = joint_indices
+
+        def get(self, attr: Literal["kp", "kd"]) -> torch.Tensor | None:
+            """Read one controller gain in the group's public joint order."""
+            return self._control.get_native_actuator_gain(attr, self._joint_indices)
 
     _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
     """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
@@ -229,6 +240,26 @@ class ActuatorBase(ABC):
         return self._joint_indices
 
     @property
+    def stiffness(self) -> torch.Tensor:
+        """Current stiffness values [N/m or N·m/rad, depending on joint type]."""
+        native_gains = self.__dict__.get("_native_actuator_gains")
+        return self._stiffness if native_gains is None else native_gains.get("kp")
+
+    @stiffness.setter
+    def stiffness(self, value: torch.Tensor) -> None:
+        self._stiffness = value
+
+    @property
+    def damping(self) -> torch.Tensor:
+        """Current damping values [N·s/m or N·m·s/rad, depending on joint type]."""
+        native_gains = self.__dict__.get("_native_actuator_gains")
+        return self._damping if native_gains is None else native_gains.get("kd")
+
+    @damping.setter
+    def damping(self, value: torch.Tensor) -> None:
+        self._damping = value
+
+    @property
     def effort_limit_sim(self) -> torch.Tensor:
         """Deprecated solver effort limit [N or N·m, depending on joint type].
 
@@ -341,6 +372,15 @@ class ActuatorBase(ABC):
         """Bind deprecated joint-property accessors to the owning articulation control."""
         self._joint_property_control = control
         self.__dict__.pop("_joint_property_snapshot", None)
+
+    def _bind_native_actuator_gains(self, control: ActuatorControl) -> None:
+        """Bind native gain reads when controllers cover every joint in this group."""
+        native_gains = self._NativeActuatorGains(control, self.joint_indices)
+        if native_gains.get("kp") is None or native_gains.get("kd") is None:
+            return
+        self._native_actuator_gains = native_gains
+        self.__dict__.pop("_stiffness", None)
+        self.__dict__.pop("_damping", None)
 
     def _get_deprecated_joint_property(self, accessor_name: str, property_name: str) -> torch.Tensor:
         """Return one deprecated joint-property projection without owning its storage."""

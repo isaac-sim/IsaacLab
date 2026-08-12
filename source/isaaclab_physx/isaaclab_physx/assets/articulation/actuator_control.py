@@ -10,7 +10,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
@@ -320,6 +320,31 @@ class PhysxActuatorControl(ArticulationActuatorControl):
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and self._articulation.newton_actuator_adapter is not None:
             self._articulation.newton_actuator_adapter.reset(env_ids)
+
+    def get_native_actuator_gain(
+        self,
+        attr: Literal["kp", "kd"],
+        joint_ids: torch.Tensor | slice,
+    ) -> torch.Tensor | None:
+        """Return a complete native controller-gain projection in public joint order."""
+        adapter = self._articulation.newton_actuator_adapter
+        if adapter is None:
+            return None
+
+        from isaaclab_newton.actuators.adapter import read_newton_actuator_gain  # noqa: PLC0415
+
+        gains, covered = read_newton_actuator_gain(
+            adapter.actuators,
+            attr,
+            self.num_instances,
+            self.num_joints,
+            0,
+            self.num_joints,
+            self.device,
+        )
+        if not bool(torch.all(covered[joint_ids])):
+            return None
+        return gains[:, joint_ids]
 
     def write_native_actuator_gain(
         self,

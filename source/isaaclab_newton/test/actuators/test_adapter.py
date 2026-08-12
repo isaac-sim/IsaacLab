@@ -5,7 +5,11 @@
 
 """Tests for the PhysX-side Newton actuator adapter."""
 
+from types import SimpleNamespace
+
 import numpy as np
+import torch
+import warp as wp
 from isaaclab_newton.actuators import NewtonActuatorAdapter
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, ControllerPD
 
@@ -15,6 +19,44 @@ from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActu
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
+
+
+def test_live_gain_projection_follows_controller_values_in_public_order():
+    """Read current controller gains with the articulation env stride and public ordering."""
+    from isaaclab_newton.actuators.adapter import read_newton_actuator_gain
+
+    controller = SimpleNamespace(kp=wp.array((10.0, 0.0, 11.0, 31.0), dtype=wp.float32, device="cpu"))
+    actuator = SimpleNamespace(
+        controller=controller,
+        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
+    )
+
+    gains, covered = read_newton_actuator_gain(
+        actuators=[actuator],
+        attr="kp",
+        num_envs=2,
+        num_joints=3,
+        dof_offset=0,
+        env_stride=3,
+        device="cpu",
+        joint_user_to_backend_indices=(2, 0, 1),
+    )
+
+    torch.testing.assert_close(gains, torch.tensor([[0.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
+    assert torch.equal(covered, torch.tensor([True, True, False]))
+
+    wp.to_torch(controller.kp)[3] = 71.0
+    updated, _ = read_newton_actuator_gain(
+        actuators=[actuator],
+        attr="kp",
+        num_envs=2,
+        num_joints=3,
+        dof_offset=0,
+        env_stride=3,
+        device="cpu",
+        joint_user_to_backend_indices=(2, 0, 1),
+    )
+    assert updated[1, 0] == 71.0
 
 
 def _make_actuator_stage() -> Usd.Stage:

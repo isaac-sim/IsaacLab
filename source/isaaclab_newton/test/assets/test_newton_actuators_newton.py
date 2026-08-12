@@ -670,6 +670,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             adapter = SimulationManager._adapter
             self.assertIsNotNone(adapter, "Newton adapter should exist with use_newton_actuators=True")
             legs = anymal.actuators["legs"]
+            self.assertNotIn("_stiffness", legs.__dict__)
+            self.assertNotIn("_damping", legs.__dict__)
             kp_before = self._gather_param(anymal, "kp").clone()
             kd_before = self._gather_param(anymal, "kd").clone()
             legs_stiffness_before = legs.stiffness.clone()
@@ -694,6 +696,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             n = anymal.num_joints
             torch.testing.assert_close(kp_after[0], torch.full((n,), 100.0, device=anymal.device))
             torch.testing.assert_close(kd_after[0], torch.full((n,), 5.0, device=anymal.device))
+            # Named native-group reads project the controller values immediately.
             torch.testing.assert_close(legs.stiffness[0], torch.full((n,), 100.0, device=anymal.device))
             torch.testing.assert_close(legs.damping[0], torch.full((n,), 5.0, device=anymal.device))
             # Other envs untouched.

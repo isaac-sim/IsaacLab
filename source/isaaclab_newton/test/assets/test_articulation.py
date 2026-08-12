@@ -2821,8 +2821,9 @@ def test_setting_velocity_limit_implicit(
     ).to(device)[:, 0, :]
     # check data buffer
     torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
-    # check actuator has simulation velocity limit
-    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, newton_vel_limit)
+    # Keep one warning-covered compatibility projection while canonical data owns the solver value.
+    with pytest.warns(DeprecationWarning, match="velocity_limit_sim"):
+        torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, newton_vel_limit)
 
     # the solver clamp comes from velocity_limit_sim when set, otherwise the USD-authored value
     if vel_limit_sim is None:
@@ -2864,12 +2865,9 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
     actuator_vel_limit = articulation.actuators["joint"].velocity_limit
-    actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
 
     # check data buffer for joint_velocity_limits_sim
     torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
-    # check actuator velocity_limit_sim is set to physx
-    torch.testing.assert_close(actuator_vel_limit_sim, newton_vel_limit)
 
     if vel_limit is not None:
         expected_actuator_vel_limit = torch.full(
@@ -2932,12 +2930,13 @@ def test_setting_effort_limit_implicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
 
-    # check that the two are equivalent
-    torch.testing.assert_close(
-        articulation.actuators["joint"].effort_limit_sim,
-        articulation.actuators["joint"].effort_limit,
-    )
-    torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, newton_effort_limit)
+    # Keep one warning-covered compatibility projection while canonical data owns the solver value.
+    with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
+        torch.testing.assert_close(
+            articulation.actuators["joint"].effort_limit_sim,
+            articulation.actuators["joint"].effort_limit,
+        )
+    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, newton_effort_limit)
 
     # decide the limit based on what is set
     if effort_limit_sim is None and effort_limit is None:
@@ -2990,10 +2989,6 @@ def test_setting_effort_limit_explicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
     actuator_effort_limit = articulation.actuators["joint"].effort_limit
-    actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
-
-    # check actuator effort_limit_sim is set to physx
-    torch.testing.assert_close(actuator_effort_limit_sim, newton_effort_limit)
 
     if effort_limit is not None:
         expected_actuator_effort_limit = torch.full_like(actuator_effort_limit, effort_limit)
@@ -3014,7 +3009,7 @@ def test_setting_effort_limit_explicit(
         limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(newton_effort_limit, limit)
-    torch.testing.assert_close(actuator_effort_limit_sim, expected_effort_limit)
+    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, expected_effort_limit)
     torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 
