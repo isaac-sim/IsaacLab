@@ -116,7 +116,10 @@ class RlGamesVecEnvWrapper(IVecEnv):
                 True for backward compatible.
 
         Raises:
-            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv`, :class:`DirectRLEnv`,
+                :class:`DirectMARLEnv`, :class:`ManagerBasedMARLEnv`,
+                :class:`isaaclab_experimental.envs.DirectRLEnvWarp`, or
+                :class:`isaaclab_experimental.envs.ManagerBasedRLEnvWarp`.
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
