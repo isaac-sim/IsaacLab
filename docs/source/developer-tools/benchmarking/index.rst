@@ -92,12 +92,6 @@ Guides
 
       Run workflows from Python or add a benchmark producer.
 
-Published results
------------------
-
-See :doc:`/source/overview/reinforcement-learning/performance_benchmarks` for
-published reinforcement-learning performance results.
-
 .. toctree::
    :hidden:
    :maxdepth: 1
