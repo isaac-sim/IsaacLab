@@ -105,7 +105,7 @@ If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
 1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
-   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`installation-selective-install`)
+   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`modularized installation <installation-selective-install>`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 

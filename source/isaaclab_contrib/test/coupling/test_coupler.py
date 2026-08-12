@@ -564,6 +564,71 @@ def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
     assert events == [("initialize", None), ("prepare", contacts)]
 
 
+@pytest.mark.parametrize(("mask_values", "should_reset"), [([True, False], True), ([False, False], False)])
+def test_single_world_mpm_reset_promotes_local_mask(monkeypatch, mask_values, should_reset):
+    """The only selected local MPM world uses the full-grid reset path."""
+    state_0 = object()
+    calls: list[tuple[object, object | None, int | None]] = []
+    solver = SimpleNamespace(
+        reset=lambda state, world_mask=None, flags=None: calls.append((state, world_mask, flags)),
+    )
+    mask = _FakeArray(np.asarray(mask_values, dtype=np.bool_))
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
+
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=1))
+    monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
+    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state_0)
+
+    NewtonCouplerManager._reset_solver_internals(mask)
+
+    assert calls == ([(state_0, None, 0)] if should_reset else [])
+
+
+def test_single_world_non_mpm_reset_does_not_read_mask_on_host(monkeypatch):
+    """A non-MPM coupled reset must keep the device mask on the device."""
+    state = object()
+    calls: list[tuple[object, object, int]] = []
+    solver = SimpleNamespace(
+        reset=lambda reset_state, world_mask=None, flags=0: calls.append((reset_state, world_mask, flags)),
+    )
+
+    class _DeviceMask:
+        def numpy(self):
+            raise AssertionError("non-MPM reset unexpectedly copied its mask to the host")
+
+    mask = _DeviceMask()
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=1))
+    monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
+    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state)
+
+    NewtonCouplerManager._reset_solver_internals(mask)
+
+    assert calls == [(state, mask, 0)]
+
+
+def test_multi_world_mpm_reset_is_not_promoted(monkeypatch):
+    """A partial multi-world MPM reset must not clear every world's grid."""
+    state = object()
+    calls: list[tuple[object, object, int]] = []
+    solver = SimpleNamespace(
+        reset=lambda reset_state, world_mask=None, flags=0: calls.append((reset_state, world_mask, flags)),
+    )
+    mask = _FakeArray(np.asarray([True, False, False], dtype=np.bool_))
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="mpm", solver_cfg=MPMSolverCfg(), in_place=True)])
+
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+    monkeypatch.setattr(coupler.NewtonManager, "_model", SimpleNamespace(world_count=2))
+    monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
+    monkeypatch.setattr(coupler.NewtonManager, "_state_0", state)
+
+    NewtonCouplerManager._reset_solver_internals(mask)
+
+    assert calls == [(state, mask, 0)]
+
+
 @pytest.mark.parametrize(
     ("case", "expected_outer"),
     [
@@ -601,6 +666,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         "_use_single_state",
         "_needs_collision_pipeline",
         "_supports_contact_sensors",
+        "_supports_rigid_body_force_input",
         "_report_contacts",
     ):
         monkeypatch.setattr(coupler.NewtonManager, attribute, getattr(coupler.NewtonManager, attribute))
@@ -644,6 +710,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
 
     assert coupler.NewtonManager._needs_collision_pipeline is expected_outer
     assert coupler.NewtonManager._supports_contact_sensors is False
+    assert coupler.NewtonManager._supports_rigid_body_force_input is True
     assert recorded_entries == ["rigid", "soft"]
 
 
@@ -656,6 +723,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
         "_use_single_state",
         "_needs_collision_pipeline",
         "_supports_contact_sensors",
+        "_supports_rigid_body_force_input",
         "_report_contacts",
     ):
         monkeypatch.setattr(coupler.NewtonManager, attribute, getattr(coupler.NewtonManager, attribute))
@@ -682,6 +750,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
     NewtonCouplerManager._build_solver(model, cfg)
 
     assert coupler.NewtonManager._needs_collision_pipeline is True
+    assert coupler.NewtonManager._supports_rigid_body_force_input is True
 
 
 def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
@@ -690,6 +759,7 @@ def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
     monkeypatch.setattr(coupler.NewtonManager, "_use_single_state", True)
     monkeypatch.setattr(coupler.NewtonManager, "_needs_collision_pipeline", True)
     monkeypatch.setattr(coupler.NewtonManager, "_supports_contact_sensors", True)
+    monkeypatch.setattr(coupler.NewtonManager, "_supports_rigid_body_force_input", False)
     monkeypatch.setattr(coupler.NewtonManager, "_report_contacts", True)
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
@@ -699,6 +769,7 @@ def test_contact_sensor_guard_does_not_mutate_manager_state(monkeypatch):
     assert coupler.NewtonManager._use_single_state is True
     assert coupler.NewtonManager._needs_collision_pipeline is True
     assert coupler.NewtonManager._supports_contact_sensors is True
+    assert coupler.NewtonManager._supports_rigid_body_force_input is False
 
 
 class _RecordingAdmm:

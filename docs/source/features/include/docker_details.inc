@@ -291,10 +291,30 @@ release version tag.
 
     docker pull nvcr.io/nvidia/isaac-lab:<version>-kitless
 
-    docker run --rm --gpus all --network host \
-        nvcr.io/nvidia/isaac-lab:<version>-kitless \
+Start a named container in the background. The ``--interactive`` and ``--tty`` options keep the image's Bash
+process running so that you can execute multiple commands in the same container:
+
+.. code:: bash
+
+    docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
+        nvcr.io/nvidia/isaac-lab:<version>-kitless
+
+Train a policy in the running container:
+
+.. code:: bash
+
+    docker exec isaac-lab-kitless \
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
+
+Then replay the latest checkpoint in the same container. The Viser web visualizer is reachable through the host
+network; stop playback with :kbd:`Ctrl+C` without stopping the container:
+
+.. code:: bash
+
+    docker exec --interactive --tty isaac-lab-kitless \
+        isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+        --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
 
 Only ``linux/amd64`` images are published. The Dockerfile itself is architecture-agnostic, but the
 published manifest is limited to the architecture that is validated in CI.
@@ -320,11 +340,12 @@ The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Ea
 .. rubric:: Using the Kit-less Container
 
 The kit-less container uses Ubuntu 24.04 and Python 3.12 instead of the Isaac Sim base image. It contains
-Newton physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL, Stable-Baselines3, and SKRL.
-It does not select a visualizer, so training runs headless.
+Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL,
+Stable-Baselines3, and SKRL. It also carries every Newton viewer -- ``newton``, ``viser``, and ``rerun`` --
+so any of them can be requested with ``--viz``. No visualizer is selected by default, so training runs
+headless unless you ask for one.
 
-The OVPhysX source integration is present, but its external runtime is not included. Use Newton physics in
-this image.
+The ``kit`` visualizer is the exception: it is provided by Omniverse Kit, which this image does not contain.
 
 To build, start, and enter the image through the same ``container.py`` interface as the Isaac Sim images, run:
 

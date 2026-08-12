@@ -17,7 +17,7 @@ from datetime import datetime
 
 from packaging import version
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, report_activity
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
@@ -28,9 +28,12 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     preserve_attribute,
     resolve_checkpoint_selector,
     set_hydra_args,
+    show_run_summary,
+    startup_screen,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -133,103 +136,113 @@ def _run(args_cli: argparse.Namespace) -> None:
         raise SystemExit(1)
 
     agent_cfg_entry_point, algorithm = _resolve_agent_entry_point(args_cli)
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    with startup_screen(args_cli, num_stages=3) as screen:
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+        show_run_summary(screen, args_cli, env_cfg, library="skrl", action="train")
+        pre_launch_video_config(env_cfg, args_cli=args_cli)
+        screen.stage("Launching simulation")
+        with launch_simulation(env_cfg, args_cli):
+            if args_cli.ml_framework.startswith("torch"):
+                from skrl.utils.runner.torch import Runner
+            elif args_cli.ml_framework.startswith("jax"):
+                from skrl.utils.runner.jax import Runner
 
-    with launch_simulation(env_cfg, args_cli):
-        if args_cli.ml_framework.startswith("torch"):
-            from skrl.utils.runner.torch import Runner
-        elif args_cli.ml_framework.startswith("jax"):
-            from skrl.utils.runner.jax import Runner
+            apply_env_overrides(args_cli, env_cfg)
+            validate_distributed_device(args_cli)
 
-        apply_env_overrides(args_cli, env_cfg)
-        validate_distributed_device(args_cli)
+            if args_cli.distributed:
+                global_rank = _get_distributed_rank(args_cli)
 
-        if args_cli.distributed:
-            global_rank = _get_distributed_rank(args_cli)
+            if args_cli.max_iterations:
+                agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
+            agent_cfg["trainer"]["close_environment_at_exit"] = False
 
-        if args_cli.max_iterations:
-            agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
-        agent_cfg["trainer"]["close_environment_at_exit"] = False
+            if args_cli.seed == -1:
+                args_cli.seed = random.randint(0, 10000)
 
-        if args_cli.seed == -1:
-            args_cli.seed = random.randint(0, 10000)
+            agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+            if args_cli.distributed:
+                agent_cfg["seed"] = agent_cfg["seed"] + global_rank
+            env_cfg.seed = agent_cfg["seed"]
 
-        agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
-        if args_cli.distributed:
-            agent_cfg["seed"] = agent_cfg["seed"] + global_rank
-        env_cfg.seed = agent_cfg["seed"]
-
-        log_root_path = os.path.abspath(os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"]))
-        print(f"[INFO] Logging experiment in directory: {log_root_path}")
-        log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_{algorithm}_{args_cli.ml_framework}"
-        print(f"Exact experiment name requested from command line: {log_dir}")
-        if agent_cfg["agent"]["experiment"]["experiment_name"]:
-            log_dir += f"_{agent_cfg['agent']['experiment']['experiment_name']}"
-        agent_cfg["agent"]["experiment"]["directory"] = log_root_path
-        agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
-        log_dir = os.path.join(log_root_path, log_dir)
-        write_run_manifest(
-            log_dir,
-            library="skrl",
-            task=args_cli.task,
-            metadata={
-                "agent": agent_cfg_entry_point,
-                "algorithm": algorithm,
-                "ml_framework": args_cli.ml_framework,
-            },
-        )
-
-        dump_train_configs(log_dir, env_cfg, agent_cfg)
-
-        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-            resume_path = resolve_checkpoint_selector(
-                log_root_path,
-                args_cli.checkpoint,
+            log_root_path = os.path.abspath(os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"]))
+            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_{algorithm}_{args_cli.ml_framework}"
+            print(f"Exact experiment name requested from command line: {log_dir}")
+            if agent_cfg["agent"]["experiment"]["experiment_name"]:
+                log_dir += f"_{agent_cfg['agent']['experiment']['experiment_name']}"
+            agent_cfg["agent"]["experiment"]["directory"] = log_root_path
+            agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
+            log_dir = os.path.join(log_root_path, log_dir)
+            write_run_manifest(
+                log_dir,
                 library="skrl",
                 task=args_cli.task,
-                checkpoint_pattern=r".*",
-                other_dirs=["checkpoints"],
                 metadata={
                     "agent": agent_cfg_entry_point,
                     "algorithm": algorithm,
                     "ml_framework": args_cli.ml_framework,
                 },
             )
-        else:
-            resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
 
-        configure_io_descriptors(env_cfg, args_cli, logger)
-        env_cfg.log_dir = log_dir
-        apply_video_recording(env_cfg, log_dir, args_cli)
+            dump_train_configs(log_dir, env_cfg, agent_cfg)
 
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
-        )
-        env = wrap_training_capture(env, log_dir, args_cli)
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="skrl",
+                    task=args_cli.task,
+                    checkpoint_pattern=r".*",
+                    other_dirs=["checkpoints"],
+                    metadata={
+                        "agent": agent_cfg_entry_point,
+                        "algorithm": algorithm,
+                        "ml_framework": args_cli.ml_framework,
+                    },
+                )
+            else:
+                resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
 
-        start_time = time.time()
-        env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
-        runner = Runner(env, agent_cfg)
+            configure_io_descriptors(env_cfg, args_cli, logger)
+            env_cfg.log_dir = log_dir
+            apply_video_recording(env_cfg, log_dir, args_cli)
 
-        # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-        if args_cli.deterministic:
-            configure_seed(env_cfg.seed, torch_deterministic=True)
+            screen.stage("Creating environment")
+            env = create_isaaclab_env(
+                args_cli.task,
+                env_cfg,
+                args_cli,
+                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
+            )
+            env = wrap_training_capture(env, log_dir, args_cli)
 
-        if resume_path:
-            print(f"[INFO] Loading model checkpoint from: {resume_path}")
-            runner.agent.load(resume_path)
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+            report_activity(None)
+            report_activity("Building policy")
+            runner = Runner(env, agent_cfg)
+            report_activity(None)
 
-        try:
-            runner.run()
-            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
 
-            total_timesteps = agent_cfg["trainer"]["timesteps"]
-            os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
-            runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
-            print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
-            env.close()
-        except KeyboardInterrupt:
-            pass
+            if resume_path:
+                print(f"[INFO] Loading model checkpoint from: {resume_path}")
+                runner.agent.load(resume_path)
+
+            screen.close()
+            try:
+                runner.run()
+                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+
+                total_timesteps = agent_cfg["trainer"]["timesteps"]
+                os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
+                runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
+                print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
+                env.close()
+            except KeyboardInterrupt:
+                pass

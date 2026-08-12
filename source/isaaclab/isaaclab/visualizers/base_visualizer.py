@@ -43,6 +43,7 @@ class BaseVisualizer(ABC):
         self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
+        self._env_ids: list[int] | None = None
         self._deferred_startup_messages: list[str] = []
         self._live_plot_sources: list = []
         self._live_plot_env_idx: int = 0

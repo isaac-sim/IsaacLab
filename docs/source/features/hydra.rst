@@ -214,6 +214,10 @@ combinations early with clear error messages.
 Preset System
 -------------
 
+For a user-focused introduction to choosing physics, rendering, and task
+variants, start with :doc:`/source/concepts/backends_and_presets`. This section
+covers the complete preset definition and resolution behavior.
+
 The preset system lets you swap out entire config sections -- or individual scalar
 values -- with a single command line argument. Instead of overriding individual
 fields, you select a named preset that **completely replaces** the config section

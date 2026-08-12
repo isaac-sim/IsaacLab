@@ -156,3 +156,4 @@ class NewtonKaminoManager(NewtonManager):
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
+        NewtonManager._supports_rigid_body_force_input = True

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.configclass import configclass
 
-from .newton_collision_cfg import NewtonCollisionPipelineCfg
+from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -134,6 +134,27 @@ class NewtonCfg(PhysicsCfg):
     If set to False, the simulation performance will be severely degraded.
     """
 
+    deterministic_mode: Literal["not_guaranteed", "run_to_run", "gpu_to_gpu"] = "not_guaranteed"
+    """Determinism guarantee applied to the Newton solver and collision pipeline.
+
+    The values ``"not_guaranteed"``, ``"run_to_run"``, and ``"gpu_to_gpu"``
+    map to the corresponding ``warp.DeterministicMode`` values. Deterministic
+    execution increases memory use and can reduce simulation performance.
+
+    .. warning::
+
+       Deterministic contact ordering adds sorting work and allocates buffers
+       sized for the configured maximum contact count. Runtime and memory
+       overhead therefore grow with contact capacity. Enable this mode only
+       when its reproducibility guarantee is required.
+
+    MJWarp on the GPU with
+    :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
+    ``True``, XPBD, and Featherstone support this setting. Newton raises an
+    error during solver initialization for unsupported solvers rather than
+    silently running them without the requested guarantee.
+    """
+
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 
@@ -224,8 +245,13 @@ class NewtonCfg(PhysicsCfg):
         # previously silently overwritten.
         if self.class_type is not None:
             raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
+        if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
+            raise ValueError(
+                "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
+                f"got {self.deterministic_mode!r}."
+            )
         if self.solver_cfg is None:
-            from .mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
         self.class_type = self.solver_cfg.class_type

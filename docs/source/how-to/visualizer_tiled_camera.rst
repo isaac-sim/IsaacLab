@@ -1,27 +1,29 @@
 .. _how-to-visualizer-tiled-camera:
 
-Using Visualizer Tiled Cameras
-==============================
+Using the Visualizer Streaming Camera View
+==========================================
 
 .. currentmodule:: isaaclab
 
 For general visualizer documentation, see :doc:`/source/overview/core-concepts/visualization`.
 
-The visualizer tiled camera view is a live monitoring and debugging tool. It opens a
-non-interactive panel in the Kit or Newton visualizer and displays tiled camera views
-across all selected environments. They can stream observation camera data or generate cameras
-that follow the robots.
+The visualizer streaming camera view is a live monitoring and debugging tool. It composites
+per-environment ground-truth camera frames — RGB, depth, segmentation, or surface normals —
+into a single panel that updates every step. The panel can display cameras that follow the
+robots automatically, or stream from existing scene camera sensors.
 
 This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in the
 ``IsaacLab/scripts/tutorials/07_visualizers`` directory.
 
-Running this script demonstrates two ways to use tiled cameras:
+Running this script demonstrates two ways to use the streaming camera view:
 
-- configured tiled cameras pointed at and following moving AnymalD robots shown in the Kit visualizer
+- auto-created cameras pointed at and following moving AnymalD robots shown in the Kit visualizer
 - streaming from existing wrist-mounted robot cameras shown in the Newton visualizer
 
-Note: Visualizer tiled cameras are currently supported only in the Kit and Newton visualizers.
-Either visualizer can be used to run either example.
+.. note::
+
+   The streaming camera view is supported in the Kit, Newton GL, Rerun, and Viser visualizers.
+   The Newton RTX visualizer accepts the configuration but does not display the panel (experimental).
 
 .. dropdown:: Code for run_tiled_camera_visualizer.py
    :icon: code
@@ -35,9 +37,9 @@ Either visualizer can be used to run either example.
 Example One: Following AnymalD Robots
 --------------------------------------
 
-The Kit Visualizer shows the tiled camera view in a separate tab inside the main
+The Kit Visualizer shows the streaming camera view in a separate tab inside the main
 Viewport window. The highlighted tab area in the figures below shows where to
-toggle between the interactive viewport and the visualizer tiled camera view.
+toggle between the interactive viewport and the streaming camera view.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
@@ -47,42 +49,43 @@ toggle between the interactive viewport and the visualizer tiled camera view.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_tiled_view.jpg
    :width: 100%
-   :alt: Kit visualizer tiled camera view for AnymalD robots
+   :alt: Kit visualizer streaming camera view for AnymalD robots
 
-   Kit visualizer showing the tiled camera view generated for selected AnymalD
+   Kit visualizer showing the streaming camera view generated for selected AnymalD
    robots.
 
-Note, you can also display the main visualizer camera and the tiled camera view side by
+Note, you can also display the main visualizer camera and the streaming camera view side by
 side for dual monitoring.
 
 To run the tutorial with the args for this example, use:
 
 .. code-block:: bash
 
-   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+   uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+       --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
 
-Within the script, you’ll find the ``KitVisualizerCfg`` configuration used to
+Within the script, you'll find the ``KitVisualizerCfg`` configuration used to
 generate this example. You can use this config as a template for your own use
 cases.
 
 In this example, a set of cameras is created to point toward each robot's base
 prim and follow its motion. The camera's position, relative to the prim, is set
-by the ``tiled_cam_eye`` field of ``KitVisualizerCfg``. For this demo, the
-camera is offset by ``(3.0, 3.0, 3.0)`` from each robot base. If you change ``tiled_cam_eye``
-(for example, to ``(0, 0, 5)``), the panel will show a top-down view instead.
+by the ``streaming_cam_eye`` field of ``KitVisualizerCfg``. For this demo, the
+camera is offset by ``(3.0, 3.0, 3.0)`` from each robot base. If you change
+``streaming_cam_eye`` (for example, to ``(0, 0, 5)``), the panel will show a
+top-down view instead.
 
 In this example, there are 256 total environments, and we randomly sample 36 to stream to the
-tiled camera view.
+camera view.
 
-The Kit visualizer tiled camera view does not require an additional camera option.
+The Kit visualizer streaming camera view does not require an additional camera option.
 
 
 Example Two: Streaming from Robot-Mounted Cameras
 -------------------------------------------------
 
-The Newton visualizer provides a tiled camera view in a lightweight OpenGL window.
-Use the highlighted ``Tiled Camera View`` dropdown in the left-hand sidebar to
-show or hide the tiled camera panel.
+The Newton visualizer provides a streaming camera view in a lightweight OpenGL window.
+Use the ``Streaming Camera View`` dropdown in the left-hand sidebar to show or hide the panel.
 
 .. figure:: ../_static/visualizers/newton_viz_galbot_interactive_view.jpg
    :width: 100%
@@ -92,9 +95,9 @@ show or hide the tiled camera panel.
 
 .. figure:: ../_static/visualizers/newton_viz_galbot_tiled_view.jpg
    :width: 100%
-   :alt: Newton visualizer tiled camera view for Galbot wrist cameras
+   :alt: Newton visualizer streaming camera view for Galbot wrist cameras
 
-   Newton visualizer showing the selected Galbot head-camera feeds in the tiled
+   Newton visualizer showing the selected Galbot head-camera feeds in the streaming
    camera panel.
 
 In this example, we use the Galbot cube stacking environment, which comes with
@@ -105,43 +108,53 @@ To launch this example, run:
 
 .. code-block:: bash
 
-   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
+   uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+       --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
-Within the script, the ``NewtonVisualizerCfg`` is configured to stream images from the
+Within the script, the ``NewtonGLVisualizerCfg`` is configured to stream images from the
 existing camera sensor located at
 ``/World/envs/env_.*/Robot/head_camera_sim_view_frame/head_camera``. This path
-points to the head camera, but you can edit the ``tiled_cam_prim_path``
-field of ``NewtonVisualizerCfg`` in the script to show a different existing camera if
+points to the head camera, but you can edit the ``streaming_sensor_prim_path``
+field of ``NewtonGLVisualizerCfg`` in the script to show a different existing camera if
 needed.
 
-In this demo, 25 environments are simulated, and 12 camera feeds are shown in the tiled panel by default.
+In this demo, 25 environments are simulated, and 12 camera feeds are shown in the panel by default.
 
 
 Configuration notes
 -------------------
 
-To customize tiled camera behavior, edit the highlighted ``VisualizerCfg`` fields in
+To customize streaming camera behavior, edit the highlighted ``VisualizerCfg`` fields in
 ``run_tiled_camera_visualizer.py``:
 
-* For generated cameras, ``tiled_cam_target_prim_path`` chooses the followed prim and
-  ``tiled_cam_eye`` sets the camera offset from that prim.
-* For existing scene cameras, ``tiled_cam_prim_path`` must match an Isaac Lab
-  :class:`~isaaclab.sensors.Camera` sensor in the selected task.
-* ``tiled_cam_num`` controls how many environment tiles are shown.
+* For auto-created cameras, ``streaming_cam_target_prim_path`` chooses the followed prim and
+  ``streaming_cam_eye`` sets the camera offset from that prim.  Defaults to ``None``, which
+  causes the visualizer to adopt the first scene camera it discovers at init — no explicit path
+  is needed when a ``TiledCamera`` sensor is already in the scene.
+* For existing scene cameras, ``streaming_sensor_prim_path`` must match an Isaac Lab
+  :class:`~isaaclab.sensors.Camera` sensor prim path in the selected task.
+* ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
+  sample that many environments, or a ``list[int]`` to pin specific environment indices.
+* ``streaming_gt_types`` selects which ground-truth types are shown — e.g.
+  ``["rgb", "depth", "segmentation"]``.
+* ``streaming_depth_min`` / ``streaming_depth_max`` set the depth colormap range in metres.
+
+See :ref:`streaming-camera-view` for the full field reference.
 
 
 Troubleshooting
 ---------------
 
-* If a generated view fails with a missing prim error, check that
-  ``tiled_cam_target_prim_path`` resolves in each selected environment. Common template
-  forms include ``/World/envs/*/...`` and ``/World/envs/env_.*/...``.
+* If a generated view fails with a missing prim error, verify that
+  ``streaming_cam_target_prim_path`` resolves in each selected environment (common template
+  forms: ``/World/envs/*/...``, ``/World/envs/env_.*/...``).  In most cases you can leave
+  it as ``None`` and let the visualizer adopt an existing scene camera automatically.
 * If an existing-camera view reports that no Isaac Lab camera owns the prim, check that
-  ``tiled_cam_prim_path`` matches a :class:`~isaaclab.sensors.Camera` sensor in the task.
-* If ``rerun`` or ``viser`` is selected, use ``--viz kit`` or ``--viz newton`` instead.
-  The tiled camera panel is currently implemented for Kit and Newton.
-* If the view is too expensive, reduce ``tiled_cam_num``, ``--num_envs``, or the camera
-  resolution. The visualizer caps the tiled panel at 100 tiles.
+  ``streaming_sensor_prim_path`` matches a :class:`~isaaclab.sensors.Camera` sensor in the task.
+* If the depth panel shows a flat color, adjust ``streaming_depth_min`` and
+  ``streaming_depth_max`` to bracket the expected depth range in your scene.
+* If the view is too expensive, reduce ``streaming_envs``, ``--num_envs``, or the camera
+  resolution.
 
 
 See also
