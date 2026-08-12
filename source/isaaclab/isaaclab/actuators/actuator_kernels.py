@@ -117,9 +117,9 @@ def compute_implicit_actuator_batch(
     command_effort: wp.array2d(dtype=wp.float32),
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
-    stiffness: wp.array2d(dtype=wp.float32),
-    damping: wp.array2d(dtype=wp.float32),
-    effort_limit: wp.array2d(dtype=wp.float32),
+    joint_stiffness: wp.array2d(dtype=wp.float32),
+    joint_damping: wp.array2d(dtype=wp.float32),
+    joint_effort_limits: wp.array2d(dtype=wp.float32),
     velocity_limit: wp.array2d(dtype=wp.float32),
     joint_indices: wp.array(dtype=wp.int32),
     batch_computed_effort: wp.array2d(dtype=wp.float32),
@@ -139,11 +139,11 @@ def compute_implicit_actuator_batch(
     velocity_target = command_vel[env_id, joint_id]
     feedforward = command_effort[env_id, joint_id]
     effort = (
-        stiffness[env_id, batch_joint_id] * (position_target - joint_pos[env_id, joint_id])
-        + damping[env_id, batch_joint_id] * (velocity_target - joint_vel[env_id, joint_id])
+        joint_stiffness[env_id, joint_id] * (position_target - joint_pos[env_id, joint_id])
+        + joint_damping[env_id, joint_id] * (velocity_target - joint_vel[env_id, joint_id])
         + feedforward
     )
-    limit = effort_limit[env_id, batch_joint_id]
+    limit = joint_effort_limits[env_id, joint_id]
     clamped_effort = wp.clamp(effort, -limit, limit)
 
     batch_computed_effort[env_id, batch_joint_id] = effort

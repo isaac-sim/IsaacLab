@@ -601,8 +601,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 effort_limit=properties.effort_limit if implicit else defaults.effort_limit,
                 velocity_limit=properties.velocity_limit,
             )
-            actuator._bind_joint_properties(self._control)
-
             self._groups[actuator_name] = actuator
             self._groups_by_class.setdefault(type(actuator), []).append(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
@@ -626,6 +624,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 implicit=implicit,
                 native_managed=native_managed,
             )
+        for actuator in self._groups.values():
+            actuator._bind_joint_properties(self._control)
 
     def _resolve_joint_properties(
         self,
@@ -781,9 +781,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 self._joint_effort_target,
                 self._control.joint_pos.warp,
                 self._control.joint_vel.warp,
-                wp.from_torch(executor.stiffness, dtype=wp.float32),
-                wp.from_torch(executor.damping, dtype=wp.float32),
-                wp.from_torch(executor.effort_limit, dtype=wp.float32),
+                self._control.joint_stiffness.warp,
+                self._control.joint_damping.warp,
+                self._control.joint_effort_limits.warp,
                 wp.from_torch(executor.velocity_limit, dtype=wp.float32),
                 batch.joint_indices_wp,
             ]
@@ -903,16 +903,19 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def _rebind_state_inputs(self) -> None:
         """Rebind execution batches after backend state storage is replaced."""
-        joint_pos = self._control.joint_pos.warp
-        joint_vel = self._control.joint_vel.warp
         for batch in self._execution_batches:
-            inputs = batch.implicit_inputs if batch.implicit_inputs is not None else batch.gather_inputs
-            if inputs is None:
+            if batch.implicit_inputs is not None:
+                batch.implicit_inputs[3] = self._control.joint_pos.warp
+                batch.implicit_inputs[4] = self._control.joint_vel.warp
+                batch.implicit_inputs[5] = self._control.joint_stiffness.warp
+                batch.implicit_inputs[6] = self._control.joint_damping.warp
+                batch.implicit_inputs[7] = self._control.joint_effort_limits.warp
+                self._launch_cache.clear(("implicit", id(batch)))
                 continue
-            inputs[3] = joint_pos
-            inputs[4] = joint_vel
-            launch_kind = "implicit" if batch.implicit_inputs is not None else "gather"
-            self._launch_cache.clear((launch_kind, id(batch)))
+            if batch.gather_inputs is not None:
+                batch.gather_inputs[3] = self._control.joint_pos.warp
+                batch.gather_inputs[4] = self._control.joint_vel.warp
+                self._launch_cache.clear(("gather", id(batch)))
 
     def _gather_explicit_batch(self, batch: ActuatorCollection._ExecutionBatch) -> None:
         if batch.gather_inputs is None or batch.gather_outputs is None:

@@ -17,6 +17,7 @@ from isaaclab.utils.types import ArticulationActions
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
+    from .actuator_control import ActuatorControl
     from .actuator_pd_cfg import (
         DCMotorCfg,
         DelayedPDActuatorCfg,
@@ -52,7 +53,56 @@ class ImplicitActuator(ActuatorBase):
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _MODEL_EXECUTION_PARAMETER_NAMES
+    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = ("velocity_limit",)
+
+    class _JointDrive:
+        """Live projection of articulation-owned implicit joint-drive properties."""
+
+        def __init__(self, control: ActuatorControl, joint_indices: slice | torch.Tensor):
+            self._control = control
+            self._joint_indices = joint_indices
+
+        @property
+        def stiffness(self) -> torch.Tensor:
+            return self._control.joint_stiffness.torch[:, self._joint_indices]
+
+        @property
+        def damping(self) -> torch.Tensor:
+            return self._control.joint_damping.torch[:, self._joint_indices]
+
+        @property
+        def effort_limit(self) -> torch.Tensor:
+            return self._control.joint_effort_limits.torch[:, self._joint_indices]
+
+    @property
+    def stiffness(self) -> torch.Tensor:
+        """Current joint stiffness values [N/m or N·m/rad, depending on joint type]."""
+        joint_drive = self.__dict__.get("_joint_drive")
+        return self._stiffness if joint_drive is None else joint_drive.stiffness
+
+    @stiffness.setter
+    def stiffness(self, value: torch.Tensor) -> None:
+        self._stiffness = value
+
+    @property
+    def damping(self) -> torch.Tensor:
+        """Current joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
+        joint_drive = self.__dict__.get("_joint_drive")
+        return self._damping if joint_drive is None else joint_drive.damping
+
+    @damping.setter
+    def damping(self, value: torch.Tensor) -> None:
+        self._damping = value
+
+    @property
+    def effort_limit(self) -> torch.Tensor:
+        """Current joint effort limits [N or N·m, depending on joint type]."""
+        joint_drive = self.__dict__.get("_joint_drive")
+        return self._effort_limit if joint_drive is None else joint_drive.effort_limit
+
+    @effort_limit.setter
+    def effort_limit(self, value: torch.Tensor) -> None:
+        self._effort_limit = value
 
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
@@ -61,7 +111,7 @@ class ImplicitActuator(ActuatorBase):
             logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
                 " This parameter will be removed in the future."
-                " To set the effort limit, please use 'effort_limit_sim' instead."
+                " To set the effort limit, please use 'joint_effort_limit' instead."
             )
             cfg.effort_limit_sim = cfg.effort_limit
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is None:
@@ -73,7 +123,7 @@ class ImplicitActuator(ActuatorBase):
                 raise ValueError(
                     "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'"
                     f" and they have different values {cfg.effort_limit_sim} != {cfg.effort_limit}."
-                    " Please only set 'effort_limit_sim' for implicit actuators."
+                    " Please only set 'joint_effort_limit' for implicit actuators."
                 )
 
         # velocity limits
@@ -97,13 +147,21 @@ class ImplicitActuator(ActuatorBase):
                 " was ignored for implicit actuators. It now populates the joint velocity-limit data buffers"
                 " (e.g. 'soft_joint_vel_limits' used by velocity-limit terminations and rewards), but it is"
                 " still not pushed to the physics solver. To set a solver-level velocity clamp, please use"
-                " 'velocity_limit_sim'."
+                " 'joint_velocity_limit'."
             )
 
         # set implicit actuator model flag
         ImplicitActuator.is_implicit_model = True
         # call the base class
         super().__init__(cfg, *args, **kwargs)
+
+    def _bind_joint_properties(self, control: ActuatorControl) -> None:
+        """Bind implicit drive reads to live articulation-owned joint properties."""
+        super()._bind_joint_properties(control)
+        self._joint_drive = self._JointDrive(control, self.joint_indices)
+        self.__dict__.pop("_stiffness", None)
+        self.__dict__.pop("_damping", None)
+        self.__dict__.pop("_effort_limit", None)
 
     """
     Operations.

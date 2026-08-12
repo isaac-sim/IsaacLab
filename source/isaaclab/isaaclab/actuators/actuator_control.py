@@ -116,6 +116,24 @@ class ActuatorControl(ABC):
         """Current joint velocities [m/s or rad/s, depending on joint type]."""
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def joint_stiffness(self) -> ProxyArray:
+        """Current joint stiffness values [N/m or N·m/rad, depending on joint type]."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def joint_damping(self) -> ProxyArray:
+        """Current joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def joint_effort_limits(self) -> ProxyArray:
+        """Current joint effort limits [N or N·m, depending on joint type]."""
+        raise NotImplementedError
+
     @abstractmethod
     def find_joints(self, name_keys: str | Sequence[str]) -> tuple[list[int] | ProxyArray, list[str]]:
         """Resolve joint name expressions to user-order joint indices and names.
@@ -397,6 +415,18 @@ class ArticulationActuatorControl(ActuatorControl):
     @property
     def joint_vel(self) -> ProxyArray:
         return self._articulation.data.joint_vel
+
+    @property
+    def joint_stiffness(self) -> ProxyArray:
+        return self._articulation.data.joint_stiffness
+
+    @property
+    def joint_damping(self) -> ProxyArray:
+        return self._articulation.data.joint_damping
+
+    @property
+    def joint_effort_limits(self) -> ProxyArray:
+        return self._articulation.data.joint_effort_limits
 
     def find_joints(self, name_keys: str | Sequence[str]) -> tuple[ProxyArray, list[str]]:
         return self._articulation.find_joints(name_keys, as_proxy=True)
