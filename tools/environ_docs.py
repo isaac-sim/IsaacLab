@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
+from task_discovery import discover_tasks
 
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 if TYPE_CHECKING:
@@ -527,13 +527,17 @@ def collect_environment_doc_rows(
 
     rows: list[EnvironmentDocRow] = []
 
-    for spec in specs:
-        if not is_training_task(spec.id) or spec.kwargs.get("deprecated"):
-            continue
+    specs_by_id = {spec.id: spec for spec in specs}
+    for task in discover_tasks(specs, resolve=False):
+        spec = specs_by_id[task.task_id]
 
-        preset_map = enumerate_task_presets(spec.id)
-        if preset_map is not None:
-            preset_map = dict(preset_map)
+        preset_map = None
+        if task.declared is not None:
+            preset_map = {
+                PresetTarget.PHYSICS: list(task.declared["physics"]),
+                PresetTarget.RENDERER: list(task.declared["renderer"]),
+                PresetTarget.DOMAIN: list(task.declared["presets"]),
+            }
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
 
