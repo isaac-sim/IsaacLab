@@ -94,7 +94,7 @@ class PendulumMARLEnv(DirectMARLEnv):
         return observations
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
-        team_reward = compute_cosine_team_reward(
+        team_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_cart_vel,
@@ -240,7 +240,7 @@ def compute_success(
 
 
 @torch.jit.script
-def compute_cosine_team_reward(
+def compute_rewards(
     rew_scale_alive: float,
     rew_scale_terminated: float,
     rew_scale_cart_vel: float,
@@ -280,34 +280,4 @@ def compute_cosine_team_reward(
         + rew_pole_vel
         + rew_pendulum_vel
         + rew_action
-    ) * step_dt
-
-
-@torch.jit.script
-def compute_quadratic_team_reward(
-    rew_scale_alive: float,
-    rew_scale_terminated: float,
-    rew_scale_cart_vel: float,
-    rew_scale_pole_pos: float,
-    rew_scale_pole_vel: float,
-    rew_scale_pendulum_pos: float,
-    rew_scale_pendulum_vel: float,
-    cart_vel: torch.Tensor,
-    pole_pos: torch.Tensor,
-    pole_vel: torch.Tensor,
-    pendulum_pos: torch.Tensor,
-    pendulum_vel: torch.Tensor,
-    reset_terminated: torch.Tensor,
-    step_dt: float,
-) -> torch.Tensor:
-    """Compute the shared quadratic team reward for the cart-double-pendulum task."""
-    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
-    rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.square(pole_pos)
-    rew_pendulum_pos = rew_scale_pendulum_pos * torch.square(normalize_angle(pole_pos + pendulum_pos))
-    rew_cart_vel = rew_scale_cart_vel * torch.abs(cart_vel)
-    rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
-    rew_pendulum_vel = rew_scale_pendulum_vel * torch.abs(pendulum_vel)
-    return (
-        rew_alive + rew_termination + rew_pole_pos + rew_pendulum_pos + rew_cart_vel + rew_pole_vel + rew_pendulum_vel
     ) * step_dt
