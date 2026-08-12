@@ -108,7 +108,6 @@ def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
         "tetrahedralization",
         "video",
         "leapp",
-        "importers",
         "test",
     }
 
@@ -204,10 +203,10 @@ def test_uv_run_declares_no_extra_conflicts():
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from ``importers``. The overrides below reconcile the last of those pins
-    -- ``packaging`` for ovphysx, WebSockets for Viser, coverage for ``test``. ``importers``
-    installs beside Isaac Sim without displacing it: the two distributions share no files, and
-    Kit serves ``isaacsim.asset`` from its extension roots either way.
+    and briefly away from the standalone importers. The overrides below reconcile the last of
+    those pins -- ``packaging`` for ovphysx, WebSockets for Viser, coverage for ``test``. The
+    importers install beside Isaac Sim without displacing it: the two distributions share no
+    files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
     """
     tool_uv = _root_pyproject()["tool"]["uv"]
 
@@ -257,8 +256,7 @@ def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
     dependencies = _root_pyproject()["project"]["dependencies"]
 
     # Newton is the default physics engine and RSL-RL the default training library,
-    # so both ship as core third-party requirements (not opt-in extras). The importers
-    # extra carries the mesh-processing deps that authored collision approximations need.
+    # so both ship as core third-party requirements (not opt-in extras).
     assert any(dep.startswith("newton[sim]") for dep in dependencies)
     assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 

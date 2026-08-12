@@ -131,14 +131,14 @@ class TestInstallConstants:
         assert OPTIONAL_ISAACLAB_SUBMODULES["teleop"] == ("isaaclab_teleop",)
 
     def test_valid_extra_features(self):
-        expected = {"contrib", "importers", "newton", "ov", "rl", "tetrahedralization", "visualizer"}
+        expected = {"contrib", "newton", "ov", "rl", "tetrahedralization", "visualizer"}
         assert expected == VALID_EXTRA_FEATURES
 
     def test_manual_extra_features_subset_of_valid(self):
         assert MANUAL_EXTRA_FEATURES <= VALID_EXTRA_FEATURES
 
     def test_manual_extra_features(self):
-        assert {"contrib", "importers", "ov", "tetrahedralization"} == MANUAL_EXTRA_FEATURES
+        assert {"contrib", "ov", "tetrahedralization"} == MANUAL_EXTRA_FEATURES
 
     def test_no_overlap_between_optional_submodules_and_extra_features(self):
         assert not (set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) & VALID_EXTRA_FEATURES)

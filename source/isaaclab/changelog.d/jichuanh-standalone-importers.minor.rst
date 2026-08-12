@@ -1,8 +1,8 @@
 Added
 ^^^^^
 
-* Added an ``importers`` extra carrying the standalone URDF and MJCF importers, so conversion works
-  without Isaac Sim.
+* Added the standalone URDF and MJCF importers as base dependencies, so conversion works without
+  Isaac Sim and without an extra install step.
 
 * Added :attr:`~isaaclab.sim.converters.AssetConverterBaseCfg.physics_variant` to choose which
   ``"Physics"`` variant the URDF and MJCF converters select.
@@ -28,9 +28,6 @@ Fixed
 
 Changed
 ^^^^^^^
-
-* Changed ``./isaaclab.sh --install`` to reject extras that ``pyproject.toml`` declares conflicting.
-  Drop one of the tokens to proceed.
 
 * Changed :meth:`~isaaclab.sim.utils.select_usd_variants` to raise when a variant set exists on the
   prim but does not offer the requested variant, which includes

@@ -25,8 +25,8 @@ use the Omniverse Kit to edit the asset and export it to other file formats. Isa
 these importers by default. They can also be enabled manually in Omniverse Kit.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
-Isaac Sim when the full runtime is installed. In kit-less environments they use the
-standalone importers that ship with Isaac Lab, as described in
+Isaac Sim when the full runtime is installed. In kit-less environments they fall back
+to the standalone importers described in
 :ref:`installation-standalone-importers` below.
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
@@ -43,41 +43,22 @@ For more details on instanceable assets, please check the Isaac Sim `documentati
 Standalone URDF/MJCF importers
 ------------------------------
 
-The URDF and MJCF converter scripts run without Isaac Sim, using the standalone
-``isaacsim-asset-isolated`` importers. They ship in the ``importers`` extra, which is opt-in
-because it is only needed for asset conversion. Install it from a source checkout
-(``--inexact`` keeps existing packages untouched):
+The URDF and MJCF converter scripts run without Isaac Sim. The standalone
+``isaacsim-asset-isolated`` wheel is a base dependency, so no extra install step is needed.
+Optionally pass ``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a
+kit-less Isaac Lab visualizer:
 
 .. code-block:: bash
 
-   uv sync --inexact --extra importers
-
-With the legacy installer:
-
-.. code-block:: bash
-
-   ./isaaclab.sh --install 'newton,rl[rsl-rl],importers'
-
-Run conversion in the kit-less environment:
-
-.. code-block:: bash
-
-   uv run --extra importers python scripts/tools/convert_urdf.py \
+   uv run python scripts/tools/convert_urdf.py \
      path/to/robot.urdf path/to/output_dir --merge_joints
 
-   uv run --extra importers python scripts/tools/convert_mjcf.py \
+   uv run python scripts/tools/convert_mjcf.py \
      path/to/model.xml path/to/output.usd --merge_mesh
 
-Optionally pass ``--viz`` to preview the converted asset in a kit-less Isaac Lab visualizer:
-
-.. code-block:: bash
-
-   uv run --extra importers --extra rerun --extra viser python scripts/tools/convert_urdf.py \
-     path/to/robot.urdf path/to/output_dir --merge_joints --viz newton,rerun,viser
-
-The extra installs beside Isaac Sim. Kit serves ``isaacsim.asset`` from its extension roots when
-the runtime is present, so the converters use the Kit importer there and the standalone one
-otherwise.
+If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
+extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
+available.
 
 
 Using URDF Importer

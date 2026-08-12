@@ -673,7 +673,6 @@ OPTIONAL_SUBMODULE_ROOT_EXTRAS: dict[str, tuple[str, ...]] = {
 # core set.
 VALID_EXTRA_FEATURES: set[str] = {
     "contrib",
-    "importers",
     "newton",
     "ov",
     "rl",
@@ -681,9 +680,8 @@ VALID_EXTRA_FEATURES: set[str] = {
     "visualizer",
 }
 
-# Extra features excluded from the automatic ``-i all`` / ``-i`` install. ``importers`` is
-# here because it cannot coexist with Isaac Sim, so it must be asked for deliberately.
-MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "importers", "ov", "tetrahedralization"}
+# Extra features excluded from the automatic ``-i all`` / ``-i`` install.
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov", "tetrahedralization"}
 
 
 def split_install_items(install_type: str) -> list[str]:
@@ -818,11 +816,6 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     """
     if feature_name == "contrib":
         _install_contrib_extra_dependencies(selector)
-    elif feature_name == "importers":
-        if selector:
-            print_warning(f"'importers' does not support selectors (got '{selector}').")
-        print_info("Installing the kit-less stand-ins for Isaac Sim (URDF/MJCF importers)...")
-        _install_root_extra("importers")
     elif feature_name == "newton":
         if selector:
             print_warning(f"'newton' does not support selectors (got '{selector}').")
@@ -1103,48 +1096,6 @@ def _repoint_prebundle_packages() -> None:
             )
 
 
-def _requested_root_extras(
-    install_isaacsim: bool, optional_submodules: list[str], extra_features: list[tuple[str, str]]
-) -> set[str]:
-    """Return the root extras this install would apply.
-
-    Tokens are not extras: ``ov[ovrtx]`` installs ``ovrtx``, not ``ov``.
-    """
-    extras = {e for s in optional_submodules for e in OPTIONAL_SUBMODULE_ROOT_EXTRAS.get(s, (s,))}
-    if install_isaacsim:
-        extras.add("isaacsim")
-    for feature, selector in extra_features:
-        if feature == "ov":
-            chosen = {item.strip().lower() for item in selector.split(",") if item.strip()}
-            extras |= {"ovphysx", "ovrtx"} if "all" in chosen else chosen
-        else:
-            extras.add(feature)
-    return extras
-
-
-def _reject_conflicting_extras(requested: set[str]) -> None:
-    """Reject extras that ``[tool.uv].conflicts`` declares incompatible.
-
-    That table only binds a resolver, and each feature here installs in its own pip pass, so
-    nothing else would catch the combination.
-
-    Args:
-        requested: Names of the extras this install would apply.
-
-    Raises:
-        SystemExit: When the request covers every extra of a declared conflict.
-    """
-    conflicts = _load_root_pyproject().get("tool", {}).get("uv", {}).get("conflicts", [])
-    for conflict in conflicts:
-        extras = {entry["extra"] for entry in conflict if "extra" in entry}
-        if len(extras) > 1 and extras <= requested:
-            names = ", ".join(f"'{extra}'" for extra in sorted(extras))
-            raise SystemExit(
-                f"error: {names} cannot be installed together; the root pyproject.toml declares"
-                " them conflicting. Drop one of the tokens."
-            )
-
-
 def command_install(install_type: str = "all") -> None:
     """Install Isaac Lab extensions and optional extras.
 
@@ -1243,9 +1194,6 @@ def command_install(install_type: str = "all") -> None:
                 valid = sorted(OPTIONAL_ISAACLAB_SUBMODULES) + sorted(VALID_EXTRA_FEATURES) + ["isaacsim"]
                 print_warning(f"Unknown install token '{name}'. Valid values: {', '.join(valid)}. Skipping.")
 
-    requested_extras = _requested_root_extras(install_isaacsim, requested_optional_submodules, extra_features)
-    _reject_conflicting_extras(requested_extras)
-
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
     os.environ.setdefault("UV_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
     os.environ.setdefault("PIP_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
@@ -1333,10 +1281,10 @@ def command_install(install_type: str = "all") -> None:
                     _install_extra_feature(feature_name, selector)
 
             # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton git build (the default physics engine) over it. This runs after the
-            # extras because they install in their own pip passes, which do not see
-            # [tool.uv].override-dependencies: ``importers`` carries isaacsim-asset-isolated,
-            # whose exact mujoco and newton-usd-schemas pins would otherwise stand.
+            # pinned Newton git build (the default physics engine) over it. This runs after every
+            # install pass because they go through pip, which does not see
+            # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
+            # newton-usd-schemas pins would otherwise stand.
             _ensure_newton()
 
             # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
