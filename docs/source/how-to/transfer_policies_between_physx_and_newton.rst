@@ -466,7 +466,7 @@ independently.
 
       .. code-block:: bash
 
-         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/physx_source/RUN_DIRECTORY/model_ITERATION.pt"
+         PHYSX_CHECKPOINT="/path/to/logs/rsl_rl/anymal_d_rough/RUN_DIRECTORY/model_ITERATION.pt"
 
       PP: reproduce source baseline in PhysX
 
