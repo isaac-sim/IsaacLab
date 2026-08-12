@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
     from .physics_manager import PhysicsManager
@@ -55,7 +55,7 @@ def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> Phy
         return physics_cfg
 
     if not use_isaac_sim and physics_cfg.ovphysx is not None:
-        from isaaclab_ovphysx.physics import OvPhysxCfg
+        from isaaclab_ov.physics import OvPhysxCfg
 
         selected = physics_cfg.ovphysx
         expected_type = OvPhysxCfg
