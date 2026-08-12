@@ -13,6 +13,7 @@ from types import ModuleType
 import pytest
 
 from isaaclab.envs import ManagerBasedMARLEnv
+
 from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 
