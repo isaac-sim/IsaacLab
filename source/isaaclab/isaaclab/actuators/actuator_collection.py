@@ -305,12 +305,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._has_implicit_actuators = False
         self._launch_cache = _WarpLaunchCache(self.device)
 
-        resolved_group_joints = self._resolve_group_joints(actuator_cfgs)
+        resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
+        for name, cfg in resolved_cfgs.items():
+            self._resolve_deprecated_limit_aliases(name, cfg)
+
+        resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         self._allocate_buffers()
         self._command = self.Command(self)
         self._joint_command = self.JointCommand(self)
-        self._native_group_names = self._control.prepare_native_actuators(self, actuator_cfgs)
-        self._build_groups(actuator_cfgs, resolved_group_joints)
+        self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
+        self._build_groups(resolved_cfgs, resolved_group_joints)
         self._control.finalize_native_actuators(self)
         self._validate_coverage()
         self._build_execution_batches()
@@ -510,6 +514,31 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 joint_owners[joint_name] = actuator_name
             resolved[actuator_name] = (joint_ids, joint_names)
         return resolved
+
+    def _resolve_deprecated_limit_aliases(self, actuator_name: str, cfg: ActuatorBaseCfg) -> None:
+        """Resolve deprecated solver-limit aliases on a copied actuator config."""
+        for canonical_name, alias_name in (
+            ("joint_effort_limit", "effort_limit_sim"),
+            ("joint_velocity_limit", "velocity_limit_sim"),
+        ):
+            canonical_value = getattr(cfg, canonical_name)
+            alias_value = getattr(cfg, alias_name)
+            if alias_value is None:
+                continue
+
+            warnings.warn(
+                f"Actuator group '{actuator_name}' uses deprecated '{alias_name}'. Use "
+                f"'{canonical_name}' instead; '{alias_name}' will be removed in 4.0.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            if canonical_value is None:
+                setattr(cfg, canonical_name, alias_value)
+            elif canonical_value != alias_value:
+                raise ValueError(
+                    f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
+                    f"deprecated '{alias_name}' values."
+                )
 
     def _build_groups(
         self,

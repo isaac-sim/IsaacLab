@@ -35,7 +35,7 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for
+        The :attr:`joint_effort_limit` attribute should be used to set the effort limit for
         the simulation physics solver.
 
         The :attr:`effort_limit` attribute is used for clipping the effort output of the
@@ -44,8 +44,8 @@ class ActuatorBaseCfg:
 
     .. note::
 
-        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim`
-        are equivalent. However, we suggest using the :attr:`effort_limit_sim` attribute because
+        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`joint_effort_limit`
+        are equivalent. However, we suggest using the :attr:`joint_effort_limit` attribute because
         it is more intuitive.
 
     """
@@ -65,44 +65,30 @@ class ActuatorBaseCfg:
         such as :class:`DCMotor`, also use it to clip effort. It is **not** pushed to the physics
         solver.
 
-        Use :attr:`velocity_limit_sim` to request a solver-level hard clamp. A physical
+        Use :attr:`joint_velocity_limit` to request a solver-level hard clamp. A physical
         actuator limits joint speed through its torque curve rather than a kinematic clamp,
         so the two limits are resolved independently. When only
-        :attr:`velocity_limit_sim` is set, it also serves as the joint velocity limit.
+        :attr:`joint_velocity_limit` is set, it also serves as the joint velocity limit.
     """
 
+    joint_effort_limit: dict[str, float] | float | None = None
+    """Joint solver effort limit [N or N·m, depending on joint type]."""
+
+    joint_velocity_limit: dict[str, float] | float | None = None
+    """Requested joint solver velocity limit [m/s or rad/s, depending on joint type]."""
+
     effort_limit_sim: dict[str, float] | float | None = None
-    """Effort limit of the joints in the group applied to the simulation physics solver. Defaults to None.
+    """Deprecated alias for :attr:`joint_effort_limit`.
 
-    The effort limit is used to constrain the computed joint efforts in the physics engine. If the
-    computed effort exceeds this limit, the physics engine will clip the effort to this value.
-
-    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this
-    limit is by default set to a large value to prevent the physics engine from any additional clipping.
-    However, at times, it may be necessary to set this limit to a smaller value as a safety measure.
-
-    If None, the limit is resolved based on the type of actuator model:
-
-    * For implicit actuators, the limit is set to the value specified in the USD joint prim.
-    * For explicit actuators, the limit is set to 1.0e9.
-
+    .. deprecated:: 3.0
+        Use :attr:`joint_effort_limit` instead. This alias will be removed in 4.0.
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
-    """Requested solver velocity limit [m/s or rad/s, depending on joint type]. Defaults to None.
+    """Deprecated alias for :attr:`joint_velocity_limit`.
 
-    Enforcement depends on the active backend. PhysX consumes its supported clamp and Newton's
-    Kamino solver honors it, while MJWarp currently does not enforce this value. Do not use it as a
-    backend-independent safety boundary.
-
-    If None, the limit is set to the value specified in the USD joint prim for both implicit and
-    explicit actuators.
-
-    .. tip::
-        On backends that enforce it, a tight velocity limit can impair solver convergence. Keep the
-        value sufficiently large or tune joint stiffness and damping so the drive does not repeatedly
-        violate the limit.
-
+    .. deprecated:: 3.0
+        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 4.0.
     """
 
     stiffness: dict[str, float] | float | None = MISSING

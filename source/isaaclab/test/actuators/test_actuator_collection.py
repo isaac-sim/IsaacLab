@@ -56,6 +56,11 @@ def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_li
     )
 
 
+def _ideal_pd_cfg(**kwargs) -> IdealPDActuatorCfg:
+    """Create a minimal ideal PD actuator configuration."""
+    return IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0, **kwargs)
+
+
 def _dc_cfg(
     joints: list[str],
     *,
@@ -299,10 +304,47 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
     def prepare_native_actuators(self, collection, actuator_cfgs) -> set[str]:
+        self.prepared_actuator_cfgs = actuator_cfgs
         return set(actuator_cfgs)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         return True
+
+
+def test_deprecated_joint_limit_aliases_warn_and_forward():
+    control = NativeFakeActuatorControl()
+    cfg = _ideal_pd_cfg(effort_limit_sim=12.0, velocity_limit_sim=34.0)
+
+    with pytest.warns(DeprecationWarning, match="joint_effort_limit"):
+        collection = ActuatorCollection({"motor": cfg}, control)
+
+    assert cfg.joint_effort_limit is None
+    assert cfg.joint_velocity_limit is None
+    assert control.prepared_actuator_cfgs["motor"] is not cfg
+    assert control.prepared_actuator_cfgs["motor"].joint_effort_limit == 12.0
+    assert control.prepared_actuator_cfgs["motor"].joint_velocity_limit == 34.0
+    assert collection["motor"].cfg.joint_effort_limit == 12.0
+    assert collection["motor"].cfg.joint_velocity_limit == 34.0
+
+
+def test_equivalent_joint_limit_aliases_prefer_canonical_value():
+    cfg = _ideal_pd_cfg(
+        joint_effort_limit=12.0,
+        effort_limit_sim=12.0,
+        joint_velocity_limit={"joint_.*": 34.0},
+        velocity_limit_sim={"joint_.*": 34.0},
+    )
+    with pytest.warns(DeprecationWarning):
+        collection = ActuatorCollection({"motor": cfg}, NativeFakeActuatorControl())
+
+    assert collection["motor"].cfg.joint_effort_limit == 12.0
+
+
+def test_conflicting_joint_limit_aliases_raise():
+    cfg = _ideal_pd_cfg(joint_effort_limit=12.0, effort_limit_sim=13.0)
+
+    with pytest.raises(ValueError, match="motor.*joint_effort_limit.*effort_limit_sim"):
+        ActuatorCollection({"motor": cfg}, NativeFakeActuatorControl())
 
 
 class ProxyFinderActuatorControl(FakeActuatorControl):
