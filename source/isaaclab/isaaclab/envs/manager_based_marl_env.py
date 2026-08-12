@@ -93,11 +93,11 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
     def __init__(self, cfg: ManagerBasedMARLEnvCfg, render_mode: str | None = None, **kwargs):
         self.common_step_counter = 0
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
+        self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
         super().__init__(cfg=cfg)
         self.render_mode = render_mode
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         print("[INFO]: Completed setting up the environment...")
 
     @property
@@ -264,6 +264,9 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
                     f"Invalid action shape for agent '{agent_id}', expected "
                     f"({self.num_envs}, {self.action_managers[agent_id].total_action_dim}), received {received}."
                 )
+
+        for agent_id in self.possible_agents:
+            action = actions[agent_id]
             self.action_managers[agent_id].process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
@@ -292,7 +295,9 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
 
         self.episode_length_buf += 1
         self.common_step_counter += 1
-        self.terminated_dict = {agent_id: manager.compute() for agent_id, manager in self.termination_managers.items()}
+        for manager in self.termination_managers.values():
+            manager.compute()
+        self.terminated_dict = {agent_id: manager.terminated for agent_id, manager in self.termination_managers.items()}
         self.time_out_dict = {agent_id: manager.time_outs for agent_id, manager in self.termination_managers.items()}
         self.reset_buf[:] = math.prod(self.terminated_dict.values()) | math.prod(self.time_out_dict.values())
         self.reward_dict = {

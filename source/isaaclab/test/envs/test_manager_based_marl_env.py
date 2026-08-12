@@ -22,6 +22,7 @@ from isaaclab.envs import ManagerBasedMARLEnv, ManagerBasedMARLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import PreStepActionsRecorderCfg
 from isaaclab.managers import (
     CurriculumTermCfg,
+    EventTermCfg,
     RecorderManagerBaseCfg,
     RewardTermCfg,
     TerminationTermCfg,
@@ -56,6 +57,11 @@ def _reward(env: ManagerBasedMARLEnv.Agent) -> torch.Tensor:
     return torch.ones(env.num_envs, device=env.device)
 
 
+def _startup_accesses_reset_buf(env: ManagerBasedMARLEnv) -> None:
+    """Record that the public reset buffer exists during startup events."""
+    env._startup_reset_buf_size = env.reset_buf.shape[0]
+
+
 @configclass
 class _ObservationsCfg:
     """Minimal one-group observation configuration."""
@@ -78,7 +84,15 @@ class _RewardsCfg:
 class _TerminationsCfg:
     """Minimal termination configuration."""
 
-    done = TerminationTermCfg(func=_termination, params={"done": False})
+    terminated = TerminationTermCfg(func=_termination, params={"done": False})
+    time_out = TerminationTermCfg(func=_termination, params={"done": False}, time_out=True)
+
+
+@configclass
+class _StartupEventsCfg:
+    """Startup event configuration that requires the reset buffer."""
+
+    require_reset_buf = EventTermCfg(func=_startup_accesses_reset_buf, mode="startup")
 
 
 @configclass
@@ -155,6 +169,17 @@ def test_initialization_exposes_fixed_agents_and_spaces(env: ManagerBasedMARLEnv
     assert env.get_agent("left").extras is env.extras["left"]
 
 
+def test_initialization_makes_reset_buffer_available_to_startup_events():
+    """Startup terms can use the public reset buffer while managers are loading."""
+    cfg = _make_cfg()
+    cfg.events = _StartupEventsCfg()
+    sim_utils.create_new_stage()
+    env = ManagerBasedMARLEnv(cfg)
+
+    assert env._startup_reset_buf_size == env.num_envs
+    env.close()
+
+
 def test_close_releases_agent_managers_and_simulation_context(monkeypatch: pytest.MonkeyPatch):
     """Close clears local managers before releasing the shared simulation singleton."""
     sim_utils.create_new_stage()
@@ -188,6 +213,31 @@ def test_step_rejects_invalid_agent_action_batch_size(env: ManagerBasedMARLEnv, 
     """Action tensors must have exactly one row per vectorized sub-environment."""
     with pytest.raises(ValueError, match="Invalid action shape for agent 'left'"):
         env.step(_actions(env, batch_size=batch_size))
+
+
+def test_step_validates_all_agent_actions_before_processing(env: ManagerBasedMARLEnv, monkeypatch: pytest.MonkeyPatch):
+    """A later invalid action leaves earlier action-manager state unchanged."""
+    left_manager = env.action_managers["left"]
+    action_before = left_manager.action.clone()
+    prev_action_before = left_manager.prev_action.clone()
+    process_calls = 0
+    process_action = left_manager.process_action
+
+    def track_process_action(action: torch.Tensor) -> None:
+        nonlocal process_calls
+        process_calls += 1
+        process_action(action)
+
+    monkeypatch.setattr(left_manager, "process_action", track_process_action)
+    invalid_actions = _actions(env)
+    invalid_actions["right"] = torch.zeros(env.num_envs - 1, 0, device=env.device)
+
+    with pytest.raises(ValueError, match="Invalid action shape for agent 'right'"):
+        env.step(invalid_actions)
+
+    assert process_calls == 0
+    torch.testing.assert_close(left_manager.action, action_before)
+    torch.testing.assert_close(left_manager.prev_action, prev_action_before)
 
 
 def test_step_rejects_missing_and_extra_agent_actions(env: ManagerBasedMARLEnv):
@@ -229,6 +279,42 @@ def test_step_returns_per_agent_rewards_and_dones_in_manager_order(
     assert max(env._trace.index(f"termination:{agent}") for agent in env.possible_agents) < min(
         env._trace.index(f"reward:{agent}") for agent in env.possible_agents
     )
+
+
+def test_step_returns_timeout_without_termination_and_autoresets_jointly():
+    """Timeout-only terms return truncation flags while resetting when all agents time out."""
+    cfg = _make_cfg()
+    for agent_cfg in cfg.agents.values():
+        agent_cfg.terminations.time_out.params["done"] = True
+    sim_utils.create_new_stage()
+    env = ManagerBasedMARLEnv(cfg)
+    env._trace = []
+
+    _, _, terminated, truncated, _ = env.step(_actions(env))
+
+    assert all(not values.any() for values in terminated.values())
+    assert all(values.all() for values in truncated.values())
+    assert not env.episode_length_buf.any()
+    env.close()
+
+
+def test_step_does_not_jointly_reset_mixed_termination_and_timeout():
+    """Mixed terminal and timeout agents retain the DirectMARLEnv joint-reset semantics."""
+    cfg = _make_cfg()
+    cfg.agents["left"].terminations.terminated.params["done"] = True
+    cfg.agents["right"].terminations.time_out.params["done"] = True
+    sim_utils.create_new_stage()
+    env = ManagerBasedMARLEnv(cfg)
+    env._trace = []
+
+    _, _, terminated, truncated, _ = env.step(_actions(env))
+
+    assert terminated["left"].all()
+    assert not terminated["right"].any()
+    assert not truncated["left"].any()
+    assert truncated["right"].all()
+    assert env.episode_length_buf.eq(1).all()
+    env.close()
 
 
 def test_reset_synchronizes_scene_and_replaces_agent_logs(env: ManagerBasedMARLEnv, monkeypatch: pytest.MonkeyPatch):
@@ -274,11 +360,27 @@ def test_state_returns_configured_group():
     state_env.close()
 
 
+def test_play_mode_caps_scene_and_disables_agent_and_state_corruption():
+    """Play mode applies the manager-based RL playback defaults to all observation groups."""
+    cfg = _make_cfg()
+    cfg.scene.num_envs = 100
+    cfg.state = _ObservationsCfg()
+    for agent_cfg in cfg.agents.values():
+        agent_cfg.observations.policy.enable_corruption = True
+    cfg.state.policy.enable_corruption = True
+
+    cfg.play_mode()
+
+    assert cfg.scene.num_envs == 50
+    assert all(not agent_cfg.observations.policy.enable_corruption for agent_cfg in cfg.agents.values())
+    assert not cfg.state.policy.enable_corruption
+
+
 def test_compute_final_obs_is_namespaced_per_agent_after_autoreset():
     """Same-step autoreset captures one terminal observation payload per agent."""
     cfg = _make_cfg(compute_final_obs=True)
-    cfg.agents["left"].terminations.done.params["done"] = True
-    cfg.agents["right"].terminations.done.params["done"] = True
+    cfg.agents["left"].terminations.terminated.params["done"] = True
+    cfg.agents["right"].terminations.terminated.params["done"] = True
     sim_utils.create_new_stage()
     env = ManagerBasedMARLEnv(cfg)
     env._trace = []

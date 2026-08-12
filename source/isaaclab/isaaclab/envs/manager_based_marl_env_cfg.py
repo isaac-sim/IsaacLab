@@ -64,6 +64,24 @@ class ManagerBasedMARLEnvCfg(ManagerBasedEnvCfg):
     commands: object | None = None
     """Shared command settings. Defaults to None."""
 
+    def play_mode(self) -> None:
+        """Adjust the configuration for interactive playback and policy inference.
+
+        Play scripts call this method after the configuration is fully initialized
+        unless users request the training configuration as-is. The default behavior
+        caps the scene at 50 environments and disables observation corruption for
+        every agent and the optional centralized state.
+        """
+        self.scene.num_envs = min(self.scene.num_envs, 50)
+        observation_cfgs = [agent_cfg.observations for agent_cfg in self.agents.values()]
+        if self.state is not None:
+            observation_cfgs.append(self.state)
+        for observations in observation_cfgs:
+            for group_name in getattr(observations, "__dataclass_fields__", {}):
+                group = getattr(observations, group_name)
+                if hasattr(group, "enable_corruption"):
+                    group.enable_corruption = False
+
     def validate_config(self) -> None:
         """Validate MARL-specific configuration constraints."""
         if self.export_io_descriptors:
