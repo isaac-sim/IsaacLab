@@ -47,7 +47,6 @@ try:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as NewtonRigidObjectCollectionData,
     )
-    from isaaclab_newton.test.fixtures.mock_newton import WrenchComposer as NewtonWrenchComposer
     from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView as NewtonMockCollectionView
 except ImportError:
     pass
@@ -57,13 +56,13 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection import (
+    from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as OvPhysxRigidObjectCollection,
     )
-    from isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection_data import (
+    from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
-    from isaaclab_ovphysx.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError:
     pass
 else:
@@ -101,7 +100,7 @@ def create_physx_rigid_object_collection(
     object.__setattr__(collection, "_data", data)
     data.body_names = [f"object_{i}" for i in range(num_bodies)]
 
-    # Create mock wrench composers
+    # Create wrench composers
     mock_inst_wrench = WrenchComposer(collection)
     mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
@@ -196,9 +195,9 @@ def create_newton_rigid_object_collection(
     object.__setattr__(collection, "_data", data)
     data.body_names = body_names
 
-    # Mock wrench composers (Newton-specific)
-    mock_inst_wrench = NewtonWrenchComposer(collection)
-    mock_perm_wrench = NewtonWrenchComposer(collection)
+    # Wrench composers (Newton-specific)
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -260,7 +259,7 @@ def create_ovphysx_rigid_object_collection(
     # Allocate the buffers that RigidObjectCollection normally allocates in _initialize_impl.
     collection._create_buffers()
 
-    # Replace the real wrench composers with mocks for iface coverage.
+    # Use production wrench composers for interface coverage.
     mock_inst_wrench = WrenchComposer(collection)
     mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)

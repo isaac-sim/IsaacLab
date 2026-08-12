@@ -426,13 +426,6 @@ class _NewtonViewerUIMixin:
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
 
-    def _render_physics_panel(self, imgui):
-        """Render Simulation collapsing section at the top of the Newton viewer panel."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if imgui.collapsing_header("Simulation"):
-            imgui.separator()
-            imgui.text(f"Physics: {self._backend_display}")
-
     def _draw_streaming_view_controls(self) -> None:
         """Render streaming image panel selector in the HUD sidebar.
 
@@ -574,10 +567,9 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # UI patches must be deferred: ViewerRTX creates self.gui lazily in
         # _init_window() (called from _init_ovrtx() on the first end_frame()).
         # _patch_viewer_panel() sets gui._render_left_panel, which requires gui to
-        # exist.  Register the callbacks now (they are buffered by ViewerRTX until
+        # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
-        self.register_ui_callback(self._render_physics_panel, position="panel")
 
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""

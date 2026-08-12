@@ -404,7 +404,24 @@ Prerequisites
 
 * **Calibration**: The SO-101 arm must be calibrated before use. The plugin talks to the FEETECH
   servos directly -- it has no ``lerobot`` or FEETECH SDK dependency -- so calibrate with its own
-  ``calibrate`` subcommand, which needs no OpenXR runtime:
+  ``calibrate`` subcommand, which needs no OpenXR runtime.
+
+  First, identify the serial port. The easiest way is ``uvx``, which runs
+  ``lerobot-find-port`` in a temporary environment with no installation required:
+
+  .. code-block:: bash
+
+     uvx --from "lerobot[hardware]" lerobot-find-port
+
+  Alternatively, plug in the USB cable and immediately run:
+
+  .. code-block:: bash
+
+     sudo dmesg | grep tty | tail -1
+
+  Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
+  names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
+  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
 
   .. code-block:: bash
 
@@ -482,7 +499,8 @@ Start the plugin
 Isaac Lab does not spawn the plugin for you. Launch the sim first -- it brings up the CloudXR
 runtime the plugin connects through -- then, in a **separate terminal**, source the environment
 file the runtime writes on startup (this points the OpenXR loader at CloudXR) and start the plugin
-on the leader's serial port:
+on the leader's serial port (replace ``/dev/ttyACM0`` with your device -- see the port-identification
+note in the Calibration step above):
 
 .. code-block:: bash
 
