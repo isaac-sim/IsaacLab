@@ -18,6 +18,7 @@ whose test IDs match the ones a clean run produces.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from collections import Counter
@@ -152,9 +153,7 @@ def _merge_result(results: dict[str, dict[str, dict]], record: dict) -> None:
     if not node_id:
         return
     phases = results.setdefault(str(node_id), {})
-    entry = phases.setdefault(
-        str(record.get("when") or "call"), {"outcome": "passed", "duration": 0.0, "longrepr": ""}
-    )
+    entry = phases.setdefault(str(record.get("when") or "call"), {"outcome": "passed", "duration": 0.0, "longrepr": ""})
     outcome = str(record.get("outcome", "passed"))
     longrepr = str(record.get("longrepr") or "")
     severity = _OUTCOME_PRIORITY.get(outcome, 0)
@@ -163,10 +162,8 @@ def _merge_result(results: dict[str, dict[str, dict]], record: dict) -> None:
         entry["longrepr"] = longrepr
     elif severity == _OUTCOME_PRIORITY.get(entry["outcome"], 0) and not entry["longrepr"]:
         entry["longrepr"] = longrepr
-    try:
+    with contextlib.suppress(TypeError, ValueError):
         entry["duration"] += float(record.get("duration") or 0.0)
-    except (TypeError, ValueError):
-        pass
 
 
 def read_journal(journal_file: str) -> Journal | None:

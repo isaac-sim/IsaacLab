@@ -22,7 +22,7 @@ from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
 import test_settings as test_settings  # isort: skip
-from _crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
+from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

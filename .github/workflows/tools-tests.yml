@@ -39,7 +39,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      # These tests only need pytest, junitparser (imported by tools/_crash_journal.py) and
+      # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
       # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
       # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
       # installed that test skips itself rather than failing, so keep it in this list.
@@ -48,7 +48,7 @@ jobs:
 
       - name: Run tools tests
         env:
-          # The tests import the modules under test (_crash_journal, _device_split) directly.
+          # The tests import the modules under test (crash_journal, _device_split) directly.
           PYTHONPATH: tools
         # Files are listed explicitly rather than collected from tools/: test_settings.py is a
         # configuration module, not a test, and tools/test/ needs the full Isaac Lab install.

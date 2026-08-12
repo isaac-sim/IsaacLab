@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for ``tools/_crash_journal.py``."""
+"""Unit tests for ``tools/crash_journal.py``."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 import pytest
-from _crash_journal import SESSION_CRASH_CASE, create_crash_report, junit_names, read_journal
+from crash_journal import SESSION_CRASH_CASE, create_crash_report, junit_names, read_journal
 
 _FILE = "source/pkg/test/test_x.py"
 
