@@ -110,6 +110,11 @@ _EXPORT_BACKENDS = (
 # some declare it on a ``PhysicsCfg`` (which is what ``physics=`` requires).
 _SIM_PRESET = "newton_mjwarp"
 
+# Exercise the manager-based Humanoid export path with each physics backend the
+# task exposes. The checkpoints are generated through the standard RSL-RL
+# runner and then passed to the same LEAPP export CLI as the main export matrix.
+_HUMANOID_PHYSICS_PRESETS = ("isaacsim_physx", "ovphysx", "newton_mjwarp")
+
 # These tasks reject any preset token; export uses their authored default backend.
 _TASKS_WITHOUT_PRESET = frozenset({"IsaacContrib-Lift-Cube-Franka"})
 
@@ -202,7 +207,13 @@ def _read_checkpoint_path(checkpoint_root: Path, backend_id: str, task_name: str
     return checkpoint_path
 
 
-def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Path, export_root: Path) -> None:
+def _run_export(
+    backend: ExportFlowBackend,
+    task_name: str,
+    checkpoint_path: Path,
+    export_root: Path,
+    preset: str | None = None,
+) -> None:
     """Run the backend export.py CLI against *checkpoint_path*."""
     command = [
         sys.executable,
@@ -217,7 +228,7 @@ def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Pat
         "--limit_cpu_threads",
         str(_LEAPP_TEST_CPU_THREAD_LIMIT),
     ]
-    preset = _preset_for_task(task_name)
+    preset = _preset_for_task(task_name) if preset is None else preset
     if preset is not None:
         command.append(f"presets={preset}")
     _run_checked(command, label=f"export.py for {backend.rl_library}/{task_name}")
@@ -287,3 +298,36 @@ def test_leapp_export_flow(backend: ExportFlowBackend, task_name: str, initializ
         export_root = Path(tmp_dir) / "export"
         _run_export(backend, task_name, checkpoint_path, export_root)
         _assert_leapp_artifacts(export_root, task_name)
+
+
+@pytest.mark.parametrize("physics_preset", _HUMANOID_PHYSICS_PRESETS)
+def test_rsl_rl_humanoid_export_across_physics_backends(physics_preset: str, tmp_path_factory: pytest.TempPathFactory):
+    """Create an RSL-RL Humanoid checkpoint and export it for one physics backend.
+
+    This intentionally uses an initialized checkpoint rather than a full PPO run:
+    the checkpoint is created through the standard RSL-RL runner, which verifies
+    that the environment can initialize with the selected physics configuration
+    while keeping export integration coverage practical for CI.
+    """
+    checkpoint_root = tmp_path_factory.mktemp(f"isaaclab-leapp-humanoid-{physics_preset}")
+    _run_checked(
+        [
+            sys.executable,
+            str(_CHECKPOINT_SCRIPT),
+            "--checkpoint_root",
+            str(checkpoint_root),
+            "--spec",
+            "rsl_rl",
+            "Isaac-Humanoid",
+            physics_preset,
+        ],
+        label=f"RSL-RL Humanoid checkpoint creation with {physics_preset}",
+        timeout=_CHECKPOINT_BATCH_TIMEOUT,
+    )
+
+    checkpoint_path = _read_checkpoint_path(checkpoint_root, "rsl_rl", "Isaac-Humanoid")
+    backend = _EXPORT_BACKENDS[0]
+    with tempfile.TemporaryDirectory(prefix=f"isaaclab-leapp-humanoid-{physics_preset}-") as tmp_dir:
+        export_root = Path(tmp_dir) / "export"
+        _run_export(backend, "Isaac-Humanoid", checkpoint_path, export_root, preset=physics_preset)
+        _assert_leapp_artifacts(export_root, "Isaac-Humanoid")
