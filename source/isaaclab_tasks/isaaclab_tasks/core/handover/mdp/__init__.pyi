@@ -6,11 +6,10 @@
 __all__ = [
     "HandoverCommand",
     "HandoverCommandCfg",
-    "reset_handover_state",
+    "reset_handover_hands",
     "fingertip_pos",
     "fingertip_quat",
     "fingertip_vel",
-    "hand_action",
     "object_goal",
     "handover_goal_distance_reward",
     "handover_reward",
@@ -18,12 +17,11 @@ __all__ = [
 ]
 
 from .commands import HandoverCommand, HandoverCommandCfg
-from .events import reset_handover_state
+from .events import reset_handover_hands
 from .observations import (
     fingertip_pos,
     fingertip_quat,
     fingertip_vel,
-    hand_action,
     object_goal,
 )
 from .rewards import evaluate_handover_success, handover_goal_distance_reward, handover_reward

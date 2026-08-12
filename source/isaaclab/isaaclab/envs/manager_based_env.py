@@ -14,6 +14,7 @@ from typing import Any
 
 import torch
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
@@ -171,7 +172,7 @@ class ManagerBasedEnv:
         self.extras = {}
 
         # generate scene
-        with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
+        with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
@@ -193,7 +194,7 @@ class ManagerBasedEnv:
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
             with use_stage(self.sim.stage):
@@ -208,7 +209,9 @@ class ManagerBasedEnv:
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
         # add timeline event to load managers
+        report_activity("Setting up managers")
         self.load_managers()
+        report_activity(None)
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.

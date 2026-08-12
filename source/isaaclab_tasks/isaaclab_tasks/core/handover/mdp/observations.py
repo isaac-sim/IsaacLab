@@ -26,24 +26,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def hand_action(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
-    """Return one hand's Direct-compatible raw action across resets.
-
-    Args:
-        env: Environment containing the action term and episode-length buffer.
-        action_name: Action term whose raw action is observed.
-
-    Returns:
-        Current raw actions, retaining pre-reset actions while episode length is zero.
-    """
-    raw_action = env.action_manager.get_term(action_name).raw_actions
-    reset_actions = getattr(env, "_handover_reset_actions", None)
-    episode_length_buf = getattr(env, "episode_length_buf", None)
-    if reset_actions is None or action_name not in reset_actions or episode_length_buf is None:
-        return raw_action
-    return torch.where((episode_length_buf == 0).unsqueeze(-1), reset_actions[action_name], raw_action)
-
-
 def object_goal(
     env: ManagerBasedRLEnv, command_name: str, object_cfg: SceneEntityCfg, vel_obs_scale: float
 ) -> torch.Tensor:

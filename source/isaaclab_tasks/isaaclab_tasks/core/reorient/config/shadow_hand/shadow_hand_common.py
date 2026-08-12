@@ -10,7 +10,7 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -23,7 +23,6 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -35,7 +34,7 @@ from isaaclab_assets.robots.shadow_hand import (
 
 
 @configclass
-class ShadowHandEventCfg:
+class ShadowHandRandomizationEventCfg:
     """Randomization of the hand and the object, applied on every physics backend."""
 
     robot_joint_stiffness_and_damping = EventTerm(
@@ -43,7 +42,7 @@ class ShadowHandEventCfg:
         min_step_count_between_reset=720,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
             "stiffness_distribution_params": (0.75, 1.5),
             "damping_distribution_params": (0.3, 3.0),
             "operation": "scale",
@@ -117,19 +116,40 @@ class ShadowHandEventCfg:
 
 
 @configclass
-class ShadowHandManagerEventCfg(ShadowHandEventCfg):
-    """Randomization plus the state reset the manager tasks apply on every episode."""
+class ShadowHandManagerResetEventCfg:
+    """Only the per-episode state reset, with no domain randomization."""
 
-    reset_state = EventTerm(
-        func=reorient_mdp.reset_reorient_state,
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_with_random_orientation,
         mode="reset",
         params={
-            "position_noise": 0.01,  # [m]
-            "joint_position_noise": 0.2,  # [rad]
-            "joint_velocity_noise": 0.0,  # [rad/s]
-            "action_name": "joint_pos",
+            # the Direct task jitters the drop position and samples a random orientation
+            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object"),
         },
     )
+    reset_hand = EventTerm(
+        func=reorient_mdp.reset_reorient_hand,
+        mode="reset",
+        params={
+            "joint_position_noise": 0.2,  # [rad]
+            "joint_velocity_noise": 0.0,  # [rad/s]
+        },
+    )
+
+
+@configclass
+class ShadowHandManagerEventCfg(ShadowHandRandomizationEventCfg, ShadowHandManagerResetEventCfg):
+    """Randomization plus the state reset the manager tasks apply on every episode."""
+
+
+@configclass
+class ShadowHandManagerEventPresetCfg(PresetCfg):
+    """``presets=randomized`` adds the domain-randomization terms to the episode reset."""
+
+    randomized = ShadowHandManagerEventCfg()
+    default = ShadowHandManagerResetEventCfg()
 
 
 @configclass
@@ -157,7 +177,6 @@ class ShadowHandRobotCfg(PresetCfg):
         ),
     )
     default = newton_mjwarp
-    newton_kamino = newton_mjwarp
 
 
 CUBE_CFG = RigidObjectCfg(
@@ -205,11 +224,7 @@ class PhysicsCfg(PresetCfg):
     ovphysx = OvPhysxCfg()
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
 
-
-# Scene pieces shared verbatim by the manager-based variants.
-SHADOW_HAND_ROBOT_CFG = ShadowHandRobotCfg()
 
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(
     prim_path="/Visuals/goal_marker",
@@ -218,15 +233,4 @@ GOAL_OBJECT_CFG = VisualizationMarkersCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
         )
     },
-)
-
-
-# Per-step gaussian noise + reset-sampled bias, shared verbatim by the manager-based variant.
-OPENAI_ACTION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.015, operation="abs"),
-)
-OPENAI_OBSERVATION_NOISE_CFG = NoiseModelWithAdditiveBiasCfg(
-    noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
-    bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
 )

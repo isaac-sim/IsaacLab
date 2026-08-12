@@ -32,7 +32,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    # simulation — values mirrored by the manager cfg
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
@@ -70,8 +70,6 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     vel_obs_scale = 0.2
     success_tolerance = 0.2
     max_consecutive_success = 0
-    success_count_threshold: int = 1
-    """Minimum number of goals reached in an episode to count it as a successful episode."""
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
     goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)

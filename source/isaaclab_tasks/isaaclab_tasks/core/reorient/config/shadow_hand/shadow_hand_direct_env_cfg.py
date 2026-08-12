@@ -10,16 +10,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
-    OPENAI_ACTION_NOISE_CFG,
-    OPENAI_OBSERVATION_NOISE_CFG,
-    SHADOW_HAND_ROBOT_CFG,
     PhysicsCfg,
-    ShadowHandEventCfg,
     ShadowHandRobotCfg,
 )
 
@@ -46,7 +41,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    # simulation — values mirrored by the manager cfg
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
@@ -55,7 +50,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot_cfg: ShadowHandRobotCfg = SHADOW_HAND_ROBOT_CFG
+    robot_cfg: ShadowHandRobotCfg = ShadowHandRobotCfg()
     actuated_joint_names = SHADOW_ACTUATED_JOINT_NAMES
     fingertip_body_names = SHADOW_FINGERTIP_BODY_NAMES
 
@@ -81,8 +76,6 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     vel_obs_scale = 0.2
     success_tolerance = 0.1
     max_consecutive_success = 0
-    success_count_threshold: int = 1
-    """Minimum number of goals reached in an episode to count it as a successful episode."""
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
     goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)
@@ -90,44 +83,3 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0
-
-
-@configclass
-class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
-    # env
-    decimation = 3
-    episode_length_s = 8.0
-    action_space = 20
-    observation_space = 42
-    state_space = 187
-    asymmetric_obs = True
-    obs_type = "openai"
-
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-        physics=PhysicsCfg(),
-    )
-    # reset
-    reset_position_noise = 0.01  # range of position at reset
-    reset_dof_pos_noise = 0.2  # range of dof pos at reset
-    reset_dof_vel_noise = 0.0  # range of dof vel at reset
-    # reward scales
-    dist_reward_scale = -10.0
-    rot_reward_scale = 1.0
-    rot_eps = 0.1
-    action_penalty_scale = -0.0002
-    reach_goal_bonus = 250.0
-    fall_penalty = -50.0
-    vel_obs_scale = 0.2
-    success_tolerance = 0.4
-    max_consecutive_success = 50
-    av_factor = 0.1
-    act_moving_average = 0.3
-    force_torque_obs_scale = 10.0
-    # domain randomization config
-    events: ShadowHandEventCfg = ShadowHandEventCfg()
-    action_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_ACTION_NOISE_CFG
-    observation_noise_model: NoiseModelWithAdditiveBiasCfg = OPENAI_OBSERVATION_NOISE_CFG

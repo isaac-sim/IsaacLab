@@ -99,7 +99,7 @@ class ObservationsCfg:
         right_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("right_hand")})
         right_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("right_hand")})
         right_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("right_hand")})
-        right_action = ObsTerm(func=mdp.hand_action, params={"action_name": "right_hand"})
+        right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
         right_object_goal = ObsTerm(
             func=mdp.object_goal,
             params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
@@ -112,7 +112,7 @@ class ObservationsCfg:
         left_fingertip_pos = ObsTerm(func=mdp.fingertip_pos, params={"asset_cfg": _fingertip_entity("left_hand")})
         left_fingertip_quat = ObsTerm(func=mdp.fingertip_quat, params={"asset_cfg": _fingertip_entity("left_hand")})
         left_fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": _fingertip_entity("left_hand")})
-        left_action = ObsTerm(func=mdp.hand_action, params={"action_name": "left_hand"})
+        left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
         left_object_goal = ObsTerm(
             func=mdp.object_goal,
             params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object"), "vel_obs_scale": 0.2},
@@ -129,14 +129,22 @@ class ObservationsCfg:
 class EventCfg:
     """Reset distributions matching the Direct handover environment."""
 
-    reset_handover = EventTerm(
-        func=mdp.reset_handover_state,
+    reset_object = EventTerm(
+        func=mdp.reset_root_state_with_random_orientation,
         mode="reset",
         params={
-            "position_noise": 0.01,
-            "joint_position_noise": 0.2,
-            "joint_velocity_noise": 0.0,
-            "action_names": ("right_hand", "left_hand"),
+            # the Direct task jitters the drop position and samples a random orientation
+            "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
+    )
+    reset_hands = EventTerm(
+        func=mdp.reset_handover_hands,
+        mode="reset",
+        params={
+            "joint_position_noise": 0.2,  # [rad]
+            "joint_velocity_noise": 0.0,  # [rad/s]
         },
     )
 

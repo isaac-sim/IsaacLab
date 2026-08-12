@@ -21,7 +21,7 @@ from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, satura
 from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
 from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
-from isaaclab_tasks.core.reorient.utils import (
+from isaaclab_tasks.core.utils import (
     EpisodeErrorRecorder,
     randomize_rotation,
     sample_joint_positions_within_limits,
@@ -232,7 +232,8 @@ class HandoverEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | None):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
-        # Flush the sticky per-episode success bit.
+        # Flush per-episode success (sticky binary: object ever reached the goal within threshold).
+        # 0-dim device tensor, for the same reason
         self.extras.setdefault("log", {})["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value

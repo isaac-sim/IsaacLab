@@ -1,4 +1,5 @@
 .. note::
 
    The ``isaaclab`` pip wheel bundles all Isaac Lab extensions. Install with
-   ``[isaacsim,all]`` for the full Isaac Sim workflow.
+   ``[all]`` for the full workflow: it carries Isaac Sim, both OV backends, every RL
+   library, and every visualizer.

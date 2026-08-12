@@ -7,19 +7,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.noise import NoiseModelCfg
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import Camera, JointWrenchSensor
+    from isaaclab.sensors import Camera
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 
@@ -129,6 +129,7 @@ def goal_quat_diff(
 
 
 # -- fingertip terms
+# Task-local because the framework provides body_pose_w but no body_pos_w or body_vel_w.
 def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Flattened fingertip positions in the environment frame [m], shape ``(num_envs, num_fingertips * 3)``."""
     asset = env.scene[asset_cfg.name]
@@ -148,103 +149,33 @@ def fingertip_vel(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Te
     return asset.data.body_vel_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1)
 
 
-class fingertip_wrench(ManagerTermBase):
-    """Fingertip reaction wrenches [N, N·m] with Direct-compatible zero fallback."""
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        body_ids = cfg.params["sensor_cfg"].body_ids
-        # Direct-compatible fallback: report zero wrenches until the sensor produces data
-        self._zeros = torch.zeros(env.num_envs, len(body_ids) * 6, dtype=torch.float32, device=env.device)
-
-    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-        """Return the flattened wrench block, shape ``(num_envs, num_fingertips * 6)``."""
-        sensor: JointWrenchSensor = env.scene.sensors[sensor_cfg.name]
-        force_data = sensor.data.force
-        torque_data = sensor.data.torque
-        if force_data is None or torque_data is None:
-            return self._zeros
-        force = force_data.torch[:, sensor_cfg.body_ids]
-        torque = torque_data.torch[:, sensor_cfg.body_ids]
-        return torch.cat((force, torque), dim=-1).reshape(env.num_envs, -1)
-
-
-# -- action terms
-def reorient_last_action(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
-    """Return the Direct-compatible last action across same-step autoreset.
+def shadow_hand_goal_keypoints(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Flattened zero-origin cube keypoints [m] for the current goal orientation.
 
     Args:
-        env: Environment containing the action term and reset buffers.
-        action_name: Action term whose raw action is observed.
+        env: Environment containing the goal command term.
+        command_name: Goal command term name.
 
     Returns:
-        Raw actions, retaining each terminal action in its same-step reset observation.
+        Flattened zero-origin cube keypoints [m], shape ``(num_envs, 24)``.
     """
-    raw_action = env.action_manager.get_term(action_name).raw_actions
-    reset_action = getattr(env, "_reorient_reset_action", None)
-    reset_step = getattr(env, "_reorient_reset_step", None)
-    common_step_counter = getattr(env, "common_step_counter", None)
-    if reset_action is None or reset_step is None or common_step_counter is None:
-        return raw_action
-    return torch.where((reset_step == common_step_counter).unsqueeze(-1), reset_action, raw_action)
+    command_term = env.command_manager.get_term(command_name)
+    return cube_keypoints_from_quat(command_term.quat_command_w)
 
 
-# -- composed observation groups
-class openai_policy_observation(ManagerTermBase):
-    """Apply one stateful noise model to the OpenAI variants' 42-dimensional actor observation."""
+def shadow_hand_camera_cached_features(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Return camera features computed by the preceding policy observation group.
 
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        noise_model: NoiseModelCfg = cfg.params["noise_model"]
-        self._noise_model = noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
-        # the manager's shape probe calls reset once; keep it side-effect free
-        self._shape_probe_pending = True
+    Args:
+        env: Environment whose policy group cached the current camera embedding.
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Reset the actor observation bias for selected environments.
-
-        Args:
-            env_ids: Environment indices to reset, or ``None`` for every environment.
-        """
-        if self._shape_probe_pending:
-            self._shape_probe_pending = False
-            return
-        self._noise_model.reset(env_ids)
-
-    def __call__(
-        self,
-        env: ManagerBasedRLEnv,
-        command_name: str,
-        action_name: str,
-        noise_model: NoiseModelCfg,
-        robot_cfg: SceneEntityCfg,
-        object_cfg: SceneEntityCfg,
-    ) -> torch.Tensor:
-        """Return the corrupted 42-dimensional actor observation."""
-        object_asset: RigidObject = env.scene[object_cfg.name]
-        object_pos = object_asset.data.root_pos_w.torch - env.scene.env_origins
-        command_term: ReorientCommand = env.command_manager.get_term(command_name)
-        quat_error = math_utils.quat_mul(
-            object_asset.data.root_quat_w.torch, math_utils.quat_conjugate(command_term.quat_command_w)
-        )
-        fingertips = fingertip_pos(env, robot_cfg)
-        # Direct actor-observation order: fingertips, object position, goal quat error, last action
-        observation = torch.cat(
-            (fingertips, object_pos, quat_error, reorient_last_action(env, action_name)),
-            dim=-1,
-        )
-        if self._shape_probe_pending:
-            return observation
-        return self._noise_model(observation)
-
-
-# ---------------------------------------------------------------------------
-# Shadow Hand camera observation terms.
-#
-# These terms wrap the CNN feature pipeline defined in the shadow-hand config
-# package. The config layer imports the mdp layer, so the FeatureExtractor
-# machinery is imported lazily at term construction time.
-# ---------------------------------------------------------------------------
+    Returns:
+        Detached camera embeddings, shape ``(num_envs, 27)``.
+    """
+    embeddings = getattr(env, "_shadow_hand_camera_embeddings", None)
+    if embeddings is None:
+        raise RuntimeError("Shadow Hand camera policy features must be computed before critic observations.")
+    return embeddings
 
 
 class ShadowHandCameraFeatures(ManagerTermBase):
@@ -324,32 +255,3 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         if pose_loss is not None:
             env.extras.setdefault("log", {})["pose_loss"] = pose_loss
         return embeddings
-
-
-def shadow_hand_camera_cached_features(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return camera features computed by the preceding policy observation group.
-
-    Args:
-        env: Environment whose policy group cached the current camera embedding.
-
-    Returns:
-        Detached camera embeddings, shape ``(num_envs, 27)``.
-    """
-    embeddings = getattr(env, "_shadow_hand_camera_embeddings", None)
-    if embeddings is None:
-        raise RuntimeError("Shadow Hand camera policy features must be computed before critic observations.")
-    return embeddings
-
-
-def shadow_hand_goal_keypoints(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Flattened zero-origin cube keypoints [m] for the current goal orientation.
-
-    Args:
-        env: Environment containing the goal command term.
-        command_name: Goal command term name.
-
-    Returns:
-        Flattened zero-origin cube keypoints [m], shape ``(num_envs, 24)``.
-    """
-    command_term = env.command_manager.get_term(command_name)
-    return cube_keypoints_from_quat(command_term.quat_command_w)
