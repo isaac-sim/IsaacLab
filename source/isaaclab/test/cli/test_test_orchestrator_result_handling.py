@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 
 def _load_orchestrator_module() -> ModuleType:
     """Load ``tools/conftest.py`` without registering it as a pytest plugin."""
@@ -212,6 +214,100 @@ def test_module_importorskip_is_not_a_failure(monkeypatch, tmp_path: Path) -> No
     assert status["skipped"] == 1
     assert status["tests"] == 1
     assert not was_failure
+
+
+@pytest.mark.parametrize(
+    ("returncode", "kill_reason", "expected_result"),
+    [(-11, "", "CRASHED"), (-9, "timeout", "TIMEOUT")],
+)
+def test_abnormal_termination_report_quotes_bounded_renderer_log(
+    monkeypatch, tmp_path: Path, returncode: int, kill_reason: str, expected_result: str
+) -> None:
+    """A process that dies or hangs cannot replay its own renderer log, so the runner quotes it here.
+
+    The per-test replay in ``tools/ovrtx_log.py`` runs inside the process under test, which rules it out for
+    exactly the failures the renderer log explains best: a segfault, an abort, an OOM kill, or a SIGKILL
+    from this runner. Only a bounded tail is quoted, so a verbose log cannot flood the report.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    report_paths: list[Path] = []
+
+    def _capture(cmd, timeout, env, *, startup_deadline, report_file):
+        # Render verbosely, then die without writing a report.
+        Path(log_path).write_text("head-line\n" + "filler-line\n" * 8000 + "tail-line\n", encoding="utf-8")
+        report_paths.append(Path(report_file))
+        return returncode, b"", b"", kill_reason, 12.0, ""
+
+    log_path = str(tmp_path / "ovrtx_renderer.log")
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", log_path)
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert report is not None
+    assert status["result"] == expected_result
+    assert was_failure
+    details = report_paths[0].read_text(encoding="utf-8")
+    assert "OVRTX renderer log" in details
+    assert f"last {orchestrator.ovrtx_log.LOG_LIMIT_BYTES} bytes follow" in details
+    assert "tail-line" in details
+    assert "head-line" not in details
+
+
+def test_shutdown_hang_reports_the_renderer_log(monkeypatch, tmp_path: Path, caplog) -> None:
+    """A process SIGKILLed for hanging in shutdown ran out of chances to report what the renderer logged.
+
+    Its tests replayed their own share of the log before the report was written, so the pass is not a
+    failure; what is missing, and only readable from out here, is whatever the renderer logged while
+    shutdown hung.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+
+    def _capture(cmd, timeout, env, *, startup_deadline, report_file):
+        Path(log_path).write_text("shutdown-line\n", encoding="utf-8")
+        _write_partial_junit_report(report_file)
+        return -1, b"", b"", "shutdown_hang", 30.0, ""
+
+    log_path = str(tmp_path / "ovrtx_renderer.log")
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", log_path)
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    with caplog.at_level("INFO"):
+        _report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert status["result"] == "passed (shutdown hanged)"
+    assert not was_failure
+    assert "shutdown-line" in caplog.text
 
 
 def test_result_summary_includes_fast_failure_after_thirty_slower_files():
