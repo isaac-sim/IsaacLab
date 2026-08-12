@@ -155,6 +155,34 @@ def test_initialization_exposes_fixed_agents_and_spaces(env: ManagerBasedMARLEnv
     assert env.get_agent("left").extras is env.extras["left"]
 
 
+def test_close_releases_agent_managers_and_simulation_context(monkeypatch: pytest.MonkeyPatch):
+    """Close clears local managers before releasing the shared simulation singleton."""
+    sim_utils.create_new_stage()
+    env = ManagerBasedMARLEnv(_make_cfg())
+    clear_instance = env.sim.clear_instance
+    cleanup_order: list[str] = []
+
+    def assert_agent_managers_released_before_simulation_cleanup() -> None:
+        assert not env.action_managers
+        assert not env.observation_managers
+        assert not env.reward_managers
+        assert not env.termination_managers
+        assert not env._agents
+        assert sim_utils.SimulationContext.instance() is env.sim
+        cleanup_order.append("clear_simulation_context")
+        clear_instance()
+
+    monkeypatch.setattr(env.sim, "clear_instance", assert_agent_managers_released_before_simulation_cleanup)
+    env.close()
+
+    assert cleanup_order == ["clear_simulation_context"]
+    assert env._is_closed
+    assert env.observation_spaces is None
+    assert env.action_spaces is None
+    assert env.state_space is None
+    assert sim_utils.SimulationContext.instance() is None
+
+
 @pytest.mark.parametrize("batch_size", [2, 1])
 def test_step_rejects_invalid_agent_action_batch_size(env: ManagerBasedMARLEnv, batch_size: int):
     """Action tensors must have exactly one row per vectorized sub-environment."""
