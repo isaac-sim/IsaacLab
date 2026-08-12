@@ -512,15 +512,21 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
     assert visualizer._viewer_picking_binding._retained_picking is None
 
 
-def test_newton_rtx_ui_callback_registration_does_not_duplicate_pending_callback():
-    viewer = object.__new__(NewtonViewerRTX)
-    registration = (viewer._render_training_controls, "side")
-    viewer.gui = None
-    viewer._pending_ui_callbacks = [registration]
+def test_newton_rtx_viewer_does_not_register_redundant_physics_panel(monkeypatch):
+    from isaaclab.utils.backend_utils import FactoryBase
 
-    viewer._register_isaaclab_ui_callbacks()
+    def _initialize_viewer_rtx(viewer, *args, **kwargs):
+        viewer.gui = None
+        viewer._pending_ui_callbacks = []
 
-    assert viewer._pending_ui_callbacks == [registration]
+    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "__init__", _initialize_viewer_rtx)
+    monkeypatch.setattr(FactoryBase, "_get_backend", lambda *args: "newton")
+
+    viewer = NewtonViewerRTX()
+
+    assert [(callback.__name__, position) for callback, position in viewer._pending_ui_callbacks] == [
+        ("_render_training_controls", "side")
+    ]
 
 
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):

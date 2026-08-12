@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed duplicate Isaac Lab controls in the Newton RTX viewer after model resets.
+* Fixed duplicate Simulation panels in the Newton RTX viewer.
