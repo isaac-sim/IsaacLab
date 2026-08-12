@@ -133,7 +133,12 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+
+    if agent_library and getattr(args, "agent", None) is None and argv_helper.task_name:
+        _auto_select_agent(args, argv_helper.task_name, agent_library, args_to_parse)
+
+    return args, remaining
 
 
 # ============================================================================
@@ -305,6 +310,55 @@ class _AgentDescriptionBuilder:
 # ============================================================================
 # argv inspection (pre-argparse peek for help-text rendering)
 # ============================================================================
+
+
+def _auto_select_agent(
+    args: argparse.Namespace,
+    task_name: str,
+    agent_library: str,
+    argv: list[str],
+) -> None:
+    """Set ``args.agent`` from ``agent_preset_compatibility`` when the active preset uniquely maps to one entry point.
+
+    Scans *argv* for ``presets=<name>`` tokens, then checks whether exactly one
+    registered agent entry point declares compatibility with every active preset.
+    When that condition holds and ``args.agent`` is still ``None``, the entry
+    point is written to ``args.agent`` so callers receive the correct config
+    without requiring the user to pass ``--agent`` explicitly.
+
+    Does nothing when ``agent_preset_compatibility`` is absent, when no preset
+    token is found, or when the match is ambiguous.
+
+    Args:
+        args: Parsed namespace to update in-place.
+        task_name: Gymnasium task ID used to look up the registry spec.
+        agent_library: RL-library prefix (e.g. ``"skrl"``).
+        argv: Raw argument list scanned for ``presets=`` tokens.
+    """
+    if getattr(args, "agent", None) is not None:
+        return
+
+    active_presets: set[str] = set()
+    for token in argv:
+        if token.startswith("presets="):
+            for name in token[len("presets="):].split(","):
+                name = name.strip()
+                if name:
+                    active_presets.add(name)
+
+    if not active_presets:
+        return
+
+    try:
+        _, compatibility = _enumerate_agents(task_name, agent_library)
+    except Exception:  # noqa: BLE001
+        return
+
+    # Reverse map: entry_point → set of compatible presets declared for it.
+    # Keep only entry points whose declared presets cover every active preset.
+    matches = [ep for ep, declared in compatibility.items() if active_presets.issubset(set(declared))]
+    if len(matches) == 1:
+        args.agent = matches[0]
 
 
 class _ArgvHelper:

@@ -483,3 +483,81 @@ def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name
     assert compatibility
     assert set(compatibility) <= set(agents)
     assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
+
+
+# ---------------------------------------------------------------------------
+# _auto_select_agent: preset → agent entry point wiring
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "preset_token, expected_agent",
+    [
+        ("box_discrete", "skrl_box_discrete_cfg_entry_point"),
+        ("dict_box", "skrl_dict_box_cfg_entry_point"),
+        ("multidiscrete_multidiscrete", "skrl_multidiscrete_multidiscrete_cfg_entry_point"),
+        # box_box is intentionally absent: both skrl_cfg_entry_point and
+        # skrl_box_box_cfg_entry_point declare compatibility with box_box, so the
+        # match is ambiguous and auto-select correctly leaves agent=None.
+    ],
+)
+def test_auto_select_agent_picks_compatible_entry_point(monkeypatch, preset_token, expected_agent):
+    """When a preset has exactly one compatible skrl entry point, auto-select sets it."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py"])
+    from isaaclab_tasks.utils.preset_cli import _auto_select_agent
+
+    args = argparse.Namespace(agent=None)
+    _auto_select_agent(
+        args,
+        "IsaacContrib-Cartpole-Showcase-Direct",
+        "skrl",
+        [f"presets={preset_token}"],
+    )
+    assert args.agent == expected_agent
+
+
+def test_auto_select_agent_does_not_override_explicit_agent(monkeypatch):
+    """An explicitly set --agent is never overwritten."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py"])
+    from isaaclab_tasks.utils.preset_cli import _auto_select_agent
+
+    args = argparse.Namespace(agent="skrl_box_box_cfg_entry_point")
+    _auto_select_agent(
+        args,
+        "IsaacContrib-Cartpole-Showcase-Direct",
+        "skrl",
+        ["presets=box_discrete"],
+    )
+    assert args.agent == "skrl_box_box_cfg_entry_point"
+
+
+def test_auto_select_agent_no_preset_leaves_agent_none(monkeypatch):
+    """When no presets= token is present, agent stays None."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py"])
+    from isaaclab_tasks.utils.preset_cli import _auto_select_agent
+
+    args = argparse.Namespace(agent=None)
+    _auto_select_agent(args, "IsaacContrib-Cartpole-Showcase-Direct", "skrl", [])
+    assert args.agent is None
+
+
+def test_setup_preset_cli_auto_selects_agent_for_showcase_task(monkeypatch):
+    """setup_preset_cli wires the preset to the right entry point end-to-end."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "IsaacContrib-Cartpole-Showcase-Direct"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = argparse.ArgumentParser(prog="train.py", add_help=False)
+    parser.add_argument("--task", default=None)
+    parser.add_argument("--agent", default=None)
+
+    argv = ["--task", "IsaacContrib-Cartpole-Showcase-Direct", "presets=box_discrete"]
+    args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
+    assert args.agent == "skrl_box_discrete_cfg_entry_point"
