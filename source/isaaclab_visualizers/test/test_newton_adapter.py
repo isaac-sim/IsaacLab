@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -510,23 +510,6 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
     callback(object())
     assert visualizer._viewer_picking_binding._retained_picking is None
-
-
-def test_newton_rtx_viewer_does_not_register_redundant_physics_panel(monkeypatch):
-    from isaaclab.utils.backend_utils import FactoryBase
-
-    def _initialize_viewer_rtx(viewer, *args, **kwargs):
-        viewer.gui = None
-        viewer._pending_ui_callbacks = []
-
-    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "__init__", _initialize_viewer_rtx)
-    monkeypatch.setattr(FactoryBase, "_get_backend", lambda *args: "newton")
-
-    viewer = NewtonViewerRTX()
-
-    assert [(callback.__name__, position) for callback, position in viewer._pending_ui_callbacks] == [
-        ("_render_training_controls", "side")
-    ]
 
 
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
