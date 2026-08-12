@@ -135,8 +135,9 @@ def setup_preset_cli(
 
     args, remaining = parser.parse_known_args(args_to_parse)
 
-    if agent_library and getattr(args, "agent", None) is None and argv_helper.task_name:
-        _auto_select_agent(args, argv_helper.task_name, agent_library, args_to_parse)
+    task_name = getattr(args, "task", None) or argv_helper.task_name
+    if agent_library and getattr(args, "agent", None) is None and task_name:
+        _auto_select_agent(args, task_name, agent_library, args_to_parse)
 
     return args, remaining
 
