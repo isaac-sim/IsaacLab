@@ -27,7 +27,7 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import AppLauncher, LoadingScreen
+from isaaclab.app import AppLauncher, LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
@@ -545,9 +545,15 @@ def show_run_summary(
 ) -> None:
     """Print a summary of the backends and scale a run is about to use.
 
-    Values the run did not pick itself are shown as ``default (<resolved>)``, so
-    it is clear which backends came from the command line and which are the
-    task's own defaults.
+    Every row names the backend that will run, alongside the choice the run stopped at.
+    A backend reached through a family the command line named -- ``physics=physx`` and
+    ``renderer=rtx`` name a family that launch resolves -- is shown as
+    ``<family> (<resolved>)``, and a backend the run named neither directly nor by
+    family is shown as ``default (<resolved>)``.
+
+    Resolving those selectors mutates *env_cfg* in place, exactly as the following
+    :func:`~isaaclab.app.launch_simulation` call would; call this after every other
+    pre-launch config change, in particular :func:`pre_launch_video_config`.
 
     Args:
         screen: Loading screen that owns the console.
@@ -559,17 +565,28 @@ def show_run_summary(
     selected = _selected_preset_names()
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
+
+    # Names read before the scan resolves the automatic selectors, so a row can report
+    # the family the run asked for next to the backend that family resolved to
+    requested_physics = _physics_name(env_cfg.sim.physics)
+    requested_renderer = _renderer_name(env_cfg)
+    scan(env_cfg, args_cli)
     physics = _physics_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
+
     screen.summary(
         f"Isaac Lab · {action}",
         {
             "Task": args_cli.task,
             "Workflow": _workflow_name(env_cfg),
             "RL library": library,
-            "Physics": _label(physics, selected=selected),
-            "Renderer": "n/a (no camera sensors)" if renderer is None else _label(renderer, selected=selected),
-            "Presets": _additional_preset_names({physics, renderer}),
+            "Physics": _label(requested_physics, physics, selected=selected),
+            "Renderer": (
+                "n/a (no camera sensors)"
+                if renderer is None
+                else _label(requested_renderer or renderer, renderer, selected=selected)
+            ),
+            "Presets": _additional_preset_names({requested_physics, physics, requested_renderer, renderer}),
             "Visualizer": _visualizer_name(args_cli, env_cfg),
             "Device": str(device),
             "Environments": str(num_envs),
@@ -577,9 +594,25 @@ def show_run_summary(
     )
 
 
-def _label(name: str, *, selected: set[str] = frozenset()) -> str:
-    """Mark *name* as a default unless the run asked for it by name."""
-    return name if name in selected else f"default ({name})"
+def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -> str:
+    """Name the backend a row reports, and where the run stopped choosing it.
+
+    Args:
+        requested: Preset name the config carried before launch resolved its automatic
+            selectors, which names a backend family when it differs from *resolved*.
+        resolved: Preset name of the backend that will run.
+        selected: Preset names the command line asked for.
+
+    Returns:
+        The resolved name when the run asked for that backend, ``<family> (<resolved>)``
+        when it asked for the family the backend was picked from, and
+        ``default (<resolved>)`` when it asked for neither.
+    """
+    if resolved in selected:
+        return resolved
+    if requested in selected:
+        return f"{requested} ({resolved})"
+    return f"default ({resolved})"
 
 
 def _selected_preset_names() -> set[str]:
@@ -599,14 +632,16 @@ def _selected_preset_names() -> set[str]:
 
 
 def _additional_preset_names(shown: Container[str | None]) -> str:
-    """Return the presets the command line asked for beyond those with a row of their own.
+    """Return the presets the command line asked for that no other row names.
 
     Domain presets such as ``presets=cube`` do not surface anywhere else in the
-    summary, so they are listed here; the physics and renderer presets are left
-    out because their own rows already name them.
+    summary, so they are listed here. A preset a row already reports is left out,
+    whether it names the backend that will run or the family the row resolved it
+    from -- ``renderer=rtx`` is reported by an ``rtx (ovrtx)`` renderer row.
 
     Args:
-        shown: Preset names already reported by the physics and renderer rows.
+        shown: Preset names reported by the physics and renderer rows, including
+            the families those rows resolved from.
 
     Returns:
         The remaining preset names in command-line order, comma separated, or

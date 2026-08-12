@@ -128,8 +128,8 @@ def _run(args_cli: argparse.Namespace) -> None:
 
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
-        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         pre_launch_video_config(env_cfg, args_cli=args_cli)
+        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli):
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
