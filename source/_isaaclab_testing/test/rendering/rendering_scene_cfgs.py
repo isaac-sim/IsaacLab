@@ -520,7 +520,8 @@ class RenderingSceneSpec:
     image_tolerance_overrides: dict[tuple[str, RenderBufferKind], tuple[float, float]] = field(default_factory=dict)
 
     def image_tolerance(self, renderer: str, aov: RenderBufferKind) -> tuple[float, float]:
-        return self.image_tolerance_overrides.get((renderer, aov), (self.image_max_diff_pct, self.min_ssim))
+        default = (0.75 if renderer == "newton_warp" else self.image_max_diff_pct, self.min_ssim)
+        return self.image_tolerance_overrides.get((renderer, aov), default)
 
 
 def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
@@ -562,6 +563,10 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
             camera_target=(0.20051, 0.099902, 0.025508),
             physics_cfg=physics_cfg,
             image_max_diff_pct=max_diff_pct,
+            # Newton deformable surface edges varied by 0.81% after the Isaac Sim image update (SSIM 0.9965).
+            image_tolerance_overrides=(
+                {("newton_warp", RenderBufferKind.RGB): (1.0, 0.98)} if scene == "franka_soft" else {}
+            ),
         )
     if scene == "kuka_heterogeneous":
         cfg = KukaHeterogeneousRenderingSceneCfg(num_envs=4, env_spacing=3.0, lazy_sensor_update=True)

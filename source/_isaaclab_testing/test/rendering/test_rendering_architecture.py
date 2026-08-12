@@ -238,6 +238,13 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
 
     runner_source = (_SUITE_DIR / "rendering_runner.py").read_text()
     assert not [scene for scene in expected_scenes if f'"{scene}"' in runner_source]
+    comparison_call = next(
+        node
+        for node in ast.walk(ast.parse(runner_source))
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "compare_to_golden"
+    )
+    max_diff_pct = next(keyword.value for keyword in comparison_call.keywords if keyword.arg == "max_diff_pct")
+    assert ast.unparse(max_diff_pct) == "image_max_diff_pct"
     runtime_functions = {
         node.name
         for node in ast.parse((_SUITE_DIR / "rendering_runtime.py").read_text()).body

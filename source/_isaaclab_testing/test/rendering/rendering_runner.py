@@ -91,7 +91,7 @@ def run_rendering_case(
                 _GOLDEN_ROOT / case.scene / golden_filename,
                 label=artifact_label,
                 artifact_dir=_ARTIFACT_DIR,
-                max_diff_pct=0.75 if case.renderer == "newton_warp" else image_max_diff_pct,
+                max_diff_pct=image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
                 # OVRTX's numeric semantic IDs vary by USD reader; metadata validates their labels separately.
                 alpha_only=aov in _ALPHA_ONLY_AOVS
