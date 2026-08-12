@@ -43,10 +43,9 @@ This creates `datasets/franka_pour/reset_dataset.pt` with 20,000 rows. The scrip
 table/object, self-collision, grasp-seating, and particle-workspace checks reject unsafe proposals;
 there is no second validation or artifact-promotion command.
 
-The generator and task also require the Franka Pour cups USD. Its current default is on the Isaac
-development Nucleus server. Until that asset is moved to a public or repository location, external
-users must set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` to a compatible local copy. This asset issue is
-separate from the reset artifact: the generated database itself does not need to be published.
+The generator and task load the Franka Pour cups USD from the standard Isaac Lab Nucleus asset
+root. Set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` only to use a compatible local copy instead. The
+generated database itself does not need to be published.
 
 The `datasets/` directory is ignored by Git. At completion the generator prints the artifact's
 content digest and the training override needed to pin it. The configuration does not assume a

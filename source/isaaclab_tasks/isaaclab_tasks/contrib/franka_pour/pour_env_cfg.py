@@ -34,7 +34,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -60,7 +60,7 @@ FRANKA_POUR_ROBOT_ASSET_ID = (
     "Assets/Isaac/6.0/Isaac/IsaacLab/Robots/FrankaEmika/franka_panda.usda"
 )
 FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "b3c61e9abf91872144a6d16a2b088907694d1cf73443242979da0be6c275573e"
-FRANKA_POUR_CUPS_ASSET_ID = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Contrib/MPM/Pour/franka_pour_cups.usda"
+FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/franka_pour_cups.usda"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
 FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
     {

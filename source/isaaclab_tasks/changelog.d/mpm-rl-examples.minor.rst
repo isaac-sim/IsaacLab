@@ -21,3 +21,5 @@ Changed
   generator. Regenerate legacy calibrated artifacts with
   ``scripts/tools/generate_franka_pour_reset_dataset.py`` and pin the printed
   digest when an exact artifact is required.
+* Loaded the Franka Pour cups from the standard Isaac Lab Nucleus asset root,
+  while retaining ``ISAACLAB_FRANKA_POUR_CUPS_USD_PATH`` for local overrides.
