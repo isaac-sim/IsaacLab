@@ -117,6 +117,13 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             if isinstance(value, Iterable) and not isinstance(value, str):
                 # ---- 2a) flat iterable → replace wholesale ----------
                 if all(not isinstance(el, Mapping) for el in value):
+                    # class_to_dict serialized enum members as their values, so rebuild them
+                    # from the member type the existing container holds.
+                    if isinstance(obj_mem, Iterable) and not isinstance(obj_mem, str):
+                        enum_types = {type(el) for el in obj_mem if isinstance(el, Enum)}
+                        if len(enum_types) == 1:
+                            enum_type = enum_types.pop()
+                            value = [el if isinstance(el, Enum) else enum_type(el) for el in value]
                     out_val = tuple(value) if isinstance(obj_mem, tuple) else value
                     if isinstance(obj, dict):
                         obj[key] = out_val

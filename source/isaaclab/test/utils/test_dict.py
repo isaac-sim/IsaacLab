@@ -127,15 +127,24 @@ class _Level(enum.IntEnum):
     LOW = 1
 
 
+class _Flavors(enum.StrEnum):
+    CHOCOLATE = "chocolate"
+    STRAWBERRY = "strawberry"
+
+
 class _EnumCfg:
     """Config holding enum members, which carry a ``__dict__`` of enum internals."""
 
     flavor: _Flavor = _Flavor.VANILLA
     level: _Level = _Level.LOW
+    scoops: list[_Flavors] = [_Flavors.CHOCOLATE]
+    cone: tuple[_Flavors, ...] = (_Flavors.STRAWBERRY,)
 
     def __init__(self):
         self.flavor = _Flavor.VANILLA
         self.level = _Level.LOW
+        self.scoops = [_Flavors.CHOCOLATE]
+        self.cone = (_Flavors.STRAWBERRY,)
 
 
 def test_class_to_dict_serializes_enums_as_values():
@@ -157,3 +166,9 @@ def test_update_class_from_dict_restores_enums_from_values():
 
     assert cfg.flavor is _Flavor.VANILLA
     assert cfg.level is _Level.LOW
+    # members inside a list or tuple survive the round trip too: the flat-iterable path
+    # replaces the container wholesale, so it has to rebuild them itself
+    assert cfg.scoops == [_Flavors.CHOCOLATE]
+    assert all(isinstance(el, _Flavors) for el in cfg.scoops)
+    assert cfg.cone == (_Flavors.STRAWBERRY,)
+    assert all(isinstance(el, _Flavors) for el in cfg.cone)
