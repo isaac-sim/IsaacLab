@@ -10,6 +10,7 @@ from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
 
 from .actions import ConveyorRelativeJointPositionAction, ResetBufferedGripperAction
 from .actions_cfg import ConveyorRelativeJointPositionActionCfg, ResetBufferedGripperActionCfg
+from .commands import ConveyorTransferCommand, ConveyorTransferCommandCfg, transfer_success_mask
 from .curriculums import ConveyorResetCurriculum
 from .observations import (
     active_transfer_features,
@@ -25,23 +26,17 @@ from .reset_events import (
     BELT_DEPLOYMENT_VARIANT,
     ConveyorResetRecipe,
     ConveyorResetStateTable,
-    advance_conveyor_transfer_goal,
     build_reset_rows,
     select_next_transfer_cube,
-    set_conveyor_transfer_goal,
 )
 from .rewards import (
-    ConveyorTransferProgressReward,
     action_term_l2,
     finite_joint_velocity_l2,
     physical_cube_acquisition_mask,
     terminal_failure,
     transfer_success_reward,
 )
-from .state import ConveyorTransferState
 from .terminations import (
-    ConveyorResetLearningProgress,
-    StableConveyorTransfer,
     cube_out_of_workspace,
     nonfinite_scene_state,
     subgoal_time_out,

@@ -3,16 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Dense progress and sparse completion rewards for conveyor transfer."""
+"""Progress utilities and sparse completion rewards for conveyor transfer."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
 
 from .kinematics import end_effector_pose
 from .reset_events import CUBE_COUNT, CUBE_REST_Z, TRANSFER_X, side_inner_y
@@ -20,6 +19,8 @@ from .reset_events import CUBE_COUNT, CUBE_REST_Z, TRANSFER_X, side_inner_y
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+
+    from .commands import ConveyorTransferCommand
 
 
 def transfer_potential(
@@ -54,60 +55,44 @@ def transfer_potential(
     return 0.5 * reach + 0.75 * grasp + 1.25 * lift + 2.0 * transport + 2.0 * target + released
 
 
-def current_transfer_potential(env: ManagerBasedRLEnv) -> torch.Tensor:
+def current_transfer_potential(
+    env: ManagerBasedRLEnv,
+    command_name: str = "transfer",
+    command: ConveyorTransferCommand | None = None,
+) -> torch.Tensor:
     """Gather current task state and evaluate the shaping potential."""
-    state = env.conveyor_transfer_state
+    if command is None:
+        command = env.command_manager.get_term(command_name)
     cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
     positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
-    index = state.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
+    index = command.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
     active_position = torch.gather(positions, 1, index).squeeze(1) - env.scene.env_origins
     tool_position, _ = end_effector_pose(env)
     tool_position = tool_position - env.scene.env_origins
     robot: Articulation = env.scene["robot"]
     finger_ids, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
     finger_positions = robot.data.joint_pos.torch[:, finger_ids]
-    return transfer_potential(active_position, tool_position, finger_positions, state.source_side_ids)
-
-
-class ConveyorTransferProgressReward(ManagerTermBase):
-    """Reward positive changes in a phase-aware transfer potential."""
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._previous = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
-
-    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
-        """Return per-step potential improvement."""
-        current = current_transfer_potential(env)
-        improvement = current - self._previous
-        self._previous.copy_(current)
-        return improvement
-
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Anchor shaping to the newly sampled reset state."""
-        current = current_transfer_potential(self._env)
-        if env_ids is None:
-            self._previous.copy_(current)
-        else:
-            self._previous[env_ids] = current[env_ids]
+    return transfer_potential(active_position, tool_position, finger_positions, command.source_side_ids)
 
 
 def transfer_success_reward(
     env: ManagerBasedRLEnv,
-    context_term_name: str = "transfer_success_context",
+    command_name: str = "transfer",
 ) -> torch.Tensor:
     """Return one on each stable transfer-completion transition."""
-    context = env.termination_manager.get_term_cfg(context_term_name).func
-    return context.new_success.float()
+    command = env.command_manager.get_term(command_name)
+    command.evaluate()
+    return command.new_success.float()
 
 
 def terminal_failure(
     env: ManagerBasedRLEnv,
-    success_context_name: str = "transfer_success_context",
+    command_name: str = "transfer",
 ) -> torch.Tensor:
     """Return one for non-timeout terminal failures."""
-    success_context = env.termination_manager.get_term_cfg(success_context_name).func
-    return (env.reset_terminated & ~success_context.pending_success).float()
+    command = env.command_manager.get_term(command_name)
+    command.evaluate()
+    return (env.reset_terminated & ~command.pending_success).float()
 
 
 def action_term_l2(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
@@ -118,6 +103,8 @@ def action_term_l2(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
 
 def physical_cube_acquisition_mask(
     env: ManagerBasedRLEnv,
+    command_name: str = "transfer",
+    command: ConveyorTransferCommand | None = None,
     minimum_lift: float = 0.025,
     maximum_tool_distance: float = 0.075,
     maximum_finger_position: float = 0.030,
@@ -125,10 +112,11 @@ def physical_cube_acquisition_mask(
     """Return physically closed, lifted, tool-local commanded-cube grasps."""
     if minimum_lift <= 0.0 or maximum_tool_distance <= 0.0 or maximum_finger_position <= 0.0:
         raise ValueError("Physical acquisition thresholds must be positive.")
-    state = env.conveyor_transfer_state
+    if command is None:
+        command = env.command_manager.get_term(command_name)
     cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
     positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
-    index = state.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
+    index = command.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
     active_position = torch.gather(positions, 1, index).squeeze(1)
     tool_position, _ = end_effector_pose(env)
     robot: Articulation = env.scene["robot"]

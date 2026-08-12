@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reset-state and continuing-goal events for conveyor transfer."""
+"""Reset-state sampling for conveyor transfer."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ import torch
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 
 from ..conveyor_geometry import BELT_CENTER_Y, BELT_TOP_Z, BELT_TURN_RADIUS
-from .state import create_transfer_state
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -298,7 +297,7 @@ class ConveyorResetStateTable(ManagerTermBase):
         self._finger_positions = torch.tensor(
             [row.finger_position for row in self._rows], dtype=torch.float32, device=env.device
         )
-        self._held_rows = torch.tensor([row.held for row in self._rows], dtype=torch.bool, device=env.device)
+        self.held_rows = torch.tensor([row.held for row in self._rows], dtype=torch.bool, device=env.device)
         self._belt_range_fractions = torch.tensor(
             [row.belt_range_fraction for row in self._rows], dtype=torch.float32, device=env.device
         )
@@ -308,7 +307,7 @@ class ConveyorResetStateTable(ManagerTermBase):
         self._finger_joint_ids = self._robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)[0]
         if len(self._arm_joint_ids) != 7 or len(self._finger_joint_ids) != 2:
             raise ValueError("Conveyor transfer requires seven Panda arm joints and two finger joints.")
-        self._state = create_transfer_state(env, self.row_count)
+        self.row_ids = torch.randint(self.row_count, (env.num_envs,), dtype=torch.long, device=env.device)
 
     @property
     def row_count(self) -> int:
@@ -373,7 +372,7 @@ class ConveyorResetStateTable(ManagerTermBase):
             and fixed_target_cube_id is None
             and fixed_source_side_id is None
         ):
-            row_ids = self._state.row_ids[env_ids]
+            row_ids = self.row_ids[env_ids]
         else:
             candidates = self._filtered_rows(
                 fixed_recipe,
@@ -384,21 +383,12 @@ class ConveyorResetStateTable(ManagerTermBase):
             if candidates.numel() == 0:
                 raise RuntimeError("No conveyor reset rows match the fixed reset controls.")
             row_ids = candidates[torch.randint(candidates.numel(), (env_ids.numel(),), device=self.device)]
-            self._state.row_ids[env_ids] = row_ids
+            self.row_ids[env_ids] = row_ids
 
         recipes = self.recipe_ids[row_ids]
         target_cube_ids = self.target_cube_ids[row_ids]
         source_side_ids = self.source_side_ids[row_ids]
-        held_rows = self._held_rows[row_ids]
-        self._state.recipe_ids[env_ids] = recipes
-        self._state.target_cube_ids[env_ids] = target_cube_ids
-        self._state.source_side_ids[env_ids] = source_side_ids
-        self._state.held_cube_ids[env_ids] = torch.where(held_rows, target_cube_ids, -1)
-        self._state.goal_ids[env_ids] = 0
-        self._state.subgoal_start_steps[env_ids] = 0
-        self._state.transfer_counts[env_ids] = 0
-        self._state.direction_transfer_counts[env_ids] = 0
-        self._state.initialized[env_ids] = True
+        held_rows = self.held_rows[row_ids]
 
         arm_positions = self._arm_positions[row_ids].clone()
         if arm_joint_noise > 0.0:
@@ -506,118 +496,3 @@ def select_next_transfer_cube(
     fallback.scatter_(1, current_cube_ids.unsqueeze(1), True)
     candidates = torch.where(has_candidates.unsqueeze(1), candidates, fallback)
     return torch.multinomial(candidates.float(), 1).squeeze(1)
-
-
-def _assign_conveyor_transfer_goal(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
-    target_cube_ids: torch.Tensor,
-    source_side_ids: torch.Tensor,
-    success_context_name: str,
-) -> None:
-    """Publish a new transfer command and clear progress from the previous command."""
-    context = env.termination_manager.get_term_cfg(success_context_name).func
-    if not hasattr(context, "consume_success"):
-        raise RuntimeError("Conveyor goal changes require a stable transfer-success context.")
-
-    state = env.conveyor_transfer_state
-    state.goal_ids[env_ids] += 1
-    state.subgoal_start_steps[env_ids] = env.episode_length_buf[env_ids]
-    state.target_cube_ids[env_ids] = target_cube_ids
-    state.source_side_ids[env_ids] = source_side_ids
-    state.held_cube_ids[env_ids] = -1
-    context.consume_success(env_ids)
-
-
-def set_conveyor_transfer_goal(
-    env: ManagerBasedRLEnv,
-    target_cube_id: int,
-    env_ids: Sequence[int] | torch.Tensor | None = None,
-    success_context_name: str = "transfer_success_context",
-) -> None:
-    """Command a numbered cube to move from its current conveyor to the opposite one.
-
-    The cube's current local y-position determines its source conveyor. Positions
-    in the central transfer region use the nearest side of the workspace center.
-
-    Args:
-        env: Conveyor Franka environment whose command state is updated.
-        target_cube_id: Stable numbered cube index.
-        env_ids: Environments receiving the command, or ``None`` for all environments.
-        success_context_name: Stable-success term reset for the new command.
-    """
-    if not isinstance(target_cube_id, int) or isinstance(target_cube_id, bool):
-        raise TypeError("target_cube_id must be an integer.")
-    if not 0 <= target_cube_id < CUBE_COUNT:
-        raise ValueError(f"target_cube_id must lie in [0, {CUBE_COUNT - 1}].")
-
-    if env_ids is None:
-        resolved_env_ids = torch.arange(env.num_envs, dtype=torch.long, device=env.device)
-    else:
-        resolved_env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
-    if resolved_env_ids.numel() == 0:
-        return
-    if torch.any((resolved_env_ids < 0) | (resolved_env_ids >= env.num_envs)):
-        raise IndexError("Conveyor goal environment indices are out of range.")
-
-    cube: RigidObject = env.scene[f"cube_{target_cube_id}"]
-    local_y = cube.data.root_pos_w.torch[resolved_env_ids, 1] - env.scene.env_origins[resolved_env_ids, 1]
-    source_side_ids = torch.where(
-        local_y >= 0.0,
-        torch.full_like(resolved_env_ids, LEFT_SIDE),
-        torch.full_like(resolved_env_ids, RIGHT_SIDE),
-    )
-    target_cube_ids = torch.full_like(resolved_env_ids, target_cube_id)
-    _assign_conveyor_transfer_goal(
-        env,
-        resolved_env_ids,
-        target_cube_ids,
-        source_side_ids,
-        success_context_name,
-    )
-
-
-def advance_conveyor_transfer_goal(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
-    success_context_name: str = "transfer_success_context",
-    transit_half_width: float = 0.14,
-) -> None:
-    """Consume completed transfers and command another cube in the reverse direction."""
-    if env_ids is None:
-        env_ids = torch.arange(env.num_envs, device=env.device)
-    else:
-        env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
-    if env_ids.numel() == 0:
-        return
-
-    context = env.termination_manager.get_term_cfg(success_context_name).func
-    if not hasattr(context, "pending_success") or not hasattr(context, "consume_success"):
-        raise RuntimeError("Continuing conveyor goals require a stable transfer-success context.")
-    completed_ids = env_ids[context.pending_success[env_ids]]
-    if completed_ids.numel() == 0:
-        return
-
-    state = env.conveyor_transfer_state
-    cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
-    positions = torch.stack(tuple(cube.data.root_pos_w.torch[completed_ids] for cube in cubes), dim=1)
-    positions -= env.scene.env_origins[completed_ids].unsqueeze(1)
-    previous_cube_ids = state.target_cube_ids[completed_ids].clone()
-    previous_source_side_ids = state.source_side_ids[completed_ids].clone()
-    next_source_side_ids = 1 - previous_source_side_ids
-    next_cube_ids = select_next_transfer_cube(
-        positions,
-        previous_cube_ids,
-        next_source_side_ids,
-        transit_half_width=transit_half_width,
-    )
-
-    state.direction_transfer_counts[completed_ids, previous_source_side_ids] += 1
-    state.transfer_counts[completed_ids] += 1
-    _assign_conveyor_transfer_goal(
-        env,
-        completed_ids,
-        next_cube_ids,
-        next_source_side_ids,
-        success_context_name,
-    )

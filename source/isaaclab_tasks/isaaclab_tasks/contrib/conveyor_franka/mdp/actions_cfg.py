@@ -46,3 +46,6 @@ class ResetBufferedGripperActionCfg(BinaryJointPositionActionCfg):
 
     force_close_steps: int = 5
     """Initial policy steps that preserve a reset-authored grasp."""
+
+    command_name: str = "transfer"
+    """Command term that owns reset-authored held-cube state."""

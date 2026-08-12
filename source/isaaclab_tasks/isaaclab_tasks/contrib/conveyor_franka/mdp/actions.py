@@ -89,8 +89,6 @@ class ResetBufferedGripperAction(BinaryJointPositionAction):
     def process_actions(self, actions: torch.Tensor) -> None:
         """Map binary commands and preserve initially held cubes."""
         super().process_actions(actions)
-        state = getattr(self._env, "conveyor_transfer_state", None)
-        if state is None:
-            return
-        force_close = (state.held_cube_ids >= 0) & (self._env.episode_length_buf < self.cfg.force_close_steps)
+        command = self._env.command_manager.get_term(self.cfg.command_name)
+        force_close = (command.held_cube_ids >= 0) & (self._env.episode_length_buf < self.cfg.force_close_steps)
         self._processed_actions[force_close] = self._close_command

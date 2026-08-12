@@ -52,7 +52,6 @@ _MANIPULATION_CONTACT_STIFFNESS = 1.0e4
 _MANIPULATION_CONTACT_DAMPING = 200.0
 _MUJOCO_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
 _MUJOCO_SOLREF = (0.02, 1.0)
-_POLICY_DT = 1.0 / 60.0
 _SUBGOAL_TIMEOUT_S = 20.0
 _TRANSFER_SEQUENCE_LENGTH = 8
 
@@ -100,6 +99,27 @@ class ActionsCfg:
 
 
 @configclass
+class CommandsCfg:
+    """Success-driven cube-transfer command."""
+
+    transfer = mdp.ConveyorTransferCommandCfg(
+        reset_event_name="reset_from_state_table",
+        minimum_subgoal_steps=2,
+        hold_steps=3,
+        lateral_tolerance=0.055,
+        maximum_cube_speed=0.65,
+        minimum_finger_position=0.027,
+        minimum_tool_clearance=0.055,
+        minimum_progress_steps=3,
+        minimum_progress=0.35,
+        maximum_target_potential=5.0,
+        minimum_acquisition_lift=0.025,
+        maximum_acquisition_tool_distance=0.075,
+        maximum_acquisition_finger_position=0.030,
+    )
+
+
+@configclass
 class ObservationsCfg:
     """Policy observations with stable cube identity and transfer commands."""
 
@@ -137,7 +157,7 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Restore validated states and advance completed transfer goals."""
+    """Restore validated physical reset states."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
     reset_from_state_table = EventTerm(
@@ -153,12 +173,6 @@ class EventCfg:
             "arm_joint_noise": 0.015,
         },
     )
-    advance_transfer_goal = EventTerm(
-        func=mdp.advance_conveyor_transfer_goal,
-        mode="interval",
-        interval_range_s=(_POLICY_DT, _POLICY_DT),
-        params={"success_context_name": "transfer_success_context"},
-    )
 
 
 @configclass
@@ -167,12 +181,12 @@ class RewardsCfg:
 
     success = RewTerm(
         func=mdp.transfer_success_reward,
-        params={"context_term_name": "transfer_success_context"},
+        params={"command_name": "transfer"},
         weight=600.0,
     )
     failure = RewTerm(
         func=mdp.terminal_failure,
-        params={"success_context_name": "transfer_success_context"},
+        params={"command_name": "transfer"},
         weight=-60.0,
     )
     arm_action_l2 = RewTerm(
@@ -190,40 +204,18 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Continuing transfer context, safety failures, and training truncations."""
+    """Safety failures and bounded training sequences."""
 
-    learning_progress_context = DoneTerm(
-        func=mdp.ConveyorResetLearningProgress,
-        params={
-            "minimum_episode_steps": 3,
-            "minimum_progress": 0.35,
-            "maximum_target_potential": 5.0,
-            "minimum_acquisition_lift": 0.025,
-            "maximum_acquisition_tool_distance": 0.075,
-            "maximum_acquisition_finger_position": 0.030,
-        },
-    )
-    transfer_success_context = DoneTerm(
-        func=mdp.StableConveyorTransfer,
-        params={
-            "minimum_episode_steps": 2,
-            "hold_steps": 3,
-            "lateral_tolerance": 0.055,
-            "maximum_cube_speed": 0.65,
-            "minimum_finger_position": 0.027,
-            "minimum_tool_clearance": 0.055,
-        },
-    )
     cube_out_of_workspace = DoneTerm(func=mdp.cube_out_of_workspace)
     nonfinite_scene_state = DoneTerm(func=mdp.nonfinite_scene_state)
     subgoal_time_out = DoneTerm(
         func=mdp.subgoal_time_out,
-        params={"timeout_s": _SUBGOAL_TIMEOUT_S},
+        params={"timeout_s": _SUBGOAL_TIMEOUT_S, "command_name": "transfer"},
         time_out=True,
     )
     transfer_sequence_time_out = DoneTerm(
         func=mdp.transfer_sequence_time_out,
-        params={"maximum_transfers": _TRANSFER_SEQUENCE_LENGTH},
+        params={"maximum_transfers": _TRANSFER_SEQUENCE_LENGTH, "command_name": "transfer"},
         time_out=True,
     )
 
@@ -235,8 +227,7 @@ class CurriculumCfg:
     reset_sampling = CurrTerm(
         func=mdp.ConveyorResetCurriculum,
         params={
-            "progress_context_name": "learning_progress_context",
-            "final_success_context_name": "transfer_success_context",
+            "command_name": "transfer",
             # Shared target-rate monitor keeps each physical reset row near the
             # policy's 50% competence frontier without stale early outcomes.
             "success_monitor": mdp.SuccessMonitorCfg(
@@ -636,9 +627,10 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
 class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based RL task for commanded conveyor-to-conveyor cube transfer."""
 
-    scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
+    scene: ConveyorFrankaSceneCfg = ConveyorFrankaSceneCfg(num_envs=256, env_spacing=3.0, replicate_physics=True)
     conveyor_force: ConveyorForceCfg = ConveyorForceCfg()
     actions: ActionsCfg = ActionsCfg()
+    commands: CommandsCfg = CommandsCfg()
     observations: ObservationsCfg = ObservationsCfg()
     events: EventCfg = EventCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -685,11 +677,13 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
             if exc.name != "isaaclab_visualizers":
                 raise
             return
-        from isaaclab_visualizers.newton import NewtonVisualizerCfg
+        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-        self.sim.default_visualizer_cfg = NewtonVisualizerCfg(
+        # Explicit --viz newton_rtx replaces this backend while retaining the shared camera hints.
+        self.sim.default_visualizer_cfg = NewtonGLVisualizerCfg(
             eye=(2.3, -2.7, 1.8),
             lookat=(0.45, 0.0, 0.35),
+            streaming_view=False,
         )
 
     def play_mode(self) -> None:

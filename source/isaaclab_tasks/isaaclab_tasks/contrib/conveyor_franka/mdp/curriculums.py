@@ -141,8 +141,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
         env: ManagerBasedRLEnv,
         env_ids: Sequence[int],
         success_monitor: SuccessMonitorCfg,
-        progress_context_name: str = "learning_progress_context",
-        final_success_context_name: str = "transfer_success_context",
+        command_name: str = "transfer",
         deployment_probability_initial: float = 0.35,
         deployment_probability_final: float = 0.90,
         deployment_progress_start: float = 0.45,
@@ -153,17 +152,15 @@ class ConveyorResetCurriculum(ManagerTermBase):
         """Update adaptive evidence, sample rows, and expose diagnostics."""
         del success_monitor
         ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
-        state = env.conveyor_transfer_state
+        command = env.command_manager.get_term(command_name)
         batch_progress = torch.zeros((), dtype=torch.float32, device=env.device)
         batch_success = torch.zeros((), dtype=torch.float32, device=env.device)
-        completed = state.initialized[ids] & (env.episode_length_buf[ids] > 0)
+        completed = (command.command_counter[ids] > 0) & (env.episode_length_buf[ids] > 0)
         completed_ids = ids[completed]
         if completed_ids.numel():
-            progress_context = env.termination_manager.get_term_cfg(progress_context_name).func
-            final_success = env.termination_manager.get_term_cfg(final_success_context_name).func
-            progressed = progress_context.ever_success[completed_ids]
-            succeeded = final_success.ever_success[completed_ids]
-            rows = state.row_ids[completed_ids]
+            progressed = command.progress_ever_success[completed_ids]
+            succeeded = command.ever_success[completed_ids]
+            rows = self._reset_term.row_ids[completed_ids]
             self._progress_monitor.success_update(rows, progressed)
             self._attempts.scatter_add_(0, rows, torch.ones_like(rows))
             self._progress_successes.scatter_add_(0, rows, progressed.long())
@@ -199,7 +196,7 @@ class ConveyorResetCurriculum(ManagerTermBase):
             probabilities *= self._reset_term.source_side_ids == fixed_source_side_id
             probabilities /= probabilities.sum()
         if ids.numel():
-            state.row_ids[ids] = torch.multinomial(probabilities, ids.numel(), replacement=True)
+            self._reset_term.row_ids[ids] = torch.multinomial(probabilities, ids.numel(), replacement=True)
 
         cumulative_progress = self._progress_successes.sum().float() / self._attempts.sum().clamp_min(1)
         total_success = self._final_successes.sum().float() / self._attempts.sum().clamp_min(1)
@@ -209,17 +206,17 @@ class ConveyorResetCurriculum(ManagerTermBase):
             "batch_progress_rate": batch_progress,
             "batch_success_rate": batch_success,
             "batch_transfer_count": (
-                state.transfer_counts[completed_ids].float().mean()
+                command.transfer_counts[completed_ids].float().mean()
                 if completed_ids.numel()
                 else torch.zeros((), dtype=torch.float32, device=env.device)
             ),
             "batch_left_to_right_transfers": (
-                state.direction_transfer_counts[completed_ids, 0].float().mean()
+                command.direction_transfer_counts[completed_ids, 0].float().mean()
                 if completed_ids.numel()
                 else torch.zeros((), dtype=torch.float32, device=env.device)
             ),
             "batch_right_to_left_transfers": (
-                state.direction_transfer_counts[completed_ids, 1].float().mean()
+                command.direction_transfer_counts[completed_ids, 1].float().mean()
                 if completed_ids.numel()
                 else torch.zeros((), dtype=torch.float32, device=env.device)
             ),

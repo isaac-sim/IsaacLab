@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from .conveyor_geometry import CUBE_COLORS
-from .mdp.reset_events import LEFT_SIDE, set_conveyor_transfer_goal
+from .mdp.reset_events import LEFT_SIDE
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -35,6 +35,7 @@ class ConveyorGoalSelector:
             raise IndexError(f"Conveyor selector environment {env_id} is out of range.")
         self._env = env
         self._env_id = env_id
+        self._command = env.command_manager.get_term("transfer")
         self._target_cube_id = 0
         self._source_side_id = LEFT_SIDE
         self._last_refresh_time = float("-inf")
@@ -86,7 +87,7 @@ class ConveyorGoalSelector:
                 imgui.same_line()
 
         if selected_cube_id is not None and selected_cube_id != self._target_cube_id:
-            set_conveyor_transfer_goal(self._env, selected_cube_id, env_ids=(self._env_id,))
+            self._command.set_goal(selected_cube_id, env_ids=(self._env_id,))
             self._refresh_command(force=True)
 
         source_name = "Left" if self._source_side_id == LEFT_SIDE else "Right"
@@ -96,12 +97,9 @@ class ConveyorGoalSelector:
 
     def _refresh_command(self, force: bool = False) -> bool:
         """Refresh the small host-side UI cache at most ten times per second."""
-        state = getattr(self._env, "conveyor_transfer_state", None)
-        if state is None:
-            return False
         current_time = time.monotonic()
         if force or current_time - self._last_refresh_time >= 0.1:
-            self._target_cube_id = int(state.target_cube_ids[self._env_id].item())
-            self._source_side_id = int(state.source_side_ids[self._env_id].item())
+            self._target_cube_id = int(self._command.target_cube_ids[self._env_id].item())
+            self._source_side_id = int(self._command.source_side_ids[self._env_id].item())
             self._last_refresh_time = current_time
         return True

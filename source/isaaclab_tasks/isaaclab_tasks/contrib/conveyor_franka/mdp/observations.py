@@ -22,12 +22,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def _transfer_state(env: ManagerBasedRLEnv):
-    """Return initialized transfer state or raise a focused configuration error."""
-    state = getattr(env, "conveyor_transfer_state", None)
-    if state is None:
-        raise AttributeError("Conveyor observations require ConveyorResetStateTable runtime state.")
-    return state
+def _transfer_command(env: ManagerBasedRLEnv, command_name: str = "transfer"):
+    """Return the configured transfer command."""
+    return env.command_manager.get_term(command_name)
 
 
 def _cube_assets(env: ManagerBasedRLEnv) -> tuple[RigidObject, ...]:
@@ -52,16 +49,16 @@ def _active_cube_values(values: torch.Tensor, target_cube_ids: torch.Tensor) -> 
     return torch.gather(values, 1, index).squeeze(1)
 
 
-def target_cube_one_hot(env: ManagerBasedRLEnv) -> torch.Tensor:
+def target_cube_one_hot(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Encode which numbered cube the policy must transfer."""
-    state = _transfer_state(env)
-    return torch.nn.functional.one_hot(state.target_cube_ids.long(), num_classes=CUBE_COUNT).float()
+    command = _transfer_command(env, command_name)
+    return torch.nn.functional.one_hot(command.target_cube_ids.long(), num_classes=CUBE_COUNT).float()
 
 
-def target_side_one_hot(env: ManagerBasedRLEnv) -> torch.Tensor:
+def target_side_one_hot(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Encode the destination conveyor, opposite the reset source side."""
-    state = _transfer_state(env)
-    return torch.nn.functional.one_hot(1 - state.source_side_ids.long(), num_classes=2).float()
+    command = _transfer_command(env, command_name)
+    return torch.nn.functional.one_hot(1 - command.source_side_ids.long(), num_classes=2).float()
 
 
 def classify_cube_conveyors(local_positions: torch.Tensor, transit_half_width: float = 0.14) -> torch.Tensor:
@@ -105,14 +102,14 @@ def transfer_object_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     )
 
 
-def active_transfer_features(env: ManagerBasedRLEnv) -> torch.Tensor:
+def active_transfer_features(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Return active-cube and destination-relative position features [m]."""
-    state = _transfer_state(env)
+    command = _transfer_command(env, command_name)
     positions, _, _ = _cube_state(env)
-    active_position = _active_cube_values(positions, state.target_cube_ids.long())
+    active_position = _active_cube_values(positions, command.target_cube_ids.long())
     local_active_position = active_position - env.scene.env_origins
     tool_position, _ = end_effector_pose(env)
-    target_side_ids = 1 - state.source_side_ids.long()
+    target_side_ids = 1 - command.source_side_ids.long()
     target_position = torch.stack(
         (
             torch.full_like(target_side_ids, TRANSFER_X, dtype=active_position.dtype),
