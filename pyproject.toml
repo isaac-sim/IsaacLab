@@ -158,9 +158,15 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-# Standalone URDF/MJCF importers; conflicts with Isaac Sim because both provide
-# ``isaacsim.asset`` and the wheel displaces the Kit extension.
-importers = ["isaacsim-asset-isolated>=6.0,<6.1"]
+# Standalone URDF/MJCF importers, for conversion without Isaac Sim. Opt-in because it is
+# only needed for asset conversion; it installs alongside Isaac Sim without displacing it.
+# The converters need a tinyobjloader pre-release. Naming it here rather than inheriting it
+# transitively is what allows the pre-release, so this extra installs without
+# ``--prerelease allow`` and without relaxing the policy for anything else.
+importers = [
+    "isaacsim-asset-isolated>=6.0,<6.1",
+    "tinyobjloader>=2.0.0rc13",
+]
 
 ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
 ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
@@ -194,11 +200,10 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
-# Every backend, RL library, and visualizer in one flag. Isaac Sim and both OV
-# backends resolve into a single environment; only ``importers`` is forked in
-# [tool.uv].conflicts, so it is not part of ``all``. The specialized extras (rlinf,
-# mimic, teleop, tetrahedralization, video, leapp) and the developer ``test``
-# tooling stay opt-in by name.
+# Every backend, RL library, and visualizer in one flag. No extra is forked in
+# [tool.uv].conflicts, so any combination resolves into a single environment. The
+# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp, importers)
+# and the developer ``test`` tooling stay opt-in by name.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
 ]
@@ -412,11 +417,6 @@ override-dependencies = [
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
-]
-# ``teleop`` bundles Isaac Sim, so it inherits the ``importers`` conflict.
-conflicts = [
-    [{ extra = "isaacsim" }, { extra = "importers" }],
-    [{ extra = "teleop" }, { extra = "importers" }],
 ]
 python-preference = "only-managed"
 package = false

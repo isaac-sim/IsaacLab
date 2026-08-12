@@ -62,11 +62,16 @@ def test_resolved_environment_has_no_second_usd_provider():
 def test_standalone_importers_ship_in_the_importers_extra():
     """The standalone URDF/MJCF importers are reachable, and only through the ``importers`` extra.
 
-    They cannot be a base dependency: the wheel contributes to the ``isaacsim`` namespace, so
-    beside a full Isaac Sim it displaces the Kit extension serving the same import.
+    They stay opt-in rather than becoming a base dependency: they are only needed for asset
+    conversion, and pull a MuJoCo and USD toolchain no other workflow uses.
+
+    ``tinyobjloader`` is listed here even though the converters pull it transitively. A
+    pre-release only resolves when the specifier naming it is a direct requirement, so
+    inheriting it instead would make the extra uninstallable without ``--prerelease allow``.
     """
     with (_repo_root() / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
-    assert pyproject["project"]["optional-dependencies"]["importers"] == ["isaacsim-asset-isolated>=6.0,<6.1"]
+    extra = pyproject["project"]["optional-dependencies"]["importers"]
+    assert extra == ["isaacsim-asset-isolated>=6.0,<6.1", "tinyobjloader>=2.0.0rc13"]
     assert not [d for d in pyproject["project"]["dependencies"] if d.startswith("isaacsim-asset-isolated")]

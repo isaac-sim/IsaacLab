@@ -1123,53 +1123,6 @@ def _requested_root_extras(
     return extras
 
 
-ISAACSIM_BEARING_EXTRAS = frozenset({"isaacsim", "teleop"})
-"""Extras that install Isaac Sim, directly or by bundling it."""
-
-
-def _reject_conflicts_with_environment(requested: set[str]) -> None:
-    """Reject an extra that conflicts with what this environment already has.
-
-    :func:`_reject_conflicting_extras` only sees one invocation, so installing the two sides in
-    separate passes, or into a checkout carrying a local Isaac Sim, still reaches the broken state.
-
-    Args:
-        requested: Names of the extras this install would apply.
-
-    Raises:
-        SystemExit: When the environment already holds the other side of a conflict.
-    """
-    wants_isaacsim = bool(requested & ISAACSIM_BEARING_EXTRAS)
-
-    if "importers" in requested and not wants_isaacsim:
-        isaacsim_path = extract_isaacsim_path(required=False)
-        if isaacsim_path is not None and isaacsim_path.exists():
-            raise SystemExit(
-                f"error: 'importers' cannot be installed here; Isaac Sim is already present at"
-                f" {isaacsim_path}. It provides the same importers, and the wheel would displace it."
-            )
-        if _is_installed("isaacsim"):
-            raise SystemExit(
-                "error: 'importers' cannot be installed here; the isaacsim package is already"
-                " installed. It provides the same importers, and the wheel would displace it."
-            )
-
-    if wants_isaacsim and _is_installed("isaacsim-asset-isolated"):
-        names = ", ".join(f"'{e}'" for e in sorted(requested & ISAACSIM_BEARING_EXTRAS))
-        raise SystemExit(
-            f"error: {names} installs Isaac Sim, which cannot be added here; the standalone"
-            " importers are already installed and provide the same imports."
-            " Uninstall isaacsim-asset-isolated first."
-        )
-
-
-def _is_installed(distribution: str) -> bool:
-    """Whether ``distribution`` is installed in the target environment."""
-    probe = f"from importlib.metadata import version; version({distribution!r})"
-    result = run_command([extract_python_exe(), "-c", probe], check=False, capture_output=True, text=True)
-    return result.returncode == 0
-
-
 def _reject_conflicting_extras(requested: set[str]) -> None:
     """Reject extras that ``[tool.uv].conflicts`` declares incompatible.
 
@@ -1293,7 +1246,6 @@ def command_install(install_type: str = "all") -> None:
 
     requested_extras = _requested_root_extras(install_isaacsim, requested_optional_submodules, extra_features)
     _reject_conflicting_extras(requested_extras)
-    _reject_conflicts_with_environment(requested_extras)
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
     os.environ.setdefault("UV_EXTRA_INDEX_URL", "https://pypi.nvidia.com")

@@ -85,9 +85,9 @@ def test_uv_run_exposes_centralized_feature_extras():
 def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
     """``all`` is the single flag for every backend, RL library, and visualizer.
 
-    Only ``importers`` is forked in ``[tool.uv].conflicts``, so Isaac Sim and both OV
-    backends fit in one environment alongside every RL library and visualizer. The
-    specialized workflows stay opt-in by name -- they are large, narrowly used, or both.
+    Nothing is forked in ``[tool.uv].conflicts``, so Isaac Sim and both OV backends fit in
+    one environment alongside every RL library and visualizer. The specialized workflows stay
+    opt-in by name -- they are large, narrowly used, or both.
     """
     optional = _root_pyproject()["project"]["optional-dependencies"]
 
@@ -200,18 +200,18 @@ def test_public_ov_packages_use_public_pypi_index():
         assert sources[package] == {"index": "pypi-public"}
 
 
-def test_uv_run_forks_only_the_importers_extra():
-    """``importers`` is the sole fork; every other combination resolves into one environment.
+def test_uv_run_declares_no_extra_conflicts():
+    """No extra is forked: every combination resolves into a single environment.
 
-    ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes
-    too. The overrides below reconcile the last of those pins -- ``packaging`` for ovphysx,
-    WebSockets for Viser, coverage for ``test`` -- so only ``importers`` still has to fork,
-    because it and Isaac Sim each supply the ``isaacsim.asset`` importers.
+    ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
+    and briefly away from ``importers``. The overrides below reconcile the last of those pins
+    -- ``packaging`` for ovphysx, WebSockets for Viser, coverage for ``test``. ``importers``
+    installs beside Isaac Sim without displacing it: the two distributions share no files, and
+    Kit serves ``isaacsim.asset`` from its extension roots either way.
     """
     tool_uv = _root_pyproject()["tool"]["uv"]
 
-    pairs = [{entry["extra"] for entry in conflict} for conflict in tool_uv["conflicts"]]
-    assert pairs == [{"isaacsim", "importers"}, {"teleop", "importers"}]
+    assert "conflicts" not in tool_uv
     for override in ("packaging>=20,<27", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
         assert override in tool_uv["override-dependencies"]
 
