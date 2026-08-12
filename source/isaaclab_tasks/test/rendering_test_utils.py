@@ -639,7 +639,7 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
     Args:
         env_cfg: The resolved environment config, exposing ``sim.physics`` as a
             :class:`~isaaclab_physx.physics.PhysxCfg` when ``physics_backend == "physx"``, or an
-            :class:`~isaaclab_ovphysx.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
+            :class:`~isaaclab_ov.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
         physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
         data_type: The camera data type under test.
     """
