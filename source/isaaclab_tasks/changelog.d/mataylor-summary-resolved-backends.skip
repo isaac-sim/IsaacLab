@@ -1,3 +1,0 @@
-Internal: added a test covering that scanning a config twice reaches the same launch decision, which
-the run summary relies on now that it resolves the launch placeholders before ``launch_simulation``
-scans them again. No source change in this package.
