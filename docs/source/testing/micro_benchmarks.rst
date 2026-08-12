@@ -488,11 +488,11 @@ Compare runs
 
 For a performance claim:
 
-1. Use the same designated benchmark workstation, GPU and CPU conditions,
-   software environment, device, benchmark file, dimensions, warm-up count, and
-   timed count. CPU model, frequency, and load affect Python, dispatch, and
-   synchronization costs even when measured tensors are on the GPU. Compare the
-   same ray-caster terrain phase.
+1. Use the same workstation, GPU and CPU conditions, software environment,
+   device, benchmark file, dimensions, warm-up count, and timed count. CPU model,
+   frequency, and load affect Python, dispatch, and synchronization costs even
+   when measured tensors are on the GPU. Compare the same ray-caster terrain
+   phase.
 2. Run baseline and candidate configurations in separate clean processes.
 3. Use at least three repetitions per configuration and report the mean plus
    between-run standard deviation.
@@ -503,6 +503,11 @@ For a performance claim:
 6. Treat startup separately. Compilation, scene creation, physics
    initialization, and CUDA graph construction are outside reported sensor
    update latency but affect total command duration.
+
+Published Isaac Lab performance comparisons must be collected on the project
+designated benchmark workstation with complete hardware and run provenance.
+Local runs are appropriate for correctness checks and investigation, but must
+not be presented as official reference numbers.
 
 .. important::
 
