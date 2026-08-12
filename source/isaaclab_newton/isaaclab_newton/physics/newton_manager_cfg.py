@@ -58,13 +58,21 @@ class NewtonSoftContactCfg:
     """Global soft-contact parameters applied to the finalized Newton model."""
 
     soft_contact_ke: float = 1.0e3
-    """Body-particle and particle self-contact stiffness [N/m]."""
+    """Body-particle and particle self-contact stiffness [N/m].
+
+    Effective body-particle stiffness is ``0.5 * (soft_contact_ke + shape_ke)``,
+    where ``shape_ke`` is the rigid shape's material stiffness.
+    """
 
     soft_contact_kd: float = 10.0
     """Body-particle contact damping [N*s/m]."""
 
     soft_contact_mu: float = 0.5
-    """Body-particle contact friction coefficient [dimensionless]."""
+    """Body-particle contact friction coefficient [dimensionless].
+
+    Effective body-particle friction is ``sqrt(soft_contact_mu * shape_mu)``,
+    where ``shape_mu`` is the rigid shape's material friction coefficient.
+    """
 
 
 @configclass
