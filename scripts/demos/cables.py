@@ -7,8 +7,14 @@
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/demos/cables.py
-    ./isaaclab.sh -p scripts/demos/cables.py --num_cables 40 --num_segments 15
+    # Usage with default Newton VBD physics and Kit visualizer.
+    uv run python scripts/demos/cables.py
+
+    # Usage with explicit Newton VBD physics and Newton visualizer.
+    uv run python scripts/demos/cables.py --physics newton_vbd --visualizer newton
+
+    # Usage without a visualizer and with a larger cable pile.
+    uv run python scripts/demos/cables.py --visualizer none --num_cables 40 --num_segments 15
 
 """
 
@@ -20,10 +26,11 @@ import random
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-parser = argparse.ArgumentParser(description="Spawn a pile of cables with Newton VBD.")
+parser = argparse.ArgumentParser(description="Spawn a pile of cables with Newton VBD.", conflict_handler="resolve")
 parser.add_argument("--num_cables", type=int, default=25, help="Number of cables to spawn.")
 parser.add_argument("--num_segments", type=int, default=20, help="Number of segments per cable.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
+parser.add_argument("--physics", default="newton_vbd", choices=["newton_vbd"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
@@ -35,6 +42,7 @@ if args_cli.num_segments < 2:
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import CableObject, CableObjectCfg
+from isaaclab.physics import PhysicsCfg
 
 
 def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str, CableObject]:
@@ -126,16 +134,10 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
 
 def main() -> None:
     """Launch and run the cable pile demo."""
-    from isaaclab_newton.physics import NewtonCfg
-
-    from isaaclab_contrib.deformable import VBDSolverCfg
-
-    sim_cfg = sim_utils.SimulationCfg(
-        dt=0.01,
-        device=args_cli.device,
-        physics=NewtonCfg(solver_cfg=VBDSolverCfg(iterations=20), num_substeps=8),
-    )
-    with launch_simulation(sim_cfg, args_cli):
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        physics_cfg.solver_cfg.iterations = 20
+        physics_cfg.num_substeps = 8
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
         colorize = bool(args_cli.visualizer and "kit" in args_cli.visualizer)

@@ -136,10 +136,6 @@ class SmokeResult:
 
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
-    "scripts/demos/cables.py": ScriptOverride(
-        # Cables are a Newton-only asset, so the demo exposes no --physics flag.
-        fixed_physics_backend="newton_vbd",
-    ),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
@@ -163,13 +159,31 @@ OVERRIDES = {
         readiness_pattern=r"Newton granular MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
+    "scripts/demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.2"),
+        readiness_pattern=r"Newton two-way MPM demo ready",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("newton_gl",),
+        required_modules=("isaaclab_contrib",),
+    ),
     "scripts/demos/mpm/particle_pour.py": ScriptOverride(
         args=("--max-steps", "200"),
         readiness_pattern=r"particle-pour MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
-    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
+    "scripts/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_vbd",
+        visualizers=("newton_gl",),
+        required_modules=("isaaclab_contrib",),
+    ),
+    "scripts/demos/newton_viewer_dominoes.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_xpbd",
+        visualizers=("newton_gl",),
+    ),
+    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,
@@ -329,6 +343,8 @@ def backend_is_available(backend: str) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if backend in {"physx", "isaacsim_physx"}:
         package = "isaaclab_physx"
+    elif backend == "ovphysx":
+        package = "isaaclab_ov"
     else:
         package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
     return importlib.util.find_spec(package) is not None
@@ -388,21 +404,30 @@ def run_until_ready(
     stopped_after_soak = False
     screenshot_captured = False
     fatal_patterns = set()
+    monitor_fatal_patterns = True
 
     def record_output(chunk: bytes) -> None:
         """Record bounded output while retaining fatal-pattern state."""
         output.extend(chunk)
         decoded_output = output.decode(errors="replace")
-        fatal_patterns.update(pattern for pattern in _FATAL_PATTERNS if pattern in decoded_output)
+        if monitor_fatal_patterns:
+            fatal_patterns.update(pattern for pattern in _FATAL_PATTERNS if pattern in decoded_output)
         if len(output) > MAX_OUTPUT_BYTES:
             del output[:-MAX_OUTPUT_BYTES]
 
+    def read_available_output(timeout: float) -> bool:
+        """Read one available chunk per ready stream and report whether any bytes were read."""
+        read_output = False
+        for key, _ in selector.select(timeout=timeout):
+            chunk = os.read(key.fileobj.fileno(), 65536)
+            if chunk:
+                record_output(chunk)
+                read_output = True
+        return read_output
+
     try:
         while True:
-            for key, _ in selector.select(timeout=0.1):
-                chunk = os.read(key.fileobj.fileno(), 65536)
-                if chunk:
-                    record_output(chunk)
+            read_available_output(timeout=0.1)
             decoded = output.decode(errors="replace")
             if ready_at is None and re.search(readiness_pattern, decoded):
                 ready_at = time.monotonic()
@@ -421,6 +446,11 @@ def run_until_ready(
                 screenshot_captured = True
             if ready_at is not None and now - ready_at >= soak_time:
                 stopped_after_soak = True
+                # Classify every byte already waiting in the pipe before crossing the teardown boundary.
+                while read_available_output(timeout=0.0):
+                    pass
+                # Preserve shutdown logs without treating errors caused by intentional teardown as runtime failures.
+                monitor_fatal_patterns = False
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break

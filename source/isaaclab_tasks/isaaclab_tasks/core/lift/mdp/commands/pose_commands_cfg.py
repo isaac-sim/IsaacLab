@@ -13,7 +13,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
-    from .pose_commands import ObjectUniformPoseCommand
+    from .pose_commands import DeformableUniformPoseCommand, ObjectUniformPoseCommand
 
 ALIGN_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -94,3 +94,10 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
         prim_path="/Visuals/SuccessMarkers", markers={}
     )
     """The configuration for the success visualization marker. User needs to add the markers"""
+
+
+@configclass
+class DeformableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
+    """Configuration for the deformable uniform pose command generator."""
+
+    class_type: type["DeformableUniformPoseCommand"] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"

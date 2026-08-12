@@ -27,7 +27,6 @@ import warp as wp
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env import DirectRLEnv
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
@@ -35,7 +34,6 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
@@ -167,13 +165,6 @@ class DirectRLEnvWarp(DirectRLEnv):
                 self.scene.initialize_renderers()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
-
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit
-        # (renderer camera); skip in kitless Newton-only runs where no Kit app is running.
-        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -582,10 +573,11 @@ class DirectRLEnvWarp(DirectRLEnv):
             if not hasattr(self, "_rgb_annotator"):
                 import omni.replicator.core as rep
 
-                # create render product
-                self._render_product = rep.create.render_product(
-                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
-                )
+                # create render product from the main Kit viewport camera
+                _cam_prim_path = "/OmniverseKit_Persp"
+                _resolution = (1280, 720)
+                self._render_product = rep.create.render_product(_cam_prim_path, _resolution)
+                self._render_resolution = _resolution
                 # create rgb annotator -- used to read data from the render product
                 self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
                 self._rgb_annotator.attach([self._render_product])
@@ -596,7 +588,7 @@ class DirectRLEnvWarp(DirectRLEnv):
             # return the rgb data
             # note: initially the renerer is warming up and returns empty data
             if rgb_data.size == 0:
-                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
+                return np.zeros((self._render_resolution[1], self._render_resolution[0], 3), dtype=np.uint8)
             else:
                 return rgb_data[:, :, :3]
         else:
@@ -612,8 +604,6 @@ class DirectRLEnvWarp(DirectRLEnv):
             if self.cfg.events:
                 del self.event_manager
             del self.scene
-            if self.viewport_camera_controller is not None:
-                del self.viewport_camera_controller
 
             # # clear callbacks and instance
             # if float(".".join(get_version()[2])) >= 5:

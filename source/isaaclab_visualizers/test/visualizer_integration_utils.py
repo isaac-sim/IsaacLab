@@ -37,7 +37,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonVisualizer
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
@@ -89,7 +89,7 @@ _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
+"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
@@ -310,11 +310,11 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
     cam = _cartpole_integration_visualizer_camera_kwargs()
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _CARTPOLE_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _CARTPOLE_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -323,7 +323,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
         __import__("newton")
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
         return (
-            NewtonVisualizerCfg(
+            NewtonGLVisualizerCfg(
                 headless=True,
                 window_width=nw,
                 window_height=nh,
@@ -703,7 +703,7 @@ def _set_newton_rendering_paused(viewer, paused: bool) -> None:
         _select_newton_pause_rendering_button(viewer)
 
 
-def _warm_newton_viewer(visualizer: NewtonVisualizer, viewer) -> None:
+def _warm_newton_viewer(visualizer: NewtonVisualizer) -> None:
     """Pump Newton viewer frames before sampling ``get_frame()`` after cold starts.
 
     Exits early once two consecutive frames converge; always stops after
@@ -714,7 +714,7 @@ def _warm_newton_viewer(visualizer: NewtonVisualizer, viewer) -> None:
     for i in range(_NEWTON_VIEWER_WARMUP_FRAMES):
         visualizer.step(0.0)
         with contextlib.suppress(Exception):
-            curr_raw = viewer.get_frame()
+            curr_raw = visualizer.render_rgb_array()
             if curr_raw is not None:
                 curr = _frame_to_numpy(curr_raw)
                 if prev is not None and i >= 2 and _frames_converged(prev, curr):
@@ -737,14 +737,14 @@ def _run_newton_viewer_frame_motion_test(
     case_label = _visualizer_case_label(viz_kind, physics_kind)
     for _ in range(_INTEGRATION_MOTION_BUFFER_STEPS):
         step_hook()
-    _warm_newton_viewer(visualizer, viewer)
+    _warm_newton_viewer(visualizer)
 
-    motion_start_frame = viewer.get_frame()
+    motion_start_frame = visualizer.render_rgb_array()
     for _ in range(PLAY_VIZ_N_STEP):
         step_hook()
     play_end_idx = PLAY_VIZ_N_STEP
     _flush_newton_render_for_motion_capture(visualizer)
-    motion_end_frame = viewer.get_frame()
+    motion_end_frame = visualizer.render_rgb_array()
     _save_visualizer_debug_phase_images(
         motion_start_frame,
         motion_end_frame,
@@ -767,13 +767,13 @@ def _run_newton_viewer_frame_motion_test(
 
     def _attempt_rendering_pause():
         _set_newton_rendering_paused(viewer, True)
-        rendering_paused_start_frame = viewer.get_frame()
+        rendering_paused_start_frame = visualizer.render_rgb_array()
         rendering_pause_start_state = _cartpole_body_state(env)
         physics_step_before_render_pause = get_physics_step_count()
         for _ in range(PAUSE_VIZ_N_STEP):
             step_hook()
         rendering_pause_end_state = _cartpole_body_state(env)
-        rendering_paused_end_frame = viewer.get_frame()
+        rendering_paused_end_frame = visualizer.render_rgb_array()
         _save_visualizer_debug_phase_images(
             rendering_paused_start_frame,
             rendering_paused_end_frame,
@@ -809,11 +809,11 @@ def _run_newton_viewer_frame_motion_test(
 
     def _attempt_rendering_play():
         _set_newton_rendering_paused(viewer, False)
-        rendering_play_start_frame = viewer.get_frame()
+        rendering_play_start_frame = visualizer.render_rgb_array()
         for _ in range(PLAY_VIZ_N_STEP):
             step_hook()
         _flush_newton_render_for_motion_capture(visualizer)
-        rendering_play_end_frame = viewer.get_frame()
+        rendering_play_end_frame = visualizer.render_rgb_array()
         _save_visualizer_debug_phase_images(
             rendering_play_start_frame,
             rendering_play_end_frame,
@@ -838,13 +838,13 @@ def _run_newton_viewer_frame_motion_test(
 
     def _attempt_simulation_pause():
         _set_newton_simulation_paused(viewer, True)
-        simulation_paused_start_frame = viewer.get_frame()
+        simulation_paused_start_frame = visualizer.render_rgb_array()
         simulation_pause_start_state = _cartpole_body_state(env)
         physics_step_before_simulation_pause = get_physics_step_count()
         for _ in range(PAUSE_VIZ_N_STEP):
             visualizer.step(0.0)
         simulation_pause_end_state = _cartpole_body_state(env)
-        simulation_paused_end_frame = viewer.get_frame()
+        simulation_paused_end_frame = visualizer.render_rgb_array()
         _save_visualizer_debug_phase_images(
             simulation_paused_start_frame,
             simulation_paused_end_frame,
@@ -880,11 +880,11 @@ def _run_newton_viewer_frame_motion_test(
 
     def _attempt_simulation_play():
         _set_newton_simulation_paused(viewer, False)
-        simulation_play_start_frame = viewer.get_frame()
+        simulation_play_start_frame = visualizer.render_rgb_array()
         for _ in range(PLAY_VIZ_N_STEP):
             step_hook()
         _flush_newton_render_for_motion_capture(visualizer)
-        simulation_play_end_frame = viewer.get_frame()
+        simulation_play_end_frame = visualizer.render_rgb_array()
         _save_visualizer_debug_phase_images(
             simulation_play_start_frame,
             simulation_play_end_frame,
@@ -987,11 +987,11 @@ def _flush_kit_render_for_motion_capture(env) -> None:
 
 
 def _flush_newton_render_for_motion_capture(visualizer) -> None:
-    """Force one Newton viewer render so ``get_frame()`` returns the current physics state.
+    """Refresh the state used by the next Newton viewer capture.
 
-    The Newton viewer renders at its configured update frequency during ``env.step()``.
-    An extra ``step(0.0)`` after the motion loop guarantees the framebuffer reflects
-    the latest physics state before ``viewer.get_frame()`` is called.
+    An extra ``step(0.0)`` after the motion loop guarantees the next
+    :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.render_rgb_array`
+    call uses the latest physics state.
     """
     visualizer.step(0.0)
 
@@ -1331,12 +1331,14 @@ def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.nda
     return last
 
 
-def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") -> np.ndarray:
+def _capture_visualizer_tiled_camera_rgb(
+    visualizer, *, label: str = "capture", force_recompute: bool = True
+) -> np.ndarray:
     """Return the visualizer-owned/generated tiled camera RGB frame as an HxWx3 array."""
     camera_sensor = visualizer._camera_sensor
     assert camera_sensor is not None, "Visualizer did not create a tiled camera sensor."
     camera_indices = [int(index) for index in (visualizer._camera_sensor_indices or [0])]
-    if getattr(visualizer, "_camera_is_owned", False):
+    if force_recompute and getattr(visualizer, "_camera_is_owned", False):
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
             visualizer._sync_camera_pose_updates_to_kit()
@@ -1398,10 +1400,16 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
 
     def _attempt_pause():
         _set_kit_simulation_paused(env, True)
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20")
+        # Read the sensor's last completed frame while paused. Forcing a new RTX
+        # render here introduces TAA edge jitter even though physics is frozen.
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(
+            visualizer, label="2a_pausing_frame_20", force_recompute=False
+        )
         for _ in range(PAUSE_VIZ_N_STEP):
-            env.sim.render()
-        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25")
+            env.sim.render(skip_app_pumping=isinstance(visualizer, KitVisualizer))
+        paused_end_frame = _capture_visualizer_tiled_camera_rgb(
+            visualizer, label="2b_pausing_frame_25", force_recompute=False
+        )
         _save_visualizer_debug_phase_images(
             paused_start_frame,
             paused_end_frame,
@@ -1516,20 +1524,9 @@ _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 def _make_shadow_hand_env(
     visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
 ) -> ReorientDirectEnv:
-    """Create a shadow hand env configured with selected visualizer and physics backend.
-
-    All backend-specific :class:`~isaaclab_tasks.utils.PresetCfg` fields on
-    :class:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg.ShadowHandEnvCfg`
-    are resolved before the env is constructed.
-    """
+    """Create a shadow hand env configured with selected visualizer and physics backend."""
     env_cfg = copy.deepcopy(ShadowHandEnvCfg())
-    preset_key = "newton_mjwarp" if backend_kind == "newton" else "physx"
-    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
-    env_cfg.scene = getattr(env_cfg.scene, preset_key)
-    env_cfg.robot_cfg = getattr(env_cfg.robot_cfg, preset_key)
-    env_cfg.object_cfg = getattr(env_cfg.object_cfg, preset_key)
-    if env_cfg.events is not None:
-        env_cfg.events = getattr(env_cfg.events, preset_key)
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
     env_cfg.scene.num_envs = (
         _SHADOW_HAND_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _SHADOW_HAND_INTEGRATION_NUM_ENVS
     )
@@ -1539,11 +1536,11 @@ def _make_shadow_hand_env(
     cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _SHADOW_HAND_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1555,7 +1552,7 @@ def _make_shadow_hand_env(
             __import__("newton")
             nw, nh = _SHADOW_HAND_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonVisualizerCfg(
+                NewtonGLVisualizerCfg(
                     headless=True,
                     window_width=nw,
                     window_height=nh,
@@ -1599,11 +1596,11 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _ANYMAL_D_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1615,7 +1612,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
             __import__("newton")
             nw, nh = _ANYMAL_D_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonVisualizerCfg(
+                NewtonGLVisualizerCfg(
                     headless=True,
                     window_width=nw,
                     window_height=nh,
@@ -1772,11 +1769,11 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
     cam = {"eye": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE, "lookat": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT}
     tiled_cam = (
         {
-            "tiled_cam_view": True,
-            "tiled_cam_num": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "tiled_cam_prim_path": None,
-            "tiled_cam_eye": _FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "tiled_cam_target_prim_path": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
+            "streaming_view": True,
+            "streaming_envs": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES,
+            "streaming_sensor_prim_path": None,
+            "streaming_cam_eye": _FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            "streaming_cam_target_prim_path": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
         }
         if tiled_camera
         else {}
@@ -1794,7 +1791,7 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
             __import__("newton")
             nw, nh = _FRANKA_CLOTH_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonVisualizerCfg(
+                NewtonGLVisualizerCfg(
                     headless=True,
                     window_width=nw,
                     window_height=nh,

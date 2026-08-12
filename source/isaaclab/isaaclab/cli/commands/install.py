@@ -456,7 +456,16 @@ def _root_extra_dependencies(extra: str) -> list[str]:
     if extra not in optional:
         print_warning(f"Unknown root extra '{extra}'. Available: {', '.join(sorted(optional))}. Skipping.")
         return []
-    return [requirement for requirement in optional[extra] if not _is_isaaclab_requirement(requirement)]
+    # Isaac Sim is excluded here even though ``teleop`` lists it: pip has no override
+    # mechanism, so resolving it alongside isaacteleop in one invocation is impossible
+    # (isaacsim pins websockets==12.0, isaacteleop[cloudxr] needs >=14.0). The dedicated
+    # ``isaacsim`` install token handles it in its own pass, which resolves sequentially.
+    return [
+        requirement
+        for requirement in optional[extra]
+        if not _is_isaaclab_requirement(requirement)
+        and _normalize_package_name(_requirement_name(requirement)) != "isaacsim"
+    ]
 
 
 def _install_root_extra(extra: str) -> None:
@@ -632,7 +641,6 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab_experimental",
     "isaaclab_newton",
     "isaaclab_ov",
-    "isaaclab_ovphysx",
     "isaaclab_physx",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",

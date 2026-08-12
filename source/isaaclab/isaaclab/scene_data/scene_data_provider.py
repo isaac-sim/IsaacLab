@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from collections import deque
@@ -213,10 +212,13 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
-            mapping = [-1] * len(input_paths)
-            for i, path in enumerate(input_paths):
-                with contextlib.suppress(ValueError):
-                    mapping[i] = paths.index(path)
+            # The map keeps resolution linear in the number of paths. For duplicate
+            # paths the first occurrence wins, matching ``list.index``.
+            path_to_out: dict[str | None, int] = {}
+            for out_idx, out_path in enumerate(paths):
+                if out_path not in path_to_out:
+                    path_to_out[out_path] = out_idx
+            mapping = [path_to_out.get(path, -1) for path in input_paths]
             if not np.array_equal(mapping, np.arange(len(input_paths))):
                 return wp.array(mapping, dtype=wp.int32)
         return None

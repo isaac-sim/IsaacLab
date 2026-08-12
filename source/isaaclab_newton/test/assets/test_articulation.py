@@ -1626,8 +1626,11 @@ def test_gravity_vec_w_tracks_model_gravity(sim, num_articulations, device, add_
     sim.reset()
 
     # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-    model_gravity_arr = SimulationManager.get_model().gravity
+    model = SimulationManager.get_model()
+    model_gravity_arr = model.gravity[: model.world_count]
+    global_gravity = wp.to_torch(model.gravity)[-1].clone()
     assert articulation.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
+    assert articulation.data.GRAVITY_VEC_W.shape == (num_articulations,)
 
     # Mutate model.gravity per-env in place, as randomize_physics_scene_gravity does.
     new_gravity = torch.tensor(
@@ -1640,6 +1643,7 @@ def test_gravity_vec_w_tracks_model_gravity(sim, num_articulations, device, add_
 
     # Live view: new per-env values are visible immediately, no invalidation step.
     torch.testing.assert_close(articulation.data.GRAVITY_VEC_W.torch, new_gravity)
+    torch.testing.assert_close(wp.to_torch(model.gravity)[-1], global_gravity)
 
     # Recompute the lazily-cached projected_gravity_b without sim.step (which would
     # drift root orientation from the reset state). Project against the same quat
@@ -2530,7 +2534,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     body_ids, _ = articulation.find_bodies(".*_SHANK")
     # Sample a large force
     external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 100.0
+    external_wrench_b[..., 2] = 50.0
     external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
     external_wrench_positions_b[..., 1] = 1.0
 
@@ -4313,7 +4317,8 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     if articulation.is_fixed_base:
         # jacobi_body_idx == body_idx - 1 for fixed-base (fixed-root row excluded).
         masses = masses[:, 1:]
-    gravity_w = wp.to_torch(SimulationManager.get_model().gravity)  # (num_worlds, 3)
+    model = SimulationManager.get_model()
+    gravity_w = wp.to_torch(model.gravity[: model.world_count])  # (num_worlds, 3)
     assert gravity_w.shape[0] == num_articulations, "fixture must place one articulation per world"
     f_gravity = masses.unsqueeze(-1) * gravity_w.unsqueeze(1)  # (N, B_jac, 3)
     g_expected = -torch.einsum("nbij,nbi->nj", J_com[:, :, 0:3, :], f_gravity)

@@ -1,6 +1,90 @@
 Changelog
 ---------
 
+1.5.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed velocity visualization markers clipping through humanoid robot bodies by making
+  :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_cam_target_prim_path` default to
+  ``None``. When ``None``, visualizers now adopt the first scene camera discovered at
+  initialisation instead of failing on a hardcoded ``/World/envs/*/Robot`` prim that
+  does not exist in non-robot scenes. Also hides the non-functional Rerun timeline panel
+  (``state="hidden"``) across all blueprint configurations.
+
+
+1.5.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``--viz newton_rtx``) — an
+  OVRTX path-tracer backend with studio lighting.  Shares the full Isaac Lab HUD with
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` via a common mixin.
+  Visualization markers, live plots, and the streaming camera panel are not yet supported
+  in this release.
+* Added streaming camera panel to all visualizers (Newton GL, Kit, Rerun, Viser) via the
+  ``streaming_view=True`` option on :class:`~isaaclab.visualizers.VisualizerCfg`.  The panel
+  composites per-environment camera frames for RGB, depth (turbo colormap), segmentation
+  (golden-ratio palette), and surface normals.
+* Added ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields to
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. These replace the removed
+  :class:`~isaaclab.envs.common.ViewerCfg` / ``ViewportCameraController`` and allow the Kit
+  viewport camera to track a world origin, an environment origin, or an asset root / body
+  across simulation steps.  Tracking path format: ``"robot"`` for asset root,
+  ``"robot/panda_hand"`` for a specific body.
+* Added right-click rigid-body dragging to the Newton visualizer with Newton
+  rigid-body solvers.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` now defaults
+  ``streaming_view=True`` so the streaming camera panel is active without explicit
+  configuration.
+* Newton GL sidebar layout: renamed the **Isaac Lab** section to **Simulation** and promoted
+  **Streaming View** to a standalone top-level section (same level as Simulation, Live Plots,
+  and Visualization Markers).  The section now opens expanded by default and contains a
+  **Toggle** combo (open/hide the floating panel) and a **Source Camera** dropdown to switch
+  between scene cameras at runtime.
+* The streaming camera panel floating window now opens sized to the actual composite
+  aspect ratio of the grid (e.g. 4:3 for 12 environments) rather than always square.
+* Added runtime camera-selector dropdown (**Source Camera**) to the Newton GL streaming view,
+  allowing users to switch between scene cameras (e.g. ``base_camera`` / ``wrist_camera``)
+  without restarting the simulation.
+* Renamed :class:`~isaaclab_visualizers.newton.NewtonVisualizer` to
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` to
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.  The old names are kept as
+  deprecated aliases.
+
+Deprecated
+^^^^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` are deprecated in favor of
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.
+
+
+1.4.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields to
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. These replace the removed
+  :class:`~isaaclab.envs.common.ViewerCfg` / ``ViewportCameraController`` and allow the Kit
+  viewport camera to track a world origin, an environment origin, or an asset root / body
+  across simulation steps.  Tracking path format: ``"robot"`` for asset root,
+  ``"robot/panda_hand"`` for a specific body.
+
+
 1.3.1 (2026-08-02)
 ~~~~~~~~~~~~~~~~~~
 

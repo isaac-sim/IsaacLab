@@ -51,9 +51,9 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     Physics contexts come from :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when
     set, otherwise from the backend's ``PHYSICS_CONTEXT`` class.
     :class:`~isaaclab.cloner.UsdReplicateContext` is added automatically when the cfg has a
-    spawner and Kit is available, and is dropped entirely without Kit (nothing composes or
-    renders the replicated prims there). With ``replicate_physics=False`` physics contexts
-    are dropped; USD replication still fires when the spawner+Kit condition is met.
+    spawner and Kit is available. Explicit contexts are honored regardless of Kit availability.
+    With ``replicate_physics=False`` physics contexts are dropped; USD replication still fires
+    when the spawner+Kit condition is met or the cfg explicitly requests it.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
@@ -70,9 +70,8 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     queued = REPLICATION_QUEUE.copy()
     REPLICATION_QUEUE.clear()
 
-    backend_physics_ctx = getattr(
-        importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
-    )
+    backend_package = FactoryBase._get_package_name(FactoryBase._get_backend())
+    backend_physics_ctx = getattr(importlib.import_module(f"{backend_package}.cloner"), "PHYSICS_CONTEXT", None)
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication

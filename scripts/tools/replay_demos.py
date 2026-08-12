@@ -7,6 +7,12 @@
 """Launch Isaac Sim Simulator first."""
 
 
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
+
 import argparse
 
 from isaaclab.app import AppLauncher
@@ -215,6 +221,9 @@ def replay_episodes_loop(  # noqa: C901
                     else:
                         has_next_action = True
                     actions[env_id] = env_next_action
+                if not has_next_action:
+                    # Stop before stepping once every environment has exhausted its recorded actions.
+                    break
                 if first_loop:
                     first_loop = False
                 else:

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.managers import SceneEntityCfg
@@ -34,7 +34,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass

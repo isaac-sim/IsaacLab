@@ -64,7 +64,7 @@ class SO101StackPhysicsCfg(PhysicsCfg):
 
     isaacsim_physx = PhysicsCfg().isaacsim_physx.replace(solve_articulation_contact_last=True)
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
 @configclass

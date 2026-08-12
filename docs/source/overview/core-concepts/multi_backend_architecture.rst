@@ -30,7 +30,7 @@ The ``Articulation`` class is a factory that automatically creates an instance o
 the active backend implementation, such as
 :class:`PhysX Articulation <isaaclab_physx.assets.Articulation>`,
 :class:`Newton Articulation <isaaclab_newton.assets.Articulation>`, or
-:class:`OvPhysX Articulation <isaaclab_ovphysx.assets.Articulation>`. Your code never
+:class:`OvPhysX Articulation <isaaclab_ov.assets.Articulation>`. Your code never
 needs to import backend-specific modules directly.
 
 This pattern applies across simulation components, though not every backend implements every
@@ -43,22 +43,22 @@ component yet:
      - Core API (``isaaclab``)
      - PhysX (``isaaclab_physx``)
      - Newton (``isaaclab_newton``)
-     - OvPhysX (``isaaclab_ovphysx``)
+     - OvPhysX (``isaaclab_ov``)
    * - Physics Manager
      - :class:`~isaaclab.physics.PhysicsManager`
      - :class:`~isaaclab_physx.physics.PhysxManager`
      - :class:`~isaaclab_newton.physics.NewtonManager`
-     - :class:`~isaaclab_ovphysx.physics.OvPhysxManager`
+     - :class:`~isaaclab_ov.physics.OvPhysxManager`
    * - Articulation
      - :class:`~isaaclab.assets.Articulation`
      - :class:`~isaaclab_physx.assets.Articulation`
      - :class:`~isaaclab_newton.assets.Articulation`
-     - :class:`~isaaclab_ovphysx.assets.Articulation`
+     - :class:`~isaaclab_ov.assets.Articulation`
    * - Rigid Object
      - :class:`~isaaclab.assets.RigidObject`
      - :class:`~isaaclab_physx.assets.RigidObject`
      - :class:`~isaaclab_newton.assets.RigidObject`
-     - :class:`~isaaclab_ovphysx.assets.RigidObject`
+     - :class:`~isaaclab_ov.assets.RigidObject`
    * - Deformable Object
      - :class:`~isaaclab.assets.DeformableObject`
      - :class:`~isaaclab_physx.assets.DeformableObject`
@@ -73,7 +73,7 @@ component yet:
      - :class:`~isaaclab.sensors.ContactSensor`
      - :class:`~isaaclab_physx.sensors.ContactSensor`
      - :class:`~isaaclab_newton.sensors.ContactSensor`
-     - :class:`~isaaclab_ovphysx.sensors.ContactSensor`
+     - :class:`~isaaclab_ov.sensors.ContactSensor`
    * - Renderer
      - :class:`~isaaclab.renderers.Renderer`
      - :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`
@@ -83,12 +83,12 @@ component yet:
      - :class:`~isaaclab.scene_data.SceneDataBackend`
      - ``PhysxSceneDataBackend`` (in :mod:`isaaclab_physx.physics`)
      - ``NewtonSceneDataBackend`` (in :mod:`isaaclab_newton.physics`)
-     - ``OvPhysxSceneDataBackend`` (in :mod:`isaaclab_ovphysx.physics`)
+     - ``OvPhysxSceneDataBackend`` (in :mod:`isaaclab_ov.physics`)
    * - Cloner
      - :func:`~isaaclab.cloner.usd_replicate`
      - :func:`~isaaclab_physx.cloner.physx_replicate`
      - :func:`~isaaclab_newton.cloner.newton_physics_replicate`
-     - :func:`~isaaclab_ovphysx.cloner.ovphysx_replicate`
+     - :func:`~isaaclab_ov.cloner.ovphysx_replicate`
 
 The Factory Pattern
 -------------------
@@ -98,10 +98,10 @@ All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`, w
 
 1. The active physics backend is determined by inspecting
    ``SimulationContext.physics_manager``.
-2. The factory's module path is used to derive the backend module path by replacing ``isaaclab``
-   with ``isaaclab_{backend}``. For example, ``isaaclab.assets.articulation`` maps to
-   ``isaaclab_physx.assets.articulation``, ``isaaclab_newton.assets.articulation``, or
-   ``isaaclab_ovphysx.assets.articulation``.
+2. The factory's module path is used to derive the backend module path. For example,
+   ``isaaclab.assets.articulation`` maps to ``isaaclab_physx.assets.articulation``,
+   ``isaaclab_newton.assets.articulation``, or ``isaaclab_ov.assets.articulation``.
+   The OVPhysX backend key maps to the shared ``isaaclab_ov`` integration package.
 3. The backend module is lazily imported and the implementation class is cached in a registry.
 
 .. code-block:: text
@@ -115,7 +115,7 @@ All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`, w
         │    (reads SimulationContext.physics_manager)
         │
         ├─ _get_module_name()   → "isaaclab_physx.assets.articulation"
-        │    (convention: isaaclab.X.Y → isaaclab_{backend}.X.Y)
+        │    (OVPhysX maps to the shared isaaclab_ov package)
         │
         ├─ importlib.import_module()
         │    (lazy load — only on first use)
@@ -148,7 +148,7 @@ The physics backend is selected via the ``physics`` field in
 
     from isaaclab.sim import SimulationCfg
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
     # Use PhysX (default)
@@ -169,28 +169,33 @@ instantiations automatically use the selected backend.
 Multi-Backend Environments with Presets
 ---------------------------------------
 
-Environments can support multiple backends simultaneously using the :doc:`preset system
-</source/features/hydra>`. Each backend gets its own configuration variant. The example
-below shows only the physics-related fields:
+Environments can support multiple backends simultaneously using :doc:`backend and preset
+selectors </source/concepts/backends_and_presets>`. Each backend gets its own configuration
+variant. The example below shows only the physics-related fields:
 
 .. code-block:: python
 
     from isaaclab.envs import DirectRLEnvCfg
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils.configclass import configclass
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        physx: PhysxCfg = PhysxCfg()
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(
+            isaacsim_physx=isaacsim_physx,
+            ovphysx=ovphysx,
+        )
+        default: PhysxCfg = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
         )
-        ovphysx: OvPhysxCfg = OvPhysxCfg()
 
     @configclass
     class CartpoleEnvCfg(DirectRLEnvCfg):
@@ -204,8 +209,11 @@ Users then select a physics backend at the command line:
 
       .. code-block:: bash
 
-          # Default (PhysX)
+          # Default (concrete Isaac Sim PhysX)
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # Automatic PhysX-family selection
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=physx
 
           # MJWarp (Newton backend)
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
@@ -217,14 +225,25 @@ Users then select a physics backend at the command line:
 
       .. code-block:: bash
 
-          # Default (PhysX)
+          # Default (concrete Isaac Sim PhysX)
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
+
+          # Automatic PhysX-family selection
+          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=physx
 
           # MJWarp (Newton backend)
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
           # OvPhysX backend
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=ovphysx
+
+When a task's default would otherwise be automatic ``PhysxAutoCfg`` selection,
+its ``default`` variant is the concrete ``isaacsim_physx`` configuration.
+Explicit defaults such as Newton remain unchanged. The ``physics=physx``
+selector is opt-in and chooses between Isaac Sim PhysX and OvPhysX at launch
+time according to whether the resolved runtime requires Kit. This mirrors
+renderer presets: the default is concrete ``isaacsim_rtx``, while
+``renderer=rtx`` opts into automatic selection.
 
 The Physics Manager
 -------------------
@@ -280,7 +299,7 @@ Assets and sensors follow the same pattern. Each has:
    ``BaseContactSensor``)
 2. **A factory class** that inherits from both ``FactoryBase`` and the base class
 3. **Backend implementations** in ``isaaclab_physx``, ``isaaclab_newton``, and
-   ``isaaclab_ovphysx`` where supported
+   ``isaaclab_ov`` where supported
 
 The base classes define the public API contract — properties, methods, and data accessors
 that all backends must provide. Current backend implementations use ``wp.array``
@@ -288,6 +307,12 @@ that all backends must provide. Current backend implementations use ``wp.array``
 
 Data classes follow the same pattern with their own factories (e.g.,
 ``ArticulationData(FactoryBase, BaseArticulationData)``).
+
+These base interfaces define the portable contract. Advanced code can also use
+each engine's native low-level data API, but those APIs deliberately retain
+different ownership and synchronization semantics. See
+:doc:`physical-backends/direct-api-access/index` for PhysX typed views, Newton
+live model/state arrays and generic selections, and OvPhysX tensor bindings.
 
 Adding a New Physics Backend
 ----------------------------
@@ -431,8 +456,9 @@ Key Design Principles
 
 - **Lazy loading**: Backend modules are imported only when first instantiated, keeping startup
   fast and avoiding hard dependencies on unused backends.
-- **Convention over configuration**: Module paths follow a strict pattern
-  (``isaaclab.X.Y`` → ``isaaclab_{backend}.X.Y``), so no manual registration is needed.
+- **Convention over configuration**: Backend module paths mirror the ``isaaclab.X.Y``
+  structure. OVPhysX maps to ``isaaclab_ov.X.Y``; other backends use their
+  ``isaaclab_<backend>.X.Y`` package, so no manual registration is needed.
 - **Independent selection**: Physics backend, renderer, and visualizer are selected
   independently — you can use any combination.
 - **Warp-native data types**: Backend implementations return ``wp.array`` for asset and
@@ -445,7 +471,8 @@ See Also
 
 - :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide from Isaac Lab 2.x to the
   multi-backend architecture
-- :doc:`/source/features/hydra` — preset system for multi-backend environment configurations
+- :doc:`/source/concepts/backends_and_presets` — user guide to backend and preset selection
+- :doc:`/source/features/hydra` — advanced configuration and preset authoring
 - :doc:`physical-backends/index` — feature matrix and per-backend guides (PhysX, Newton, OvPhysX)
 - :doc:`physical-backends/newton/index` — Newton backend guide
 - :doc:`physical-backends/newton/newton-manager-abstraction` — adding Newton solver managers and

@@ -16,16 +16,16 @@ import numpy as np
 import warp as wp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS = ["Mock"]  # Mock backend is always available.
+BACKENDS: list[str] = []
 BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}
 
 try:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
-    from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
+    from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
 else:
@@ -39,7 +39,7 @@ else:
 try:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
+    from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["newton"] = f"{type(error).__name__}: {error}"
 else:
@@ -48,9 +48,9 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
-    from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
-    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
+    from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
@@ -121,9 +121,9 @@ def create_physx_articulation(
     data.fixed_tendon_names = fixed_tendon_names
     data.spatial_tendon_names = spatial_tendon_names
 
-    # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    # Create wrench composers (pass articulation which has num_instances, num_bodies, device properties)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -288,8 +288,8 @@ def create_ovphysx_articulation(
     articulation._create_buffers()
 
     # Wrench composers
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
     object.__setattr__(articulation, "_effort_write_view", None)
@@ -304,7 +304,7 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
 
-    from isaaclab_ovphysx import tensor_types as TT
+    from isaaclab_ov import tensor_types as TT
 
     object.__setattr__(articulation, "_can_write_effort", articulation._get_binding(TT.DOF_ACTUATION_FORCE) is not None)
     object.__setattr__(articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None)
@@ -347,10 +347,15 @@ def create_newton_articulation(
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
-    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_model.world_count = num_instances
+    mock_model.gravity = wp.array(
+        np.tile(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), (num_instances + 1, 1)),
+        dtype=wp.vec3f,
+        device=device,
+    )
     # Sizes consumed by the task-space scratch buffers in NewtonArticulationData.__init__.
-    # Model-wide counts equal the per-articulation counts here because the mock contains a
-    # single homogeneous world.
+    # Model-wide counts equal the per-articulation counts because the mock contains only
+    # this homogeneous articulation batch.
     mock_model.articulation_count = num_instances
     mock_model.max_joints_per_articulation = num_bodies
     total_dofs = num_joints + (0 if is_fixed_base else 6)
@@ -398,9 +403,9 @@ def create_newton_articulation(
     data.fixed_tendon_names = fixed_tendon_names
     data.spatial_tendon_names = []
 
-    # Mock wrench composers
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    # Wrench composers
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -465,33 +470,6 @@ def create_newton_articulation(
     return articulation, mock_view
 
 
-def create_mock_articulation(
-    num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
-    num_fixed_tendons: int = 0,
-    num_spatial_tendons: int = 0,
-    device: str = "cuda:0",
-    is_fixed_base: bool = False,
-    joint_ordering: tuple[str, ...] | None = None,
-    body_ordering: tuple[str, ...] | None = None,
-):
-    from isaaclab.test.mock_interfaces.assets.mock_articulation import MockArticulation
-
-    if joint_ordering is not None or body_ordering is not None:
-        raise ValueError("The mock backend does not support explicit joint or body ordering.")
-
-    art = MockArticulation(
-        num_instances=num_instances,
-        num_joints=num_joints,
-        num_bodies=num_bodies,
-        is_fixed_base=is_fixed_base,
-        num_fixed_tendons=num_fixed_tendons,
-        num_spatial_tendons=num_spatial_tendons,
-        device=device,
-    )
-    return art, None  # No view for mock backend
-
 
 def get_articulation(
     backend: str,
@@ -531,18 +509,6 @@ def get_articulation(
         )
     elif backend == "newton":
         return create_newton_articulation(
-            num_instances,
-            num_joints,
-            num_bodies,
-            num_fixed_tendons,
-            num_spatial_tendons,
-            device,
-            is_fixed_base=is_fixed_base,
-            joint_ordering=joint_ordering,
-            body_ordering=body_ordering,
-        )
-    elif backend.lower() == "mock":
-        return create_mock_articulation(
             num_instances,
             num_joints,
             num_bodies,

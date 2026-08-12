@@ -7,7 +7,7 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -52,8 +52,8 @@ class RoughPhysicsCfg(PresetCfg):
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=200,
-            nconmax=100,
+            njmax=1000,
+            nconmax=300,
             cone="pyramidal",
             impratio=1.0,
             integrator="implicitfast",
@@ -62,12 +62,9 @@ class RoughPhysicsCfg(PresetCfg):
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
         num_substeps=1,
         debug_mode=False,
-        # 1 cm shape margin is the single most important Newton setting for rough
-        # terrain — without it, non-AnymalD robots fail to learn stable contact
-        # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
     )
-    default = physx
+    default = isaacsim_physx
 
 
 ##

@@ -117,7 +117,6 @@ class TestInstallConstants:
             "isaaclab_experimental",
             "isaaclab_newton",
             "isaaclab_ov",
-            "isaaclab_ovphysx",
             "isaaclab_physx",
             "isaaclab_rl",
             "isaaclab_tasks",

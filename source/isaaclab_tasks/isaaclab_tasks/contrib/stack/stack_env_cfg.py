@@ -318,7 +318,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = physx
+    default = isaacsim_physx
 
 
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:
@@ -336,7 +336,7 @@ def raise_if_surface_gripper_on_newton(env_cfg) -> None:
     if isinstance(env_cfg.sim.physics, NewtonCfg):
         raise ValueError(
             "Surface grippers are only supported by the PhysX backend; the Newton backend has no "
-            "surface-gripper implementation. Re-run this task with physics=physx (the default)."
+            "surface-gripper implementation. Re-run this task with physics=isaacsim_physx (the default)."
         )
 
 
