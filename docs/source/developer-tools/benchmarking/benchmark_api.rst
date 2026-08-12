@@ -6,17 +6,16 @@ Use the benchmark API
 This guide is for automation authors who need to run supported benchmarks from
 Python, consume typed results, or add a benchmark producer. For day-to-day
 benchmarking, start with the CLI workflows and interpretation guidance in
-:ref:`developer_tools_benchmarking_run`. To isolate one asset method, cached property, or
-sensor update, use :ref:`developer_tools_benchmarking_micro` instead.
+:ref:`developer_tools_benchmarking_run`. To isolate one asset method, cached
+property, or sensor update, use :ref:`developer_tools_benchmarking_micro`.
 
 Run one workflow
 ----------------
 
-Use a typed workflow request whenever an existing workflow answers the
-question. The request applies the same launch, task, timing, schema, and output
-behavior as the CLI. This complete runtime example measures 1000 steps after 50
-warm-up steps, disables visualizers, and requests both stable schema and
-human-readable summary output:
+Use a typed request for a supported workflow. It applies the same launch, task,
+timing, schema, and output behavior as the CLI. The following runtime example
+measures 1000 steps after 50 warm-up steps. It disables visualizers and requests
+both stable schema and human-readable summary output:
 
 .. code-block:: python
 
@@ -55,9 +54,9 @@ Run the file through the Isaac Lab Python wrapper:
 
    ./isaaclab.sh -p runtime_benchmark.py
 
-The terminal receives the summary report. The paths in ``result.output_paths``
-identify the schema and summary JSON files actually written; do not reconstruct
-their timestamped names in automation.
+The command prints the summary report. The paths in ``result.output_paths``
+identify the schema and summary JSON files that were written. Use these paths in
+automation instead of reconstructing the timestamped names.
 
 Choose a request
 ----------------
@@ -86,8 +85,7 @@ dispatch is more convenient.
      - :class:`~isaaclab.benchmark.BenchmarkPlayRequest`
      - :func:`~isaaclab.benchmark.run_play_benchmark`
 
-The remaining complete examples use the same output and launcher objects as
-the runtime workflow.
+The examples below reuse the runtime workflow's output and launcher objects.
 
 .. dropdown:: Run startup profiling
 
@@ -240,8 +238,8 @@ task configuration, output configuration, and launcher configuration.
 
 Training exposes additional learning, video, sensor capture, and convergence
 options. Training and play also expose ``backend_args`` for options that truly
-belong to one RL library. Prefer typed fields, presets, and ``hydra_args`` when
-they express the option; ``backend_args`` bypasses the common request contract.
+belong to one RL library. Use typed fields, presets, and ``hydra_args`` for
+supported options. ``backend_args`` bypasses the common request contract.
 See the :mod:`isaaclab.benchmark` API reference for the exhaustive field list.
 
 An empty ``visualizers`` tuple explicitly disables every visualizer. ``None``
@@ -273,10 +271,10 @@ Select one or more formatter names in
    * - ``omniperf``
      - Writes the OmniPerf KPI representation.
 
-Use ``("schema", "summary")`` for results intended for review or publication:
-the summary gives immediate feedback while the schema preserves typed data for
+Use ``("schema", "summary")`` for results intended for review or publication.
+The summary gives immediate feedback. The schema preserves typed data for
 analysis. With multiple formatters, each output filename includes its formatter
-name so JSON outputs cannot overwrite each other.
+name, so JSON outputs cannot overwrite each other.
 
 Read the result
 ---------------
@@ -314,22 +312,22 @@ Consume typed fields rather than scraping terminal text or depending on keys in
 The common ``run``, ``versions``, and ``hardware`` fields carry the comparison
 context. ``runtime`` separates collection throughput, total throughput, startup
 time, and environment-step timing. For measurement definitions, see
-:ref:`developer_tools_benchmarking_run`; use the public API reference for every schema field.
+:ref:`developer_tools_benchmarking_run`. See the public API reference for every
+schema field.
 
 Handle errors and process lifetime
 ----------------------------------
 
-Typed dispatch converts a workflow parser rejection into ``ValueError``. A
-workflow that exits without returning a result raises ``RuntimeError``. Invalid
-output configuration, such as an empty formatter tuple or an unknown formatter,
-also fails rather than silently producing an incomplete result.
+If a workflow parser rejects a typed request, the API raises ``ValueError``. If
+a workflow exits without returning a result, the API raises ``RuntimeError``.
+Invalid output configuration also raises an error. Examples include an empty
+formatter tuple and an unknown formatter.
 
-Run each workflow in a separate process. This gives every benchmark a clean
-simulator lifecycle, prevents state from one workflow contaminating another,
-and matches the CLI execution model. Process startup is reported separately and
-is not included in steady-state throughput. Persist the training checkpoint path
-in an orchestration artifact, configuration store, or training schema file
-before starting playback.
+Run each workflow in a separate process. This gives each benchmark a clean
+simulator lifecycle and prevents state from carrying over between workflows. It
+also matches the CLI execution model. Process startup is reported separately
+from steady-state throughput. Save ``result.bundle.checkpoint_path`` before
+starting playback.
 
 .. warning::
 
@@ -338,8 +336,8 @@ before starting playback.
    serializes work and changes the schedule being measured, especially on
    Newton. Every rate from that run is diagnostic and must not be reported as
    throughput. Time outside ``SimulationContext.step()`` includes required
-   action, actuator, state, manager, reset, wrapper, and synchronization work;
-   it is not equivalent to removable Isaac Lab overhead.
+   action, actuator, state, manager, reset, wrapper, and synchronization work.
+   It is not equivalent to removable Isaac Lab overhead.
 
 Add a custom producer
 ---------------------
@@ -347,7 +345,7 @@ Add a custom producer
 Use :class:`~isaaclab.benchmark.BaseIsaacLabBenchmark` when a producer's
 lifecycle cannot be represented by a supported workflow. The framework provides
 phases, typed measurement and metadata records, system recorders, and
-formatters; it does not define the timing boundary for you.
+formatters. You must define the timing boundary.
 
 .. list-table:: Measurement and metadata types
    :header-rows: 1
@@ -424,16 +422,16 @@ the benchmark:
    for output_path in output_paths:
        print(output_path)
 
-Choose a meaningful phase name, state units explicitly, warm up before sampling,
-and report the sample count with the mean and standard deviation. For GPU work,
-define whether the measurement is submission latency or synchronized completion
-latency and place synchronization at deliberate boundaries.
+Choose a meaningful phase name and state units explicitly. Warm up before
+sampling. Report the sample count with the mean and standard deviation. For GPU
+work, state whether the metric is submission latency or synchronized completion
+latency. Place synchronization at deliberate boundaries.
 
 When a custom producer creates one of the stable workflow bundles, call
 ``attach_bundle(bundle)`` before ``finalize()`` and select ``schema``. Otherwise,
 use the lower-level ``json`` representation. ``finalize()`` stops optional Kit
-frametime recorders, gathers recorder data, writes every selected formatter,
-and returns the paths written.
+frametime recorders and gathers recorder data. It writes every selected
+formatter and returns the paths written.
 
 With ``use_recorders=True`` (the default), the base class captures CPU, GPU,
 memory, and version metadata. Call ``update_manual_recorders()`` at least once
@@ -442,9 +440,9 @@ samples are needed.
 
 Set ``frametime_recorders=True`` only when a Kit application is running and the
 workload needs physics, render, application, or GPU frametime data. The
-framework enables the available Isaac Sim benchmark services and gracefully
-omits unavailable recorders. Frametime instrumentation is part of the workload;
-keep its setting fixed across comparisons.
+framework enables the available Isaac Sim benchmark services and skips
+unavailable recorders. Frametime instrumentation is part of the workload. Keep
+its setting fixed across comparisons.
 
 Choose a lower-level runner
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -455,7 +453,7 @@ property across input modes, warm-up steps, and instance counts. Use
 and device-synchronized timing boundaries. Use
 :class:`~isaaclab.benchmark.LatencyBenchmarkRunner` to report those structured
 latency samples. Neither isolated result predicts end-to-end environment or
-training throughput; command matrices and extension protocol are in
+training throughput. The command matrices and extension protocol are in
 :ref:`developer_tools_benchmarking_micro`.
 
 Troubleshooting
@@ -464,14 +462,14 @@ Troubleshooting
 Run scripts through ``./isaaclab.sh -p`` so the Isaac Lab and simulator Python
 environment is active. If output is missing, inspect returned ``output_paths``
 and make sure custom producers call ``finalize()``. Formatter names are lowercase
-and case-sensitive: ``schema``, ``summary``, ``json``, ``osmo``, and
-``omniperf``.
+and case-sensitive. Valid names are ``schema``, ``summary``, ``json``, ``osmo``,
+and ``omniperf``.
 
 Missing GPU metadata usually means ``nvidia-smi`` or CUDA device discovery is
 unavailable. Missing Kit frametime measurements can instead mean the relevant
-benchmark service is not present; it does not invalidate non-frametime phases.
+benchmark service is not present. It does not invalidate non-frametime phases.
 
 For a new supported end-to-end workflow, keep typed request construction,
 dispatch, schema output, summary output, and CLI behavior aligned. For an
-isolated operation, continue with :ref:`developer_tools_benchmarking_micro` before adding
-a new runner or timing convention.
+isolated operation, follow :ref:`developer_tools_benchmarking_micro` before
+adding a new runner or timing convention.
