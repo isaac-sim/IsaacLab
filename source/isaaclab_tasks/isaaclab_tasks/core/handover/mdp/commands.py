@@ -41,6 +41,7 @@ class HandoverCommand(CommandTerm):
         self._x_unit = torch.tensor([1.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
         self._y_unit = torch.tensor([0.0, 1.0, 0.0], device=self.device).repeat(self.num_envs, 1)
         self.metrics["goal_distance"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
         self._minimum_goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
         # Whether each environment has brought the object within the success distance this episode.
         self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -60,10 +61,16 @@ class HandoverCommand(CommandTerm):
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         if env_ids is None:
             env_ids = slice(None)
+        # the base class means the metric over ``env_ids``, converts it to a float and
+        # zeroes it, so the episode's success bit is written before delegating
+        self.metrics["success_rate"][env_ids] = self._succeeded[env_ids].float()
         extras = super().reset(env_ids)
-        log = self._env.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
         self._succeeded[env_ids] = False
+        log = self._env.extras.setdefault("log", {})
+        # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
+        # card across tasks); pop it from the returned dict so CommandManager does not
+        # additionally log it under ``Metrics/<term_name>/success_rate``.
+        log["Metrics/success_rate"] = extras.pop("success_rate")
         for statistic, value in self._minimum_goal_distance.reset(env_ids).items():
             log[f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         return extras
