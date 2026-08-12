@@ -39,7 +39,8 @@ def test_soft_contact_cfg_defaults_match_newton():
 def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     """VBD excludes registered simulation and visual meshes from USD import."""
     physics = importlib.import_module("isaaclab_newton.physics")
-    vbd_module = importlib.import_module("isaaclab_newton.physics.vbd_manager")
+    pxr = importlib.import_module("pxr")
+    newton_module = importlib.import_module("isaaclab_newton.physics.newton_manager")
     builders = []
     hook_calls = []
     replicate_calls = []
@@ -48,14 +49,10 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     class Builder:
         def __init__(self):
             self.imports = []
-            self.colored = False
 
         def add_usd(self, stage, *, root_path=None, ignore_paths=(), schema_resolvers=()):
             self.imports.append((root_path, list(ignore_paths)))
             return {"path_shape_map": {}}
-
-        def color(self):
-            self.colored = True
 
     children = [
         SimpleNamespace(
@@ -82,11 +79,11 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         replicate_calls.append(kwargs)
         return {}, [object() for _ in env_paths]
 
-    monkeypatch.setattr(vbd_module, "get_current_stage", lambda: stage)
-    monkeypatch.setattr(vbd_module, "UsdGeom", usd_geom)
-    monkeypatch.setattr(vbd_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
-    monkeypatch.setattr(vbd_module, "replace_newton_builder_shape_colors", lambda *args: None)
-    monkeypatch.setattr(vbd_module, "replicate_builder_mapping", replicate)
+    monkeypatch.setattr(newton_module, "get_current_stage", lambda: stage)
+    monkeypatch.setattr(pxr, "UsdGeom", usd_geom)
+    monkeypatch.setattr(newton_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
+    monkeypatch.setattr(newton_module, "replace_newton_builder_shape_colors", lambda *args: None)
+    monkeypatch.setattr(newton_module, "replicate_builder_mapping", replicate)
     monkeypatch.setattr(physics.NewtonVBDManager, "create_builder", classmethod(create_builder))
     monkeypatch.setattr(
         physics.NewtonVBDManager,
@@ -128,7 +125,22 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
         assert builders[0].imports == [(None, ["/World/terrain", *deformable_paths])]
         assert hook_calls == [0]
     assert selected_builders == [builders[0]]
-    assert builders[0].colored
+
+
+def test_vbd_colors_builder_before_finalize():
+    """VBD colors the completed builder during finalization preparation."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+
+    class Builder:
+        color_calls = 0
+
+        def color(self):
+            self.color_calls += 1
+
+    builder = Builder()
+    physics.NewtonVBDManager._prepare_builder_for_finalize(builder)
+
+    assert builder.color_calls == 1
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

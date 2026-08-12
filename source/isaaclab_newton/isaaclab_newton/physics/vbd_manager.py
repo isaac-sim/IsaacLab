@@ -7,24 +7,10 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
-import torch
-import warp as wp
-from newton import Model
+from newton import Model, ModelBuilder
 from newton.solvers import SolverVBD
-from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
-
-from pxr import UsdGeom
-
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.stage import get_current_stage
-
-from isaaclab_newton.cloner.newton_clone_utils import (
-    _restore_visible_colliders_without_visual_shapes,
-    replicate_builder_mapping,
-)
 
 from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
@@ -51,8 +37,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def start_simulation(cls) -> None:
         """Start simulation and bind registered deformables to Fabric."""
-        if cls._builder is not None:
-            cls._builder.color()
         super().start_simulation()
         try:
             from isaaclab_contrib.deformable.deformable_object import setup_registered_deformable_fabric_sync
@@ -63,91 +47,17 @@ class NewtonVBDManager(NewtonManager):
             setup_registered_deformable_fabric_sync(cls)
 
     @classmethod
-    def instantiate_builder_from_stage(cls):
-        """Create a builder while excluding registered deformable meshes from USD import."""
-        stage = get_current_stage()
-        up_axis = UsdGeom.GetStageUpAxis(stage)
-
-        env_pattern = re.compile(r"^[Ee]nv_(\d+)$")
-        world_prim = stage.GetPrimAtPath("/World")
-        env_paths: list[tuple[int, str]] = []
-        if world_prim and world_prim.IsValid():
-            for child in world_prim.GetChildren():
-                match = env_pattern.match(child.GetName())
-                if match:
-                    env_paths.append((int(match.group(1)), child.GetPath().pathString))
-        env_paths.sort(key=lambda x: x[0])
-
-        builder = cls.create_builder(up_axis=up_axis)
-        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-        deformable_ignore_paths = [
+    def _get_usd_import_ignore_paths(cls) -> list[str]:
+        """Return registered deformable mesh paths excluded from USD import."""
+        return [
             path for entry in cls._deformable_registry for path in (entry.sim_mesh_prim_path, entry.vis_mesh_prim_path)
         ]
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
 
-        if not env_paths:
-            ignore_paths = [*hf_ignore_paths, *deformable_ignore_paths]
-            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
-            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-            replace_newton_builder_shape_colors(builder, stage)
-            NewtonManager._world_xforms = [wp.transform()]
-            for hook in cls._per_world_builder_hooks:
-                hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
-        else:
-            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + deformable_ignore_paths
-            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
-            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-            replace_newton_builder_shape_colors(builder, stage)
-
-            _, proto_path = env_paths[0]
-            source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
-            import_result = source_builders[proto_path].add_usd(
-                stage,
-                root_path=proto_path,
-                ignore_paths=deformable_ignore_paths,
-                schema_resolvers=schema_resolvers,
-            )
-            _restore_visible_colliders_without_visual_shapes(
-                source_builders[proto_path], stage, import_result["path_shape_map"]
-            )
-            replace_newton_builder_shape_colors(source_builders[proto_path], stage)
-            cls._cl_protos = source_builders
-
-            global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
-            xform_cache = UsdGeom.XformCache()
-            poses = []
-            for _, env_path in env_paths:
-                world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
-                translation = world_xform.ExtractTranslation()
-                rotation = world_xform.ExtractRotationQuat()
-                imag = rotation.GetImaginary()
-                poses.append(
-                    (
-                        (translation[0], translation[1], translation[2]),
-                        (imag[0], imag[1], imag[2], rotation.GetReal()),
-                    )
-                )
-
-            positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
-            quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
-            mapping = torch.ones((1, len(env_paths)), dtype=torch.bool)
-            replicate_args = (builder, (proto_path,), mapping, positions, quaternions, source_builders)
-            local_site_map, world_xforms = replicate_builder_mapping(
-                *replicate_args,
-                source_site_indices=source_site_indices,
-                env_root_sites=env_root_sites,
-                per_world_builder_hooks=cls._per_world_builder_hooks,
-            )
-
-            NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}
-            NewtonManager._cl_site_index_map.update(
-                (label, (None, per_world)) for label, per_world in local_site_map.items()
-            )
-            NewtonManager._world_xforms = world_xforms
-            NewtonManager._num_envs = len(env_paths)
-
+    @classmethod
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Color the completed VBD builder before finalization."""
+        super()._prepare_builder_for_finalize(builder)
         builder.color()
-        cls.set_builder(builder)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
