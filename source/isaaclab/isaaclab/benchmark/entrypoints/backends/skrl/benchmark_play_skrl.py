@@ -102,7 +102,7 @@ def _parse_args(argv: list[str]):
     )
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="skrl")
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
