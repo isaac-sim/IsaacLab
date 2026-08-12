@@ -233,3 +233,71 @@ Joint Wrench Sensor
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.sensors` API.
+
+.. currentmodule:: isaaclab.sensors
+
+.. autosummary::
+   :nosignatures:
+
+   BaseContactSensor
+   BaseContactSensorData
+   BaseFrameTransformer
+   BaseFrameTransformerData
+   BaseImu
+   BaseImuData
+   BaseJointWrenchSensor
+   BaseJointWrenchSensorData
+   BasePva
+   BasePvaData
+   ImuData
+   MultiMeshRayCasterCameraData
+   TiledCamera
+   TiledCameraCfg
+
+.. autoclass:: BaseContactSensor
+   :show-inheritance:
+
+.. autoclass:: BaseContactSensorData
+   :show-inheritance:
+
+.. autoclass:: BaseFrameTransformer
+   :show-inheritance:
+
+.. autoclass:: BaseFrameTransformerData
+   :show-inheritance:
+
+.. autoclass:: BaseImu
+   :show-inheritance:
+
+.. autoclass:: BaseImuData
+   :show-inheritance:
+
+.. autoclass:: BaseJointWrenchSensor
+   :show-inheritance:
+
+.. autoclass:: BaseJointWrenchSensorData
+   :show-inheritance:
+
+.. autoclass:: BasePva
+   :show-inheritance:
+
+.. autoclass:: BasePvaData
+   :show-inheritance:
+
+.. autoclass:: ImuData
+   :show-inheritance:
+
+.. autoclass:: MultiMeshRayCasterCameraData
+   :show-inheritance:
+
+.. autoclass:: TiledCamera
+   :show-inheritance:
+
+.. autoclass:: TiledCameraCfg
+   :show-inheritance:
