@@ -34,3 +34,38 @@ Deformable Object
     implementation of :class:`isaaclab.assets.DeformableObject`, while
     deformable schema and material cfgs referenced by ``spawn`` remain
     backend-specific.
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_ovphysx.assets` API.
+
+.. currentmodule:: isaaclab_ovphysx.assets
+
+.. autosummary::
+   :nosignatures:
+
+   Articulation
+   ArticulationData
+   RigidObject
+   RigidObjectCollection
+   RigidObjectCollectionData
+   RigidObjectData
+
+.. autoclass:: Articulation
+   :show-inheritance:
+
+.. autoclass:: ArticulationData
+   :show-inheritance:
+
+.. autoclass:: RigidObject
+   :show-inheritance:
+
+.. autoclass:: RigidObjectCollection
+   :show-inheritance:
+
+.. autoclass:: RigidObjectCollectionData
+   :show-inheritance:
+
+.. autoclass:: RigidObjectData
+   :show-inheritance:
