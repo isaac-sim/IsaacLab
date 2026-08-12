@@ -84,10 +84,49 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
+_VISUALIZATION_MARKERS_DEFAULT_OPEN = True
+"""Whether Newton debug overlays are expanded when the GL viewer opens."""
+
 if TYPE_CHECKING:
     from newton import State
 
     from isaaclab.scene_data import SceneDataProvider
+
+
+def _render_contact_controls(imgui, viewer, renderer) -> None:
+    """Render Newton's native contact visualization controls."""
+    _changed, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
+    if not viewer.show_contacts or renderer is None:
+        return
+
+    imgui.indent()
+    _, viewer.show_contact_normals = imgui.checkbox("Normal", bool(viewer.show_contact_normals))
+    _, viewer.show_contact_disks = imgui.checkbox("Contact Mode", bool(viewer.show_contact_disks))
+    _, viewer.show_contact_forces = imgui.checkbox("Force", bool(viewer.show_contact_forces))
+    imgui.unindent()
+
+    log_flag = imgui.SliderFlags_.logarithmic.value
+    default_contact_scale = float(viewer._contact_viz_scale_default) or 1.0
+    _, viewer.contact_viz_scale = imgui.slider_float(
+        "Contact Scale",
+        float(viewer.contact_viz_scale),
+        default_contact_scale * 0.01,
+        default_contact_scale * 100.0,
+        "%.4g",
+        log_flag,
+    )
+    if viewer.show_contact_forces:
+        default_force_scale = float(viewer._contact_force_scale_default) or 0.5
+        _, viewer.contact_force_scale = imgui.slider_float(
+            "Force Relative Scale",
+            float(viewer.contact_force_scale),
+            default_force_scale * 0.01,
+            default_force_scale * 100.0,
+            "%.4g",
+            log_flag,
+        )
+    if hasattr(renderer, "arrow_scale") and (viewer.show_contact_normals or viewer.show_contact_forces):
+        _, renderer.arrow_scale = imgui.slider_float("Arrow Thickness", renderer.arrow_scale, 0.25, 5.0)
 
 
 def _eye_lookat_to_pitch_yaw(
@@ -303,23 +342,14 @@ class _NewtonViewerUIMixin:
 
             # --- Visualization Markers (GL only; RTX log_mesh crashes on empty USD path) --
             if viewer.model is not None and not isinstance(viewer, NewtonViewerRTX):
-                imgui.set_next_item_open(False, imgui.Cond_.appearing)
+                imgui.set_next_item_open(_VISUALIZATION_MARKERS_DEFAULT_OPEN, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Visualization Markers"):
                     imgui.separator()
                     renderer = getattr(viewer, "renderer", None)
                     _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
                     if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
                         _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
-                    _c, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
-                    if viewer.show_contacts and renderer is not None:
-                        if hasattr(renderer, "arrow_length_scale"):
-                            _, renderer.arrow_length_scale = imgui.slider_float(
-                                "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
-                            )
-                        if hasattr(renderer, "arrow_scale"):
-                            _, renderer.arrow_scale = imgui.slider_float(
-                                "Contact Width", renderer.arrow_scale, 0.25, 5.0
-                            )
+                    _render_contact_controls(imgui, viewer, renderer)
                     _c, viewer.show_particles = imgui.checkbox("Show Particles", viewer.show_particles)
                     _c, viewer.show_springs = imgui.checkbox("Show Springs", viewer.show_springs)
                     _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
