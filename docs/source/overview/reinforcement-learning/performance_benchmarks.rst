@@ -125,10 +125,9 @@ CPU: Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 
 
-Reproduce These Workloads
--------------------------
+Run these workloads
+-------------------
 
-Use the supported runtime, play, training, and startup workflows described in
-:ref:`testing_benchmarks`. Record the task, backend, CPU, GPU, software revision,
-environment count, seed, warm-up, and measured window with every published
-result.
+Use the supported workflows in :ref:`developer_tools_benchmarking` to reproduce
+these workload types. Record the task, backend, CPU, GPU, software revision,
+environment count, seed, warm-up, and measured window with every result.
