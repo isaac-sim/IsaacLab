@@ -646,9 +646,10 @@ def _run_one_pass(
         sys.executable,
         "-m",
         "pytest",
-        # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
+        # Capture Python streams without replacing file descriptors that persistent native loggers may retain.
         "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
         "--no-header",
+        "--capture=sys",
         "--show-capture=all",
         f"--config-file={ctx.workspace_root}/pyproject.toml",
         f"--junitxml={report_file}",

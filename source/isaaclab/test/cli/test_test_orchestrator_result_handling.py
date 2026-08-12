@@ -70,6 +70,39 @@ def _write_module_skipped_junit_report(report_file: str) -> None:
     )
 
 
+def test_inner_pytest_uses_sys_capture(monkeypatch, tmp_path: Path) -> None:
+    """The child pytest process must not replace file descriptors used by native loggers."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    commands: list[list[str]] = []
+
+    def _capture(cmd: list[str], *_args, report_file: str, **_kwargs):
+        commands.append(cmd)
+        _write_partial_junit_report(report_file)
+        return 0, b"", b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    capture_args = [arg for arg in commands[0] if arg.startswith("--capture=")]
+    assert capture_args == ["--capture=sys"]
+    assert "--show-capture=all" in commands[0]
+
+
 def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -> None:
     """Stale exact node IDs must fail independently of the subprocess exit code."""
     orchestrator = _load_orchestrator_module()
