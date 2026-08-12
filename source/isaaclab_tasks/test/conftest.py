@@ -27,6 +27,10 @@ this file does not import ``isaaclab_ov`` into every test in the suite.
 """
 
 
+_OVRTX_LOG_FINGERPRINT_BYTES = 64
+"""How many bytes before a replay offset are re-read to tell appending apart from rewriting."""
+
+
 def _ovrtx_log_size() -> int:
     """Return the current size of the OVRTX log in bytes, or 0 when it does not exist yet."""
     try:
@@ -35,22 +39,39 @@ def _ovrtx_log_size() -> int:
         return 0
 
 
+def _ovrtx_log_fingerprint(offset: int) -> bytes:
+    """Return the up-to-64 bytes of the OVRTX log preceding ``offset``, or ``b""`` when unreadable.
+
+    Identifies the content an offset was measured against. OVRTX truncates the log when it opens it, so an
+    offset stays meaningful only while the bytes in front of it are unchanged; a log that was rewritten past
+    that offset is the same size or larger, but no longer holds the same bytes there.
+    """
+    try:
+        with open(_OVRTX_LOG_PATH, "rb") as handle:
+            handle.seek(max(0, offset - _OVRTX_LOG_FINGERPRINT_BYTES))
+            return handle.read(min(offset, _OVRTX_LOG_FINGERPRINT_BYTES))
+    except OSError:
+        return b""
+
+
 @pytest.fixture(autouse=True)
 def _echo_ovrtx_log(request):
     """Replay whatever the OVRTX renderer appended to its log during the test.
 
     A no-op for tests that never build an OVRTX renderer, since nothing is written then. OVRTX runs with
     ``keep_system_alive=True`` and holds the log open for the lifetime of the process, so only the byte
-    range written during this test is replayed. A log that shrank was reopened, and is replayed from the
-    beginning instead.
+    range written during this test is replayed. A log whose bytes before that range changed was truncated
+    and rewritten -- by this process opening a log an earlier one left behind, say -- and is replayed from
+    the beginning instead.
     """
     start = _ovrtx_log_size()
+    fingerprint = _ovrtx_log_fingerprint(start)
     yield
-    if _ovrtx_log_size() < start:
+    if _ovrtx_log_fingerprint(start) != fingerprint:
         start = 0
-    with contextlib.suppress(OSError), open(_OVRTX_LOG_PATH, encoding="utf-8", errors="replace") as handle:
+    with contextlib.suppress(OSError), open(_OVRTX_LOG_PATH, "rb") as handle:
         handle.seek(start)
-        if chunk := handle.read():
+        if chunk := handle.read().decode("utf-8", errors="replace"):
             print(f"\n----- OVRTX renderer log: {request.node.name} -----\n{chunk}", end="")
 
 
