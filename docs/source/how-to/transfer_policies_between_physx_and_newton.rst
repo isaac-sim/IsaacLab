@@ -353,7 +353,9 @@ independently.
              --task Isaac-Lift-Franka \
              --num_envs 32 \
              --checkpoint "$NEWTON_CHECKPOINT" \
-             physics=isaacsim_physx
+             physics=isaacsim_physx \
+             env.scene.robot.joint_ordering=mjwarp \
+             env.scene.robot.body_ordering=mjwarp
 
    .. tab-item:: G1 locomotion
       :sync: g1
