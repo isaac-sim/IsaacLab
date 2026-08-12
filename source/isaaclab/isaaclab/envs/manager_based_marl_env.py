@@ -224,8 +224,16 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
         env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self.recorder_manager.record_pre_reset(env_ids)
         self._reset_idx(env_ids)
+        self.scene.write_data_to_sim()
+        self.sim.forward()
+        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            for _ in range(self.cfg.num_rerenders_on_reset):
+                self.sim.render()
         self.recorder_manager.record_post_reset(env_ids)
         self.obs_dict = self._get_observations(update_history=True)
+        if self.cfg.wait_for_textures and self.has_rtx_sensors and hasattr(self.sim.physics_manager, "assets_loading"):
+            while self.sim.physics_manager.assets_loading():
+                self.sim.render()
         return self.obs_dict, self.extras
 
     def step(self, actions: dict[str, ActionType]) -> EnvStepReturn:
@@ -241,6 +249,7 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
             if (
                 not isinstance(action, torch.Tensor)
                 or action.ndim != 2
+                or action.shape[0] != self.num_envs
                 or action.shape[1] != self.action_managers[agent_id].total_action_dim
             ):
                 received = getattr(action, "shape", None)
@@ -441,7 +450,8 @@ class ManagerBasedMARLEnv(ManagerBasedEnv, gym.Env):
             )
         self.extras["log"] = {}
         for agent_id in self.possible_agents:
-            log = self.extras[agent_id].setdefault("log", {})
+            self.extras[agent_id]["log"] = {}
+            log = self.extras[agent_id]["log"]
             log.update(self.observation_managers[agent_id].reset(env_ids))
             log.update(self.action_managers[agent_id].reset(env_ids))
             log.update(self.reward_managers[agent_id].reset(env_ids))

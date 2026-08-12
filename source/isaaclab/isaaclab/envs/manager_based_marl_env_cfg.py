@@ -57,6 +57,11 @@ class ManagerBasedMARLEnvCfg(ManagerBasedEnvCfg):
 
     def validate_config(self) -> None:
         """Validate MARL-specific configuration constraints."""
+        if self.export_io_descriptors:
+            raise ValueError(
+                "ManagerBasedMARLEnv does not support export_io_descriptors. "
+                "Configure agent-specific descriptors in the task or disable export_io_descriptors."
+            )
         if not self.agents:
             raise ValueError("ManagerBasedMARLEnvCfg.agents must contain at least one agent.")
         if "log" in self.agents:
