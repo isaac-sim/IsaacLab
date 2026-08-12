@@ -24,7 +24,9 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
-_INNER_CONFTEST = '"""Loads the collector exactly as the repo-root conftest does."""\n\npytest_plugins = ["tools.ovrtx_log"]\n'
+_INNER_CONFTEST = (
+    '"""Loads the collector exactly as the repo-root conftest does."""\n\npytest_plugins = ["tools.ovrtx_log"]\n'
+)
 
 _FAKE_RENDERER = '''\
 import os

@@ -261,17 +261,6 @@ def _get_diagnostics(pre_kill_diag=""):
     return diag
 
 
-def _report_ovrtx_log(label):
-    """Log what the subprocess left in the renderer log and return it, for attaching to a failure report.
-
-    The process that wrote it is gone by now, so this is the only report its renderer output reaches.
-    """
-    section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, label)
-    if section:
-        logger.info(section)
-    return section
-
-
 def _capture_system_diagnostics():
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
@@ -708,7 +697,6 @@ def _run_one_pass(
             if len(diag) > 10000:
                 diag = diag[:10000] + "\n... (truncated)"
             logger.info(diag)
-            _report_ovrtx_log(pass_file_label)
             continue
 
         if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
@@ -729,7 +717,6 @@ def _run_one_pass(
             if len(diag) > 10000:
                 diag = diag[:10000] + "\n... (truncated)"
             logger.info(diag)
-            _report_ovrtx_log(pass_file_label)
             continue
         break
 
@@ -740,7 +727,7 @@ def _run_one_pass(
         diag = _get_diagnostics(pre_kill_diag)
         logger.warning(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
         logger.info(diag)
-        ovrtx_log_section = _report_ovrtx_log(pass_file_label)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Startup hang after {ctx.startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -772,7 +759,7 @@ def _run_one_pass(
         diag = _get_diagnostics(pre_kill_diag)
         logger.warning(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
         logger.info(diag)
-        ovrtx_log_section = _report_ovrtx_log(pass_file_label)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -809,7 +796,7 @@ def _run_one_pass(
         diag = _get_diagnostics()
         logger.warning(f"⚠️  {ctx.test_file}{suffix}: {reason}")
         logger.info(diag)
-        ovrtx_log_section = _report_ovrtx_log(pass_file_label)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
         if stdout_data:
@@ -841,9 +828,6 @@ def _run_one_pass(
         logger.warning(
             f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)"
         )
-        # Every test replayed its own share of the log before the report was written, but whatever the
-        # renderer logged while shutdown hung is only readable from out here, after the SIGKILL.
-        _report_ovrtx_log(pass_file_label)
 
     try:
         report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, pass_file_label)
