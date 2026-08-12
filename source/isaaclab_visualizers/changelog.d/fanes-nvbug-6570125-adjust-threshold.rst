@@ -6,7 +6,7 @@ Changed
   viewport and 160 for the Kit tiled camera. RTX ResponsiveDenoising keeps refining a paused frame,
   so the residue is a few high-amplitude pixels that a per-pixel count cannot separate from real
   motion. The Newton ViewerGL pause checks rasterise without DLSS and keep the strict default of 50.
-  This is a work-around for NVBUG 6570125 and should be reverted once OVRTX 0.5 ships the fix.
+  This is a work-around for NVBUG 6570125 and should be reverted once the renderer fix ships.
 
 Fixed
 ^^^^^
