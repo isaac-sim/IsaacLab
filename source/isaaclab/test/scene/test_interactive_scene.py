@@ -107,6 +107,66 @@ def test_relative_flag(device, setup_scene):
     assert_state_equal(prev_state, scene.get_state(is_relative=True))
 
 
+def test_get_relative_deformable_state_offsets_all_nodes():
+    env_origins = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    nodal_position = torch.arange(60, dtype=torch.float32).reshape(4, 5, 3)
+    nodal_velocity = torch.zeros_like(nodal_position)
+    deformable = SimpleNamespace(
+        data=SimpleNamespace(
+            nodal_pos_w=SimpleNamespace(torch=nodal_position),
+            nodal_vel_w=SimpleNamespace(torch=nodal_velocity),
+        )
+    )
+    scene = SimpleNamespace(
+        env_origins=env_origins,
+        _articulations={},
+        _cable_objects={},
+        _deformable_objects={"object": deformable},
+        _rigid_objects={},
+        _surface_grippers={},
+    )
+
+    state = InteractiveScene.get_state(scene, is_relative=True)
+
+    torch.testing.assert_close(
+        state["deformable_object"]["object"]["nodal_position"], nodal_position - env_origins[:, None, :]
+    )
+
+
+def test_reset_to_relative_deformable_state_offsets_all_nodes():
+    env_origins = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    env_ids = torch.tensor([3, 1])
+    nodal_position = torch.arange(30, dtype=torch.float32).reshape(2, 5, 3)
+    nodal_velocity = torch.zeros_like(nodal_position)
+    written_state = {}
+    deformable = SimpleNamespace(
+        write_nodal_pos_to_sim=lambda value, env_ids: written_state.update(position=value, env_ids=env_ids),
+        write_nodal_velocity_to_sim=lambda value, env_ids: written_state.update(velocity=value),
+    )
+    scene = SimpleNamespace(
+        device="cpu",
+        env_origins=env_origins,
+        _articulations={},
+        _cable_objects={},
+        _deformable_objects={"object": deformable},
+        _rigid_objects={},
+        _surface_grippers={},
+        _rigid_object_collections={},
+        write_data_to_sim=lambda: None,
+    )
+    state = {
+        "deformable_object": {
+            "object": {"nodal_position": nodal_position, "nodal_velocity": nodal_velocity},
+        }
+    }
+
+    InteractiveScene.reset_to(scene, state, env_ids=env_ids, is_relative=True)
+
+    torch.testing.assert_close(written_state["position"], nodal_position + env_origins[env_ids, None, :])
+    torch.testing.assert_close(written_state["velocity"], nodal_velocity)
+    torch.testing.assert_close(written_state["env_ids"], env_ids)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reset_to_env_ids_input_types(device, setup_scene):
     make_scene, sim = setup_scene
