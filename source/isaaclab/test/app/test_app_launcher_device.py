@@ -3,52 +3,57 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for mapping CUDA device indices to the physical indices the renderer expects."""
+"""Tests for selecting the renderer device by CUDA index."""
+
+import pytest
 
 from isaaclab.app.app_launcher import AppLauncher
 
 
-def test_physical_device_id_identity_mask_is_noop(monkeypatch):
-    """Return the index unchanged when the mask already starts at zero."""
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0,1,2,3")
-
-    assert AppLauncher._physical_device_id(2) == 2
-
-
-def test_physical_device_id_maps_through_offset_mask(monkeypatch):
-    """Resolve against the mask so ``cuda:1`` becomes the second visible device."""
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "4,5")
-
-    assert AppLauncher._physical_device_id(1) == 5
+def _resolve(launcher_args: dict) -> dict:
+    """Run device resolution without constructing an ``AppLauncher``."""
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher.device_id = 0
+    launcher._deferred_cuda_device_id = None
+    launcher._xr = False
+    AppLauncher._resolve_device_settings(launcher, launcher_args)
+    return launcher_args
 
 
-def test_physical_device_id_ignores_mask_order(monkeypatch):
-    """Follow the order given in the mask rather than sorting it."""
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "7,6,5,4")
+def test_active_gpu_is_not_set():
+    """Leave ``activeGpu`` unset so the renderer applies the CUDA index translation."""
+    args = _resolve({"device": "cuda:0"})
 
-    assert AppLauncher._physical_device_id(0) == 7
-
-
-def test_physical_device_id_without_mask(monkeypatch):
-    """Return the index unchanged when no mask is set."""
-    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
-
-    assert AppLauncher._physical_device_id(3) == 3
+    assert args["active_gpu"] is None
 
 
-def test_physical_device_id_falls_back_for_uuid_mask(monkeypatch):
-    """Fall back to the CUDA index when the mask names devices by UUID.
+def test_renderer_selected_by_cuda_index():
+    """Select the renderer device through the CUDA-indexed setting."""
+    args = _resolve({"device": "cuda:1"})
 
-    ``CUDA_VISIBLE_DEVICES`` also accepts ``GPU-<uuid>`` and MIG identifiers, for which no physical
-    index can be derived. Those runs keep the previous behavior instead of failing.
-    """
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-0d1e2f3a,GPU-4b5c6d7e")
-
-    assert AppLauncher._physical_device_id(1) == 1
+    assert "--/renderer/multiGpu/activeCudaGpus=1," in args["extra_args"]
 
 
-def test_physical_device_id_falls_back_when_index_exceeds_mask(monkeypatch):
-    """Fall back when the index is outside the mask rather than raising."""
-    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "2,3")
+def test_physics_keeps_the_cuda_index():
+    """Keep the masked index for physics, which CUDA resolves itself."""
+    args = _resolve({"device": "cuda:1"})
 
-    assert AppLauncher._physical_device_id(5) == 5
+    assert args["physics_gpu"] == 1
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cuda:3"])
+def test_cuda_index_setting_is_comma_terminated(device):
+    """Terminate the value with a comma: a bare integer is silently ignored by the renderer."""
+    args = _resolve({"device": device})
+
+    cuda_gpu_args = [arg for arg in args["extra_args"] if "activeCudaGpus" in arg]
+    assert len(cuda_gpu_args) == 1
+    assert cuda_gpu_args[0].endswith(",")
+
+
+def test_user_extra_args_are_preserved():
+    """Append to caller-provided ``extra_args`` rather than replacing them."""
+    args = _resolve({"device": "cuda:0", "extra_args": ["--/app/fastShutdown=False"]})
+
+    assert "--/app/fastShutdown=False" in args["extra_args"]
+    assert any("activeCudaGpus" in arg for arg in args["extra_args"])
