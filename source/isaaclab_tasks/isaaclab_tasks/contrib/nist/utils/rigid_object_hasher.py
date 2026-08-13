@@ -7,39 +7,29 @@ import hashlib
 
 import numpy as np
 import torch
-import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: F401
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage
 from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
-HASH_STORE = {"warp_mesh_store": {}}
-
 
 class RigidObjectHasher:
-    """Compute per-root and per-collider hashes and full 3x3 transforms."""
+    """Read collider hashes and root-relative transforms from the current USD stage."""
 
-    def __init__(self, num_envs, prim_path_pattern, device="cpu"):
-        self.prim_path_pattern = prim_path_pattern
-        self.device = device
-        if prim_path_pattern in HASH_STORE:
-            return
+    def __init__(self, num_envs: int, prim_path_pattern: str):
+        self.num_root = 0
+        self.collider_prims: list[Usd.Prim] = []
+        self.collider_prim_hashes = torch.empty(0, dtype=torch.int64)
+        self.collider_prim_env_ids = torch.empty(0, dtype=torch.int64)
+        self.collider_rel_pos = torch.empty(0, 3)
+        self.collider_rel_mat = torch.empty(0, 3, 3)
+        self.collider_rel_mat_inv = torch.empty(0, 3, 3)
+        self.root_prim_hashes = torch.empty(0, dtype=torch.int64)
+        self.root_prim_scales = torch.empty(0, 3)
 
-        HASH_STORE[prim_path_pattern] = {
-            "num_roots": 0,
-            "collider_prims": [],
-            "collider_prim_hashes": [],
-            "collider_prim_env_ids": [],
-            "collider_rel_pos": [],
-            "collider_rel_mat": [],
-            "collider_rel_mat_inv": [],
-            "root_prim_hashes": [],
-            "root_prim_scales": [],
-        }
-        stor = HASH_STORE[prim_path_pattern]
         xform_cache = UsdGeom.XformCache()
         stage = get_current_stage()
 
@@ -150,68 +140,14 @@ class RigidObjectHasher:
                 root_prim_hashes[e] = root_hash_int
                 root_prim_scales[e] = root_scale
 
-        stor["num_roots"] = num_roots
-        stor["collider_prims"] = collider_prims
-        stor["collider_prim_hashes"] = torch.tensor(collider_prim_hashes, dtype=torch.int64, device="cpu")
-        stor["collider_prim_env_ids"] = torch.tensor(collider_prim_env_ids, dtype=torch.int64, device="cpu")
-        stor["collider_rel_pos"] = (
-            torch.stack(collider_rel_pos_list).to("cpu") if collider_rel_pos_list else torch.empty(0, 3)
+        self.num_root = num_roots
+        self.collider_prims = collider_prims
+        self.collider_prim_hashes = torch.tensor(collider_prim_hashes, dtype=torch.int64)
+        self.collider_prim_env_ids = torch.tensor(collider_prim_env_ids, dtype=torch.int64)
+        self.collider_rel_pos = torch.stack(collider_rel_pos_list) if collider_rel_pos_list else torch.empty(0, 3)
+        self.collider_rel_mat = torch.stack(collider_rel_mat_list) if collider_rel_mat_list else torch.empty(0, 3, 3)
+        self.collider_rel_mat_inv = (
+            torch.stack(collider_rel_mat_inv_list) if collider_rel_mat_inv_list else torch.empty(0, 3, 3)
         )
-        stor["collider_rel_mat"] = (
-            torch.stack(collider_rel_mat_list).to("cpu") if collider_rel_mat_list else torch.empty(0, 3, 3)
-        )
-        stor["collider_rel_mat_inv"] = (
-            torch.stack(collider_rel_mat_inv_list).to("cpu") if collider_rel_mat_inv_list else torch.empty(0, 3, 3)
-        )
-        stor["root_prim_hashes"] = torch.tensor(root_prim_hashes, dtype=torch.int64, device="cpu")
-        stor["root_prim_scales"] = torch.stack(root_prim_scales).to("cpu")
-
-    @property
-    def num_root(self) -> int:
-        return self.get_val("num_roots")
-
-    @property
-    def root_prim_hashes(self) -> torch.Tensor:
-        return self.get_val("root_prim_hashes").to(self.device)
-
-    @property
-    def root_prim_scales(self) -> torch.Tensor:
-        return self.get_val("root_prim_scales").to(self.device)
-
-    @property
-    def collider_prim_hashes(self) -> torch.Tensor:
-        return self.get_val("collider_prim_hashes").to(self.device)
-
-    @property
-    def collider_prims(self) -> list[any]:
-        return self.get_val("collider_prims")
-
-    @property
-    def collider_prim_env_ids(self) -> torch.Tensor:
-        return self.get_val("collider_prim_env_ids").to(self.device)
-
-    @property
-    def collider_rel_pos(self) -> torch.Tensor:
-        return self.get_val("collider_rel_pos").to(self.device)
-
-    @property
-    def collider_rel_mat(self) -> torch.Tensor:
-        return self.get_val("collider_rel_mat").to(self.device)
-
-    @property
-    def collider_rel_mat_inv(self) -> torch.Tensor:
-        return self.get_val("collider_rel_mat_inv").to(self.device)
-
-    def get_val(self, key: str):
-        return HASH_STORE.get(self.prim_path_pattern, {}).get(key, None)
-
-    def set_val(self, key: str, val: any):
-        if isinstance(val, torch.Tensor):
-            val = val.to("cpu")
-        HASH_STORE[self.prim_path_pattern][key] = val
-
-    def get_warp_mesh_store(self) -> dict[int, wp.Mesh]:
-        return HASH_STORE["warp_mesh_store"]
-
-    def get_hash_store(self) -> dict[int, any]:
-        return HASH_STORE
+        self.root_prim_hashes = torch.tensor(root_prim_hashes, dtype=torch.int64)
+        self.root_prim_scales = torch.stack(root_prim_scales)

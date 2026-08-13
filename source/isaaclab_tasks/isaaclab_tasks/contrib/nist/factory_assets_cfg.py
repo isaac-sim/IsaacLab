@@ -9,13 +9,12 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from .assembly_keypoints import NIST_BOARD_CFG
-
-ISAACLAB_NUCLEUS_DIR = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab"
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Factory"
 
 
@@ -66,16 +65,7 @@ ASSEMBLY_SOCKET_COLLISION_PROPS_CFG = _SocketCollisionPropsCfg()
 
 ASSEMBLY_PLUG_COLLISION_PROPS_CFG = _PlugCollisionPropsCfg()
 
-# Newton-only stiff contact material for the assembly pair. Raising stiffness globally
-# (default_shape_cfg) makes the grasped-nut-vs-gripper contact explode on banked reset
-# states (the reset acceptance gate cannot see the closed-finger pose); scoping ke/kd to
-# the nut/bolt shapes keeps threading stiff while robot/board/table contacts stay soft.
-# newton:contactStiffness/Damping map to shape ke/kd -> geom_solref = (2/kd, (kd/2)/sqrt(ke)).
-# The friction fragment is REQUIRED: binding a material that authors no physics:*Friction
-# resolves the shape's friction to 0, and mu=0 contacts with condim=3 zero the pyramidal
-# row invweight -> efc_D is floored to 1/MJ_MINVAL (~1e15) -> the float32 Newton-solver
-# Hessian degenerates -> NaN on contact-rich states (seated insertion; mjwarp warns
-# "friction[0] < MJ_MINMU with condim=3 may cause NaN" at model build).
+# Newton materials must author friction; an omitted value resolves to zero and destabilizes contact.
 ASSEMBLY_CONTACT_MATERIAL_CFG = preset(
     default=None,
     newton_mjwarp=[
@@ -84,10 +74,6 @@ ASSEMBLY_CONTACT_MATERIAL_CFG = preset(
     ],
 )
 
-# Newton-only stiff contact material for the ROBOT colliders. Same friction-fragment
-# requirement as above (stiffness-only binding would zero mu). Friction 1.0 matches the
-# robot USD's authored value; the robot_material startup event overrides it at init.
-# (1e6, 2000) -> solref (1e-3, 1.0), damping-matched.
 ROBOT_CONTACT_MATERIAL_CFG = preset(
     default=None,
     newton_mjwarp=[
@@ -142,35 +128,6 @@ FRANKA_ACTUATORS_CFG = {
     ),
 }
 
-
-# FRANKA_ACTUATORS_CFG = {
-#     "panda_shoulder": ImplicitActuatorCfg(  # type:ignore
-#         joint_names_expr=["panda_joint[1-4]"],
-#         effort_limit_sim=87.0,
-#         velocity_limit_sim=2.175,
-#         stiffness=80.0,
-#         damping=4.0,
-#         armature=0.0,
-#     ),
-#     "panda_forearm": ImplicitActuatorCfg(  # type:ignore
-#         joint_names_expr=["panda_joint[5-7]"],
-#         effort_limit_sim=12.0,
-#         velocity_limit_sim=2.61,
-#         stiffness=80.0,
-#         damping=4.0,
-#         armature=0.0,
-#     ),
-#     "panda_hand": ImplicitActuatorCfg(  # type:ignore
-#         joint_names_expr=["panda_finger_joint.*"],
-#         effort_limit_sim=40.0,
-#         velocity_limit_sim=0.2,
-#         stiffness=7500.0,
-#         damping=173.0,
-#         friction=0.1,
-#         armature=0.0,
-#     ),
-# }
-
 FRANKA_DEFAULT_STATE_CFG = ArticulationCfg.InitialStateCfg(
     joint_pos={
         "panda_joint1": 0.00871,
@@ -213,12 +170,8 @@ FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
-        # Newton/MuJoCo: leave gravity ON and compensate it per-body via mjc:gravcomp,
-        # instead of PhysX's disable_gravity hack. gravcomp=1.0 = full compensation.
         rigid_props=sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
-        # Convex-hull the robot colliders (esp. the ~8.2k-tri fingers) so they use the
-        # GJK convex path instead of the BVH triangle path against the SDF nut/bolt.
         collision_props=sim_utils.CollisionPropertiesCfg(
             contact_offset=0.005,
             rest_offset=0.0,
@@ -253,269 +206,48 @@ NISTBOARD_CFG = RigidObjectCfg(
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65 - x, 0.0 - y, 0.0206 - z), rot=(0.0, 1.0, 0.0, 0.0)),
 )
 
-##
-# Assembly Tools
-##
+
+def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: bool) -> RigidObjectCfg:
+    """Create one assembly asset from the shared socket or plug physics policy."""
+    return RigidObjectCfg(
+        prim_path=f"/World/envs/env_.*/{name}",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ASSET_DIR}/NIST/{usd_file}",
+            rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG if is_socket else ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
+            mass_props=sim_utils.MassPropertiesCfg(mass=mass),
+            collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG if is_socket else ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
+            physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
+        ),
+    )
 
 
-BOLT_M16_CFG = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/BOLT_M16",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/bolt_m16.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
+BOLT_M16_CFG = _assembly_asset_cfg("BOLT_M16", "bolt_m16.usd", 0.05, is_socket=True)
+NUT_M16_CFG = _assembly_asset_cfg("NUT_M16", "nut_m16.usd", 0.03, is_socket=False)
+HOLE_16MM_CFG = _assembly_asset_cfg("HOLE_16MM", "round_hole_16mm.usd", 0.05, is_socket=True)
+ROD_16MM_CFG = _assembly_asset_cfg("ROD_16MM", "round_peg_16mm.usd", 0.019, is_socket=False)
+HOLE_12MM_CFG = _assembly_asset_cfg("HOLE_12MM", "round_hole_12mm.usd", 0.05, is_socket=True)
+ROD_12MM_CFG = _assembly_asset_cfg("ROD_12MM", "round_peg_12mm.usd", 0.019, is_socket=False)
+HOLE_8MM_CFG = _assembly_asset_cfg("HOLE_8MM", "round_hole_8mm.usd", 0.05, is_socket=True)
+ROD_8MM_CFG = _assembly_asset_cfg("ROD_8MM", "round_peg_8mm.usd", 0.019, is_socket=False)
+HOLE_4MM_CFG = _assembly_asset_cfg("HOLE_4MM", "round_hole_4mm.usd", 0.05, is_socket=True)
+ROD_4MM_CFG = _assembly_asset_cfg("ROD_4MM", "round_peg_4mm.usd", 0.019, is_socket=False)
+RECTANGULAR_HOLE_16MM_CFG = _assembly_asset_cfg(
+    "RECTANGULAR_HOLE_16MM", "rectangular_hole_16mm.usd", 0.05, is_socket=True
 )
-
-
-NUT_M16_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/NUT_M16",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/nut_m16.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
+RECTANGULAR_PEG_16MM_CFG = _assembly_asset_cfg(
+    "RECTANGULAR_PEG_16MM", "rectangular_peg_16mm.usd", 0.019, is_socket=False
 )
-
-
-HOLE_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/HOLE_16MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_hole_16mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
+RECTANGULAR_HOLE_12MM_CFG = _assembly_asset_cfg(
+    "RECTANGULAR_HOLE_12MM", "rectangular_hole_12mm.usd", 0.05, is_socket=True
 )
-
-
-ROD_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/ROD_16MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_peg_16mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
+RECTANGULAR_PEG_12MM_CFG = _assembly_asset_cfg(
+    "RECTANGULAR_PEG_12MM", "rectangular_peg_12mm.usd", 0.019, is_socket=False
 )
-
-
-HOLE_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/HOLE_12MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_hole_12mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-ROD_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/ROD_12MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_peg_12mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-HOLE_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/HOLE_8MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_hole_8mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-ROD_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/ROD_8MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_peg_8mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-HOLE_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/HOLE_4MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_hole_4mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-ROD_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/ROD_4MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/round_peg_4mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_HOLE_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_16MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_16mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_PEG_16MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_PEG_16MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_16mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_HOLE_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_12MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_12mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_PEG_12MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_PEG_12MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_12mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_HOLE_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_8MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_8mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_PEG_8MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_PEG_8MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_8mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_HOLE_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_HOLE_4MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_hole_4mm.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-RECTANGULAR_PEG_4MM_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/RECTANGULAR_PEG_4MM",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/rectangular_peg_4mm.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-LARGE_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/LARGE_GEAR",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/gear_large.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-MEDIUM_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/MEDIUM_GEAR",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/gear_medium.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.012),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-
-SMALL_GEAR_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/SMALL_GEAR",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/gear_small.usd",
-        rigid_props=ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
-        collision_props=ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
-
-GEAR_BASE_CFG: RigidObjectCfg = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/GEAR_BASE",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/NIST/gear_base.usd",
-        rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG,
-        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
-    ),
-)
+RECTANGULAR_HOLE_8MM_CFG = _assembly_asset_cfg("RECTANGULAR_HOLE_8MM", "rectangular_hole_8mm.usd", 0.05, is_socket=True)
+RECTANGULAR_PEG_8MM_CFG = _assembly_asset_cfg("RECTANGULAR_PEG_8MM", "rectangular_peg_8mm.usd", 0.019, is_socket=False)
+RECTANGULAR_HOLE_4MM_CFG = _assembly_asset_cfg("RECTANGULAR_HOLE_4MM", "rectangular_hole_4mm.usd", 0.05, is_socket=True)
+RECTANGULAR_PEG_4MM_CFG = _assembly_asset_cfg("RECTANGULAR_PEG_4MM", "rectangular_peg_4mm.usd", 0.019, is_socket=False)
+LARGE_GEAR_CFG = _assembly_asset_cfg("LARGE_GEAR", "gear_large.usd", 0.019, is_socket=False)
+MEDIUM_GEAR_CFG = _assembly_asset_cfg("MEDIUM_GEAR", "gear_medium.usd", 0.012, is_socket=False)
+SMALL_GEAR_CFG = _assembly_asset_cfg("SMALL_GEAR", "gear_small.usd", 0.019, is_socket=False)
+GEAR_BASE_CFG = _assembly_asset_cfg("GEAR_BASE", "gear_base.usd", 0.05, is_socket=True)

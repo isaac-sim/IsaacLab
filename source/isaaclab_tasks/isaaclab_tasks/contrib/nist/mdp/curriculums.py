@@ -11,30 +11,10 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs import mdp
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import ManagerTermBase
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-
-def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, initial_value, final_value, difficulty_term_str):
-    """
-    Interpolate between initial value iv and final value fv, for any arbitrarily
-    nested structure of lists/tuples in 'data'. Scalars (int/float) are handled
-    at the leaves.
-    """
-    # get the fraction scalar on the device
-    difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
-    frac = difficulty_term.difficulty_frac
-    if frac < 0.1:
-        # no-op during start, since the difficulty fraction near 0 is wasting of resource.
-        return mdp.modify_env_param.NO_CHANGE
-
-    # convert iv/fv to tensors, but we'll peel them apart in recursion
-    initial_value_tensor = torch.tensor(initial_value, device=env.device)
-    final_value_tensor = torch.tensor(final_value, device=env.device)
-
-    return _recurse(initial_value_tensor.tolist(), final_value_tensor.tolist(), data, frac)
 
 
 def _recurse(iv_elem, fv_elem, data_elem, frac):
@@ -46,24 +26,23 @@ def _recurse(iv_elem, fv_elem, data_elem, frac):
     new_val = frac * (fv_elem - iv_elem) + iv_elem
     if isinstance(data_elem, int):
         return int(new_val.item())
-    else:
-        # cast floats or any numeric
-        return new_val.item()
+    return new_val.item()
+
+
+def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, initial_value, final_value, difficulty_term_str):
+    """Interpolate scalars in an arbitrarily nested list or tuple."""
+    difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
+    frac = difficulty_term.difficulty_frac
+    if frac < 0.1:
+        return mdp.modify_env_param.NO_CHANGE
+
+    initial = torch.tensor(initial_value, device=env.device).tolist()
+    final = torch.tensor(final_value, device=env.device).tolist()
+    return _recurse(initial, final, data, frac)
 
 
 class DifficultyScheduler(ManagerTermBase):
-    """Adaptive difficulty scheduler for curriculum learning.
-
-    Tracks per-environment difficulty levels and adjusts them based on task performance. Difficulty increases when
-    position/orientation errors fall below given tolerances, and decreases otherwise (unless `promotion_only` is set).
-    The normalized average difficulty across environments is exposed as `difficulty_frac` for use in curriculum
-    interpolation.
-
-    Args:
-        cfg: Configuration object specifying scheduler parameters.
-        env: The manager-based RL environment.
-
-    """
+    """Adjust difficulty from the reset bank's mean success rate."""
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
@@ -82,10 +61,6 @@ class DifficultyScheduler(ManagerTermBase):
         env: ManagerBasedRLEnv,
         env_ids: Sequence[int],
         success_rate_callback: str,
-        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-        pos_tol: float = 0.1,
-        rot_tol: float | None = None,
         init_difficulty: int = 0,
         min_difficulty: int = 0,
         max_difficulty: int = 50,

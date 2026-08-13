@@ -8,30 +8,30 @@ from __future__ import annotations
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_tasks.contrib.nist.utils import (
-    BetaSamplingStrategyCfg,
-    SamplerCfg,
-)
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
-from isaaclab_tasks.utils import preset
-
-from . import mdp
-from .factory_presets import (
-    EndEffectorBodyCfg,
+from isaaclab_tasks.contrib.nist import mdp
+from isaaclab_tasks.contrib.nist.assembly_keypoints import PANDA_HAND
+from isaaclab_tasks.contrib.nist.factory_presets import (
+    AssemblyTipCfg,
     FactoryAssemblyProfileCfg,
     FixedAssetMapCfg,
-    FixedAssetTipCfg,
     GraspedPoseRangeCfg,
-    GripperGraspOffsetCfg,
-    GripperJointNamesCfg,
     HeldAssetAlignOffsetCfg,
     HeldAssetGraspDiameterCfg,
     HeldAssetGraspMiddleCfg,
     HeldAssetGraspPointCfg,
     HeldAssetObstaclesCfg,
-    IKJointNamesCfg,
     ResetAssetsCfg,
 )
+from isaaclab_tasks.contrib.nist.utils import (
+    BetaSamplingStrategyCfg,
+    SamplerCfg,
+)
+from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
+
+_FRANKA_END_EFFECTOR = "panda_fingertip_centered"
+_FRANKA_ARM_JOINTS = ["panda_joint.*"]
+_FRANKA_GRIPPER_JOINTS = ["panda_finger_.*"]
 
 GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
     func=mdp.ChainedResetTerms,
@@ -69,7 +69,7 @@ GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
                         "yaw": (-2.09, 2.09),
                     },
                     "robot_ik_cfg": SceneEntityCfg(
-                        "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
+                        "robot", joint_names=_FRANKA_ARM_JOINTS, body_names=_FRANKA_END_EFFECTOR
                     ),
                     "ik_iterations": (5, 30),
                 },
@@ -79,7 +79,7 @@ GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
                 mode="reset",
                 params={
                     "robot_cfg": SceneEntityCfg(
-                        "robot", joint_names=GripperJointNamesCfg(), body_names=EndEffectorBodyCfg()
+                        "robot", joint_names=_FRANKA_GRIPPER_JOINTS, body_names=_FRANKA_END_EFFECTOR
                     ),
                     "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                 },
@@ -120,7 +120,7 @@ ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE = EventTerm(
                         "yaw": (-2.09, 2.09),
                     },
                     "robot_ik_cfg": SceneEntityCfg(
-                        "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
+                        "robot", joint_names=_FRANKA_ARM_JOINTS, body_names=_FRANKA_END_EFFECTOR
                     ),
                     "ik_iterations": (15, 25),
                 },
@@ -130,7 +130,7 @@ ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE = EventTerm(
                 mode="reset",
                 params={
                     "robot_cfg": SceneEntityCfg(
-                        "robot", joint_names=GripperJointNamesCfg(), body_names=EndEffectorBodyCfg()
+                        "robot", joint_names=_FRANKA_GRIPPER_JOINTS, body_names=_FRANKA_END_EFFECTOR
                     ),
                     "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                 },
@@ -149,10 +149,10 @@ GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER = EventTerm(
                 mode="reset",
                 params={
                     "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
-                    "fixed_asset_offset": FixedAssetTipCfg(),
+                    "fixed_asset_offset": AssemblyTipCfg(),
                     "pose_range_b": GraspedPoseRangeCfg(),
                     "robot_ik_cfg": SceneEntityCfg(
-                        "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
+                        "robot", joint_names=_FRANKA_ARM_JOINTS, body_names=_FRANKA_END_EFFECTOR
                     ),
                     "ik_iterations": (10, 20),
                 },
@@ -161,7 +161,7 @@ GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER = EventTerm(
                 func=mdp.reset_held_asset_in_gripper,
                 mode="reset",
                 params={
-                    "holding_body_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),
+                    "holding_body_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
                     "held_asset_cfg": SceneEntityCfg("held_asset"),
                     "held_asset_graspable_offset": HeldAssetGraspPointCfg(),
                     "held_asset_inhand_range": {
@@ -170,7 +170,7 @@ GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER = EventTerm(
                         "z": (-0.000, 0.005),
                         "pitch": (-1.0, 1.0),
                     },
-                    "gripper_grasp_offset": GripperGraspOffsetCfg(),
+                    "gripper_grasp_offset": PANDA_HAND.gripper_center_grasp_point,
                 },
             ),
             "grasp_held_asset": EventTerm(
@@ -178,7 +178,7 @@ GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER = EventTerm(
                 mode="reset",
                 params={
                     "robot_cfg": SceneEntityCfg(
-                        "robot", joint_names=GripperJointNamesCfg(), body_names=EndEffectorBodyCfg()
+                        "robot", joint_names=_FRANKA_GRIPPER_JOINTS, body_names=_FRANKA_END_EFFECTOR
                     ),
                     "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                     "flexible_angle": False,
@@ -232,11 +232,7 @@ SCENE_RESET = EventTerm(
                         "start_grasped_then_assembled": GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER,
                     },
                     "sampling": SamplerCfg(
-                        strategies=[
-                            BetaSamplingStrategyCfg(
-                                target=0.5, kappa=1.0, weight=1.0, success_rate_bind="success_rates"
-                            )
-                        ],
+                        strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=1.0, weight=1.0)],
                         eps=1e-4,
                     ),
                     "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=100),
@@ -278,7 +274,7 @@ ACCUMULATOR_RESET = EventTerm(
         "state_tag_indices_bind": "reset_term.func.terms['reset_strategies'].func.term_samples",
         "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=50),
         "sampling": SamplerCfg(
-            strategies=[BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0, success_rate_bind="success_rates")],
+            strategies=[BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0)],
             eps=1e-4,
         ),
         "reset_term": SCENE_RESET,

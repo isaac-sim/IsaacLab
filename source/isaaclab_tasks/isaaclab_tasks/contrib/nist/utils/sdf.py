@@ -17,8 +17,7 @@ Pure Warp math. Three layers:
   every (env, body, point, obstacle, collider) tuple to find the minimum
   world-space signed distance.
 
-Consumed by :class:`~.collision_analyzer.CollisionAnalyzer` and tested
-directly in ``tests/test_sdf_mega.py``.
+Consumed by :class:`~.collision_analyzer.CollisionAnalyzer`.
 """
 
 from __future__ import annotations
@@ -149,7 +148,7 @@ def get_signed_distance_mega(
     prim_counts: wp.array(dtype=wp.int32),
     max_dist: float,
     check_dist: bool,
-    num_envs_subset: int,
+    num_envs: int,
     num_bodies: int,
     num_points: int,
     num_obstacles: int,
@@ -188,8 +187,8 @@ def get_signed_distance_mega(
         root_mat_inv = wp.inverse(root_mat)
         root_pos = obs_root_pos[obs_idx, env_id]
 
-        prim_base = obs_idx * num_envs_subset * max_prims + env_local * max_prims
-        prim_count_id = obs_idx * num_envs_subset + env_local
+        prim_base = obs_idx * num_envs * max_prims + env_id * max_prims
+        prim_count_id = obs_idx * num_envs + env_id
 
         for p in range(prim_counts[prim_count_id]):
             index = prim_base + p

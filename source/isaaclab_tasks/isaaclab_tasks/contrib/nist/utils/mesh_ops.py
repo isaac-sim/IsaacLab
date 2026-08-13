@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from functools import cache
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,7 +14,7 @@ import warp as wp
 
 from isaaclab.utils.warp import convert_to_warp_mesh
 
-from .rigid_object_hasher import RigidObjectHasher
+from isaaclab_tasks.contrib.nist.utils.rigid_object_hasher import RigidObjectHasher
 
 if TYPE_CHECKING:
     import trimesh
@@ -55,7 +54,6 @@ def _gather_farthest_points(points: torch.Tensor, num_samples: int) -> torch.Ten
     return torch.gather(points, 1, indices.unsqueeze(-1).expand(-1, -1, points.shape[-1]))
 
 
-@cache
 def _load_mesh_tensors(prim):
     tm = prim_to_trimesh(prim)
     verts = torch.from_numpy(tm.vertices.astype("float32"))
@@ -183,11 +181,7 @@ def sample_object_point_cloud(
     Robust to heterogeneous collider counts across envs. Uses
     ``RigidObjectHasher`` to deduplicate identical colliders.
     """
-    hasher = (
-        rigid_object_hasher
-        if rigid_object_hasher is not None
-        else RigidObjectHasher(num_envs, prim_path_pattern, device=device)
-    )
+    hasher = rigid_object_hasher if rigid_object_hasher is not None else RigidObjectHasher(num_envs, prim_path_pattern)
 
     if hasher.num_root == 0:
         return None
@@ -211,7 +205,7 @@ def sample_object_point_cloud(
 
     if replicated_env:
         merged = _gather_farthest_points(root.reshape(1, -1, 3), num_points)
-        result = merged.expand(num_envs, -1, -1) * hasher.root_prim_scales.unsqueeze(1)
+        result = merged.expand(num_envs, -1, -1) * hasher.root_prim_scales.to(device).unsqueeze(1)
     else:
         env_ids = hasher.collider_prim_env_ids.to(device)
         counts = torch.bincount(env_ids, minlength=hasher.num_root)
@@ -224,7 +218,7 @@ def sample_object_point_cloud(
             buf[r, start : start + num_points] = root[i]
             placed[r] += 1
         merged = _gather_farthest_points(buf, num_points)
-        result = merged * hasher.root_prim_scales.unsqueeze(1)
+        result = merged * hasher.root_prim_scales.to(device).unsqueeze(1)
 
     return result
 

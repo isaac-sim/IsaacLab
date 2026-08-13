@@ -3,105 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PresetCfg definitions for Factory task-specific parameters.
-
-Each preset maps task variant names to the corresponding keypoint-derived values.
-The ``default`` field selects which variant is active when no CLI override is given.
-
-Task categories (12 total):
-  - ``nut_thread_m16`` — nut threading
-  - ``gear_mesh_{small,medium,large}`` — gear meshing
-  - ``rod_insert_{4,8,12,16}mm`` — round rod insertion
-  - ``peg_insert_{4,8,12,16}mm`` — rectangular peg insertion
-
-Robot-specific presets (``EndEffectorBodyCfg``, ``JointEffortNamesCfg``) map robot
-variant names (``franka``) to body/joint name strings.
-"""
+"""Assembly-variant presets for the Factory task."""
 
 import math
-from dataclasses import MISSING
 
-from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
-
-from . import assembly_keypoints as kpts
-from .assembly_profile_cfg import (
+from isaaclab_tasks.contrib.nist import assembly_keypoints as kpts
+from isaaclab_tasks.contrib.nist.assembly_profile_cfg import (
     AssemblyProfileCfg,
     DiscreteYawCfg,
     IncrementalSegmentCfg,
     UniformPoseNoiseCfg,
     UniformYawCfg,
 )
-
-# ---------------------------------------------------------------------------
-# Robot-specific presets
-# ---------------------------------------------------------------------------
-
-
-@configclass
-class RobotArticulationCfg(PresetCfg):
-    """Full :class:`ArticulationCfg` for the robot asset at ``scene.robot``.
-
-    Required -- no sensible default exists, so resolving without picking a
-    robot preset leaves ``scene.robot`` as :data:`MISSING`.
-    """
-
-    default: ArticulationCfg = MISSING  # type: ignore[assignment]
-
-
-@configclass
-class RobotActionsCfg(PresetCfg):
-    """Action term group bound to the active robot.
-
-    Each robot preset assigns an :func:`isaaclab.utils.configclass`-decorated
-    actions cfg (typically with ``arm_action`` and ``gripper_action`` fields)
-    to a class attribute named after the robot.
-    """
-
-    default: object = MISSING  # type: ignore[assignment]
-
-
-@configclass
-class EndEffectorBodyCfg(PresetCfg):
-    """End-effector body name per robot variant."""
-
-    default: str = "end_effector"
-
-
-@configclass
-class GripperJointNamesCfg(PresetCfg):
-    """Joint name regex for gripper/finger joints per robot variant."""
-
-    default: list[str] | None = None
-
-
-@configclass
-class IKJointNamesCfg(PresetCfg):
-    """Joint name regex used by the IK solver in reset strategies."""
-
-    default: list[str] | None = None
-
-
-@configclass
-class GripperGraspOffsetCfg(PresetCfg):
-    """Gripper grasp frame offset relative to the end-effector link per robot variant."""
-
-    default: kpts.Offset = kpts.Offset()
-
-
-@configclass
-class JointEffortNamesCfg(PresetCfg):
-    """Joint name regex for the effort penalty per robot variant."""
-
-    default: str | None = None
-
-
-# ---------------------------------------------------------------------------
-# Task-specific presets
-# ---------------------------------------------------------------------------
+from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
@@ -131,34 +48,10 @@ class FixedAssetMapCfg(PresetCfg):
 
 
 @configclass
-class HeldAssetTipCfg(PresetCfg):
+class AssemblyTipCfg(PresetCfg):
     nut_thread_m16: kpts.Offset = kpts.BOLT_M16.bolt_tip_offset
 
     # Gear mesh — tip of the gear shaft on the base
-    gear_mesh_small: kpts.Offset = kpts.GEAR_BASE.small_gear_tip_offset
-    gear_mesh_medium: kpts.Offset = kpts.GEAR_BASE.medium_gear_tip_offset
-    gear_mesh_large: kpts.Offset = kpts.GEAR_BASE.large_gear_tip_offset
-
-    # Rod insert (round)
-    rod_insert_4mm: kpts.Offset = kpts.HOLE_4MM.hole_tip_offset
-    rod_insert_8mm: kpts.Offset = kpts.HOLE_8MM.hole_tip_offset
-    rod_insert_12mm: kpts.Offset = kpts.HOLE_12MM.hole_tip_offset
-    rod_insert_16mm: kpts.Offset = kpts.HOLE_16MM.hole_tip_offset
-
-    # Peg insert (rectangular)
-    peg_insert_4mm: kpts.Offset = kpts.RECTANGULAR_HOLE_4MM.hole_tip_offset
-    peg_insert_8mm: kpts.Offset = kpts.RECTANGULAR_HOLE_8MM.hole_tip_offset
-    peg_insert_12mm: kpts.Offset = kpts.RECTANGULAR_HOLE_12MM.hole_tip_offset
-    peg_insert_16mm: kpts.Offset = kpts.RECTANGULAR_HOLE_16MM.hole_tip_offset
-
-    default: kpts.Offset = nut_thread_m16
-
-
-@configclass
-class FixedAssetTipCfg(PresetCfg):
-    nut_thread_m16: kpts.Offset = kpts.BOLT_M16.bolt_tip_offset
-
-    # Gear mesh
     gear_mesh_small: kpts.Offset = kpts.GEAR_BASE.small_gear_tip_offset
     gear_mesh_medium: kpts.Offset = kpts.GEAR_BASE.medium_gear_tip_offset
     gear_mesh_large: kpts.Offset = kpts.GEAR_BASE.large_gear_tip_offset

@@ -9,23 +9,21 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
-from ..assembly_keypoints import NIST_BOARD_CFG
-from ..assembly_profile import AssemblyProfile
-from ..assembly_profile_cfg import AssemblyProfileCfg
+from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
+from isaaclab_tasks.contrib.nist.assembly_profile_cfg import AssemblyProfileCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 
-    from ..assembly_keypoints import Offset
+    from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 
 
 def reset_fixed_asset_uniform(
@@ -51,7 +49,7 @@ def reset_fixed_asset_uniform(
     fixed_asset: Articulation | RigidObject = env.scene["fixed_asset"]
     keypoint: Offset = getattr(NIST_BOARD_CFG, asset_map["fixed_asset"])
 
-    board_default = wp.to_torch(nistboard.data.default_root_state)[env_ids]
+    board_default = nistboard.data.default_root_state.torch[env_ids]
     board_pos = board_default[:, 0:3] + env.scene.env_origins[env_ids]
     nominal_pos, nominal_quat = keypoint.combine(board_pos, board_default[:, 3:7])
 
@@ -63,9 +61,9 @@ def reset_fixed_asset_uniform(
         nominal_quat, math_utils.quat_from_euler_xyz(samples[:, 3], samples[:, 4], samples[:, 5])
     )
 
-    fixed_asset.write_root_pose_to_sim(torch.cat([new_pos, new_quat], dim=1), env_ids=env_ids)
-    fixed_asset.write_root_velocity_to_sim(
-        torch.zeros_like(wp.to_torch(fixed_asset.data.root_vel_w)[env_ids]), env_ids=env_ids
+    fixed_asset.write_root_pose_to_sim_index(root_pose=torch.cat([new_pos, new_quat], dim=1), env_ids=env_ids)
+    fixed_asset.write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros_like(fixed_asset.data.root_vel_w.torch[env_ids]), env_ids=env_ids
     )
 
 
@@ -84,12 +82,12 @@ def reset_board_under_fixed_asset(env: ManagerBasedRLEnv, env_ids: torch.Tensor,
     fixed_asset: Articulation | RigidObject = env.scene["fixed_asset"]
     keypoint: Offset = getattr(NIST_BOARD_CFG, asset_map["fixed_asset"])
 
-    fixed_pos = wp.to_torch(fixed_asset.data.root_pos_w)[env_ids]
-    fixed_quat = wp.to_torch(fixed_asset.data.root_quat_w)[env_ids]
+    fixed_pos = fixed_asset.data.root_pos_w.torch[env_ids]
+    fixed_quat = fixed_asset.data.root_quat_w.torch[env_ids]
     board_pos, board_quat = keypoint.subtract(fixed_pos, fixed_quat)
-    nistboard.write_root_pose_to_sim(torch.cat([board_pos, board_quat], dim=1), env_ids=env_ids)
-    nistboard.write_root_velocity_to_sim(
-        torch.zeros_like(wp.to_torch(nistboard.data.root_vel_w)[env_ids]), env_ids=env_ids
+    nistboard.write_root_pose_to_sim_index(root_pose=torch.cat([board_pos, board_quat], dim=1), env_ids=env_ids)
+    nistboard.write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros_like(nistboard.data.root_vel_w.torch[env_ids]), env_ids=env_ids
     )
 
     for scene_key, keypoint_attr in asset_map.items():
@@ -97,11 +95,10 @@ def reset_board_under_fixed_asset(env: ManagerBasedRLEnv, env_ids: torch.Tensor,
             continue
         extra: Articulation | RigidObject = env.scene[scene_key]
         extra_pos, extra_quat = getattr(NIST_BOARD_CFG, keypoint_attr).combine(board_pos, board_quat)
-        extra.write_root_pose_to_sim(torch.cat([extra_pos, extra_quat], dim=1), env_ids=env_ids)
-        extra.write_root_velocity_to_sim(torch.zeros_like(wp.to_torch(extra.data.root_vel_w)[env_ids]), env_ids=env_ids)
-
-
-_PROFILE_CACHE: dict[int, AssemblyProfile] = {}
+        extra.write_root_pose_to_sim_index(root_pose=torch.cat([extra_pos, extra_quat], dim=1), env_ids=env_ids)
+        extra.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros_like(extra.data.root_vel_w.torch[env_ids]), env_ids=env_ids
+        )
 
 
 def _sweep_assembly_fraction(lo: float, hi: float, step: float = 0.001) -> Generator[tuple[float, float]]:
@@ -115,38 +112,44 @@ def _sweep_assembly_fraction(lo: float, hi: float, step: float = 0.001) -> Gener
         yield (frac, frac)
 
 
-def reset_held_asset_on_fixed_asset(
-    env: ManagerBasedRLEnv,
-    env_ids: torch.Tensor,
-    assembly_profile: AssemblyProfileCfg,
-    held_asset_align_offset: Offset,
-    assembly_fraction_range: tuple[float, float],
-    fixed_asset_cfg: SceneEntityCfg,
-    held_asset_cfg: SceneEntityCfg,
-    debug_term: bool = False,
-):
-    profile = _PROFILE_CACHE.get(id(assembly_profile))
-    if profile is None:
-        profile = assembly_profile.class_type(assembly_profile)
-        _PROFILE_CACHE[id(assembly_profile)] = profile
+class reset_held_asset_on_fixed_asset(ManagerTermBase):
+    """Sample assembly poses with a profile owned by this reset term."""
 
-    fixed_asset: RigidObject = env.scene[fixed_asset_cfg.name]
-    held_asset: Articulation = env.scene[held_asset_cfg.name]
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        profile_cfg: AssemblyProfileCfg = cfg.params["assembly_profile"]
+        self.profile = profile_cfg.class_type(profile_cfg)
 
-    fractions = _sweep_assembly_fraction(*assembly_fraction_range) if debug_term else iter([assembly_fraction_range])
-    for frac_range in fractions:
-        pos_offset, quat_offset = profile.sample(frac_range, len(env_ids), env.device)
-        fixed_root_pos_w = wp.to_torch(fixed_asset.data.root_pos_w)
-        fixed_root_quat_w = wp.to_torch(fixed_asset.data.root_quat_w)
-        pos, quat = math_utils.combine_frame_transforms(
-            fixed_root_pos_w[env_ids], fixed_root_quat_w[env_ids], pos_offset, quat_offset
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: torch.Tensor,
+        assembly_profile: AssemblyProfileCfg,
+        held_asset_align_offset: Offset,
+        assembly_fraction_range: tuple[float, float],
+        fixed_asset_cfg: SceneEntityCfg,
+        held_asset_cfg: SceneEntityCfg,
+        debug_term: bool = False,
+    ):
+        fixed_asset: RigidObject = env.scene[fixed_asset_cfg.name]
+        held_asset: Articulation = env.scene[held_asset_cfg.name]
+
+        fractions = (
+            _sweep_assembly_fraction(*assembly_fraction_range) if debug_term else iter([assembly_fraction_range])
         )
-        pose = torch.cat(held_asset_align_offset.subtract(pos, quat), dim=1)
-        vel = wp.to_torch(held_asset.data.default_root_state)[env_ids, 7:]
-        held_asset.write_root_pose_to_sim(pose, env_ids=env_ids)
-        held_asset.write_root_com_velocity_to_sim(vel, env_ids=env_ids)
-        if debug_term:
-            env.sim.render()
+        for frac_range in fractions:
+            pos_offset, quat_offset = self.profile.sample(frac_range, len(env_ids), env.device)
+            fixed_root_pos_w = fixed_asset.data.root_pos_w.torch
+            fixed_root_quat_w = fixed_asset.data.root_quat_w.torch
+            pos, quat = math_utils.combine_frame_transforms(
+                fixed_root_pos_w[env_ids], fixed_root_quat_w[env_ids], pos_offset, quat_offset
+            )
+            pose = torch.cat(held_asset_align_offset.subtract(pos, quat), dim=1)
+            vel = held_asset.data.default_root_state.torch[env_ids, 7:]
+            held_asset.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
+            held_asset.write_root_com_velocity_to_sim_index(root_velocity=vel, env_ids=env_ids)
+            if debug_term:
+                env.sim.render()
 
 
 def reset_held_asset_in_gripper(
@@ -161,8 +164,8 @@ def reset_held_asset_in_gripper(
     robot: Articulation = env.scene[holding_body_cfg.name]
     held_asset: Articulation = env.scene[held_asset_cfg.name]
 
-    end_effector_quat_w = wp.to_torch(robot.data.body_link_quat_w)[env_ids, holding_body_cfg.body_ids].view(-1, 4)
-    end_effector_pos_w = wp.to_torch(robot.data.body_link_pos_w)[env_ids, holding_body_cfg.body_ids].view(-1, 3)
+    end_effector_quat_w = robot.data.body_link_quat_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 4)
+    end_effector_pos_w = robot.data.body_link_pos_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 3)
     grasp_quat = gripper_grasp_offset.quat_t(env.device).expand(len(env_ids), -1)
 
     # Randomize the grasp target (at the grasp point) BEFORE solving for the asset root, so the
@@ -180,10 +183,10 @@ def reset_held_asset_in_gripper(
 
     new_pos_w, new_quat_w = held_asset_graspable_offset.subtract(grasp_pos_w, grasp_quat_w)
 
-    held_asset.write_root_link_pose_to_sim(torch.cat([new_pos_w, new_quat_w], dim=1), env_ids=env_ids)  # type: ignore
-    held_asset.write_root_com_velocity_to_sim(
-        wp.to_torch(held_asset.data.default_root_state)[env_ids, 7:], env_ids=env_ids
-    )  # type: ignore
+    held_asset.write_root_link_pose_to_sim_index(root_pose=torch.cat([new_pos_w, new_quat_w], dim=1), env_ids=env_ids)
+    held_asset.write_root_com_velocity_to_sim_index(
+        root_velocity=held_asset.data.default_root_state.torch[env_ids, 7:], env_ids=env_ids
+    )
 
 
 def grasp_held_asset(
@@ -194,21 +197,22 @@ def grasp_held_asset(
     flexible_angle: bool = True,
 ) -> None:
     robot: Articulation = env.scene[robot_cfg.name]
-    joint_pos = wp.to_torch(robot.data.joint_pos)[:, robot_cfg.joint_ids][env_ids].clone()
+    joint_pos = robot.data.joint_pos.torch[:, robot_cfg.joint_ids][env_ids].clone()
     min_angle = held_asset_diameter / 2 * 1.15
     if flexible_angle:
-        max_angle = wp.to_torch(robot.data.joint_pos_limits)[0, robot_cfg.joint_ids[0], 1]
+        max_angle = robot.data.joint_pos_limits.torch[0, robot_cfg.joint_ids[0], 1]
         joint_pos[:] = (torch.rand((len(env_ids),), device=env.device) * (max_angle - min_angle) + min_angle).unsqueeze(
             1
         )
     else:
         joint_pos[:] = min_angle
 
-    robot.write_joint_position_to_sim(joint_pos, robot_cfg.joint_ids, env_ids)  # type: ignore
+    robot.write_joint_position_to_sim_index(position=joint_pos, joint_ids=robot_cfg.joint_ids, env_ids=env_ids)
 
 
 class reset_end_effector_around_asset(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
         fixed_asset_cfg: SceneEntityCfg = cfg.params.get("fixed_asset_cfg")  # type: ignore
         fixed_asset_offset: Offset = cfg.params.get("fixed_asset_offset")  # type: ignore
         pose_range_b: dict[str, tuple[float, float]] = cfg.params.get("pose_range_b")  # type: ignore
@@ -253,8 +257,8 @@ class reset_end_effector_around_asset(ManagerTermBase):
         quat_w = math_utils.quat_from_euler_xyz(samples[:, 3], samples[:, 4], samples[:, 5])
 
         pos_b[env_ids], quat_b[env_ids] = math_utils.subtract_frame_transforms(
-            wp.to_torch(self.robot.data.root_link_pos_w)[env_ids],
-            wp.to_torch(self.robot.data.root_link_quat_w)[env_ids],
+            self.robot.data.root_link_pos_w.torch[env_ids],
+            self.robot.data.root_link_quat_w.torch[env_ids],
             pos_w,
             quat_w,
         )
@@ -266,25 +270,17 @@ class reset_end_effector_around_asset(ManagerTermBase):
         # Clamp every write to the joint limits: unconstrained DLS steps walk joints past
         # their limits near workspace edges, and beyond-limit states written to sim produce
         # huge limit-constraint impulses (NaN on the mjwarp Newton solver at first step).
-        limits = wp.to_torch(self.robot.data.joint_pos_limits)[env_ids][:, self.joint_ids]
+        limits = self.robot.data.joint_pos_limits.torch[env_ids][:, self.joint_ids]
         for _ in range(k):
             self.solver.apply_actions()
             delta_joint_pos = 0.25 * (
-                wp.to_torch(self.robot.data.joint_pos_target)[env_ids] - wp.to_torch(self.robot.data.joint_pos)[env_ids]
+                self.robot.data.joint_pos_target.torch[env_ids] - self.robot.data.joint_pos.torch[env_ids]
             )
-            new_joint_pos = (delta_joint_pos + wp.to_torch(self.robot.data.joint_pos)[env_ids])[:, self.joint_ids]
-            self.robot.write_joint_position_to_sim(
+            new_joint_pos = (delta_joint_pos + self.robot.data.joint_pos.torch[env_ids])[:, self.joint_ids]
+            self.robot.write_joint_position_to_sim_index(
                 position=torch.clamp(new_joint_pos, limits[..., 0], limits[..., 1]),
                 joint_ids=self.joint_ids,
                 env_ids=env_ids,  # type: ignore
             )
-
-        # wrist_low  = self.robot.data.joint_pos_limits[env_ids, self.wrist_idx, 0]
-        # wrist_high = self.robot.data.joint_pos_limits[env_ids, self.wrist_idx, 1]
-        # wrist_pos = (wrist_low + (wrist_high - wrist_low) * torch.rand_like(wrist_low)).view(len(env_ids), -1)
-        # self.robot.write_joint_position_to_sim(position=wrist_pos, joint_ids=self.wrist_idx, env_ids=env_ids)
         if self.is_physx:
             self.robot.root_physx_view.get_jacobians()
-
-
-# @torch.jit.script

@@ -20,10 +20,10 @@ import torch
 
 import isaaclab.utils.math as math_utils
 
-from .assembly_keypoints import Offset
+from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 
 if TYPE_CHECKING:
-    from .assembly_profile_cfg import (
+    from isaaclab_tasks.contrib.nist.assembly_profile_cfg import (
         AssemblyProfileCfg,
         DiscreteYawCfg,
         EndPointsSegmentCfg,
@@ -119,7 +119,7 @@ class EndPointsSegment:
         self._euler_total: torch.Tensor | None = None
 
     def _ensure_tensors(self, device: str | torch.device):
-        if self._pos_start is not None:
+        if self._pos_start is not None and self._pos_start.device == torch.device(device):
             return
         self._pos_start = torch.tensor([self.cfg.start_pose.pos], device=device)
         self._pos_end = torch.tensor([self.cfg.end_pose.pos], device=device)
@@ -143,7 +143,7 @@ class IncrementalSegment:
         self._euler_total: torch.Tensor | None = None
 
     def _ensure_tensors(self, device: str | torch.device):
-        if self._pos_start is not None:
+        if self._pos_start is not None and self._pos_start.device == torch.device(device):
             return
         self._pos_start = torch.tensor([self.cfg.start_pose.pos], device=device)
         dist = torch.tensor([self.cfg.distance], device=device)
@@ -190,7 +190,7 @@ class AssemblyProfile:
         return self.segments[0].cfg.start_pose
 
     def _ensure_profile_tensors(self, device: str | torch.device):
-        if self._boundaries is not None:
+        if self._boundaries is not None and self._boundaries.device == torch.device(device):
             return
         for seg in self.segments:
             seg._ensure_tensors(device)

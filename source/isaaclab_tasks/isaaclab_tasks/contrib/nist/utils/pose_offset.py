@@ -18,7 +18,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.configclass import configclass
@@ -50,12 +49,13 @@ class Offset:
         self._inv_quat_t: torch.Tensor | None = None
 
     def _ensure_tensors(self, device: str | torch.device):
-        """Materialize and cache forward + inverse tensors on first use."""
-        if self._pos_t is None:
-            self._pos_t = torch.tensor([self.pos], device=device)
-            self._quat_t = torch.tensor([self.quat], device=device)
-            self._inv_quat_t = math_utils.quat_inv(self._quat_t)
-            self._inv_pos_t = -math_utils.quat_apply(self._inv_quat_t, self._pos_t)
+        """Materialize and cache forward and inverse tensors on the requested device."""
+        if self._pos_t is not None and self._pos_t.device == torch.device(device):
+            return
+        self._pos_t = torch.tensor([self.pos], device=device)
+        self._quat_t = torch.tensor([self.quat], device=device)
+        self._inv_quat_t = math_utils.quat_inv(self._quat_t)
+        self._inv_pos_t = -math_utils.quat_apply(self._inv_quat_t, self._pos_t)
 
     def pos_t(self, device: str | torch.device) -> torch.Tensor:
         """Cached position tensor, shape (1, 3)."""
@@ -79,8 +79,8 @@ class Offset:
             A tuple of (position, quaternion) tensors in world frame,
             each with shape (num_envs, 3) and (num_envs, 4) respectively.
         """
-        root_pos = wp.to_torch(root.data.root_pos_w)
-        root_quat = wp.to_torch(root.data.root_quat_w)
+        root_pos = root.data.root_pos_w.torch
+        root_quat = root.data.root_quat_w.torch
         self._ensure_tensors(root_pos.device)
         return math_utils.combine_frame_transforms(
             root_pos, root_quat, self._pos_t.expand(root_pos.shape[0], -1), self._quat_t.expand(root_pos.shape[0], -1)

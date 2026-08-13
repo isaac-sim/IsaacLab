@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-selecting sampler over a fixed state layout."""
+"""Weighted sampling over a fixed success-rate table."""
 
 from __future__ import annotations
 
@@ -11,45 +11,49 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from .impl.sampler_torch import SamplerTorch
-from .impl.sampler_warp import SamplerWarp
+from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import SamplingStrategy
 
 if TYPE_CHECKING:
-    from ..state_layout import StateLayout
-    from .sampler_cfg import SamplerCfg
+    from isaaclab_tasks.contrib.nist.utils.sampling.sampler_cfg import SamplerCfg
 
 
 class Sampler:
-    """Backend-selecting weighted sampler built from sampling-strategy cfgs.
+    """Compose weighted sampling strategies over per-item success rates."""
 
-    Each strategy binds its own runtime input signals via configclass
-    ``*_bind`` fields; the caller (e.g. a curriculum term) supplies the
-    binding namespace via ``**bind_ns`` keyword arguments. Conventional
-    callers inject the env handle as ``env=...`` and a success-rate tensor
-    as ``success_rates=...``.
-    """
-
-    def __init__(self, cfg: SamplerCfg, layout: StateLayout, **bind_ns) -> None:
-        backend = SamplerWarp if cfg.warp else SamplerTorch
-        self._impl = backend(cfg, layout, **bind_ns)
-
-    @property
-    def names(self) -> list[str]:
-        """Names of the active strategies, in declaration order."""
-        return self._impl.names
+    def __init__(self, cfg: SamplerCfg, success_rates: torch.Tensor) -> None:
+        self.strategies: list[tuple[SamplingStrategy, float]] = [
+            (strategy_cfg.class_type(strategy_cfg, success_rates), float(strategy_cfg.weight))
+            for strategy_cfg in cfg.strategies
+        ]
+        self.eps = float(cfg.eps)
+        self.names = [strategy.name for strategy, _ in self.strategies]
+        self._score_rows = torch.empty(
+            (len(self.strategies), len(success_rates)), device=success_rates.device, dtype=torch.float32
+        )
+        self._weighted = torch.empty_like(success_rates, dtype=torch.float32)
+        self._probs = torch.empty_like(success_rates, dtype=torch.float32)
 
     def scores(self) -> torch.Tensor:
         """Return contiguous per-strategy score rows shaped ``[num_strategies, num_items]``."""
-        return self._impl.scores()
+        for i, (strategy, _) in enumerate(self.strategies):
+            strategy.score(self._score_rows[i])
+        return self._score_rows
 
     def probabilities(self) -> torch.Tensor:
         """Return ``[num_items]`` probability vector summing to 1."""
-        return self._impl.probabilities()
+        scores = self.scores()
+        self._weighted.zero_()
+        for i, (_, weight) in enumerate(self.strategies):
+            self._weighted.add_(scores[i], alpha=max(0.0, weight))
+        self._weighted.add_(self.eps)
+        torch.div(self._weighted, self._weighted.sum(), out=self._probs)
+        return self._probs
 
     def sample(self, probs: torch.Tensor, num_samples: int) -> torch.Tensor:
         """Sample item indices from ``probs``."""
-        return self._impl.sample(probs, num_samples)
+        return torch.multinomial(probs, num_samples, replacement=True)
 
     def probabilities_and_sample(self, num_samples: int) -> tuple[torch.Tensor, torch.Tensor]:
         """Return probabilities and sampled item indices."""
-        return self._impl.probabilities_and_sample(num_samples)
+        probs = self.probabilities()
+        return probs, self.sample(probs, num_samples)

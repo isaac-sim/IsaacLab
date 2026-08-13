@@ -16,21 +16,18 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib.nist import mdp
+from isaaclab_tasks.contrib.nist.factory_presets import (
+    AssemblyTipCfg,
+    FactoryAssemblyProfileCfg,
+    HeldAssetAlignOffsetCfg,
+)
+from isaaclab_tasks.contrib.nist.factory_scenes_cfg import FactorySceneCfg
+from isaaclab_tasks.contrib.nist.reset_env_cfg import ACCUMULATOR_RESET
 from isaaclab_tasks.contrib.nist.utils import SamplerCfg, UniformSamplingStrategyCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from . import mdp
-from .factory_presets import (
-    EndEffectorBodyCfg,
-    FactoryAssemblyProfileCfg,
-    FixedAssetTipCfg,
-    HeldAssetAlignOffsetCfg,
-    HeldAssetTipCfg,
-    JointEffortNamesCfg,
-    RobotActionsCfg,
-)
-from .factory_scenes_cfg import FactorySceneCfg
-from .reset_env_cfg import ACCUMULATOR_RESET
+_FRANKA_END_EFFECTOR = "panda_fingertip_centered"
 
 
 @configclass
@@ -42,7 +39,7 @@ class FactoryObservationsCfg:
         end_effector_vel_lin_ang_b = ObsTerm(
             func=mdp.asset_link_velocity_in_root_asset_frame,
             params={
-                "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type:ignore
+                "target_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
                 "root_asset_cfg": SceneEntityCfg("robot"),
             },
         )
@@ -50,9 +47,9 @@ class FactoryObservationsCfg:
         end_effector_pose = ObsTerm(
             func=mdp.target_asset_pose_in_root_asset_frame,
             params={
-                "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type:ignore
+                "target_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
                 "root_asset_cfg": SceneEntityCfg("robot"),
-                "target_asset_offset": HeldAssetTipCfg(),
+                "target_asset_offset": AssemblyTipCfg(),
             },
         )
 
@@ -61,7 +58,7 @@ class FactoryObservationsCfg:
             params={
                 "target_asset_cfg": SceneEntityCfg("held_asset"),
                 "root_asset_cfg": SceneEntityCfg("fixed_asset"),
-                "root_asset_offset": FixedAssetTipCfg(),
+                "root_asset_offset": AssemblyTipCfg(),
             },
         )
 
@@ -69,8 +66,8 @@ class FactoryObservationsCfg:
             func=mdp.target_asset_pose_in_root_asset_frame,
             params={
                 "target_asset_cfg": SceneEntityCfg("fixed_asset"),
-                "root_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type:ignore
-                "target_asset_offset": FixedAssetTipCfg(),
+                "root_asset_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
+                "target_asset_offset": AssemblyTipCfg(),
             },
         )
 
@@ -91,11 +88,6 @@ class FactoryObservationsCfg:
 class FactoryEventCfg:
     """Events specifications for Factory"""
 
-    # when nut dropped right above the bolt, it sometime can immediately success due to high speed it falls
-    # down can can may training in early stage very finicky. we uses less aggressive gravity for training
-    # and can make more aggressive later in the stage...
-
-    # mode: startup
     held_asset_material = EventTerm(
         func=mdp.randomize_rigid_body_material,  # type: ignore
         mode="startup",
@@ -108,9 +100,7 @@ class FactoryEventCfg:
         },
     )
 
-    # (Octi): Held-asset angular-instability fix: its small rotational inertia (~0.012 kg·m²) under the
-    # stiff contact (ke=1e7) lets contact torque run the angular velocity away exponentially → NaN
-    # (observed in the grasp_asset_in_air reset). Bump the diagonal inertia to damp it.
+    # Increase diagonal inertia to prevent contact-induced angular instability.
     held_asset_inertia = EventTerm(
         func=mdp.randomize_rigid_body_inertia,
         mode="startup",
@@ -148,6 +138,7 @@ class FactoryEventCfg:
 
     reset_strategies = ACCUMULATOR_RESET
 
+    # The curriculum restores gravity as task difficulty rises.
     variable_gravity: EventTerm | None = EventTerm(
         func=mdp.randomize_physics_scene_gravity,
         mode="reset",
@@ -163,7 +154,7 @@ class FactoryRewardsCfg:
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-1e-4)
     joint_effort = RewTerm(
         func=mdp.joint_torques_l2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointEffortNamesCfg())},  # type:ignore
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="(?!panda_joint7$|panda_finger_.*$).*")},
         weight=-1e-4,
     )
     early_termination = RewTerm(func=mdp.is_terminated_term, params={"term_keys": "abnormal"}, weight=-0.01)
@@ -245,17 +236,7 @@ class FactoryCurriculumsCfg:
 
 @configclass
 class FactoryPhysicsCfg(PresetCfg):
-    """Physics-backend preset for Factory tasks.
-
-    Selected via ``presets=physx`` (default) or ``presets=newton_mjwarp``. The PhysX
-    variant keeps Factory's contact-rich solver tuning; the Newton variant follows Newton's
-    reference ``example_nut_bolt_sdf`` (MuJoCo/Newton solver path): few constraint iterations
-    with many line-search iterations, ``impratio=1.0``, ``num_substeps=16`` (more than the
-    demo's 5, for a smaller solver ``dt`` and stiffer stable contact), a small global shape
-    gap, and Newton's SDF collision pipeline (rather than MuJoCo's internal contacts).
-    Capacity knobs (``njmax``/``nconmax``) are kept larger than the bare nut/bolt demo since
-    Factory's scene also contains the robot, NIST board, and table.
-    """
+    """Factory physics backend, selected with ``presets=physx`` or ``presets=newton_mjwarp``."""
 
     default = PhysxCfg(
         solver_type=1,
@@ -295,8 +276,26 @@ class FactoryPhysicsCfg(PresetCfg):
 
 
 @configclass
-class FactoryBaseEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the base Factory environment."""
+class FactoryActionsCfg:
+    """Franka joint actions for Factory."""
+
+    arm_action = mdp.RelativeJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["panda_joint.*"],
+        scale={"(?!panda_joint7$).*": 0.02, "panda_joint7": 0.2},
+        use_zero_offset=True,
+    )
+    gripper_action = mdp.BinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["panda_finger_.*"],
+        open_command_expr={"panda_finger_.*": 0.04},
+        close_command_expr={"panda_finger_.*": 0.0},
+    )
+
+
+@configclass
+class FactoryEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the Franka Factory environment."""
 
     scene: FactorySceneCfg = FactorySceneCfg()
     observations: FactoryObservationsCfg = FactoryObservationsCfg()
@@ -305,7 +304,7 @@ class FactoryBaseEnvCfg(ManagerBasedRLEnvCfg):
     rewards: FactoryRewardsCfg = FactoryRewardsCfg()
     curriculum: FactoryCurriculumsCfg = FactoryCurriculumsCfg()
     viewer: ViewerCfg = ViewerCfg(eye=(0.0, 0.8, 0.4), lookat=(0.0, 0.0, 0.4))
-    actions: RobotActionsCfg = RobotActionsCfg()  # type: ignore
+    actions: FactoryActionsCfg = FactoryActionsCfg()
 
     # Post initialization
     def __post_init__(self) -> None:
@@ -316,9 +315,6 @@ class FactoryBaseEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.04 / self.decimation
         self.sim.render_interval = self.decimation
-        # Select the physics backend from the active preset (``presets=physx`` default, or
-        # ``presets=newton_mjwarp`` for the kitless Newton/MuJoCo path). Previously this hardcoded
-        # ``PhysxCfg`` here, which silently overrode ``presets=newton_mjwarp`` and forced Kit to launch.
         self.sim.physics = FactoryPhysicsCfg()
 
         self.sim.physics_material.static_friction = 0.5
