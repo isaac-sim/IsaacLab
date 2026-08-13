@@ -33,11 +33,6 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
     )
     parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
     parser.add_argument(
-        "--use_pretrained_checkpoint",
-        action="store_true",
-        help="Use the pre-trained checkpoint from Nucleus.",
-    )
-    parser.add_argument(
         "--export_task_name",
         type=str,
         default=None,

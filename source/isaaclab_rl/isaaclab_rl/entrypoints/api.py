@@ -149,11 +149,11 @@ def random_agent(request: SimpleAgentRequest) -> int:
 
 def _training_argv(request: TrainingRequest) -> list[str]:
     argv = ["--rl_library", request.backend, "--task", request.task]
-    _append_value(argv, "--model_path" if request.backend == "rlinf" else "--checkpoint", request.checkpoint)
+    _append_value(argv, "--checkpoint", request.checkpoint)
     _append_value(argv, "--agent", request.agent)
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--seed", request.seed)
-    _append_value(argv, "--max_epochs" if request.backend == "rlinf" else "--max_iterations", request.max_iterations)
+    _append_value(argv, "--max_iterations", request.max_iterations)
     _append_value(argv, "--device", request.device)
     if request.video:
         argv.append("--video")
@@ -165,7 +165,7 @@ def _training_argv(request: TrainingRequest) -> list[str]:
 
 def _playback_argv(request: PlaybackRequest) -> list[str]:
     argv = ["--rl_library", request.backend, "--task", request.task]
-    _append_value(argv, "--model_path" if request.backend == "rlinf" else "--checkpoint", request.checkpoint)
+    _append_value(argv, "--checkpoint", request.checkpoint)
     _append_value(argv, "--agent", request.agent)
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--seed", request.seed)

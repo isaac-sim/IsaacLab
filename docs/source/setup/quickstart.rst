@@ -119,8 +119,7 @@ available in your installation:
      - Check a task using random actions; useful for a quick interaction smoke test.
      - ``uv run isaaclab random_agent --task Isaac-Cartpole-Direct --viz newton``
 
-The ``play`` command can also select a specific run with ``--load_run`` and a
-checkpoint with ``--checkpoint``. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
+All supported RL libraries select a checkpoint with ``--checkpoint``. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 for the complete training and playback reference.
 
 
