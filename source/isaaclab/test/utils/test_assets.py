@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -450,6 +451,21 @@ def test_unmirror_file_path_recovers_the_url_a_copy_was_cached_from(asset_cache,
 def test_unmirror_file_path_leaves_paths_the_cache_did_not_write_unclaimed(asset_cache, path):
     """Test a locally authored asset path is not mistaken for a cached remote copy."""
     assert assets_utils.unmirror_file_path(path) == ""
+
+
+def test_unmirror_file_path_does_not_claim_a_windows_drive_letter_path(asset_cache):
+    """Test a drive letter, which ``urlparse`` also reports as a scheme, is not read as a URL."""
+    mirrored = assets_utils._mirror_path("C:/Users/user/assets/robot.usd", str(asset_cache))
+
+    assert assets_utils.unmirror_file_path(mirrored) == ""
+
+
+def test_unmirror_file_path_recognises_a_copy_reported_with_forward_slashes(asset_cache):
+    """Test a copy is recognised when USD reports it with forward slashes, as it does on Windows."""
+    url = "https://example.com/Assets/Isaac/example.usd"
+    mirrored = assets_utils._mirror_path(url, str(asset_cache))
+
+    assert assets_utils.unmirror_file_path(mirrored.replace(os.sep, "/")) == url
 
 
 def test_unmirror_file_path_recognises_a_copy_cached_by_an_earlier_run(asset_cache, monkeypatch):
