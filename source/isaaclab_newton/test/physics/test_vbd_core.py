@@ -200,6 +200,24 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
     assert events == ["color", "start"]
 
 
+@pytest.mark.parametrize("external_rigid_solver", [False, True])
+def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
+    """VBD accepts rigid forces only when it integrates rigid bodies."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    solver = object()
+    monkeypatch.setattr(physics.NewtonVBDManager, "_create_solver", lambda model, cfg: solver)
+    monkeypatch.setattr(NewtonManager, "_solver", None)
+    monkeypatch.setattr(NewtonManager, "_use_single_state", True)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", False)
+
+    solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=external_rigid_solver)
+    physics.NewtonVBDManager._build_solver(object(), solver_cfg)
+
+    assert NewtonManager._solver is solver
+    assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
+
+
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
     """VBD rebuilds its particle BVH before the base physics step."""
     physics = importlib.import_module("isaaclab_newton.physics")

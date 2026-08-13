@@ -25,6 +25,7 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
+    NewtonVBDManager,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
