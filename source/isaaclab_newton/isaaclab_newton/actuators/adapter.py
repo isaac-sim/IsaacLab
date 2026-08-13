@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton-actuator adapter shared by the Newton and PhysX backends.
+"""Newton-actuator adapter shared by Newton, PhysX, and OVPhysX.
 
 Owns the actuator-state lifecycle, the pre-clamp computed-effort buffer,
 and the per-step ``step`` / ``reset`` / ``finalize`` calls. The
 :meth:`~NewtonActuatorAdapter.from_usd` classmethod parses
-``NewtonActuator`` USD prims on the PhysX backend (Newton populates
-``model.actuators`` itself).
+``NewtonActuator`` USD prims for PhysX and OVPhysX. Newton populates
+``model.actuators`` itself.
 
 DR gain updates bypass the adapter — the articulation writes straight
 to controller arrays.
@@ -298,14 +298,14 @@ class NewtonActuatorAdapter:
     ) -> NewtonActuatorAdapter:
         """Build an adapter from ``NewtonActuator`` prims authored on *stage*.
 
-        This is the PhysX-side counterpart of Newton's
+        This is the host-adapter counterpart of Newton's
         ``ModelBuilder.add_usd``. It reads the same prims and constructs matching
         :class:`~newton.actuators.Actuator` objects. Structurally compatible
         joints are merged into one actuator with per-DOF parameter arrays and
         combined indices. Newton backends use ``model.actuators`` instead.
 
-        On PhysX, :paramref:`joint_names` is in this adapter's local public order
-        and defines the local indices assigned to parsed actuator targets.
+        On PhysX and OVPhysX, :paramref:`joint_names` is in this adapter's local
+        public order and defines the local indices assigned to parsed actuator targets.
 
         Args:
             stage: USD stage containing ``NewtonActuator`` prims.

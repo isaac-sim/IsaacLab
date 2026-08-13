@@ -421,7 +421,7 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
 
         initial_pos = articulation.data.joint_pos.torch.clone()
         target = initial_pos + 0.5
-        articulation.set_joint_position_target_index(target=target)
+        articulation.actuators.command.set_position_index(value=target)
         articulation.write_data_to_sim()
 
         assert articulation._actuator_control.native_actuator_path_active
@@ -471,7 +471,7 @@ def test_host_actuator_control_import_does_not_probe_optional_newton_runtime(mon
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_newton_native_ovphysx_effort_binding_excludes_implicit_pd(device):
-    """Submit raw native effort so PhysX evaluates the implicit joint drive once."""
+    """Submit raw native effort so OVPhysX evaluates the implicit joint drive once."""
     with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=True) as sim:
         sim._app_control_on_stop_handle = None
         articulation_cfg = CARTPOLE_CFG.replace(
@@ -487,8 +487,8 @@ def test_newton_native_ovphysx_effort_binding_excludes_implicit_pd(device):
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
 
-        articulation.set_joint_position_target_index(
-            target=articulation.data.joint_pos.torch + torch.tensor([[0.25, 0.5]], device=device)
+        articulation.actuators.command.set_position_index(
+            value=articulation.data.joint_pos.torch + torch.tensor([[0.25, 0.5]], device=device)
         )
         articulation.write_data_to_sim()
 
