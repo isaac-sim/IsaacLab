@@ -111,7 +111,7 @@ Solver Coverage
 * **MuJoCo-Warp solver**: the primary, validated path for every supported task.
 * **Kamino solver**: beta. Currently validated on ``Isaac-Cartpole-Direct``,
   ``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. See
-  :doc:`kamino-solver`.
+  :doc:`/source/how-to/enable_kamino`.
 * **VBD solver**: experimental, exposed through :mod:`isaaclab_contrib.deformable`
   for cloth, soft-body, and cable simulation. Rigid and deformable scenes can use
   proxy coupling from :mod:`isaaclab_contrib.coupling` so MJWarp advances rigid

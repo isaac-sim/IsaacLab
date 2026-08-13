@@ -28,7 +28,7 @@ the following solver pages:
 
 * :doc:`/source/how-to/tune_mjwarp` — diagnose-first guidance for the primary,
   validated solver path.
-* :doc:`kamino-solver` — beta support on selected classic tasks.
+* :doc:`/source/how-to/enable_kamino` — beta support on selected classic tasks.
 * :doc:`using-vbd-solver`: experimental VBD solver for cloth and soft bodies,
   with MJWarp and VBD proxy coupling through :mod:`isaaclab_contrib.coupling`.
 * :doc:`using-mpm`: experimental implicit MPM for particle materials, including
@@ -61,7 +61,7 @@ For direct ``Model``/``State`` access and generic selections, see
   supported-features
   /source/how-to/prepare_asset_for_newton
   /source/how-to/tune_mjwarp
-  kamino-solver
+  /source/how-to/enable_kamino
   using-vbd-solver
   using-mpm
   using-cables
