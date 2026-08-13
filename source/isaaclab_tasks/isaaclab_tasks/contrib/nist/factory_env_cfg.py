@@ -14,6 +14,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.nist import mdp
@@ -236,9 +237,9 @@ class FactoryCurriculumsCfg:
 
 @configclass
 class FactoryPhysicsCfg(PresetCfg):
-    """Factory physics backend, selected with ``presets=physx`` or ``presets=newton_mjwarp``."""
+    """Factory physics backend presets."""
 
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         solver_type=1,
         max_position_iteration_count=192,
         max_velocity_iteration_count=1,
@@ -272,7 +273,8 @@ class FactoryPhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = isaacsim_physx
 
 
 @configclass
