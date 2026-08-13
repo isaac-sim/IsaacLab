@@ -222,7 +222,10 @@ def _is_git_remote_path(git_path: str) -> bool:
     Returns:
         True if :paramref:`git_path` is a URL or SSH git path.
     """
-    return bool(urlparse(git_path).scheme) or _GIT_SSH_RE.match(git_path) is not None
+    # ``urlparse`` reports a Windows drive letter as a scheme, so a local checkout such as
+    # ``C:\assets`` would otherwise be taken for a repository to clone. No URL scheme is a
+    # single character.
+    return len(urlparse(git_path).scheme) > 1 or _GIT_SSH_RE.match(git_path) is not None
 
 
 def _get_git_asset_repo_name(git_path: str) -> str:

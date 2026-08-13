@@ -259,6 +259,22 @@ def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeyp
     assert (asset_path / "example_bot.usd").read_text(encoding="utf-8") == "#usda 1.0\n"
 
 
+@pytest.mark.parametrize(
+    ("git_path", "is_remote"),
+    [
+        ("https://example.com/example-assets.git", True),
+        ("git@example.com:org/example-assets.git", True),
+        ("/home/user/newton-assets", False),
+        # ``urlparse`` reports a drive letter as a scheme, so these read as remote repositories
+        ("C:/Users/user/newton-assets", False),
+        (r"C:\Users\user\newton-assets", False),
+    ],
+)
+def test_git_asset_paths_tell_a_windows_drive_letter_from_a_url_scheme(git_path, is_remote):
+    """Test a local Windows checkout is not mistaken for a repository to clone into the cache."""
+    assert assets_utils._is_git_remote_path(git_path) is is_remote
+
+
 def test_retrieve_git_asset_path_raises_for_missing_asset(tmp_path):
     """Test that git asset retrieval raises when the requested asset is missing."""
     repo_dir = tmp_path / "newton-assets"
