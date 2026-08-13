@@ -12,6 +12,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 
 from ..yam_frames import yam_contact_frame_position_w
+from .actions import canonical_task_actions
 from .cable_geometry import cable_relative_joint_gap
 
 
@@ -40,17 +41,32 @@ def route_progress(env, command_name: str) -> torch.Tensor:
     return command.route_progress_delta
 
 
-def route_success(env, command_name: str) -> torch.Tensor:
-    """Return one for environments that have completed their sampled route."""
+def route_success(
+    env,
+    command_name: str,
+    failure_termination_names: tuple[str, ...] = (),
+) -> torch.Tensor:
+    """Return a unit-integral pulse for valid terminal route success."""
     command = env.command_manager.get_term(command_name)
     command.ensure_route_state_current(update_reward_delta=True)
-    return command.succeeded.float()
+    succeeded = command.succeeded.clone()
+    for term_name in failure_termination_names:
+        succeeded &= ~env.termination_manager.get_term(term_name)
+    return succeeded.float() / max(float(env.step_dt), 1.0e-8)
 
 
-def finite_action_rate_l2(env) -> torch.Tensor:
-    """Penalize changes between the finite, bounded actions applied by this task."""
-    action = torch.nan_to_num(env.action_manager.action, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0)
-    previous = torch.nan_to_num(env.action_manager.prev_action, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0)
+def route_failure(env, termination_names: tuple[str, ...]) -> torch.Tensor:
+    """Return one unit-integral failure pulse for invalid terminal transitions."""
+    failed = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    for term_name in termination_names:
+        failed |= env.termination_manager.get_term(term_name)
+    return failed.float() / max(float(env.step_dt), 1.0e-8)
+
+
+def finite_action_rate_l2(env, binary_action_names: tuple[str, ...] = ()) -> torch.Tensor:
+    """Penalize changes in finite arm actions and binary gripper command states."""
+    action = canonical_task_actions(env, env.action_manager.action, binary_action_names)
+    previous = canonical_task_actions(env, env.action_manager.prev_action, binary_action_names)
     return torch.square(action - previous).sum(dim=1)
 
 

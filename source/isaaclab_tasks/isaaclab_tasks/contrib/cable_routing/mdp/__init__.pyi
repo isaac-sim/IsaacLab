@@ -28,6 +28,7 @@ __all__ = [
     "cable_relative_joint_gap",
     "cable_stretch",
     "cable_unrouted_mask",
+    "canonical_task_actions",
     "finite_action_rate_l2",
     "finite_joint_pos_rel",
     "finite_joint_vel_l2",
@@ -45,6 +46,7 @@ __all__ = [
     "reset_peg_offsets",
     "robot_or_action_invalid",
     "route_complete",
+    "route_failure",
     "route_progress",
     "route_success",
     "route_task_state",
@@ -66,6 +68,7 @@ from .actions import (
     FiniteBinaryJointPositionActionCfg,
     FiniteRelativeJointPositionAction,
     FiniteRelativeJointPositionActionCfg,
+    canonical_task_actions,
 )
 from .cable_geometry import cable_relative_joint_gap
 from .commands import CableRoutingCommand, CableRoutingCommandCfg
@@ -122,6 +125,7 @@ from .rewards import (
     finite_action_rate_l2,
     finite_joint_vel_l2,
     grippers_near_cable,
+    route_failure,
     route_progress,
     route_success,
 )

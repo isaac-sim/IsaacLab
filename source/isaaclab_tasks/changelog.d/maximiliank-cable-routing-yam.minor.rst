@@ -5,7 +5,7 @@ Added
   actions, smooth one-meter self-avoiding cable resets, single-span wrap validation, heterogeneous
   fixture resets, and Newton MJWarp/VBD proxy coupling.
 * Added a pinned Robot Menagerie YAM USD package with native Newton collision and mimic schemas,
-  plus contact-capacity stress validation for dense cable interactions.
+  plus explicit contact-buffer headroom for dense cable interactions.
 * Added pinned ManipulationNet task-board and F1 USD visuals with primitive-only Newton collision,
   reproducible STL conversion metadata, and front-edge dual-YAM placement.
 * Added three staged round-peg routing goals plus an explicit seven-goal task spanning both
@@ -21,6 +21,10 @@ Fixed
 * Fixed non-finite terminal cable states so they are reset with finite route metrics and rewards
   instead of aborting synchronized multi-GPU training; robot/action failures are now sanitized at
   the physics boundary and terminated with finite policy observations and rewards.
+* Held each relative joint target across control decimation, clamped it to the authored limits,
+  represented gripper actions by their binary command state, and made terminal success and failure
+  rewards independent of control frequency. Newton actuator graph capture and complete-episode PPO
+  startup are now enabled for training.
 * Applied explicit Newton contact materials to YAM and fixture assets, proxied every collidable YAM
   link into the cable solver, and declared the task's Newton and contrib runtime dependencies.
 * Avoided redundant or manager-order-dependent route evaluation and expensive ordinary cable

@@ -390,7 +390,10 @@ class ObservationsCfg:
                 "right_ee_cfg": SceneEntityCfg("yam_right", body_names=["link_6"]),
             },
         )
-        actions = ObsTerm(func=mdp.finite_last_action)
+        actions = ObsTerm(
+            func=mdp.finite_last_action,
+            params={"binary_action_names": ("left_gripper", "right_gripper")},
+        )
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -502,13 +505,29 @@ class EventCfg:
 class RewardsCfg:
     """Sparse ordered-route success reward with safety and control penalties."""
 
-    success = RewTerm(func=mdp.route_success, weight=20.0, params={"command_name": "route"})
+    success = RewTerm(
+        func=mdp.route_success,
+        weight=20.0,
+        params={
+            "command_name": "route",
+            "failure_termination_names": ("invalid_cable", "invalid_robot_or_action"),
+        },
+    )
+    failure = RewTerm(
+        func=mdp.route_failure,
+        weight=-20.0,
+        params={"termination_names": ("invalid_cable", "invalid_robot_or_action")},
+    )
     stretch = RewTerm(
         func=mdp.cable_stretch,
         weight=-0.25,
         params={"cable_cfg": SceneEntityCfg("cable"), "rest_length": CABLE_SEGMENT_LENGTH},
     )
-    action_rate = RewTerm(func=mdp.finite_action_rate_l2, weight=-0.002)
+    action_rate = RewTerm(
+        func=mdp.finite_action_rate_l2,
+        weight=-0.002,
+        params={"binary_action_names": ("left_gripper", "right_gripper")},
+    )
     left_joint_velocity = RewTerm(
         func=mdp.finite_joint_vel_l2,
         weight=-0.0001,
@@ -559,6 +578,7 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
+        use_newton_actuators=True,
         physics=NewtonCfg(
             solver_cfg=CouplerProxyCfg(
                 entries=[

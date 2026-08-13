@@ -54,7 +54,8 @@ class CableRoutingGaussianDistributionCfg(RslRlMLPModelCfg.GaussianDistributionC
 class CableRoutingPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO configuration for the goal-conditioned bimanual cable-routing policy."""
 
-    num_steps_per_env = 32
+    num_steps_per_env = 36
+    init_at_random_ep_len = False
     max_iterations = 15000
     save_interval = 250
     experiment_name = "yam_cable_routing"

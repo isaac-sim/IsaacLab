@@ -33,6 +33,7 @@ from isaaclab_contrib.coupling import CouplerProxyCfg
 from isaaclab_contrib.deformable import VBDSolverCfg
 
 import isaaclab_tasks.contrib.cable_routing  # noqa: F401
+from isaaclab_tasks.contrib.cable_routing.agents.rsl_rl_ppo_cfg import CableRoutingPPORunnerCfg
 from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
     BOARD_SIZE,
     BOARD_THICKNESS,
@@ -63,11 +64,14 @@ from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
     CableRoutingSevenGoalsEnvCfg,
     CableRoutingTier1PegsEnvCfg,
 )
+from isaaclab_tasks.contrib.cable_routing.mdp.actions import FiniteRelativeJointPositionAction
 from isaaclab_tasks.contrib.cable_routing.mdp.commands import (
     CableRoutingCommand,
     CableRoutingCommandCfg,
     _route_goal_marker_data,
 )
+from isaaclab_tasks.contrib.cable_routing.mdp.observations import finite_last_action
+from isaaclab_tasks.contrib.cable_routing.mdp.rewards import finite_action_rate_l2, route_failure, route_success
 
 _TASK_CONFIGS = {
     "IsaacContrib-CableRouting-YAM": "CableRoutingEnvCfg",
@@ -123,6 +127,99 @@ def test_cable_routing_actions_are_relative_joint_position_with_binary_grippers(
     assert resolved_policy_action_dim == 14
 
 
+def test_relative_joint_action_holds_one_limit_clamped_target() -> None:
+    """The relative target is resolved once instead of advancing during decimation."""
+    captured: dict[str, torch.Tensor] = {}
+    joint_position = torch.tensor(((0.95, -0.95),))
+    asset = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_pos=SimpleNamespace(torch=joint_position),
+            default_joint_pos=SimpleNamespace(torch=torch.zeros_like(joint_position)),
+            soft_joint_pos_limits=SimpleNamespace(torch=torch.tensor((((-1.0, 1.0), (-1.0, 1.0)),))),
+        )
+    )
+
+    def set_target(*, target: torch.Tensor, joint_ids: list[int]) -> None:
+        captured["target"] = target.clone()
+        captured["joint_ids"] = torch.tensor(joint_ids)
+
+    asset.set_joint_position_target_index = set_target
+    term = FiniteRelativeJointPositionAction.__new__(FiniteRelativeJointPositionAction)
+    term.cfg = SimpleNamespace(clip=None)
+    term._asset = asset
+    term._joint_ids = [0, 1]
+    term._raw_actions = torch.zeros((1, 2))
+    term._scale = 0.1
+    term._offset = 0.0
+
+    term.process_actions(torch.tensor(((torch.inf, -1.0),)))
+    joint_position.zero_()
+    term.apply_actions()
+    term.apply_actions()
+
+    torch.testing.assert_close(term.raw_actions, torch.tensor(((1.0, -1.0),)))
+    torch.testing.assert_close(captured["target"], torch.tensor(((1.0, -1.0),)))
+    torch.testing.assert_close(captured["joint_ids"], torch.tensor((0, 1)))
+
+
+def test_gripper_observation_and_action_rate_use_binary_command_state() -> None:
+    """Equivalent continuous gripper magnitudes have identical policy semantics and cost."""
+    manager = SimpleNamespace(
+        active_terms=["left_arm", "left_gripper", "right_arm", "right_gripper"],
+        action_term_dim=[2, 1, 2, 1],
+        action=torch.tensor(((0.1, -0.2, 0.01, 0.3, -0.4, -0.01),)),
+        prev_action=torch.tensor(((0.1, -0.2, 0.9, 0.3, -0.4, -0.8),)),
+    )
+    env = SimpleNamespace(action_manager=manager)
+    binary_names = ("left_gripper", "right_gripper")
+
+    observation = finite_last_action(env, binary_action_names=binary_names)
+    action_rate = finite_action_rate_l2(env, binary_action_names=binary_names)
+
+    torch.testing.assert_close(observation, torch.tensor(((0.1, -0.2, 1.0, 0.3, -0.4, -1.0),)))
+    torch.testing.assert_close(action_rate, torch.zeros(1))
+
+    manager.prev_action[:, -1] = 0.8
+    torch.testing.assert_close(finite_action_rate_l2(env, binary_names), torch.tensor((4.0,)))
+
+
+def test_terminal_outcome_rewards_are_control_frequency_independent() -> None:
+    """Configured terminal weights are exact one-time returns, with failure overriding success."""
+    command = SimpleNamespace(
+        succeeded=torch.tensor((True, False, True)),
+        ensure_route_state_current=lambda **_kwargs: None,
+    )
+    term_values = {
+        "invalid_cable": torch.tensor((False, True, False)),
+        "invalid_robot_or_action": torch.tensor((False, False, True)),
+    }
+    step_dt = 1.0 / 30.0
+    env = SimpleNamespace(
+        num_envs=3,
+        device="cpu",
+        step_dt=step_dt,
+        command_manager=SimpleNamespace(get_term=lambda _name: command),
+        termination_manager=SimpleNamespace(get_term=lambda name: term_values[name]),
+    )
+    failure_names = tuple(term_values)
+
+    success_return = route_success(env, "route", failure_names) * 20.0 * step_dt
+    failure_return = route_failure(env, failure_names) * -20.0 * step_dt
+
+    torch.testing.assert_close(success_return, torch.tensor((20.0, 0.0, 0.0)))
+    torch.testing.assert_close(failure_return, torch.tensor((0.0, -20.0, -20.0)))
+
+
+def test_cable_routing_ppo_starts_from_complete_1p2_second_rollouts() -> None:
+    """The first SuccessMonitor outcomes come from complete episodes and sufficiently long rollouts."""
+    env_cfg = CableRoutingEnvCfg()
+    runner_cfg = CableRoutingPPORunnerCfg()
+
+    assert env_cfg.sim.use_newton_actuators
+    assert runner_cfg.num_steps_per_env * env_cfg.decimation * env_cfg.sim.dt == pytest.approx(1.2)
+    assert not runner_cfg.init_at_random_ep_len
+
+
 def test_cable_routing_manager_terms_use_menagerie_joint_and_body_names() -> None:
     """Test observations, events, and rewards resolve against the canonical YAM names."""
     cfg = CableRoutingEnvCfg()
@@ -155,6 +252,7 @@ def test_cable_routing_rewards_are_sparse_success_with_penalties_only() -> None:
     """Test every route variant excludes dense geometric reward shaping."""
     expected_reward_names = {
         "success",
+        "failure",
         "stretch",
         "action_rate",
         "left_joint_velocity",
@@ -512,6 +610,7 @@ def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
     physics = cfg.sim.physics
 
     assert isinstance(physics, NewtonCfg)
+    assert cfg.sim.use_newton_actuators
     assert physics.num_substeps == 10
     assert physics.use_cuda_graph
     assert physics.default_shape_cfg.ke == 4.0e4

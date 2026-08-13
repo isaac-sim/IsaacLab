@@ -12,6 +12,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 
 from ..yam_frames import yam_contact_frame_position_w
+from .actions import canonical_task_actions
 
 
 def route_task_state(env, command_name: str) -> torch.Tensor:
@@ -76,10 +77,20 @@ def active_goal_geometry(
     return torch.nan_to_num(geometry, nan=0.0, posinf=0.0, neginf=0.0)
 
 
-def finite_last_action(env, action_name: str | None = None) -> torch.Tensor:
-    """Return the bounded action that the task's action terms can apply."""
-    action = env.action_manager.action if action_name is None else env.action_manager.get_term(action_name).raw_actions
-    return torch.nan_to_num(action, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0)
+def finite_last_action(
+    env,
+    action_name: str | None = None,
+    binary_action_names: tuple[str, ...] = (),
+) -> torch.Tensor:
+    """Return bounded actions with binary terms represented by their physical command state."""
+    if action_name is None:
+        return canonical_task_actions(env, env.action_manager.action, binary_action_names)
+
+    action = env.action_manager.get_term(action_name).raw_actions
+    action = torch.nan_to_num(action, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0)
+    if action_name in binary_action_names:
+        action = torch.where(action < 0.0, -torch.ones_like(action), torch.ones_like(action))
+    return action
 
 
 def finite_joint_pos_rel(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
