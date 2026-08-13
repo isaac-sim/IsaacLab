@@ -43,6 +43,9 @@ _RENDERER_PRESET_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_re
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
+#: Algorithm names that may legitimately appear in a ``skrl_<name>_cfg_entry_point`` key.
+#: Union of the ``--algorithm`` choices across the skrl train, play, and benchmark entrypoints.
+SKRL_ALGORITHM_NAMES = frozenset({"amp", "ppo", "ippo", "mappo"})
 logger = logging.getLogger(__name__)
 _MISSING = object()
 
@@ -428,6 +431,35 @@ def add_common_train_args(
         default="tensorboard",
         help="Format used to save the captured sensor frames.",
     )
+
+
+def resolve_skrl_agent_entry_point(agent: str | None, algorithm: str) -> tuple[str, str]:
+    """Resolve the skrl agent config entry point and the algorithm it runs.
+
+    skrl is the only library whose entry point keys encode an algorithm
+    (``skrl_amp_cfg_entry_point``), so it is the only one that has to recover
+    the algorithm from a caller-supplied ``--agent``. Not every key encodes one:
+    the Cartpole showcase tasks key theirs by observation/action space
+    (``skrl_box_discrete_cfg_entry_point``), and
+    :func:`~isaaclab_tasks.utils.setup_preset_cli` selects those automatically
+    from the active preset. Decoding blindly yields ``"box_discrete"``, which
+    then reaches run manifests, benchmark KPI metadata, and log directory names,
+    and disables the MARL-to-single-agent conversion that PPO needs. Only names
+    in :data:`SKRL_ALGORITHM_NAMES` are trusted; anything else keeps the
+    algorithm the caller asked for.
+
+    Args:
+        agent: Value of ``--agent``, or ``None`` when the flag is unset.
+        algorithm: Value of ``--algorithm``, case-insensitive.
+
+    Returns:
+        ``(agent_cfg_entry_point, algorithm)`` with the algorithm lower-cased.
+    """
+    algorithm = algorithm.lower()
+    if agent is None:
+        return ("skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"), algorithm
+    encoded = agent.split("_cfg")[0].split("skrl_")[-1].lower()
+    return agent, encoded if encoded in SKRL_ALGORITHM_NAMES else algorithm
 
 
 def enable_cameras_for_video(args_cli: argparse.Namespace) -> None:

@@ -201,7 +201,7 @@ def _parse_args(argv: list[str]):
     add_success_cli_args(parser, include_check_success=False)
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="skrl")
     validate_distributed_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
@@ -260,12 +260,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     distributed = DistributedContext.from_env(args_cli.distributed)
 
     # Derive the default agent entry point from the selected algorithm.
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+    agent_cfg_entry_point, algorithm = _common.resolve_skrl_agent_entry_point(args_cli.agent, args_cli.algorithm)
 
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)

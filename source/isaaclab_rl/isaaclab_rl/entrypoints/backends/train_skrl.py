@@ -31,6 +31,7 @@ from isaaclab_rl.entrypoints.common import (
     pre_launch_video_config,
     preserve_attribute,
     resolve_checkpoint_selector,
+    resolve_skrl_agent_entry_point,
     set_hydra_args,
     show_run_summary,
     startup_screen,
@@ -87,13 +88,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def _resolve_agent_entry_point(args_cli: argparse.Namespace) -> tuple[str, str]:
     """Resolve the skrl agent entry point and algorithm from CLI arguments."""
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
-    return agent_cfg_entry_point, algorithm
+    return resolve_skrl_agent_entry_point(args_cli.agent, args_cli.algorithm)
 
 
 def _get_distributed_rank(args_cli: argparse.Namespace) -> int:

@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
     preserve_attribute,
     resolve_checkpoint_selector,
     resolve_play_task_name,
+    resolve_skrl_agent_entry_point,
     show_run_summary,
     startup_screen,
 )
@@ -122,12 +123,7 @@ if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     )
     exit()
 
-if args_cli.agent is None:
-    algorithm = args_cli.algorithm.lower()
-    agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
-else:
-    agent_cfg_entry_point = args_cli.agent
-    algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+agent_cfg_entry_point, algorithm = resolve_skrl_agent_entry_point(args_cli.agent, args_cli.algorithm)
 
 
 def main():

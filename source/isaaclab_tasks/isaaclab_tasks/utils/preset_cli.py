@@ -92,12 +92,15 @@ def setup_preset_cli(
             triggers ``--help`` rendering.
         agent_library: Optional RL-library prefix. When provided, task-specific
             help lists registered ``--agent`` values and declared preset
-            compatibility.
+            compatibility, and a defaulted ``--agent`` is resolved from the
+            task's registry metadata by :func:`_auto_select_agent`.
 
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
         ``parser.parse_known_args(argv)``, ready to hand to Hydra via
-        ``sys.argv``.
+        ``sys.argv``. ``args.agent`` may have been filled in from the task's
+        registry metadata; the preset tokens that drove that choice stay in
+        ``remaining`` for hydra.
 
     Raises:
         SystemExit: If ``argv`` requests help, after printing it.
@@ -133,7 +136,13 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+
+    task_name = getattr(args, "task", None) or argv_helper.task_name
+    if agent_library and task_name:
+        _auto_select_agent(args, parser, task_name, agent_library, _ArgvHelper.from_tokens(args_to_parse))
+
+    return args, remaining
 
 
 # ============================================================================
@@ -303,25 +312,32 @@ class _AgentDescriptionBuilder:
 
 
 # ============================================================================
-# argv inspection (pre-argparse peek for help-text rendering)
+# argv inspection (single-pass peek for tokens argparse cannot supply)
 # ============================================================================
 
 
 class _ArgvHelper:
-    """Single-pass argv scan that exposes ``task_name`` and ``help_requested``.
+    """Single-pass argv scan for tokens the parsed Namespace cannot provide.
 
-    Needed because argparse's ``--help`` short-circuits parsing, so help text
-    that depends on ``--task`` has to find it before argparse runs.
+    Needed on two counts: argparse's ``--help`` short-circuits parsing, so help
+    text that depends on ``--task`` has to find it before argparse runs; and no
+    argparse argument is registered for the Hydra-style selectors (see the
+    module docstring), so ``presets=`` never reaches the Namespace at all.
 
     Attributes:
         task_name: Last ``--task`` value (matching argparse's last-wins
             semantics), or ``None`` if absent.
         help_requested: ``True`` if ``--help`` or ``-h`` is present.
+        presets: Union of the names in every ``presets=NAME[,NAME,...]``
+            broadcast token, empty when none is present.
+        agent_explicit: ``True`` if ``--agent`` was passed in either form.
     """
 
     def __init__(self, argv: list[str]):
         self.task_name: str | None = None
         self.help_requested: bool = False
+        self.presets: set[str] = set()
+        self.agent_explicit: bool = False
         for i in range(1, len(argv)):
             token = argv[i]
             if token in ("--help", "-h"):
@@ -330,6 +346,95 @@ class _ArgvHelper:
                 self.task_name = argv[i + 1]
             elif token.startswith("--task="):
                 self.task_name = token[len("--task=") :]
+            elif token == "--agent" or token.startswith("--agent="):
+                self.agent_explicit = True
+            elif token.startswith("presets="):
+                self.presets.update(name.strip() for name in token[len("presets=") :].split(",") if name.strip())
+
+    @classmethod
+    def from_tokens(cls, tokens: list[str]) -> _ArgvHelper:
+        """Scan an argv slice whose leading program name has already been stripped."""
+        return cls(["", *tokens])
+
+
+# ============================================================================
+# Agent auto-selection (post-argparse, from task registry metadata)
+# ============================================================================
+
+
+def _auto_select_agent(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    task_name: str,
+    agent_library: str,
+    selection: _ArgvHelper,
+) -> None:
+    """Set ``args.agent`` when the task's metadata implies exactly one entry point.
+
+    Tasks declare the agent configs they register, and optionally which presets
+    each config is valid for (``agent_preset_compatibility``). Two rules turn
+    that metadata into a selection; the second is a fallback for when the first
+    does not fire:
+
+    1. **Preset-based**: when a ``presets=`` token names a preset the task
+       declares as an agent constraint, and exactly one registered entry point
+       is compatible with every such preset, that entry point is used. This is
+       what makes ``presets=box_discrete`` load a categorical-policy config
+       instead of the Gaussian default on the Cartpole showcase tasks.
+
+    2. **Default-absent**: when the canonical default entry point
+       (``<library>_cfg_entry_point``) is not registered but exactly one other
+       entry point is, that sole entry point is used. Handles tasks such as
+       ``IsaacContrib-Humanoid-AMP-*`` that support only a non-default
+       algorithm and so never register the PPO default.
+
+    Does nothing when the match is absent or ambiguous, leaving the caller's own
+    default resolution in charge.
+
+    Args:
+        args: Parsed namespace to update in-place.
+        parser: Parser that produced *args*, used to tell a defaulted
+            ``--agent`` from one the user typed.
+        task_name: Gymnasium task ID used to look up the registry spec.
+        agent_library: RL-library prefix (e.g. ``"skrl"``).
+        selection: Scan of the argv that was actually parsed, supplying the
+            ``presets=`` tokens and whether ``--agent`` was explicit.
+    """
+    import gymnasium as gym
+
+    if not hasattr(args, "agent"):
+        return
+    # An explicit --agent always wins. Compare against the parser's default
+    # rather than testing ``is None``: only skrl defaults --agent to None, while
+    # rsl_rl, rl_games and sb3 default it to ``<library>_cfg_entry_point``, so an
+    # ``is None`` guard would leave auto-selection unreachable for them.
+    if selection.agent_explicit or args.agent != parser.get_default("agent"):
+        return
+
+    try:
+        agents, compatibility = _enumerate_agents(task_name, agent_library)
+    except gym.error.Error:
+        # Unregistered or misspelled task ID: stay silent and let the caller's
+        # own task lookup raise the real error instead of reporting it here.
+        return
+
+    # Rule 1. Only presets the task declares as agent constraints participate:
+    # physics and renderer selections arrive through the same ``presets=``
+    # broadcast, and including them would fail the subset test for every entry
+    # point and silently leave the wrong default in place.
+    declared = {preset for presets in compatibility.values() for preset in presets}
+    constraining = selection.presets & declared
+    if constraining:
+        matches = [agent for agent, presets in compatibility.items() if constraining.issubset(set(presets))]
+        if len(matches) == 1:
+            args.agent = matches[0]
+            return
+
+    # Rule 2, reached whether or not a preset is active. Benchmark sweeps
+    # broadcast the physics backend through the same token (``presets=newton_mjwarp``),
+    # and an algorithm-only task still needs its sole entry point picked there.
+    if f"{agent_library}_cfg_entry_point" not in agents and len(agents) == 1:
+        args.agent = agents[0]
 
 
 # ============================================================================

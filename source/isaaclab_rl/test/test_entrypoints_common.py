@@ -24,6 +24,7 @@ from isaaclab_rl.entrypoints.common import (
     dispatch_library_entrypoint,
     enable_cameras_for_video,
     resolve_play_task_name,
+    resolve_skrl_agent_entry_point,
     wrap_sensor_capture,
 )
 
@@ -204,6 +205,29 @@ def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
     enable_cameras_for_video(args_cli)
 
     assert args_cli.enable_cameras
+
+
+@pytest.mark.parametrize(
+    "agent,algorithm,expected",
+    [
+        # Unset --agent: the entry point follows --algorithm, PPO being the unsuffixed default.
+        (None, "PPO", ("skrl_cfg_entry_point", "ppo")),
+        (None, "AMP", ("skrl_amp_cfg_entry_point", "amp")),
+        # An --agent whose key encodes a real algorithm reports that algorithm.
+        ("skrl_amp_cfg_entry_point", "PPO", ("skrl_amp_cfg_entry_point", "amp")),
+        ("skrl_ippo_cfg_entry_point", "PPO", ("skrl_ippo_cfg_entry_point", "ippo")),
+        # Showcase keys encode an observation/action space, not an algorithm. Reading
+        # one as the algorithm would put "box_discrete" in run manifests and benchmark
+        # KPI metadata and would switch off the PPO MARL conversion.
+        ("skrl_box_discrete_cfg_entry_point", "PPO", ("skrl_box_discrete_cfg_entry_point", "ppo")),
+        ("skrl_tuple_multidiscrete_cfg_entry_point", "AMP", ("skrl_tuple_multidiscrete_cfg_entry_point", "amp")),
+        # The canonical default decodes to the bare library name, which is not an algorithm.
+        ("skrl_cfg_entry_point", "PPO", ("skrl_cfg_entry_point", "ppo")),
+    ],
+)
+def test_resolve_skrl_agent_entry_point(agent: str | None, algorithm: str, expected: tuple[str, str]) -> None:
+    """The reported algorithm only comes from an entry point key that actually names one."""
+    assert resolve_skrl_agent_entry_point(agent, algorithm) == expected
 
 
 def test_common_train_args_register_frontend_with_torch_default() -> None:

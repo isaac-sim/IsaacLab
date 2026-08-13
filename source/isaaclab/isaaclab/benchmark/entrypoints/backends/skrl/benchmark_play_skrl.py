@@ -102,7 +102,7 @@ def _parse_args(argv: list[str]):
     )
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="skrl")
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
@@ -138,12 +138,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     args_cli, remaining_args = _parse_args(argv)
 
     # Resolve agent entry point (mirrors isaaclab_rl.entrypoints.backends.play_skrl).
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+    agent_cfg_entry_point, algorithm = _common.resolve_skrl_agent_entry_point(args_cli.agent, args_cli.algorithm)
 
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
 
@@ -199,7 +194,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                         {"name": "task", "data": args_cli.task},
                         {"name": "num_envs", "data": args_cli.num_envs},
                         {"name": "num_steps", "data": args_cli.num_steps},
-                        {"name": "algorithm", "data": args_cli.algorithm},
+                        {"name": "algorithm", "data": algorithm.upper()},
                         {
                             "name": "environment_step_measurement_mode",
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),

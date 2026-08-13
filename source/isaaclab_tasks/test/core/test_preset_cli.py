@@ -29,6 +29,13 @@ def _make_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _make_agent_parser(agent_default: str | None) -> argparse.ArgumentParser:
+    """Parser shaped like an RL entrypoint's, whose ``--agent`` default varies by library."""
+    parser = _make_parser()
+    parser.add_argument("--agent", type=str, default=agent_default)
+    return parser
+
+
 # ---------------------------------------------------------------------------
 # PresetTarget: per-target metadata on the enum
 # ---------------------------------------------------------------------------
@@ -227,6 +234,27 @@ def test_argv_helper_detects_help_flag():
     assert _ArgvHelper(["train.py", "-h"]).help_requested is True
     assert _ArgvHelper(["train.py", "--task=Foo", "--help"]).help_requested is True
     assert _ArgvHelper(["train.py", "env.sim.dt=0.001"]).help_requested is False
+
+
+def test_argv_helper_collects_selection_tokens():
+    """``presets=`` never reaches the Namespace, so the scanner is its only source."""
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
+
+    argv = _ArgvHelper(["train.py", "presets=rgb,box_discrete", "presets=newton_mjwarp", "--agent=foo"])
+    assert argv.presets == {"rgb", "box_discrete", "newton_mjwarp"}
+    assert argv.agent_explicit is True
+    assert _ArgvHelper(["train.py", "--agent", "foo"]).agent_explicit is True
+    assert _ArgvHelper(["train.py", "presets="]).presets == set()
+    assert _ArgvHelper(["train.py"]).agent_explicit is False
+
+
+def test_argv_helper_from_tokens_skips_no_leading_entry():
+    """``from_tokens`` scans an argv slice that has no program name to skip."""
+    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
+
+    argv = _ArgvHelper.from_tokens(["--task", "Foo-v0", "presets=rgb"])
+    assert argv.task_name == "Foo-v0"
+    assert argv.presets == {"rgb"}
 
 
 def test_argv_helper_task_returns_last_value():
@@ -483,3 +511,100 @@ def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name
     assert compatibility
     assert set(compatibility) <= set(agents)
     assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
+
+
+# ---------------------------------------------------------------------------
+# Agent auto-selection from task registry metadata
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def clean_argv(monkeypatch):
+    """Isolate the pre-argparse ``sys.argv`` peek from pytest's own command line."""
+    monkeypatch.setattr(sys, "argv", ["train.py"])
+
+
+@pytest.mark.parametrize(
+    "task_name,agent_library,agent_default,argv_tail,expected",
+    [
+        # Rule 1: the active preset names exactly one compatible entry point.
+        (
+            "IsaacContrib-Cartpole-Showcase-Direct",
+            "skrl",
+            None,
+            ["presets=box_discrete"],
+            "skrl_box_discrete_cfg_entry_point",
+        ),
+        # Rule 1 is reachable for libraries that default --agent to a name rather
+        # than to None; an ``is None`` guard would skip rsl_rl, rl_games and sb3.
+        (
+            "Isaac-Cartpole-Camera",
+            "rsl_rl",
+            "rsl_rl_cfg_entry_point",
+            ["presets=resnet18"],
+            "rsl_rl_feature_cfg_entry_point",
+        ),
+        (
+            "Isaac-Cartpole-Camera",
+            "rl_games",
+            "rl_games_cfg_entry_point",
+            ["presets=theia_tiny"],
+            "rl_games_feature_cfg_entry_point",
+        ),
+        # Rule 2: the task never registers the canonical default, so its sole
+        # entry point is the only possible answer.
+        ("IsaacContrib-Humanoid-AMP-Walk-Direct", "skrl", None, [], "skrl_amp_cfg_entry_point"),
+        # Rule 2 still applies when a preset is active but constrains nothing:
+        # benchmark sweeps broadcast the physics backend through ``presets=``.
+        (
+            "IsaacContrib-Humanoid-AMP-Walk-Direct",
+            "skrl",
+            None,
+            ["presets=newton_mjwarp"],
+            "skrl_amp_cfg_entry_point",
+        ),
+    ],
+)
+def test_setup_preset_cli_auto_selects_agent(clean_argv, task_name, agent_library, agent_default, argv_tail, expected):
+    """A defaulted ``--agent`` is resolved from the task's registered metadata."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = _make_agent_parser(agent_default)
+    args, _ = setup_preset_cli(parser, ["--task", task_name, *argv_tail], agent_library=agent_library)
+    assert args.agent == expected
+
+
+@pytest.mark.parametrize(
+    "argv_tail,expected",
+    [
+        # ``box_box`` is declared by both the canonical default and the explicit
+        # box_box entry point, so no single entry point is implied.
+        (["presets=box_box"], None),
+        # Two presets that no single entry point covers.
+        (["presets=box_discrete,dict_box"], None),
+        # A preset the task does not declare as an agent constraint.
+        (["presets=newton_mjwarp"], None),
+        # An explicit --agent is never overridden.
+        (["presets=box_discrete", "--agent", "skrl_dict_box_cfg_entry_point"], "skrl_dict_box_cfg_entry_point"),
+    ],
+)
+def test_setup_preset_cli_leaves_agent_alone_when_not_implied(clean_argv, argv_tail, expected):
+    """Ambiguous, unconstraining, and user-supplied cases all defer to the caller."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = _make_agent_parser(None)
+    argv = ["--task", "IsaacContrib-Cartpole-Showcase-Direct", *argv_tail]
+    args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
+    assert args.agent == expected
+
+
+def test_setup_preset_cli_auto_select_ignores_unregistered_task(clean_argv):
+    """A bad ``--task`` stays silent here so the caller's own lookup reports it."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = _make_agent_parser(None)
+    args, _ = setup_preset_cli(parser, ["--task", "Isaac-Not-A-Task"], agent_library="skrl")
+    assert args.agent is None
