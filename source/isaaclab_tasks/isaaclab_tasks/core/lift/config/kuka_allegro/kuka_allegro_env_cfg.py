@@ -27,13 +27,6 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thum
 
 
 @configclass
-class KukaAllegroObjectCfg(lift.ObjectCfg):
-    """Object presets supported by the Kuka Allegro tasks."""
-
-    ovphysx = lift.ObjectCfg().cube
-
-
-@configclass
 class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
     """Physics presets supported by the Kuka Allegro tasks."""
 
@@ -60,7 +53,6 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,

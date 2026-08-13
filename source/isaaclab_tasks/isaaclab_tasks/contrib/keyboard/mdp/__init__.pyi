@@ -3,25 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Lift environments.
-
-Task definitions adapted from:
-
-Reorient:
-@article{petrenko2023dexpbt,
-  title={Dexpbt: Scaling up dexterous manipulation for hand-arm systems with population based training},
-  author={Petrenko, Aleksei and Allshire, Arthur and State, Gavriel and Handa, Ankur and Makoviychuk, Viktor},
-  journal={arXiv preprint arXiv:2305.12127},
-  year={2023}
-}
-
-Lift:
-@article{singh2024dextrah,
-  title={Dextrah-rgb: Visuomotor policies to grasp anything with dexterous hands},
-  author={Singh, Ritvik and Allshire, Arthur and Handa, Ankur and Ratliff, Nathan and Van Wyk, Karl},
-  journal={arXiv preprint arXiv:2412.01791},
-  year={2024}
-}
+"""SO-101 keyboard-typing environments.
 
 The MDP implementation is heavily inspired by OmniReset:
 
@@ -32,6 +14,24 @@ The MDP implementation is heavily inspired by OmniReset:
   year={2026},
   url={https://arxiv.org/abs/2603.15789},
 }
-
-
 """
+
+__all__ = [
+    "LetterTypingCommand",
+    "LetterTypingCommandCfg",
+    "letter_typing_progress",
+    "typing_success",
+    "typing_mistake",
+    "typing_complete",
+    "reach_key",
+    "key_positions_b",
+    "target_keys_onehot",
+    "typed_keys_onehot",
+    "mechanical_power",
+]
+
+from .commands import LetterTypingCommand, LetterTypingCommandCfg
+from .observations import key_positions_b, target_keys_onehot, typed_keys_onehot
+from .rewards import letter_typing_progress, mechanical_power, reach_key, typing_success
+from .terminations import typing_complete, typing_mistake
+from isaaclab.envs.mdp import *
