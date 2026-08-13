@@ -81,6 +81,8 @@ class NewtonMPMManager(NewtonManager):
     Set from :attr:`MPMSolverCfg.project_outside_colliders` in
     :meth:`_build_solver` and read in :meth:`_step_solver`.
     """
+    _implicit_mpm_solver_root: object | None = None
+    _implicit_mpm_solver_cache: tuple[SolverImplicitMPM, ...] = ()
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
@@ -197,15 +199,21 @@ class NewtonMPMManager(NewtonManager):
     def _implicit_mpm_solvers(cls) -> tuple[SolverImplicitMPM, ...]:
         """Return direct or coupled implicit-MPM solvers without importing the coupler."""
         root_solver = NewtonManager._solver
+        if root_solver is cls._implicit_mpm_solver_root:
+            return cls._implicit_mpm_solver_cache
         if isinstance(root_solver, SolverImplicitMPM):
-            return (root_solver,)
-        if root_solver is None or not hasattr(root_solver, "entry_names") or not hasattr(root_solver, "solver"):
-            return ()
-        return tuple(
-            entry_solver
-            for name in root_solver.entry_names()
-            if isinstance((entry_solver := root_solver.solver(name)), SolverImplicitMPM)
-        )
+            solvers = (root_solver,)
+        elif root_solver is None or not hasattr(root_solver, "entry_names") or not hasattr(root_solver, "solver"):
+            solvers = ()
+        else:
+            solvers = tuple(
+                entry_solver
+                for name in root_solver.entry_names()
+                if isinstance((entry_solver := root_solver.solver(name)), SolverImplicitMPM)
+            )
+        cls._implicit_mpm_solver_root = root_solver
+        cls._implicit_mpm_solver_cache = solvers
+        return solvers
 
     @classmethod
     def _step_solver(
@@ -304,3 +312,5 @@ class NewtonMPMManager(NewtonManager):
         mirroring how :meth:`NewtonManager.clear` resets the base-class flags.
         """
         cls._project_outside_colliders = False
+        cls._implicit_mpm_solver_root = None
+        cls._implicit_mpm_solver_cache = ()

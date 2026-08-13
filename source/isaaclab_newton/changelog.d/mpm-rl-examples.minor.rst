@@ -12,6 +12,8 @@ Added
 * Added an implicit MPM authoring and tuning guide.
 * Enabled CUDA graph capture for capacity-bounded rebuildable sparse MPM,
   including nested coupled-solver entries.
+* Added a safe copy helper for Newton clone-source builders used by offline IK
+  and collision screening.
 
 Changed
 ^^^^^^^
@@ -31,7 +33,6 @@ Deprecated
 Fixed
 ^^^^^
 
-* Adapted articulation control bindings to Newton's renamed joint-target arrays.
 * Kept kitless MPM particle visuals on their fallback display color when
   Kit-only render materials are unavailable.
 * Fixed stale solver-owned history during task-driven resets on both active

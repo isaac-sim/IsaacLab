@@ -138,13 +138,6 @@ def lost_lifted_grasp(
         & gripper.bilateral_contact
     )
     lifted_grasp = bilateral_grasp & (cup_lift >= max(float(env.cfg.success_min_lift_height), 1.0e-6))
-    episode_latches = (
-        (env._episode_reached_grasp_point, reached_grasp),
-        (env._episode_bilateral_grasp, bilateral_grasp),
-        (env._episode_lifted_grasp, lifted_grasp),
-    )
-    for latch, milestone in episode_latches:
-        latch |= milestone
     env._lifted_grasp_seen |= lifted_grasp
     lost = env._lifted_grasp_seen & ~bilateral_grasp
     dwell_steps = max(1, math.ceil(float(dwell_time_s) / max(float(env.step_dt), 1.0e-6)))

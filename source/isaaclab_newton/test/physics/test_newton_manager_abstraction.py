@@ -734,27 +734,70 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
 
 
 @pytest.mark.parametrize(
-    ("grid_type", "max_active_cell_count", "expected"),
+    ("overrides", "expected"),
     [
-        pytest.param("fixed", -1, True, id="fixed"),
-        pytest.param("sparse", 1024, True, id="bounded_sparse"),
-        pytest.param("sparse", -1, False, id="unbounded_sparse"),
-        pytest.param("dense", -1, False, id="dense"),
+        pytest.param({"grid_type": "fixed"}, True, id="fixed"),
+        pytest.param({}, True, id="bounded_sparse"),
+        pytest.param({"max_active_cell_count": -1}, False, id="unbounded_sparse"),
+        pytest.param({"grid_type": "dense"}, False, id="dense"),
+        pytest.param({"grid_padding": 1}, False, id="padded_sparse"),
+        pytest.param({"velocity_basis": "P0"}, False, id="velocity_basis"),
+        pytest.param({"strain_basis": "GIMP"}, False, id="strain_basis"),
+        pytest.param({"collider_basis": "GIMP"}, False, id="collider_basis"),
     ],
 )
-def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, grid_type, max_active_cell_count, expected):
+def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, overrides, expected):
     """Only fixed and capacity-bounded rebuildable sparse grids support outer capture."""
-    solver = SimpleNamespace(
-        grid_type=grid_type,
-        max_active_cell_count=max_active_cell_count,
-        grid_padding=0,
-        velocity_basis="Q1",
-        strain_basis="P0",
-        collider_basis="S2",
-    )
+    values = {
+        "grid_type": "sparse",
+        "max_active_cell_count": 1024,
+        "grid_padding": 0,
+        "velocity_basis": "Q1",
+        "strain_basis": "P0",
+        "collider_basis": "S2",
+    }
+    solver = SimpleNamespace(**(values | overrides))
     monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
 
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
+
+
+def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
+    """Sparse-grid asynchronous failures are queried only after graph replay."""
+    calls = []
+    solver = SimpleNamespace(check_sparse_grid_rebuild_status=lambda: calls.append("check"))
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
+    monkeypatch.setattr(NewtonManager, "_graph", None)
+
+    NewtonMPMManager._check_solver_status()
+    monkeypatch.setattr(NewtonManager, "_graph", object())
+    NewtonMPMManager._check_solver_status()
+
+    assert calls == ["check"]
+
+
+def test_nested_mpm_solver_discovery_is_cached(monkeypatch):
+    """A coupled solver's immutable entry table is traversed only once per solver instance."""
+    mpm_solver = object.__new__(SolverImplicitMPM)
+
+    class CoupledSolver:
+        calls = 0
+
+        def entry_names(self):
+            self.calls += 1
+            return ("media",)
+
+        def solver(self, _name):
+            return mpm_solver
+
+    root = CoupledSolver()
+    monkeypatch.setattr(NewtonManager, "_solver", root)
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solver_root", None)
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solver_cache", ())
+
+    assert NewtonMPMManager._implicit_mpm_solvers() == (mpm_solver,)
+    assert NewtonMPMManager._implicit_mpm_solvers() == (mpm_solver,)
+    assert root.calls == 1
 
 
 def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch):

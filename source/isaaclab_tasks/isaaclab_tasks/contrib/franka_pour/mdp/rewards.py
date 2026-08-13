@@ -90,16 +90,8 @@ def _grasp_lift_potential(
     grasp_reach_std: float,
     grasp_preload_position: float,
     grasp_fraction: float,
-    capture_orientation_tolerance: float | None = None,
-    capture_intent_gain: float = 1.0,
 ) -> torch.Tensor:
-    """Return bounded capture, contact-qualified grasp, and lift completion in ``[0, 1]``.
-
-    When ``capture_orientation_tolerance`` is enabled, a compact grasp-pose gate gives reversible
-    credit to a close command before contact is established. This bridges filtered binary-gripper
-    exploration without rewarding empty-hand closure away from the cup. Physical contact remains
-    mandatory for lift completion.
-    """
+    """Return bounded contact-qualified grasp and lift completion in ``[0, 1]``."""
     distance = torch.linalg.vector_norm(env.tcp_pose_e()[:, :3] - env.cup_grasp_point_e(), dim=-1)
     proximity = torch.clamp(1.0 - distance / float(grasp_reach_std), 0.0, 1.0)
     # Smoothstep has compact support: proximity is zero outside grasp_reach_std.
@@ -110,34 +102,7 @@ def _grasp_lift_potential(
         0.0,
         1.0,
     )
-    if capture_orientation_tolerance is None:
-        # Preserve operation order in the no-orientation branch for numerical compatibility.
-        potential = held * (float(grasp_fraction) + (1.0 - float(grasp_fraction)) * height)
-        return torch.nan_to_num(potential, nan=0.0, posinf=1.0, neginf=0.0).clamp_(0.0, 1.0)
-
-    orientation_error = torch.linalg.vector_norm(
-        math_utils.axis_angle_from_quat(_nearest_grasp_to_tcp_quat(env)),
-        dim=-1,
-    )
-    orientation_proximity = torch.clamp(
-        1.0 - orientation_error / float(capture_orientation_tolerance),
-        0.0,
-        1.0,
-    )
-    orientation_proximity = orientation_proximity.square() * (3.0 - 2.0 * orientation_proximity)
-    gripper = env.action_manager.get_term("gripper_action")
-    command = gripper.commanded_position[:, 0]
-    open_position = 0.5 * env._gripper_open_width
-    preload_travel = max(open_position - float(grasp_preload_position), 1.0e-4)
-    commanded_close = torch.clamp((open_position - command) / preload_travel, 0.0, 1.0)
-    # Map commanded_close monotonically to [0, 1] while increasing sensitivity near zero.
-    shaped_close = 1.0 - torch.pow(1.0 - commanded_close, float(capture_intent_gain))
-    intent = proximity * orientation_proximity * shaped_close
-    # A probabilistic union hands the potential continuously from commanded capture to actual
-    # contact. Once held reaches one it dominates regardless of the command-intent value.
-    capture = held + (1.0 - held) * intent
-    potential = float(grasp_fraction) * capture
-    potential += (1.0 - float(grasp_fraction)) * held * height
+    potential = held * (float(grasp_fraction) + (1.0 - float(grasp_fraction)) * height)
     return torch.nan_to_num(potential, nan=0.0, posinf=1.0, neginf=0.0).clamp_(0.0, 1.0)
 
 
@@ -156,8 +121,6 @@ def _reset_dataset_physical_potential(
     alignment_std: float,
     tilt_alignment_radius: float,
     target_tilt: float,
-    capture_orientation_tolerance: float | None = None,
-    capture_intent_gain: float = 1.0,
 ) -> torch.Tensor:
     """Return one label-free physical potential spanning the reset dataset."""
     approach = tcp_cup_grasp_pose_tanh(
@@ -172,20 +135,7 @@ def _reset_dataset_physical_potential(
         grasp_reach_std=grasp_reach_std,
         grasp_preload_position=grasp_preload_position,
         grasp_fraction=grasp_fraction,
-        capture_orientation_tolerance=capture_orientation_tolerance,
-        capture_intent_gain=capture_intent_gain,
     )
-    held_grasp_lift = grasp_lift
-    if capture_orientation_tolerance is not None:
-        # Capture intent belongs only to the grasp component. Receiver alignment and tilt must
-        # remain unreachable until the fingers establish a physical, contact-qualified hold.
-        held_grasp_lift = _grasp_lift_potential(
-            env,
-            target_height=grasp_target_height,
-            grasp_reach_std=grasp_reach_std,
-            grasp_preload_position=grasp_preload_position,
-            grasp_fraction=grasp_fraction,
-        )
     source_pose = env.cup_pose_e()
     target_pose = env.target_pose_e()
     local_mouth = torch.zeros_like(source_pose[:, :3])
@@ -198,7 +148,7 @@ def _reset_dataset_physical_potential(
     clearance = mouth_position[:, 2] - target_rim_position[:, 2]
     clearance_quality = torch.clamp(clearance / float(target_clearance_height), 0.0, 1.0)
     alignment_quality = 1.0 - torch.tanh(target_distance_xy / float(alignment_std))
-    alignment = held_grasp_lift * clearance_quality * alignment_quality
+    alignment = grasp_lift * clearance_quality * alignment_quality
 
     local_open_axis = torch.zeros_like(source_pose[:, :3])
     local_open_axis[:, 2] = 1.0
@@ -207,7 +157,7 @@ def _reset_dataset_physical_potential(
     tilt_quality = torch.clamp(tilt_angle / float(target_tilt), 0.0, 1.0)
     proximity = torch.clamp(1.0 - target_distance_xy / float(tilt_alignment_radius), 0.0, 1.0)
     tilt_alignment = proximity.square() * (3.0 - 2.0 * proximity)
-    tilt = held_grasp_lift * clearance_quality * tilt_alignment * tilt_quality
+    tilt = grasp_lift * clearance_quality * tilt_alignment * tilt_quality
 
     # These coefficients form one bounded potential rather than four independently collectable
     # state rewards. Discounted differences therefore repay reversals and cannot be accumulated by
@@ -249,7 +199,7 @@ class PourResetLearningProgress(ManagerTermBase):
         params = dict(params)
         params.pop("minimum_progress", None)
         params.pop("minimum_episode_steps", None)
-        # Omit capture-intent parameters so advancement requires contact-qualified deflection.
+        # Ignore legacy capture-intent keys; progress has always required physical contact.
         params.pop("capture_orientation_tolerance", None)
         params.pop("capture_intent_gain", None)
         return params

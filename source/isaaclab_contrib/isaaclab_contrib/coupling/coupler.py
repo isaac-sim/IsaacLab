@@ -218,6 +218,12 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonMPMManager._check_solver_status()
 
     @classmethod
+    def _solver_specific_clear(cls) -> None:
+        """Clear VBD hooks and cached nested-MPM solver references."""
+        super()._solver_specific_clear()
+        NewtonMPMManager._solver_specific_clear()
+
+    @classmethod
     def _requires_initial_reset_before_graph_capture(cls) -> bool:
         """Capture coupled MPM only after the task authors its initial particle state."""
         return bool(NewtonMPMManager._implicit_mpm_solvers())

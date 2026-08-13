@@ -14,13 +14,14 @@ import newton
 import torch
 import torch.nn.functional as F
 import warp as wp
+from isaaclab_newton.cloner import copy_newton_clone_source
 from isaaclab_newton.ik import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
     NewtonIKSolver,
     NewtonIKSolverCfg,
 )
-from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
+from isaaclab_newton.physics import NewtonMPMManager
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -184,15 +185,15 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         self._particle_reset_template_e = (
             self._media.data.default_particle_state_w.torch[..., :3] - self.scene.env_origins[:, None, :]
         ).clone()
-        self._bin_fraction = torch.zeros(self.num_envs, device=self.device)
-        self._spill_fraction = torch.zeros_like(self._bin_fraction)
+        self.bin_fraction = torch.zeros(self.num_envs, device=self.device)
+        self.spill_fraction = torch.zeros_like(self.bin_fraction)
         self._success_streak = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._success_this_step = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._transport_progress = torch.zeros_like(self._bin_fraction)
-        self._rms_particle_speed = torch.zeros_like(self._bin_fraction)
-        self._invalid_state = torch.zeros_like(self._success_this_step)
-        self._escaped_workspace = torch.zeros_like(self._success_this_step)
-        self._excessive_spill = torch.zeros_like(self._success_this_step)
+        self.success_this_step = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.transport_progress = torch.zeros_like(self.bin_fraction)
+        self._rms_particle_speed = torch.zeros_like(self.bin_fraction)
+        self.invalid_state = torch.zeros_like(self.success_this_step)
+        self.escaped_workspace = torch.zeros_like(self.success_this_step)
+        self.excessive_spill = torch.zeros_like(self.success_this_step)
         self._task_state_step = -1
 
         height, width = self.cfg.heightmap_shape
@@ -340,13 +341,13 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
                 device=validation_model.device,
             )
             collision_free[:, candidate_index] = wp.to_torch(colliding_worlds) == 0
-        wp.synchronize_device(validation_model.device)
-        generated_contact_count = int(wp.to_torch(contacts.rigid_contact_count)[0])
-        if generated_contact_count > contacts.rigid_contact_max:
-            raise RuntimeError(
-                f"Reset validation generated {generated_contact_count} contacts for capacity "
-                f"{contacts.rigid_contact_max}."
-            )
+            wp.synchronize_device(validation_model.device)
+            generated_contact_count = int(wp.to_torch(contacts.rigid_contact_count)[0])
+            if generated_contact_count > contacts.rigid_contact_max:
+                raise RuntimeError(
+                    f"Reset validation generated {generated_contact_count} contacts for capacity "
+                    f"{contacts.rigid_contact_max}."
+                )
         return collision_free
 
     def _solve_reset_joint_positions(
@@ -372,9 +373,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         prototype_origin = -self.scene.env_origins[0]
         prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
 
-        source_builder = NewtonManager._cl_protos[source_path]
-        prototype_builder = newton.ModelBuilder(up_axis=source_builder.up_axis)
-        prototype_builder.add_builder(source_builder, xform=prototype_xform)
+        prototype_builder = copy_newton_clone_source(source_path, xform=prototype_xform)
         model = prototype_builder.finalize(device=self.device)
 
         ee_matches = [
@@ -502,34 +501,6 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         """Arm joint-delta action term."""
         return self.action_manager.get_term("arm_action")
 
-    @property
-    def bin_fraction(self) -> torch.Tensor:
-        return self._bin_fraction
-
-    @property
-    def spill_fraction(self) -> torch.Tensor:
-        return self._spill_fraction
-
-    @property
-    def transport_progress(self) -> torch.Tensor:
-        return self._transport_progress
-
-    @property
-    def invalid_state(self) -> torch.Tensor:
-        return self._invalid_state
-
-    @property
-    def escaped_workspace(self) -> torch.Tensor:
-        return self._escaped_workspace
-
-    @property
-    def excessive_spill(self) -> torch.Tensor:
-        return self._excessive_spill
-
-    @property
-    def success_this_step(self) -> torch.Tensor:
-        return self._success_this_step
-
     def update_task_state(self) -> None:
         """Update shared termination, reward, and critic metrics once per policy step."""
         if self._task_state_step == self.common_step_counter:
@@ -555,9 +526,9 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         particle_speed = torch.linalg.vector_norm(safe_velocity_e, dim=-1)
         self._rms_particle_speed = torch.sqrt(torch.square(particle_speed).mean(dim=1))
 
-        self._bin_fraction, self._spill_fraction = mdp.compute_particle_metrics(safe_position_e, self.cfg)
-        self._excessive_spill = self._spill_fraction > self.cfg.failure_max_spill_fraction
-        self._transport_progress = mdp.compute_transport_progress(
+        self.bin_fraction, self.spill_fraction = mdp.compute_particle_metrics(safe_position_e, self.cfg)
+        self.excessive_spill = self.spill_fraction > self.cfg.failure_max_spill_fraction
+        self.transport_progress = mdp.compute_transport_progress(
             safe_position_e,
             self.cfg,
             self._episode_start_centroid_x,
@@ -569,7 +540,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             .float()
             .mean(dim=1)
         )
-        self._escaped_workspace = escaped_particle_fraction > self.cfg.max_escaped_particle_fraction
+        self.escaped_workspace = escaped_particle_fraction > self.cfg.max_escaped_particle_fraction
         safe_ee_pose_w = torch.nan_to_num(ee_pose_w, nan=0.0, posinf=10.0, neginf=-10.0)
         joint_limits = self._robot.data.soft_joint_pos_limits.torch[:, self._joint_ids]
         joint_position_in_bounds = (
@@ -590,20 +561,20 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             & ee_linear_velocity_in_bounds
             & ee_angular_velocity_in_bounds
         )
-        self._invalid_state = ~(finite_particles & finite_robot & valid_quaternion & bounded_robot)
-        self._invalid_state |= self.arm_action.invalid_actions
-        self._success_streak, self._success_this_step = mdp.update_success_streak(
+        self.invalid_state = ~(finite_particles & finite_robot & valid_quaternion & bounded_robot)
+        self.invalid_state |= self.arm_action.invalid_actions
+        self._success_streak, self.success_this_step = mdp.update_success_streak(
             self._success_streak,
-            self._bin_fraction,
-            self._spill_fraction,
+            self.bin_fraction,
+            self.spill_fraction,
             success_fraction=self.cfg.success_fraction,
             max_spill_fraction=self.cfg.success_max_spill_fraction,
             dwell_steps=self._success_dwell_steps,
         )
         # Terminate successful episodes or states that violate the numerical-safety envelope.
-        unsafe = self._invalid_state | self._escaped_workspace | self._excessive_spill
+        unsafe = self.invalid_state | self.escaped_workspace | self.excessive_spill
         self._success_streak = torch.where(unsafe, torch.zeros_like(self._success_streak), self._success_streak)
-        self._success_this_step &= ~unsafe
+        self.success_this_step &= ~unsafe
         self._task_state_step = self.common_step_counter
 
     def policy_observation(self) -> torch.Tensor:
@@ -732,12 +703,12 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         )
         privileged = torch.cat(
             (
-                self._bin_fraction[:, None],
-                self._spill_fraction[:, None],
+                self.bin_fraction[:, None],
+                self.spill_fraction[:, None],
                 normalized_centroid.clamp(-2.0, 2.0),
                 (centroid_velocity / self._particle_max_velocity).clamp(-1.0, 1.0),
                 (self._rms_particle_speed / self.cfg.success_max_rms_particle_speed).clamp(0.0, 4.0)[:, None],
-                self._transport_progress[:, None],
+                self.transport_progress[:, None],
                 (self._success_streak.float() / self._success_dwell_steps).clamp(0.0, 1.0)[:, None],
             ),
             dim=-1,
@@ -836,17 +807,17 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             self.cfg,
             start_centroid_x,
         )
-        self._bin_fraction[env_ids] = bin_fraction
-        self._spill_fraction[env_ids] = spill_fraction
+        self.bin_fraction[env_ids] = bin_fraction
+        self.spill_fraction[env_ids] = spill_fraction
         self._episode_start_centroid_x[env_ids] = start_centroid_x
-        self._transport_progress[env_ids] = transport_progress
+        self.transport_progress[env_ids] = transport_progress
 
         self._success_streak[env_ids] = 0
-        self._success_this_step[env_ids] = False
+        self.success_this_step[env_ids] = False
         self._rms_particle_speed[env_ids] = 0.0
-        self._invalid_state[env_ids] = False
-        self._escaped_workspace[env_ids] = False
-        self._excessive_spill[env_ids] = False
+        self.invalid_state[env_ids] = False
+        self.escaped_workspace[env_ids] = False
+        self.excessive_spill[env_ids] = False
         if self.cfg.heightmap_xy_noise_std > 0.0:
             offset = torch.randn((reset_count, 2), device=self.device) * self.cfg.heightmap_xy_noise_std
             self._heightmap_xy_offset[env_ids] = offset.clamp(

@@ -754,11 +754,6 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         numbers(potential, ("grasp_preload_position",))
         numbers(potential, ("approach_open_hand_fraction", "grasp_fraction"), 0.0, 1.0)
         numbers(potential, ("target_tilt",), 0.0, math.pi, lower_open=True, upper_open=True)
-        tolerance = potential.get("capture_orientation_tolerance")
-        if tolerance is not None:
-            numbers(potential, ("capture_orientation_tolerance",), 0.0, math.pi, lower_open=True)
-        if "capture_intent_gain" in potential:
-            numbers(potential, ("capture_intent_gain",), 0.0, lower_open=True)
 
     def _validate_reset_dataset_values(self) -> None:
         """Validate the external reset-dataset and sampler contract."""

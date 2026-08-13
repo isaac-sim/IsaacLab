@@ -41,6 +41,7 @@ from isaaclab_contrib.coupling import (
     coupler,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 @dataclass
@@ -533,6 +534,25 @@ def test_mpm_grid_controls_coupled_cuda_graph_support(monkeypatch, grid_type, ma
 
     assert NewtonCouplerManager._supports_cuda_graph_capture() is expected
     assert NewtonCouplerManager._requires_initial_reset_before_graph_capture() is True
+
+
+def test_coupler_clear_releases_nested_manager_state(monkeypatch):
+    """Coupler cleanup must release state owned by both nested manager families."""
+    events = []
+    monkeypatch.setattr(
+        NewtonVBDManager,
+        "_solver_specific_clear",
+        classmethod(lambda cls: events.append("vbd")),
+    )
+    monkeypatch.setattr(
+        coupler.NewtonMPMManager,
+        "_solver_specific_clear",
+        classmethod(lambda cls: events.append("mpm")),
+    )
+
+    NewtonCouplerManager._solver_specific_clear()
+
+    assert events == ["vbd", "mpm"]
 
 
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):

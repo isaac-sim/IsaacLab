@@ -41,7 +41,7 @@ from .geometry import (
     points_inside_box,
 )
 from .pour_env_cfg import _configure_mpm_capacities
-from .reset_dataset_io import reset_dataset_validate_runtime
+from .reset_dataset_io import RESET_DATASET_STATE_NAMES, reset_dataset_validate_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -56,22 +56,6 @@ if TYPE_CHECKING:
 ARM_JOINTS = [f"panda_joint{i}" for i in range(1, 8)]
 FINGER_JOINTS = ["panda_finger_joint1", "panda_finger_joint2"]
 GRASPING_CATEGORY = 1
-_RESET_DATASET_STATE_NAMES = (
-    "arm_joint_position",
-    "arm_joint_velocity",
-    "finger_joint_position",
-    "finger_joint_velocity",
-    "finger_joint_target",
-    "source_root_pose",
-    "source_root_velocity",
-    "target_root_pose",
-    "target_root_velocity",
-    "category",
-    "objective",
-    "reset_region",
-    "difficulty",
-    "particle_layout_id",
-)
 # The SeattleLab tabletop collision cube ends 3 mm below the task's z=0 support plane.
 _SEATTLELAB_TABLETOP_COLLISION_INSET = 0.003
 
@@ -454,9 +438,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self.episode_succeeded = torch.zeros(self.num_envs, device=dev, dtype=torch.bool)
         self._success_dwell_count = torch.zeros(self.num_envs, device=dev, dtype=torch.long)
         self._lost_grasp_dwell_count = torch.zeros(self.num_envs, device=dev, dtype=torch.long)
-        self._episode_reached_grasp_point = torch.zeros(self.num_envs, device=dev, dtype=torch.bool)
-        self._episode_bilateral_grasp = torch.zeros_like(self._episode_reached_grasp_point)
-        self._episode_lifted_grasp = torch.zeros_like(self._episode_reached_grasp_point)
         self._lifted_grasp_seen = torch.zeros(self.num_envs, device=dev, dtype=torch.bool)
         self._source_inner_lo_t = torch.as_tensor(self._source_inner_lo, device=dev)
         self._source_inner_hi_t = torch.as_tensor(self._source_inner_hi, device=dev)
@@ -489,7 +470,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             )
 
         self._reset_dataset_states = {
-            name: states[name].to(device=self.device, non_blocking=True) for name in _RESET_DATASET_STATE_NAMES
+            name: states[name].to(device=self.device, non_blocking=True) for name in RESET_DATASET_STATE_NAMES
         }
         self._reset_dataset_particle_local_position = local_position
         self._reset_dataset_particle_local_velocity = local_velocity
@@ -656,9 +637,6 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self.episode_succeeded[env_ids] = False
         self._success_dwell_count[env_ids] = 0
         self._lost_grasp_dwell_count[env_ids] = 0
-        self._episode_reached_grasp_point[env_ids] = False
-        self._episode_bilateral_grasp[env_ids] = False
-        self._episode_lifted_grasp[env_ids] = False
         # Seed the dropped-grasp latch for validated grasp rows; non-grasp rows start clear.
         self._lifted_grasp_seen[env_ids] = states["category"][rows] == GRASPING_CATEGORY
 

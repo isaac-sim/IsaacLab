@@ -15,7 +15,6 @@ rigid reset states that the environment expands when an episode starts.
 from __future__ import annotations
 
 import argparse
-import copy
 import math
 import os
 import tempfile
@@ -27,6 +26,7 @@ from typing import Any
 import newton
 import torch
 import warp as wp
+from isaaclab_newton.cloner import copy_newton_clone_source
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import math as math_utils
@@ -50,6 +50,7 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
 from isaaclab_tasks.contrib.franka_pour.reset_dataset_io import (
     FRANKA_POUR_RESET_DATASET_FORMAT,
     FRANKA_POUR_RESET_DATASET_SCHEMA_VERSION,
+    RESET_DATASET_STATE_NAMES,
     reset_dataset_content_digest,
     reset_dataset_validate_runtime,
 )
@@ -134,22 +135,6 @@ _NEAR_GOAL_SAMPLING = {
     _QUICK: ("goal", (0.0, 0.5), (0.0, 0.6), True),
     _IMMEDIATE: ("goal", (0.0, 0.015), (0.2, 1.0), False),
 }
-_OUTPUT_STATE_KEYS = (
-    "arm_joint_position",
-    "arm_joint_velocity",
-    "finger_joint_position",
-    "finger_joint_velocity",
-    "finger_joint_target",
-    "source_root_pose",
-    "source_root_velocity",
-    "target_root_pose",
-    "target_root_velocity",
-    "category",
-    "objective",
-    "reset_region",
-    "difficulty",
-    "particle_layout_id",
-)
 
 
 @dataclass(frozen=True)
@@ -319,22 +304,6 @@ class _GeneratorEnv(FrankaPourEnv):
         self.recorder_manager = None
         self.action_manager = None
         self.observation_manager = None
-
-
-def _clone_source_builder(source_path: str) -> newton.ModelBuilder:
-    """Copy one cloner-owned prototype without mutating its retained geometry."""
-    from isaaclab_newton.physics import NewtonManager
-
-    prototype = NewtonManager._cl_protos.get(source_path)
-    if prototype is None:
-        raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
-    builder = newton.ModelBuilder(up_axis=prototype.up_axis)
-    builder.add_builder(prototype)
-    builder.shape_source = [
-        source.copy() if callable(getattr(source, "copy", None)) else copy.copy(source)
-        for source in builder.shape_source
-    ]
-    return builder
 
 
 _TABLE_TEST_BODIES = {
@@ -662,7 +631,7 @@ class _Generator:
         resolved = cloner.query.path_to_source(plan, self.env._robot.cfg.prim_path) if plan is not None else None
         if resolved is None:
             raise RuntimeError("Could not resolve the Franka clone-plan source.")
-        source_builder = _clone_source_builder(resolved[0])
+        source_builder = copy_newton_clone_source(resolved[0])
         prototype_origin = -self.env.env_origins[0]
         prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
         self.prototype = newton.ModelBuilder(up_axis=source_builder.up_axis)
@@ -672,7 +641,7 @@ class _Generator:
             table_resolved = cloner.query.path_to_source(plan, table_path)
             if table_resolved is None:
                 raise RuntimeError("Could not resolve the SeattleLab table clone-plan source.")
-            self.prototype.add_builder(_clone_source_builder(table_resolved[0]), xform=prototype_xform)
+            self.prototype.add_builder(copy_newton_clone_source(table_resolved[0]), xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
             raise RuntimeError("The reset generator requires the SeattleLab table collision geometry.")
         self.support_lower, self.support_upper = _tabletop_bounds(self.env, resolved[0])
@@ -776,7 +745,7 @@ class _Generator:
             attempts = self.attempt_counts[category] - before
             print(f"[RESET GENERATION] {_PHASE_NAMES[phase]}: accepted {required}/{attempts}", flush=True)
 
-        names = set(_OUTPUT_STATE_KEYS) | {"_objective_raw", "_difficulty_raw", "_phase"}
+        names = set(RESET_DATASET_STATE_NAMES) | {"_objective_raw", "_difficulty_raw", "_phase"}
         states = {name: torch.cat([part[name] for part in parts], dim=0) for name in names}
         grasping = states["category"] == _GRASPING
         raw_objective = states.pop("_objective_raw")
@@ -787,7 +756,7 @@ class _Generator:
         states["objective"][grasping] = (grasp_raw - grasp_raw.min()) / span
         states["difficulty"] = _normalize_progress(states.pop("_difficulty_raw"), states.pop("_phase"))
         permutation = torch.randperm(len(states["category"]), device=self.device, generator=self.random)
-        cpu_states = {name: states[name][permutation].detach().cpu().contiguous() for name in _OUTPUT_STATE_KEYS}
+        cpu_states = {name: states[name][permutation].detach().cpu().contiguous() for name in RESET_DATASET_STATE_NAMES}
 
         task_contract = _reset_dataset_task_contract(self.task_cfg)
         metadata = {
@@ -856,7 +825,7 @@ class _Generator:
                     {
                         key: value[keep].detach().clone()
                         for key, value in proposal.items()
-                        if key in _OUTPUT_STATE_KEYS or key in {"_objective_raw", "_difficulty_raw", "_phase"}
+                        if key in RESET_DATASET_STATE_NAMES or key in {"_objective_raw", "_difficulty_raw", "_phase"}
                     }
                 )
                 accepted_count += int(keep.sum())
@@ -964,15 +933,9 @@ class _Generator:
                 finger_target = finger_position.clone()
             finger_position[:, 1] = finger_position[:, 0]
 
-        (
-            robot_q,
-            ik_cost,
-            position_residual,
-            rotation_residual,
-            actual_tcp_position,
-            actual_tcp_quaternion,
-            ik_valid,
-        ) = self._solve_ik(tcp_position, tcp_quaternion, finger_position)
+        robot_q, actual_tcp_position, actual_tcp_quaternion, ik_valid = self._solve_ik(
+            tcp_position, tcp_quaternion, finger_position
+        )
         source_pose = torch.cat((source_position, source_quaternion), dim=-1)
         target_pose = torch.cat((target_position, target_quaternion), dim=-1)
         objective_raw = torch.full((count,), -1.0, device=self.device)
@@ -1016,9 +979,6 @@ class _Generator:
             "_phase": torch.full((count,), phase, device=self.device, dtype=torch.int8),
             "_grasp_side": grasp_side,
             "_robot_q": robot_q,
-            "_ik_cost": ik_cost,
-            "_ik_position_residual": position_residual,
-            "_ik_rotation_residual": rotation_residual,
             "_ik_valid": ik_valid,
             "_tcp_position": actual_tcp_position,
             "_tcp_quaternion": actual_tcp_quaternion,
@@ -1026,7 +986,7 @@ class _Generator:
 
     def _solve_ik(
         self, tcp_position: torch.Tensor, tcp_quaternion: torch.Tensor, finger_position: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         count = len(tcp_position)
         if count < self.cfg.batch_size:
             padding = self.cfg.batch_size - count
@@ -1079,37 +1039,14 @@ class _Generator:
             self.tcp_offset_position.expand(count, -1),
             self.tcp_offset_quaternion.expand(count, -1),
         )
-        return (
-            solved,
-            costs[rows, selected].clone(),
-            position_residuals[rows, selected].clone(),
-            rotation_residuals[rows, selected].clone(),
-            actual_position,
-            actual_quaternion,
-            valid[rows],
-        )
+        return solved, actual_position, actual_quaternion, valid[rows]
 
     def _validate(self, proposal: dict[str, torch.Tensor], category: int) -> torch.Tensor:
         count = len(proposal["category"])
         phase = int(proposal["_phase"][0])
         spec = _PHASES[phase]
         valid = torch.ones(count, device=self.device, dtype=torch.bool)
-        arm_q = proposal["arm_joint_position"]
-        arm_margin = torch.minimum(arm_q - self.arm_limits[:, 0], self.arm_limits[:, 1] - arm_q).amin(-1)
-        checks = (
-            ("ik_no_valid_seed", proposal["_ik_valid"]),
-            ("ik_nonfinite", torch.isfinite(proposal["_robot_q"]).all(-1) & torch.isfinite(proposal["_ik_cost"])),
-            ("ik_cost", proposal["_ik_cost"] <= self.cfg.ik_max_cost),
-            ("ik_joint_limit", arm_margin >= self.cfg.ik_joint_margin),
-            ("ik_position_residual", proposal["_ik_position_residual"] <= self.cfg.ik_max_position_residual),
-            ("ik_rotation_residual", proposal["_ik_rotation_residual"] <= self.cfg.ik_max_rotation_residual),
-            (
-                "ik_discontinuity",
-                torch.linalg.vector_norm(arm_q - self.arm_home, dim=-1) <= self.cfg.ik_max_home_distance,
-            ),
-        )
-        for reason, check in checks:
-            valid = self._reject(valid, check, category, reason)
+        valid = self._reject(valid, proposal["_ik_valid"], category, "invalid_ik")
 
         source_pose = proposal["source_root_pose"]
         target_pose = proposal["target_root_pose"]

@@ -33,6 +33,7 @@ _STATE_TENSOR_SPECS = {
     "difficulty": (torch.float32, ()),
     "particle_layout_id": (torch.int32, ()),
 }
+RESET_DATASET_STATE_NAMES = tuple(_STATE_TENSOR_SPECS)
 
 
 class _HashWriter:
