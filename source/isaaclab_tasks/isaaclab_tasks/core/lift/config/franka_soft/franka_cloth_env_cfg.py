@@ -10,6 +10,7 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
@@ -91,8 +92,9 @@ class PhysicsCfg(PresetCfg):
     )
 
     isaacsim_physx: PhysxCfg = PhysxCfg(gpu_found_lost_pairs_capacity=2**22)
+    ovphysx: OvPhysxCfg = OvPhysxCfg(gpu_found_lost_pairs_capacity=2**22)
 
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -154,6 +156,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
     isaacsim_physx = physx
+    ovphysx = physx
 
     default = newton_mjwarp_vbd_proxy
 
@@ -184,9 +187,10 @@ class FrankaClothScenePresetCfg(PresetCfg):
         num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
-    # PhysX does not support replicating physics for deformable objects
+    # Isaac Sim PhysX does not support replicating physics for deformable objects
     physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
+    ovphysx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -207,6 +211,9 @@ class FrankaClothCameraScenePresetCfg(PresetCfg):
     )
     physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
     isaacsim_physx = physx
+    ovphysx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
     default = newton_mjwarp_vbd_proxy
 
 
