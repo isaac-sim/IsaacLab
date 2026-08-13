@@ -5,32 +5,45 @@
 
 """Regression test: visualization markers must appear in Newton GL render_rgb_array() output.
 
-NewtonGLVisualizer.render_rgb_array() is used for headless video recording (``--video``).
-The interactive step() path logs visualization markers (goal poses, command arrows, etc.)
-on every frame, but the capture path previously skipped them, producing videos where
-debug geometry visible in the live viewer was absent from recordings.
+**Original bug**: ``NewtonGLVisualizer.render_rgb_array()`` (used for ``--video`` recording)
+only logged the physics body state between ``begin_frame`` and ``end_frame``.  The
+interactive ``step()`` path also calls ``render_newton_visualization_markers()`` each frame,
+which logs velocity arrows, goal poses, contact indicators, and all other debug geometry.
+Recorded videos therefore showed the raw scene without any of the overlays visible in the
+live viewer — most noticeably in reorientation tasks where the goal-cube marker is the only
+cue for what the policy is tracking.
 
-This test verifies the fix by:
-1. Creating an AnymalD env with command-velocity arrows enabled (``debug_vis=True``).
-2. Running enough physics steps for markers to be logged.
-3. Capturing two video sequences via ``render_rgb_array()``:
-   - Without markers: ``enable_markers=False`` — simulates the broken capture path.
-   - With markers: ``enable_markers=True`` — the fixed capture path.
-4. Saving both videos to ``tests/comparison-images/`` for visual inspection.
-5. Asserting the frames differ by at least ``_MIN_DIFF_PCT`` of pixels — markers add
-   visible colored geometry that exceeds this threshold when present.
+**Fix**: add the ``render_newton_visualization_markers()`` call inside ``render_rgb_array()``,
+gated on ``cfg.enable_markers`` so callers that deliberately disable markers still get a
+clean frame.
 
-When the marker logging call in ``render_rgb_array()`` is absent, both frames are
-identical (no markers on either path) and the test fails.
+This test verifies the fix using the AnymalD flat environment, which has command-velocity
+arrow markers enabled by default (``debug_vis=True``).  The arrows are logged as Newton
+visualization markers on every physics step via the command manager debug-vis callback.
+
+The assertion uses ``unittest.mock.patch`` to spy on ``render_newton_visualization_markers``
+because Newton's viewer persists mesh state between frames: once arrows are logged during
+warmup they remain visible in subsequent frames even if the logging call is skipped.
+Spying on the call directly verifies that the fix invokes the function when
+``enable_markers=True`` and skips it when ``enable_markers=False``.
+
+Two MP4 videos are also saved to ``tests/comparison-images/`` on every run for visual
+inspection using ``ffmpeg`` (independent of Isaac Sim's bundled imageio):
+
+* ``newton_markers_video_capture-without_markers.mp4`` — ``enable_markers=False`` path.
+* ``newton_markers_video_capture-with_markers.mp4``    — ``enable_markers=True`` path.
 """
 
 import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
@@ -46,32 +59,41 @@ _viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
 pytestmark = pytest.mark.isaacsim_ci
 
-# Fraction of pixels that must differ between the with-markers and without-markers
-# frames for the test to confirm markers are visible.  Command-velocity arrows on
-# AnymalD are large colored overlays; even a loose 0.5% threshold is well exceeded
-# when they are present.
-_MIN_DIFF_PCT = 0.5
-
 # Number of frames captured per video.
 _VIDEO_FRAMES = 30
 
-# FPS for saved videos.
+# FPS for saved MP4 videos.
 _VIDEO_FPS = 10
 
 _OUTPUT_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 
-
-def _pixel_diff_percentage(frame_a: np.ndarray, frame_b: np.ndarray) -> float:
-    """Return percentage of pixels that differ by more than 10 in L2 norm."""
-    diff = np.linalg.norm(frame_a.astype(float) - frame_b.astype(float), axis=2)
-    return 100.0 * float(np.sum(diff > 10.0)) / diff.size
+_MARKER_MODULE = "isaaclab_visualizers.newton.newton_visualizer.render_newton_visualization_markers"
 
 
-def _save_video(frames: list[np.ndarray], path: str, fps: int = _VIDEO_FPS) -> None:
-    """Save a list of RGB frames as an MP4 video."""
-    import imageio.v3 as iio
-
-    iio.imwrite(path, np.stack(frames), fps=fps, codec="libx264", pixelformat="yuv420p")
+def _save_mp4(frames: list[np.ndarray], path: str, fps: int = _VIDEO_FPS) -> None:
+    """Save RGB frames as an MP4 using ffmpeg via subprocess (avoids bundled imageio)."""
+    if not frames:
+        return
+    h, w = frames[0].shape[:2]
+    with tempfile.TemporaryDirectory() as tmp:
+        for i, frame in enumerate(frames):
+            Image.fromarray(frame).save(os.path.join(tmp, f"frame_{i:04d}.png"))
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-framerate",
+            str(fps),
+            "-i",
+            os.path.join(tmp, "frame_%04d.png"),
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-vf",
+            f"scale={w}:{h}",
+            path,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
 
 
 @pytest.fixture(autouse=True)
@@ -86,12 +108,13 @@ def _cleanup():
 
 
 def test_newton_gl_render_rgb_array_includes_markers():
-    """render_rgb_array() with enable_markers=True must differ from enable_markers=False.
+    """render_rgb_array() must call render_newton_visualization_markers when enable_markers=True.
 
-    Saves two videos to ``tests/comparison-images/`` for visual inspection:
+    Newton's viewer persists mesh state between frames, so pixel-diff comparison is
+    unreliable (once markers are logged during warmup they remain visible even without
+    the fix).  Instead this test spies on the function call directly.
 
-    * ``newton_markers_video_capture-without_markers.mp4`` — broken path (markers absent).
-    * ``newton_markers_video_capture-with_markers.mp4`` — fixed path (markers visible).
+    Also saves two MP4 videos to ``tests/comparison-images/`` for visual inspection.
     """
     import torch
 
@@ -102,9 +125,6 @@ def test_newton_gl_render_rgb_array_includes_markers():
         _viz_utils._prepare_visualizer_test_process()
         sim_utils.create_new_stage()
 
-        # Build AnymalD flat env with Newton GL (headless) and markers enabled.
-        # Eye/lookat are set to the same angle used in the integration golden tests
-        # so the command-velocity arrows are in the camera FOV.
         env = _viz_utils._make_anymal_d_env("newton", "physx")
         _viz_utils._configure_sim_for_visualizer_test(env)
 
@@ -114,8 +134,6 @@ def test_newton_gl_render_rgb_array_includes_markers():
         env.reset()
 
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-
-        # Warm up physics and let command markers (velocity arrows) be logged.
         for _ in range(_viz_utils._START_BUFFER_STEPS):
             env.step(action=actions)
 
@@ -128,38 +146,45 @@ def test_newton_gl_render_rgb_array_includes_markers():
         )
         _viz_utils._warm_newton_viewer(newton_viz)
 
+        # ---- Spy: verify the call contract -----------------------------------
+        with patch(_MARKER_MODULE) as mock_markers:
+            newton_viz.cfg.enable_markers = True
+            newton_viz.render_rgb_array()
+            assert mock_markers.call_count == 1, (
+                f"render_newton_visualization_markers was called {mock_markers.call_count} times "
+                "with enable_markers=True; expected exactly 1 call. "
+                "The fix that adds markers to the headless capture path may be missing."
+            )
+
+        with patch(_MARKER_MODULE) as mock_markers:
+            newton_viz.cfg.enable_markers = False
+            newton_viz.render_rgb_array()
+            assert mock_markers.call_count == 0, (
+                f"render_newton_visualization_markers was called {mock_markers.call_count} times "
+                "with enable_markers=False; expected 0 calls."
+            )
+
+        newton_viz.cfg.enable_markers = True  # restore default
+
+        # ---- Visual output: save MP4s for inspection -------------------------
         frames_with: list[np.ndarray] = []
         frames_without: list[np.ndarray] = []
 
         for _ in range(_VIDEO_FRAMES):
-            env.step(action=actions)
-
-            # Capture without markers (simulates the broken capture path).
             newton_viz.cfg.enable_markers = False
             frames_without.append(newton_viz.render_rgb_array()[..., :3])
-
-            # Capture with markers (the fixed capture path).
             newton_viz.cfg.enable_markers = True
             frames_with.append(newton_viz.render_rgb_array()[..., :3])
 
         os.makedirs(_OUTPUT_DIR, exist_ok=True)
-
         path_without = os.path.join(_OUTPUT_DIR, "newton_markers_video_capture-without_markers.mp4")
         path_with = os.path.join(_OUTPUT_DIR, "newton_markers_video_capture-with_markers.mp4")
-        _save_video(frames_without, path_without)
-        _save_video(frames_with, path_with)
+        _save_mp4(frames_without, path_without)
+        _save_mp4(frames_with, path_with)
 
-        # Also save the first frame of each as a PNG for quick inspection.
+        # Save frame-0 PNGs alongside each video for quick comparison.
         Image.fromarray(frames_without[0]).save(path_without.replace(".mp4", "-frame0.png"))
         Image.fromarray(frames_with[0]).save(path_with.replace(".mp4", "-frame0.png"))
 
-        # Assert that markers are visibly present in the fixed frames.
-        diff_pct = _pixel_diff_percentage(frames_with[-1], frames_without[-1])
-        assert diff_pct >= _MIN_DIFF_PCT, (
-            f"render_rgb_array() with enable_markers=True produced a frame that is only "
-            f"{diff_pct:.3f}% different from enable_markers=False (threshold: {_MIN_DIFF_PCT}%). "
-            "Visualization markers (command-velocity arrows) are not being rendered on the "
-            f"headless capture path.\nVideos saved to {_OUTPUT_DIR}/ for inspection."
-        )
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)
