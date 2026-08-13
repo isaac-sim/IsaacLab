@@ -43,7 +43,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     joint selections raise :class:`ValueError` during construction.
     """
 
-    # Construction.
+    # Initialization.
 
     def __init__(
         self,
@@ -100,9 +100,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     stacklevel=2,
                 )
 
-    """
-    Mapping interface.
-    """
+    # Public interface.
 
     def __getitem__(self, name: str) -> ActuatorBase:
         return self._groups[name]
@@ -118,10 +116,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def __delitem__(self, name: str) -> None:
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
-
-    """
-    Properties.
-    """
 
     @property
     def command(self) -> _ActuatorCommand:
@@ -167,7 +161,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         """Joint torques applied after clipping [N or N·m, depending on joint type]."""
         return self._applied_torque_ta
 
-    # Execution.
+    # Lifecycle.
 
     def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
         """Reset all actuator group states.
@@ -229,6 +223,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
         self._control.submit_commands(self)
+
+    # Construction and property resolution.
 
     def _allocate_buffers(self) -> None:
         """Allocate articulation-wide command and telemetry buffers."""
@@ -346,6 +342,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         actuator_cfgs: dict[str, ActuatorBaseCfg],
         resolved_group_joints: dict[str, tuple[list[int] | ProxyArray, list[str]]],
     ) -> None:
+        """Construct actuator groups and apply their resolved joint properties."""
         construction_records: list[tuple[ActuatorJointProperties, torch.Tensor | slice, bool, bool]] = []
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = resolved_group_joints[actuator_name]
@@ -506,6 +503,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             )
             for index, name in enumerate(joint_names)
         )
+
+    # Execution planning and runtime.
 
     def _joint_indices_as_wp(self, actuator: ActuatorBase) -> wp.array(dtype=wp.int32):
         """Return an actuator group's joint indices as a Warp int32 array."""
