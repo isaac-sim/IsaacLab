@@ -75,10 +75,13 @@ class SensorBase(ABC):
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
+    def close(self) -> None:
+        """Release callbacks owned by this sensor."""
+        self._clear_callbacks()
+
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear physics events handles
-        self._clear_callbacks()
+        self.close()
 
     """
     Properties

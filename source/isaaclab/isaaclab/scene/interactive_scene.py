@@ -496,6 +496,21 @@ class InteractiveScene:
     Operations.
     """
 
+    def close(self) -> None:
+        """Release callbacks owned by scene entities before simulation teardown."""
+        families = (
+            self._articulations,
+            self._cable_objects,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._rigid_object_collections,
+            self._sensors,
+            self._surface_grippers,
+        )
+        for family in families:
+            for entity in family.values():
+                entity.close()
+
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 

@@ -21,6 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
+from isaaclab.envs.mdp.events import reset_scene_to_default
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
@@ -72,6 +73,24 @@ def setup_scene(request):
 
         yield make_scene, sim
     # Note: cleanup is handled by build_simulation_context's finally block
+
+
+def test_close_releases_all_callback_owning_entities():
+    scene = InteractiveScene.__new__(InteractiveScene)
+    families = (
+        "_articulations",
+        "_cable_objects",
+        "_deformable_objects",
+        "_rigid_objects",
+        "_rigid_object_collections",
+        "_sensors",
+        "_surface_grippers",
+    )
+    closed = []
+    for family in families:
+        setattr(scene, family, {"entity": SimpleNamespace(close=lambda family=family: closed.append(family))})
+    scene.close()
+    assert closed == list(families)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -180,6 +199,41 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
     scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_mdp_reset_preserves_authored_fixed_articulation_root(device, setup_scene, monkeypatch):
+    make_scene, sim = setup_scene
+    scene = InteractiveScene(make_scene(num_envs=4))
+    sim.reset()
+
+    robot = scene["robot"]
+    assert robot.is_fixed_base
+    robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch + 1.0)
+    robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch + 1.0)
+    robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch + 2.0)
+    robot.set_joint_velocity_target_index(target=robot.data.default_joint_vel.torch + 2.0)
+
+    def fail_root_write(**_):
+        pytest.fail("The authored fixed-base root was rewritten.")
+
+    monkeypatch.setattr(robot, "write_root_pose_to_sim_index", fail_root_write)
+    monkeypatch.setattr(robot, "write_root_velocity_to_sim_index", fail_root_write)
+    reset_scene_to_default(
+        SimpleNamespace(scene=scene),
+        torch.arange(scene.num_envs, device=scene.device),
+        reset_joint_targets=True,
+        preserve_fixed_articulation_roots=("robot",),
+    )
+    scene.update(0.0)
+
+    for actual, expected in (
+        (robot.data.joint_pos.torch, robot.data.default_joint_pos.torch),
+        (robot.data.joint_vel.torch, robot.data.default_joint_vel.torch),
+        (robot.data.joint_pos_target.torch, robot.data.default_joint_pos.torch),
+        (robot.data.joint_vel_target.torch, robot.data.default_joint_vel.torch),
+    ):
+        torch.testing.assert_close(actual, expected, rtol=0.0, atol=0.0)
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):

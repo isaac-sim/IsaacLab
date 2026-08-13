@@ -65,11 +65,14 @@ def _make_standalone_stage():
 
 
 def _set_sim_context(monkeypatch, nm, clone_plan=_DEFAULT, scene_data_provider=_DEFAULT):
+    from isaaclab.sim.service_locator import ServiceLocator
+
     clone_plan = SimpleNamespace() if clone_plan is _DEFAULT else clone_plan
     scene_data_provider = SimpleNamespace() if scene_data_provider is _DEFAULT else scene_data_provider
     sim = SimpleNamespace(
         get_clone_plan=lambda: clone_plan,
         get_scene_data_provider=lambda: scene_data_provider,
+        services=ServiceLocator(),
     )
     monkeypatch.setattr(nm.SimulationContext, "instance", classmethod(lambda cls: sim))
     return sim
@@ -323,7 +326,7 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
     monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
+    sim = _set_sim_context(monkeypatch, nm)
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
 
     finalize_calls: list[str] = []
@@ -341,6 +344,11 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     assert finalize_calls == ["cpu"]
     assert NewtonManager._model is not None
     assert NewtonManager._state_0 is not None
+    errors = []
+    sim.services.close_all(errors)
+    assert not errors
+    assert NewtonManager._model is None
+    assert NewtonManager._state_0 is None
 
 
 def test_ensure_visualization_model_empty_builder_supports_marker_only_scene(monkeypatch, caplog):

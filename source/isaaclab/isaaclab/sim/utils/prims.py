@@ -18,7 +18,6 @@ import torch
 
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
-from isaaclab.utils.version import has_kit
 
 from .queries import find_matching_prim_paths, has_deformable_body_api, has_deformable_curve_api
 from .semantics import add_labels
@@ -782,13 +781,11 @@ def bind_visual_material(
 ):
     """Bind a visual material to a prim.
 
-    This function is a wrapper around the USD command `BindMaterialCommand`_.
+    The binding is authored directly through USD and does not require Kit.
 
     .. note::
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
         and all its descendants.
-
-    .. _BindMaterialCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.BindMaterialCommand.html
 
     Args:
         prim_path: The prim path where to apply the material.
@@ -801,37 +798,27 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    if not has_kit():
-        return False
     # get stage handle
     if stage is None:
         stage = get_current_stage()
 
     # check if prim and material exists
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"Target prim '{material_path}' does not exist.")
-    if not stage.GetPrimAtPath(material_path).IsValid():
+    target_prim = stage.GetPrimAtPath(prim_path)
+    if not target_prim.IsValid():
+        raise ValueError(f"Target prim '{prim_path}' does not exist.")
+    material_prim = stage.GetPrimAtPath(material_path)
+    if not material_prim.IsValid():
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
-    # resolve token for weaker than descendants
-    # bind material command expects a string token
-    if stronger_than_descendants:
-        binding_strength = "strongerThanDescendants"
-    else:
-        binding_strength = "weakerThanDescendants"
-    # obtain material binding API
-    # note: we prefer using the command here as it is more robust than the USD API
-    import omni.kit.commands
+    from pxr import UsdShade  # noqa: PLC0415
 
-    success, _ = omni.kit.commands.execute(
-        "BindMaterialCommand",
-        prim_path=prim_path,
-        material_path=material_path,
-        strength=binding_strength,
-        stage=stage,
-    )
-    # return success
-    return bool(success)
+    if stronger_than_descendants:
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
+    else:
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    binding_api = UsdShade.MaterialBindingAPI.Apply(target_prim)
+    binding_api.Bind(UsdShade.Material(material_prim), bindingStrength=binding_strength)
+    return True
 
 
 @apply_nested

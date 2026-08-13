@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 _DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
+_HEADLESS_VIEWPORT_CAMERA_PATH = "/World/KitVisualizerCamera"
 
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
@@ -254,6 +255,9 @@ class KitVisualizer(BaseVisualizer):
         if self._rgb_render_product is not None:
             with contextlib.suppress(Exception):
                 self._rgb_render_product.destroy()
+        if self._controlled_camera_path == _HEADLESS_VIEWPORT_CAMERA_PATH:
+            remove_generated_prims([_HEADLESS_VIEWPORT_CAMERA_PATH])
+        self._controlled_camera_path = None
         self._rgb_annotator = None
         self._rgb_render_product = None
         self._is_initialized = False
@@ -262,8 +266,7 @@ class KitVisualizer(BaseVisualizer):
     def render_rgb_array(self) -> np.ndarray:
         """Return an RGB frame captured from the Kit viewport camera.
 
-        Uses the Replicator annotator bound to the controlled camera prim
-        (``/OmniverseKit_Persp`` by default). Lazily creates the render product
+        Uses the Replicator annotator bound to the controlled camera prim. Lazily creates the render product
         and annotator on the first call. Returns a blank frame while the RTX
         pipeline warms up.
 
@@ -273,7 +276,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
-        camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
+        camera_path = self._controlled_camera_path or _DEFAULT_VIEWPORT_CAMERA_PATH
         w, h = self.cfg.window_width, self.cfg.window_height
 
         # Create the render product and annotator before the app update so the first
@@ -570,16 +573,16 @@ class KitVisualizer(BaseVisualizer):
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""
         if self._runtime_headless:
-            # Headless: no viewport window; apply cfg pose to the default perspective camera path.
-            # omni.kit.viewport may not be loaded when the viewport extension is disabled
-            # (e.g. HEADLESS=1 without --video), so skip the import entirely.
+            # Headless: avoid Kit's default perspective camera, whose pre-existing Fabric
+            # transform may override a later USD-authored pose when another backend uses Fabric.
+            # The dedicated camera is created after physics initialization and owned here.
             self._viewport_window = None
             self._viewport_api = None
+            self._controlled_camera_path = _HEADLESS_VIEWPORT_CAMERA_PATH
             if self._uses_streaming_view():
                 logger.debug("[KitVisualizer] Camera image view requested in headless mode; no UI panel is created.")
             else:
                 self._apply_cfg_camera_pose_if_configured()
-            self._refresh_controlled_camera_path()
             return
 
         import omni.kit.viewport.utility as vp_utils
@@ -895,7 +898,7 @@ class KitVisualizer(BaseVisualizer):
             path = self._viewport_api.get_active_camera()
             self._controlled_camera_path = path if path else _DEFAULT_VIEWPORT_CAMERA_PATH
         else:
-            self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
+            self._controlled_camera_path = self._controlled_camera_path or _DEFAULT_VIEWPORT_CAMERA_PATH
 
     def _apply_viewport_camera_scene_partition(self, usd_stage: Usd.Stage, num_envs: int) -> None:
         """Tag the viewport camera with the first visible env partition.
@@ -970,9 +973,10 @@ class KitVisualizer(BaseVisualizer):
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
         if self._viewport_api is None:
-            # Without a viewport, Kit does not create its default perspective
-            # camera, so author it explicitly before render products use it.
-            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
+            # Without a viewport, author the controlled camera explicitly before
+            # render products use it.
+            camera_path = self._controlled_camera_path or _DEFAULT_VIEWPORT_CAMERA_PATH
+            self._set_usd_camera_pose(camera_path, position, target)
             return
 
         try:
@@ -1042,6 +1046,9 @@ class KitVisualizer(BaseVisualizer):
 
         if camera_path not in self._generated_camera_xform_ops:
             camera = UsdGeom.Camera.Define(usd_stage, camera_path)
+            if camera_path == _HEADLESS_VIEWPORT_CAMERA_PATH:
+                # Match Kit's default perspective camera (60-degree horizontal FOV).
+                camera.GetFocalLengthAttr().Set(18.14756)
             camera_xform = UsdGeom.Xformable(camera.GetPrim())
             camera_xform.ClearXformOpOrder()
             # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
@@ -1265,6 +1272,6 @@ class KitVisualizer(BaseVisualizer):
         try:
             from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
 
-            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
+            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path=self._controlled_camera_path)
         except (ImportError, ModuleNotFoundError):
             pass

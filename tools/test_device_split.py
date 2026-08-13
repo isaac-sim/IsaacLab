@@ -10,7 +10,7 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-from _device_split import is_device_split_file
+from _device_split import has_pytestmark, is_device_split_file
 
 
 def _write(tmp_path: Path, content: str) -> Path:
@@ -58,6 +58,11 @@ def test_preloaded_source(tmp_path):
         """
     )
     assert is_device_split_file(tmp_path / "does_not_exist.py", source=source) is True
+
+
+def test_generic_marker_from_preloaded_source(tmp_path):
+    source = "pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.cold_cache]"
+    assert has_pytestmark(tmp_path / "does_not_exist.py", "cold_cache", source) is True
 
 
 def test_no_mark(tmp_path):

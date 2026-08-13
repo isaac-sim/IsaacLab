@@ -23,7 +23,7 @@ from isaaclab.test.utils import resolve_test_sim_device
 # Local imports
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
-from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+from _device_split import DEVICE_SPLIT_PASSES, has_pytestmark, is_device_split_file  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -61,13 +61,8 @@ STARTUP_HANG_RETRIES = 2
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
-PROCESS_FAILURE_RETRIES_BY_FILE = {
-    "test_visualizer_integration_physx.py": 4,
-    "test_visualizer_integration_newton.py": 4,
-    "test_visualizer_tiled_integration_physx.py": 4,
-    "test_visualizer_tiled_integration_newton.py": 4,
-}
-"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
+PROCESS_FAILURE_RETRIES_BY_FILE = {}
+"""Extra fresh-process attempts for tests with known transient process failures."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -1001,17 +996,20 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
+        test_key = os.path.relpath(test_file, workspace_root).replace(os.sep, "/")
 
-        # Read the test file once for cold-cache and device-split detection.
+        # Read the test file once for device-split detection.
         try:
             with open(test_file) as fh:
                 test_content = fh.read()
         except OSError:
             test_content = ""
 
-        # The first camera-enabled test in a fresh container compiles shaders
-        # (~600 s).  Give it extra time so that doesn't look like a test timeout.
-        is_cold_cache_test = not cold_cache_applied and "enable_cameras=True" in test_content
+        # Explicitly marked renderer roots always own the allowance because each process
+        # partition can compile shaders. Preserve the first direct camera caller fallback.
+        is_cold_cache_test = has_pytestmark(test_file, "cold_cache", test_content) or (
+            not cold_cache_applied and "enable_cameras=True" in test_content
+        )
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
             cold_cache_applied = True
@@ -1034,12 +1032,36 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             pytest_targets=pytest_targets,
         )
 
+        # Native libraries do not reliably release all resources when incompatible scene
+        # families share a process. Explicit partitions retain one test body while
+        # giving each declared family a fresh interpreter and simulation application.
+        process_partitions = test_settings.PROCESS_ISOLATED_TESTS.get(test_key)
+        if process_partitions:
+            assert not is_device_split_file(test_file, source=test_content), (
+                f"{test_key} cannot be both device-split and process-partitioned"
+            )
+            logger.info(f"⚙️  process partitions detected — invoking {file_name} once per partition")
+            exact_targets = [target for target in pytest_targets if "::" in target]
+            simple_global_selector = (
+                global_k_expr
+                if global_k_expr is not None
+                and global_k_expr.isidentifier()
+                and any(global_k_expr in selector for _, selectors in process_partitions for selector in selectors)
+                else None
+            )
+            passes = [
+                (f"-{name}", " or ".join(selectors))
+                for name, selectors in process_partitions
+                if not exact_targets or any(selector in target for selector in selectors for target in exact_targets)
+                if simple_global_selector is None or any(simple_global_selector in selector for selector in selectors)
+            ]
+            assert passes, f"No process partition in {test_key} matches the configured test nodes"
         # On a multi-GPU shard, test_devices() already resolves to this shard's single
         # GPU and mgpu_shard_select drops every other variant, so the device_split
         # CPU/GPU two-pass (which exists to dodge the process-global device lock when
         # CPU and GPU share one container) is unnecessary here — the CPU pass would
         # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-        if _inject_shard_select:
+        elif _inject_shard_select:
             passes = [("", None)]
         elif is_device_split_file(test_file, source=test_content):
             logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")

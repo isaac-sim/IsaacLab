@@ -101,27 +101,6 @@ def test_public_examples_use_renamed_preset_names() -> None:
     assert not offenders, "Legacy Newton-backend solver preset references found:\n" + "\n".join(offenders)
 
 
-def test_rendering_test_utils_maps_newton_label_to_newton_mjwarp() -> None:
-    """Golden-image fixtures keep the ``"newton"`` backend label; the helper must
-    map it to the ``"newton_mjwarp"`` preset so Hydra resolves the right config.
-    """
-    import sys
-
-    import pytest
-
-    pytest.importorskip("torch")  # rendering_test_utils imports torch eagerly
-
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    try:
-        from rendering_test_utils import _physics_preset_name
-    finally:
-        sys.path.pop(0)
-
-    assert _physics_preset_name("newton") == "newton_mjwarp"
-    assert _physics_preset_name("physx") == "physx"
-    assert _physics_preset_name("ovphysx") == "ovphysx"
-
-
 def test_task_physics_presets_use_renamed_field_names() -> None:
     """Task ``PresetCfg`` field names should use ``newton_mjwarp`` / ``newton_kamino``."""
     tasks_root = _REPO_ROOT / "source" / "isaaclab_tasks" / "isaaclab_tasks"

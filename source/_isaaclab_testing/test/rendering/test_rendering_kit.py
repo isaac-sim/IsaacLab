@@ -1,0 +1,17 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""All golden scenes rendered through Kit-compatible renderer/backend pairs."""
+
+from isaaclab.app import AppLauncher
+
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+
+import pytest  # noqa: E402
+from rendering_runner import generate_kit_test_cases  # noqa: E402
+
+pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.cold_cache]
+
+test_rendering = generate_kit_test_cases()

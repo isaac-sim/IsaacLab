@@ -325,6 +325,13 @@ def _reset_solver_internals_unbound(world_mask: wp.array | None) -> None:
     )
 
 
+class _NewtonVisualizationLifecycle:
+    """Clear PhysX-backed shadow state when its owning simulation closes."""
+
+    def close(self) -> None:
+        NewtonManager.clear()
+
+
 class NewtonManager(PhysicsManager):
     """Abstract Newton physics manager for Isaac Lab.
 
@@ -2673,6 +2680,8 @@ class NewtonManager(PhysicsManager):
 
         sim = SimulationContext.instance()
         assert sim is not None
+        if _NewtonVisualizationLifecycle not in sim.services:
+            sim.services[_NewtonVisualizationLifecycle] = _NewtonVisualizationLifecycle()
         clone_plan = sim.get_clone_plan()
         if clone_plan is not None and not env_paths:
             logger.warning(

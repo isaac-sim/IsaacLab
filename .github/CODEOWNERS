@@ -45,6 +45,7 @@
 
 /source/isaaclab_physx/ @AntoineRichard @ooctipus @kellyguo11
 /source/isaaclab_ppisp/ @moennen @pbarejko @kellyguo11
+/source/_isaaclab_testing/ @ooctipus @matthewtrepte @StafaH @hujc7 @kellyguo11
 /source/isaaclab_teleop/ @rwiltz @hougantc-nvda @kellyguo11
 /source/isaaclab_visualizers/ @matthewtrepte @StafaH @kellyguo11
 

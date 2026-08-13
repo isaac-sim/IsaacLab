@@ -55,9 +55,7 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
-    # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
-    # cold-cache buffer (+700 s) is added automatically for the first camera-enabled test.
-    "test_visualizer_golden_newton.py": 6000,
+    "test_visualizer_rendering.py": 1200,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
@@ -67,21 +65,51 @@ PER_TEST_TIMEOUTS = {
     "test_shadow_hand_camera_presets.py": 5000,
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
-    # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
-    "test_rendering_cartpole_kitless.py": 2000,
-    # Every kitless rendering file runs each AOV twice (the ``ovstage_variant`` fixture covers the
-    # legacy and ovstage OVRTX code paths). At 76 cases the Kuka Allegro scene overruns the default
-    # budget; the remaining kitless files still fit but have little headroom.
-    "test_rendering_lift_kuka_homo_kitless.py": 2000,
-    # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
-    # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
-    "test_rendering_shadow_hand.py": 1500,
+    "test_rendering_kit.py": 1200,
+    # A legacy Newton OVRTX partition compiles each AOV separately and exceeded 1300 s on a cold CI worker.
+    "test_rendering_kitless.py": 1200,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
 Note: Any tests not listed here will use the default timeout.
 """
+
+
+PROCESS_ISOLATED_TESTS = {
+    "source/_isaaclab_testing/test/rendering/test_rendering_kit.py": (
+        ("core_scenes", ("rendering_scene", "cartpole")),
+        ("shadow_hand", ("shadow_hand",)),
+        ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
+        ("franka_soft", ("franka_soft",)),
+    ),
+    "source/_isaaclab_testing/test/rendering/test_rendering_kitless.py": (
+        ("legacy-rendering-scene-ovphysx", ("legacy-rendering_scene-ovphysx",)),
+        ("legacy-rendering-scene-newton", ("legacy-rendering_scene-newton",)),
+        ("legacy-shadow-hand-ovphysx-ovrtx", ("legacy-shadow_hand-ovphysx-ovrtx",)),
+        ("legacy-shadow-hand-ovphysx-newton-warp", ("legacy-shadow_hand-ovphysx-newton_warp",)),
+        (
+            "legacy-newton-ovrtx-scenes",
+            (
+                "legacy-shadow_hand-newton-ovrtx",
+                "legacy-franka_cloth-newton-ovrtx",
+                "legacy-franka_soft-newton-ovrtx",
+            ),
+        ),
+        (
+            "legacy-newton-newton-warp-scenes",
+            (
+                "legacy-shadow_hand-newton-newton_warp",
+                "legacy-franka_cloth-newton-newton_warp",
+                "legacy-franka_soft-newton-newton_warp",
+            ),
+        ),
+        ("ovstage-rendering-scene-ovphysx", ("ovstage-rendering_scene-ovphysx",)),
+        ("ovstage-rendering-scene-newton", ("ovstage-rendering_scene-newton",)),
+        ("ovstage-shadow-hand-ovphysx-ovrtx", ("ovstage-shadow_hand-ovphysx-ovrtx",)),
+    ),
+}
+"""Named case selectors that must run in separate native-resource processes."""
 
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",

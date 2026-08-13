@@ -17,18 +17,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_DEVICE_SPLIT_MARK_RE = re.compile(r"^\s*pytestmark\b.*\bdevice_split\b", re.MULTILINE)
-"""Match a module-level ``pytestmark`` assignment that mentions ``device_split``.
-
-Recognises both single-mark and single-line list forms:
-
-* ``pytestmark = pytest.mark.device_split``
-* ``pytestmark = [pytest.mark.device_split, pytest.mark.foo]``
-
-Multi-line list forms are not supported (currently no test file uses one); if
-a future test needs that, expand the parsing rule.
-"""
-
 # Per-pass pytest ``-k`` selectors used by ``tools/conftest.py`` when a file
 # declares the ``device_split`` marker. Each entry is ``(suffix, k_expr)``:
 #   - ``suffix`` is appended to the JUnit report filename to keep both passes' XML.
@@ -41,25 +29,27 @@ DEVICE_SPLIT_PASSES: list[tuple[str, str]] = [
 ]
 
 
-def is_device_split_file(path: Path | str, source: str | None = None) -> bool:
-    """Return whether the test file at ``path`` declares the ``device_split`` marker.
+def has_pytestmark(path: Path | str, marker: str, source: str | None = None) -> bool:
+    """Return whether a test file's module-level ``pytestmark`` names ``marker``.
 
-    Matches :data:`_DEVICE_SPLIT_MARK_RE` against ``source`` when supplied.
-    Otherwise, reads the file source from ``path``. A missing or unreadable
-    file returns ``False`` so the caller falls back to the default single-pass
-    invocation.
+    Single markers and single-line marker lists are supported. A missing or
+    unreadable file returns ``False`` so callers retain their default behavior.
 
     Args:
         path: Filesystem path to a candidate test file.
         source: Optional preloaded source text to inspect.
 
     Returns:
-        ``True`` when the file's module-level ``pytestmark`` mentions
-        ``device_split``; ``False`` otherwise.
+        ``True`` when the file's module-level ``pytestmark`` mentions the marker.
     """
     if source is None:
         try:
             source = Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             return False
-    return bool(_DEVICE_SPLIT_MARK_RE.search(source))
+    return bool(re.search(rf"^\s*pytestmark\b.*\b{re.escape(marker)}\b", source, re.MULTILINE))
+
+
+def is_device_split_file(path: Path | str, source: str | None = None) -> bool:
+    """Return whether the test file declares the ``device_split`` marker."""
+    return has_pytestmark(path, "device_split", source)
