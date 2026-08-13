@@ -57,8 +57,9 @@ def _reward(env: ManagerBasedMARLEnv.Agent) -> torch.Tensor:
     return torch.ones(env.num_envs, device=env.device)
 
 
-def _startup_accesses_reset_buf(env: ManagerBasedMARLEnv) -> None:
+def _startup_accesses_reset_buf(env: ManagerBasedMARLEnv, env_ids: torch.Tensor | None) -> None:
     """Record that the public reset buffer exists during startup events."""
+    del env_ids
     env._startup_reset_buf_size = env.reset_buf.shape[0]
 
 
