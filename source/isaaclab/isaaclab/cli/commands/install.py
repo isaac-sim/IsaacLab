@@ -1246,6 +1246,9 @@ def command_install(install_type: str = "all") -> None:
             if not using_uv:
                 print_info("Upgrading pip...")
                 run_command(pip_cmd + ["install", "--upgrade", "pip"])
+            else:
+                # Tolerate transient failures from indexes queried by ``unsafe-best-match``.
+                os.environ.setdefault("UV_HTTP_RETRIES", "6")
 
             # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
             run_command(pip_cmd + ["install", "setuptools<82.0.0"])

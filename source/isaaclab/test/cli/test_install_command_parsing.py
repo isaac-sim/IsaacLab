@@ -12,6 +12,7 @@ without a GPU or Isaac Sim installation.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from unittest.mock import patch
 
@@ -198,6 +199,24 @@ def _make_mock_env(**extra_env):
     env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "CONDA_PREFIX")}
     env.update(extra_env)
     return env
+
+
+def _run_install_capturing_env(install_type: str = "core", pip_cmd: tuple[str, ...] = ("uv", "pip")) -> dict[str, str]:
+    """Invoke command_install() with all I/O mocked; return the environment the pip calls run with.
+
+    The environment is snapshotted when the editable submodules are installed,
+    after the package installer has been selected and configured.
+    """
+    captured: dict[str, str] = {}
+    with contextlib.ExitStack() as stack:
+        mocks = {target.split(".")[-1]: stack.enter_context(patch(target)) for target in _PATCHES}
+        mocks["get_pip_command"].return_value = list(pip_cmd)
+        stack.enter_context(patch.dict(os.environ, {}, clear=False))
+        # Prevent docker-detection from reading /proc or .dockerenv.
+        stack.enter_context(patch("os.path.exists", return_value=False))
+        mocks["_install_isaaclab_submodules"].side_effect = lambda *_: captured.update(os.environ)
+        command_install(install_type)
+    return captured
 
 
 class TestCommandInstallDispatch:
@@ -442,3 +461,27 @@ class TestCommandInstallDispatch:
         mocks = self._run("mimic")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         assert installed[0] == "isaaclab"
+
+
+class TestCommandInstallIndexRetries:
+    """Installs must ride out transient index errors instead of aborting."""
+
+    def test_install_sets_uv_http_retries(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("UV_HTTP_RETRIES", None)
+            captured = _run_install_capturing_env()
+
+        assert captured["UV_HTTP_RETRIES"] == "6"
+
+    def test_install_keeps_user_uv_retry_setting(self):
+        with patch.dict(os.environ, {"UV_HTTP_RETRIES": "1"}, clear=False):
+            captured = _run_install_capturing_env()
+
+        assert captured["UV_HTTP_RETRIES"] == "1"
+
+    def test_install_does_not_set_uv_retries_for_pip(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("UV_HTTP_RETRIES", None)
+            captured = _run_install_capturing_env(pip_cmd=("python", "-m", "pip"))
+
+        assert "UV_HTTP_RETRIES" not in captured
