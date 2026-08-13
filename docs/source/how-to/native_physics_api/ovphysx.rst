@@ -24,10 +24,7 @@ when its native runtime is live. A stage reload, a reset path that rebuilds the
 stage or runtime, and manager teardown invalidate all existing bindings and
 views. Reacquire them afterwards.
 
-Access the native runtime
--------------------------
-
-Get the active OvPhysX handle from the manager:
+Get the active OvPhysX handle from the manager after the lifecycle prerequisite:
 
 .. code-block:: python
 
@@ -42,8 +39,19 @@ readiness predicate for the current simulation context. Manager teardown release
 and clears this handle. Initialize and reset the current context before access, and always
 reacquire the handle before creating new bindings or views.
 
-Create a raw tensor binding
----------------------------
+Reuse Isaac Lab-owned access
+----------------------------
+
+Reuse the convenience view already owned by an Isaac Lab asset when its
+selection matches:
+
+.. code-block:: python
+
+   object_view = scene["object"].root_view
+   poses = object_view.get_attribute("rigid_body_pose")
+
+Create raw access
+-----------------
 
 Create a raw binding when the desired selection is not already owned by an
 Isaac Lab asset. The following representative pose binding is float32 and
@@ -77,37 +85,6 @@ metadata exactly, and respect the binding's native device and access mode.
 ``RIGID_BODY_POSE`` has the float32 layout used above, but another tensor type
 can have a different scalar dtype, shape, native device, or write permission.
 
-Discover installed tensor types
----------------------------------
-
-Discover installed tensor types at runtime instead of maintaining an enum
-inventory:
-
-.. code-block:: python
-
-   from ovphysx.types import TensorType
-
-   tensor_types = [
-       tensor_type
-       for tensor_type in TensorType
-       if tensor_type.name != "INVALID"
-   ]
-   print(tensor_types)
-
-This lists the vocabulary provided by the installed OvPhysX version. A listed
-tensor type is not necessarily available for every prim selection.
-
-Reuse or create an ``OvPhysxView``
-----------------------------------
-
-Reuse the convenience view already owned by an Isaac Lab asset when its
-selection matches:
-
-.. code-block:: python
-
-   object_view = scene["object"].root_view
-   poses = object_view.get_attribute("rigid_body_pose")
-
 For a new selection, construct :class:`~isaaclab_ov.sim.views.OvPhysxView`
 with the native runtime and a Tensor API pattern:
 
@@ -126,21 +103,15 @@ with the native runtime and a Tensor API pattern:
            poses = view.get_attribute("rigid_body_pose")
            view.set_attribute("rigid_body_pose", poses)
            view.read_into("rigid_body_pose", poses)
-
-       print(view.attribute_names)
-       print(view.available_attributes)
    finally:
        view.close()
 
-``attribute_names`` is the installed ``TensorType`` vocabulary, not selection
-availability. ``try_binding_for`` attempts to create a binding for this
-selection and returns ``None`` when a valid type is unavailable. By contrast,
-``available_attributes`` lists bindings already instantiated for the view.
-``binding_for`` returns a raw binding and bypasses the view's device, dtype,
-shape, and read-only guards.
+``try_binding_for`` attempts to create a binding for this selection and returns
+``None`` when a valid type is unavailable. ``binding_for`` returns a raw binding
+and bypasses the view's device, dtype, shape, and read-only guards.
 
-Read and write data
--------------------
+Read/write semantics
+--------------------
 
 Raw ``binding.read(buffer)`` calls pull values into caller-owned buffers, while
 ``binding.write(buffer)`` calls push values to the simulation. Editing a local

@@ -50,7 +50,7 @@ For an overview of how the multi-backend architecture works, including how to ad
 new backend, see :doc:`/source/overview/developer-guide/add_physics_backend`.
 
 For direct ``Model``/``State`` access and generic selections, see
-:doc:`../direct-api-access/newton`.
+:doc:`/source/how-to/native_physics_api/newton`.
 
 
 .. toctree::

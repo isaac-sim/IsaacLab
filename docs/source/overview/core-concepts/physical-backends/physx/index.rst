@@ -27,7 +27,7 @@ schema. See :doc:`configuration` for the most common knobs.
 For an overview of how the multi-backend architecture works, see
 :ref:`backend-architecture`.
 
-For native Tensor API access, see :doc:`../direct-api-access/physx`.
+For native Tensor API access, see :doc:`/source/how-to/native_physics_api/physx`.
 
 
 .. toctree::

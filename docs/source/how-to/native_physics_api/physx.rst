@@ -6,12 +6,8 @@
 PhysX Tensor API
 ================
 
-The PhysX Tensor API is an engine-native interface for data paths that need
-typed PhysX views or capabilities beyond the unified Isaac Lab APIs. It is
-backend-specific: use Isaac Lab asset and sensor APIs unless native access is
-needed for the workload. The `Omni Physics Python API reference
-<https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/pythonapi.html>`_
-documents the Tensor API view families and their methods.
+The PhysX Tensor API provides typed views for data paths and capabilities that
+require engine-native access.
 
 Mental model
 ------------
@@ -38,8 +34,8 @@ PhysX Tensor API view has been created:
    if simulation_view is None:
        raise RuntimeError("PhysX Tensor API is not ready; initialize and reset the simulation first.")
 
-Reuse an Isaac Lab view
------------------------
+Reuse Isaac Lab-owned access
+----------------------------
 
 When an Isaac Lab asset already has the desired selection, reuse its
 :attr:`~isaaclab_physx.assets.Articulation.root_view` rather than creating a
@@ -56,8 +52,8 @@ typed. An articulation, rigid object, rigid-object collection, or deformable
 can expose a different native PhysX view type, so choose methods that match the
 returned view rather than assuming one common interface.
 
-Create a raw typed view
------------------------
+Create raw access
+-----------------
 
 Create a view directly only when no Isaac Lab-owned selection matches the
 needed objects or capability. In this Tensor API pattern, ``*`` selects the
@@ -69,24 +65,8 @@ matching object below every cloned environment:
        "/World/envs/env_*/Object"
    )
 
-Discover supported view types
------------------------------
-
-The installed PhysX version determines which typed views are available. Inspect
-the ``SimulationView`` at runtime to list its view factories instead of relying
-on a hand-written inventory that can become stale:
-
-.. code-block:: python
-
-   view_factories = sorted(
-       name
-       for name in dir(simulation_view)
-       if name.startswith("create_") and name.endswith("_view")
-   )
-   print(view_factories)
-
-Read and write data
--------------------
+Read/write semantics
+--------------------
 
 Each getter and setter is a separate operation. Clone a returned Warp buffer
 before editing it locally, then call the matching setter to publish the result:
@@ -137,6 +117,7 @@ when supplying values to a setter. Check and reacquire views after a hard
 reset, object removal, stage reload, or manager teardown. Prefer public Isaac
 Lab sensor data when direct native contact or motion data is not required.
 
-For method-specific shapes, synchronization requirements, and supported
-setters, follow the upstream Tensor API reference linked at the top of this
-page.
+Authoritative references
+------------------------
+
+* `Omni Physics Python API reference <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/pythonapi.html>`_

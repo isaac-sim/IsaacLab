@@ -90,7 +90,7 @@ Native engine access boundary
 The portable interfaces define the stable API boundary. Advanced code can use
 each engine's native low-level data API, but those APIs intentionally keep their
 own ownership and synchronization semantics. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/how-to/native_physics_api/index`
 for PhysX typed views, Newton live model/state arrays and generic selections,
 and OvPhysX tensor bindings.
 

@@ -138,6 +138,7 @@ These guides help prepare assets and tasks for the supported physics backends.
     prepare_asset_for_newton
     tune_mjwarp
     enable_kamino
+    /source/how-to/native_physics_api/index
 
 
 Recording an Animation and Video
