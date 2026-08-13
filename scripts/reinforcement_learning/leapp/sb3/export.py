@@ -223,7 +223,7 @@ def _load_agent(checkpoint_path: str, device: str):
 
 def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str) -> str | None:
     """Resolve the SB3 checkpoint selected by the export arguments."""
-    if args_cli.use_pretrained_checkpoint:
+    if args_cli.checkpoint == "pretrained":
         return get_published_pretrained_checkpoint("sb3", task_name)
 
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", task_name))
@@ -274,6 +274,13 @@ def export_sb3_agent(
 
     env = None
     leapp_started = False
+    # SB3 constructs torch.distributions.Normal even for deterministic PPO
+    # inference. Its eager argument validation reduces tensor predicates to
+    # Python booleans, which is not representable in a LEAPP static graph and
+    # is unrelated to the action computation. Disable it only while tracing
+    # and restore the process-wide default before returning.
+    previous_validate_args = torch.distributions.Distribution._validate_args
+    torch.distributions.Distribution.set_default_validate_args(False)
     try:
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
@@ -300,7 +307,7 @@ def export_sb3_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             save_path = os.path.join(".pretrained_checkpoints", "sb3", checkpoint_task_name)
         else:
             save_path = log_dir
@@ -344,6 +351,7 @@ def export_sb3_agent(
         validate = args_cli.validation_steps > 0
         leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
     finally:
+        torch.distributions.Distribution.set_default_validate_args(previous_validate_args)
         if leapp_started:
             with contextlib.suppress(Exception):
                 leapp.stop()

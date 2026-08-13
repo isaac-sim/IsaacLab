@@ -90,9 +90,14 @@ class FactoryBase:
             raise ValueError(f"Unknown physics manager: {manager_name}")
 
     @classmethod
+    def _get_package_name(cls, backend: str) -> str:
+        """Return the package that hosts a given backend key."""
+        return "isaaclab_ov" if backend == "ovphysx" else f"isaaclab_{backend}"
+
+    @classmethod
     def _get_module_name(cls, backend: str) -> str:
         """Return module path that hosts backend implementation for a given backend key."""
-        return f"isaaclab_{backend}.{cls._module_subpath}"
+        return f"{cls._get_package_name(backend)}.{cls._module_subpath}"
 
     @classmethod
     def resolve_class(cls, *args, **kwargs) -> type:

@@ -1,6 +1,84 @@
 Changelog
 ---------
 
+5.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the Isaac RTX override of the unused temporal-camera-data capability method and the
+  empty ``isaaclab_physx.video_recording`` package.
+
+Fixed
+^^^^^
+
+* Fixed PhysX IMU and PVA acceleration for lazy reads and nonzero update periods.
+
+
+4.2.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton 1.5 actuator target bindings on the PhysX backend.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` when ``CameraCfg.isp_cfg`` is set.
+  It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+4.2.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`close` to the PhysX Fabric frame view, removing its per-view Fabric
+  index attributes so that views recreated over the same prims no longer accumulate
+  attributes. Views dropped without closing are cleaned up on garbage collection,
+  with a warning.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``eye`` and ``lookat`` fields from the Kit perspective video recorder
+  config.  The Kit perspective recorder no longer repositions the viewport camera; camera
+  placement is the sole responsibility of :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.video_capture_backend` classmethod
+  (returns ``"kit"``). The headless video pump is now registered via
+  :meth:`~isaaclab.sim.SimulationContext.add_render_callback` in
+  :meth:`~isaaclab_physx.physics.PhysxManager.initialize` instead of the
+  deleted ``recording_hooks`` module.
+
+Fixed
+^^^^^
+
+* Fixed camera world-pose resolution stalling at high environment counts under the
+  PhysX backend, which caused multi-second pauses between rendered frames and
+  benchmark timeouts.
+* Fixed Newton actuator target forwarding on the PhysX backend.
+
+
+4.1.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``eye`` and ``lookat`` fields from the Kit perspective video recorder
+  config.  The Kit perspective recorder no longer repositions the viewport camera; camera
+  placement is the sole responsibility of :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.video_capture_backend` classmethod
+  (returns ``"kit"``). The headless video pump is now registered via
+  :meth:`~isaaclab.sim.SimulationContext.add_render_callback` in
+  :meth:`~isaaclab_physx.physics.PhysxManager.initialize` instead of the
+  deleted ``recording_hooks`` module.
+
+
 4.0.1 (2026-08-04)
 ~~~~~~~~~~~~~~~~~~
 

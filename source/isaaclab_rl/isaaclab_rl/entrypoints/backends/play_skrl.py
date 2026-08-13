@@ -30,9 +30,12 @@ from isaaclab_rl.entrypoints.common import (
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    pre_launch_video_config,
     preserve_attribute,
     resolve_checkpoint_selector,
     resolve_play_task_name,
+    show_run_summary,
+    startup_screen,
 )
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
@@ -80,11 +83,6 @@ parser.add_argument(
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument(
-    "--use_pretrained_checkpoint",
-    action="store_true",
-    help="Use the pre-trained checkpoint from Nucleus.",
-)
 parser.add_argument(
     "--ml_framework",
     type=str,
@@ -148,120 +146,128 @@ def _main():
     env_cfg, experiment_cfg = resolve_task_config(
         args_cli.task, agent_cfg_entry_point, play_mode=not args_cli.train_env_cfg
     )
-    with launch_simulation(env_cfg, args_cli):
-        if args_cli.ml_framework.startswith("torch"):
-            from skrl.utils.runner.torch import Runner
-        elif args_cli.ml_framework.startswith("jax"):
-            from skrl.utils.runner.jax import Runner
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
+    with startup_screen(args_cli, num_stages=3) as screen:
+        show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
+        screen.stage("Launching simulation")
+        with launch_simulation(env_cfg, args_cli):
+            if args_cli.ml_framework.startswith("torch"):
+                from skrl.utils.runner.torch import Runner
+            elif args_cli.ml_framework.startswith("jax"):
+                from skrl.utils.runner.jax import Runner
 
-        from isaaclab_rl.skrl import SkrlVecEnvWrapper
+            from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-        task_name = args_cli.task.split(":")[-1]
-        train_task_name = task_name.replace("-Play", "")
+            task_name = args_cli.task.split(":")[-1]
+            train_task_name = task_name.replace("-Play", "")
 
-        env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+            env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-        # configure the ML framework into the global skrl variable
-        if args_cli.ml_framework.startswith("jax"):
-            skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
+            # configure the ML framework into the global skrl variable
+            if args_cli.ml_framework.startswith("jax"):
+                skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
-        if args_cli.seed == -1:
-            args_cli.seed = random.randint(0, 10000)
+            if args_cli.seed == -1:
+                args_cli.seed = random.randint(0, 10000)
 
-        experiment_cfg["seed"] = args_cli.seed if args_cli.seed is not None else experiment_cfg["seed"]
-        env_cfg.seed = experiment_cfg["seed"]
+            experiment_cfg["seed"] = args_cli.seed if args_cli.seed is not None else experiment_cfg["seed"]
+            env_cfg.seed = experiment_cfg["seed"]
 
-        log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
-        log_root_path = os.path.abspath(log_root_path)
-        print(f"[INFO] Loading experiment from directory: {log_root_path}")
-        if args_cli.use_pretrained_checkpoint:
-            resume_path = get_published_pretrained_checkpoint("skrl", train_task_name)
-            if not resume_path:
-                print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
-                return
-        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
-            resume_path = resolve_checkpoint_selector(
-                log_root_path,
-                args_cli.checkpoint,
-                library="skrl",
-                task=train_task_name,
-                checkpoint_pattern=r".*",
-                other_dirs=["checkpoints"],
-                metadata={
-                    "agent": agent_cfg_entry_point,
-                    "algorithm": algorithm,
-                    "ml_framework": args_cli.ml_framework,
-                },
+            log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
+            log_root_path = os.path.abspath(log_root_path)
+            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            if args_cli.checkpoint == "pretrained":
+                resume_path = get_published_pretrained_checkpoint("skrl", train_task_name)
+                if not resume_path:
+                    return
+            elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="skrl",
+                    task=train_task_name,
+                    checkpoint_pattern=r".*",
+                    other_dirs=["checkpoints"],
+                    metadata={
+                        "agent": agent_cfg_entry_point,
+                        "algorithm": algorithm,
+                        "ml_framework": args_cli.ml_framework,
+                    },
+                )
+            elif args_cli.checkpoint:
+                resume_path = os.path.abspath(args_cli.checkpoint)
+            else:
+                resume_path = get_checkpoint_path(
+                    log_root_path, run_dir=f".*_{algorithm}_{args_cli.ml_framework}", other_dirs=["checkpoints"]
+                )
+            log_dir = os.path.dirname(os.path.dirname(resume_path))
+
+            env_cfg.log_dir = log_dir
+            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+
+            screen.stage("Creating environment")
+            env = create_isaaclab_env(
+                args_cli.task,
+                env_cfg,
+                args_cli,
+                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
-        elif args_cli.checkpoint:
-            resume_path = os.path.abspath(args_cli.checkpoint)
-        else:
-            resume_path = get_checkpoint_path(
-                log_root_path, run_dir=f".*_{algorithm}_{args_cli.ml_framework}", other_dirs=["checkpoints"]
-            )
-        log_dir = os.path.dirname(os.path.dirname(resume_path))
 
-        env_cfg.log_dir = log_dir
-        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+            try:
+                dt = env.step_dt
+            except AttributeError:
+                dt = env.unwrapped.step_dt
 
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
-        )
+            screen.stage("Loading policy")
+            env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
-        try:
-            dt = env.step_dt
-        except AttributeError:
-            dt = env.unwrapped.step_dt
+            experiment_cfg["trainer"]["close_environment_at_exit"] = False
+            experiment_cfg["agent"]["experiment"]["write_interval"] = 0
+            experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
+            runner = Runner(env, experiment_cfg)
+            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
 
-        env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+            print(f"[INFO] Loading model checkpoint from: {resume_path}")
+            runner.agent.load(resume_path)
+            runner.agent.enable_training_mode(False, apply_to_models=True)
 
-        experiment_cfg["trainer"]["close_environment_at_exit"] = False
-        experiment_cfg["agent"]["experiment"]["write_interval"] = 0
-        experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
-        runner = Runner(env, experiment_cfg)
-        # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-        if args_cli.deterministic:
-            configure_seed(env_cfg.seed, torch_deterministic=True)
+            screen.close()
+            obs, _ = env.reset()
+            states = env.state()
+            timestep = 0
+            try:
+                while True:
+                    start_time = time.time()
 
-        print(f"[INFO] Loading model checkpoint from: {resume_path}")
-        runner.agent.load(resume_path)
-        runner.agent.enable_training_mode(False, apply_to_models=True)
+                    with torch.inference_mode():
+                        outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
+                        if hasattr(env, "possible_agents"):
+                            actions = {
+                                a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents
+                            }
+                        else:
+                            actions = outputs[-1].get("mean_actions", outputs[0])
+                        obs, _, _, _, _ = env.step(actions)
+                        states = env.state()
+                    if args_cli.video:
+                        timestep += 1
+                        video_stop = args_cli.video_length
+                        if video_stop is None:
+                            recorders = getattr(env_cfg, "video_recorders", [])
+                            video_stop = recorders[0].video_length if recorders else None
+                        if video_stop is not None and timestep >= video_stop:
+                            break
 
-        obs, _ = env.reset()
-        states = env.state()
-        timestep = 0
-        try:
-            while True:
-                start_time = time.time()
+                    sleep_time = dt - (time.time() - start_time)
+                    if args_cli.real_time and sleep_time > 0:
+                        time.sleep(sleep_time)
 
-                with torch.inference_mode():
-                    outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
-                    if hasattr(env, "possible_agents"):
-                        actions = {a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents}
-                    else:
-                        actions = outputs[-1].get("mean_actions", outputs[0])
-                    obs, _, _, _, _ = env.step(actions)
-                    states = env.state()
-                if args_cli.video:
-                    timestep += 1
-                    video_stop = args_cli.video_length
-                    if video_stop is None:
-                        recorders = getattr(env_cfg, "video_recorders", [])
-                        video_stop = recorders[0].video_length if recorders else None
-                    if video_stop is not None and timestep >= video_stop:
-                        break
-
-                sleep_time = dt - (time.time() - start_time)
-                if args_cli.real_time and sleep_time > 0:
-                    time.sleep(sleep_time)
-
-            env.close()
-        except KeyboardInterrupt:
-            pass
+                env.close()
+            except KeyboardInterrupt:
+                pass
 
 
 if __name__ == "__main__":

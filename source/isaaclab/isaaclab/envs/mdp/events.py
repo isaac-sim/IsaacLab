@@ -385,29 +385,23 @@ class _RandomizeRigidBodyMaterialOvPhysx:
     OVPhysX runs the PhysX solver, so PhysX's 64000 unique-material limit applies and this
     mirrors the PhysX bucket approach: ``num_buckets`` materials are pre-sampled once and
     randomly assigned to shapes. Materials are written through the asset's
-    :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-collision-shape
+    :class:`~isaaclab_ov.sim.views.OvPhysxView` on the per-collision-shape
     ``shape_friction_and_restitution`` binding (shape ``[N, S, 3]`` = static friction,
     dynamic friction, restitution).
 
-    OVPhysX does not expose per-body shape counts, so only whole-asset (all shapes)
-    randomization is supported; ``asset_cfg.body_ids`` must select all bodies.
+    Whole-articulation randomization uses the articulation material binding. For a
+    body subset, individual articulation links are addressed through a rigid-body
+    material binding, whose rows expose the exact link prim paths and per-link shape
+    storage.
     """
 
     def __init__(
         self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
     ):
-        import isaaclab_ovphysx.tensor_types as ovphysx_tt  # noqa: PLC0415
+        import isaaclab_ov.tensor_types as ovphysx_tt  # noqa: PLC0415
+        from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
 
         from isaaclab.assets import BaseArticulation  # noqa: PLC0415
-
-        # OVPhysX cannot map body ids to shape ranges (no per-body shape counts), so a
-        # per-body subset cannot be indexed -- fail loud rather than silently randomize all.
-        if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
-            raise NotImplementedError(
-                "randomize_rigid_body_material on the OVPhysX backend randomizes all shapes only; "
-                "per-body selection via 'asset_cfg.body_ids' is not supported because the ovphysx "
-                "wheel does not expose per-body shape counts. Use the default (all bodies)."
-            )
 
         # sample material buckets once (PhysX-style; the 64000 unique-material limit applies)
         static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -421,12 +415,108 @@ class _RandomizeRigidBodyMaterialOvPhysx:
 
         self.asset = asset
         self.asset_cfg = asset_cfg
-        # per-shape material tensor type for this asset family (articulation vs rigid body)
-        self._material_type = (
-            ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
-            if isinstance(asset, BaseArticulation)
-            else ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
-        )
+        self._material_view = asset.root_view
+        self._material_rows_by_env = torch.arange(asset.num_instances, dtype=torch.long).unsqueeze(-1)
+
+        if isinstance(asset, BaseArticulation):
+            self._material_type = ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
+            if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
+                from pxr import UsdPhysics  # noqa: PLC0415
+
+                body_ids = [int(body_id) for body_id in asset_cfg.body_ids]
+                if len(body_ids) == 0:
+                    self._material_view = None
+                    self._material_rows_by_env = torch.empty((asset.num_instances, 0), dtype=torch.long)
+                    return
+
+                selected_body_names = [asset.body_names[body_id] for body_id in body_ids]
+                asset_root_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
+                articulation_root_paths = asset.root_view.prim_paths
+                if len(articulation_root_paths) != asset.num_instances:
+                    raise RuntimeError(
+                        "Failed to map OVPhysX articulation material rows to asset instances: "
+                        f"expected {asset.num_instances} articulation roots, got {len(articulation_root_paths)}."
+                    )
+
+                # With replicated physics, only the source asset may exist as a concrete
+                # USD prim even though the tensor binding contains every environment. Find
+                # the articulation-root suffix in that source asset, then strip the same
+                # suffix from every binding row to recover its concrete asset root.
+                source_pairs = [
+                    (asset_root_path, articulation_root_path)
+                    for asset_root_path in asset_root_paths
+                    for articulation_root_path in articulation_root_paths
+                    if articulation_root_path == asset_root_path
+                    or articulation_root_path.startswith(f"{asset_root_path}/")
+                ]
+                if not source_pairs:
+                    raise RuntimeError(
+                        "Failed to find a source asset root containing an OVPhysX articulation root. "
+                        f"Asset roots: {asset_root_paths}; articulation roots: {articulation_root_paths}."
+                    )
+                source_asset_root, source_articulation_root = max(source_pairs, key=lambda pair: len(pair[0]))
+                articulation_root_suffix = source_articulation_root[len(source_asset_root) :]
+                if articulation_root_suffix:
+                    if not all(path.endswith(articulation_root_suffix) for path in articulation_root_paths):
+                        raise RuntimeError(
+                            "OVPhysX articulation roots do not share the source asset's relative root suffix "
+                            f"'{articulation_root_suffix}': {articulation_root_paths}."
+                        )
+                    instance_root_paths = [path[: -len(articulation_root_suffix)] for path in articulation_root_paths]
+                else:
+                    instance_root_paths = articulation_root_paths
+
+                selected_relative_paths = []
+                for body_name in selected_body_names:
+
+                    def is_selected_rigid_body(prim, expected_name=body_name):
+                        return prim.GetName() == expected_name and prim.HasAPI(UsdPhysics.RigidBodyAPI)
+
+                    source_matches = sim_utils.resolve_matching_prims_from_source(
+                        asset.cfg.prim_path,
+                        predicate=is_selected_rigid_body,
+                        expected_num_matches=1,
+                    )
+                    source_body_path = source_matches[0][0].GetPath().pathString
+                    if not (
+                        source_body_path == source_asset_root or source_body_path.startswith(f"{source_asset_root}/")
+                    ):
+                        raise RuntimeError(
+                            f"OVPhysX body '{body_name}' at '{source_body_path}' is not below source asset root "
+                            f"'{source_asset_root}'."
+                        )
+                    selected_relative_paths.append(source_body_path[len(source_asset_root) :])
+
+                selected_paths = []
+                for instance_root_path in instance_root_paths:
+                    selected_paths.extend(
+                        f"{instance_root_path}{relative_path}" for relative_path in selected_relative_paths
+                    )
+
+                self._material_type = ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+                self._material_view = OvPhysxView(
+                    asset._ovphysx,  # type: ignore[attr-defined]
+                    prim_paths=selected_paths,
+                    device=asset.device,
+                )
+                selected_binding = self._material_view.binding_for(self._material_type)
+                resolved_paths = selected_binding.prim_paths
+                if len(resolved_paths) != len(selected_paths) or set(resolved_paths) != set(selected_paths):
+                    raise RuntimeError(
+                        "OVPhysX rigid-body material binding did not resolve the requested articulation links. "
+                        f"Requested {selected_paths}, resolved {resolved_paths}."
+                    )
+                row_by_path = {path: row for row, path in enumerate(resolved_paths)}
+                self._material_rows_by_env = torch.tensor(
+                    [row_by_path[path] for path in selected_paths], dtype=torch.long
+                ).reshape(asset.num_instances, len(selected_body_names))
+        else:
+            self._material_type = ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+            if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
+                raise NotImplementedError(
+                    "randomize_rigid_body_material on the OVPhysX backend cannot apply per-body selection to a "
+                    "standalone rigid object. Use the default body selection."
+                )
 
     def __call__(
         self,
@@ -439,24 +529,36 @@ class _RandomizeRigidBodyMaterialOvPhysx:
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ):
-        view = self.asset.root_view
+        if self._material_view is None:
+            return
+
+        view = self._material_view
         # read the current per-shape material [N, S, 3] on the binding's native (sim) device
         materials = wp.to_torch(view.get_attribute(self._material_type))
-        num_instances, num_shapes = materials.shape[0], materials.shape[1]
+        num_shapes = materials.shape[1]
 
-        # resolve environment ids on the material buffer's device
+        # Resolve environment ids to rows of the active material binding. A subset
+        # articulation view contains one row per selected body and environment.
         if env_ids is None:
-            env_ids = torch.arange(num_instances, device=materials.device)
+            material_rows = self._material_rows_by_env.flatten()
         else:
-            env_ids = env_ids.to(materials.device)
+            material_rows = self._material_rows_by_env[env_ids.to(device="cpu", dtype=torch.long)].flatten()
+        if material_rows.numel() == 0:
+            return
+        material_rows_device = material_rows.to(materials.device)
 
         # randomly assign pre-sampled bucket materials to every shape of the selected envs
-        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), num_shapes), device="cpu")
-        material_samples = self.material_buckets[bucket_ids].to(materials.device)  # [len(env_ids), S, 3]
-        materials[env_ids] = material_samples
+        bucket_ids = torch.randint(0, num_buckets, (len(material_rows), num_shapes), device="cpu")
+        material_samples = self.material_buckets[bucket_ids].to(materials.device)
+        materials[material_rows_device] = material_samples
 
-        # write the full buffer back through the view (read-modify-write keeps non-selected envs)
-        view.set_attribute(self._material_type, wp.from_torch(materials.contiguous(), dtype=wp.float32))
+        # The wheel requires a full-shaped source buffer even for indexed writes.
+        indices = wp.from_torch(material_rows_device.to(dtype=torch.int32))
+        view.set_attribute(
+            self._material_type,
+            wp.from_torch(materials.contiguous(), dtype=wp.float32),
+            indices=indices,
+        )
 
 
 class randomize_rigid_body_material(ManagerTermBase):
@@ -480,13 +582,12 @@ class randomize_rigid_body_material(ManagerTermBase):
       Kamino solver shares contact materials across shapes and environments, so it instead
       samples one value per build-time material group and broadcasts it to every environment.
     - **OVPhysX**: Runs the PhysX solver, so the same 3-tuple, bucket-based assignment is used,
-      written through the :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-shape
-      ``shape_friction_and_restitution`` binding. Randomizes all shapes only -- per-body
-      selection (``asset_cfg.body_ids``) is not supported (the wheel exposes no per-body shape
-      counts).
+      written through the :class:`~isaaclab_ov.sim.views.OvPhysxView` on the per-shape
+      ``shape_friction_and_restitution`` binding. Articulation body subsets are addressed through
+      rigid-body material bindings for the selected links.
 
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
-    the static friction (PhysX only). This obeys the physics constraint on friction values.
+    the static friction (PhysX and OVPhysX only). This obeys the physics constraint on friction values.
 
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to

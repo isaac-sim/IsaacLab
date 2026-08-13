@@ -16,7 +16,7 @@ import re
 import runpy
 import sys
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Container, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,11 +27,18 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher, LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
+
+# Preset selectors whose values name a preset, and the preset names that resolved
+# configs map back to when their class or ``renderer_type`` differs from the name.
+_PRESET_SELECTORS = frozenset({"presets", "physics", "renderer"})
+_PHYSICS_PRESET_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
+_RENDERER_PRESET_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
 
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
@@ -510,6 +517,199 @@ def configure_io_descriptors(env_cfg: Any, args_cli: argparse.Namespace, logger:
         )
 
 
+def startup_screen(args_cli: argparse.Namespace, *, num_stages: int) -> LoadingScreen:
+    """Create the loading screen shown while a run starts up.
+
+    The live screen is used only for an interactive console, and only when the
+    run did not ask for verbose logging -- otherwise the startup output is the
+    point and is left untouched.
+
+    Args:
+        args_cli: Parsed command-line arguments.
+        num_stages: Number of stages the progress bar counts up to.
+
+    Returns:
+        An unopened loading screen.
+    """
+    verbose = getattr(args_cli, "verbose", False) or getattr(args_cli, "info", False)
+    return LoadingScreen(num_stages, enabled=False if verbose else None)
+
+
+def show_run_summary(
+    screen: LoadingScreen,
+    args_cli: argparse.Namespace,
+    env_cfg: Any,
+    *,
+    library: str,
+    action: str,
+) -> None:
+    """Print a summary of the backends and scale a run is about to use.
+
+    Every row names the backend that will run, alongside the choice the run stopped at.
+    A backend reached through a family the command line named -- ``physics=physx`` and
+    ``renderer=rtx`` name a family that launch resolves -- is shown as
+    ``<family> (<resolved>)``, and a backend the run named neither directly nor by
+    family is shown as ``default (<resolved>)``.
+
+    Resolving those selectors mutates *env_cfg* in place, exactly as the following
+    :func:`~isaaclab.app.launch_simulation` call would; call this after every other
+    pre-launch config change, in particular :func:`pre_launch_video_config`.
+
+    Args:
+        screen: Loading screen that owns the console.
+        args_cli: Parsed command-line arguments.
+        env_cfg: Isaac Lab environment config, with its presets already resolved.
+        library: Reinforcement learning library running the workflow.
+        action: Workflow name, either ``"train"`` or ``"play"``.
+    """
+    selected = _selected_preset_names()
+    device = getattr(args_cli, "device", None) or env_cfg.sim.device
+    num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
+
+    # Names read before the scan resolves the automatic selectors, so a row can report
+    # the family the run asked for next to the backend that family resolved to
+    requested_physics = _physics_name(env_cfg.sim.physics)
+    requested_renderer = _renderer_name(env_cfg)
+    scan(env_cfg, args_cli)
+    physics = _physics_name(env_cfg.sim.physics)
+    renderer = _renderer_name(env_cfg)
+
+    screen.summary(
+        f"Isaac Lab · {action}",
+        {
+            "Task": args_cli.task,
+            "Workflow": _workflow_name(env_cfg),
+            "RL library": library,
+            "Physics": _label(requested_physics, physics, selected=selected),
+            "Renderer": (
+                "n/a (no camera sensors)"
+                if renderer is None
+                else _label(requested_renderer or renderer, renderer, selected=selected)
+            ),
+            "Presets": _additional_preset_names({requested_physics, physics, requested_renderer, renderer}),
+            "Visualizer": _visualizer_name(args_cli, env_cfg),
+            "Device": str(device),
+            "Environments": str(num_envs),
+        },
+    )
+
+
+def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -> str:
+    """Name the backend a row reports, and where the run stopped choosing it.
+
+    Args:
+        requested: Preset name the config carried before launch resolved its automatic
+            selectors, which names a backend family when it differs from *resolved*.
+        resolved: Preset name of the backend that will run.
+        selected: Preset names the command line asked for.
+
+    Returns:
+        The resolved name when the run asked for that backend, ``<family> (<resolved>)``
+        when it asked for the family the backend was picked from, and
+        ``default (<resolved>)`` when it asked for neither.
+    """
+    if resolved in selected:
+        return resolved
+    if requested in selected:
+        return f"{requested} ({resolved})"
+    return f"default ({resolved})"
+
+
+def _selected_preset_names() -> set[str]:
+    """Return the preset names the command line asked for.
+
+    Reads the same ``sys.argv`` the preset resolver consumes (see
+    :func:`~isaaclab_tasks.utils.hydra.register_task`), so the summary marks a
+    backend as chosen exactly when a ``physics=`` / ``renderer=`` / ``presets=``
+    token or a Hydra path override named it.
+    """
+    names: set[str] = set()
+    for token in sys.argv[1:]:
+        key, separator, value = token.partition("=")
+        if separator and (key.lstrip("-") in _PRESET_SELECTORS or key.startswith(("env.", "agent."))):
+            names.update(part.strip() for part in value.split(",") if part.strip())
+    return names
+
+
+def _additional_preset_names(shown: Container[str | None]) -> str:
+    """Return the presets the command line asked for that no other row names.
+
+    Domain presets such as ``presets=cube`` do not surface anywhere else in the
+    summary, so they are listed here. A preset a row already reports is left out,
+    whether it names the backend that will run or the family the row resolved it
+    from -- ``renderer=rtx`` is reported by an ``rtx (ovrtx)`` renderer row.
+
+    Args:
+        shown: Preset names reported by the physics and renderer rows, including
+            the families those rows resolved from.
+
+    Returns:
+        The remaining preset names in command-line order, comma separated, or
+        ``"none"`` when the run named no other preset.
+    """
+    names: list[str] = []
+    for token in sys.argv[1:]:
+        key, separator, value = token.partition("=")
+        if not separator or key.lstrip("-") not in _PRESET_SELECTORS:
+            continue
+        for part in (part.strip() for part in value.split(",")):
+            if part and part not in shown and part not in names:
+                names.append(part)
+    return ", ".join(names) if names else "none"
+
+
+def _workflow_name(env_cfg: Any) -> str:
+    """Return the task workflow *env_cfg* belongs to."""
+    if isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        return "manager-based"
+    return "direct (multi-agent)" if isinstance(env_cfg, DirectMARLEnvCfg) else "direct"
+
+
+def _physics_name(physics_cfg: Any) -> str:
+    """Return the preset name of a resolved physics config."""
+    class_name = type(physics_cfg).__name__
+    if class_name in _PHYSICS_PRESET_NAMES:
+        return _PHYSICS_PRESET_NAMES[class_name]
+    solver_cfg = getattr(physics_cfg, "solver_cfg", None)
+    backend = class_name.removesuffix("Cfg").lower()
+    if solver_cfg is None:
+        return backend
+    return f"{backend}_{type(solver_cfg).__name__.removesuffix('SolverCfg').lower()}"
+
+
+def _renderer_name(env_cfg: Any) -> str | None:
+    """Return the preset name of the renderer used by the first camera sensor of *env_cfg*.
+
+    Only configs whose class declares ``renderer_cfg`` are read. Probing every
+    attribute with :func:`getattr` instead would resolve lazily evaluated config
+    values -- notably the ``ResolvableString`` class handles -- which imports
+    Kit modules before :class:`~isaaclab.app.AppLauncher` starts and breaks the
+    Isaac Sim runtime.
+    """
+    for container in (env_cfg, getattr(env_cfg, "scene", None)):
+        for value in vars(container).values() if container is not None else ():
+            if "renderer_cfg" not in getattr(type(value), "__dataclass_fields__", {}):
+                continue
+            renderer_cfg = value.renderer_cfg
+            if isinstance(renderer_cfg, RendererCfg):
+                renderer_type = renderer_cfg.renderer_type
+                return _RENDERER_PRESET_NAMES.get(renderer_type, renderer_type)
+    return None
+
+
+def _visualizer_name(args_cli: argparse.Namespace, env_cfg: Any) -> str:
+    """Return the visualizers selected on the command line or by *env_cfg*."""
+    selected = getattr(args_cli, "visualizer", None)
+    if isinstance(selected, str):
+        selected = selected.split(",")
+    if not selected:
+        visualizer_cfgs = env_cfg.sim.visualizer_cfgs
+        if not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
+        selected = [cfg.visualizer_type for cfg in visualizer_cfgs if cfg is not None]
+    return ", ".join(str(name).strip() for name in selected) if selected else "none (headless)"
+
+
 def create_isaaclab_env(
     task: str,
     env_cfg: Any,
@@ -570,6 +770,67 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
     return CaptureEnvSensors(env, **sensor_capture_kwargs)
 
 
+def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: Any = None) -> None:
+    """Pre-inject a recording visualizer into env_cfg before launch_simulation().
+
+    Must be called BEFORE :func:`~isaaclab.app.AppLauncher.launch_simulation` so the
+    launcher can include the Kit runtime requirement in its backend scan.
+
+    Only acts when:
+
+    * ``--video`` is set,
+    * no ``video_recorders`` are pre-configured,
+    * no explicit ``--viz`` was passed (or only ``"none"`` entries were passed),
+    * no concrete visualizer is already in ``sim.visualizer_cfgs``, and
+    * ``--viz none`` was not passed.
+
+    Args:
+        env_cfg: Isaac Lab environment config to modify in-place.
+        log_dir: Unused; kept for API symmetry with :func:`apply_video_recording`.
+        args_cli: Parsed command-line arguments.
+    """
+    if not getattr(args_cli, "video", False):
+        return
+
+    existing: list = getattr(env_cfg, "video_recorders", []) or []
+    if existing:
+        return
+
+    cli_visualizers: list[str] = getattr(args_cli, "visualizer", None) or []
+    if isinstance(cli_visualizers, str):
+        cli_visualizers = [cli_visualizers]
+    active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
+    if active_cli_visualizers:
+        # User already chose a visualizer; apply_video_recording() will wire the source.
+        return
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is None:
+        return
+
+    existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
+    existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) or []
+    has_concrete_visualizer = any(getattr(c, "visualizer_type", None) is not None for c in existing_viz_cfgs) or (
+        existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
+    )
+    if has_concrete_visualizer:
+        return
+
+    if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
+        sim_cfg.visualizer_cfgs = []
+
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+
+        sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+        print(
+            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
+            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
+        )
+    except (ImportError, ModuleNotFoundError):
+        pass
+
+
 def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
     """Configure internal video recording on the environment config.
 
@@ -612,24 +873,119 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
     if not existing:
-        # Preserve historical --video cadence: record immediately then every 2000 steps.
-        env_cfg.video_recorders = [VideoRecorderCfg(video_interval=2000)]
-        # Set a default visualizer hint so source="visualizer" can resolve a capture target.
-        # Use default_visualizer_cfg rather than visualizer_cfgs so the launcher's backend
-        # selection (auto_rtx, PhysxAutoCfg) remains visible to launch_simulation.
+        # No recorders pre-configured: create a default Kit-viewport recorder, mirroring the
+        # historical --video behaviour (record immediately, then every 2 000 steps).
+        # If the user did not pass --viz, we auto-create a headless Kit visualizer exactly as
+        # teleop and other headless-capable modes do — cameras are enabled by
+        # enable_cameras_for_video() before launch_simulation() is called.
         sim_cfg = getattr(env_cfg, "sim", None)
-        if sim_cfg is not None and getattr(sim_cfg, "default_visualizer_cfg", None) is None:
-            try:
-                from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
+        visualizer_source = "visualizer"  # fallback when no specific backend is available
 
-                sim_cfg.default_visualizer_cfg = _KitCfg()
-            except (ImportError, ModuleNotFoundError):
+        # Check whether the user explicitly requested a visualizer via --viz.  If so,
+        # that visualizer will be created by the launcher and we should record from it
+        # without injecting a second one.
+        cli_visualizers: list[str] = getattr(args_cli, "visualizer", None) or []
+        if isinstance(cli_visualizers, str):
+            cli_visualizers = [cli_visualizers]
+
+        # Reject the explicit --viz none --video combination: "none" disables all visualizers,
+        # so there is nothing to record from.  The user must either remove --viz none, pick a
+        # capture-capable visualizer type, or configure video_recorders in the env cfg to use
+        # a sensor source instead.
+        # NOTE: _parse_visualizer_csv("none") returns None (not ["none"]), so cli_visualizers
+        # is [] even when --viz none was passed.  Use the ExplicitAction sentinel instead.
+        viz_explicitly_none = (
+            getattr(args_cli, "visualizer_explicit", False) and getattr(args_cli, "visualizer", "not_none") is None
+        )
+        if viz_explicitly_none:
+            raise ValueError(
+                "--video is not compatible with --viz none: there is no active visualizer to record from. "
+                "Remove --viz none so that video recording can auto-create a visualizer, "
+                "pass --viz kit (or another capture-capable type), "
+                "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
+            )
+
+        # Filter out "none" entries — "none" disables all visualizers, so treat it the
+        # same as "no visualizer specified" for the purpose of picking a recorder source.
+        active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
+
+        # Streaming visualizers do not expose a local frame-capture API.
+        _NO_CAPTURE = {"rerun", "viser"}
+
+        if active_cli_visualizers:
+            # Partition into capture-capable and no-capture lists.
+            capture_capable = [v for v in active_cli_visualizers if v not in _NO_CAPTURE]
+            no_capture = [v for v in active_cli_visualizers if v in _NO_CAPTURE]
+
+            if no_capture and not capture_capable:
+                names = " and ".join(repr(v) for v in no_capture)
+                example_cfg = {
+                    "rerun": "RerunVisualizerCfg",
+                    "viser": "ViserVisualizerCfg",
+                }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
+                raise ValueError(
+                    f"--video is not supported with --viz {names}: {names} "
+                    f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
+                    "and do not expose a local frame-capture API.\n\n"
+                    "Supported recording backends (all support headless mode for zero UI overhead):\n"
+                    "  --viz kit        Kit/Omniverse viewport\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n"
+                    "  --viz newton_rtx Newton OVRTX path-traced viewport\n\n"
+                    f"To run {names} alongside video recording, add a headless capture backend\n"
+                    "to sim.visualizer_cfgs in your environment config, for example:\n\n"
+                    f"  sim_cfg.visualizer_cfgs = [\n"
+                    f"      {example_cfg}(...),\n"
+                    f"      KitVisualizerCfg(headless=True),   # provides frames for --video\n"
+                    f"  ]\n\n"
+                    "Frames can also be captured from a scene camera sensor without any visualizer:\n"
+                    "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
+                )
+
+            # Use the first capture-capable visualizer as the recording source.
+            visualizer_source = f"visualizer:{capture_capable[0]}"
+        else:
+            # No --viz: determine whether a concrete visualizer is already configured in
+            # the env cfg.  A base VisualizerCfg with visualizer_type=None is a hint-only
+            # placeholder that cannot create a real visualizer; treat it as "not configured".
+            existing_viz_cfg = getattr(sim_cfg, "default_visualizer_cfg", None) if sim_cfg is not None else None
+            existing_viz_cfgs = getattr(sim_cfg, "visualizer_cfgs", []) if sim_cfg is not None else []
+            has_concrete_visualizer = bool(existing_viz_cfgs) or (
+                existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None
+            )
+
+            if sim_cfg is not None and not has_concrete_visualizer:
+                # Inject a headless Kit visualizer so there is something to record from.
+                # pre_launch_video_config() already injected one before launch_simulation()
+                # so this branch is normally not reached; it handles edge cases where that
+                # pre-launch hook was skipped or failed (e.g. isaaclab_visualizers not installed).
+                if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
+                    sim_cfg.visualizer_cfgs = []
                 try:
-                    from isaaclab_visualizers.newton import NewtonVisualizerCfg as _NwtCfg
+                    from isaaclab_visualizers.kit import KitVisualizerCfg as _KitCfg
 
-                    sim_cfg.default_visualizer_cfg = _NwtCfg(headless=True)
+                    sim_cfg.visualizer_cfgs.append(_KitCfg(headless=True))
+                    visualizer_source = "visualizer:kit"
+                    print(
+                        "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
+                        "for video recording. Pass --viz <type> to choose a different visualizer, or "
+                        "set video_recorders in your env config to record from a scene sensor instead."
+                    )
                 except (ImportError, ModuleNotFoundError):
                     pass
+            elif has_concrete_visualizer:
+                # A concrete visualizer is already configured in the env cfg: record from it.
+                # Prefer capture-capable types (kit, newton_gl) over streaming-only ones.
+                all_viz_cfgs = list(existing_viz_cfgs or [])
+                if existing_viz_cfg is not None and getattr(existing_viz_cfg, "visualizer_type", None) is not None:
+                    all_viz_cfgs.append(existing_viz_cfg)
+                # Two-pass: capture-capable first, then fall back to whatever is present.
+                for vcfg in sorted(all_viz_cfgs, key=lambda c: getattr(c, "visualizer_type", None) in _NO_CAPTURE):
+                    vtype = getattr(vcfg, "visualizer_type", None)
+                    if vtype:
+                        visualizer_source = f"visualizer:{vtype}"
+                        break
+        env_cfg.video_recorders = [VideoRecorderCfg(source=visualizer_source, video_interval=2000)]
 
     fallback_output_dir = os.path.join(log_dir, "videos", subdir)
     video_length = getattr(args_cli, "video_length", None)
@@ -735,6 +1091,7 @@ def resolve_checkpoint_selector(
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
+    recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using manifests from new training runs.
 
@@ -751,6 +1108,7 @@ def resolve_checkpoint_selector(
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
         metadata: Additional manifest metadata required for compatibility.
+        recursive: Whether to search recursively below each matching run directory.
 
     Returns:
         Absolute path to the selected checkpoint.
@@ -790,9 +1148,8 @@ def resolve_checkpoint_selector(
         checkpoint_dir = run_dir.joinpath(*(other_dirs or []))
         if not checkpoint_dir.is_dir():
             continue
-        checkpoints = [
-            path for path in checkpoint_dir.iterdir() if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)
-        ]
+        paths = checkpoint_dir.rglob("*") if recursive else checkpoint_dir.iterdir()
+        checkpoints = [path for path in paths if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)]
         if not checkpoints:
             continue
         if selector == "best" and preferred_checkpoint_pattern is not None:
@@ -801,7 +1158,7 @@ def resolve_checkpoint_selector(
             ]
             if preferred:
                 checkpoints = preferred
-        checkpoints.sort(key=lambda path: _natural_sort_key(path.name))
+        checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 
     raise ValueError(

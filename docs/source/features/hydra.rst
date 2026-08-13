@@ -214,6 +214,10 @@ combinations early with clear error messages.
 Preset System
 -------------
 
+For a user-focused introduction to choosing physics, rendering, and task
+variants, start with :doc:`/source/concepts/backends_and_presets`. This section
+covers the complete preset definition and resolution behavior.
+
 The preset system lets you swap out entire config sections -- or individual scalar
 values -- with a single command line argument. Instead of overriding individual
 fields, you select a named preset that **completely replaces** the config section
@@ -306,8 +310,8 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+    from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
     from isaaclab.physics import PhysxAutoCfg
@@ -329,11 +333,10 @@ Physics backend selection uses the same preset system. A task can define a
             num_substeps=1,
         )
         newton_kamino: NewtonCfg = NewtonCfg(
-            solver_cfg=KaminoSolverCfg(
+            solver_cfg=KaminoPADMMSolverCfg(
                 integrator="moreau",
                 use_collision_detector=True,
                 sparse_jacobian=True,
-                padmm_max_iterations=100,
             ),
             num_substeps=1,
             debug_mode=False,
@@ -344,7 +347,7 @@ The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physi
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
 is the solver configuration: ``newton_mjwarp`` uses
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``newton_kamino`` uses
-:class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+:class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
 Newton assets, sensors, renderers, and visualizers are used after the preset is

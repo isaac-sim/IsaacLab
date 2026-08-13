@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 
@@ -453,11 +453,6 @@ class NewtonWarpRenderer(BaseRenderer):
     """Newton Warp backend for tiled camera rendering."""
 
     RenderData = RenderData
-
-    @classmethod
-    def provides_temporal_camera_data(cls, data_type: str) -> bool:
-        # Pure rasterizer: no temporal accumulation on any output.
-        return False
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""

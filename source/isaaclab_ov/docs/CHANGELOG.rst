@@ -1,6 +1,75 @@
 Changelog
 ---------
 
+2.0.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` attaching its OVStage at an
+  unsealed write ordinal. ``ovstage.population.open_usd_from_string()`` only
+  completes population; it never commits the ordinal it wrote to. Newer
+  ``ovphysx`` releases fail the parse when attaching at an unsealed ordinal and
+  yield an empty scene, so every articulation, rigid body, and sensor binding
+  resolved to zero prims. The manager now calls ``advance_write_floor().wait()``
+  to seal the ordinal before ``attach_ovstage()``.
+
+
+2.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_ovphysx`` distribution into
+  ``isaaclab_ov``. Install ``isaaclab_ov`` and replace
+  ``isaaclab_ovphysx`` imports with ``isaaclab_ov``.
+
+
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
 0.10.2 (2026-08-04)
 ~~~~~~~~~~~~~~~~~~~
 

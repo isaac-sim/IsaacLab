@@ -82,13 +82,14 @@ def test_build_solver_rejects_contact_sensors(monkeypatch: pytest.MonkeyPatch) -
         NewtonCoupledMJWarpVBDManager._build_solver(MagicMock(), CoupledMJWarpVBDSolverCfg())
 
 
-def test_build_solver_disables_contact_sensors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     monkeypatch.setattr(manager_module.NewtonManager, "_report_contacts", False)
     monkeypatch.setattr(manager_module.NewtonManager, "_supports_contact_sensors", True)
     monkeypatch.setattr(manager_module.NewtonManager, "_solver", None)
     monkeypatch.setattr(manager_module.NewtonManager, "_use_single_state", True)
     monkeypatch.setattr(manager_module.NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(manager_module.NewtonManager, "_supports_rigid_body_force_input", False)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", None)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", None)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_coupling_mode", None)
@@ -101,6 +102,7 @@ def test_build_solver_disables_contact_sensors(monkeypatch: pytest.MonkeyPatch) 
     NewtonCoupledMJWarpVBDManager._build_solver(MagicMock(), solver_cfg)
 
     assert manager_module.NewtonManager._supports_contact_sensors is False
+    assert manager_module.NewtonManager._supports_rigid_body_force_input is True
 
 
 def test_legacy_mjwarp_solver_config_warns() -> None:

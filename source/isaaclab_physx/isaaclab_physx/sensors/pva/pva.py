@@ -83,7 +83,6 @@ class Pva(BasePva):
         self._raw_coms: wp.array | None = None
         self._update_cmd: wp.Launch | None = None
         self._update_env_mask: wp.array | None = None
-        self._update_inv_dt: float | None = None
         self._use_recorded_launch: bool = False
 
     def __str__(self) -> str:
@@ -137,12 +136,6 @@ class Pva(BasePva):
             ],
             device=self._device,
         )
-
-    def update(self, dt: float, force_recompute: bool = False):
-        # save timestamp
-        self._dt = dt
-        # execute updating
-        super().update(dt, force_recompute)
 
     """
     Implementation.
@@ -220,13 +213,11 @@ class Pva(BasePva):
             )
         wp.copy(self._coms_buffer, self._raw_coms)
 
-        inv_dt = 1.0 / self._dt
         if self._use_recorded_launch:
             if self._update_cmd is None:
                 try:
-                    self._update_cmd = self._launch_update(env_mask, inv_dt, record_cmd=True)
+                    self._update_cmd = self._launch_update(env_mask, record_cmd=True)
                     self._update_env_mask = env_mask
-                    self._update_inv_dt = inv_dt
                 except Exception as exc:
                     self._use_recorded_launch = False
                     logger.warning(
@@ -237,15 +228,12 @@ class Pva(BasePva):
                 if env_mask is not self._update_env_mask:
                     self._update_cmd.set_param_by_name("env_mask", env_mask)
                     self._update_env_mask = env_mask
-                if inv_dt != self._update_inv_dt:
-                    self._update_cmd.set_param_by_name("inv_dt", inv_dt)
-                    self._update_inv_dt = inv_dt
                 self._update_cmd.launch()
                 return
 
-        self._launch_update(env_mask, inv_dt)
+        self._launch_update(env_mask)
 
-    def _launch_update(self, env_mask: wp.array, inv_dt: float, record_cmd: bool = False) -> wp.Launch | None:
+    def _launch_update(self, env_mask: wp.array, record_cmd: bool = False) -> wp.Launch | None:
         """Launch or record the kernel that updates the PVA data."""
 
         return wp.launch(
@@ -259,8 +247,8 @@ class Pva(BasePva):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self.GRAVITY_VEC_W,
-                inv_dt,
                 self._timestamp,
+                self._timestamp_last_update,
                 self._prev_lin_vel_w,
                 self._prev_ang_vel_w,
                 self._data._pos_w,
@@ -303,7 +291,6 @@ class Pva(BasePva):
         self._raw_coms = None
         self._update_cmd = None
         self._update_env_mask = None
-        self._update_inv_dt = None
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
