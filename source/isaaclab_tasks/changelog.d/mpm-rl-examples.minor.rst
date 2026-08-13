@@ -13,6 +13,8 @@ Added
   robot starts, and a competence-based reset curriculum to the UR10
   particle-pushing task. Every level keeps the same single-pile, single-sweep
   objective.
+* Added an opt-in Newton GL visualization of the particle-pushing policy
+  heightmap.
 
 Changed
 ^^^^^^^

@@ -12,6 +12,7 @@ from collections.abc import Sequence
 
 import newton
 import torch
+import torch.nn.functional as F
 import warp as wp
 from isaaclab_newton.ik import (
     NewtonIKJointLimitObjectiveCfg,
@@ -24,6 +25,7 @@ from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import quat_apply
 
 from . import mdp
@@ -32,7 +34,12 @@ from .reset_randomization import (
     build_particle_reset,
     build_reset_targets,
 )
-from .ur10_particle_push_env_cfg import PUSH_ACTION_DIM, UR10ParticlePushEnvCfg, configure_sparse_mpm_capacities
+from .ur10_particle_push_env_cfg import (
+    HEIGHTMAP_VISUALIZATION_SHAPE,
+    PUSH_ACTION_DIM,
+    UR10ParticlePushEnvCfg,
+    configure_sparse_mpm_capacities,
+)
 
 
 @wp.kernel(enable_backward=False)
@@ -117,11 +124,10 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Re-resolve capacities after any CLI/Hydra num-environment override.
         configure_sparse_mpm_capacities(cfg)
         self._particle_max_velocity = float(cfg.particle_max_velocity)
+        self._heightmap_visualizer: VisualizationMarkers | None = None
         super().__init__(cfg, render_mode, **kwargs)
-        for visualizer in self.sim.visualizers:
-            bind_heightmap_source = getattr(visualizer, "bind_heightmap_source", None)
-            if callable(bind_heightmap_source):
-                bind_heightmap_source(self)
+        if cfg.heightmap_visualizer_cfg is not None:
+            self._setup_heightmap_visualizer()
 
     def load_managers(self) -> None:
         """Bind task state before constructing terms that infer their tensor shapes."""
@@ -651,7 +657,52 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             neginf=-10.0,
         )
         heightmap = self._heightmap_observation(particle_position_e)
-        return torch.nan_to_num(heightmap, nan=0.0, posinf=1.0, neginf=0.0)
+        heightmap = torch.nan_to_num(heightmap, nan=0.0, posinf=1.0, neginf=0.0)
+        self._update_heightmap_visualizer(heightmap)
+        return heightmap
+
+    def _setup_heightmap_visualizer(self) -> None:
+        """Create the optional policy-heightmap markers."""
+        rows, columns = HEIGHTMAP_VISUALIZATION_SHAPE
+        x_lo, x_hi = self.cfg.heightmap_x_bounds
+        y_lo, y_hi = self.cfg.heightmap_y_bounds
+        x = torch.linspace(
+            x_lo + 0.5 * (x_hi - x_lo) / columns,
+            x_hi - 0.5 * (x_hi - x_lo) / columns,
+            columns,
+            device=self.device,
+        )
+        y = torch.linspace(
+            y_lo + 0.5 * (y_hi - y_lo) / rows,
+            y_hi - 0.5 * (y_hi - y_lo) / rows,
+            rows,
+            device=self.device,
+        )
+        grid_y, grid_x = torch.meshgrid(y, x, indexing="ij")
+        positions = torch.stack((grid_x, grid_y, torch.zeros_like(grid_x)), dim=-1).reshape(1, -1, 3)
+        self._heightmap_visualizer_positions = positions.repeat(self.num_envs, 1, 1)
+        self._heightmap_visualizer_positions.add_(self.scene.env_origins[:, None, :])
+        self._heightmap_visualizer_scales = torch.zeros_like(self._heightmap_visualizer_positions)
+        self._heightmap_visualizer_radius = 0.2 * min((x_hi - x_lo) / columns, (y_hi - y_lo) / rows)
+        self._heightmap_visualizer = VisualizationMarkers(self.cfg.heightmap_visualizer_cfg)
+        self._heightmap_visualizer.set_visibility(False)
+
+    def _update_heightmap_visualizer(self, heightmap: torch.Tensor) -> None:
+        """Update visible markers from the current policy-heightmap channel."""
+        if self._heightmap_visualizer is None or not self._heightmap_visualizer.is_visible():
+            return
+        values = F.adaptive_max_pool2d(heightmap[:, :1], HEIGHTMAP_VISUALIZATION_SHAPE).flatten(1)
+        self._heightmap_visualizer_positions[:, :, 2].copy_(
+            self.scene.env_origins[:, 2, None]
+            + self.cfg.heightmap_z_min
+            + values * self.cfg.heightmap_z_range
+            + self._heightmap_visualizer_radius
+        )
+        self._heightmap_visualizer_scales.copy_((values > 0.0)[..., None] * self._heightmap_visualizer_radius)
+        self._heightmap_visualizer.visualize(
+            translations=self._heightmap_visualizer_positions.flatten(0, 1),
+            scales=self._heightmap_visualizer_scales.flatten(0, 1),
+        )
 
     def critic_observation(self) -> torch.Tensor:
         """Return the 11-value privileged vector."""

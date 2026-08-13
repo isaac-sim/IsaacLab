@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from .heightmap_visualizer import _ParticlePushHeightmapVisualizer
-
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionPropertiesCfg
@@ -30,6 +28,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
@@ -52,6 +51,16 @@ MPM_PARTICLES_PER_CELL = 2.0
 MPM_RESET_JITTER_FRACTION = 0.45
 MPM_VISUAL_COLOR = (0.83, 0.60, 0.22)
 PUSH_ACTION_DIM = 6
+HEIGHTMAP_VISUALIZATION_SHAPE = (8, 16)
+HEIGHTMAP_VISUALIZER_CFG = VisualizationMarkersCfg(
+    prim_path="/Visuals/Policy_Heightmap",
+    markers={
+        "height": sim_utils.SphereCfg(
+            radius=1.0,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.20, 0.85, 1.00)),
+        )
+    },
+)
 
 # Enforce a per-world lower-node minimum and a 32-node total upper minimum.
 SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD = 1 << 6
@@ -659,6 +668,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     heightmap_depth_noise_std: float = 0.004
     heightmap_xy_noise_std: float = 0.003
     heightmap_dropout_probability: float = 0.01
+    heightmap_visualizer_cfg: VisualizationMarkersCfg | None = None
 
     bin_inner_x_bounds: tuple[float, float] = BIN_INNER_X_BOUNDS
     bin_inner_y_bounds: tuple[float, float] = BIN_INNER_Y_BOUNDS
@@ -1046,16 +1056,6 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             show_particles=True,
             particle_color=MPM_VISUAL_COLOR,
         )
-        self.sim.visualizer_cfgs = [_ParticlePushNewtonGLVisualizerCfg()]
+        self.sim.visualizer_cfgs = [NewtonGLVisualizerCfg()]
+        self.heightmap_visualizer_cfg = HEIGHTMAP_VISUALIZER_CFG
         configure_sparse_mpm_capacities(self)
-
-
-@configclass
-class _ParticlePushNewtonGLVisualizerCfg(NewtonGLVisualizerCfg):
-    """Newton GL configuration with the task-local CNN heightmap overlay."""
-
-    def create_visualizer(self) -> _ParticlePushHeightmapVisualizer:
-        """Create the task-specific Newton GL visualizer."""
-        from .heightmap_visualizer import _ParticlePushHeightmapVisualizer
-
-        return _ParticlePushHeightmapVisualizer(self)

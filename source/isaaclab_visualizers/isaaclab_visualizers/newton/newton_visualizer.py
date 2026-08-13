@@ -341,6 +341,15 @@ class _NewtonViewerUIMixin:
                             )
                     _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
                     _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
+                    from isaaclab.sim import SimulationContext
+
+                    sim = SimulationContext.instance()
+                    marker_groups = () if sim is None else sim.vis_marker_registry.get_groups().values()
+                    for marker in marker_groups:
+                        name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
+                        changed, visible = imgui.checkbox(f"Show {name}##{marker.group_id}", marker.is_visible())
+                        if changed:
+                            marker.set_visibility(visible)
 
             # --- Rendering Options ------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
