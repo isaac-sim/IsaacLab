@@ -479,6 +479,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
+        SimulationManager.notify_tensor_pose_write()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -589,6 +590,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
+        SimulationManager.notify_tensor_pose_write()
 
     def write_body_com_pose_to_sim_mask(
         self,

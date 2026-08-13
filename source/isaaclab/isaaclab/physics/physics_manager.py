@@ -409,6 +409,20 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def before_kit_app_update(cls) -> bool:
+        """Sync deferred backend state immediately before a frame-producing Kit update.
+
+        The default implementation is a no-op. Backends should override this only when
+        synchronization is required specifically for Kit/RTX rendering, rather than for
+        standalone visualizers handled by :meth:`pre_render`.
+
+        Returns:
+            True when synchronization changed physics state that must be forwarded to the
+            rendering backend before the Kit update; otherwise False.
+        """
+        return False
+
+    @classmethod
     def after_visualizers_render(cls) -> None:
         """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
 
