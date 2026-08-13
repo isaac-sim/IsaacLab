@@ -6,8 +6,7 @@ between physics backends, but it does not make the backends' solver dynamics
 identical. This guide uses ANYmal-D to replay one RSL-RL checkpoint on
 Newton/MJWarp and PhysX without changing which physical joint or body each
 vector element represents.
-For backend capabilities, selection, and maturity, start with the
-:doc:`Physics Backends overview <index>`.
+For backend selection and maturity, start with :ref:`physics-backends`.
 
 
 Quick Transfer

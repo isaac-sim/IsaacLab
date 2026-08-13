@@ -161,6 +161,20 @@ These guides help prepare assets and tasks for the supported physics backends.
     enable_kamino
     /source/how-to/native_physics_api/index
 
+For experimental Newton solver and Warp-environment workflows, see
+:ref:`newton-using-vbd`, :ref:`newton-using-mpm`, :ref:`newton-using-cables`,
+:ref:`warp-environments`, and :ref:`warp-env-migration`.
+
+.. toctree::
+    :hidden:
+
+    /source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer
+    /source/overview/core-concepts/physical-backends/newton/using-vbd-solver
+    /source/overview/core-concepts/physical-backends/newton/using-mpm
+    /source/overview/core-concepts/physical-backends/newton/using-cables
+    /source/overview/core-concepts/physical-backends/newton/warp-environments
+    /source/overview/core-concepts/physical-backends/newton/warp-env-migration
+
 
 Recording an Animation and Video
 --------------------------------

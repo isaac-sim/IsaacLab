@@ -15,3 +15,8 @@ using VSCode.
   add_physics_backend
   development
   agent_skills
+
+.. toctree::
+  :hidden:
+
+  /source/overview/core-concepts/physical-backends/newton/newton-manager-abstraction

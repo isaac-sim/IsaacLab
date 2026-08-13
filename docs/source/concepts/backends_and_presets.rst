@@ -249,7 +249,7 @@ Where to go next
   conflict handling, and advanced configuration behavior.
 - :ref:`backend-architecture` explains how factories, the physics manager,
   assets, and sensors dispatch across backends.
-- :doc:`/source/overview/core-concepts/physical-backends/index` compares physics
-  backend capabilities and links to backend-specific setup guides.
+- :ref:`physics-backends` compares physics backend runtime requirements,
+  maturity, solver families, and intended uses.
 - :doc:`/source/overview/core-concepts/renderers` explains renderer selection and
   implementation details.

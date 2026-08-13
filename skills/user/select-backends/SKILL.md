@@ -18,7 +18,8 @@ Do not use this skill to duplicate backend reference material. Link to the backe
 ## Workflow
 
 1. Identify the target backend: PhysX, Newton, or a task that must support both through presets.
-2. Read the backend architecture, backend and preset selector, and schema cfg docs before editing backend configs.
+2. Read the physics-backends concept, backend architecture, backend and preset
+   selector, and schema cfg docs before editing backend configs.
 3. Start with the backend that best matches the source task or current maintained example. Use PhysX first when matching Isaac Gym behavior.
 4. Add backend presets only after the task runs on one backend.
 5. Map simulation parameters through public cfg schemas instead of copying old simulator-specific keys. Import universal schema fragments and base cfgs from `isaaclab.sim.schemas`, PhysX-specific cfgs from `isaaclab_physx.sim.schemas`, and Newton or MuJoCo cfgs from `isaaclab_newton.sim.schemas`.
@@ -46,13 +47,14 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/backend_architecture.rst`, `docs/source/concepts/backends_and_presets.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, and backend-aware task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If backend docs are incomplete, improve the docs rather than expanding this skill into a backend reference.
+Keep this skill synchronized with `docs/source/concepts/physics_backends.rst`, `docs/source/concepts/backend_architecture.rst`, `docs/source/concepts/backends_and_presets.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, and backend-aware task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If backend docs are incomplete, improve the docs rather than expanding this skill into a backend reference.
 
 ## References
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
 - [Prepare assets for Newton skill](../prepare-assets-for-newton/SKILL.md)
+- [Physics backends](../../../docs/source/concepts/physics_backends.rst)
 - [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)
 - [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)

@@ -24,7 +24,8 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 5. Use suffixless task names in verification and training commands.
 6. Ask for the smallest relevant error output when the failure mode is unclear.
 7. Prefer a minimal verification command before running examples, training, or rendering workflows.
-8. Route backend-specific setup to the relevant PhysX or Newton docs.
+8. Route backend-specific setup to the unified installation guide and backend
+   choice questions to the physics-backends concept.
 9. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
 10. If the docs are incomplete or stale, update the docs rather than expanding this skill.
 
@@ -46,7 +47,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with the unified installation guide, the Docker/Cloud feature guide, quick installation docs, backend installation docs, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
+Keep this skill synchronized with the unified installation guide, the physics-backends concept, the Docker/Cloud feature guide, quick installation docs, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
 
 ## References
 
@@ -56,6 +57,5 @@ Keep this skill synchronized with the unified installation guide, the Docker/Clo
 - [Installation](../../../docs/source/setup/installation/index.rst)
 - [XR teleoperation setup](../../../docs/source/how-to/cloudxr_teleoperation.rst)
 - [Docker/Cloud](../../../docs/source/features/docker_cloud.rst)
-- [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)
-- [Newton installation](../../../docs/source/overview/core-concepts/physical-backends/newton/installation.rst)
+- [Physics backends](../../../docs/source/concepts/physics_backends.rst)
 - [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)
