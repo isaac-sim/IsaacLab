@@ -194,6 +194,32 @@ class WarpFrontend:
         cls._swap_mdp(cfg, label)
         cls._swap_noise_cfgs(cfg, label)
 
+    @classmethod
+    def check_compatibility(cls, cfg: Any) -> str | None:
+        """Report whether ``cfg`` can run on the warp frontend, without raising.
+
+        Answers the question ``--frontend warp`` answers at env construction, but as a value
+        instead of an exception, so callers can survey many cfgs and report on all of them.
+        It runs :meth:`adapt_cfg` itself rather than re-deriving the rules, so the verdict
+        cannot drift from the real code path.
+
+        Args:
+            cfg: A stable manager-based env cfg with its physics preset already resolved
+                (``presets=newton_mjwarp``); an unresolved preset is reported as incompatible.
+
+        Returns:
+            ``None`` when the cfg adapts, otherwise the reason, listing every missing twin.
+
+        Note:
+            ``cfg`` is adapted in place when compatible, and may be left partially adapted
+            when not. Pass a freshly constructed cfg when only the verdict is wanted.
+        """
+        try:
+            cls.adapt_cfg(cfg)
+        except FrontendIncompatibleError as exc:
+            return str(exc)
+        return None
+
     @staticmethod
     def _require_newton_physics(cfg: Any, label: str) -> None:
         """Block unless ``cfg.sim.physics`` is :class:`NewtonCfg`.
