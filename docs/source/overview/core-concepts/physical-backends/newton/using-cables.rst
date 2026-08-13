@@ -30,7 +30,7 @@ in your environment:
 .. code-block:: bash
 
     # Default Newton VBD physics with the Kit visualizer.
-    uv run python scripts/demos/cables.py
+    uv run --extra isaacsim python scripts/demos/cables.py
 
     # Explicit Newton VBD physics with the Newton visualizer.
     uv run python scripts/demos/cables.py --physics newton_vbd --visualizer newton
