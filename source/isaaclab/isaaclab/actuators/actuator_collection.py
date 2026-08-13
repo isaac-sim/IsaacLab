@@ -1046,18 +1046,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self,
         attr: str,
         values: torch.Tensor,
-        env_ids: Sequence[int] | torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
     ) -> None:
-        env_ids = self._as_torch_indices(self._control.resolve_env_ids(env_ids))
-        joint_ids = self._as_torch_indices(self._control.resolve_joint_ids(joint_ids))
         values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
         self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
-
-    def _as_torch_indices(self, indices: torch.Tensor | wp.array) -> torch.Tensor:
-        if isinstance(indices, wp.array):
-            indices = wp.to_torch(indices)
-        return indices.to(self.device, dtype=torch.long)
 
     def _validate_coverage(self) -> None:
         if self.num_joints == 0:
