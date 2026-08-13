@@ -721,6 +721,7 @@ class AppLauncher:
         "fast_shutdown": [bool],
         "limit_cpu_threads": [int],
         "experience": [str],
+        "extra_args": [list, type(None)],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
 
@@ -1123,10 +1124,18 @@ class AppLauncher:
             # pass command line variable to kit
             sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
-        # set rendering device. We do not need to set physics_gpu because it will automatically pick the same one
-        # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
+        # Set the rendering device. ``/physics/cudaDevice`` is resolved by CUDA, so the masked index is
+        # correct there. ``/renderer/activeGpu`` instead indexes the graphics device list, which
+        # ``CUDA_VISIBLE_DEVICES`` does not filter, so the same index selects the wrong GPU whenever the
+        # visible devices do not start at zero. ``/renderer/multiGpu/activeCudaGpus`` takes CUDA indices
+        # and the renderer translates them itself, so select the device through that instead and leave
+        # ``activeGpu`` unset -- the translation is only applied when no explicit graphics index is given.
         launcher_args["physics_gpu"] = self.device_id
-        launcher_args["active_gpu"] = self.device_id
+        extra_args = list(launcher_args.get("extra_args") or [])
+        # Trailing comma: the setting is parsed as a comma-separated string, and a bare integer is
+        # silently ignored.
+        extra_args.append(f"--/renderer/multiGpu/activeCudaGpus={self.device_id},")
+        launcher_args["extra_args"] = extra_args
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
