@@ -680,9 +680,11 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
         from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
         # Explicit --viz newton_rtx replaces this backend while retaining the shared camera hints.
+        # Newton camera pose: position (2.13, 0.0, 1.0), pitch -23.9 degrees,
+        # yaw 180 degrees. The look-at point is one unit along that view ray.
         self.sim.default_visualizer_cfg = NewtonGLVisualizerCfg(
-            eye=(2.3, -2.7, 1.8),
-            lookat=(0.45, 0.0, 0.35),
+            eye=(2.13, 0.0, 1.0),
+            lookat=(1.2157460448, 0.0, 0.5948584132),
             streaming_view=False,
         )
 
