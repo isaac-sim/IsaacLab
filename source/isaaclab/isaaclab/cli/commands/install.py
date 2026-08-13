@@ -641,7 +641,6 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab_experimental",
     "isaaclab_newton",
     "isaaclab_ov",
-    "isaaclab_ovphysx",
     "isaaclab_physx",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",
@@ -1269,10 +1268,6 @@ def command_install(install_type: str = "all") -> None:
             # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
             _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
 
-            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton git build (the default physics engine) over it.
-            _ensure_newton()
-
             # Install requested optional submodule dependency extras.
             if optional_submodule_extra_dependencies:
                 print_info("Installing optional submodule dependencies...")
@@ -1284,6 +1279,13 @@ def command_install(install_type: str = "all") -> None:
                 print_info("Installing extra feature dependencies...")
                 for feature_name, selector in extra_features:
                     _install_extra_feature(feature_name, selector)
+
+            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
+            # pinned Newton git build (the default physics engine) over it. This runs after every
+            # install pass because they go through pip, which does not see
+            # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
+            # newton-usd-schemas pins would otherwise stand.
+            _ensure_newton()
 
             # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
             # Can prevent that from happening.

@@ -188,6 +188,8 @@ Core Solve
       - Description
     * - ``iterations``
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
+    * - ``rigid_body_particle_contact_buffer_size``
+      - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
       - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
 
@@ -272,7 +274,7 @@ The core Franka soft-body task demonstrates the proxy configuration:
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
     :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
-    :end-before: isaacsim_physx: PhysxCfg = PhysxCfg()
+    :end-before: isaacsim_physx: PhysxCfg = PhysxCfg(
     :dedent: 4
 
 What the selectors do:
@@ -298,10 +300,15 @@ What the selectors do:
   VBD. Only the ``panda_hand`` and the two fingers are exposed as proxies,
   so VBD sees three rigid proxies regardless of the number of arm links.
 
+Full-surface rigid-soft contact includes edge and triangle-interior contacts.
+Analytic proxy shapes support it directly, while mesh and convex proxy shapes
+require a volume SDF.
+
 .. important::
 
     The coupler currently rejects
-    :class:`~isaaclab_newton.physics.KaminoSolverCfg` entries and
+    :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` or
+    :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` entries and
     :class:`~isaaclab_newton.physics.MPMSolverCfg` entries configured with
     ``project_outside_colliders=True``, as well as
     :class:`~isaaclab_newton.physics.MJWarpSolverCfg` entries configured with

@@ -173,7 +173,11 @@ The following modules are available in the ``isaaclab_ov`` extension:
 .. autosummary::
    :toctree: lab_ov
 
+   assets
+   cloner
+   physics
    renderers
+   sim.views
 
 isaaclab_assets extension
 -------------------------
@@ -203,23 +207,6 @@ The following modules are available in the ``isaaclab_visualizers`` extension:
    rerun
    viser
 
-
-isaaclab_ovphysx extension
----------------------------
-
-The following modules are available in the ``isaaclab_ovphysx`` extension:
-
-.. currentmodule:: isaaclab_ovphysx
-
-.. autosummary::
-   :toctree: lab_ovphysx
-
-   assets
-   cloner
-   physics
-   sim.views
-
-
 isaaclab_experimental extension
 --------------------------------
 
@@ -241,3 +228,27 @@ isaaclab_tasks_experimental extension
 The package ``isaaclab_tasks_experimental`` contains experimental task implementations
 under active development, not yet part of the stable task suite.
 For the list of available environments, please refer to the :ref:`environments`.
+
+
+Additional public API modules
+-----------------------------
+
+The following public modules provide additional specialized APIs:
+
+.. toctree::
+   :maxdepth: 1
+
+   lab/isaaclab.benchmark.recorders
+   lab/isaaclab.sensors.camera
+   lab/isaaclab.sensors.ray_caster
+   lab/isaaclab.ui.widgets
+   lab/isaaclab.ui.xr_widgets
+   lab/isaaclab.utils.leapp
+   lab_experimental/isaaclab_experimental.envs.mdp.actions
+   lab_newton/isaaclab_newton.envs.mdp
+   lab_newton/isaaclab_newton.ik
+   lab_newton/isaaclab_newton.sim.views
+   lab_ov/isaaclab_ov.sensors
+   lab_ov/isaaclab_ov.sensors.ray_caster
+   lab_physx/isaaclab_physx.sim.views
+   lab_ppisp/isaaclab_ppisp

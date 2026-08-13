@@ -200,4 +200,4 @@ jobs:
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
             --prerelease=allow \
-            "${wheel}[isaacsim,all]"
+            "${wheel}[all]"

@@ -316,13 +316,26 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
 )
 
 
-def make_kitless_rendering_params_lift() -> list[pytest.param]:
-    """Create kitless Lift parameters with known native-crash cases skipped."""
+def make_kitless_rendering_params_lift(*, include_texture_readiness_xfail: bool = False) -> list[pytest.param]:
+    """Create kitless Lift parameters with known failures isolated.
+
+    Args:
+        include_texture_readiness_xfail: Whether to mark the OVPhysX OVRTX albedo cases as expected failures.
+    """
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    if include_texture_readiness_xfail:
+        params = make_xfail_rendering_params(
+            params,
+            {
+                (variant, "ovphysx", "ovrtx_renderer", "albedo"): _OVRTX_TEXTURE_READINESS_XFAIL_REASON
+                for variant in _KITLESS_STAGE_VARIANTS
+            },
+        )
+
     # Both backends can SIGSEGV on the MDL AOVs, which loses the JUnit report for the whole file,
-    # so xfail cannot express these. Albedo does not crash, so it keeps whatever the shared matrix
-    # assigns it.
+    # so xfail cannot express these.
     return make_skip_rendering_params(
-        make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS),
+        params,
         {
             (variant, physics_backend, "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
             for variant in _KITLESS_STAGE_VARIANTS
@@ -597,36 +610,6 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
-def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
-    """Point OVRTX renderer logs at process stdout for kitless rendering tests.
-
-    Walks camera cfgs (``env_cfg.tiled_camera`` for direct envs, ``env_cfg.scene.base_camera`` / ``wrist_camera`` for
-    manager-based envs) and sets :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_file_path` on each camera whose
-    resolved ``renderer_cfg.renderer_type`` is ``"ovrtx"``. Uses ``/dev/stdout`` on Linux and ``CON`` on Windows so
-    pytest captures OVRTX renderer log.
-    """
-    camera_cfgs: list[Any] = []
-
-    # direct envs
-    tiled_camera = getattr(env_cfg, "tiled_camera", None)
-    if tiled_camera is not None:
-        camera_cfgs.append(tiled_camera)
-
-    # manager-based envs
-    scene = getattr(env_cfg, "scene", None)
-    if scene is not None:
-        for camera_name in ("base_camera", "wrist_camera", "tiled_camera"):
-            camera_cfg = getattr(scene, camera_name, None)
-            if camera_cfg is not None:
-                camera_cfgs.append(camera_cfg)
-
-    # redirect OVRTX renderer log to stdout
-    for camera_cfg in camera_cfgs:
-        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
-        if renderer_cfg is not None and getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
-            renderer_cfg.log_file_path = "CON" if os.name == "nt" else "/dev/stdout"
-
-
 def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: str, data_type: str) -> None:
     """Trade PhysX solver performance for determinism/accuracy when testing ``motion_vectors``.
 
@@ -639,7 +622,7 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
     Args:
         env_cfg: The resolved environment config, exposing ``sim.physics`` as a
             :class:`~isaaclab_physx.physics.PhysxCfg` when ``physics_backend == "physx"``, or an
-            :class:`~isaaclab_ovphysx.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
+            :class:`~isaaclab_ov.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
         physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
         data_type: The camera data type under test.
     """
@@ -1353,9 +1336,6 @@ def rendering_test_shadow_hand(
 
     env_cfg.scene.num_envs = 4
 
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
     if data_type in {"depth", "distance_to_camera", "distance_to_image_plane", "motion_vectors"}:
@@ -1447,9 +1427,6 @@ def rendering_test_shadow_hand_yellow_bg(
     env_cfg.scene.num_envs = 4
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},rgb"])
 
-    if renderer == "ovrtx":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     env = None
     try:
         env = ShadowHandCameraEnv(env_cfg)
@@ -1538,9 +1515,6 @@ def rendering_test_cartpole(
     env_cfg.scene.num_envs = 4
     if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
-
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -1698,9 +1672,6 @@ def rendering_test_lift_kuka(
 
     env_cfg.scene.num_envs = 4
 
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
-
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
@@ -1770,7 +1741,6 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.env_spacing = 3.0
-    env_cfg.scene.replicate_physics = True
     env_cfg.scene.base_camera.data_types = [data_type]
     env_cfg.observations = TestFrankaCameraObservationsCfg()
     env_cfg.commands.deformable_pose.debug_vis = False
@@ -1787,6 +1757,8 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
@@ -1801,9 +1773,6 @@ def rendering_test_franka_cloth(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
-
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -1867,9 +1836,6 @@ def rendering_test_franka_soft(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
-
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 

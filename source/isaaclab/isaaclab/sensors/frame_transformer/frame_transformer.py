@@ -14,7 +14,7 @@ from .base_frame_transformer_data import BaseFrameTransformerData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.frame_transformer import FrameTransformer as NewtonFrameTransformer
-    from isaaclab_ovphysx.sensors.frame_transformer import FrameTransformer as OvPhysxFrameTransformer
+    from isaaclab_ov.sensors.frame_transformer import FrameTransformer as OvPhysxFrameTransformer
     from isaaclab_physx.sensors.frame_transformer import FrameTransformer as PhysXFrameTransformer
     from isaaclab_physx.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
 

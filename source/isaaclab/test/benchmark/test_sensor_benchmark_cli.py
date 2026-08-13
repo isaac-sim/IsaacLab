@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 _REPOSITORY_ROOT = Path(__file__).parents[4]
-_BACKENDS = ("isaaclab_physx", "isaaclab_newton", "isaaclab_ovphysx")
+_BACKENDS = ("isaaclab_physx", "isaaclab_newton", "isaaclab_ov")
 
 
 def _script_args(backend: str, script: str, *args: str) -> list[str]:

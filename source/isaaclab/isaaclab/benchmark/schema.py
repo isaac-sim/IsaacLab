@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.3).
+"""Public schema for Isaac Lab benchmark bundles (v1.4).
 
 Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.3
+Current version: 1.4
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.3"
+SCHEMA_VERSION = "1.4"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -129,6 +129,7 @@ class Versions:
     mujoco: str | None = None
     cuda_bindings: str | None = None
     usd_core: str | None = None
+    usd_exchange: str | None = None
     isaaclab_release: str | None = None
 
 
@@ -335,6 +336,19 @@ class Runtime:
 
 
 @dataclass(frozen=True)
+class GpuResources:
+    """Resource-utilisation metrics of one logical CUDA device.
+
+    Args:
+        util_pct: GPU utilisation [%].
+        mem_gb: GPU memory used [GB].
+    """
+
+    util_pct: MeanStd
+    mem_gb: MeanStd
+
+
+@dataclass(frozen=True)
 class Resources:
     """Aggregated resource-utilisation metrics for a run.
 
@@ -342,16 +356,21 @@ class Resources:
     uninformative); memory fields populate ``peak``.
 
     Args:
-        gpu_util_pct: GPU utilisation [%].
-        gpu_mem_gb: GPU memory used [GB].
+        gpu_util_pct: Utilisation of the device the run used [%].
+        gpu_mem_gb: Memory used on the device the run used [GB].
         cpu_util_pct: CPU utilisation [%].
         ram_gb: Host RAM used [GB].
+        devices: Per-device metrics keyed by logical CUDA device index, covering every
+            device visible to the process. On a multi-GPU run this is the whole node,
+            while :attr:`gpu_util_pct` and :attr:`gpu_mem_gb` stay scoped to the device
+            the reporting rank used.
     """
 
     gpu_util_pct: MeanStd
     gpu_mem_gb: MeanStd
     cpu_util_pct: MeanStd
     ram_gb: MeanStd
+    devices: dict[str, GpuResources] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

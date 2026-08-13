@@ -85,7 +85,15 @@ The policy receives only proprioceptive observations, which are reliably availab
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
 
         def __post_init__(self):
-            self.enable_corruption = True
+ Load from a specific run folder
+ Load from a specific run folder
+          uv run isaaclab play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-Reach-UR10e \
+
+uv run isaaclab play --rl_library rsl_rl \
+              --task IsaacContrib-Deploy-Reach-UR10e \
+
+  self.enable_corruption = True
             self.concatenate_terms = True
 
 .. note::
@@ -701,11 +709,6 @@ To load a specific checkpoint, use these arguments:
 
       .. code-block:: bash
 
-          # Load from a specific run folder
-          uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-              --load_run 2025-01-15_14-30-00
-
           # Load a specific checkpoint file
           uv run isaaclab play --rl_library rsl_rl \
               --task IsaacContrib-Deploy-Reach-UR10e \
@@ -715,11 +718,6 @@ To load a specific checkpoint, use these arguments:
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
-
-          # Load from a specific run folder
-          ./isaaclab.sh play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-              --load_run 2025-01-15_14-30-00
 
           # Load a specific checkpoint file
           ./isaaclab.sh play --rl_library rsl_rl \

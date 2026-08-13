@@ -107,3 +107,12 @@ def apply_viewer_visible_worlds(
         viewer.set_visible_worlds(None)
     else:
         viewer.set_visible_worlds(resolved)
+
+
+# TODO: Newton GL's checker floor (GeoType.PLANE, material.z=1.0) renders in the Newton GL
+# OpenGL viewport but the streaming view seen in the browser shows composited Isaac Sim
+# camera-sensor frames (RTX-rendered).  Patching Newton's GLSL checker_scale only affects
+# the OpenGL window, not the camera images, so it has no visible effect from the user's
+# perspective.  To fix the floor appearance in the streaming view, the Isaac Sim USD scene
+# for each task needs an updated floor material/texture (see the Kuka Allegro env for a
+# reference with a blue-grid floor).
