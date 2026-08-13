@@ -196,10 +196,19 @@ jobs:
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
 
   #region build jobs
+  approve-docker-builds:
+    name: Approve Docker Builds
+    runs-on: ubuntu-latest
+    needs: [changes, config]
+    if: needs.changes.outputs.run_docker_tests == 'true'
+    environment: premerge-verification
+    steps:
+    - run: echo "Docker builds approved"
+
   build:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [changes, config]
+    needs: [changes, config, approve-docker-builds]
     if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
@@ -220,7 +229,7 @@ jobs:
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [changes, config]
+    needs: [changes, config, approve-docker-builds]
     if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
