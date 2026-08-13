@@ -52,26 +52,20 @@ then set ``preconditioning=False``.
 Add a Kamino physics preset
 ---------------------------
 
-Add a ``newton_kamino`` entry to the task's existing
-:class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclass. Keep it at the same
-configuration path used by :class:`~isaaclab.sim.SimulationCfg`, such as
-``env.sim.physics``:
+Import :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+:class:`~isaaclab_newton.physics.NewtonCfg`, then add this field to the task's
+existing :class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclass. Keep the
+existing alternatives, especially its ``default`` field, and keep the preset at
+the same configuration path used by :class:`~isaaclab.sim.SimulationCfg`, such
+as ``env.sim.physics``:
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import KaminoPADMMSolverCfg, NewtonCfg
-    from isaaclab_tasks.utils import PresetCfg
-    from isaaclab.utils import configclass
-
-
-    @configclass
-    class TaskPhysicsCfg(PresetCfg):
-        # Keep existing default and other physics presets.
-        newton_kamino: NewtonCfg = NewtonCfg(
-            solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
-            debug_mode=False,
-            use_cuda_graph=True,
-        )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
 
 Then select ``physics=newton_kamino`` to apply matching physics presets. Use a
 targeted override such as ``env.sim.physics=newton_kamino`` when only that
