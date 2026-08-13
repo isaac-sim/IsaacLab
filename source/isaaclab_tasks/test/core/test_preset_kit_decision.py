@@ -88,10 +88,11 @@ def test_isaacsim_physx_is_physics_selector():
 
 
 def test_registered_task_physx_presets_keep_auto_selection_explicit():
-    """PhysX defaults are concrete while ``physx`` remains the automatic selector."""
+    """Core tasks retain explicit PhysX variants alongside automatic ``physx``."""
 
     for task_id, task_spec in gym.registry.items():
-        if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
+        entry_point = task_spec.kwargs.get("env_cfg_entry_point", "")
+        if not task_id.startswith("Isaac-") or "isaaclab_tasks.core" not in str(entry_point):
             continue
         env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
         presets = collect_presets(env_cfg)
