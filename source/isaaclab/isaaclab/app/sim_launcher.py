@@ -613,7 +613,6 @@ def _ensure_isaac_sim_available() -> None:
         installed_version = None
 
     if installed_version:
-        installer = "isaaclab.bat" if sys.platform == "win32" else "./isaaclab.sh"
         logger.error(
             f"\n[ERROR] Isaac Sim {installed_version} is installed, but its full runtime is unavailable.\n"
             "\n"
@@ -622,8 +621,8 @@ def _ensure_isaac_sim_available() -> None:
             "\n"
             "  The current Python environment does not expose the SimulationApp API.\n"
             f"{extra_hint}"
-            "  If this pip installation contains only the kernel package, install the full bundle by running:\n"
-            f"    {installer} -i isaacsim\n"
+            "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
+            "    uv run isaaclab -i isaacsim\n"
             "\n"
             "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
         )
