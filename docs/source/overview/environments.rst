@@ -1021,7 +1021,7 @@ Classic
     |                        |                                    |                                                                                                                       | ``newton_mjwarp``,           |
     |                        |                                    |                                                                                                                       | ``ovphysx``                  |
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
-    | |cart-double-pendulum| | |cart-double-pendulum-manager-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task with the       | ``newton_kamino``,           |
+    | |cart-double-pendulum| | |cart-double-pendulum-manager-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task with the        | ``newton_kamino``,           |
     |                        |                                    | manager-based workflow.                                                                                               | ``newton_mjwarp``,           |
     |                        |                                    |                                                                                                                       | ``ovphysx``                  |
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+

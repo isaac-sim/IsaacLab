@@ -74,7 +74,7 @@ The state configuration must expose one observation group.
     :show-inheritance:
     :exclude-members: __init__, class_type
 
-.. autoclass:: ManagerBasedMARLEnvCfg.AgentCfg
+.. autoclass:: isaaclab.envs.manager_based_marl_env_cfg.ManagerBasedMARLEnvCfg.AgentCfg
     :members:
     :show-inheritance:
 
