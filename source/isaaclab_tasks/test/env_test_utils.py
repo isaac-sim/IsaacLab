@@ -173,7 +173,6 @@ def setup_environment(
                 continue
         # if None: no filter
 
-
         registered_tasks.append(task_spec.id)
 
     # sort environments alphabetically

@@ -21,8 +21,8 @@ import isaaclab_tasks  # noqa: F401
 # Local imports should be imported last
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
-@pytest.mark.parametrize("physics_preset_name", ["newton_mjwarp", "physx", "isaacsim_physx"])
 
+@pytest.mark.parametrize("physics_preset_name", ["newton_mjwarp", "physx", "isaacsim_physx"])
 @pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize(
     "task_name",
@@ -53,3 +53,4 @@ def test_environments(task_name, physics_preset_name, num_envs, device):
 )
 @pytest.mark.isaacsim_ci
 def test_contrib_environments(task_name, num_envs, device):
+    _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
