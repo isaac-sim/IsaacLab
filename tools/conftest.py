@@ -571,10 +571,11 @@ def _retry_failed_test_in_fresh_process(
             f"⚠️  {test_file}: failed in subprocess"
             f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
         )
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(report_file)
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(journal_file)
+        # The renderer log goes too: a retry that dies has its log quoted in the rebuilt report, and a
+        # leftover from the previous attempt would be attributed to this one.
+        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(stale_file)
 
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
             cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
