@@ -1625,7 +1625,8 @@ class BaseArticulation(AssetBase):
         """Set joint position targets into internal buffers.
 
         .. deprecated::
-            Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_position_index`.
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_position_index``.
 
         .. note::
             This method accepts partial or full data.
@@ -1680,7 +1681,8 @@ class BaseArticulation(AssetBase):
         """Set joint position targets into internal buffers.
 
         .. deprecated::
-            Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_position_mask`.
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_position_mask``.
 
         .. note::
             This method expects full data.
@@ -1714,7 +1716,8 @@ class BaseArticulation(AssetBase):
         """Set joint velocity targets into internal buffers.
 
         .. deprecated::
-            Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_velocity_index`.
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_velocity_index``.
 
         .. note::
             This method accepts partial or full data.
@@ -1751,7 +1754,8 @@ class BaseArticulation(AssetBase):
         """Set joint velocity targets into internal buffers.
 
         .. deprecated::
-            Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_velocity_mask`.
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_velocity_mask``.
 
         .. note::
             This method expects full data.
@@ -1785,7 +1789,8 @@ class BaseArticulation(AssetBase):
         """Set joint efforts into internal buffers.
 
         .. deprecated::
-            Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_effort_index`.
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_effort_index``.
 
         .. note::
             This method accepts partial or full data.
@@ -1820,7 +1825,8 @@ class BaseArticulation(AssetBase):
         """Set joint efforts into internal buffers.
 
         .. deprecated::
-            Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_effort_mask`.
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_effort_mask``.
 
         .. note::
             This method expects full data.
@@ -3109,7 +3115,9 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_position_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_position_index``.
+        """
         warnings.warn(
             "Articulation.set_joint_position_target is deprecated. Use "
             "articulation.actuators.command.set_position_index instead.",
@@ -3126,7 +3134,9 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_velocity_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_velocity_index``.
+        """
         warnings.warn(
             "Articulation.set_joint_velocity_target is deprecated. Use "
             "articulation.actuators.command.set_velocity_index instead.",
@@ -3143,7 +3153,9 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_effort_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_effort_index``.
+        """
         warnings.warn(
             "Articulation.set_joint_effort_target is deprecated. Use "
             "articulation.actuators.command.set_effort_index instead.",
