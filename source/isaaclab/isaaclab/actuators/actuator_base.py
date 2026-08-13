@@ -45,10 +45,15 @@ class ActuatorBase(ABC):
     """
 
     computed_effort: torch.Tensor
-    """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
+    """The computed effort [N or N·m, depending on joint type] for the actuator group.
+
+    Shape is (num_envs, num_joints).
+    """
 
     applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
+    """The applied effort [N or N·m, depending on joint type] for the actuator group.
+
+    Shape is (num_envs, num_joints).
 
     This is the effort obtained after clipping the :attr:`computed_effort` based on the
     actuator characteristics.

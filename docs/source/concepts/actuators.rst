@@ -546,12 +546,12 @@ the solver, while PhysX and OVPhysX process them through the shared host adapter
 
     desired_position = robot.actuators.command.position.torch
     processed_effort = robot.actuators.joint_command.effort.torch  # Isaac Lab-managed path
-    applied = robot.actuators.applied_torque.torch      # after clipping [N·m or N]
-    computed = robot.actuators.computed_torque.torch   # before clipping [N·m or N]
+    applied = robot.actuators.applied_effort.torch      # after clipping [N·m or N]
+    computed = robot.actuators.computed_effort.torch   # before clipping [N·m or N]
 
-:attr:`~isaaclab.actuators.ActuatorCollection.computed_torque` is the model output before clipping.
-:attr:`~isaaclab.actuators.ActuatorCollection.applied_torque` is the value after clipping. For
-implicit actuators, these are approximate torques recorded for rewards and telemetry.
+:attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` is the model output before clipping.
+:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` is the value after clipping. For
+implicit actuators, these are approximate efforts recorded for rewards and telemetry.
 
 **Randomizing gains.** Gain updates depend on the actuator implementation. Managed environments
 should use the ``randomize_actuator_gains`` event. It updates actuator-owned gains, implicit solver
@@ -561,7 +561,7 @@ stiffness or damping writer.
 **Lifecycle.** Do not call ``compute()`` or ``submit_commands()`` directly. The articulation resets
 actuators during environment resets. It runs actuator compute, staging, and submission from
 :meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Call this method before advancing the
-simulation, or let the scene or environment loop call it. The torque telemetry reflects its most
+simulation, or let the scene or environment loop call it. The effort telemetry reflects its most
 recent call. Newton-native processing continues inside the solver; host-adapter processing finishes
 during the call.
 
@@ -586,7 +586,7 @@ collection API.
 
 The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
 ``robot.actuators.command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
-``robot.actuators.computed_torque`` / ``robot.actuators.applied_torque``. See the
+``robot.actuators.computed_effort`` / ``robot.actuators.applied_effort``. See the
 :doc:`Isaac Lab 3.0 migration guide <../migration/migrating_to_isaaclab_3-0>` for the full table.
 
 
@@ -684,12 +684,12 @@ Submission differs by backend, but the collection interface is the same:
       - The Isaac Lab-managed path pushes processed position, velocity, and effort staging buffers
         through the PhysX Tensor API. The shared host adapter processes native commands during
         ``write_data_to_sim()`` and submits raw position and velocity targets plus raw effort.
-        ``applied_torque`` remains telemetry. A fused reorder gather runs first when a non-identity
+        ``applied_effort`` remains telemetry. A fused reorder gather runs first when a non-identity
         joint ordering is active.
     * - OVPhysX
       - The native path uses the shared host adapter during ``write_data_to_sim()``. It writes raw
         position and velocity targets plus raw effort through ``set_attribute`` tensor bindings.
-        ``applied_torque`` remains telemetry. Raw setter writes are mirrored into the binding
+        ``applied_effort`` remains telemetry. Raw setter writes are mirrored into the binding
         immediately. A fused reorder gather runs first when joint ordering is non-identity.
     * - Newton / MJWarp
       - Newton writes targets to solver-bound control arrays. Effort is feed-forward, and native

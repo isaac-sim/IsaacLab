@@ -3935,7 +3935,7 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
         self._joint_effort_target_backend: wp.array | None = None
-        self._applied_torque_backend: wp.array | None = None
+        self._applied_effort_backend: wp.array | None = None
         self._ordering_configure_backend_staging()
 
         # All-true masks.
@@ -4127,14 +4127,14 @@ class Articulation(BaseArticulation):
         "_joint_pos_target_backend",
         "_joint_vel_target_backend",
         "_joint_effort_target_backend",
-        "_applied_torque_backend",
+        "_applied_effort_backend",
     )
     """Backend-order joint staging buffers managed by :meth:`_ordering_configure_backend_staging`.
 
     ``_joint_pos_target_backend`` / ``_joint_vel_target_backend`` / ``_joint_effort_target_backend``
     are persistent backend-order mirrors of the corresponding user-order target buffers, kept
     current by :meth:`OvPhysxActuatorControl.stage_user_command` whenever a user setter runs.
-    ``_applied_torque_backend`` is separate, purely transient scratch:
+    ``_applied_effort_backend`` is separate, purely transient scratch:
     :meth:`OvPhysxActuatorControl.submit_commands` fully overwrites it every step with the
     backend-order actuator output, so it must not alias ``_joint_effort_target_backend`` (whose
     unselected rows a partial effort-target write relies on to still hold the persisted target,

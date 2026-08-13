@@ -259,7 +259,7 @@ def _run_simulation(
             articulation.set_joint_effort_target_index(target=effort_target)
 
         recorded_pos, recorded_vel = [], []
-        recorded_computed, recorded_applied = [], []
+        recorded_computed_effort, recorded_applied_effort = [], []
         recorded_adapter_computed, recorded_adapter_applied = [], []
         if capture_first_compute:
             with wp.ScopedCapture(device=articulation.device, force_module_load=True):
@@ -270,8 +270,8 @@ def _run_simulation(
             articulation.update(DT)
             recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
-            recorded_computed.append(articulation.actuators.computed_torque.torch.clone())
-            recorded_applied.append(articulation.actuators.applied_torque.torch.clone())
+            recorded_computed_effort.append(articulation.actuators.computed_effort.torch.clone())
+            recorded_applied_effort.append(articulation.actuators.applied_effort.torch.clone())
             if use_newton_actuators:
                 recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
                 recorded_adapter_applied.append(wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d).clone())
@@ -284,8 +284,8 @@ def _run_simulation(
         "adapter_joint_names": joint_names,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
-        "computed_torque": recorded_computed,
-        "applied_torque": recorded_applied,
+        "computed_effort": recorded_computed_effort,
+        "applied_effort": recorded_applied_effort,
         "adapter_computed_effort": recorded_adapter_computed,
         "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
@@ -324,7 +324,7 @@ def test_newton_actuator_graph_capture_failure_falls_back_to_eager(monkeypatch: 
     assert result["native_actuator_graph_count"] == 0
     assert len(result["joint_pos"]) == 2
     assert all(torch.isfinite(joint_pos).all() for joint_pos in result["joint_pos"])
-    assert all(torch.any(effort != 0.0) for effort in result["applied_torque"])
+    assert all(torch.any(effort != 0.0) for effort in result["applied_effort"])
     assert all(torch.any(effort != 0.0) for effort in result["adapter_applied_effort"])
 
 
@@ -513,28 +513,28 @@ class _EquivalenceTestBase(unittest.TestCase):
                 msg=f"Joint velocities diverged at step {step_i}",
             )
 
-    def test_applied_torque_match(self):
+    def test_applied_effort_match(self):
         for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
+            zip(self.lab_result["applied_effort"], self.newton_result["applied_effort"])
         ):
             torch.testing.assert_close(
                 lab,
                 newton,
                 atol=self.torque_atol,
                 rtol=self.torque_rtol,
-                msg=f"applied_torque diverged at step {step_i}",
+                msg=f"applied_effort diverged at step {step_i}",
             )
 
-    def test_computed_torque_match(self):
+    def test_computed_effort_match(self):
         for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
+            zip(self.lab_result["computed_effort"], self.newton_result["computed_effort"])
         ):
             torch.testing.assert_close(
                 lab,
                 newton,
                 atol=self.torque_atol,
                 rtol=self.torque_rtol,
-                msg=f"computed_torque diverged at step {step_i}",
+                msg=f"computed_effort diverged at step {step_i}",
             )
 
 

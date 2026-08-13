@@ -152,14 +152,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         return self._has_implicit_actuators
 
     @property
-    def computed_torque(self) -> ProxyArray:
-        """Joint torques computed before clipping [N or N·m, depending on joint type]."""
-        return self._computed_torque_ta
+    def computed_effort(self) -> ProxyArray:
+        """Joint efforts computed before clipping [N or N·m, depending on joint type]."""
+        return self._computed_effort_ta
 
     @property
-    def applied_torque(self) -> ProxyArray:
-        """Joint torques applied after clipping [N or N·m, depending on joint type]."""
-        return self._applied_torque_ta
+    def applied_effort(self) -> ProxyArray:
+        """Joint efforts applied after clipping [N or N·m, depending on joint type]."""
+        return self._applied_effort_ta
 
     # Lifecycle.
 
@@ -235,8 +235,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_pos_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_vel_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_effort_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
-        self._computed_torque = wp.zeros(shape, dtype=wp.float32, device=self.device)
-        self._applied_torque = wp.zeros(shape, dtype=wp.float32, device=self.device)
+        self._computed_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
+        self._applied_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._gear_ratio = wp.ones(shape, dtype=wp.float32, device=self.device)
         self._all_joint_ids = wp.array(list(range(self.num_joints)), dtype=wp.int32, device=self.device)
@@ -247,8 +247,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_pos_target_sim_ta = ProxyArray(self._joint_pos_target_sim)
         self._joint_vel_target_sim_ta = ProxyArray(self._joint_vel_target_sim)
         self._joint_effort_target_sim_ta = ProxyArray(self._joint_effort_target_sim)
-        self._computed_torque_ta = ProxyArray(self._computed_torque)
-        self._applied_torque_ta = ProxyArray(self._applied_torque)
+        self._computed_effort_ta = ProxyArray(self._computed_effort)
+        self._applied_effort_ta = ProxyArray(self._applied_effort)
 
     def _resolve_group_joints(
         self, actuator_cfgs: dict[str, ActuatorBaseCfg]
@@ -571,8 +571,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 self._joint_pos_target_sim,
                 self._joint_vel_target_sim,
                 self._joint_effort_target_sim,
-                self._computed_torque,
-                self._applied_torque,
+                self._computed_effort,
+                self._applied_effort,
                 self._soft_joint_vel_limits,
             ]
         elif type(executor) in (IdealPDActuator, DCMotor):
@@ -732,8 +732,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._joint_pos_target_sim,
             self._joint_vel_target_sim,
             self._joint_effort_target_sim,
-            self._computed_torque,
-            self._applied_torque,
+            self._computed_effort,
+            self._applied_effort,
             self._soft_joint_vel_limits,
         ]
         stable_launch = type(actuator) in (IdealPDActuator, DCMotor)

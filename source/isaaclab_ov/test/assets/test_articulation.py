@@ -426,11 +426,11 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
 
         assert articulation._actuator_control.native_actuator_path_active
         assert articulation.newton_actuator_adapter is not None
-        assert torch.any(articulation.actuators.computed_torque.torch != 0.0)
-        assert torch.any(articulation.actuators.applied_torque.torch != 0.0)
+        assert torch.any(articulation.actuators.computed_effort.torch != 0.0)
+        assert torch.any(articulation.actuators.applied_effort.torch != 0.0)
         torch.testing.assert_close(
             _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device),
-            articulation.actuators.applied_torque.torch,
+            articulation.actuators.applied_effort.torch,
         )
 
         sim.step()
@@ -446,7 +446,7 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
             -effort_limit,
             effort_limit,
         )
-        torch.testing.assert_close(articulation.actuators.applied_torque.torch, expected_effort)
+        torch.testing.assert_close(articulation.actuators.applied_effort.torch, expected_effort)
 
 
 @pytest.mark.parametrize(
@@ -493,8 +493,8 @@ def test_newton_native_ovphysx_effort_binding_excludes_implicit_pd(device):
         articulation.write_data_to_sim()
 
         raw_effort = wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d)
-        applied_torque = articulation.actuators.applied_torque.torch
-        assert torch.any(applied_torque[:, 0] != raw_effort[:, 0])
+        applied_effort = articulation.actuators.applied_effort.torch
+        assert torch.any(applied_effort[:, 0] != raw_effort[:, 0])
         torch.testing.assert_close(
             _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device),
             raw_effort,

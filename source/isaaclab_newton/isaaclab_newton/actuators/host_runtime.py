@@ -200,7 +200,7 @@ class _HostActuatorRuntime:
                 articulation._ALL_JOINT_INDICES,
                 False,
             ],
-            outputs=[collection._computed_torque, collection._applied_torque],
+            outputs=[collection._computed_effort, collection._applied_effort],
             device=articulation.device,
         )
 

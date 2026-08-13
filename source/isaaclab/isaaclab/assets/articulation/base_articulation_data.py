@@ -79,15 +79,15 @@ class BaseArticulationData(ABC):
         self._joint_pos_target = actuators.command.position.warp
         self._joint_vel_target = actuators.command.velocity.warp
         self._joint_effort_target = actuators.command.effort.warp
-        self._computed_torque = actuators.computed_torque.warp
-        self._applied_torque = actuators.applied_torque.warp
+        self._computed_torque = actuators.computed_effort.warp
+        self._applied_torque = actuators.applied_effort.warp
         self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
         self._gear_ratio = actuators._gear_ratio
         self._joint_pos_target_ta = actuators.command.position
         self._joint_vel_target_ta = actuators.command.velocity
         self._joint_effort_target_ta = actuators.command.effort
-        self._computed_torque_ta = actuators.computed_torque
-        self._applied_torque_ta = actuators.applied_torque
+        self._computed_torque_ta = actuators.computed_effort
+        self._applied_torque_ta = actuators.applied_effort
         self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
         self._gear_ratio_ta = ProxyArray(self._gear_ratio)
 
@@ -404,7 +404,7 @@ class BaseArticulationData(ABC):
         """Computed actuator torques before clipping [N or N·m, depending on joint type].
 
         .. deprecated:: 3.0.0
-            Use ``articulation.actuators.computed_torque`` instead.
+            Use ``articulation.actuators.computed_effort`` instead.
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
@@ -416,7 +416,7 @@ class BaseArticulationData(ABC):
         """Actuator torques applied after clipping [N or N·m, depending on joint type].
 
         .. deprecated:: 3.0.0
-            Use ``articulation.actuators.applied_torque`` instead.
+            Use ``articulation.actuators.applied_effort`` instead.
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """

@@ -45,7 +45,7 @@ def get_robot_body_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
     robot_data = robot.data
     joint_pos = robot_data.joint_pos.torch
     joint_vel = robot_data.joint_vel.torch
-    joint_torque = robot.actuators.applied_torque.torch
+    joint_torque = robot.actuators.applied_effort.torch
     device = joint_pos.device
     batch = joint_pos.shape[0]
 

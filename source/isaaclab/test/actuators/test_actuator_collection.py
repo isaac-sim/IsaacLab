@@ -155,8 +155,8 @@ def _assert_collection_outputs_match_exactly(actual: ActuatorCollection, referen
         rtol=0.0,
         atol=0.0,
     )
-    torch.testing.assert_close(actual.computed_torque.torch, reference.computed_torque.torch, rtol=0.0, atol=0.0)
-    torch.testing.assert_close(actual.applied_torque.torch, reference.applied_torque.torch, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(actual.computed_effort.torch, reference.computed_effort.torch, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(actual.applied_effort.torch, reference.applied_effort.torch, rtol=0.0, atol=0.0)
     torch.testing.assert_close(
         wp.to_torch(actual._soft_joint_vel_limits),
         wp.to_torch(reference._soft_joint_vel_limits),
@@ -962,13 +962,13 @@ def test_actuator_batch_rebinds_cuda_state_provider_on_request(
     expected_computed = 45.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
     expected_applied = 13.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
     torch.testing.assert_close(
-        collection.computed_torque.torch,
+        collection.computed_effort.torch,
         torch.tensor([[expected_computed]], device=control.device),
         rtol=0.0,
         atol=0.0,
     )
     torch.testing.assert_close(
-        collection.applied_torque.torch,
+        collection.applied_effort.torch,
         torch.tensor([[expected_applied]], device=control.device),
         rtol=0.0,
         atol=0.0,

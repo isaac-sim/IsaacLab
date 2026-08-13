@@ -1194,9 +1194,9 @@ future release:
 +------------------------------------------+------------------------------------------+
 | ``data.joint_effort_target``             | ``actuators.command.effort``             |
 +------------------------------------------+------------------------------------------+
-| ``data.computed_torque``                 | ``actuators.computed_torque``            |
+| ``data.computed_torque``                 | ``actuators.computed_effort``            |
 +------------------------------------------+------------------------------------------+
-| ``data.applied_torque``                  | ``actuators.applied_torque``             |
+| ``data.applied_torque``                  | ``actuators.applied_effort``             |
 +------------------------------------------+------------------------------------------+
 
 .. note::
@@ -1258,7 +1258,7 @@ Here's a complete example showing how to update your code:
    robot.actuators.command.set_effort_index(value=efforts, joint_ids=joint_ids)
 
    # Reading actuator telemetry from the collection
-   applied = robot.actuators.applied_torque.torch
+   applied = robot.actuators.applied_effort.torch
    position_command = robot.actuators.command.position.torch
 
 For the full runtime API of the actuator collection -- command setters and telemetry buffers --

@@ -143,8 +143,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                     articulation.data.has_joint_ordering,
                 ],
                 outputs=[
-                    collection._computed_torque,
-                    collection._applied_torque,
+                    collection._computed_effort,
+                    collection._applied_effort,
                 ],
                 device=self.device,
             )

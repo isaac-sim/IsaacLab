@@ -169,7 +169,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         # position and velocity targets only for implicit actuators.
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
-        user_effort = collection._applied_torque
+        user_effort = collection._applied_effort
         if self._host_actuator_runtime is not None:
             user_effort = self._host_actuator_runtime.wrapper.joint_f_2d
         if articulation.data.has_joint_ordering:
@@ -183,13 +183,13 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
                     write_pos_target=write_pos,
                     write_vel_target=write_vel,
                     write_joint_act=False,
-                    backend_effort=articulation._applied_torque_backend,
+                    backend_effort=articulation._applied_effort_backend,
                     backend_pos_target=articulation._joint_pos_target_backend,
                     backend_vel_target=articulation._joint_vel_target_backend,
                     backend_joint_act=None,
                     device=self.device,
                 )
-            effort = articulation._applied_torque_backend
+            effort = articulation._applied_effort_backend
             pos_target = articulation._joint_pos_target_backend
             vel_target = articulation._joint_vel_target_backend
         else:
