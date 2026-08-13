@@ -377,7 +377,7 @@ def visualizer_is_available(visualizer: str) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if importlib.util.find_spec("isaaclab_visualizers") is None:
         return False
-    if visualizer in {"newton_gl", "newton_rtx"}:
+    if visualizer in {"newton", "newton_gl", "newton_rtx"}:
         if importlib.util.find_spec("isaaclab_newton") is None:
             return False
         return visualizer != "newton_rtx" or importlib.util.find_spec("ovrtx") is not None

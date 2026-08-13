@@ -25,3 +25,5 @@ Changed
   digest when an exact artifact is required.
 * Loaded the Franka Pour robot and cups from the standard Isaac Lab Nucleus asset root,
   while retaining their environment variables for local overrides.
+* Resolved the default Franka Pour reset artifact relative to the repository
+  root and included the generator command in missing-artifact errors.

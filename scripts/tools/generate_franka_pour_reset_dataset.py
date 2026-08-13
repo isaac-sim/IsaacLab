@@ -1597,7 +1597,7 @@ def main() -> None:
     output = args.output.expanduser().resolve()
     print(f"[INFO] Wrote {len(payload['states']['category'])} reset states to {output}.")
     print(f"[INFO] Content SHA-256: {payload['content_sha256']}")
-    print("[INFO] Pin this artifact during training with:")
+    print("[INFO] Optional reproducibility pin:")
     print(f"       env.reset_dataset_content_sha256={payload['content_sha256']}")
 
 

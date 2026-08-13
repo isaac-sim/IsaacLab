@@ -28,70 +28,48 @@ reproducible state distribution. Runtime reconstructs the same source-local part
 for each row and resets the complete MPM solver state; it does not replay cached stress or particle
 trajectories.
 
-## Generate the reset artifact
+## Generate and train
 
-The artifact is generated locally and is intentionally not stored in Git. Run the one-file
-generator from the repository root:
+The artifact is generated locally and is intentionally not stored in Git. From the repository
+root, generate it once and then train with the task defaults:
 
 ```bash
-uv run python scripts/tools/generate_franka_pour_reset_dataset.py \
-  --device cuda:0
+uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
+
+uv run isaaclab train --rl_library rsl_rl \
+  --task IsaacContrib-Franka-Pour \
+  --num_envs 2048 --device cuda:0 --max_iterations 3000
 ```
 
-This creates `datasets/franka_pour/reset_dataset.pt` with 20,000 rows. The script exposes the same
-14 connected reset phases and phase quotas as the reference distribution. Newton IK, joint-limit,
-table/object, self-collision, grasp-seating, and particle-workspace checks reject unsafe proposals;
-there is no second validation or artifact-promotion command.
+The first command takes about two minutes on an L40S-class GPU and creates the default
+`datasets/franka_pour/reset_dataset.pt` artifact with 20,000 rows. Runtime resolves that relative
+path from the repository root, so launching training from another working directory does not
+change which artifact is loaded. The script exposes the same 14 connected reset phases and phase
+quotas as the reference distribution. Newton IK, joint-limit, table/object, self-collision,
+grasp-seating, and particle-workspace checks reject unsafe proposals; there is no second validation
+or artifact-promotion command.
 
 The generator and task load the Franka Pour cups USD from the standard Isaac Lab Nucleus asset
 root. Set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` only to use a compatible local copy instead. The
 generated database itself does not need to be published.
 
-The `datasets/` directory is ignored by Git. At completion the generator prints the artifact's
-content digest and the training override needed to pin it. The configuration does not assume a
-universal digest because the artifact is generated locally; publishing the database is not required.
+The `datasets/` directory is ignored by Git. The payload always validates its stored content digest,
+so no digest override is needed for ordinary training or playback. For an exactly reproducible run,
+the generator also prints the optional `env.reset_dataset_content_sha256` pin. Publishing the
+database is not required.
 
-## Train or play
+## Play
 
 The canonical task is registered with import-light string entry points. Registration does not load
-the artifact; environment startup validates the configured dataset path and content hash. The
-configuration can also be constructed directly:
-
-```python
-from isaaclab_tasks.contrib.franka_pour.config.franka.agents.rsl_rl_ppo_cfg import (
-    FrankaPourResetDatasetPPORunnerCfg,
-)
-from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import FrankaPourResetDatasetEnvCfg
-
-env_cfg = FrankaPourResetDatasetEnvCfg()
-env_cfg.reset_dataset_path = "datasets/franka_pour/reset_dataset.pt"
-env_cfg.reset_dataset_content_sha256 = "<digest printed by the generator>"
-agent_cfg = FrankaPourResetDatasetPPORunnerCfg()
-```
-
-The payload always verifies its own stored content digest. Set
-`env_cfg.reset_dataset_content_sha256` to the value printed by the generator to additionally pin a
-specific artifact for a reproducible training or evaluation run.
-
-Reset-dataset play mode uses one bounded sparse-grid world, disables observation corruption,
-freezes the sampler, and moves the interactive viewer closer.
-
-Train and play the canonical task through the unified Isaac Lab commands:
+the artifact; environment startup validates it when creating the environment. Play mode uses one
+bounded sparse-grid world, disables observation corruption, freezes the sampler, and moves the
+interactive viewer closer:
 
 ```bash
-uv run isaaclab train --rl_library rsl_rl \
-  --task IsaacContrib-Franka-Pour \
-  --num_envs 2048 --device cuda:0 \
-  --max_iterations 3000 \
-  env.reset_dataset_path="$PWD/datasets/franka_pour/reset_dataset.pt" \
-  env.reset_dataset_content_sha256=<digest-printed-by-generator>
-
 uv run isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Franka-Pour \
   --checkpoint /path/to/model.pt \
-  --device cuda:0 --viz newton \
-  env.reset_dataset_path="$PWD/datasets/franka_pour/reset_dataset.pt" \
-  env.reset_dataset_content_sha256=<digest-printed-by-generator>
+  --device cuda:0 --visualizer newton_gl
 ```
 
 ## Learning contract

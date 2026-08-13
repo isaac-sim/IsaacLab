@@ -9,6 +9,27 @@ Start with the compact ``scripts/demos/mpm/newton_mpm_granular.py`` example;
 ``snowball_smash.py`` adds coupling and ``teapot_fill.py`` adds cavity sampling.
 
 
+.. _franka-pour-reset-artifact:
+
+Generate and Train Franka Pour
+-------------------------------
+
+The ``IsaacContrib-Franka-Pour`` task restores episodes from a reset artifact
+that is generated locally and ignored by Git. From the repository root, the
+complete setup is two commands with no configuration overrides:
+
+.. code-block:: bash
+
+   uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour --num_envs 2048 --device cuda:0
+
+The first command takes about two minutes on an L40S-class GPU and writes the
+20,000-row artifact to ``datasets/franka_pour/reset_dataset.pt``. The task uses
+that same repository-relative path by default and validates the artifact's
+stored content digest automatically. Digest pinning remains available for
+reproducible experiments, but ordinary training and playback do not require it.
+
+
 Minimal Setup
 -------------
 

@@ -7,6 +7,7 @@
 
 import pytest
 
+from isaaclab_tasks.contrib.franka_pour import pour_env
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     FrankaPourResetDatasetEnvCfg,
     _configure_mpm_capacities,
@@ -34,6 +35,25 @@ _RESET_CONTRACT_FIELDS = {
     "particle_count",
     "particle_spacing",
 }
+
+
+def test_reset_dataset_path_is_repo_relative_and_missing_error_is_actionable(monkeypatch, tmp_path):
+    """Relative artifacts share the generator's root and missing files name the recovery command."""
+    repo_root = tmp_path / "repo"
+    dataset_path = repo_root / "datasets/franka_pour/reset_dataset.pt"
+    dataset_path.parent.mkdir(parents=True)
+    dataset_path.touch()
+    monkeypatch.setattr(pour_env, "_REPO_ROOT", repo_root)
+    monkeypatch.chdir(tmp_path)
+
+    assert pour_env._resolve_reset_dataset_path("datasets/franka_pour/reset_dataset.pt") == dataset_path.resolve()
+
+    dataset_path.unlink()
+    with pytest.raises(FileNotFoundError) as exc_info:
+        pour_env._resolve_reset_dataset_path("datasets/franka_pour/reset_dataset.pt")
+    message = str(exc_info.value)
+    assert str(dataset_path.resolve()) in message
+    assert "uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0" in message
 
 
 def test_config_is_fully_authored_once_with_compact_reset_contract():

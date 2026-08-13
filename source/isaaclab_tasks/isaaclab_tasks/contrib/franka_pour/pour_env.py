@@ -45,6 +45,9 @@ from .reset_dataset_io import reset_dataset_validate_runtime
 
 logger = logging.getLogger(__name__)
 
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+_RESET_DATASET_GENERATOR_COMMAND = "uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0"
+
 if TYPE_CHECKING:
     from isaaclab_newton.assets import MPMObject
 
@@ -76,6 +79,20 @@ _SEATTLELAB_TABLETOP_COLLISION_INSET = 0.003
 # builder attribute but does not currently publish the corresponding enum.
 _MJWARP_SOLREF_MODE_FORCE_SPACE = 0
 _SOURCE_CUP_PARTICLE_FRICTION = 0.9
+
+
+def _resolve_reset_dataset_path(configured_path: str) -> Path:
+    """Resolve a reset dataset from the repository root and require it to exist."""
+    cache_path = Path(configured_path).expanduser()
+    if not cache_path.is_absolute():
+        cache_path = _REPO_ROOT / cache_path
+    cache_path = cache_path.resolve()
+    if not cache_path.is_file():
+        raise FileNotFoundError(
+            f"Franka Pour reset dataset not found: {cache_path}. Generate it from the Isaac Lab repository root "
+            f"with: {_RESET_DATASET_GENERATOR_COMMAND}"
+        )
+    return cache_path
 
 
 def _set_mjwarp_force_space_solref_mode(builder: newton.ModelBuilder, shape_id: int) -> None:
@@ -454,9 +471,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         """Load and stage a validated direct-state dataset on the simulation device."""
         from .pour_env_cfg import _reset_dataset_task_contract
 
-        cache_path = Path(configured_path).expanduser().resolve()
-        if not cache_path.is_file():
-            raise FileNotFoundError(f"Franka Pour reset dataset not found: {cache_path}")
+        cache_path = _resolve_reset_dataset_path(configured_path)
         payload = torch.load(cache_path, map_location="cpu", weights_only=True)
         _, states, layouts = reset_dataset_validate_runtime(
             payload,
