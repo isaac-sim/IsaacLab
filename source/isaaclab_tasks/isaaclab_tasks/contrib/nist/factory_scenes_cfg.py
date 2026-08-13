@@ -17,6 +17,8 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.contrib.nist import factory_assets_cfg as assets
 from isaaclab_tasks.utils import PresetCfg, preset
 
+_FRANKA_PANDA_PHYSX_CFG = assets.FRANKA_PANDA_PHYSX_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
 
 @configclass
 class FactorySceneBase(InteractiveSceneCfg):
@@ -27,8 +29,9 @@ class FactorySceneBase(InteractiveSceneCfg):
     table = assets.TABLE_CFG
     nistboard = assets.NISTBOARD_CFG
     robot: ArticulationCfg = preset(  # type: ignore[assignment]
-        default=assets.FRANKA_PANDA_PHYSX_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
-        physx=assets.FRANKA_PANDA_PHYSX_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
+        default=_FRANKA_PANDA_PHYSX_CFG,
+        isaacsim_physx=_FRANKA_PANDA_PHYSX_CFG,
+        physx=_FRANKA_PANDA_PHYSX_CFG,
         newton_mjwarp=assets.FRANKA_PANDA_NEWTON_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
     )
     dome_light = assets.DOMELIGHT_CFG

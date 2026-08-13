@@ -42,7 +42,8 @@ class _SocketCollisionPropsCfg(PresetCfg):
         sdf_narrow_band_inner=-0.005,
         sdf_narrow_band_outer=0.005,
     )
-    physx = default
+    isaacsim_physx = default
+    physx = isaacsim_physx
 
 
 @configclass
@@ -58,7 +59,8 @@ class _PlugCollisionPropsCfg(PresetCfg):
         sdf_narrow_band_inner=-0.005,
         sdf_narrow_band_outer=0.005,
     )
-    physx = default
+    isaacsim_physx = default
+    physx = isaacsim_physx
 
 
 ASSEMBLY_SOCKET_COLLISION_PROPS_CFG = _SocketCollisionPropsCfg()
