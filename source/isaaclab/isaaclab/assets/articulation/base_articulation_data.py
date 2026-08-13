@@ -99,14 +99,20 @@ class BaseArticulationData(ABC):
                 "joint_vel_target": "velocity",
                 "joint_effort_target": "effort",
             }.get(name)
-            replacement = f"command.{command_field}" if command_field is not None else name
+            collection_field = {
+                "computed_torque": "computed_effort",
+                "applied_torque": "applied_effort",
+            }.get(name, name)
+            replacement = f"command.{command_field}" if command_field is not None else collection_field
             warnings.warn(
                 f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
             return (
-                getattr(collection.command, command_field) if command_field is not None else getattr(collection, name)
+                getattr(collection.command, command_field)
+                if command_field is not None
+                else getattr(collection, collection_field)
             )
 
         warnings.warn(
