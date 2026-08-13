@@ -327,7 +327,7 @@ diverge because of:
 * timestep and substeps
 * solver convergence
 
-Use :doc:`Solver Comparison <solver-comparison>` to diagnose and tune these
+Use :ref:`solver-differences` to diagnose and tune these
 differences rather than treating them as ordering failures.
 
 
@@ -346,4 +346,4 @@ order:
 5. Compare source and target values by physical name rather than by raw column.
 6. When name-to-vector semantics are stable but motion still diverges, classify
    the problem as a solver-dynamics issue and continue with
-   :doc:`Solver Comparison <solver-comparison>`.
+   :ref:`solver-differences`.

@@ -17,7 +17,7 @@ backend-specific configuration, installation, and limitations.
     physx/index
     newton/index
     ovphysx/index
-    solver-comparison
+    /source/concepts/solver_differences
     sim-to-sim-policy-transfer
 
 

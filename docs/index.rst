@@ -100,6 +100,7 @@ Table of Contents
 
    source/concepts/backends_and_presets
    source/concepts/backend_architecture
+   source/concepts/solver_differences
 
 
 .. toctree::

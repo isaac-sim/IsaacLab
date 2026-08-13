@@ -18,6 +18,9 @@ Understand how Isaac Lab selects a backend and its task-specific preset before c
 see :ref:`backends-and-presets`. This guide prepares an asset and task for
 ``physics=newton_mjwarp``. After both backends run the asset and task, use
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton` to transfer a policy checkpoint.
+For the conceptual differences that require target-solver validation, see
+:ref:`solver-differences`; use :doc:`tune_mjwarp` for the focused MJWarp tuning
+procedure.
 
 Import a multi-physics asset
 ----------------------------
@@ -120,6 +123,25 @@ penetration, and success rate for the same fixed grasp. Also check for non-finit
 impulses, unexpected saturation, excessive angular velocity, contact loss, and importer or solver
 warnings. Reject robot-object and robot-support penetration, impossible mimic states, and invalid
 randomized geometry before the first physics step.
+
+Account for solver differences
+------------------------------
+
+After the paired smoke tests, use the target solver's controls to address the
+differences described in :ref:`solver-differences`:
+
+#. Revalidate contact behavior with the smallest useful environment count and a
+   visualizer before scaling up.
+#. Retune material friction from measured slip; PhysX patch friction and
+   MJWarp contact friction are not numerically interchangeable.
+#. Retune restitution from observed bounce and chatter rather than assuming a
+   PhysX scene threshold applies to Newton.
+#. Compare timestep and ``num_substeps`` against the fixed reproduction,
+   especially for contact-heavy tasks.
+#. When a PhysX task used CCD, validate a Newton collision strategy and shorter
+   solver timestep as needed; MJWarp's ``ccd_iterations`` is not a CCD switch.
+#. For Kamino, validate reset-state consistency and only then investigate
+   constraint stabilization or convergence settings.
 
 Diagnose Newton-only failures
 -----------------------------
