@@ -1,3 +1,12 @@
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.utils.warp.raycast_mesh` to raise a :class:`ValueError` unless
+  ``ray_directions`` has the same shape as ``ray_starts``. Fewer directions than rays previously read
+  past the end of ``ray_directions`` and returned undefined results, while surplus directions and
+  differently shaped direction tensors were silently reinterpreted. Callers that relied on either
+  must reshape ``ray_directions`` to match ``ray_starts``.
+
 Fixed
 ^^^^^
 

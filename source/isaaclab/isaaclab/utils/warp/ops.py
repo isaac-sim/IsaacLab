@@ -114,10 +114,16 @@ def raycast_mesh(
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
 
-    The leading dimensions of the rays are arbitrary and are preserved in every output.
+    Raises:
+        ValueError: If :attr:`ray_directions` does not have the same shape as :attr:`ray_starts`.
     """
     # extract device and shape information
     shape = ray_starts.shape
+    if ray_directions.shape != shape:
+        raise ValueError(
+            "Expected ray_directions to have the same shape as ray_starts. Received ray_starts"
+            f" {tuple(shape)} and ray_directions {tuple(ray_directions.shape)}."
+        )
     device = ray_starts.device
     # device of the mesh
     torch_device = wp.device_to_torch(mesh.device)

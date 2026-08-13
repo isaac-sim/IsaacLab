@@ -50,3 +50,13 @@ def test_raycast_mesh_preserves_ray_dimensions(plane_mesh, ray_shape):
     assert ray_distance.shape == ray_shape
     assert ray_face_id.shape == ray_shape
     torch.testing.assert_close(ray_distance, depths.view(ray_shape))
+
+
+@pytest.mark.parametrize("direction_shape", [(2, 3), (5, 3), (4, 2), (2, 2, 3)])
+def test_raycast_mesh_rejects_direction_shape_mismatch(plane_mesh, direction_shape):
+    """Directions that do not match the ray starts are rejected rather than reinterpreted."""
+    ray_starts = torch.zeros(4, 3)
+    ray_directions = torch.zeros(direction_shape)
+
+    with pytest.raises(ValueError, match="same shape as ray_starts"):
+        raycast_mesh(ray_starts, ray_directions, plane_mesh)
