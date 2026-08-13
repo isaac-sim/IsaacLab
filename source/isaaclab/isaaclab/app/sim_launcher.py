@@ -22,8 +22,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -199,14 +199,20 @@ def _ensure_livestream_kit_visualizer(launcher_args: argparse.Namespace | dict |
 
 def _get_visualizer_intent(cfg) -> dict[str, bool]:
     """Compute upstream visualizer intent from ``cfg.sim.visualizer_cfgs``."""
-    visualizer_cfgs = getattr(getattr(cfg, "sim", None), "visualizer_cfgs", None)
+    # Accept both env_cfg (has .sim.visualizer_cfgs) and a bare SimulationCfg
+    # (has .visualizer_cfgs directly).
+    sim = getattr(cfg, "sim", None)
+    visualizer_cfgs = getattr(sim, "visualizer_cfgs", None) or getattr(cfg, "visualizer_cfgs", None)
     if visualizer_cfgs is None:
-        return {"has_any_visualizers": False, "has_kit_visualizer": False}
+        return {"has_any_visualizers": False, "has_kit_visualizer": False, "has_kit_streaming_view": False}
     cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
     cfgs = [c for c in cfgs if c is not None]
     return {
         "has_any_visualizers": len(cfgs) > 0,
         "has_kit_visualizer": any(getattr(c, "visualizer_type", None) == "kit" for c in cfgs),
+        "has_kit_streaming_view": any(
+            getattr(c, "visualizer_type", None) == "kit" and bool(getattr(c, "streaming_view", False)) for c in cfgs
+        ),
     }
 
 
@@ -257,7 +263,14 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     place). Automatic PhysX configurations and RTX
     renderer placeholders (``renderer_type="auto_rtx"``) are also resolved
     at this stage using the full *launcher_args* context.
+
+    The walk mutates *cfg* in place, and resolving a placeholder consumes it, so
+    a second walk of the same config observes the same signals and reaches the
+    same launch decision.
     """
+    # Livestreaming implies a Kit visualizer; make that visible to auto RTX resolution.
+    _ensure_livestream_kit_visualizer(launcher_args)
+
     physics_str = _get_arg(launcher_args, "physics", None)
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
@@ -509,11 +522,8 @@ def launch_simulation(
     if launcher_args is None:
         launcher_args = {}
 
-    # Livestreaming implies a Kit visualizer; make that visible to auto RTX
-    # resolution during the single scan.
-    _ensure_livestream_kit_visualizer(launcher_args)
-
-    # The single walk: collect every signal and apply the --physics override.
+    # The single walk: collect every signal, apply the --physics override, and
+    # resolve the automatic PhysX and RTX placeholders.
     config_scan = scan(cfg, launcher_args)
     effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
@@ -529,9 +539,12 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
-    if needs_kit and config_scan.has_kit_camera:
+    if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
         if not _get_arg(launcher_args, "enable_cameras", False):
-            logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
+            logger.info(
+                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
+                "or a Kit visualizer with streaming_view=True."
+            )
             _set_arg(launcher_args, "enable_cameras", True)
 
     # Resolve distributed device early, before AppLauncher or physics init.

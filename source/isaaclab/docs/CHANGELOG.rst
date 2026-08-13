@@ -1,6 +1,76 @@
 Changelog
 ---------
 
+16.1.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the standalone URDF and MJCF importers as base dependencies, so conversion works without
+  Isaac Sim and without an extra install step.
+
+* Added :attr:`~isaaclab.sim.converters.AssetConverterBaseCfg.physics_variant` to choose which
+  ``"Physics"`` variant the URDF and MJCF converters select.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.utils.images.normalize_camera_output_for_display` motion-vector
+  visualization to clamp UV channels to ``[-1, 1]`` instead of scaling by peak magnitude.
+  Absolute motion stays comparable across frames; values outside ``[-1, 1]`` are saturated.
+* Changed :meth:`~isaaclab.sim.utils.select_usd_variants` to raise when a variant set exists on the
+  prim but does not offer the requested variant, which includes
+  :attr:`~isaaclab.sim.UsdFileCfg.variants` at spawn time. USD accepts such a selection and composes
+  the prim as if nothing were selected, so the asset used to spawn silently without what the variant
+  carries. A variant set the prim does not have is still skipped with a warning. Set a variant the
+  asset offers, or drop the entry.
+
+Fixed
+^^^^^
+
+* Fixed the live startup screen on Windows and macOS by preserving console file descriptors while startup output is captured.
+* Fixed asset destruction after partial initialization so constructor errors are not masked by callback cleanup.
+* Fixed relative deformable nodal positions in :class:`~isaaclab.scene.InteractiveScene` state snapshots.
+* Fixed ``scripts/tools/convert_urdf.py`` and ``scripts/tools/convert_mjcf.py`` crashing when the
+  converted asset was previewed with a kitless visualizer (``--viz newton``, ``--viz rerun``, or
+  ``--viz viser``), by selecting the physics backend that matches the runtime.
+
+* Fixed URDF and MJCF conversion producing assets with no joints, articulation roots, or mass
+  properties.
+
+* Fixed MJCF conversion failing with ``Cannot find a valid schema for 'MjcSceneAPI'``.
+
+* Fixed installation failures caused by overlapping standalone USD providers by using
+  ``usd-exchange`` on all supported platforms and installing required Newton mesh-processing
+  packages directly.
+
+* Fixed :meth:`~isaaclab.utils.dict.class_to_dict` expanding enum values into their internal
+  members.
+
+
+16.0.1 (2026-08-12)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.app.scan` to request the Kit visualizer for livestreamed runs itself,
+  instead of relying on :func:`~isaaclab.app.launch_simulation` to do so beforehand. Callers that
+  scan a config directly now resolve the ``rtx`` renderer preset the same way the launcher does.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.envs.ManagerBasedRLEnv.reset_buf` not existing until the first
+  call to :meth:`~isaaclab.envs.ManagerBasedRLEnv.step`, so manager terms that run during
+  the initial reset could not read it.
+* Fixed OmniHub failing to launch in the Isaac Sim based containers, which emitted a burst of
+  ``Hub failed to launch`` warnings and stalled Kit startup by roughly ten seconds. The Isaac Sim
+  image forbids OmniHub from starting, so asset downloads are no longer cached and every Kit
+  startup retried the launch until it gave up.
+
+
 16.0.0 (2026-08-11)
 ~~~~~~~~~~~~~~~~~~~
 

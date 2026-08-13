@@ -118,6 +118,7 @@ def _run(args_cli: argparse.Namespace) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
+    from isaaclab.utils.assets import retrieve_file_path
     from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
@@ -128,8 +129,8 @@ def _run(args_cli: argparse.Namespace) -> None:
 
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
-        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         pre_launch_video_config(env_cfg, args_cli=args_cli)
+        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli):
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
@@ -177,18 +178,25 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-                if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-                    resume_path = resolve_checkpoint_selector(
-                        log_root_path,
-                        args_cli.checkpoint,
-                        library="rsl_rl",
-                        task=args_cli.task,
-                        checkpoint_pattern=r"model_.*\.pt",
-                        metadata={"agent": args_cli.agent},
-                    )
-                else:
-                    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rsl_rl",
+                    task=args_cli.task,
+                    checkpoint_pattern=r"model_.*\.pt",
+                    metadata={"agent": args_cli.agent},
+                )
+            elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+                resume_path = get_checkpoint_path(
+                    os.path.dirname(args_cli.checkpoint),
+                    os.path.basename(args_cli.checkpoint),
+                    agent_cfg.load_checkpoint,
+                )
+            elif args_cli.checkpoint:
+                resume_path = retrieve_file_path(args_cli.checkpoint)
+            elif agent_cfg.algorithm.class_name == "Distillation":
+                raise ValueError("Distillation training requires --checkpoint.")
 
             env = wrap_training_capture(env, log_dir, args_cli)
 
@@ -212,7 +220,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
 
             runner.add_git_repo_to_log(__file__)
-            if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+            if args_cli.checkpoint:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
                 runner.load(resume_path)
 

@@ -27,7 +27,7 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import AppLauncher, LoadingScreen
+from isaaclab.app import AppLauncher, LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
@@ -545,9 +545,15 @@ def show_run_summary(
 ) -> None:
     """Print a summary of the backends and scale a run is about to use.
 
-    Values the run did not pick itself are shown as ``default (<resolved>)``, so
-    it is clear which backends came from the command line and which are the
-    task's own defaults.
+    Every row names the backend that will run, alongside the choice the run stopped at.
+    A backend reached through a family the command line named -- ``physics=physx`` and
+    ``renderer=rtx`` name a family that launch resolves -- is shown as
+    ``<family> (<resolved>)``, and a backend the run named neither directly nor by
+    family is shown as ``default (<resolved>)``.
+
+    Resolving those selectors mutates *env_cfg* in place, exactly as the following
+    :func:`~isaaclab.app.launch_simulation` call would; call this after every other
+    pre-launch config change, in particular :func:`pre_launch_video_config`.
 
     Args:
         screen: Loading screen that owns the console.
@@ -559,17 +565,28 @@ def show_run_summary(
     selected = _selected_preset_names()
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
+
+    # Names read before the scan resolves the automatic selectors, so a row can report
+    # the family the run asked for next to the backend that family resolved to
+    requested_physics = _physics_name(env_cfg.sim.physics)
+    requested_renderer = _renderer_name(env_cfg)
+    scan(env_cfg, args_cli)
     physics = _physics_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
+
     screen.summary(
         f"Isaac Lab · {action}",
         {
             "Task": args_cli.task,
             "Workflow": _workflow_name(env_cfg),
             "RL library": library,
-            "Physics": _label(physics, selected=selected),
-            "Renderer": "n/a (no camera sensors)" if renderer is None else _label(renderer, selected=selected),
-            "Presets": _additional_preset_names({physics, renderer}),
+            "Physics": _label(requested_physics, physics, selected=selected),
+            "Renderer": (
+                "n/a (no camera sensors)"
+                if renderer is None
+                else _label(requested_renderer or renderer, renderer, selected=selected)
+            ),
+            "Presets": _additional_preset_names({requested_physics, physics, requested_renderer, renderer}),
             "Visualizer": _visualizer_name(args_cli, env_cfg),
             "Device": str(device),
             "Environments": str(num_envs),
@@ -577,9 +594,25 @@ def show_run_summary(
     )
 
 
-def _label(name: str, *, selected: set[str] = frozenset()) -> str:
-    """Mark *name* as a default unless the run asked for it by name."""
-    return name if name in selected else f"default ({name})"
+def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -> str:
+    """Name the backend a row reports, and where the run stopped choosing it.
+
+    Args:
+        requested: Preset name the config carried before launch resolved its automatic
+            selectors, which names a backend family when it differs from *resolved*.
+        resolved: Preset name of the backend that will run.
+        selected: Preset names the command line asked for.
+
+    Returns:
+        The resolved name when the run asked for that backend, ``<family> (<resolved>)``
+        when it asked for the family the backend was picked from, and
+        ``default (<resolved>)`` when it asked for neither.
+    """
+    if resolved in selected:
+        return resolved
+    if requested in selected:
+        return f"{requested} ({resolved})"
+    return f"default ({resolved})"
 
 
 def _selected_preset_names() -> set[str]:
@@ -599,14 +632,16 @@ def _selected_preset_names() -> set[str]:
 
 
 def _additional_preset_names(shown: Container[str | None]) -> str:
-    """Return the presets the command line asked for beyond those with a row of their own.
+    """Return the presets the command line asked for that no other row names.
 
     Domain presets such as ``presets=cube`` do not surface anywhere else in the
-    summary, so they are listed here; the physics and renderer presets are left
-    out because their own rows already name them.
+    summary, so they are listed here. A preset a row already reports is left out,
+    whether it names the backend that will run or the family the row resolved it
+    from -- ``renderer=rtx`` is reported by an ``rtx (ovrtx)`` renderer row.
 
     Args:
-        shown: Preset names already reported by the physics and renderer rows.
+        shown: Preset names reported by the physics and renderer rows, including
+            the families those rows resolved from.
 
     Returns:
         The remaining preset names in command-line order, comma separated, or
@@ -874,9 +909,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         # same as "no visualizer specified" for the purpose of picking a recorder source.
         active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
 
-        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
-        # expose a local frame-capture API and cannot serve as video recording sources.
-        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+        # Streaming visualizers do not expose a local frame-capture API.
+        _NO_CAPTURE = {"rerun", "viser"}
 
         if active_cli_visualizers:
             # Partition into capture-capable and no-capture lists.
@@ -888,15 +922,15 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 example_cfg = {
                     "rerun": "RerunVisualizerCfg",
                     "viser": "ViserVisualizerCfg",
-                    "newton_rtx": "NewtonRTXVisualizerCfg",
                 }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
                 raise ValueError(
                     f"--video is not supported with --viz {names}: {names} "
                     f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
                     "and do not expose a local frame-capture API.\n\n"
-                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "Supported recording backends (all support headless mode for zero UI overhead):\n"
                     "  --viz kit        Kit/Omniverse viewport\n"
-                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n"
+                    "  --viz newton_rtx Newton OVRTX path-traced viewport\n\n"
                     f"To run {names} alongside video recording, add a headless capture backend\n"
                     "to sim.visualizer_cfgs in your environment config, for example:\n\n"
                     f"  sim_cfg.visualizer_cfgs = [\n"
@@ -1057,6 +1091,7 @@ def resolve_checkpoint_selector(
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
+    recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using manifests from new training runs.
 
@@ -1073,6 +1108,7 @@ def resolve_checkpoint_selector(
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
         metadata: Additional manifest metadata required for compatibility.
+        recursive: Whether to search recursively below each matching run directory.
 
     Returns:
         Absolute path to the selected checkpoint.
@@ -1112,9 +1148,8 @@ def resolve_checkpoint_selector(
         checkpoint_dir = run_dir.joinpath(*(other_dirs or []))
         if not checkpoint_dir.is_dir():
             continue
-        checkpoints = [
-            path for path in checkpoint_dir.iterdir() if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)
-        ]
+        paths = checkpoint_dir.rglob("*") if recursive else checkpoint_dir.iterdir()
+        checkpoints = [path for path in paths if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)]
         if not checkpoints:
             continue
         if selector == "best" and preferred_checkpoint_pattern is not None:
@@ -1123,7 +1158,7 @@ def resolve_checkpoint_selector(
             ]
             if preferred:
                 checkpoints = preferred
-        checkpoints.sort(key=lambda path: _natural_sort_key(path.name))
+        checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 
     raise ValueError(

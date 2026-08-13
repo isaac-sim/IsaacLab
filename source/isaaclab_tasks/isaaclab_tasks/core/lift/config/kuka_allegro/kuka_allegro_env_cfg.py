@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -24,13 +24,6 @@ from .camera_cfg import StateObservationCfg
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 THUMB_SENSOR = "thumb_link_3_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
-
-
-@configclass
-class KukaAllegroObjectCfg(lift.ObjectCfg):
-    """Object presets supported by the Kuka Allegro tasks."""
-
-    ovphysx = lift.ObjectCfg().cube
 
 
 @configclass
@@ -60,7 +53,6 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,

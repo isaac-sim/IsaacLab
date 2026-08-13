@@ -26,6 +26,7 @@ class VideoRecorderCfg:
     * ``"visualizer"``                        – first active recording-capable visualizer.
     * ``"visualizer:kit"``                    – Kit visualizer, interactive viewport camera.
     * ``"visualizer:newton"``                 – Newton GL visualizer, interactive camera.
+    * ``"visualizer:newton_rtx"``             – Newton OVRTX path-traced interactive camera.
     * ``"visualizer:newton:streaming_view"``  – Newton GL streaming camera panel (requires
       ``streaming_view=True`` on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`).
     * ``"visualizer:kit:streaming_view"``     – Kit streaming camera panel (requires

@@ -256,11 +256,27 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |lift-cloth-franka|     | |lift-cloth-franka-link|     | Lift a deformable cloth from a table with the Franka robot                  | **physics=**                            |
+    | |lift-cloth-franka|     | |lift-cloth-franka-link|     | Lift a deformable cloth from a table with the Franka robot                  | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |lift-cloth-franka|     | |lift-cloth-franka-cam-link| | Camera (vision) variant of the cloth lift task using RGB observations       | **physics=**                            |
+    | |lift-cloth-franka|     | |lift-cloth-franka-cam-link| | Camera (vision) variant of the cloth lift task using RGB observations       | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
+    |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
+    |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
+    |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |franka-pour|           | |franka-pour-link|           | Pour granular media from a source cup into a receiver with the Franka robot |                                         |
+    |                         |                              | Generate its local reset artifact first (about two minutes); see            |                                         |
+    |                         |                              | :ref:`franka-pour-reset-artifact`.                                          |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |ur10-particle-push|    | |ur10-particle-push-link|    | Push granular media from randomized piles into a bin with the UR10 robot    |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |lift-cable-franka|     | |lift-cable-franka-link|     | Lift a 12-segment cable by its middle segment with the Franka robot         | **physics=**                            |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
+    |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |lift-cable-franka|     | |lift-cable-franka-cam-link| | Camera (vision) variant of the cable lift task using RGB observations       | **physics=**                            |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
@@ -276,23 +292,24 @@ for the lift-cube environment:
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cabi-franka|           | |franka-direct-link|         | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
+    | |cabi-franka|           | |franka-direct-link|         | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          |                                         |
+    | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
+    |                         |                              |                                                                             | **presets=** ``randomized``,            |
+    |                         |                              |                                                                             | ``reset_only``                          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-allegro|          | |allegro-direct-link|        | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         | |cube-shadow-ff-link|        |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
+    |                         | |cube-shadow-ff-link|        |                                                                             |                                         |
     |                         |                              |                                                                             |                                         |
     |                         | |cube-shadow-lstm-link|      |                                                                             |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_kamino``, ``newton_mjwarp``,   |
-    |                         |                              |                                                                             | ``ovphysx``                             |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``albedo``, ``depth``,     |
@@ -302,7 +319,8 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``simple_shading_diffuse_mdl``,         |
     |                         |                              |                                                                             | ``simple_shading_full_mdl``             |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |                                         |
+    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          | **renderer=** ``isaacsim_rtx``,         |
+    |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |                                         |
     |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |                                         |
@@ -312,8 +330,8 @@ for the lift-cube environment:
     | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                                         |
     |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                                         |
-    |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |                                         |
+    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | **renderer=** ``isaacsim_rtx``,         |
+    |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        | ``newton_renderer``, ``ovrtx``          |
     |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |                                         |
     |                         |                              | controlled via Inverse Kinematics).                                         |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
@@ -406,6 +424,9 @@ for the lift-cube environment:
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
 .. |lift-soft-franka| image:: ../_static/newton/franka-mjwarp-vbd-coupling.png
 .. |lift-cloth-franka| image:: ../_static/tasks/manipulation/franka_lift_cloth.jpg
+.. |franka-pour| image:: ../_static/tasks/manipulation/franka_pour.jpg
+.. |ur10-particle-push| image:: ../_static/tasks/manipulation/ur10_particle_push.jpg
+.. |lift-cable-franka| image:: ../_static/tasks/manipulation/franka_lift_cable.jpg
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
@@ -437,6 +458,10 @@ for the lift-cube environment:
 .. |lift-cloth-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
 .. |lift-soft-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Soft-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`
 .. |lift-cloth-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
+.. |franka-pour-link| replace:: :isaaclab-source:`IsaacContrib-Franka-Pour <source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pour/pour_env_cfg.py>`
+.. |ur10-particle-push-link| replace:: :isaaclab-source:`IsaacContrib-UR10-Particle-Push <source/isaaclab_tasks/isaaclab_tasks/contrib/ur10_particle_push/ur10_particle_push_env_cfg.py>`
+.. |lift-cable-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Cable-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cable_env_cfg.py>`
+.. |lift-cable-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Cable-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cable_env_cfg.py>`
 .. |cabi-franka-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`
 .. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
 .. |cube-allegro-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`
@@ -456,8 +481,8 @@ for the lift-cube environment:
 .. |ka-lift-cam-link| replace:: :isaaclab-source:`Isaac-Lift-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/kuka_allegro/kuka_allegro_camera_env_cfg.py>`
 .. |ka-reorient-cam-link| replace:: :isaaclab-source:`Isaac-Reorient-KukaAllegro-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/kuka_allegro/kuka_allegro_camera_env_cfg.py>`
 .. |cube-shadow-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
-.. |cube-shadow-ff-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
-.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py>`
+.. |cube-shadow-ff-link| replace:: :isaaclab-source:`IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/reorient/config/shadow_hand/shadow_hand_openai_env_cfg.py>`
+.. |cube-shadow-lstm-link| replace:: :isaaclab-source:`IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <source/isaaclab_tasks/isaaclab_tasks/contrib/reorient/config/shadow_hand/shadow_hand_openai_env_cfg.py>`
 .. |cube-shadow-vis-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Shadow-Camera-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_camera_env.py>`
 .. |agibot_place_mug-link| replace:: :isaaclab-source:`IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`
 .. |agibot_place_toy-link| replace:: :isaaclab-source:`IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`
@@ -1070,55 +1095,66 @@ including disabling runtime perturbations used for training.
       - **Workflow**
       - **RL Library**
       - **Presets**
-    * - Isaac-Ant
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``
     * - Isaac-Ant-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Ant
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Cartpole-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Cartpole
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Cartpole-Camera
-      - Manager Based
-      - **rl_games** (PPO, FEATURE), **rsl_rl** (PPO, FEATURE)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``resnet18``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``, ``theia_tiny``
     * - Isaac-Cartpole-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
-    * - Isaac-Cartpole-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Cartpole-Camera
+      - Manager Based
+      - **rl_games** (PPO, FEATURE), **rsl_rl** (PPO, FEATURE)
+      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``albedo``, ``depth``, ``resnet18``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``, ``theia_tiny``
     * - Isaac-Fourbar-Pole-Swingup
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_kamino``
-    * - Isaac-Humanoid
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
     * - Isaac-Humanoid-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Lift-Cloth-Franka
+    * - Isaac-Humanoid
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Lift-Cable-Franka
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp_vbd_proxy``
           | **presets=** ``ik``, ``joint``
-    * - Isaac-Lift-Cloth-Franka-Camera
+    * - Isaac-Lift-Cable-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
       - | **physics=** ``newton_mjwarp_vbd_proxy``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``ik``, ``joint``
+    * - Isaac-Lift-Cloth-Franka
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
+          | **presets=** ``ik``, ``joint``
+    * - Isaac-Lift-Cloth-Franka-Camera
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Franka
@@ -1148,14 +1184,14 @@ including disabling runtime perturbations used for training.
       - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``ik``, ``joint``
+    * - Isaac-Open-Drawer-Franka-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      -
     * - Isaac-Open-Drawer-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Open-Drawer-Franka-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Pendulum-Direct
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1168,37 +1204,42 @@ including disabling runtime perturbations used for training.
     * - Isaac-Reach-Franka-OSC
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``diffik_abs``
     * - Isaac-Reach-UR10
       - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Allegro-Direct
+      - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reorient-Cube-Allegro
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
-    * - Isaac-Reorient-Cube-Allegro-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-Camera-Direct
-      - Direct
-      - **rl_games** (PPO), **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
-          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``randomized``, ``reset_only``
     * - Isaac-Reorient-Cube-Shadow-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
-      - Direct
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Reorient-Cube-Shadow
+      - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``asymmetric``, ``randomized``
+    * - Isaac-Reorient-Cube-Shadow-Camera-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
+    * - Isaac-Reorient-Cube-Shadow-Camera
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
+          | **presets=** ``albedo``, ``depth``, ``full``, ``randomized``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Reorient-Franka
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1356,6 +1397,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **rl_games** (PPO)
       -
+    * - IsaacContrib-Franka-Pour
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
     * - IsaacContrib-Humanoid-AMP-Dance-Direct
       - Direct
       - **skrl** (AMP)
@@ -1368,6 +1413,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **skrl** (AMP)
       -
+    * - IsaacContrib-Keyboard-SO101
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
     * - IsaacContrib-Lift-Cube-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
@@ -1398,11 +1447,11 @@ including disabling runtime perturbations used for training.
       -
     * - IsaacContrib-Open-Drawer-Franka-IK-Abs
       - Manager Based
-      -
+      - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Open-Drawer-Franka-IK-Rel
       - Manager Based
-      -
+      - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Open-Drawer-OpenArm
       - Manager Based
@@ -1419,7 +1468,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-PickPlace-GR1T2-Abs
       - Manager Based
       -
-      -
+      - **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
     * - IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs
       - Manager Based
       -
@@ -1427,7 +1476,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-PickPlace-Locomanipulation-G1-Abs
       - Manager Based
       -
-      -
+      - **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
     * - IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow
       - Manager Based
       -
@@ -1444,6 +1493,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
+    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
+      - Direct
+      - **rl_games** (PPO), **rsl_rl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
       -
@@ -1551,18 +1608,22 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``isaacsim_physx``
+    * - IsaacContrib-UR10-Particle-Push
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
     * - IsaacContrib-Velocity-Flat-AnymalB
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
-    * - IsaacContrib-Velocity-Flat-AnymalC
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Flat-AnymalC-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Flat-AnymalC
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Flat-Digit
       - Manager Based
       - **rsl_rl** (PPO)
@@ -1583,14 +1644,14 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
-    * - IsaacContrib-Velocity-Rough-AnymalC
-      - Manager Based
-      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Rough-AnymalC-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
+    * - IsaacContrib-Velocity-Rough-AnymalC
+      - Manager Based
+      - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Velocity-Rough-Digit
       - Manager Based
       - **rsl_rl** (PPO)

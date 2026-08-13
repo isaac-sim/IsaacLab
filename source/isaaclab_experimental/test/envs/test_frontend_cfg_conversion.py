@@ -5,23 +5,24 @@
 
 """Coverage tests for warp task configuration adaptation.
 
-Two sweeps, both running :meth:`WarpFrontend.adapt_cfg` — the same adaptation
-:class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` runs in its
-``__init__``:
+Which tasks ``--frontend warp`` accepts is *derived*, not declared: every registered stable
+manager-based task is swept through :meth:`WarpFrontend.check_compatibility` — the same
+:meth:`WarpFrontend.adapt_cfg` that
+:class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` runs in its ``__init__``. The
+sweep is pure config-tree work, so the whole registry resolves in seconds without a
+simulator, and a task gains coverage the moment its terms are twinned.
 
-* Every *stable* task id with declared warp twin coverage: resolve the
-  ``newton_mjwarp`` preset and adapt the stable cfg, exactly what
-  ``--frontend warp`` does.
-* Every registered manager-based ``*-Warp-v0`` variant (velocity deltas whose
-  stable cfgs still contain terms without warp twins): load its env cfg,
-  resolve presets, and adapt.
+:data:`_WARP_SUPPORTED_TASKS` is the checked-in record of that derived set. It is a
+regression pin, not an allowlist: losing a task always fails, and gaining one fails too
+whenever every candidate cfg was importable, so the record cannot quietly rot.
 
-A dedicated stable Cartpole case also guards the stable-to-experimental
-module routing used by ``--frontend warp``.
+A dedicated stable Cartpole case also guards the stable-to-experimental module routing used
+by ``--frontend warp``.
 """
 
 from __future__ import annotations
 
+import functools
 import importlib
 
 import gymnasium as gym
@@ -33,22 +34,33 @@ from isaaclab_newton.physics import NewtonCfg
 # Registering the task packages is the whole point — import for side effects.
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-# Stable task ids whose MDP terms are fully twinned: ``--frontend warp`` adapts
-# their cfgs directly, with no parallel ``*-Warp-v0`` registration. Extend this
-# list when a new task family gains full twin coverage.
-_STABLE_TASKS_WITH_WARP_COVERAGE = [
-    "Isaac-Ant",
-    "Isaac-Cartpole",
-    "Isaac-Humanoid",
-    "Isaac-Reach-Franka",
-    "Isaac-Reach-UR10",
-    "Isaac-Velocity-Flat-AnymalD",
-    "Isaac-Velocity-Flat-Cassie",
-    "Isaac-Velocity-Flat-G1",
-    "Isaac-Velocity-Flat-H1",
-    "Isaac-Velocity-Flat-UnitreeGo2",
-]
+# Stable manager-based tasks resolve to this env class; direct tasks provide their own and
+# take the :meth:`WarpFrontend._resolve_direct_warp_class` path instead of cfg adaptation.
+_STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:ManagerBasedRLEnv"
+
+# Stable task ids that adapt cleanly under ``--frontend warp``, as produced by
+# :func:`_sweep_warp_support`. Do not curate this by hand: when the test fails it prints the
+# exact set to paste back.
+_WARP_SUPPORTED_TASKS = frozenset(
+    {
+        "Isaac-Ant",
+        "Isaac-Cartpole",
+        "Isaac-Humanoid",
+        "Isaac-Reach-Franka",
+        "Isaac-Reach-UR10",
+        "Isaac-Velocity-Flat-AnymalD",
+        "Isaac-Velocity-Flat-Cassie",
+        "Isaac-Velocity-Flat-G1",
+        "Isaac-Velocity-Flat-H1",
+        "Isaac-Velocity-Flat-UnitreeGo2",
+        "IsaacContrib-Velocity-Flat-AnymalB",
+        "IsaacContrib-Velocity-Flat-AnymalC",
+        "IsaacContrib-Velocity-Flat-UnitreeA1",
+        "IsaacContrib-Velocity-Flat-UnitreeGo1",
+    }
+)
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
 # env class; direct tasks provide their own env class (resolved by name-based
@@ -82,6 +94,76 @@ def _load_adapted_cfg(cfg_entry_point: str):
     return cfg
 
 
+@functools.lru_cache(maxsize=1)
+def _sweep_warp_support() -> tuple[frozenset[str], dict[str, str], dict[str, str]]:
+    """Ask every stable manager-based task whether it adapts for warp.
+
+    Cached: the sweep instantiates every registered cfg, so it runs once per session.
+
+    Returns:
+        ``(supported, incompatible, unimportable)`` — task ids that adapt, task ids that
+        do not mapped to the reason, and task ids whose cfg could not be built at all
+        (an optional dependency missing from this environment).
+    """
+    supported: set[str] = set()
+    incompatible: dict[str, str] = {}
+    unimportable: dict[str, str] = {}
+    for task_id, spec in gym.registry.items():
+        if spec.entry_point != _STABLE_MANAGER_ENTRY_POINT:
+            continue
+        if (spec.kwargs or {}).get("env_cfg_entry_point") is None:
+            continue
+        try:
+            # the canonical loader, so every registry form the runtime accepts is surveyed;
+            # matching only ``str`` entry points here would skip callable ones silently
+            cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+            cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+        except Exception as exc:  # noqa: BLE001 - any cfg load failure means "cannot judge"
+            unimportable[task_id] = f"{type(exc).__name__}: {exc}"
+            continue
+        reason = WarpFrontend.check_compatibility(cfg)
+        if reason is None:
+            supported.add(task_id)
+        else:
+            incompatible[task_id] = reason
+    return frozenset(supported), incompatible, unimportable
+
+
+def _format_task_set(task_ids) -> str:
+    """Render a task-id set as a paste-ready literal for :data:`_WARP_SUPPORTED_TASKS`."""
+    return "{\n" + "".join(f"    {task_id!r},\n" for task_id in sorted(task_ids)) + "}"
+
+
+def test_warp_supported_task_set_matches_the_registry():
+    """The recorded warp-supported set still matches what the registry actually adapts.
+
+    Losing a task is always a failure — that is a task that used to train under
+    ``--frontend warp`` and no longer does. Gaining one is a failure only when every
+    candidate cfg was importable, since a partial environment cannot see the full set.
+    """
+    supported, _, unimportable = _sweep_warp_support()
+
+    lost = _WARP_SUPPORTED_TASKS - supported
+    assert not lost, "tasks lost warp frontend support:\n  " + "\n  ".join(
+        f"{task_id}: {_sweep_warp_support()[1].get(task_id, 'cfg no longer importable')}" for task_id in sorted(lost)
+    )
+
+    gained = supported - _WARP_SUPPORTED_TASKS
+    if unimportable:
+        # Never claim coverage that was not measured: name what this environment could not judge.
+        assert not gained, (
+            f"newly warp-supported tasks: {sorted(gained)}. Update _WARP_SUPPORTED_TASKS to:\n"
+            f"{_format_task_set(supported)}"
+        )
+        pytest.skip(
+            f"{len(unimportable)} task cfg(s) not importable here, so the set was not checked for"
+            f" completeness: {sorted(unimportable)}"
+        )
+    assert not gained, (
+        f"tasks gained warp frontend support. Update _WARP_SUPPORTED_TASKS to:\n{_format_task_set(supported)}"
+    )
+
+
 def _cfg_entry_point(task_id: str) -> str:
     cfg_entry = (gym.spec(task_id).kwargs or {}).get("env_cfg_entry_point")
     assert isinstance(cfg_entry, str), f"{task_id}: no env_cfg_entry_point"
@@ -99,7 +181,7 @@ def test_no_warp_task_registrations_remain():
     assert warp_ids == [], f"unexpected warp task registrations: {warp_ids}"
 
 
-@pytest.mark.parametrize("task_id", _STABLE_TASKS_WITH_WARP_COVERAGE, ids=_STABLE_TASKS_WITH_WARP_COVERAGE)
+@pytest.mark.parametrize("task_id", sorted(_WARP_SUPPORTED_TASKS), ids=sorted(_WARP_SUPPORTED_TASKS))
 def test_stable_task_cfg_adapts_to_warp(task_id: str):
     """Each covered stable task adapts without a missing twin (the --frontend warp path)."""
     cfg = _load_adapted_cfg(_cfg_entry_point(task_id))
