@@ -16,7 +16,7 @@ The solvers covered are:
 * **Newton MuJoCo-Warp (MJWarp)** — primary solver, configured by
   :class:`~isaaclab_newton.physics.MJWarpSolverCfg`; see :doc:`MJWarp tuning
   guidance </source/how-to/tune_mjwarp>`.
-* **Newton Kamino** — beta P-ADMM :doc:`Newton solver <newton/kamino-solver>`,
+* **Newton Kamino** — beta P-ADMM :doc:`Newton solver </source/how-to/enable_kamino>`,
   configured by :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Newton additionally ships ``FeatherstoneSolverCfg`` and ``XPBDSolverCfg``;
