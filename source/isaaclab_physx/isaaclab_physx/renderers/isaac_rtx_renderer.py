@@ -196,10 +196,10 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
-        Authoring is enabled by default. Set
-        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to make this method
-        a no-op so no ``primvars:omni:scenePartition`` or ``omni:scenePartition``
-        attributes are written to the stage.
+        Authoring is only performed when
+        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` is set.
+        When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
+        or ``omni:scenePartition`` attributes are written to the stage.
 
         When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
@@ -212,7 +212,9 @@ class IsaacRtxRenderer(BaseRenderer):
             return
 
         logger.debug(
-            "Per-environment RTX scene partitioning is enabled. Authoring primvars:omni:scenePartition on %d env(s).",
+            "Per-environment RTX scene partitioning is enabled"
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
+            " Authoring primvars:omni:scenePartition on %d env(s).",
             num_envs,
         )
 

@@ -899,9 +899,9 @@ class KitVisualizer(BaseVisualizer):
         ``/World/envs`` and are created by Kit, so they do not inherit the env-root
         primvar authored by :class:`~isaaclab.scene.InteractiveScene`.
 
-        This behavior is enabled by default. Set
-        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to disable it,
-        matching :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage`.
+        This method is a no-op unless ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``,
+        matching the opt-in behaviour of
+        :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage`.
         """
 
         if not isaac_rtx_per_env_scene_partition_enabled():
@@ -911,7 +911,8 @@ class KitVisualizer(BaseVisualizer):
             return
 
         logger.debug(
-            "[KitVisualizer] Per-environment Isaac RTX scene partitioning is enabled."
+            "[KitVisualizer] Per-environment Isaac RTX scene partitioning is enabled"
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
             " Authoring omni:scenePartition attribute onto viewport camera '%s'.",
             self._controlled_camera_path,
         )
