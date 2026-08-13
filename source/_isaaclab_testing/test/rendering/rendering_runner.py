@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from golden_image import camera_output_image, compare_to_golden
+from golden_image import RTX_COLOR_PIXEL_L2_THRESHOLD, camera_output_image, compare_to_golden
 from rendering_cases import KIT_RENDERING_CASES, RenderCase
 from rendering_runtime import SEMANTIC_COLORS, build_rendering_scene
 from rendering_scene_cfgs import make_rendering_scene_spec
@@ -31,6 +31,7 @@ _NO_SSIM = {
     RenderBufferKind.MOTION_VECTORS,
 }
 _ALPHA_ONLY_AOVS = {RenderBufferKind.INSTANCE_SEGMENTATION, RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST}
+_RTX_COLOR_AOVS = {RenderBufferKind.RGB, RenderBufferKind.ALBEDO}
 
 
 def run_rendering_case(
@@ -97,6 +98,9 @@ def run_rendering_case(
                 artifact_dir=_ARTIFACT_DIR,
                 max_diff_pct=image_max_diff_pct,
                 min_ssim=None if aov in _NO_SSIM else min_ssim,
+                pixel_l2_threshold=(
+                    RTX_COLOR_PIXEL_L2_THRESHOLD if case.renderer == "isaac_rtx" and aov in _RTX_COLOR_AOVS else 10.0
+                ),
                 # OVRTX's numeric semantic IDs vary by USD reader; metadata validates their labels separately.
                 alpha_only=aov in _ALPHA_ONLY_AOVS
                 or (case.renderer == "ovrtx" and aov == RenderBufferKind.SEMANTIC_SEGMENTATION),

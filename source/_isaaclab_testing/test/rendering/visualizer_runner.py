@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 import torch
-from golden_image import camera_output_image, compare_to_golden, frame_image
+from golden_image import RTX_COLOR_PIXEL_L2_THRESHOLD, camera_output_image, compare_to_golden, frame_image
 from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 from PIL import Image
@@ -80,6 +80,8 @@ def run_visualizer_case(physics: str, kind: str, tiled: bool, request: Any) -> N
             artifact_dir=_ARTIFACT_DIR,
             max_diff_pct=8.0 if kind == "kit" and tiled else 5.0 if kind == "kit" else 0.75,
             min_ssim=0.97 if kind == "kit" else 0.99,
+            # Kit RTX has small cross-GPU color shifts; SSIM and the spatial budget still gate structure.
+            pixel_l2_threshold=RTX_COLOR_PIXEL_L2_THRESHOLD if kind == "kit" else 10.0,
         )
         comparison.record(request)
 

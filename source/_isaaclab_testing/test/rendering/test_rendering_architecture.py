@@ -291,6 +291,19 @@ def test_reset_and_teardown_policies_keep_their_owners() -> None:
     build = next(
         node for node in runtime_tree.body if isinstance(node, ast.FunctionDef) and node.name == "build_rendering_scene"
     )
+    texture_setting = "/rtx-transient/resourcemanager/enableTextureStreaming"
+    texture_calls = [
+        node
+        for node in ast.walk(build)
+        if isinstance(node, ast.Call)
+        and ast.unparse(node.func) == "sim.set_setting"
+        and node.args
+        and ast.literal_eval(node.args[0]) == texture_setting
+    ]
+    ovrtx_branch = next(
+        node for node in ast.walk(build) if isinstance(node, ast.If) and ast.unparse(node.test) == "renderer == 'ovrtx'"
+    )
+    assert len(texture_calls) == 1 and texture_calls[0] in ast.walk(ovrtx_branch)
     assert any(
         ast.unparse(node) == "runtime.scene.close()"
         for try_node in ast.walk(build)

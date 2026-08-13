@@ -574,6 +574,8 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
             camera_eye=(-5.0, 0.0, 2.0),
             camera_target=(0.0, 0.0, 2.0),
             expected_instances={f"/World/envs/env_{env_id}/Robot": "cartpole" for env_id in range(4)},
+            # Isaac RTX color differs across GPU families while the reset pose remains structurally identical.
+            image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.95)},
         )
     if scene in {"franka_soft", "franka_cloth"}:
         if physics != "newton":

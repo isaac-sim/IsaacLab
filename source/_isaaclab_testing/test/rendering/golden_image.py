@@ -20,6 +20,8 @@ from PIL import Image, ImageChops
 
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 
+RTX_COLOR_PIXEL_L2_THRESHOLD = 20.0
+
 
 @dataclass(frozen=True)
 class ImageComparison:
