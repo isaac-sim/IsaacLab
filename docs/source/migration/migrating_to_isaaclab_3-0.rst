@@ -1077,7 +1077,7 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/how-to/native_physics_api/index`
 before using ``root_view`` in backend-portable code.
 
 

@@ -27,8 +27,8 @@ model. Treat the objects as invalid after a model rebuild and reacquire them aft
 reinitialized the simulation. This API is intended for code that can own the necessary lifecycle
 and synchronization responsibilities.
 
-Access live engine data
------------------------
+Reuse Isaac Lab-owned access
+----------------------------
 
 Use the manager accessors to obtain the current Newton objects:
 
@@ -48,9 +48,6 @@ Use the manager accessors to obtain the current Newton objects:
 model when PhysX is active. The write semantics in this guide apply only when Newton is the active,
 authoritative physics backend.
 
-Reuse an Isaac Lab selection
-----------------------------
-
 Isaac Lab's Newton-backed assets expose the same generic
 ``newton.selection.ArticulationView`` selection helper. For example, reuse an articulation's
 root selection instead of constructing the matching selection again:
@@ -65,8 +62,8 @@ Newton uses this generic, label-based selection concept for Isaac Lab articulati
 rigid-object collections, and cables. It is a selection helper over model indices, not per-asset
 typed storage.
 
-Create a generic selection
---------------------------
+Create raw access
+-----------------
 
 Code that owns a matching model can construct its own selection from a model and a label pattern:
 
@@ -79,41 +76,8 @@ Code that owns a matching model can construct its own selection from a model and
        pattern="/World/envs/env_*/Robot",
    )
 
-Discover data and labels
-------------------------
-
-Discover the available labels, counts, state fields, and selection operations at runtime instead
-of assuming a fixed set of arrays or methods:
-
-.. code-block:: python
-
-   print(model.articulation_label)
-   print(model.body_label)
-   print(model.joint_label)
-
-   model_counts = {
-       name: getattr(model, name)
-       for name in dir(model)
-       if name.endswith("_count") and isinstance(getattr(model, name), int)
-   }
-   selection_shape = {
-       "instances": selection.count,
-       "joint_dofs_per_instance": selection.joint_dof_count,
-       "links_per_instance": selection.link_count,
-   }
-   state_fields = sorted(name for name in dir(state) if not name.startswith("_"))
-   selection_methods = sorted(
-       name
-       for name in dir(selection)
-       if name.startswith(("get_", "set_"))
-   )
-   print(model_counts)
-   print(selection_shape)
-   print(state_fields)
-   print(selection_methods)
-
-Read and write through a selection
-----------------------------------
+Read/write semantics
+--------------------
 
 Selections provide typed convenience methods as well as generic string-keyed
 ``get_attribute()`` and ``set_attribute()`` methods. The generic methods expose

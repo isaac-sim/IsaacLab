@@ -189,4 +189,4 @@ conservative. Broader feature coverage and documentation parity are tracked in
 For architectural context, see :ref:`backend-architecture`.
 
 For raw ``TensorBinding`` access and :class:`~isaaclab_ov.sim.views.OvPhysxView`,
-see :doc:`../direct-api-access/ovphysx`.
+see :doc:`/source/how-to/native_physics_api/ovphysx`.

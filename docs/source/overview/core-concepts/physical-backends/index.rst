@@ -17,13 +17,12 @@ backend-specific configuration, installation, and limitations.
     physx/index
     newton/index
     ovphysx/index
-    direct-api-access/index
     solver-comparison
     sim-to-sim-policy-transfer
 
 
 For backend-specific access to native engine data and views, see
-:doc:`direct-api-access/index`. That guide explains the different ownership and
+:doc:`/source/how-to/native_physics_api/index`. That guide explains the different ownership and
 synchronization models rather than presenting a false common low-level API.
 
 Choosing a Backend
