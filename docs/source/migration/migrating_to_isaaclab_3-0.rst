@@ -143,7 +143,7 @@ Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
 For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
+backend, see :doc:`/source/concepts/backend_architecture`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions

@@ -25,7 +25,7 @@ buffer sizing, and contact-handling parameters live on
 schema. See :doc:`configuration` for the most common knobs.
 
 For an overview of how the multi-backend architecture works, see
-:doc:`../../multi_backend_architecture`.
+:ref:`backend-architecture`.
 
 For native Tensor API access, see :doc:`../direct-api-access/physx`.
 

@@ -106,7 +106,7 @@ See Also
 
 * :class:`~isaaclab_physx.physics.PhysxCfg` — full parameter reference.
 * :doc:`../../schema_cfgs` — schema-level configuration helpers.
-* :doc:`../../multi_backend_architecture` — how PhysX plugs into the backend
+* :ref:`backend-architecture` — how PhysX plugs into the backend
   factory pattern.
 * PhysX 5 SDK documentation:
   https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxSceneDesc.html

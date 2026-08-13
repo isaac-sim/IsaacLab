@@ -54,7 +54,7 @@ expected. Official support and debugging assistance will follow once the framewo
 reaches an official release.
 
 For an overview of how the multi-backend architecture works, including how to add a
-new backend, see :doc:`../../multi_backend_architecture`.
+new backend, see :doc:`/source/overview/developer-guide/add_physics_backend`.
 
 For direct ``Model``/``State`` access and generic selections, see
 :doc:`../direct-api-access/newton`.
