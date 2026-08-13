@@ -21,8 +21,11 @@
             ["Isaac-Fourbar-Pole-Swingup", "rsl_rl", "newton_kamino", "", ""],
             ["Isaac-Humanoid-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", ""],
             ["Isaac-Humanoid", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_mjwarp,ovphysx", "", ""],
-            ["Isaac-Lift-Cloth-Franka", "rsl_rl", "newton_mjwarp_vbd_proxy", "", "ik,joint"],
-            ["Isaac-Lift-Cloth-Franka-Camera", "rsl_rl", "newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint"],
+            ["IsaacContrib-Keyboard-SO101", "rsl_rl", "isaacsim_physx,newton_mjwarp,physx", "", ""],
+            ["Isaac-Lift-Cable-Franka", "rsl_rl", "newton_mjwarp_vbd_proxy", "", "ik,joint"],
+            ["Isaac-Lift-Cable-Franka-Camera", "rsl_rl", "newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint"],
+            ["Isaac-Lift-Cloth-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint"],
+            ["Isaac-Lift-Cloth-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint"],
             ["Isaac-Lift-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "cube,shapes"],
             ["Isaac-Lift-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes"],
             ["Isaac-Lift-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera"],
@@ -91,7 +94,7 @@
         if (task.includes("Velocity")) {
             return "locomotion";
         }
-        if (/Lift|Reach|Reorient|Drawer|Handover/.test(task)) {
+        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard/.test(task)) {
             return "manipulation";
         }
         return "classic";
@@ -115,6 +118,7 @@
             [/Pendulum/, "tasks/classic/cart_double_pendulum.jpg"],
             [/^Isaac-Ant/, "tasks/classic/ant.jpg"],
             [/^Isaac-Humanoid/, "tasks/classic/humanoid.jpg"],
+            [/Lift-Cable-Franka/, "tasks/manipulation/franka_lift_cable.jpg"],
             [/Lift-Cloth-Franka/, "tasks/manipulation/franka_lift_cloth.jpg"],
             [/Lift-Soft-Franka/, "newton/franka-mjwarp-vbd-coupling.png"],
             [/Lift-(Cube-)?Franka/, "tasks/manipulation/franka_lift.jpg"],
@@ -127,6 +131,7 @@
             [/Reorient-Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Reorient-KukaAllegro/, "tasks/manipulation/kuka_allegro_reorient.jpg"],
             [/Shadow-Handover/, "tasks/manipulation/shadow_hand_over.jpg"],
+            [/Keyboard-SO101/, "tasks/manipulation/so101_keyboard.jpg"],
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
             [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
             [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],

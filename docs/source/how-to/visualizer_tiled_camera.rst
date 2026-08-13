@@ -30,7 +30,7 @@ Running this script demonstrates two ways to use the streaming camera view:
 
    .. literalinclude:: ../../../scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py
       :language: python
-      :emphasize-lines: 72-78,87-94
+      :emphasize-lines: 72-78,81-83,89-96,107-109
       :linenos:
 
 
@@ -38,8 +38,8 @@ Example One: Following AnymalD Robots
 --------------------------------------
 
 The Kit Visualizer shows the streaming camera view in a separate tab inside the main
-Viewport window. The highlighted tab area in the figures below shows where to
-toggle between the interactive viewport and the streaming camera view.
+Viewport window, labelled **Streaming View**. The highlighted tab area in the figures
+below shows where to toggle between the interactive viewport and the streaming camera view.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
@@ -85,7 +85,8 @@ Example Two: Streaming from Robot-Mounted Cameras
 -------------------------------------------------
 
 The Newton visualizer provides a streaming camera view in a lightweight OpenGL window.
-Use the ``Streaming Camera View`` dropdown in the left-hand sidebar to show or hide the panel.
+The panel is hidden by default. To open it, expand the **Streaming View** section in the
+left-hand sidebar and change the toggle from **Hide** to **Open**.
 
 .. figure:: ../_static/visualizers/newton_viz_galbot_interactive_view.jpg
    :width: 100%

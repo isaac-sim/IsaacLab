@@ -24,11 +24,12 @@ from isaaclab_newton.kernels.state_kernels import (
     rotate_vec_to_body_frame,
 )
 
-from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers.manager_term_cfg import RewardTermCfg
 
 
 """
@@ -66,6 +67,62 @@ def is_terminated(env: ManagerBasedRLEnv, out) -> None:
         inputs=[env.termination_manager.terminated_wp, out],
         device=env.device,
     )
+
+
+@wp.kernel
+def _is_terminated_term_kernel(
+    term_dones: wp.array(dtype=wp.bool, ndim=2),
+    term_mask: wp.array(dtype=wp.bool),
+    time_outs: wp.array(dtype=wp.bool),
+    out: wp.array(dtype=wp.float32),
+):
+    """Sum the selected termination columns, zeroed on episodic timeouts."""
+    i = wp.tid()
+    count = float(0.0)
+    for t in range(term_mask.shape[0]):
+        if term_mask[t] and term_dones[i, t]:
+            count += 1.0
+    out[i] = wp.where(time_outs[i], 0.0, count)
+
+
+class is_terminated_term(ManagerTermBase):
+    """Penalize termination for specific terms that don't correspond to episodic timeouts.
+
+    Warp-first override of :class:`isaaclab.envs.mdp.rewards.is_terminated_term`.
+
+    The parameters are as follows:
+
+    * attr:`term_keys`: The termination terms to penalize. This can be a string, a list of strings
+      or regular expressions. Default is ".*" which penalizes all terminations.
+
+    The reward is the number of active selected termination terms, or 0 when the episode ended on
+    an episodic timeout.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        # resolve the selection once, as a per-column mask over the termination manager's terms
+        selected = set(env.termination_manager.find_terms(cfg.params.get("term_keys", ".*")))
+        self._term_mask_wp = wp.array(
+            [name in selected for name in env.termination_manager.active_terms],
+            dtype=wp.bool,
+            device=env.device,
+        )
+
+    def __call__(
+        self, env: ManagerBasedRLEnv, out: wp.array(dtype=wp.float32), term_keys: str | list[str] = ".*"
+    ) -> None:
+        wp.launch(
+            kernel=_is_terminated_term_kernel,
+            dim=env.num_envs,
+            inputs=[
+                env.termination_manager.term_dones_wp,
+                self._term_mask_wp,
+                env.termination_manager.time_outs_wp,
+                out,
+            ],
+            device=env.device,
+        )
 
 
 """

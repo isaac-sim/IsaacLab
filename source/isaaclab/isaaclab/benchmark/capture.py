@@ -171,6 +171,7 @@ def capture_versions(bm: Any) -> Versions:
         mujoco=md.get("mujoco_version"),
         cuda_bindings=md.get("cuda_bindings_version"),
         usd_core=md.get("usd_core_version"),
+        usd_exchange=md.get("usd_exchange_version"),
         isaaclab_release=md.get("isaaclab_release_version"),
     )
 

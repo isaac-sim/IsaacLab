@@ -11,9 +11,14 @@ can carry them into the uploaded test artifact.
 Level markers (``unit`` / ``integration`` / ``benchmark``) are applied per file via a module-level ``pytestmark``
 and registered in the repo-root ``pyproject.toml``. Select them with the standard ``-m`` syntax,
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
+
+Also loads ``tools/ovrtx_log.py``, which replays the OVRTX renderer log per test, so every suite that
+builds a renderer reports what it logged the same way.
 """
 
 from __future__ import annotations
+
+pytest_plugins = ["tools.ovrtx_log"]
 
 
 def pytest_collection_modifyitems(config, items):

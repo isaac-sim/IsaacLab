@@ -304,8 +304,8 @@ Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ or
 
 ``-i`` always installs the core source packages. With no value, it also installs the optional
 ``mimic`` and ``teleop`` submodules plus the default Newton, RL, and visualizer dependencies.
-It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim; request those
-explicitly when needed.
+It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim;
+request those explicitly when needed.
 
 Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list of selectors:
 
@@ -603,8 +603,8 @@ Extras can be combined freely: none of them conflict, so any set of extras -- in
 the Isaac Sim and OV backend stacks together -- resolves into a single environment.
 Use ``all`` to get every backend, RL library, and visualizer in one flag. The
 specialized extras (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
-``leapp``) and the developer ``test`` tooling are not part of ``all``; request them by
-name.
+``leapp``) and the developer ``test`` tooling are not part of ``all``;
+request them by name.
 
 .. isaaclab-uv-wheel-install::
 
