@@ -329,7 +329,9 @@ class KaminoSolverCfgBase(NewtonSolverCfg):
 
     def _get_dynamics_solver_config(self) -> tuple[Literal["padmm", "dvi"], dict[str, Any]]:
         """Return the selected Newton solver name and its configuration keyword arguments."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(self).__name__} is a base configuration. Use KaminoPADMMSolverCfg or KaminoDVISolverCfg."
+        )
 
     def to_solver_config(self) -> SolverKamino.Config:
         """Build a :class:`SolverKamino.Config` from this configuration.

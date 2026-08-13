@@ -29,6 +29,7 @@
     KaminoMaterialsCfg
     KaminoPADMMCfg
     KaminoPADMMSolverCfg
+    KaminoSolverCfgBase
     MPMSolverCfg
     HydroelasticSDFCfg
 
@@ -101,6 +102,11 @@ Physics Configuration
   :exclude-members: __init__
 
 .. autoclass:: KaminoMaterialsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoSolverCfgBase
   :members:
   :show-inheritance:
   :exclude-members: __init__

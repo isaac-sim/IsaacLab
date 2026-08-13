@@ -180,9 +180,8 @@ Kamino Solver Parameters
 ------------------------
 
 The following fields are shared by
-:class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
-:class:`~isaaclab_newton.physics.KaminoDVISolverCfg`. They are grouped by the part
-of the solver they affect.
+:class:`~isaaclab_newton.physics.KaminoSolverCfgBase`. They are grouped by the part of
+the solver they affect.
 
 Core Integration
 ^^^^^^^^^^^^^^^^

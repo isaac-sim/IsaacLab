@@ -38,6 +38,7 @@ from isaaclab_newton.physics import (
     KaminoDynamicsCfg,
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
+    KaminoSolverCfgBase,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCfg,
@@ -161,6 +162,15 @@ def test_newton_cfg_post_init_propagates_class_type(
     """``NewtonCfg.__post_init__`` lifts ``solver_cfg.class_type`` onto ``NewtonCfg.class_type``."""
     cfg = NewtonCfg(solver_cfg=solver_cfg_factory())
     assert cfg.class_type.__name__ == expected_manager.__name__
+
+
+def test_kamino_solver_cfg_base_requires_concrete_configuration():
+    """The public Kamino base config should direct users to a concrete solver config."""
+    with pytest.raises(
+        NotImplementedError,
+        match="KaminoSolverCfgBase is a base configuration. Use KaminoPADMMSolverCfg or KaminoDVISolverCfg.",
+    ):
+        KaminoSolverCfgBase().to_solver_config()
 
 
 @pytest.mark.parametrize(
@@ -1000,7 +1010,7 @@ def test_initialize_solver_populates_canonical_state(
             # something to work with.
             body = builder.add_body(mass=1.0)
             builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
-            if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)) and solver_cfg.use_collision_detector:
+            if isinstance(solver_cfg, KaminoSolverCfgBase) and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
         NewtonManager.set_builder(builder)
