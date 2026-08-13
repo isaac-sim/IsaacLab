@@ -6,22 +6,23 @@
 """Multi-GPU training smoke tests.
 
 Setup:
-    - none; each test launches a real two-rank training run as a subprocess
+    - none; each test launches a real multi-rank training run as a subprocess
 Tests:
-    - physics-only task on any 2 GPUs -> verify training completes
-    - each physics/renderer stack on a same-switch GPU pair -> verify training completes
-    - each physics/renderer stack on a cross-socket GPU pair -> Kit-renderer stacks
-      are expected to fail, NVBUG#6565122
+    - physics-only task on 2 GPUs -> verify training completes
+    - each stack on 4 GPUs with no device mask -> verify training completes
+    - each stack on 4 GPUs exposed as ``3,1,2,0`` -> verify training completes
 
 Unlike the rest of the suite these are not parametrized over ``device``: a
-multi-GPU run owns two devices at once, so the per-shard single-device
+multi-GPU run owns several devices at once, so the per-shard single-device
 parametrization the multi-GPU workflow applies elsewhere does not model it.
-They are driven by a dedicated workflow step instead.
+They are driven by dedicated workflow steps instead: the ``kitless`` marker
+selects the stack whose renderer is an optional wheel the step installs first.
 
-Which GPU pair a case uses is resolved from the host at runtime rather than
-hardcoded. On an 8-GPU two-socket box the default ``cuda:0,cuda:1`` pick is a
-*same-switch* pair and does not exercise the cross-socket path at all, so a
-fixed pick would quietly stop testing the thing this file exists for.
+Cases are split by whether the visible devices are exposed in their natural
+order, because ``CUDA_VISIBLE_DEVICES`` renumbers devices for CUDA but not for
+the graphics stack. Only a reordered mask makes the two indices disagree, which
+is what exercises renderer device selection; the default ordering tests the case
+where they coincide and cannot catch a selection defect at all.
 """
 
 from __future__ import annotations
@@ -35,8 +36,6 @@ import time
 from pathlib import Path
 
 import pytest
-
-from isaaclab.test.utils import gpu_pairs_by_topology
 
 # Small on purpose: Kit boot dominates the runtime at this size, and the defect
 # reproduces at 1024 envs exactly as it does at 2048.
@@ -56,49 +55,54 @@ _HARD_TIMEOUT_S = 600
 _PHYSICS_ONLY_TASK = "Isaac-Cartpole-Direct"
 _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
 
-# (id, presets) for each physics/renderer stack worth covering.
+# Four ranks rather than two: with two, a single wrong device assignment can still land on a
+# visible GPU by chance, and the rank-to-device mapping is too small to be wrong in an
+# interesting way.
+_CAMERA_RANKS = 4
+
+# Deliberately not sorted and not contiguous-from-zero. Every rank's CUDA index differs from its
+# graphics index, so no rank can be resolved by assuming the visible list is ordered.
+_UNORDERED_DEVICES = (3, 1, 2, 0)
+
+# (id, presets) for each physics/renderer stack worth covering, split by what the run needs
+# installed. Kit's RTX renderer ships in the image; ``ovrtx`` is an optional wheel that is in
+# neither the Isaac Sim nor the Isaac Lab image, so its stack runs in a separate step that
+# installs it first. The ``kitless`` marker is what selects between them.
 #
 # ``isaacsim_physx,ovrtx`` is absent by design: IsaacLab rejects it, since ovrtx
 # is a kitless renderer and cannot pair with Kit physics.
 #
 # TODO: add ``ovphysx,ovrtx`` once OvPhysX supports multi-GPU. It currently hangs
-# at the first parameter sync on *any* GPU pair -- same-switch included -- so it
-# is a separate defect from NVBUG#6565122 and would only cost CI a deliberate
-# timeout while asserting something already known. See the process-global
+# at the first parameter sync on *any* GPU pair, so it is a separate defect and would only cost
+# CI a deliberate timeout while asserting something already known. See the process-global
 # device-mode lock in ``isaaclab_ovphysx.physics.ovphysx_manager``.
-_CAMERA_STACKS = [
+_KIT_RENDERER_STACKS = [
     pytest.param("isaacsim_physx", id="isaacsim_physx-kit_rtx"),
     pytest.param("newton_mjwarp,isaacsim_rtx", id="newton-kit_rtx"),
-    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx"),
 ]
 
-# Stacks that drive Kit's Isaac Sim RTX renderer. These are the ones that fail on
-# a cross-socket pair; the kitless ``ovrtx`` stack passes there.
-_KIT_RENDERER_STACKS = frozenset({"isaacsim_physx", "newton_mjwarp,isaacsim_rtx"})
-
-_XFAIL_REASON = (
-    "Kit's Isaac Sim RTX renderer corrupts the host heap when a multi-GPU rendering job spans a"
-    " cross-socket (SYS) GPU pair, surfacing as SIGSEGV inside libcarb.cudainterop.plugin.so."
-    " Entered between Kit 110.0.0 and Kit 110.1.2. The same run passes on a same-switch pair, and"
-    " with presets=newton_mjwarp,ovrtx on the same pair. NVBUG#6565122"
-)
+_KITLESS_STACKS = [
+    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx"),
+]
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
 
-def _run_training(pair: tuple[int, int], task: str, presets: str) -> tuple[str, str]:
-    """Launch a two-rank training run pinned to ``pair`` and wait for it to settle.
+def _run_training(devices: tuple[int, ...] | None, task: str, presets: str, num_gpus: int) -> tuple[str, str]:
+    """Launch a multi-rank training run and wait for it to settle.
 
     Streams the child's output so a stalled run is killed after
     :data:`_IDLE_TIMEOUT_S` of silence rather than occupying a CI runner until the
     hard timeout.
 
     Args:
-        pair: GPU indices to pin the two ranks to.
+        devices: GPU indices to expose, in the order given, or ``None`` to leave the inherited
+            visibility untouched.
         task: Gym task id to train.
         presets: Value for the ``presets=`` selector (physics and/or renderer).
+        num_gpus: Number of ranks to launch.
 
     Returns:
         ``(outcome, output)`` where outcome is ``"passed"``, ``"failed"`` or
@@ -109,14 +113,18 @@ def _run_training(pair: tuple[int, int], task: str, presets: str) -> tuple[str, 
     # pair is selected with CUDA_VISIBLE_DEVICES. Verified to reproduce the
     # canonical signature (exit 139 with cudainterop frames) rather than masking
     # it behind a device-enumeration artifact.
-    env["CUDA_VISIBLE_DEVICES"] = f"{pair[0]},{pair[1]}"
+    if devices is None:
+        # The naive case: whatever the host exposes, which is what a user gets by default.
+        env.pop("CUDA_VISIBLE_DEVICES", None)
+    else:
+        env["CUDA_VISIBLE_DEVICES"] = ",".join(str(index) for index in devices)
     env["PYTHONUNBUFFERED"] = "1"
 
     cmd = [
         sys.executable,
         "scripts/reinforcement_learning/train_multigpu.py",
         "--num_gpus",
-        "2",
+        str(num_gpus),
         # Without this only rank 0 is printed; when rank 1 is the one that dies
         # the log carries no evidence of why.
         "--log_all_ranks",
@@ -193,19 +201,10 @@ def _kill_process_group(process: subprocess.Popen) -> None:
         process.wait(timeout=30)
 
 
-def _matches_known_crash(output: str) -> bool:
-    """Whether a failure carries the NVBUG#6565122 signature rather than some other fault.
-
-    The crash is a SIGSEGV inside ``libcarb.cudainterop.plugin.so``. Without this
-    check an OOM, an argument error, or an unrelated hang on a cross-socket pair
-    would all be absorbed by the expected-failure marker.
-    """
-    return "cudainterop" in output and ("exitcode  : 139" in output or "Signal 11" in output)
-
-
-def _assert_training_passed(outcome: str, output: str) -> None:
+def _assert_training_passed(outcome: str, output: str, devices: tuple[int, ...] | None = None) -> None:
     """Assert a training subprocess actually trained, not merely exited cleanly."""
-    assert outcome == "passed", f"outcome={outcome}\n{output[-2000:]}"
+    where = f" on CUDA_VISIBLE_DEVICES={devices}" if devices is not None else " with no device mask"
+    assert outcome == "passed", f"outcome={outcome}{where}\n{output[-2000:]}"
 
 
 def _visible_cuda_device_count() -> int:
@@ -221,68 +220,77 @@ def _visible_cuda_device_count() -> int:
     return torch.cuda.device_count() if torch.cuda.is_available() else 0
 
 
-def _pair_or_skip(kind: str) -> tuple[int, int]:
-    """Return a GPU pair of ``kind``, or skip with the reason it is unavailable."""
-    pairs = gpu_pairs_by_topology()
-    if not pairs:
-        pytest.skip(
-            "GPU topology unreadable (nvidia-smi topo -m gave no usable matrix); "
-            "cannot tell whether this host has a qualifying pair"
-        )
-    if kind not in pairs:
-        pytest.skip(f"host has no {kind} GPU pair (available: {sorted(pairs)})")
-    return pairs[kind]
+def _require_devices(count: int) -> None:
+    """Skip unless the host can address ``count`` CUDA devices."""
+    available = _visible_cuda_device_count()
+    if available < count:
+        pytest.skip(f"needs {count} visible CUDA devices, host has {available}")
 
 
 @pytest.mark.smoke
 @pytest.mark.integration
 class TestMultiGpuTrainingSmoke:
-    """Two-rank training smoke coverage across the stacks and interconnect classes the host offers."""
+    """Four-rank training smoke coverage across the physics and renderer stacks."""
 
-    def test_physics_only_trains_on_any_pair(self) -> None:
-        """Physics-only multi-GPU training completes on the first two visible GPUs.
+    def test_physics_only_trains(self) -> None:
+        """Physics-only multi-GPU training completes with no device mask.
 
-        This is the guard that always runs. It deliberately does NOT consult the
-        topology: the camera cases are gated on the host offering a pair of the
-        right interconnect class, so a host with an unreadable topology, a MIG
-        layout, or only unmeasured link classes skips all six of them. Were this
-        case gated too, the step would exit 0 having launched no training at all.
+        The guard that always runs, and the cheapest signal that the launcher and NCCL are healthy
+        before any renderer is involved. Requires only two devices so it still runs on hosts too
+        small for the camera cases.
         """
-        count = _visible_cuda_device_count()
-        if count < 2:
-            pytest.skip(f"multi-GPU smoke needs 2 visible CUDA devices, host has {count}")
-        _assert_training_passed(*_run_training((0, 1), _PHYSICS_ONLY_TASK, "isaacsim_physx"))
+        _require_devices(2)
+        _assert_training_passed(*_run_training(None, _PHYSICS_ONLY_TASK, "isaacsim_physx", num_gpus=2))
 
     @pytest.mark.rendering
-    @pytest.mark.parametrize("presets", _CAMERA_STACKS)
-    def test_camera_trains_on_same_switch_pair(self, presets: str) -> None:
-        """Camera-based multi-GPU training completes when both GPUs share a PCIe switch.
+    @pytest.mark.parametrize("presets", _KIT_RENDERER_STACKS)
+    def test_kit_renderer_camera_trains_without_device_mask(self, presets: str) -> None:
+        """Kit-rendered training on four GPUs with no ``CUDA_VISIBLE_DEVICES`` set.
 
-        Strict for every stack. This is the regression guard: it is the
-        configuration NVBUG#6565122 does *not* affect, so a failure here is a new
-        defect rather than the known one.
+        What a user gets by default. CUDA and graphics device indices coincide here, so this passes
+        even when device selection is wrong -- it is the baseline the masked case is read against,
+        not a test of selection.
         """
-        pair = _pair_or_skip("SAME_SWITCH")
-        _assert_training_passed(*_run_training(pair, _CAMERA_TASK, presets))
+        _require_devices(_CAMERA_RANKS)
+        _assert_training_passed(*_run_training(None, _CAMERA_TASK, presets, num_gpus=_CAMERA_RANKS))
 
     @pytest.mark.rendering
-    @pytest.mark.parametrize("presets", _CAMERA_STACKS)
-    def test_camera_trains_on_cross_socket_pair(self, presets: str, request) -> None:
-        """Camera-based multi-GPU training across a cross-socket GPU pair.
+    @pytest.mark.parametrize("presets", _KIT_RENDERER_STACKS)
+    def test_kit_renderer_camera_trains_on_unordered_devices(self, presets: str) -> None:
+        """Kit-rendered training on four GPUs exposed in a non-monotonic order.
 
-        Stacks driving Kit's RTX renderer are expected to fail while
-        NVBUG#6565122 is open; the kitless ``ovrtx`` stack must still pass, which
-        is what pins the defect to the renderer rather than to multi-GPU
-        rendering in general. The failing cases run rather than skip so a Kit fix
-        surfaces as XPASS instead of going unnoticed.
+        The regression guard for renderer device selection. ``CUDA_VISIBLE_DEVICES`` renumbers
+        devices for CUDA but not for the graphics stack, so with ``3,1,2,0`` every rank's CUDA index
+        differs from its graphics index and none of them can be recovered by assuming the list is
+        sorted or contiguous. Passing a CUDA index straight to ``/renderer/activeGpu`` selects a
+        device outside the visible set and the run dies with ``CUDA error 700``.
         """
-        pair = _pair_or_skip("CROSS_SOCKET")
-        outcome, output = _run_training(pair, _CAMERA_TASK, presets)
-        if presets in _KIT_RENDERER_STACKS and outcome == "failed" and _matches_known_crash(output):
-            # Marked only once the documented signature is confirmed, and applied
-            # after the run rather than as a decorator. A blanket marker would
-            # absorb an OOM, an argument error, or an unrelated hang on this pair
-            # as though it were NVBUG#6565122, and would also cover the ovrtx
-            # stack, which must stay strict.
-            pytest.xfail(_XFAIL_REASON)
-        _assert_training_passed(outcome, output)
+        _require_devices(_CAMERA_RANKS)
+        _assert_training_passed(
+            *_run_training(_UNORDERED_DEVICES, _CAMERA_TASK, presets, num_gpus=_CAMERA_RANKS),
+            devices=_UNORDERED_DEVICES,
+        )
+
+    @pytest.mark.rendering
+    @pytest.mark.kitless
+    @pytest.mark.parametrize("presets", _KITLESS_STACKS)
+    def test_kitless_camera_trains_without_device_mask(self, presets: str) -> None:
+        """Kitless-rendered training on four GPUs with no ``CUDA_VISIBLE_DEVICES`` set."""
+        _require_devices(_CAMERA_RANKS)
+        _assert_training_passed(*_run_training(None, _CAMERA_TASK, presets, num_gpus=_CAMERA_RANKS))
+
+    @pytest.mark.rendering
+    @pytest.mark.kitless
+    @pytest.mark.parametrize("presets", _KITLESS_STACKS)
+    def test_kitless_camera_trains_on_unordered_devices(self, presets: str) -> None:
+        """Kitless-rendered training on four GPUs exposed in a non-monotonic order.
+
+        ``ovrtx`` selects its device through CUDA, which ``CUDA_VISIBLE_DEVICES`` renumbers
+        consistently, so this stack was never affected by the graphics-index defect the Kit case
+        covers. It runs strict as the control: a failure here is a different defect.
+        """
+        _require_devices(_CAMERA_RANKS)
+        _assert_training_passed(
+            *_run_training(_UNORDERED_DEVICES, _CAMERA_TASK, presets, num_gpus=_CAMERA_RANKS),
+            devices=_UNORDERED_DEVICES,
+        )

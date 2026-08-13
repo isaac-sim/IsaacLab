@@ -179,18 +179,11 @@ jobs:
           PATHS: ${{ steps.discover.outputs.paths }}
         run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
 
-      - name: Multi-GPU topology report
-        # Records the runner's interconnect classes and warns when it cannot
-        # exercise a case, so a run that legitimately skips the regression
-        # coverage does not read as a normal green run.
-        if: always()
-        run: bash .github/actions/multi-gpu/multi_gpu_topology_report.sh
-
-      - name: Multi-GPU training smoke
-        # Real two-rank training runs, outside the sharded device-parametrized
-        # path above: a multi-GPU job owns two GPUs at once, so a per-device
-        # shard cannot express it. Unsharded, all GPUs exposed; the tests pick
-        # their own GPU pair per interconnect class from ``nvidia-smi topo -m``.
+      - name: Multi-GPU training smoke (Kit renderer)
+        # Real multi-rank training runs, outside the sharded device-parametrized
+        # path above: a multi-GPU job owns several GPUs at once, so a per-device
+        # shard cannot express it. Unsharded, all GPUs exposed; the tests choose
+        # their own device order.
         #
         # Uses the shared run-tests action rather than a bespoke ``docker run``:
         # passing a file path (not ``tools``) skips the conftest sharding
@@ -205,6 +198,28 @@ jobs:
           result-file: multi-gpu-smoke-report.xml
           container-name: isaac-lab-mgpu-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_IMAGE_TAG }}
+          pytest-options: -m "not kitless"
+
+      - name: Resolve OV pins
+        # The kitless renderer ships as an optional wheel that is in neither the
+        # Isaac Sim nor the Isaac Lab image, so its stack needs it installed first.
+        if: always()
+        id: ov_pins
+        uses: ./.github/actions/resolve-ov-pins
+
+      - name: Multi-GPU training smoke (kitless renderer)
+        # Same image and same tests as the step above, with ovrtx installed and the
+        # marker inverted. Split into its own step so a missing optional wheel cannot
+        # take down the Kit-renderer coverage, which is what the fix under test guards.
+        if: always()
+        uses: ./.github/actions/run-tests
+        with:
+          test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
+          result-file: multi-gpu-smoke-kitless-report.xml
+          container-name: isaac-lab-mgpu-smoke-kitless-${{ github.run_id }}-${{ github.run_attempt }}
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          extra-pip-packages: ${{ steps.ov_pins.outputs.ovrtx }}
+          pytest-options: -m kitless
 
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
