@@ -320,7 +320,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self, actuator_name: str, cfg: ActuatorBaseCfg, joint_names: list[str]
     ) -> None:
         """Retain the implicit ``effort_limit`` compatibility alias on a copied config."""
-        if not self._is_implicit_cfg(cfg) or cfg.effort_limit is None:
+        if not _is_implicit_actuator_cfg(cfg) or cfg.effort_limit is None:
             return
         if cfg.joint_effort_limit is None:
             cfg.joint_effort_limit = cfg.effort_limit
@@ -331,11 +331,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 f"Implicit actuator group '{actuator_name}' has conflicting 'joint_effort_limit' and "
                 "'effort_limit' values. Use 'joint_effort_limit' for the solver limit."
             )
-
-    @staticmethod
-    def _is_implicit_cfg(cfg: ActuatorBaseCfg) -> bool:
-        """Return whether an actuator configuration constructs an implicit model."""
-        return _is_implicit_actuator_cfg(cfg)
 
     def _build_groups(
         self,
@@ -354,7 +349,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
 
             defaults = self._control.get_default_joint_properties(actuator_joint_ids)
-            implicit = self._is_implicit_cfg(actuator_cfg)
+            implicit = _is_implicit_actuator_cfg(actuator_cfg)
             properties, resolution_rows = self._resolve_joint_properties(
                 actuator_cfg,
                 defaults,
@@ -362,9 +357,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 actuator_joint_ids,
                 implicit=implicit,
             )
-            cfg = actuator_cfg.copy()
-            actuator: ActuatorBase = cfg.class_type(
-                cfg=cfg,
+            actuator: ActuatorBase = actuator_cfg.class_type(
+                cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_ids=actuator_joint_ids,
                 num_envs=self.num_instances,
@@ -775,8 +769,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         expected_joints = self.num_joints - self._control.num_fixed_tendons
         if total_act_joints != expected_joints:
             logger.warning(
-                "Not all actuators are configured! Total number of actuated joints not equal to number of"
-                " joints available: %s != %s.",
+                "Actuator groups cover %s joints; expected %s after accounting for fixed tendons.",
                 total_act_joints,
                 expected_joints,
             )

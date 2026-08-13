@@ -17,7 +17,7 @@ import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 
-from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
+from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
@@ -548,7 +548,3 @@ class ArticulationActuatorControl(ActuatorControl):
         if joint_property is None:
             return torch.zeros_like(reference)
         return joint_property.torch[:, joint_ids]
-
-    @staticmethod
-    def _is_implicit_cfg(actuator_cfg: ActuatorBaseCfg) -> bool:
-        return _is_implicit_actuator_cfg(actuator_cfg)

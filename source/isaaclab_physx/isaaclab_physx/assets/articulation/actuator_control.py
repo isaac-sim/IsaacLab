@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
+from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
@@ -126,7 +127,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
         native_group_names = {
-            name for name, actuator_cfg in actuator_cfgs.items() if not self._is_implicit_cfg(actuator_cfg)
+            name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
         if not native_group_names:
             return set()
