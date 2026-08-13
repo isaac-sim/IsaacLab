@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
-from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -505,55 +504,35 @@ def test_collection_supports_deprecated_effort_limit_constructor(cfg, control_fa
     ],
 )
 def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, actuator_type, canonical_name):
-    kwargs = {canonical_name: torch.inf, "effort_limit": 12.0}
+    constructor_kwargs = {
+        "joint_names": ["joint_0", "joint_1", "joint_2"],
+        "joint_ids": slice(None),
+        "num_envs": 2,
+        "device": "cpu",
+        "stiffness": 0.0,
+        "damping": 0.0,
+    }
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         with pytest.raises(ValueError, match=rf"conflicting {canonical_name}.*effort_limit"):
             actuator_type(
                 cfg,
-                joint_names=["joint_0", "joint_1", "joint_2"],
-                joint_ids=slice(None),
-                num_envs=2,
-                device="cpu",
-                stiffness=0.0,
-                damping=0.0,
-                **kwargs,
+                **constructor_kwargs,
+                **{canonical_name: torch.inf, "effort_limit": 12.0},
             )
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         actuator = actuator_type(
             cfg.copy(),
-            joint_names=["joint_0", "joint_1", "joint_2"],
-            joint_ids=slice(None),
-            num_envs=2,
-            device="cpu",
-            stiffness=0.0,
-            damping=0.0,
+            **constructor_kwargs,
             **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0},
         )
     torch.testing.assert_close(getattr(actuator, canonical_name), torch.full((2, 3), 12.0))
 
 
-@pytest.mark.parametrize(
-    (
-        "canonical_name",
-        "alias_name",
-        "canonical_value",
-        "alias_value",
-        "cfg_factory",
-        "control_factory",
-        "warns",
-    ),
-    [
-        (
-            "joint_effort_limit",
-            "effort_limit_sim",
-            12.0,
-            {"joint_.*": 12.0},
-            _ideal_pd_cfg,
-            NativeFakeActuatorControl,
-            True,
-        ),
+def test_equivalent_limit_aliases_prefer_canonical_values():
+    scenarios = (
+        ("joint_effort_limit", "effort_limit_sim", 12.0, {"joint_.*": 12.0}, _ideal_pd_cfg, NativeFakeActuatorControl),
         (
             "joint_velocity_limit",
             "velocity_limit_sim",
@@ -561,61 +540,41 @@ def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, ac
             {"joint_.*": 34.0},
             _ideal_pd_cfg,
             NativeFakeActuatorControl,
-            True,
         ),
-        (
-            "actuator_effort_limit",
-            "effort_limit",
-            {"joint_.*": 12.0},
-            12.0,
-            _ideal_pd_cfg,
-            NativeFakeActuatorControl,
-            True,
-        ),
-        (
-            "joint_effort_limit",
-            "effort_limit",
-            {"joint_.*": 12.0},
-            12.0,
-            _implicit_cfg,
-            FakeActuatorControl,
-            True,
-        ),
-    ],
-)
-def test_equivalent_joint_limit_aliases_prefer_canonical_value(
-    canonical_name, alias_name, canonical_value, alias_value, cfg_factory, control_factory, warns
-):
-    cfg = cfg_factory(**{canonical_name: canonical_value, alias_name: alias_value})
-    warning_context = pytest.warns(DeprecationWarning) if warns else nullcontext()
-    with warning_context:
-        collection = ActuatorCollection({"motor": cfg}, control_factory())
-
-    assert getattr(collection["motor"].cfg, canonical_name) == canonical_value
-    assert getattr(cfg, canonical_name) == canonical_value
-    assert getattr(cfg, alias_name) == alias_value
-
-
-@pytest.mark.parametrize(
-    ("canonical_name", "alias_name", "cfg_factory", "control_factory", "warns"),
-    [
-        ("joint_effort_limit", "effort_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl, True),
-        ("joint_velocity_limit", "velocity_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl, True),
-        ("actuator_effort_limit", "effort_limit", _ideal_pd_cfg, NativeFakeActuatorControl, True),
-        ("joint_effort_limit", "effort_limit", _implicit_cfg, FakeActuatorControl, True),
-    ],
-)
-def test_conflicting_joint_limit_aliases_raise(canonical_name, alias_name, cfg_factory, control_factory, warns):
-    cfg = cfg_factory(
-        **{
-            canonical_name: {"joint_0": 12.0, "joint_1": 10.0, "joint_2": 8.0},
-            alias_name: {"joint_0": 12.0, "joint_1": 11.0, "joint_2": 8.0},
-        }
+        ("actuator_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
+        ("joint_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _implicit_cfg, FakeActuatorControl),
     )
 
-    warning_context = pytest.warns(DeprecationWarning) if warns else nullcontext()
-    with warning_context, pytest.raises(ValueError, match=rf"motor.*{canonical_name}.*{alias_name}"):
-        ActuatorCollection({"motor": cfg}, control_factory())
+    for canonical_name, alias_name, canonical_value, alias_value, cfg_factory, control_factory in scenarios:
+        cfg = cfg_factory(**{canonical_name: canonical_value, alias_name: alias_value})
+        with pytest.warns(DeprecationWarning):
+            collection = ActuatorCollection({"motor": cfg}, control_factory())
+
+        assert getattr(collection["motor"].cfg, canonical_name) == canonical_value
+        assert getattr(cfg, canonical_name) == canonical_value
+        assert getattr(cfg, alias_name) == alias_value
+
+
+def test_conflicting_limit_aliases_raise():
+    scenarios = (
+        ("joint_effort_limit", "effort_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
+        ("joint_velocity_limit", "velocity_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
+        ("actuator_effort_limit", "effort_limit", _ideal_pd_cfg, NativeFakeActuatorControl),
+        ("joint_effort_limit", "effort_limit", _implicit_cfg, FakeActuatorControl),
+    )
+
+    for canonical_name, alias_name, cfg_factory, control_factory in scenarios:
+        cfg = cfg_factory(
+            **{
+                canonical_name: {"joint_0": 12.0, "joint_1": 10.0, "joint_2": 8.0},
+                alias_name: {"joint_0": 12.0, "joint_1": 11.0, "joint_2": 8.0},
+            }
+        )
+        with (
+            pytest.warns(DeprecationWarning),
+            pytest.raises(ValueError, match=rf"motor.*{canonical_name}.*{alias_name}"),
+        ):
+            ActuatorCollection({"motor": cfg}, control_factory())
 
 
 class ProxyFinderActuatorControl(FakeActuatorControl):
@@ -999,17 +958,6 @@ def test_lab_executed_explicit_groups_warn_once():
     assert "execution of explicit actuator models is deprecated" in str(deprecations[0].message)
 
 
-def test_native_executed_explicit_group_does_not_warn():
-    with warnings.catch_warnings(record=True) as caught_warnings:
-        warnings.simplefilter("always")
-        ActuatorCollection(
-            {"native": _ideal_cfg([".*"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
-            NativeFakeActuatorControl(),
-        )
-
-    assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
-
-
 def test_ideal_pd_aggregate_matches_independent_groups_exactly(monkeypatch):
     joint_names = [f"joint_{index}" for index in range(4)]
     cfgs = {
@@ -1020,6 +968,16 @@ def test_ideal_pd_aggregate_matches_independent_groups_exactly(monkeypatch):
     actual_control = FakeActuatorControl(joint_names=joint_names)
     reference = _make_unbatched_reference(monkeypatch, IdealPDActuator, cfgs, reference_control)
     actual = ActuatorCollection(cfgs, actual_control)
+    batch = actual._execution_batches[0]
+    compute_calls = 0
+    original_compute = batch.actuator.compute
+
+    def counted_compute(control_action, joint_pos, joint_vel):
+        nonlocal compute_calls
+        compute_calls += 1
+        return original_compute(control_action, joint_pos, joint_vel)
+
+    monkeypatch.setattr(batch.actuator, "compute", counted_compute)
     _assign_deterministic_inputs(reference, reference_control)
     _assign_deterministic_inputs(actual, actual_control)
 
@@ -1027,6 +985,29 @@ def test_ideal_pd_aggregate_matches_independent_groups_exactly(monkeypatch):
     actual.compute()
 
     _assert_collection_outputs_match_exactly(actual, reference)
+    assert compute_calls == 1
+    first_hips_output = actual["hips"].computed_effort
+    actual.command.position.torch.mul_(-1.25)
+    actual.command.velocity.torch.add_(2.75)
+    actual.command.effort.torch.sub_(4.5)
+
+    actual.compute()
+
+    assert compute_calls == 2
+    assert actual["hips"].computed_effort is first_hips_output
+    for group_name, group_slice in zip(batch.group_names, batch.group_slices):
+        torch.testing.assert_close(
+            actual[group_name].computed_effort,
+            batch.actuator.computed_effort[:, group_slice],
+            rtol=0.0,
+            atol=0.0,
+        )
+        torch.testing.assert_close(
+            actual[group_name].applied_effort,
+            batch.actuator.applied_effort[:, group_slice],
+            rtol=0.0,
+            atol=0.0,
+        )
 
 
 def test_dc_motor_aggregate_matches_independent_groups_exactly(monkeypatch):
@@ -1113,57 +1094,6 @@ def test_actuator_batch_rebinds_cuda_state_provider_on_request(
     )
 
 
-def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(6)])
-    collection = ActuatorCollection(
-        {
-            "hips": _ideal_cfg(["joint_0", "joint_3"], stiffness=8.0, damping=0.5, effort_limit=12.0),
-            "knees": _ideal_cfg(["joint_1", "joint_4"], stiffness=13.0, damping=1.0, effort_limit=18.0),
-            "ankles": _ideal_cfg(["joint_2", "joint_5"], stiffness=21.0, damping=1.5, effort_limit=27.0),
-        },
-        control,
-    )
-    compute_calls = 0
-    original_compute = IdealPDActuator.compute
-
-    def counted_compute(self, control_action, joint_pos, joint_vel):
-        nonlocal compute_calls
-        compute_calls += 1
-        return original_compute(self, control_action, joint_pos, joint_vel)
-
-    monkeypatch.setattr(IdealPDActuator, "compute", counted_compute)
-    collection.command.position.torch.copy_(torch.arange(12, dtype=torch.float32).reshape(2, 6) + 0.25)
-    collection.command.velocity.torch.copy_(torch.arange(12, dtype=torch.float32).reshape(2, 6) * -0.5 - 0.75)
-    collection.command.effort.torch.copy_(torch.arange(12, dtype=torch.float32).reshape(2, 6) + 1.5)
-
-    collection.compute()
-
-    assert compute_calls == 1
-    batch = collection._execution_batches[0]
-    first_hips_output = collection["hips"].computed_effort
-    collection.command.position.torch.mul_(-1.25)
-    collection.command.velocity.torch.add_(2.75)
-    collection.command.effort.torch.sub_(4.5)
-
-    collection.compute()
-
-    assert compute_calls == 2
-    assert collection["hips"].computed_effort is first_hips_output
-    for group_name, group_slice in zip(batch.group_names, batch.group_slices):
-        torch.testing.assert_close(
-            collection[group_name].computed_effort,
-            batch.actuator.computed_effort[:, group_slice],
-            rtol=0.0,
-            atol=0.0,
-        )
-        torch.testing.assert_close(
-            collection[group_name].applied_effort,
-            batch.actuator.applied_effort[:, group_slice],
-            rtol=0.0,
-            atol=0.0,
-        )
-
-
 def test_stateless_explicit_batch_preserves_tensor_pointers():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
@@ -1240,27 +1170,31 @@ def test_stateful_subclasses_and_incompatible_classes_remain_separate():
 
 def test_native_execution_bypasses_lab_aggregation(monkeypatch):
     control = NativeFakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    collection = ActuatorCollection(
-        {
-            "hips": _dc_cfg(
-                ["joint_0", "joint_1"],
-                stiffness=20.0,
-                damping=1.0,
-                effort_limit=40.0,
-                velocity_limit=10.0,
-                saturation_effort=60.0,
-            ),
-            "knees": _dc_cfg(
-                ["joint_2", "joint_3"],
-                stiffness=30.0,
-                damping=2.0,
-                effort_limit=70.0,
-                velocity_limit=20.0,
-                saturation_effort=120.0,
-            ),
-        },
-        control,
-    )
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        warnings.simplefilter("always")
+        collection = ActuatorCollection(
+            {
+                "hips": _dc_cfg(
+                    ["joint_0", "joint_1"],
+                    stiffness=20.0,
+                    damping=1.0,
+                    effort_limit=40.0,
+                    velocity_limit=10.0,
+                    saturation_effort=60.0,
+                ),
+                "knees": _dc_cfg(
+                    ["joint_2", "joint_3"],
+                    stiffness=30.0,
+                    damping=2.0,
+                    effort_limit=70.0,
+                    velocity_limit=20.0,
+                    saturation_effort=120.0,
+                ),
+            },
+            control,
+        )
+
+    assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
     assert len(collection._execution_batches) == 2
     assert all(len(batch.group_names) == 1 for batch in collection._execution_batches)
@@ -1282,7 +1216,7 @@ def test_collection_accepts_cached_proxy_joint_indices():
     torch.testing.assert_close(collection["outer"].joint_indices, torch.tensor([0, 2], dtype=torch.int32))
 
 
-def test_write_command_index_updates_only_selected_cells():
+def test_write_command_index_supports_selectors_and_submission():
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
     value = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
@@ -1295,10 +1229,7 @@ def test_write_command_index_updates_only_selected_cells():
     torch.testing.assert_close(collection.command.position.torch.cpu(), expected)
     assert control.staged_commands == ["position"]
 
-
-def test_write_command_index_accepts_signed_int64_selectors():
-    control = FakeActuatorControl()
-    collection = ActuatorCollection({"all": _implicit_cfg()}, control)
+    collection.command.position.torch.zero_()
     value = torch.tensor([[3.0, 4.0]], dtype=torch.float32)
     env_ids = torch.tensor([1], dtype=torch.int64)
     joint_ids = wp.array([0, 2], dtype=wp.int64, device="cpu")
@@ -1309,6 +1240,12 @@ def test_write_command_index_accepts_signed_int64_selectors():
     expected[1, 0] = 3.0
     expected[1, 2] = 4.0
     torch.testing.assert_close(collection.command.position.torch.cpu(), expected)
+
+    collection.compute()
+    collection.submit_commands()
+
+    torch.testing.assert_close(collection.joint_command.position.torch.cpu(), expected)
+    assert control.submitted
 
 
 def test_write_command_mask_uses_full_sized_value():
@@ -1324,16 +1261,3 @@ def test_write_command_mask_uses_full_sized_value():
     expected[0, 1:] = value[0, 1:]
     torch.testing.assert_close(collection.command.velocity.torch.cpu(), expected)
     assert control.staged_commands == ["velocity"]
-
-
-def test_compute_submits_processed_commands():
-    control = FakeActuatorControl()
-    collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    value = torch.ones(2, 3, dtype=torch.float32)
-    collection.command.set_position_index(value=value, full_data=True)
-
-    collection.compute()
-    collection.submit_commands()
-
-    torch.testing.assert_close(collection.joint_command.position.torch.cpu(), value)
-    assert control.submitted
