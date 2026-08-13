@@ -89,6 +89,29 @@ Data classes use the same pattern, for example
 Warp ``wp.array`` values for asset and sensor data, allowing portable code to
 interoperate with PyTorch through ``wp.to_torch()`` when needed.
 
+Portable renderer and scene-data interfaces
+-------------------------------------------
+
+Rendering is selected independently from physics. Renderer configurations
+dispatch through :class:`~isaaclab.renderers.Renderer` to implementations that
+share the :class:`~isaaclab.renderers.BaseRenderer` contract, with
+:class:`~isaaclab.renderers.RenderContext` owning their lifecycle. See
+:ref:`overview_renderers` for renderer choices and usage.
+
+Physics managers expose live simulation data through
+:class:`~isaaclab.scene_data.SceneDataBackend`. The
+:class:`~isaaclab.scene_data.SceneDataProvider` owned by the simulation context
+converts and remaps that data for backend-independent consumers:
+
+.. code-block:: text
+
+   physics manager -> SceneDataBackend -> SceneDataProvider -> renderer or visualizer
+
+This boundary lets renderers and visualizers consume a common Warp-native data
+path without knowing which physics engine owns the state. See
+:doc:`/source/overview/core-concepts/scene_data_providers` for the complete
+data-flow model.
+
 Native engine access boundary
 -----------------------------
 
