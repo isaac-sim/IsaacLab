@@ -12,5 +12,6 @@ using VSCode.
 
   VS Code <vs_code>
   repo_structure
+  add_physics_backend
   development
   agent_skills

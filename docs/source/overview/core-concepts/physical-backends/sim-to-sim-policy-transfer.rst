@@ -89,8 +89,8 @@ both backends load the same USD asset:
    initialization, then exposes the selected public order through its
    high-level API.
 
-The backend selection described in :doc:`Multi-Backend Architecture
-<../multi_backend_architecture>` controls which native view is created. The
+The backend selection described in :ref:`backend-architecture` controls which
+native view is created. The
 ordering selection controls how the high-level API presents that view.
 
 

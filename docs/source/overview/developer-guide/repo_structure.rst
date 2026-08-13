@@ -46,7 +46,7 @@ default PhysX path runs through Isaac Sim, while ``ovphysx`` supports standalone
 without launching Isaac Sim and Newton provides a Warp-native kit-less backend. The ``source``
 directory contains all packages that compose Isaac Lab, while ``scripts`` contains standalone
 Python applications for training, evaluation, and tooling.
-See :doc:`/source/overview/core-concepts/multi_backend_architecture` for details on the backend
+See :doc:`/source/concepts/backend_architecture` for details on the backend
 system, and :doc:`/source/setup/ecosystem` for a full package-layer overview.
 
 Submodules

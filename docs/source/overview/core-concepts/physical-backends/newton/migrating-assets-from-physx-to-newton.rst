@@ -427,6 +427,6 @@ See also
   <https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html>`__
 * `MuJoCo-Warp Contact Tuning guide
   <https://newton-physics.github.io/newton/latest/concepts/simulation_tuning_mujoco.html>`__
-* :doc:`../../multi_backend_architecture`
+* :ref:`backend-architecture`
 * :doc:`/source/how-to/import_new_asset`
 * :doc:`/source/features/hydra`

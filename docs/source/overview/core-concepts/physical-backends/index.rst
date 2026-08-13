@@ -5,7 +5,7 @@ Isaac Lab 3.0 supports multiple physics backends through a unified API. Each bac
 exposes the same :class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, sensor and renderer surfaces, while differing
 in solver characteristics, maturity, and feature coverage. See
-:doc:`../multi_backend_architecture` for how the dispatch and factory machinery work
+:ref:`backend-architecture` for how the dispatch and factory machinery work
 under the hood.
 
 This page summarizes what each backend supports today; the sub-pages document
