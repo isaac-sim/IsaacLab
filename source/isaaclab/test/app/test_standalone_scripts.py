@@ -577,7 +577,10 @@ def test_visualizer_availability_requires_shared_and_backend_packages(monkeypatc
     """External visualizers require both the visualizer extension and selected implementation."""
     available = {"isaaclab_visualizers", "isaaclab_newton", "rerun"}
     monkeypatch.setattr(script_cases.importlib.util, "find_spec", lambda name: object() if name in available else None)
-    assert visualizer_is_available("newton")
+    assert visualizer_is_available("newton_gl")
+    assert not visualizer_is_available("newton_rtx")
+    available.add("ovrtx")
+    assert visualizer_is_available("newton_rtx")
     assert visualizer_is_available("rerun")
     assert not visualizer_is_available("viser")
 
