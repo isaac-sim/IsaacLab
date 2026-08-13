@@ -619,7 +619,7 @@ class InteractiveScene:
             asset_state = state["deformable_object"][asset_name]
             nodal_position = asset_state["nodal_position"].clone().to(self.device)
             if is_relative:
-                nodal_position[:, :3] += self.env_origins[env_ids]
+                nodal_position += self.env_origins[env_ids, None, :]
             nodal_velocity = asset_state["nodal_velocity"].clone().to(self.device)
             deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
             deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
@@ -726,7 +726,7 @@ class InteractiveScene:
             asset_state = dict()
             asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.torch.clone()
             if is_relative:
-                asset_state["nodal_position"][:, :3] -= self.env_origins
+                asset_state["nodal_position"] -= self.env_origins[:, None, :]
             asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.torch.clone()
             state["deformable_object"][asset_name] = asset_state
         # rigid objects
