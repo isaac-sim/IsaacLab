@@ -238,17 +238,12 @@ _FRANKA_SOFT_TABLE = AssetBaseCfg(
     spawn=_FRANKA_FAILURE_TABLE_SPAWN,
     init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.525)),
 )
-_FRANKA_CLOTH_TABLE = _FRANKA_SOFT_TABLE.replace(
-    spawn=_FRANKA_FAILURE_TABLE_SPAWN.replace(
-        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1)
-    ),
-)
 _FRANKA_CLOTH_SUPPORT = sim_utils.CuboidCfg(
     size=(0.1, 0.02, 0.15),
     rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     collision_props=sim_utils.CollisionPropertiesCfg(),
-    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
+    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=_RenderingMaterialCfg(diffuse_color_constant=(0.2, 0.2, 0.25)),
     semantic_tags=[("class", "support")],
 )
@@ -310,7 +305,7 @@ _CLOTH_NEWTON = DeformableObjectCfg(
         resolution=(8, 8),
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
-            density=10.0,
+            density=1.0,
             particle_radius=0.002,
             tri_ke=5.0e2,
             tri_ka=5.0e2,
@@ -395,7 +390,7 @@ class FrankaClothRenderingSceneCfg(RenderingSceneCfg):
     fill_light = _TASK_SKY_LIGHT.copy()
     camera: CameraCfg = _FRANKA_CAMERA.copy()
     robot: ArticulationCfg = _FRANKA_ROBOT.copy()
-    table: AssetBaseCfg = _FRANKA_CLOTH_TABLE.copy()
+    table: AssetBaseCfg = _FRANKA_SOFT_TABLE.copy()
     support_neg_y: RigidObjectCfg = _FRANKA_CLOTH_SUPPORT_NEG_Y.copy()
     support_pos_y: RigidObjectCfg = _FRANKA_CLOTH_SUPPORT_POS_Y.copy()
     deformable: DeformableObjectCfg = _CLOTH_NEWTON.copy()

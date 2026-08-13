@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import copy
-import os
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -107,7 +106,7 @@ class RenderingScene:
         self.camera.update(0.0, force_recompute=True)
 
     def stabilize_camera(self, render_updates: int = 5) -> None:
-        """Prime renderer history and asynchronous assets without advancing physics."""
+        """Prime renderer history without advancing physics."""
         if getattr(self.camera.cfg.renderer_cfg, "renderer_type", None) == "isaac_rtx":
             import omni.usd
 
@@ -218,7 +217,7 @@ def make_renderer_cfg(renderer: str) -> RendererCfg:
     elif renderer == "ovrtx":
         from isaaclab_ov.renderers import OVRTXRendererCfg
 
-        cfg = OVRTXRendererCfg(log_file_path="CON" if os.name == "nt" else "/dev/stdout")
+        cfg = OVRTXRendererCfg()
     else:
         raise ValueError(f"Unknown renderer: {renderer!r}")
     if hasattr(cfg, "semantic_filter"):
