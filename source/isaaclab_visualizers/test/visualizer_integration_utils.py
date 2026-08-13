@@ -580,6 +580,13 @@ def _assert_frames_remain_stable(
 ) -> None:
     """Assert two viewport frames are effectively unchanged while simulation is paused."""
     n_diff = _count_significantly_differing_pixels(frame_a, frame_b, channel_diff_threshold=channel_diff_threshold)
+    logging.getLogger(__name__).info(
+        "%s pause stability: %d px differed at threshold %g (gate %d)",
+        case_label,
+        n_diff,
+        channel_diff_threshold,
+        max_differing_pixels,
+    )
     assert n_diff <= max_differing_pixels, (
         f"{case_label} failed to pause during {phase}: {n_diff} pixels differed, expected at most "
         f"{max_differing_pixels} with per-channel threshold {channel_diff_threshold} in 0-255 space. "
@@ -1434,6 +1441,8 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
             debug_phase="pausing_tiled",
             channel_diff_threshold=(
                 _KIT_PAUSED_TILED_CAMERA_CHANNEL_DIFF_THRESHOLD
+                if isinstance(visualizer, KitVisualizer) and physics_kind == "newton"
+                else _KIT_PAUSED_VIEWPORT_CHANNEL_DIFF_THRESHOLD
                 if isinstance(visualizer, KitVisualizer)
                 else _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD
             ),
