@@ -105,8 +105,8 @@ Articulation joint and body ordering
 
 PhysX and MJWarp may order joints and bodies differently for branched robots. For cross-backend
 playback, set **both** ``joint_ordering`` and ``body_ordering`` to the backend used for training;
-``physics=`` still selects the target backend. The per-task commands below already include the
-correct overrides.
+``physics=`` still selects the target backend. The task table below lists which tasks need the
+overrides and which do not.
 
 See :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering` for the full
 ordering contract, accepted values, and troubleshooting.
@@ -226,14 +226,14 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/physx_checkpoint.pt physics=isaacsim_physx
+       --checkpoint logs/rsl_rl/EXPERIMENT_DIRECTORY/RUN_DIRECTORY/model_ITERATION.pt physics=isaacsim_physx
 
 **PN: deploy PhysX checkpoint in Newton**
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/physx_checkpoint.pt physics=newton_mjwarp \
+       --checkpoint logs/rsl_rl/EXPERIMENT_DIRECTORY/RUN_DIRECTORY/model_ITERATION.pt physics=newton_mjwarp \
        env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 
 **2. Train in Newton:**
@@ -247,14 +247,14 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/newton_checkpoint.pt physics=newton_mjwarp
+       --checkpoint logs/rsl_rl/EXPERIMENT_DIRECTORY/RUN_DIRECTORY/model_ITERATION.pt physics=newton_mjwarp
 
 **NP: deploy Newton checkpoint in PhysX**
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint /path/to/newton_checkpoint.pt physics=isaacsim_physx \
+       --checkpoint logs/rsl_rl/EXPERIMENT_DIRECTORY/RUN_DIRECTORY/model_ITERATION.pt physics=isaacsim_physx \
        env.scene.robot.joint_ordering=mjwarp env.scene.robot.body_ordering=mjwarp
 
 Drop the two ordering overrides when the task's joint and body order already agrees across
@@ -264,8 +264,9 @@ backends. See `Articulation joint and body ordering`_.
 Validated transfer examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following tasks have been validated for cross-backend transfer. Substitute the task ID and
-experiment directory into the generic commands above.
+The following tasks have been validated for cross-backend transfer. Substitute ``TRAIN_TASK`` /
+``PLAY_TASK`` with the task ID and ``EXPERIMENT_DIRECTORY`` with the directory below into the
+generic commands above.
 
 .. list-table::
    :header-rows: 1
