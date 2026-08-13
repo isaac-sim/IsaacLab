@@ -17,8 +17,8 @@ backend-specific configuration, installation, and limitations.
     physx/index
     newton/index
     ovphysx/index
-    solver-comparison
-    joint_and_body_ordering
+    /source/concepts/solver_differences
+    sim-to-sim-policy-transfer
 
 
 For backend-specific access to native engine data and views, see

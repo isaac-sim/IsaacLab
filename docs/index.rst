@@ -103,6 +103,7 @@ Table of Contents
 
    source/concepts/backends_and_presets
    source/concepts/backend_architecture
+   source/concepts/solver_differences
    source/concepts/actuators
    source/concepts/coupled_solvers
    source/concepts/scene_data_providers
