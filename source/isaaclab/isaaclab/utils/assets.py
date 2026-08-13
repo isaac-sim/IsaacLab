@@ -118,6 +118,11 @@ _ANNOUNCED_MIRRORS: set[str] = set()
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
+_MIRROR_URL_SCHEMES = frozenset({"http", "https", "omniverse"})
+"""URL schemes whose assets are cached locally, and which therefore start a cache layout."""
+
+_MIRROR_NETLOC_PORT_RE = re.compile(r"^(.+)_(\d+)$")
+
 
 def retrieve_git_asset_path(
     git_path: str, local_path: str, cache_dir: str | None = None, force_update: bool = False
@@ -303,6 +308,33 @@ def _mirror_path(url: str, download_dir: str) -> str:
     # ':' (port separator) is not a valid path character on Windows
     netloc = parsed.netloc.replace(":", "_")
     return os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
+
+
+def unmirror_file_path(path: str) -> str:
+    """Reverses :func:`retrieve_file_path` caching, mapping a cached copy back to its source URL.
+
+    A remote asset is cached under ``<download_dir>/<scheme>/<host>/<path>``, and stages reference
+    that cached copy rather than the URL it came from. Exports of such a stage therefore carry
+    absolute paths that only resolve on the machine holding the cache. This recovers the URL so an
+    export can name the source asset instead.
+
+    Args:
+        path: Local filesystem path, typically an asset path read from a USD layer.
+
+    Returns:
+        The URL the path was cached from, or ``""`` when it does not lie inside a cache layout.
+    """
+    parts = path.replace(os.sep, "/").split("/")
+    # the last two components are the host and at least one path component, so a scheme found
+    # there cannot be the start of a cache layout
+    for index, part in enumerate(parts[:-2]):
+        if part.lower() not in _MIRROR_URL_SCHEMES:
+            continue
+        netloc, *remainder = parts[index + 1 :]
+        # ``_mirror_path`` writes a port separator as '_', which is not valid in a host name
+        netloc = _MIRROR_NETLOC_PORT_RE.sub(r"\1:\2", netloc)
+        return f"{part.lower()}://{netloc}/{'/'.join(remainder)}"
+    return ""
 
 
 def _remote_fingerprint(url: str) -> dict | None:

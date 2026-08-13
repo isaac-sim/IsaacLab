@@ -510,6 +510,20 @@ def _sanitize_golden_stage_text(text: str) -> str:
     return text.rstrip("\n") + "\n"
 
 
+def _restore_remote_asset_paths(layer) -> None:
+    """Point cached asset paths in ``layer`` back at the URLs they were downloaded from.
+
+    Remote USD assets are referenced through a local cache copy, so flattening resolves the
+    textures and materials they carry into absolute cache paths that exist only on the machine
+    that ran the test. Locally authored paths are left untouched.
+    """
+    from pxr import UsdUtils  # noqa: PLC0415
+
+    from isaaclab.utils.assets import unmirror_file_path  # noqa: PLC0415
+
+    UsdUtils.ModifyAssetPaths(layer, lambda asset_path: unmirror_file_path(asset_path) or asset_path)
+
+
 def maybe_save_stage(
     test_name: str,
     physics_backend: str,
@@ -551,6 +565,7 @@ def maybe_save_stage(
         flat_layer = opened_stage.Flatten()
         if flat_layer is None:
             pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
+        _restore_remote_asset_paths(flat_layer)
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
