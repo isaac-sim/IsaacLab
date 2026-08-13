@@ -113,7 +113,7 @@ A few quick showroom scripts to run and checkout:
 
                .. code:: bash
 
-                  uv run python scripts/demos/cables.py
+                  uv run --extra isaacsim python scripts/demos/cables.py
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
