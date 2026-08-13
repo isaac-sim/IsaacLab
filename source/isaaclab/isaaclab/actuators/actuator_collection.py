@@ -1000,19 +1000,13 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     ) -> None:
         if joint_indices is None:
             joint_indices = self._joint_indices_as_wp(actuator)
-        gear_ratio = getattr(actuator, "gear_ratio", None)
-        has_gear_ratio = gear_ratio is not None
-        if gear_ratio is None:
-            gear_ratio = self._gear_ratio
         inputs = [
             control_action.joint_positions,
             control_action.joint_velocities,
             control_action.joint_efforts,
             actuator.computed_effort,
             actuator.applied_effort,
-            gear_ratio,
             actuator.velocity_limit,
-            has_gear_ratio,
             joint_indices,
         ]
         outputs = [
@@ -1021,7 +1015,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._joint_effort_target_sim,
             self._computed_torque,
             self._applied_torque,
-            self._gear_ratio,
             self._soft_joint_vel_limits,
         ]
         stable_launch = type(actuator) in (IdealPDActuator, DCMotor)

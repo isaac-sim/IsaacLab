@@ -71,23 +71,19 @@ def scatter_explicit_actuator_outputs(
     source_effort: wp.array2d(dtype=wp.float32),
     source_computed_effort: wp.array2d(dtype=wp.float32),
     source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: wp.array2d(dtype=wp.float32),
     source_velocity_limit: wp.array2d(dtype=wp.float32),
-    has_gear_ratio: bool,
     joint_indices: wp.array(dtype=wp.int32),
     target_pos: wp.array2d(dtype=wp.float32),
     target_vel: wp.array2d(dtype=wp.float32),
     target_effort: wp.array2d(dtype=wp.float32),
     target_computed_effort: wp.array2d(dtype=wp.float32),
     target_applied_effort: wp.array2d(dtype=wp.float32),
-    target_gear_ratio: wp.array2d(dtype=wp.float32),
     target_velocity_limit: wp.array2d(dtype=wp.float32),
 ):
     """Scatter explicit actuator outputs into full articulation buffers.
 
     Command outputs are scattered only when present. Computed and applied effort
-    and velocity-limit telemetry are always published, while gear ratio is
-    published when available. Explicit actuator models (for example
+    and velocity-limit telemetry are always published. Explicit actuator models (for example
     :class:`~isaaclab.actuators.IdealPDActuator`) clear the position and velocity
     commands after computing the effort, so those sources may be null.
     """
@@ -101,8 +97,6 @@ def scatter_explicit_actuator_outputs(
         target_effort[env_id, target_joint_id] = source_effort[env_id, source_joint_id]
     target_computed_effort[env_id, target_joint_id] = source_computed_effort[env_id, source_joint_id]
     target_applied_effort[env_id, target_joint_id] = source_applied_effort[env_id, source_joint_id]
-    if has_gear_ratio:
-        target_gear_ratio[env_id, target_joint_id] = source_gear_ratio[env_id, source_joint_id]
     target_velocity_limit[env_id, target_joint_id] = source_velocity_limit[env_id, source_joint_id]
 
 
