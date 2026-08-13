@@ -92,9 +92,10 @@ def test_partitioning_can_be_disabled(monkeypatch):
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_isolates_rigid_object():
+def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
     """Per-env :class:`~isaaclab.assets.RigidObject` instances at unique world positions render
     as visibly different per-env tiles when RTX honors ``primvars:omni:scenePartition``."""
+    monkeypatch.delenv(_ENV_VAR, raising=False)
 
     @configclass
     class _Scene(InteractiveSceneCfg):
@@ -159,9 +160,10 @@ def test_partitioning_isolates_rigid_object():
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_isolates_articulation():
+def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
     """Per-env :class:`~isaaclab.assets.Articulation` instances driven to wildly different joint
     poses render as visibly different per-env tiles when RTX honors top-level scene partitions."""
+    monkeypatch.delenv(_ENV_VAR, raising=False)
 
     @configclass
     class _Scene(InteractiveSceneCfg):

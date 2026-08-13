@@ -46,6 +46,21 @@ Choosing a renderer backend
    on velocity-like visual cues should add explicit temporal observations
    (e.g. task-local frame stacking) rather than relying on renderer-specific artifacts.
 
+Per-environment Isaac RTX scene partitioning
+---------------------------------------------
+
+The Isaac RTX renderer enables per-environment scene partitioning by default. It assigns
+matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy and its
+camera so tiled views render only that environment's geometry.
+
+Set ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` before launching Isaac Lab
+to disable scene partitioning. The variable accepts only ``0`` or ``1``; other values
+raise an error.
+
+Prims outside the environment hierarchies do not inherit an environment partition and
+remain in the shared background partition. This includes global
+:class:`~isaaclab.markers.VisualizationMarkers` groups such as task goal markers.
+
 Architecture Overview
 ---------------------
 
