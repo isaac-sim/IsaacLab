@@ -1,7 +1,7 @@
 numpy>=2
 mujoco~=3.11.0
 mujoco-warp~=3.11.0
-newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@release-1.5
+newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.5
 newton-usd-schemas>=0.4.1
 torch==2.11.0
 torchvision==0.26.0
@@ -10,4 +10,3 @@ typing-extensions>=4.15.0
 websockets>=14.0,<17.0.0
 coverage>=7.6.1
 packaging>=20,<27
-usd-exchange>=2.2 ; platform_machine == 'aarch64'

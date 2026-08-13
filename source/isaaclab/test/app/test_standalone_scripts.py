@@ -578,6 +578,10 @@ def test_visualizer_availability_requires_shared_and_backend_packages(monkeypatc
     available = {"isaaclab_visualizers", "isaaclab_newton", "rerun"}
     monkeypatch.setattr(script_cases.importlib.util, "find_spec", lambda name: object() if name in available else None)
     assert visualizer_is_available("newton")
+    assert visualizer_is_available("newton_gl")
+    assert not visualizer_is_available("newton_rtx")
+    available.add("ovrtx")
+    assert visualizer_is_available("newton_rtx")
     assert visualizer_is_available("rerun")
     assert not visualizer_is_available("viser")
 
@@ -642,7 +646,7 @@ def test_standalone_script_remains_healthy_after_startup(case):
     missing_modules = [module for module in case.spec.required_modules if not script_cases.module_is_available(module)]
     if missing_modules:
         pytest.skip(f"required runtime module(s) not installed: {', '.join(missing_modules)}")
-    if case.visualizer in {"kit", "newton"} and not gui_is_available():
+    if case.visualizer in {"kit", "newton", "newton_gl", "newton_rtx"} and not gui_is_available():
         pytest.skip("GUI smoke test requires DISPLAY or WAYLAND_DISPLAY")
     if not backend_is_available(case.physics_backend):
         pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")
