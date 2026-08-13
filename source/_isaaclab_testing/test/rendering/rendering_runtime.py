@@ -157,6 +157,8 @@ def build_rendering_scene(
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         if renderer is not None:
             sim.set_setting("/isaaclab/render/rtx_sensors", True)
+            # Golden captures must not race background texture streaming.
+            sim.set_setting("/rtx-transient/resourcemanager/enableTextureStreaming", False)
         runtime = RenderingScene(
             sim,
             InteractiveScene(scene_cfg),

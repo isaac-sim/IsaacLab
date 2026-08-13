@@ -77,7 +77,11 @@ def run_rendering_case(
             outputs[RenderBufferKind.MOTION_VECTORS] = motion
 
         _validate_segmentation(
-            outputs, info, scene.expected_instances, exact_instance_metadata=case.renderer != "newton_warp"
+            outputs,
+            info,
+            scene.expected_instances,
+            min_semantic_pixels=scene.min_semantic_pixels,
+            exact_instance_metadata=case.renderer != "newton_warp",
         )
         failures = []
         for aov in case.golden_aovs:
@@ -119,8 +123,10 @@ def _validate_segmentation(
     info: dict[str, Any] | None,
     expected_instances: dict[str, str],
     *,
+    min_semantic_pixels: dict[str, int] | None = None,
     exact_instance_metadata: bool = True,
 ) -> None:
+    min_semantic_pixels = min_semantic_pixels or {}
     required_labels = frozenset(expected_instances.values())
     semantic = outputs.get(RenderBufferKind.SEMANTIC_SEGMENTATION)
     if semantic is not None:
@@ -134,14 +140,19 @@ def _validate_segmentation(
                 key for key, entry in id_to_labels.items() if isinstance(entry, dict) and entry.get("class") == label
             ]
             assert colors, f"The semantic metadata does not contain required label {label!r}."
-            rendered = False
+            rendered_pixels = 0
             for value in colors:
                 value = ast.literal_eval(value) if isinstance(value, str) else value
                 color = torch.tensor(value[:channels], device=semantic.device, dtype=semantic.dtype)
                 if semantic.is_floating_point() and semantic.max().item() <= 1.0:
                     color = color / 255.0
-                rendered |= bool(torch.any(torch.all(semantic[..., :channels] == color, dim=-1)).item())
-            assert rendered, f"The semantic output does not contain required label {label!r}."
+                rendered_pixels += int(torch.all(semantic[..., :channels] == color, dim=-1).sum().item())
+            assert rendered_pixels, f"The semantic output does not contain required label {label!r}."
+            if label in min_semantic_pixels:
+                minimum = min_semantic_pixels[label]
+                assert rendered_pixels >= minimum, (
+                    f"Semantic label {label!r} has {rendered_pixels} visible pixels; expected at least {minimum}."
+                )
 
         labels = {
             entry["class"]

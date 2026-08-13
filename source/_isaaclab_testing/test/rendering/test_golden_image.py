@@ -82,6 +82,18 @@ def test_update_mode_overwrites_and_passes(tmp_path: Path, monkeypatch: pytest.M
     assert Image.open(golden).getpixel((0, 0)) == (0, 255, 0)
 
 
+def test_semantic_segmentation_enforces_minimum_visible_area() -> None:
+    kind = RenderBufferKind.SEMANTIC_SEGMENTATION
+    table, background = (153, 74, 33, 255), (0, 0, 0, 0)
+    outputs = {kind: torch.tensor([background, table], dtype=torch.uint8).reshape(1, 1, 2, 4)}
+    info = {kind: {"idToLabels": {table: {"class": "table"}}}}
+    expected = {"/World/Table": "table"}
+
+    _validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 1})
+    with pytest.raises(AssertionError, match="visible pixels"):
+        _validate_segmentation(outputs, info, expected, min_semantic_pixels={"table": 2})
+
+
 def _instance_segmentation_data():
     background, unlabelled, robot = (0, 0, 0, 0), (0, 0, 0, 255), (12, 34, 56, 255)
     kind = RenderBufferKind.INSTANCE_SEGMENTATION

@@ -195,7 +195,7 @@ def test_scene_composition_has_one_downstream_owner() -> None:
     ]
     assert owners == [Path("source/_isaaclab_testing/test/rendering/rendering_scene_cfgs.py")]
 
-    from rendering_scene_cfgs import RenderingTestSceneCfg
+    from rendering_scene_cfgs import RenderingTestSceneCfg, make_rendering_scene_spec
 
     cfg = RenderingTestSceneCfg(num_envs=1, env_spacing=5.0)
     positions = {
@@ -206,11 +206,11 @@ def test_scene_composition_has_one_downstream_owner() -> None:
     assert len(positions) == 3 and (0.0, 0.0, 0.0) not in positions
     assert cfg.cylinder.init_state.pos[2] > cfg.table.init_state.pos[2]
     assert cfg.sphere.init_state.pos[2] > cfg.table.init_state.pos[2]
-    assert cfg.robot.init_state.joint_pos == {"slider_to_cart": -0.25, "cart_to_pole": 0.45}
+    assert cfg.robot.init_state.joint_pos == {".*": 0.0}
     assert type(cfg.ground.spawn).__name__ == "GroundPlaneCfg"
-    assert type(cfg.table.spawn).__name__ == "UsdFileCfg"
-    assert cfg.table.spawn.usd_path.endswith("/Props/Blocks/DexCube/dex_cube_instanceable.usd")
-    assert cfg.table.spawn.rigid_props.kinematic_enabled
+    assert type(cfg.table.spawn).__name__ == "CuboidCfg"
+    assert cfg.table.spawn.size == (1.15, 0.8, 0.12)
+    assert make_rendering_scene_spec("rendering_scene", "physx").min_semantic_pixels["table"] >= 500
     for name in ("ground", "robot", "moving_cube", "table", "cylinder", "sphere"):
         assert ("class", name) in getattr(cfg, name).spawn.semantic_tags
 
@@ -329,7 +329,6 @@ def test_renderer_matrix_encodes_compatibility_and_cost() -> None:
             and case.aovs[0] in OVRTX_AOVS
         )
         assert actual == OVRTX_AOVS
-
     all_cases = [*KIT_RENDERING_CASES, *(case for _, case in KITLESS_RENDERING_CASES)]
     assert all(isinstance(aov, RenderBufferKind) for case in all_cases for aov in case.aovs)
     for case in all_cases:

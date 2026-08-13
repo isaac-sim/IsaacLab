@@ -50,10 +50,7 @@ _CARTPOLE_ROBOT = CARTPOLE_CFG.replace(
 )
 _RENDERING_CARTPOLE_CFG = _CARTPOLE_ROBOT.replace(
     spawn=_CARTPOLE_ROBOT.spawn.replace(semantic_tags=[("class", "robot")]),
-    init_state=ArticulationCfg.InitialStateCfg(
-        pos=(-0.9, 0.35, 2.0),
-        joint_pos={"slider_to_cart": -0.25, "cart_to_pole": 0.45},
-    ),
+    init_state=ArticulationCfg.InitialStateCfg(pos=(-0.9, 0.35, 2.0), joint_pos={".*": 0.0}),
 )
 
 
@@ -138,12 +135,16 @@ class RenderingTestSceneCfg(RenderingSceneCfg):
             ang_vel=(0.0, 0.0, 1.0),
         ),
     )
+    # Referenced instanceable assets apply xform scale inconsistently across scene-reader backends. Keep
+    # structural geometry explicit; the grid ground retains textured-asset coverage.
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            scale=(19.1666667, 13.3333333, 2.0),
-            rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True, disable_gravity=True),
+        spawn=sim_utils.CuboidCfg(
+            size=(1.15, 0.8, 0.12),
+            visual_material=_RenderingMaterialCfg(
+                diffuse_color_constant=(0.55, 0.25, 0.08), reflection_roughness_constant=0.55
+            ),
+            visual_material_path="/World/Looks/RenderingTable",
             semantic_tags=[("class", "table")],
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.95, 0.55, 0.46)),
@@ -537,6 +538,7 @@ class RenderingSceneSpec:
     camera_eye: tuple[float, float, float]
     camera_target: tuple[float, float, float]
     expected_instances: dict[str, str] = field(default_factory=dict)
+    min_semantic_pixels: dict[str, int] = field(default_factory=dict)
     physics_cfg: PhysicsCfg | None = None
     preserve_fixed_articulation_roots: frozenset[str] = frozenset()
     image_max_diff_pct: float = 3.0
@@ -563,6 +565,7 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
                 "/World/envs/env_0/Cylinder": "cylinder",
                 "/World/envs/env_0/Sphere": "sphere",
             },
+            min_semantic_pixels={"table": 500},
             image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.975)},
         )
     if scene == "cartpole":
