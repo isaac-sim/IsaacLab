@@ -160,9 +160,9 @@ def test_apply_video_recording_rejects_viz_none_with_video():
         apply_video_recording(env_cfg, "/my/log", _args(visualizer=None, visualizer_explicit=True))
 
 
-@pytest.mark.parametrize("no_capture_viz", ["rerun", "viser", "newton_rtx"])
+@pytest.mark.parametrize("no_capture_viz", ["rerun", "viser"])
 def test_apply_video_recording_rejects_no_capture_visualizers(no_capture_viz):
-    """--viz rerun/viser/newton_rtx with --video and no other capture backend raises ValueError."""
+    """--viz rerun/viser with --video and no other capture backend raises ValueError."""
     sim_cfg = SimpleNamespace(visualizer_cfgs=[], default_visualizer_cfg=SimpleNamespace(visualizer_type=None))
     env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
 
@@ -172,15 +172,19 @@ def test_apply_video_recording_rejects_no_capture_visualizers(no_capture_viz):
         apply_video_recording(env_cfg, "/my/log", _args(visualizer=[no_capture_viz]))
 
 
-def test_apply_video_recording_allows_no_capture_viz_with_capture_viz():
-    """--viz rerun --viz kit --video uses kit as the recording source without raising."""
+@pytest.mark.parametrize(
+    ("visualizers", "expected_source"),
+    [(["rerun", "kit"], "visualizer:kit"), (["newton_rtx"], "visualizer:newton_rtx")],
+)
+def test_apply_video_recording_uses_requested_capture_visualizer(visualizers, expected_source):
+    """--video records from the first requested capture-capable visualizer."""
     sim_cfg = SimpleNamespace(visualizer_cfgs=[], default_visualizer_cfg=SimpleNamespace(visualizer_type=None))
     env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
 
-    apply_video_recording(env_cfg, "/my/log", _args(visualizer=["rerun", "kit"]))
+    apply_video_recording(env_cfg, "/my/log", _args(visualizer=visualizers))
 
     assert len(env_cfg.video_recorders) == 1
-    assert env_cfg.video_recorders[0].source == "visualizer:kit"
+    assert env_cfg.video_recorders[0].source == expected_source
 
 
 def test_wrap_record_video_is_noop_stub(caplog):

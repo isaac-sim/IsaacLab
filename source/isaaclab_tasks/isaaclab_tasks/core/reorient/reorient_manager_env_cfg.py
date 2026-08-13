@@ -3,270 +3,139 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+"""Hand-agnostic manager-based reorientation task.
+
+Every term the Shadow and Allegro tasks share lives here. A hand supplies its
+fingertip bodies, its actuated joints, its scene, and its control rate; the term
+lists, scales and weights are common.
+"""
 
 from dataclasses import MISSING
-
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
-from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import GaussianNoiseCfg as Gnoise
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.reorient.mdp as mdp
-
-##
-# Scene definition
-##
+from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
-class ReorientObjectSceneCfg(InteractiveSceneCfg):
-    """Configuration for a scene with an object and a dexterous hand."""
+class ReorientSceneBaseCfg(InteractiveSceneCfg):
+    """Shared reorientation scene. A hand supplies its robot and its object."""
 
-    # robots
-    robot: ArticulationCfg = MISSING
+    num_envs = 8192
+    env_spacing = 0.75
 
-    # objects
-    object: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(density=400.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.19, 0.56), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
-
-    # lights
+    robot: PresetCfg | ArticulationCfg = MISSING
+    object: RigidObjectCfg = MISSING
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
     light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.95, 0.95, 0.95), intensity=1000.0),
+        prim_path="/World/Light",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
     )
-
-    dome_light = AssetBaseCfg(
-        prim_path="/World/domeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.02, 0.02, 0.02), intensity=1000.0),
-    )
-
-
-##
-# MDP settings
-##
 
 
 @configclass
 class CommandsCfg:
-    """Command specifications for the MDP."""
+    """In-hand goal pose, re-drawn on success."""
 
     object_pose = mdp.ReorientCommandCfg(
         asset_name="object",
         init_pos_offset=(0.0, 0.0, -0.04),
         update_goal_on_success=True,
-        orientation_success_threshold=0.1,
+        orientation_success_threshold=MISSING,
         make_quat_unique=False,
-        marker_pos_offset=(-0.2, -0.06, 0.08),
+        fixed_marker_pos=(-0.2, -0.45, 0.68),
         debug_vis=True,
     )
 
 
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP."""
+    """Joint-position targets for the hand's actuated joints."""
 
     joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="robot",
-        joint_names=[".*"],
-        alpha=0.95,
+        joint_names=MISSING,
+        alpha=1.0,
         rescale_to_limits=True,
     )
 
 
 @configclass
-class ObservationsCfg:
-    """Observation specifications for the MDP."""
+class ReorientRobotObsCfg(ObsGroup):
+    """What the hand can measure about itself.
 
-    @configclass
-    class KinematicObsGroupCfg(ObsGroup):
-        """Observations with full-kinematic state information.
+    The fingertip terms are the only hand-specific entries; the env cfg fills their
+    ``asset_cfg`` from :attr:`ReorientManagerEnvBaseCfg.fingertip_body_names`.
+    """
 
-        This does not include acceleration or force information.
-        """
+    joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, params={"asset_cfg": SceneEntityCfg("robot")})
+    joint_vel = ObsTerm(func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("robot")})
+    fingertip_pose = ObsTerm(func=mdp.body_pose_w, params={"asset_cfg": MISSING})
+    fingertip_vel = ObsTerm(func=mdp.fingertip_vel, params={"asset_cfg": MISSING})
 
-        # observation terms (order preserved)
-        # -- robot terms
-        joint_pos = ObsTerm(func=mdp.joint_pos_limit_normalized, noise=Gnoise(std=0.005))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2, noise=Gnoise(std=0.01))
-
-        # -- object terms
-        object_pos = ObsTerm(
-            func=mdp.root_pos_w, noise=Gnoise(std=0.002), params={"asset_cfg": SceneEntityCfg("object")}
-        )
-        object_quat = ObsTerm(
-            func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object"), "make_quat_unique": False}
-        )
-        object_lin_vel = ObsTerm(
-            func=mdp.root_lin_vel_w, noise=Gnoise(std=0.002), params={"asset_cfg": SceneEntityCfg("object")}
-        )
-        object_ang_vel = ObsTerm(
-            func=mdp.root_ang_vel_w,
-            scale=0.2,
-            noise=Gnoise(std=0.002),
-            params={"asset_cfg": SceneEntityCfg("object")},
-        )
-
-        # -- command terms
-        goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        goal_quat_diff = ObsTerm(
-            func=mdp.goal_quat_diff,
-            params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
-        )
-
-        # -- action terms
-        last_action = ObsTerm(func=mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = True
-
-    @configclass
-    class NoVelocityKinematicObsGroupCfg(KinematicObsGroupCfg):
-        """Observations with partial kinematic state information.
-
-        In contrast to the full-kinematic state group, this group does not include velocity information
-        about the robot joints and the object root frame. This is useful for tasks where velocity information
-        is not available or has a lot of noise.
-        """
-
-        def __post_init__(self):
-            # call parent post init
-            super().__post_init__()
-            # set unused terms to None
-            self.joint_vel = None
-            self.object_lin_vel = None
-            self.object_ang_vel = None
-
-    # observation groups
-    policy: KinematicObsGroupCfg = KinematicObsGroupCfg()
+    def __post_init__(self):
+        self.concatenate_terms = True
 
 
 @configclass
-class EventCfg:
-    """Configuration for randomization."""
+class ReorientObjectObsCfg(ObsGroup):
+    """The object's state and its goal.
 
-    # startup
-    # -- robot
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (0.7, 1.3),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 250,
-        },
+    A camera task replaces this half with learned features, so it is kept separate
+    from :class:`ReorientRobotObsCfg` rather than nulled out per task.
+    """
+
+    object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+    object_quat = ObsTerm(
+        func=mdp.root_quat_w,
+        params={"asset_cfg": SceneEntityCfg("object"), "make_quat_unique": False},
     )
-    robot_scale_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "mass_distribution_params": (0.95, 1.05),
-            "operation": "scale",
-        },
-    )
-    robot_joint_stiffness_and_damping = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-            "stiffness_distribution_params": (0.3, 3.0),  # default: 3.0
-            "damping_distribution_params": (0.75, 1.5),  # default: 0.1
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
+    object_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
+    object_ang_vel = ObsTerm(func=mdp.root_ang_vel_w, scale=0.2, params={"asset_cfg": SceneEntityCfg("object")})
+    goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+    goal_quat_diff = ObsTerm(
+        func=mdp.goal_quat_diff,
+        params={"asset_cfg": SceneEntityCfg("object"), "command_name": "object_pose", "make_quat_unique": False},
     )
 
-    # -- object
-    object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
-            "static_friction_range": (0.7, 1.3),
-            "dynamic_friction_range": (0.7, 1.3),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 250,
-        },
-    )
-    object_scale_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("object"),
-            "mass_distribution_params": (0.4, 1.6),
-            "operation": "scale",
-        },
-    )
+    def __post_init__(self):
+        self.concatenate_terms = True
 
-    # reset
-    reset_object = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": [-0.01, 0.01], "y": [-0.01, 0.01], "z": [-0.01, 0.01]},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
-        },
-    )
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_within_limits_range,
-        mode="reset",
-        params={
-            "position_range": {".*": [0.2, 0.2]},
-            "velocity_range": {".*": [0.0, 0.0]},
-            "use_default_offset": True,
-            "operation": "scale",
-        },
-    )
+
+@configclass
+class ReorientFullStateObsCfg(ReorientRobotObsCfg, ReorientObjectObsCfg):
+    """The full state, before the action terms."""
+
+
+@configclass
+class ObservationsCfg:
+    """Full-state observation in Direct order."""
+
+    @configclass
+    class PolicyCfg(ReorientFullStateObsCfg):
+        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP."""
+    """Reward terms tuned to the Direct task's scales."""
 
-    # -- task
-    # track_pos_l2 = RewTerm(
-    #     func=mdp.track_pos_l2,
-    #     weight=-10.0,
-    #     params={"object_cfg": SceneEntityCfg("object"), "command_name": "object_pose"},
-    # )
     track_orientation_inv_l2 = RewTerm(
         func=mdp.track_orientation_inv_l2,
         weight=1.0,
@@ -277,76 +146,64 @@ class RewardsCfg:
         weight=250.0,
         params={"object_cfg": SceneEntityCfg("object"), "command_name": "object_pose"},
     )
-
-    # -- penalties
-    joint_vel_l2 = RewTerm(func=mdp.joint_vel_l2, weight=-2.5e-5)
-    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.0001)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
-
-    # -- optional penalties (these are disabled by default)
-    # object_away_penalty = RewTerm(
-    #     func=mdp.is_terminated_term,
-    #     weight=-0.0,
-    #     params={"term_keys": "object_out_of_reach"},
-    # )
+    track_pos_l2 = RewTerm(
+        func=mdp.track_pos_l2,
+        weight=-10.0,
+        params={"command_name": "object_pose", "object_cfg": SceneEntityCfg("object")},
+    )
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.0002)
 
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP."""
+    """Episode budget, and the Direct task's fall condition."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-
-    max_consecutive_success = DoneTerm(
-        func=mdp.max_consecutive_success, params={"num_success": 50, "command_name": "object_pose"}
+    object_out_of_reach = DoneTerm(
+        func=mdp.object_away_from_goal,
+        params={"threshold": 0.24, "command_name": "object_pose", "object_cfg": SceneEntityCfg("object")},
     )
-
-    object_out_of_reach = DoneTerm(func=mdp.object_away_from_robot, params={"threshold": 0.3})
-
-    # object_out_of_reach = DoneTerm(
-    #     func=mdp.object_away_from_goal, params={"threshold": 0.24, "command_name": "object_pose"}
-    # )
-
-
-##
-# Environment configuration
-##
 
 
 @configclass
-class ReorientObjectEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the in hand reorientation environment."""
+class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
+    """Manager-based reorientation with Direct-compatible semantics.
 
-    # Scene settings
-    scene: ReorientObjectSceneCfg = ReorientObjectSceneCfg(num_envs=8192, env_spacing=0.6)
-    # Simulation settings
-    sim: SimulationCfg = SimulationCfg(
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        physics=PhysxCfg(
-            bounce_threshold_velocity=0.2,
-            gpu_max_rigid_contact_count=2**20,
-            gpu_max_rigid_patch_count=2**23,
-        ),
-    )
-    # Basic settings
+    A hand subclass supplies :attr:`fingertip_body_names`, :attr:`actuated_joint_names`,
+    its ``scene``, its ``events`` and its ``decimation``.
+    """
+
+    fingertip_body_names: list[str] = MISSING
+    """Fingertip bodies the observation terms read."""
+    actuated_joint_names: list[str] = MISSING
+    """Joints the action term drives."""
+    goal_orientation_threshold: float = MISSING
+    """Orientation error below which a goal counts as reached [rad]."""
+    goal_marker_cfg: VisualizationMarkersCfg = MISSING
+    """Marker spawned at the goal pose."""
+
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
-    # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+
+    episode_length_s = 10.0
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+    )
 
     def __post_init__(self):
-        """Post initialization."""
-        # general settings
-        self.decimation = 4
-        self.episode_length_s = 20.0
-        # simulation settings
-        self.sim.dt = 1.0 / 120.0
+        for group in vars(self.observations).values():
+            for name in ("fingertip_pose", "fingertip_vel"):
+                term = getattr(group, name, None)
+                if term is not None:
+                    # a fresh entity per term: the manager fills in body_ids on the
+                    # instance it resolves, so a shared one goes inconsistent
+                    term.params["asset_cfg"] = SceneEntityCfg("robot", body_names=self.fingertip_body_names)
+        self.actions.joint_pos.joint_names = self.actuated_joint_names
+        self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
+        self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        # visualizer camera settings
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.0, 2.0, 2.0))

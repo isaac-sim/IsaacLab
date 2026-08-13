@@ -156,7 +156,6 @@ def _isaaclab_source_prefixes() -> list[str]:
         "isaaclab_mimic",
         "isaaclab_newton",
         "isaaclab_ov",
-        "isaaclab_ovphysx",
         "isaaclab_physx",
         "isaaclab_rl",
         "isaaclab_tasks",

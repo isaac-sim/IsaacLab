@@ -182,10 +182,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg(
-        friction_offset_threshold=0.005,
-        friction_correlation_distance=0.01,
-    )
+    isaacsim_physx: PhysxCfg = PhysxCfg()
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
@@ -369,7 +366,7 @@ class _IkActionsCfg:
         asset_name="robot",
         joint_names=["panda_finger_joint1"],
         open_command_expr={"panda_finger_joint1": 0.04},
-        close_command_expr={"panda_finger_joint1": 0.015},
+        close_command_expr={"panda_finger_joint1": 0.01},
     )
 
 

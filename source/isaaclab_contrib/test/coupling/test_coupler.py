@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
-    KaminoSolverCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
@@ -41,6 +41,7 @@ from isaaclab_contrib.coupling import (
     coupler,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 @dataclass
@@ -168,7 +169,7 @@ def test_config_validation_requires_newton_solver_config():
     [
         (CouplerProxyCfg(), {}, ValueError, "nested CouplerCfg"),
         (VBDSolverCfg(model_cfg=NewtonModelCfg()), {}, ValueError, "model parameters are global"),
-        (KaminoSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
+        (KaminoPADMMSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
         (
             MPMSolverCfg(project_outside_colliders=True),
             {"in_place": True},
@@ -506,19 +507,52 @@ def test_mpm_entry_does_not_request_external_contacts():
     assert NewtonCouplerManager._requires_external_contacts(MPMSolverCfg()) is False
 
 
-@pytest.mark.parametrize(("grid_type", "expected"), [("fixed", True), ("sparse", False), ("dense", False)])
-def test_mpm_grid_controls_cuda_graph_support(monkeypatch, grid_type, expected):
-    cfg = CouplerAdmmCfg(
-        entries=[
-            CouplerEntryCfg(
-                name="media",
-                solver_cfg=MPMSolverCfg(grid_type=grid_type),
-                in_place=True,
-            )
-        ]
+@pytest.mark.parametrize(
+    ("grid_type", "max_active_cell_count", "expected"),
+    [
+        pytest.param("fixed", -1, True, id="fixed"),
+        pytest.param("sparse", 1024, True, id="bounded_sparse"),
+        pytest.param("sparse", -1, False, id="unbounded_sparse"),
+        pytest.param("dense", -1, False, id="dense"),
+    ],
+)
+def test_mpm_grid_controls_coupled_cuda_graph_support(monkeypatch, grid_type, max_active_cell_count, expected):
+    """A coupled solver must inherit every nested MPM grid's capture capability."""
+    solver = SimpleNamespace(
+        grid_type=grid_type,
+        max_active_cell_count=max_active_cell_count,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
     )
-    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=cfg))
+    monkeypatch.setattr(
+        coupler.NewtonMPMManager,
+        "_implicit_mpm_solvers",
+        classmethod(lambda cls: (solver,)),
+    )
+
     assert NewtonCouplerManager._supports_cuda_graph_capture() is expected
+    assert NewtonCouplerManager._requires_initial_reset_before_graph_capture() is True
+
+
+def test_coupler_clear_releases_nested_manager_state(monkeypatch):
+    """Coupler cleanup must release state owned by both nested manager families."""
+    events = []
+    monkeypatch.setattr(
+        NewtonVBDManager,
+        "_solver_specific_clear",
+        classmethod(lambda cls: events.append("vbd")),
+    )
+    monkeypatch.setattr(
+        coupler.NewtonMPMManager,
+        "_solver_specific_clear",
+        classmethod(lambda cls: events.append("mpm")),
+    )
+
+    NewtonCouplerManager._solver_specific_clear()
+
+    assert events == ["vbd", "mpm"]
 
 
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):

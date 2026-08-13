@@ -42,7 +42,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task (overrides YAML config if set).")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment (overrides config if set)")
 parser.add_argument(
-    "--model_path", type=str, default=None, help="Path to the model checkpoint (optional, can be set in config)."
+    "--model_path", type=str, default=None, help="Path to the pretrained base model (optional; can be set in config)."
 )
 parser.add_argument(
     "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides config if set)."
@@ -105,6 +105,13 @@ def main():
 
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
+        if args_cli.checkpoint:
+            cfg.runner.eval_policy_path = cli_args._resolve_rlinf_checkpoint(
+                args_cli.checkpoint,
+                log_root_path=str(Path("logs") / "rlinf"),
+                task=args_cli.task or task_id,
+                config_name=config_name,
+            )
 
         if args_cli.video:
             cfg.env.eval.video_cfg.save_video = True
@@ -129,6 +136,7 @@ def main():
     print(f"  Task: {cfg.env.eval.init_params.id}")
     print(f"  Num envs: {cfg.env.eval.total_num_envs}")
     print(f"  Model: {cfg.rollout.model.model_path}")
+    print(f"  Checkpoint: {cfg.runner.eval_policy_path}")
     print(f"  Videos: {cfg.env.eval.video_cfg.save_video}")
     if cfg.env.eval.video_cfg.save_video:
         print(f"  Video dir: {cfg.env.eval.video_cfg.video_base_dir}")

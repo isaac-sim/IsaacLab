@@ -18,7 +18,6 @@ from isaaclab.utils.math import scale_transform
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints
-from isaaclab_tasks.core.reorient.reorient_common import CAMERA_GOAL_MARKER_POSITION
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
 
 if TYPE_CHECKING:
@@ -42,7 +41,7 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
             width=self.cfg.tiled_camera.width,
         )
         # hide goal cubes
-        self.goal_pos[:, :] = torch.tensor(CAMERA_GOAL_MARKER_POSITION, device=self.device)
+        self.goal_pos[:, :] = torch.tensor((-0.2, 0.1, 0.6), device=self.device)  # inside the tiled camera frustum
         # keypoints buffer
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
