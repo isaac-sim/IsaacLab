@@ -140,9 +140,9 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
         surfaced in a future revision in a way that is consistent across all
         RTX-capable renderers.
 
-    .. note::
-        Tiled camera panel and ``render_rgb_array()`` require ``ViewerRTX.get_frame()``
-        support from the Newton team and are currently stubs.
+    ``render_rgb_array()`` captures the path-traced LDR framebuffer at
+    :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
+    unsupported because ``ViewerRTX.log_image`` has no display sink.
     """
 
     visualizer_type: str = "newton_rtx"
