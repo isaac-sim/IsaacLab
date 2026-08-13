@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
@@ -22,8 +21,6 @@ from isaaclab.sim.utils.queries import find_first_matching_prim
 
 if TYPE_CHECKING:
     from .articulation import Articulation
-
-_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
 logger = logging.getLogger(__name__)
 
@@ -108,21 +105,23 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         articulation._has_newton_actuators = False
 
         use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
-        if use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
+        if not use_newton_actuators:
+            return set()
+        try:
+            from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"isaaclab_newton", "isaaclab_newton.actuators"}:
+                raise
             logger.warning(
                 "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available."
                 " Newton-native actuators will be disabled and the simulation will fall back to the"
                 " Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
             )
             return set()
-        if not (use_newton_actuators and _HAS_NEWTON_ACTUATORS):
-            return set()
 
         from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
 
         _validate_newton_native_actuator_cfgs(actuator_cfgs)
-
-        from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
 
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 

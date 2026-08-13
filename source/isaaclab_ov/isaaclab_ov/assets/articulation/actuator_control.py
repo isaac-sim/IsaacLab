@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 from collections.abc import Sequence
 from typing import Literal
@@ -21,8 +20,6 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
 
 from isaaclab_ov import tensor_types as TT
-
-_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +49,19 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         self._host_actuator_runtime = None
 
         use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
-        if use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
+        if not use_newton_actuators:
+            return set()
+        try:
+            from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"isaaclab_newton", "isaaclab_newton.actuators"}:
+                raise
             logger.warning(
                 "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available. "
                 "Newton-native actuators will be disabled and the simulation will fall back to the "
                 "Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
             )
             return set()
-        if not (use_newton_actuators and _HAS_NEWTON_ACTUATORS):
-            return set()
-
-        from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
 
         from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
@@ -164,15 +163,19 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        # Keep applied effort separate from the raw target used by partial writes.
+        # Native telemetry contains the local implicit-drive shadow. Submit raw runtime effort
+        # instead, so OVPhysX evaluates each implicit PD drive exactly once.
         write_effort = articulation._can_write_effort
         # position and velocity targets only for implicit actuators.
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
+        user_effort = collection._applied_torque
+        if self._host_actuator_runtime is not None:
+            user_effort = self._host_actuator_runtime.wrapper.joint_f_2d
         if articulation.data.has_joint_ordering:
             if write_effort or write_pos or write_vel:
                 ordering_kernels.launch_reorder_joint_targets_user_to_backend(
-                    user_effort=collection._applied_torque,
+                    user_effort=user_effort,
                     user_pos_target=collection._joint_pos_target,
                     user_vel_target=collection._joint_vel_target,
                     backend_to_user=articulation.data.joint_ordering.backend_to_user,
@@ -190,7 +193,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
             pos_target = articulation._joint_pos_target_backend
             vel_target = articulation._joint_vel_target_backend
         else:
-            effort = collection._applied_torque
+            effort = user_effort
             pos_target = collection._joint_pos_target
             vel_target = collection._joint_vel_target
         if write_effort:

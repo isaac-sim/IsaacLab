@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class _HostActuatorRuntime:
-    """Own Newton-native actuator lifecycle shared by host physics backends."""
+    """Own Newton-native actuator lifecycle shared by host-PhysX backends."""
 
     def __init__(self, articulation: Any, *, logger: logging.Logger):
         self._articulation = articulation
@@ -151,9 +151,7 @@ class _HostActuatorRuntime:
         )
         joint_id_pos = torch.full((articulation.num_joints,), -1, dtype=torch.int32, device=articulation.device)
         joint_ids_local = joint_ids.to(articulation.device, dtype=torch.long)
-        joint_id_pos[joint_ids_local] = torch.arange(
-            joint_ids.shape[0], dtype=torch.int32, device=articulation.device
-        )
+        joint_id_pos[joint_ids_local] = torch.arange(joint_ids.shape[0], dtype=torch.int32, device=articulation.device)
         values_wp = wp.from_torch(values.to(articulation.device, dtype=torch.float32).contiguous(), dtype=wp.float32)
         env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
         joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
@@ -218,7 +216,7 @@ class _HostActuatorRuntime:
                     self._run_native_actuator_kernels(collection, dt)
                 graphs.append(capture.graph)
         except Exception as exc:
-            self._logger.warning("PhysX Newton-actuator CUDA graph capture failed; using eager execution: %s", exc)
+            self._logger.warning("Host Newton-actuator CUDA graph capture failed; using eager execution: %s", exc)
             graphs = []
         finally:
             self.adapter._states_a = states_a

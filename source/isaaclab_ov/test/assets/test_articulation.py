@@ -50,6 +50,7 @@ device state, this is the supported pattern.
 
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 from unittest.mock import Mock
@@ -95,7 +96,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
 
 wp.init()
 
@@ -404,18 +405,22 @@ def generate_articulation(
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
-    """Run a Newton-native explicit actuator through the OVPhysX effort binding."""
-    with _ovphysx_sim_context(device=device, use_newton_actuators=True) as sim:
+    """Run a Newton-native explicit actuator through the current OVPhysX state and effort binding."""
+    stiffness, damping, effort_limit = 20.0, 1.0, 80.0
+    with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=True) as sim:
         sim._app_control_on_stop_handle = None
         articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
             actuators={
-                "joint": IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=20.0, damping=1.0, effort_limit=80.0)
+                "joint": IdealPDActuatorCfg(
+                    joint_names_expr=[".*"], stiffness=stiffness, damping=damping, effort_limit=effort_limit
+                )
             }
         )
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
 
-        target = articulation.data.joint_pos.torch + 0.5
+        initial_pos = articulation.data.joint_pos.torch.clone()
+        target = initial_pos + 0.5
         articulation.set_joint_position_target_index(target=target)
         articulation.write_data_to_sim()
 
@@ -426,6 +431,73 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
         torch.testing.assert_close(
             _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device),
             articulation.actuators.applied_torque.torch,
+        )
+
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        # Use raw OV bindings so the observation cannot refresh the public state shadow.
+        current_pos = _read_binding_to_torch(articulation, TT.DOF_POSITION, device)
+        current_vel = _read_binding_to_torch(articulation, TT.DOF_VELOCITY, device)
+        assert not torch.allclose(current_pos, initial_pos)
+
+        articulation.write_data_to_sim()
+        expected_effort = torch.clamp(
+            stiffness * (target - current_pos) - damping * current_vel,
+            -effort_limit,
+            effort_limit,
+        )
+        torch.testing.assert_close(articulation.actuators.applied_torque.torch, expected_effort)
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "isaaclab_physx.assets.articulation.actuator_control",
+        "isaaclab_ov.assets.articulation.actuator_control",
+    ],
+)
+def test_host_actuator_control_import_does_not_probe_optional_newton_runtime(monkeypatch, module_name):
+    """Import host controls without probing an unrequested Newton optional dependency."""
+    original_find_spec = importlib.util.find_spec
+
+    def reject_newton_probe(name, *args, **kwargs):
+        if name.startswith("isaaclab_newton"):
+            raise AssertionError("host actuator-control import eagerly probed Newton")
+        return original_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", reject_newton_probe)
+    importlib.reload(importlib.import_module(module_name))
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_newton_native_ovphysx_effort_binding_excludes_implicit_pd(device):
+    """Submit raw native effort so PhysX evaluates the implicit joint drive once."""
+    with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=True) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation_cfg = CARTPOLE_CFG.replace(
+            actuators={
+                "cart": ImplicitActuatorCfg(
+                    joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=20.0, damping=0.0
+                ),
+                "pole": IdealPDActuatorCfg(
+                    joint_names_expr=["cart_to_pole"], stiffness=20.0, damping=0.0, effort_limit=400.0
+                ),
+            }
+        )
+        articulation, _ = generate_articulation(articulation_cfg, 1, device)
+        sim.reset()
+
+        articulation.set_joint_position_target_index(
+            target=articulation.data.joint_pos.torch + torch.tensor([[0.25, 0.5]], device=device)
+        )
+        articulation.write_data_to_sim()
+
+        raw_effort = wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d)
+        applied_torque = articulation.actuators.applied_torque.torch
+        assert torch.any(applied_torque[:, 0] != raw_effort[:, 0])
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device),
+            raw_effort,
         )
 
 

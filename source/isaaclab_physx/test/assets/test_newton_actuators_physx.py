@@ -85,7 +85,6 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
     )
     wrapper = SimpleNamespace()
     adapter = SimpleNamespace(joint_indices=wp.array([0], dtype=wp.int32), finalize=lambda _: None)
-    monkeypatch.setattr(actuator_control, "_HAS_NEWTON_ACTUATORS", True)
     monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
     monkeypatch.setattr(PhysxActuatorWrapper, "create", lambda **_: wrapper)
     monkeypatch.setattr(NewtonActuatorAdapter, "from_usd", lambda **_: adapter)
