@@ -37,6 +37,8 @@ the following solver pages:
 * :doc:`kamino-solver` — beta support on selected classic tasks.
 * :doc:`using-vbd-solver`: experimental VBD solver for cloth and soft bodies,
   with MJWarp and VBD proxy coupling through :mod:`isaaclab_contrib.coupling`.
+* :doc:`using-mpm`: experimental implicit MPM for particle materials, including
+  rigid-MPM proxy coupling.
 
 Each solver is exposed as a small subclass of
 :class:`~isaaclab_newton.physics.NewtonManager`. See
@@ -67,6 +69,7 @@ For direct ``Model``/``State`` access and generic selections, see
   mjwarp-solver
   kamino-solver
   using-vbd-solver
+  using-mpm
   using-cables
   newton-manager-abstraction
   warp-environments
