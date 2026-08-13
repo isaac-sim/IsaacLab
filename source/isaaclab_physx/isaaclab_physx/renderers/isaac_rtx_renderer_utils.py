@@ -242,12 +242,6 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     # Sync physics results → Fabric so RTX sees updated positions.
     # physics_manager.step() only runs simulate()/fetch_results() and does NOT
     # call _update_fabric(), so without this the render would lag one frame behind.
-    #
-    # Use ``forward()`` here, not ``pre_render()``. Production sync for Newton cables/particles
-    # belongs on ``SimulationContext.render()`` → ``physics_manager.pre_render()``. This helper's
-    # job is the Kit app pump (and PhysX Fabric refresh via ``forward()`` when this helper itself
-    # pumps). Calling ``pre_render()`` here papers over callers that skip ``sim.render()`` and
-    # would also drop PhysX Fabric updates on any path that relies on this util alone.
     sim.physics_manager.forward()
 
     import omni.kit.app
