@@ -1,6 +1,6 @@
 ---
 name: isaaclab-transferring-policies-sim-to-sim
-description: Transfers Isaac Lab policies between PhysX and Newton MJWarp in both directions. Use when checking PresetCfg-resolved task and checkpoint compatibility, correcting cross-backend articulation joint and body ordering, handling Franka mimic-joint drive differences, matching cross-backend actuator behavior, adding transfer-oriented domain randomization, or running PhysX/PhysX, PhysX/Newton, Newton/Newton, and Newton/PhysX evaluations. Validated tasks include Isaac-Lift-Franka, Isaac-Velocity-Rough-G1, and Isaac-Velocity-Rough-AnymalD.
+description: Transfers Isaac Lab policies between PhysX and Newton MJWarp in both directions. Use when checking PresetCfg-resolved task and checkpoint compatibility, correcting cross-backend articulation joint and body ordering, handling Franka mimic-joint drive differences, matching cross-backend actuator behavior, adding transfer-oriented domain randomization, or running PhysX/PhysX, PhysX/Newton, Newton/Newton, and Newton/PhysX evaluations. Fully validated tasks include Isaac-Lift-Franka, Isaac-Velocity-Rough-G1, and Isaac-Velocity-Rough-AnymalD.
 audience: user
 status: experimental
 owners:
@@ -21,7 +21,7 @@ Read the [sim-to-sim how-to](../../../docs/source/how-to/transfer_policies_betwe
 4. **Transferring control behavior.** Match nominal actuator response before tuning the policy. Distinguish rated and solver velocity limits, use per-joint effort, gains, friction, and armature, preserve `dt * decimation`, keep targets away from hard stops, and monitor saturation and action sign changes. Increase damping to prevent bang-bang control and retune it after increasing armature.
 5. **Introducing domain randomization.** Randomize plausible robot/object friction, object mass/inertia, joint gains/friction, joint armature, gravity, actuator response, reset pose/geometry, and observation noise. Keep inertia valid and coupled mechanisms coherent. If transfer needs extreme ranges, revisit the nominal model. Use curriculum when the final distribution blocks learning, promote to final deployment difficulty, and keep a separate deterministic nominal evaluation.
 6. **Validate the full matrix.** Evaluate PP, PN, NN, and NP. For each source policy, reproduce the same-backend baseline and deploy the exact checkpoint in the other backend.
-7. **Run a validated transfer.** The how-to lists four validated tasks in a compact table — `Isaac-Lift-Franka`, `Isaac-Velocity-Rough-G1`, `Isaac-Velocity-Rough-AnymalD`, and `Isaac-Reorient-Cube-Allegro` — with each task's experiment directory and task-specific notes. Substitute the task ID and directory into the generic PP/PN/NN/NP commands above. The play entry point applies `play_mode` overrides automatically.
+7. **Run a validated transfer.** The how-to lists three fully validated tasks in a compact table — `Isaac-Lift-Franka`, `Isaac-Velocity-Rough-G1`, and `Isaac-Velocity-Rough-AnymalD` — with each task's experiment directory and task-specific notes. Substitute the task ID and directory into the generic PP/PN/NN/NP commands above. The play entry point applies `play_mode` overrides automatically. `Isaac-Reorient-Cube-Allegro` is shown as a PhysX-to-Newton demonstration only.
 
 ## Validation
 
@@ -29,7 +29,7 @@ Require a task trainable in both backends, exact environment-contract equality, 
 
 ## Maintenance
 
-Keep this skill synchronized section-for-section with the sim-to-sim how-to, including the validated-task table (Franka, G1, ANYmal D, Allegro).
+Keep this skill synchronized section-for-section with the sim-to-sim how-to, including the validated-task table (Franka, G1, ANYmal D).
 
 ## References
 

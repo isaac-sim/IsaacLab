@@ -286,12 +286,6 @@ generic commands above.
    * - ``Isaac-Velocity-Rough-AnymalD``
      - ``anymal_d_rough``
      - Branched topology: same ordering overrides as G1.
-   * - ``Isaac-Reorient-Cube-Allegro``
-     - ``allegro_cube``
-     - Branched topology: same ordering overrides as G1. Contact stiffness (``ke``), contact
-       damping (``kd``), contact friction, joint damping, and joint friction are the key
-       parameters to tune. Increasing solver substeps to 4–16 significantly improves contact
-       stability.
 
 
 
@@ -309,13 +303,19 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
      <source src="../../_static/sim2sim_anymal_d_transfer.mp4" type="video/mp4">
    </video>
 
-**Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``)
+**Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
 
 .. raw:: html
 
    <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
      <source src="../../_static/sim2sim_allegro_transfer.mp4" type="video/mp4">
    </video>
+
+.. tip::
+
+   For Allegro transfer, contact stiffness (``ke``), contact damping (``kd``), contact friction,
+   joint damping, and joint friction are the key parameters to tune. Increasing solver substeps
+   to 4–16 significantly improves contact stability during in-hand manipulation.
 
 
 See also
