@@ -175,9 +175,12 @@ class keypoint_command_error_exp(ManagerTermBase):
 
 
 class keypoint_entity_error(ManagerTermBase):
-    """Compute keypoint distance between a RigidObject and the dynamically selected gear.
+    """Compute keypoint distance between a RigidObject target and the selected gear.
 
-    This class-based term pre-caches gear type mapping and asset references.
+    This class-based term pre-caches gear type mapping and asset references. If ``gear_offsets``
+    is provided, the target pose is shifted from ``asset_cfg_1`` by the selected gear's offset in
+    that asset's frame. This is used by gear assembly to reward insertion at the selected shaft
+    instead of at the gear-base origin.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -194,6 +197,7 @@ class keypoint_entity_error(ManagerTermBase):
         self.asset_1 = env.scene[self.asset_cfg_1.name]
 
         self._init_gear_selection(env)
+        self._init_target_offsets(cfg, env)
 
         # Create keypoint distance computer
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
@@ -209,6 +213,46 @@ class keypoint_entity_error(ManagerTermBase):
             "gear_medium": env.scene["factory_gear_medium"],
             "gear_large": env.scene["factory_gear_large"],
         }
+
+    def _init_target_offsets(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv) -> None:
+        """Pre-cache optional selected-gear target offsets."""
+        gear_offsets = cfg.params.get("gear_offsets")
+        self.gear_offsets_stacked = None
+        if gear_offsets is None:
+            return
+        if not isinstance(gear_offsets, dict):
+            raise TypeError(
+                f"'gear_offsets' parameter must be a dict, got {type(gear_offsets).__name__}. "
+                "It should have keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
+            )
+
+        offset_tensors = []
+        for gear_type in ["gear_small", "gear_medium", "gear_large"]:
+            if gear_type not in gear_offsets:
+                raise ValueError(
+                    f"'{gear_type}' offset is required in 'gear_offsets' parameter. "
+                    f"Found keys: {list(gear_offsets.keys())}"
+                )
+            offset_tensors.append(torch.tensor(gear_offsets[gear_type], device=env.device, dtype=torch.float32))
+
+        self.gear_offsets_stacked = torch.stack(offset_tensors, dim=0)
+        self.identity_quat = (
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs, 1)
+            .contiguous()
+        )
+
+    def _get_target_asset_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Retrieve the target asset pose, optionally shifted to the selected gear shaft."""
+        target_pos = self.asset_1.data.body_pos_w.torch[:, 0]
+        target_quat = self.asset_1.data.body_quat_w.torch[:, 0]
+
+        if self.gear_offsets_stacked is None:
+            return target_pos, target_quat
+
+        target_offsets = self.gear_offsets_stacked[self.gear_type_indices]
+        target_pos, _ = combine_frame_transforms(target_pos, target_quat, target_offsets, self.identity_quat)
+        return target_pos, target_quat
 
     def _get_selected_gear_poses(self, env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor]:
         """Retrieve world-frame position and quaternion of the active gear per environment.
@@ -254,6 +298,7 @@ class keypoint_entity_error(ManagerTermBase):
         asset_cfg_1: SceneEntityCfg,
         keypoint_scale: float = 1.0,
         add_cube_center_kp: bool = True,
+        gear_offsets: dict | None = None,
     ) -> torch.Tensor:
         """Compute keypoint distance error.
 
@@ -262,23 +307,23 @@ class keypoint_entity_error(ManagerTermBase):
             asset_cfg_1: Configuration of the first asset (RigidObject)
             keypoint_scale: Scale factor for keypoint offsets
             add_cube_center_kp: Whether to include center keypoint
+            gear_offsets: Optional selected-gear target offsets [m], cached during initialization.
 
         Returns:
             Mean keypoint distance tensor of shape (num_envs,)
         """
-        # Get current pose of asset_1 (RigidObject)
-        curr_pos_1 = self.asset_1.data.body_pos_w.torch[:, 0]
-        curr_quat_1 = self.asset_1.data.body_quat_w.torch[:, 0]
-
         # Get selected gear pose
-        curr_pos_2, curr_quat_2 = self._get_selected_gear_poses(env)
+        gear_pos, gear_quat = self._get_selected_gear_poses(env)
+
+        # Get target pose of asset_1 (RigidObject), optionally shifted to selected shaft
+        target_pos, target_quat = self._get_target_asset_pose()
 
         # Compute keypoint distance
         keypoint_dist_sep = self.keypoint_computer.compute(
-            current_pos=curr_pos_1,
-            current_quat=curr_quat_1,
-            target_pos=curr_pos_2,
-            target_quat=curr_quat_2,
+            current_pos=gear_pos,
+            current_quat=gear_quat,
+            target_pos=target_pos,
+            target_quat=target_quat,
             keypoint_scale=keypoint_scale,
         )
 
@@ -300,6 +345,7 @@ class keypoint_entity_error_exp(keypoint_entity_error):
         kp_use_sum_of_exps: bool = True,
         keypoint_scale: float = 1.0,
         add_cube_center_kp: bool = True,
+        gear_offsets: dict | None = None,
     ) -> torch.Tensor:
         """Compute exponential keypoint reward.
 
@@ -310,23 +356,23 @@ class keypoint_entity_error_exp(keypoint_entity_error):
             kp_use_sum_of_exps: Whether to use sum of exponentials
             keypoint_scale: Scale factor for keypoint offsets
             add_cube_center_kp: Whether to include center keypoint
+            gear_offsets: Optional selected-gear target offsets [m], cached during initialization.
 
         Returns:
             Exponential keypoint reward tensor of shape (num_envs,)
         """
-        # Get current pose of asset_1 (RigidObject)
-        curr_pos_1 = self.asset_1.data.body_pos_w.torch[:, 0]
-        curr_quat_1 = self.asset_1.data.body_quat_w.torch[:, 0]
-
         # Get selected gear pose
-        curr_pos_2, curr_quat_2 = self._get_selected_gear_poses(env)
+        gear_pos, gear_quat = self._get_selected_gear_poses(env)
+
+        # Get target pose of asset_1 (RigidObject), optionally shifted to selected shaft
+        target_pos, target_quat = self._get_target_asset_pose()
 
         # Compute keypoint distance
         keypoint_dist_sep = self.keypoint_computer.compute(
-            current_pos=curr_pos_1,
-            current_quat=curr_quat_1,
-            target_pos=curr_pos_2,
-            target_quat=curr_quat_2,
+            current_pos=gear_pos,
+            current_quat=gear_quat,
+            target_pos=target_pos,
+            target_quat=target_quat,
             keypoint_scale=keypoint_scale,
         )
 
@@ -395,7 +441,15 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
 
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
-        self._step_count = 0
+
+        self.grasp_center_body_indices: list[int] | None = None
+        grasp_center_body_names = cfg.params.get("grasp_center_body_names")
+        if grasp_center_body_names is not None:
+            grasp_center_body_names = list(grasp_center_body_names)
+            grasp_center_body_indices, _ = self.robot_asset.find_bodies(grasp_center_body_names)
+            if len(grasp_center_body_indices) != len(grasp_center_body_names):
+                raise ValueError(f"Grasp center bodies not found on robot: {grasp_center_body_names}")
+            self.grasp_center_body_indices = grasp_center_body_indices
 
     def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
         progress = min(env.common_step_counter / max(self.weight_ramp_steps, 1), 1.0)
@@ -409,7 +463,11 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
         Returns:
             Tuple of (eef_pos, eef_quat, gear_grasp_pos, gear_quat_grasp).
         """
-        eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        if self.grasp_center_body_indices is None:
+            eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        else:
+            grasp_center_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.grasp_center_body_indices]
+            eef_pos = grasp_center_pos.mean(dim=1)
         eef_quat = self.robot_asset.data.body_link_quat_w.torch[:, self.eef_idx]
 
         gear_pos, gear_quat = self._get_selected_gear_poses(env)
@@ -432,6 +490,7 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
         ee_grasp_threshold: float = 0.0,
+        grasp_center_body_names: tuple[str, ...] | None = None,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -463,16 +522,6 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
         env.extras["log"]["ee_grasp_kp_error/mean_keypoint_dist"] = mean_error_scalar
         env.extras["log"]["ee_grasp_kp_error/pct_envs_active"] = pct_active
         env.extras["log"]["ee_grasp_kp_error/weight_scale"] = weight_scale
-
-        self._step_count += 1
-        import carb
-
-        carb.log_info(
-            f"[ee_grasp_kp_error] step={self._step_count}"
-            f" | mean_kp_error={mean_error_scalar:.5f}"
-            f" | pct_active={pct_active:.3f}"
-            f" | weight_scale={weight_scale:.4f}"
-        )
 
         return scaled_reward
 
@@ -507,6 +556,7 @@ class keypoint_ee_grasp_error_exp(keypoint_ee_grasp_error):
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
         ee_grasp_threshold: float = 0.0,
+        grasp_center_body_names: tuple[str, ...] | None = None,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -553,17 +603,6 @@ class keypoint_ee_grasp_error_exp(keypoint_ee_grasp_error):
         env.extras["log"]["ee_grasp_kp_error_exp/mean_exp_reward"] = mean_reward_scalar
         env.extras["log"]["ee_grasp_kp_error_exp/pct_envs_active"] = pct_active
         env.extras["log"]["ee_grasp_kp_error_exp/weight_scale"] = weight_scale
-
-        self._step_count += 1
-        import carb
-
-        carb.log_info(
-            f"[ee_grasp_kp_error_exp] step={self._step_count}"
-            f" | mean_kp_error={mean_error_scalar:.5f}"
-            f" | pct_active={pct_active:.3f}"
-            f" | weight_scale={weight_scale:.4f}"
-            f" | mean_exp_reward={mean_reward_scalar:.5f}"
-        )
 
         return scaled_reward
 

@@ -124,6 +124,15 @@ class reset_when_gear_dropped(ManagerTermBase):
         else:
             self.eef_idx = eef_indices[0]
 
+        self.grasp_center_body_indices: list[int] | None = None
+        grasp_center_body_names = cfg.params.get("grasp_center_body_names")
+        if grasp_center_body_names is not None:
+            grasp_center_body_names = list(grasp_center_body_names)
+            grasp_center_body_indices, _ = self.robot_asset.find_bodies(grasp_center_body_names)
+            if len(grasp_center_body_indices) != len(grasp_center_body_names):
+                raise ValueError(f"Grasp center bodies not found on robot: {grasp_center_body_names}")
+            self.grasp_center_body_indices = grasp_center_body_indices
+
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -132,6 +141,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         gear_offsets_grasp: dict | None = None,
         end_effector_body_name: str | None = None,
         grasp_rot_offset: list | None = None,
+        grasp_center_body_names: tuple[str, ...] | None = None,
     ) -> torch.Tensor:
         """Check if gear has dropped and return reset flags.
 
@@ -160,8 +170,14 @@ class reset_when_gear_dropped(ManagerTermBase):
         # Get gear type indices directly as tensor (no Python loops!)
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
-        # Get end effector position
-        eef_pos_world = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        # Get grasp-center position. For grippers with explicit fingertip bodies, use the
+        # fingertip midpoint instead of a distant wrist/link frame so small gear rotations do not
+        # amplify into false drop resets.
+        if self.grasp_center_body_indices is None:
+            eef_pos_world = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        else:
+            grasp_center_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.grasp_center_body_indices]
+            eef_pos_world = grasp_center_pos.mean(dim=1)
 
         # Update gear positions and quaternions in buffers
         self.all_gear_pos_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_pos_w.torch

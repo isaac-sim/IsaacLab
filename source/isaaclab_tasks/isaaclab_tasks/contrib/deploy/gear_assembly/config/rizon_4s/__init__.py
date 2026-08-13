@@ -23,6 +23,17 @@ gym.register(
     },
 )
 
+# Flexiv Rizon 4s with Newton inverse-kinematics actions
+gym.register(
+    id="IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Newton-IK",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.ik_newton_env_cfg:Rizon4sGearAssemblyIKNewtonEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGearAssemblyRNNPPORunnerCfg",
+    },
+)
+
 # Flexiv Rizon 4s - ROS Inference
 gym.register(
     id="IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference",

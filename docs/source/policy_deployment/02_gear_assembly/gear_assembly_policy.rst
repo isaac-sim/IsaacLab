@@ -734,7 +734,41 @@ First, launch the training with a small number of environments and visualization
                       --num_envs 4 \
                       --visualizer kit
 
-This will open the Isaac Sim viewer where you can observe the training process in real-time.
+    .. tab-item:: Flexiv Rizon 4s + Grav (Newton)
+
+        .. tab-set::
+
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
+                      --num_envs 2 \
+                      --visualizer newton \
+                      presets=newton_hydroelastic
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
+                      --num_envs 2 \
+                      --visualizer newton \
+                      presets=newton_hydroelastic
+
+        Use ``presets=newton_sdf`` to compare point-SDF contacts. To train a task-space
+        policy, use the ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Newton-IK`` task
+        with the same Newton preset.
+
+        The centered SDF assets can also be tested with PhysX by using
+        ``presets=physx_sdf`` on the ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav``
+        task. The default PhysX preset retains the legacy Factory assets and frame conventions
+        for existing checkpoints.
+
+This opens the selected viewer (Isaac Sim for PhysX or Newton Viewer for Newton) so you can
+observe the training process in real time.
 
 .. figure:: ../../_static/policy_deployment/02_gear_assembly/sim_real_gear_assembly_train.jpg
     :align: center
@@ -820,10 +854,59 @@ Now launch the full training run with more parallel environments in headless mod
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
 
+    .. tab-item:: Flexiv Rizon 4s + Grav (Newton)
+
+        .. tab-set::
+
+           .. tab-item:: uv (Recommended)
+
+              .. code-block:: bash
+
+                  uv run isaaclab train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
+                      --num_envs 256 \
+                      --visualizer none \
+                      presets=newton_hydroelastic
+
+           .. tab-item:: isaaclab.sh / isaaclab.bat
+
+              .. code-block:: bash
+
+                  ./isaaclab.sh train --rl_library rsl_rl \
+                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
+                      --num_envs 256 \
+                      --visualizer none \
+                      presets=newton_hydroelastic
+
+The Newton hydroelastic preset uses package-local concave SDF collision assets. Its defaults
+separate the expensive collision rate from contact integration: the outer physics and collision
+tick is 100 Hz, while 20 solver substeps produce a 2 kHz solver rate. A policy decimation of three
+gives a 33.3 Hz control rate. The preset also uses a 5 mm shape gap and a bounded triangle-pair
+buffer sized for 256 environments per GPU rank. The arm uses solver-native actuator gravity
+compensation so gravity remains enabled for the gears, and the Grav linkage is held by physical
+PD actuators; no action term rewrites the selected gear pose.
+
+The default triangle-pair capacity is 4,194,304 per GPU rank. If Newton reports a triangle-pair
+buffer overflow, reduce the number of environments per rank or increase the capacity before using
+the resulting policy; overflowed candidate contacts are discarded.
+
+For four-GPU training, launch 256 environments per rank (1,024 total):
+
+.. code-block:: bash
+
+    uv run python scripts/reinforcement_learning/train_multigpu.py \
+        --rl_library rsl_rl --num_gpus 4 \
+        --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
+        --num_envs 256 --max_iterations 1000 \
+        --visualizer none \
+        presets=newton_hydroelastic
+
 **Command breakdown:**
 
-- ``--num_envs 256``: Runs 256 parallel environments for efficient training
-- ``--video_length 200``: Each video captures approximately one full episode (``episode_length_s / (sim.dt * decimation)`` = ``6.66 / (1/1000 * 33)`` ≈ 200 steps)
+- ``--num_envs 256``: Runs 256 parallel environments per trainer process
+- ``--video_length 200``: Captures approximately one PhysX episode
+  (``6.66 / (1/120 * 4)`` ≈ 200 policy steps); a Newton episode is approximately
+  222 policy steps (``6.66 / (0.01 * 3)``)
 - ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations), producing ~10 videos over full training
 
 Training typically takes ~12-24 hours for a robust insertion policy. The videos will be saved in the ``logs`` directory and can be reviewed to assess policy performance during training.
