@@ -757,6 +757,12 @@ def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     assert visualizer.render_rgb_array() is frame
 
 
+def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    assert visualizer.render_rgb_array() is None
+
+
 def test_newton_gl_visualizer_render_rgb_array_returns_frame():
     frame = np.zeros((4, 6, 3), dtype=np.uint8)
     viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))

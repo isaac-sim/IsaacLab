@@ -2073,14 +2073,18 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             )
         return False
 
-    def render_rgb_array(self) -> np.ndarray:
+    def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.
 
         In headless mode, render the state captured during the latest simulation step
         before reading back the path-traced LDR framebuffer.
+
+        Returns:
+            The latest viewer framebuffer as a uint8 array with shape ``(H, W, 3)``,
+            or ``None`` when the viewer is unavailable.
         """
         if self._viewer is None:
-            raise RuntimeError("NewtonRTXVisualizer must be initialized before capturing an RGB frame.")
+            return None
         if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
