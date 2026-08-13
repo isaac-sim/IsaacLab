@@ -142,8 +142,9 @@ The concrete default remains task-specific so launching without an override stay
 Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/concepts/backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/overview/developer-guide/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
