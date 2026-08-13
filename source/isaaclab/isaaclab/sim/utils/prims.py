@@ -1038,8 +1038,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         variants: A dictionary or config class mapping variant set names to variant selections.
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
+    A variant set the prim does not have is skipped with a warning, so one configuration can spawn
+    assets that expose different options. A set that exists but does not offer the requested variant
+    is an error: USD accepts the selection and composes the prim as if nothing were selected, so the
+    asset would silently spawn without the description the variant carries.
+
     Raises:
-        ValueError: If the prim at the specified path is not valid.
+        ValueError: If the prim at the specified path is not valid, or if a variant set on the prim
+            does not offer the requested variant.
 
     .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
@@ -1063,6 +1069,15 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
+        # USD accepts a selection naming a variant the set does not offer, and the prim then
+        # composes as if nothing were selected, so reject it instead of spawning a silently
+        # incomplete asset.
+        available = variant_set.GetVariantNames()
+        if variant_selection not in available:
+            raise ValueError(
+                f"Variant set '{variant_set_name}' on prim '{prim_path}' does not offer variant"
+                f" '{variant_selection}'. Available variants: {available}."
+            )
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)

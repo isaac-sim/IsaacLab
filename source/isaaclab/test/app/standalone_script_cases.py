@@ -14,12 +14,19 @@ import re
 import selectors
 import signal
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 SCRIPT_ROOTS = (ROOT / "scripts" / "demos", ROOT / "scripts" / "tutorials")
+# ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
+# converters are: they build a SimulationContext to preview the converted asset.
+EXTRA_SCRIPTS = (
+    ROOT / "scripts" / "tools" / "convert_urdf.py",
+    ROOT / "scripts" / "tools" / "convert_mjcf.py",
+)
 VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
@@ -134,6 +141,9 @@ class SmokeResult:
     fatal_patterns: tuple[str, ...] = ()
 
 
+# newton ships the same NVIDIA Ant model the Kit importer bundles, as in test_mjcf_converter.py.
+_NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
+
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
@@ -224,6 +234,19 @@ OVERRIDES = {
         visualizers=("none",),
         required_modules=("ovrtx",),
     ),
+    # Readiness fires once conversion succeeds, so the preview runs inside the soak.
+    "scripts/tools/convert_urdf.py": ScriptOverride(
+        args=(
+            str(ROOT / "source" / "isaaclab" / "test" / "sim" / "urdfs" / "test_merge_joints.urdf"),
+            str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "urdf"),
+            "--merge_joints",
+        ),
+        readiness_pattern=r"Generated USD file:",
+    ),
+    "scripts/tools/convert_mjcf.py": ScriptOverride(
+        args=(_NEWTON_MJCF, str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "mjcf")),
+        readiness_pattern=r"Generated USD file:",
+    ),
     "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/00_sim/log_time.py": ScriptOverride(visualizers=("none", "kit")),
@@ -256,10 +279,10 @@ OVERRIDES = {
 
 
 def discover_specs() -> list[ScriptSpec]:
-    """Discover executable demo/tutorial scripts and their literal CLI choices."""
+    """Discover the executable demo, tutorial, and tool scripts and their literal CLI choices."""
     specs = []
-    for root in SCRIPT_ROOTS:
-        for path in sorted(root.rglob("*.py")):
+    for group in (*(sorted(root.rglob("*.py")) for root in SCRIPT_ROOTS), EXTRA_SCRIPTS):
+        for path in group:
             source = path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(path))
             if not _has_main_guard(tree):
