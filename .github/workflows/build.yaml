@@ -552,6 +552,27 @@ jobs:
         filter-pattern: "isaaclab_assets"
         container-name: isaac-lab-assets-test
 
+  test-isaaclab-experimental:
+    name: isaaclab_experimental
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_experimental"
+        container-name: isaac-lab-experimental-test
+
   test-isaaclab-newton:
     name: isaaclab_newton
     runs-on: [self-hosted, gpu]

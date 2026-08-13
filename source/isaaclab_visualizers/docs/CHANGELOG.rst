@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.2 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate Simulation panels in the Newton RTX viewer.
+
+
 1.5.1 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~
 

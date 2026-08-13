@@ -71,11 +71,6 @@ parser.add_argument(
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument(
-    "--use_pretrained_checkpoint",
-    action="store_true",
-    help="Use the pre-trained checkpoint from Nucleus.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--keep_all_info",
@@ -120,7 +115,7 @@ def main():
 
             log_root_path = os.path.join("logs", "sb3", train_task_name)
             log_root_path = os.path.abspath(log_root_path)
-            if args_cli.use_pretrained_checkpoint:
+            if args_cli.checkpoint == "pretrained":
                 checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name)
                 if not checkpoint_path:
                     print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
