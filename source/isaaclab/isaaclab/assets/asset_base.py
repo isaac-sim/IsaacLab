@@ -501,13 +501,13 @@ class AssetBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks."""
-        if self._initialize_handle is not None:
+        if getattr(self, "_initialize_handle", None) is not None:
             self._initialize_handle.deregister()
             self._initialize_handle = None
-        if self._invalidate_initialize_handle is not None:
+        if getattr(self, "_invalidate_initialize_handle", None) is not None:
             self._invalidate_initialize_handle.deregister()
             self._invalidate_initialize_handle = None
-        if self._prim_deletion_handle is not None:
+        if getattr(self, "_prim_deletion_handle", None) is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         sim_ctx = SimulationContext.instance()

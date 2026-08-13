@@ -202,3 +202,30 @@ Articulation Ordering
 .. autofunction:: parse_articulation_ordering_convention
 
 .. autofunction:: get_articulation_name_ordering
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.assets` API.
+
+.. currentmodule:: isaaclab.assets
+
+.. autosummary::
+   :nosignatures:
+
+   BaseRigidObject
+   BaseRigidObjectCollection
+   BaseRigidObjectCollectionData
+   BaseRigidObjectData
+
+.. autoclass:: BaseRigidObject
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectCollection
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectCollectionData
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectData
+   :show-inheritance:

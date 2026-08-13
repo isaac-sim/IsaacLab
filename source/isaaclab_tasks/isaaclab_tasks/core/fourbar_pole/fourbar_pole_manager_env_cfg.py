@@ -7,7 +7,11 @@ import copy
 import math
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
+    NewtonCfg,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -48,14 +52,11 @@ class FourbarPolePhysicsCfg(PresetCfg):
 
     default: NewtonCfg = MISSING
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
+        solver_cfg=KaminoPADMMSolverCfg(
             integrator="euler",
             use_fk_solver=True,
             sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_rho_0=0.1,
-            padmm_warmstart_mode="containers",
+            dynamics_solver_cfg=KaminoPADMMCfg(rho_0=0.1),
         ),
         num_substeps=1,
         debug_mode=False,

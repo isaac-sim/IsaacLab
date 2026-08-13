@@ -38,10 +38,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Photorealistic rendering, studio lighting *(visualization markers, live plots, and streaming camera panel not yet supported)*
    * - **Rerun**
      - Remote viewing, replay
-     - Webviewer, time scrubbing, recording export, visualization markers
+     - Webviewer, time scrubbing, recording export, visualization markers, live plots
    * - **Viser**
      - Web-based remote visualization, sharing, recording
-     - Warp-based rendering, browser-based, share URL, visualization markers
+     - Warp-based rendering, browser-based, share URL, visualization markers, live plots
 
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
@@ -826,7 +826,11 @@ is currently experimental. The following features are **not yet supported** and 
 * **Pause rendering** — the path-tracer runs at full cost every tick even while paused (unlike GL's
   lightweight update).
 
-All of the above features are available in the other three visualizer backends (Newton GL, Rerun, Viser).
+All of the above features are available in the Newton GL backend. Visualization markers, live
+plots, and the streaming camera panel are also available in Rerun and Viser; however,
+framebuffer-based video recording (``--video`` with ``source="visualizer:*"``) is only
+supported in Kit and Newton GL — use a sensor source (``source="sensor:<name>"``) for
+video recording with Rerun or Viser.
 
 
 See Also

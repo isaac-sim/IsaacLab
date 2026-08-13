@@ -12,6 +12,9 @@ termination, event, and action parity test files.
 
 from __future__ import annotations
 
+import re
+from types import SimpleNamespace
+
 import numpy as np
 import torch
 import warp as wp
@@ -240,6 +243,11 @@ class MockArticulationData:
             bpose_np[:, :, :3] = rng.randn(num_envs, num_bodies, 3).astype(np.float32)
             bpose_np[:, :, 3:7] = [0.0, 0.0, 0.0, 1.0]
             self.body_pose_w = proxy_array(bpose_np, dtype=wp.transformf, device=device)
+
+            # body_pos_w / body_quat_w: the position and rotation slices of body_pose_w,
+            # mirroring the shorthands on the real articulation data.
+            self.body_pos_w = proxy_array(bpose_np[:, :, :3].copy(), dtype=wp.vec3f, device=device)
+            self.body_quat_w = proxy_array(bpose_np[:, :, 3:7].copy(), dtype=wp.quatf, device=device)
 
             # body_lin_acc_w: (num_envs, num_bodies) vec3f
             self.body_lin_acc_w = proxy_array(
@@ -542,6 +550,109 @@ class MockCommandManager:
         return self._term
 
 
+def quat_mul_np(q1_xyzw: np.ndarray, q2_xyzw: np.ndarray) -> np.ndarray:
+    """Hamilton product of two ``(N, 4)`` quaternion arrays in ``(x, y, z, w)`` order."""
+    x1, y1, z1, w1 = q1_xyzw.T
+    x2, y2, z2, w2 = q2_xyzw.T
+    return np.stack(
+        [
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+        ],
+        axis=-1,
+    ).astype(np.float32)
+
+
+# Error scales for the generated pose commands. Errors are spread over twice these values so
+# roughly half the envs fall inside a threshold of the same size — a command sampled
+# independently of the body poses would miss every threshold and compare all-False.
+POSE_CMD_POSITION_SCALE = 0.5
+POSE_CMD_ORIENTATION_SCALE = 1.0
+
+
+def make_pose_command_term(
+    articulation,
+    body_idx: int = 0,
+    num_envs: int = NUM_ENVS,
+    device: str = DEVICE,
+    position_success_threshold: float | None = POSE_CMD_POSITION_SCALE,
+    orientation_success_threshold: float | None = POSE_CMD_ORIENTATION_SCALE,
+    seed: int = 71,
+):
+    """Build a real :class:`UniformPoseCommand` around mock articulation data.
+
+    Bypasses ``__init__`` (which needs a live scene) but keeps the genuine class, so
+    ``compute_success`` under test is the shipped stable implementation rather than a
+    reimplementation of it.
+
+    The command is derived from the body's current pose plus a known error, so the
+    resulting position and orientation errors straddle
+    :data:`POSE_CMD_POSITION_SCALE` and :data:`POSE_CMD_ORIENTATION_SCALE`.
+
+    Returns:
+        The command term, whose ``pose_command_b`` is the (num_envs, 7) command buffer.
+    """
+    from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
+    from isaaclab.envs.mdp.commands.pose_command import UniformPoseCommand
+
+    rng = np.random.RandomState(seed)
+    data = articulation.data
+    root_pos = data.root_pos_w.torch.cpu().numpy()
+    root_quat = data.root_quat_w.torch.cpu().numpy()
+    body_pos = data.body_pos_w.torch.cpu().numpy()[:, body_idx]
+    body_quat = data.body_quat_w.torch.cpu().numpy()[:, body_idx]
+
+    # position: place the target a known distance off the body, then express it in the root frame
+    offset_dir = rng.randn(num_envs, 3).astype(np.float32)
+    offset_dir /= np.linalg.norm(offset_dir, axis=1, keepdims=True)
+    distance = rng.uniform(0.0, 2.0 * POSE_CMD_POSITION_SCALE, num_envs).astype(np.float32)
+    target_pos_w = body_pos + offset_dir * distance[:, None]
+
+    # orientation: rotate the body frame by a known angle, then express it in the root frame
+    axis = rng.randn(num_envs, 3).astype(np.float32)
+    axis /= np.linalg.norm(axis, axis=1, keepdims=True)
+    angle = rng.uniform(0.0, 2.0 * POSE_CMD_ORIENTATION_SCALE, num_envs).astype(np.float32)
+    perturb = np.concatenate([axis * np.sin(angle / 2.0)[:, None], np.cos(angle / 2.0)[:, None]], axis=1)
+    target_quat_w = quat_mul_np(body_quat, perturb.astype(np.float32))
+
+    root_quat_conj = root_quat * np.array([-1.0, -1.0, -1.0, 1.0], dtype=np.float32)
+    command_np = np.zeros((num_envs, 7), dtype=np.float32)
+    command_np[:, :3] = quat_rotate_inv_np(root_quat, target_pos_w - root_pos)
+    command_np[:, 3:] = quat_mul_np(root_quat_conj, target_quat_w)
+
+    term = object.__new__(UniformPoseCommand)
+    term.cfg = UniformPoseCommandCfg(
+        asset_name="robot",
+        body_name="body",
+        resampling_time_range=(1.0, 1.0),
+        position_success_threshold=position_success_threshold,
+        orientation_success_threshold=orientation_success_threshold,
+    )
+    term.robot = articulation
+    term.body_idx = body_idx
+    term.pose_command_b = torch.tensor(command_np, device=device)
+    term.pose_command_w = torch.zeros_like(term.pose_command_b)
+    term._env = SimpleNamespace(num_envs=num_envs, device=device)
+    term._track_success = position_success_threshold is not None or orientation_success_threshold is not None
+    term._succeeded = torch.zeros(num_envs, dtype=torch.bool, device=device)
+    return term
+
+
+class MockPoseCommandManager:
+    """Command manager serving a single :func:`make_pose_command_term` pose command."""
+
+    def __init__(self, term):
+        self._term = term
+
+    def get_command(self, name: str) -> torch.Tensor:
+        return self._term.pose_command_b
+
+    def get_term(self, name: str):
+        return self._term
+
+
 class MockBodyCfg:
     """SceneEntityCfg-like object for body-level reward/termination terms."""
 
@@ -564,11 +675,33 @@ class MockSensorCfg:
 
 
 class MockTerminationManager:
-    """Mock termination manager providing both torch and warp terminated buffers."""
+    """Mock termination manager providing both torch and warp terminated buffers.
 
-    def __init__(self, num_envs=NUM_ENVS, device=DEVICE):
+    Also carries per-term done columns and timeout flags, which terms that aggregate a
+    subset of terminations (``is_terminated_term``) read on both the stable and warp paths.
+    """
+
+    def __init__(self, num_envs=NUM_ENVS, device=DEVICE, term_names=("success", "fell_over", "time_out"), seed=31):
         self.terminated = torch.zeros(num_envs, dtype=torch.bool, device=device)
         self.terminated_wp = wp.from_torch(self.terminated)
+
+        self.active_terms = list(term_names)
+        rng = np.random.RandomState(seed)
+        dones_np = rng.rand(num_envs, len(self.active_terms)) < 0.3
+        self.term_dones = torch.tensor(dones_np, dtype=torch.bool, device=device)
+        self.term_dones_wp = wp.from_torch(self.term_dones)
+        # the last column doubles as the timeout term, so the masking path is exercised
+        self.time_outs = self.term_dones[:, -1].clone()
+        self.time_outs_wp = wp.from_torch(self.time_outs)
+
+    def find_terms(self, name_keys) -> list[str]:
+        """Resolve term-name patterns the way :meth:`ManagerBase.find_terms` does."""
+        if isinstance(name_keys, str):
+            name_keys = [name_keys]
+        return [name for name in self.active_terms if any(re.fullmatch(key, name) for key in name_keys)]
+
+    def get_term(self, name: str) -> torch.Tensor:
+        return self.term_dones[:, self.active_terms.index(name)]
 
 
 # ---------------------------------------------------------------------------
@@ -626,5 +759,7 @@ def mutate_body_data(
     pose_np[:, :, :3] = rng.randn(num_envs, num_bodies, 3).astype(np.float32)
     pose_np[:, :, 3:7] = [0.0, 0.0, 0.0, 1.0]
     copy_np_to_wp(art_data.body_pose_w, pose_np)
+    copy_np_to_wp(art_data.body_pos_w, pose_np[:, :, :3])
+    copy_np_to_wp(art_data.body_quat_w, pose_np[:, :, 3:7])
 
     wp.synchronize()
