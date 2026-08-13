@@ -552,12 +552,11 @@ class BaseArticulationData(ABC):
     @property
     @leapp_tensor_semantics(const=True)
     def gear_ratio(self) -> ProxyArray:
-        """Actuator gear ratios relating motor torques to applied joint torques [dimensionless].
+        """Legacy actuator gear-ratio compatibility view [dimensionless].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
 
-        These are actuator-model compatibility outputs. The solvers receive the resulting joint torques directly,
-        rather than using these values as joint properties.
+        Values are initialized to one and are not updated by actuator execution.
         """
         return self._gear_ratio_ta
 
