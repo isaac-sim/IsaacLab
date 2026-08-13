@@ -1756,8 +1756,8 @@ def rendering_test_lift_kuka(
             env = None
 
 
-def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
-    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
+def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_type: str) -> None:
+    """Shrink the scene and force image-only observations for Franka golden AOV tests."""
     from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -1785,6 +1785,11 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
     env_cfg.scene.env_spacing = 3.0
     env_cfg.scene.base_camera.data_types = [data_type]
     env_cfg.observations = TestFrankaCameraObservationsCfg()
+
+
+def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
+    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
+    _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
     env_cfg.commands.deformable_pose.debug_vis = False
     env_cfg.events.reset_deformable.params["position_range"] = {
         "x": (0.0, 0.0),
@@ -1918,55 +1923,18 @@ def rendering_test_franka_soft(
             env = None
 
 
-def _configure_franka_cable_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
-    """Apply deterministic golden rendering overrides to a Franka cable camera config."""
-    from isaaclab.envs import mdp as env_mdp
-    from isaaclab.managers import ObservationGroupCfg as ObsGroup
-    from isaaclab.managers import ObservationTermCfg as ObsTerm
-    from isaaclab.managers import SceneEntityCfg
-    from isaaclab.utils.configclass import configclass
-
-    @configclass
-    class TestFrankaCableCameraObservationsCfg:
-        """Image-only observations for Franka cable golden rendering tests."""
-
-        @configclass
-        class PolicyCfg(ObsGroup):
-            image = ObsTerm(
-                func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_type, "permute": True},
-            )
-
-            def __post_init__(self) -> None:
-                self.enable_corruption = False
-                self.concatenate_terms = True
-
-        policy: ObsGroup = PolicyCfg()
-
-    env_cfg.scene.num_envs = 4
-    env_cfg.scene.env_spacing = 3.0
-    env_cfg.scene.replicate_physics = True
-    env_cfg.scene.base_camera.data_types = [data_type]
-    env_cfg.observations = TestFrankaCableCameraObservationsCfg()
-    if hasattr(env_cfg.events, "variable_gravity"):
-        env_cfg.events.variable_gravity.params["gravity_distribution_params"] = (
-            [0.0, 0.0, -9.81],
-            [0.0, 0.0, -9.81],
-        )
-
-
 def rendering_test_franka_cable(
     physics_backend: str,
     renderer: str,
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    """Golden-image AOV coverage for the Franka four-cable pile camera env.
+    """Golden-image AOV coverage for the Franka cable camera env.
 
     Newton cables under CouplerProxy have no PhysX preset; unsupported backends skip via
-    ``_skip_if_physics_preset_unsupported``. Settle with zero actions so the pile drapes
+    ``_skip_if_physics_preset_unsupported``. Settle with zero actions so the cable drapes
     deterministically before capture. OVRTX may still cull animated BasisCurves after large
-    motion; these goldens intentionally exercise the full pile binding surface.
+    motion; these goldens intentionally exercise the cable binding surface.
 
     When ``ISAAC_LAB_SAVE_RENDERING_GIF`` is set, skip golden validation and instead step the
     env while capturing camera frames, then write a GIF to the current working directory.
@@ -1986,10 +1954,13 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_cable_camera_test_env_cfg(env_cfg, data_type)
+    env_cfg.events.reset_cable.params["position_range"] = {
+        "x": (0.0, 0.0),
+        "y": (0.0, 0.0),
+        "z": (0.0, 0.0),
+    }
 
-    if renderer == "ovrtx_renderer":
-        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+    _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -2012,7 +1983,7 @@ def rendering_test_franka_cable(
             save_rendering_gif(frames, test_name, physics_backend, renderer, data_type)
             return
 
-        # Let the cable pile settle under gravity so golden frames are not first-frame spawn poses.
+        # Let the cable settle under gravity so golden frames are not first-frame spawn poses.
         env.step(zero_actions)
 
         validate_camera_outputs(

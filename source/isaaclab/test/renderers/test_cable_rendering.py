@@ -188,9 +188,7 @@ def test_cable_renders_across_environments(renderer):
         assert cable.num_instances == num_envs, (
             f"replication produced {cable.num_instances} cables, expected {num_envs}"
         )
-        assert camera.num_instances == num_envs, (
-            f"tiled camera has {camera.num_instances} views, expected {num_envs}"
-        )
+        assert camera.num_instances == num_envs, f"tiled camera has {camera.num_instances} views, expected {num_envs}"
 
         # Baseline frame after reset: sync assets, render once, measure lit pixels / centroid / z.
         scene.update(cfg.dt)
