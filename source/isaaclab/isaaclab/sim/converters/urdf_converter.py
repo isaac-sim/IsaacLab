@@ -9,6 +9,7 @@ import logging
 import os
 import pathlib
 import warnings
+import xml.etree.ElementTree as ElementTree
 
 from isaaclab.utils.version import has_kit
 
@@ -16,6 +17,31 @@ from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _find_ros_package(urdf_path: str) -> dict[str, str] | None:
+    """Find the ROS package a URDF belongs to, as a name/path mapping.
+
+    A ROS package is rooted at the directory holding its ``package.xml``, and ``package://<name>/``
+    URIs inside the URDF address that directory.
+
+    Args:
+        urdf_path: Path of the URDF file.
+
+    Returns:
+        The ``{"name": ..., "path": ...}`` mapping, or None when the URDF is not inside a package.
+    """
+    for directory in pathlib.Path(urdf_path).resolve().parents:
+        manifest = directory / "package.xml"
+        if not manifest.is_file():
+            continue
+        try:
+            name = ElementTree.parse(manifest).getroot().findtext("name")
+        except ElementTree.ParseError:
+            logger.warning(f"UrdfConverter: could not parse '{manifest}' to resolve 'package://' URLs.")
+            return None
+        return {"name": name.strip(), "path": str(directory)} if name and name.strip() else None
+    return None
 
 
 class UrdfConverter(AssetConverterBase):
@@ -92,6 +118,12 @@ class UrdfConverter(AssetConverterBase):
 
         # translate nested `JointDriveCfg` into flat importer fields
         drive_type, target_type, stiffness, damping = self._unpack_joint_drive(cfg.joint_drive)
+        # Merging fixed joints rewrites the URDF into a scratch directory, and the importer then
+        # resolves ``package://`` against that copy, where no meshes exist. Naming the source
+        # package keeps the URLs anchored to it.
+        ros_package_paths = list(cfg.ros_package_paths)
+        if not ros_package_paths and (package := _find_ros_package(cfg.asset_path)):
+            ros_package_paths = [package]
 
         import_config = URDFImporterConfig(
             urdf_path=os.path.normpath(cfg.asset_path),
@@ -101,7 +133,7 @@ class UrdfConverter(AssetConverterBase):
             collision_from_visuals=cfg.collision_from_visuals,
             collision_type=cfg.collision_type,
             allow_self_collision=cfg.self_collision,
-            ros_package_paths=list(cfg.ros_package_paths),
+            ros_package_paths=ros_package_paths,
             robot_type=cfg.robot_type,
             fix_base=cfg.fix_base,
             link_density=cfg.link_density if cfg.link_density > 0.0 else None,

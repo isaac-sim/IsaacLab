@@ -823,3 +823,24 @@ def test_physics_variant_raises_again_on_retry(tmp_path):
     for _ in range(2):
         with pytest.raises(ValueError, match="no 'physx' physics variant"):
             UrdfConverter(config)
+
+
+def test_ros_package_derived_from_urdf_location(tmp_path):
+    """The ROS package holding a URDF is derived from its path, so ``package://`` URLs resolve.
+
+    Merging fixed joints relocates the URDF to a scratch directory, and the importer resolves
+    ``package://`` against that copy, so the mapping has to name the source package.
+    """
+    from isaaclab.sim.converters.urdf_converter import _find_ros_package
+
+    package = tmp_path / "my_robot_description"
+    (package / "urdf").mkdir(parents=True)
+    (package / "package.xml").write_text("<package><name>my_robot_description</name></package>")
+    urdf = package / "urdf" / "robot.urdf"
+    urdf.write_text("<robot name='robot'/>")
+
+    assert _find_ros_package(str(urdf)) == {"name": "my_robot_description", "path": str(package)}
+    # a URDF outside any package has no mapping to derive
+    loose = tmp_path / "loose.urdf"
+    loose.write_text("<robot name='robot'/>")
+    assert _find_ros_package(str(loose)) is None
