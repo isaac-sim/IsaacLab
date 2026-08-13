@@ -47,7 +47,7 @@ class MicrobenchmarkFactory:
     _PHYSICS = MappingProxyType(
         {
             "physx": _PhysicsDescriptor("isaaclab_physx", "physx"),
-            "ovphysx": _PhysicsDescriptor("isaaclab_ovphysx", "ovphysx"),
+            "ovphysx": _PhysicsDescriptor("isaaclab_ov", "ovphysx"),
             "newton_mjwarp": _PhysicsDescriptor("isaaclab_newton", "newton_mjwarp"),
             "newton_kamino": _PhysicsDescriptor("isaaclab_newton", "newton_kamino"),
         }

@@ -18,8 +18,8 @@ import inspect
 import sys
 
 import pytest
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -352,6 +352,30 @@ def test_rtx_with_ovphysx_is_valid_and_resolves_to_ovrtx():
     assert config_scan.has_ovphysx_physics is True
     assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
     assert config_scan.needs_kit is False
+
+
+@pytest.mark.parametrize(
+    "presets, expected_renderer",
+    [("physx,rtx", OVRTXRendererCfg), ("isaacsim_physx,rtx", IsaacRtxRendererCfg)],
+)
+def test_scanning_twice_reaches_the_same_launch_decision(presets, expected_renderer):
+    """Resolving a placeholder consumes it, so a second scan sees the same signals.
+
+    Callers scan ahead of :func:`launch_simulation` to report the backends a run
+    will use; the launch then scans the same config again.
+    """
+    env_cfg = _resolve_with_presets(presets)
+
+    first = scan(env_cfg, argparse.Namespace())
+    second = scan(env_cfg, argparse.Namespace())
+
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, expected_renderer)
+    assert (second.needs_kit, second.has_ovrtx, second.has_kit_camera) == (
+        first.needs_kit,
+        first.has_ovrtx,
+        first.has_kit_camera,
+    )
+    assert type(second.resolved_physics_cfg) is type(first.resolved_physics_cfg)
 
 
 def test_rtx_with_kit_visualizer_is_valid_and_resolves_to_isaac_rtx():

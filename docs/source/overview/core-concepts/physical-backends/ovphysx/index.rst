@@ -20,15 +20,15 @@ OvPhysX Backend
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
 (without the Omniverse Kit runtime) and reads scene-level solver parameters
 from the USD ``PhysicsScene`` prim rather than from a Python config. The Python
-config :class:`~isaaclab_ovphysx.physics.OvPhysxCfg` only exposes the handful of
+config :class:`~isaaclab_ov.physics.OvPhysxCfg` only exposes the handful of
 GPU buffer sizes that are not represented on the USD schema.
 
-OvPhysX is selected through :class:`~isaaclab_ovphysx.physics.OvPhysxCfg`:
+OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
 
     sim_cfg = SimulationCfg(physics=OvPhysxCfg())
 
@@ -85,7 +85,7 @@ supported.
 Installation
 ------------
 
-The Isaac Lab source install includes the ``isaaclab_ovphysx`` package, but it
+The Isaac Lab source install includes the ``isaaclab_ov`` package, but it
 does not install the heavier ``ovphysx`` runtime wheel by default. After a
 standard source install, install the optional OvPhysX runtime dependency from
 the repository root:
@@ -115,13 +115,13 @@ First check that the Python package and runtime wheel import correctly:
 
       .. code-block:: bash
 
-          uv run python -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+          uv run python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ovphysx.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
 Then run a small backend smoke test:
 
@@ -131,13 +131,13 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run python -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+          uv run python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p -m pytest source/isaaclab_ovphysx/test/assets/test_rigid_object.py::test_initialization -k cpu
+          ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
@@ -188,5 +188,5 @@ conservative. Broader feature coverage and documentation parity are tracked in
 
 For architectural context, see :doc:`../../multi_backend_architecture`.
 
-For raw ``TensorBinding`` access and :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`,
+For raw ``TensorBinding`` access and :class:`~isaaclab_ov.sim.views.OvPhysxView`,
 see :doc:`../direct-api-access/ovphysx`.

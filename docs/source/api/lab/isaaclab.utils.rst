@@ -189,6 +189,13 @@ Warp operations
    :imported-members:
    :show-inheritance:
 
+.. rubric:: Particle sampling functions
+
+.. autosummary::
+
+   sample_particles_in_mesh
+   sample_particles_in_cavity
+
 Warp Fabric kernels
 ^^^^^^^^^^^^^^^^^^^
 
