@@ -37,3 +37,19 @@ def test_environments(task_name, physics_preset_name, num_envs, device):
     _run_environments(
         task_name, device, num_envs, create_stage_in_memory=False, physics_preset_name=physics_preset_name
     )
+
+
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
+@pytest.mark.parametrize(
+    "task_name",
+    setup_environment(
+        multi_agent=False,
+        factory_envs=False,
+        cartpole_showcase_envs=False,
+        pickplace_stack_envs=False,
+        teleop_envs=False,
+        tier="contrib",
+    ),
+)
+@pytest.mark.isaacsim_ci
+def test_contrib_environments(task_name, num_envs, device):
