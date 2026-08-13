@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp

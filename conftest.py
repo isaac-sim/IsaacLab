@@ -17,12 +17,17 @@ rebuild a real report instead of a single synthetic ``test_execution`` entry.
 Level markers (``unit`` / ``integration`` / ``benchmark``) are applied per file via a module-level ``pytestmark``
 and registered in the repo-root ``pyproject.toml``. Select them with the standard ``-m`` syntax,
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
+
+Also loads ``tools/ovrtx_log.py``, which replays the OVRTX renderer log per test, so every suite that
+builds a renderer reports what it logged the same way.
 """
 
 from __future__ import annotations
 
 import json
 import os
+
+pytest_plugins = ["tools.ovrtx_log"]
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"
 """Environment variable naming the crash-journal file. Unset (the default) disables journaling."""

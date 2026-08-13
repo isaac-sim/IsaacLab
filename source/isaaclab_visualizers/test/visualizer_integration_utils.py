@@ -1524,20 +1524,9 @@ _ANYMAL_D_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 def _make_shadow_hand_env(
     visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
 ) -> ReorientDirectEnv:
-    """Create a shadow hand env configured with selected visualizer and physics backend.
-
-    All backend-specific :class:`~isaaclab_tasks.utils.PresetCfg` fields on
-    :class:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg.ShadowHandEnvCfg`
-    are resolved before the env is constructed.
-    """
+    """Create a shadow hand env configured with selected visualizer and physics backend."""
     env_cfg = copy.deepcopy(ShadowHandEnvCfg())
-    preset_key = "newton_mjwarp" if backend_kind == "newton" else "physx"
-    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
-    env_cfg.scene = getattr(env_cfg.scene, preset_key)
-    env_cfg.robot_cfg = getattr(env_cfg.robot_cfg, preset_key)
-    env_cfg.object_cfg = getattr(env_cfg.object_cfg, preset_key)
-    if env_cfg.events is not None:
-        env_cfg.events = getattr(env_cfg.events, preset_key)
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
     env_cfg.scene.num_envs = (
         _SHADOW_HAND_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _SHADOW_HAND_INTEGRATION_NUM_ENVS
     )
