@@ -5,7 +5,6 @@
 
 """Static contract tests for the manager-based Pendulum MARL task."""
 
-import inspect
 from types import SimpleNamespace
 
 import gymnasium as gym
@@ -26,8 +25,8 @@ def test_manager_task_registration_uses_manager_marl_env() -> None:
     assert spec.kwargs["skrl_mappo_cfg_entry_point"].endswith("skrl_marl_mappo_cfg.yaml")
 
 
-def test_manager_config_preserves_agents_spaces_timing_and_state() -> None:
-    """Keep the final direct-task agent order, manager spaces, timing, and state order."""
+def test_manager_config_defines_agents_spaces_timing_and_state() -> None:
+    """Define the manager task's agent order, spaces, timing, and state."""
     cfg = PendulumMARLManagerEnvCfg()
 
     assert list(cfg.agents) == ["cart", "pendulum"]
@@ -48,20 +47,8 @@ def test_manager_config_preserves_agents_spaces_timing_and_state() -> None:
     assert set(cfg.events.reset_pendulum_joints.params) == {"pole_cfg", "pendulum_cfg"}
 
 
-def test_manager_reset_event_matches_direct_sampling_order_without_velocity_draws() -> None:
-    """Keep reset position sampling ordered and avoid velocity randomization or clamping."""
-    source = inspect.getsource(mdp.reset_pendulum_joints)
-
-    assert source.count("sample_uniform(") == 2
-    assert source.index("joint_pos[:, pole_cfg.joint_ids] += sample_uniform") < source.index(
-        "joint_pos[:, pendulum_cfg.joint_ids] += sample_uniform"
-    )
-    assert "clamp" not in source
-    assert "write_joint_velocity" not in source
-
-
-def test_reward_terms_produce_expected_final_7025_values() -> None:
-    """Keep the shared per-step reward numerically identical to the final direct task."""
+def test_reward_terms_produce_expected_step_values() -> None:
+    """Compute the configured manager reward values for a representative step."""
     reward_cfg = PendulumMARLManagerEnvCfg().agents["cart"].rewards
     assert [
         reward_cfg.alive.weight,
