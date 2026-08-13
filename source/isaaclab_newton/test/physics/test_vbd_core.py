@@ -11,18 +11,80 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSoftContactCfg
+
+from isaaclab.physics import PhysicsManager
 
 
-def test_soft_contact_cfg_defaults_match_newton():
-    """Soft-contact defaults match the pinned Newton model."""
-    physics = importlib.import_module("isaaclab_newton.physics")
-    cfg = physics.NewtonSoftContactCfg()
+@pytest.mark.parametrize(
+    ("soft_contact_cfg", "expected"),
+    [
+        pytest.param(None, (7.0, 8.0, 9.0), id="preserve"),
+        pytest.param(
+            NewtonSoftContactCfg(soft_contact_ke=11.0, soft_contact_kd=12.0, soft_contact_mu=13.0),
+            (11.0, 12.0, 13.0),
+            id="override",
+        ),
+    ],
+)
+def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg, expected):
+    """Soft-contact configuration updates the finalized model when provided."""
+    state_values = []
 
-    assert cfg.soft_contact_ke == 1.0e3
-    assert cfg.soft_contact_kd == 10.0
-    assert cfg.soft_contact_mu == 0.5
-    assert NewtonCfg().soft_contact_cfg is None
+    class Model:
+        soft_contact_ke = 7.0
+        soft_contact_kd = 8.0
+        soft_contact_mu = 9.0
+        world_count = 0
+        articulation_count = 0
+
+        def set_gravity(self, gravity):
+            pass
+
+        def state(self):
+            state_values.append((self.soft_contact_ke, self.soft_contact_kd, self.soft_contact_mu))
+            return object()
+
+        def control(self):
+            return object()
+
+    class Builder:
+        body_label = ()
+        up_axis = None
+
+        def finalize(self, *, device):
+            return model
+
+    model = Model()
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(soft_contact_cfg=soft_contact_cfg), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu", raising=False)
+    monkeypatch.setattr(NewtonManager, "_builder", Builder(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_up_axis", "Z", raising=False)
+    monkeypatch.setattr(NewtonManager, "_gravity_vector", (0.0, 0.0, -9.81), raising=False)
+    monkeypatch.setattr(NewtonManager, "_num_envs", 0, raising=False)
+    monkeypatch.setattr(NewtonManager, "_clone_physics_only", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_pending_extended_state_attributes", set(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_pending_extended_contact_attributes", set(), raising=False)
+    for attr in (
+        "_model",
+        "_state_0",
+        "_state_1",
+        "_control",
+        "_adapter",
+        "_use_newton_actuators_active",
+        "_world_reset_mask",
+        "_fk_reset_mask",
+    ):
+        monkeypatch.setattr(NewtonManager, attr, getattr(NewtonManager, attr, None), raising=False)
+    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_drain_stale_cuda_error", classmethod(lambda cls: None))
+    monkeypatch.setattr(NewtonManager, "dispatch_event", classmethod(lambda cls, event: None))
+
+    NewtonManager.start_simulation()
+
+    assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
+
+    assert state_values == [expected, expected]
 
 
 @pytest.mark.parametrize("env_paths", [(), ("/World/Env_0", "/World/Env_1")], ids=["flat", "replicated"])
