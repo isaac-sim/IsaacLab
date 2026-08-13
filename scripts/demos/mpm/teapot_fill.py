@@ -33,7 +33,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
 DEFAULT_PARTICLES_PER_CELL = 1.2
-DEFAULT_FILL_LEVEL = 0.85
+DEFAULT_FILL_LEVEL = 0.70
 DEFAULT_MIN_RAY_HITS = 5
 
 
@@ -137,7 +137,7 @@ COLLIDER_MARGIN = 0.5 * VOXEL_SIZE
 CONTAINER_MARGIN = 0.00125
 PARTICLE_SURFACE_CLEARANCE = CONTAINER_MARGIN + 0.5 * FILL_SPACING
 CONTAINER_FRICTION = 0.0
-BOWL_FRICTION = 0.05
+BOWL_FRICTION = 0.20
 TABLE_FRICTION = 0.5
 
 HOLD_TIME = 0.55
@@ -161,8 +161,8 @@ CONTAINER_COLOR = (0.70, 0.35, 0.16)
 TABLE_COLOR = (0.48, 0.38, 0.26)
 WATER_COLOR = (0.12, 0.35, 0.78)
 
-CAMERA_EYE = (0.0, -0.36, 0.46)
-CAMERA_TARGET = (-0.01, 0.0, 0.38)
+CAMERA_EYE = (0.0, -0.54, 0.64)
+CAMERA_TARGET = (-0.01, 0.0, 0.30)
 
 
 def create_visualizer_cfgs():
@@ -560,7 +560,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(1.0, 1.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
         )
 
         dome_light = AssetBaseCfg(

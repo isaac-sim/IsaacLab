@@ -226,6 +226,16 @@ def create_scene_cfg():
     class CoupledSceneCfg(InteractiveSceneCfg):
         """Scene containing a static bath, three rigid spheres, and MPM sand."""
 
+        ground = AssetBaseCfg(
+            prim_path="/World/Ground",
+            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
+        )
+        dome_light = AssetBaseCfg(
+            prim_path="/World/DomeLight",
+            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        )
+
         bath_floor = bath_collider(
             "/World/Bath/Floor",
             (bath_x + 2.0 * wall_t, bath_y + 2.0 * wall_t, wall_t),
