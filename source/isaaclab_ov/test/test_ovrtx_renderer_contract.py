@@ -81,6 +81,9 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    # ``__init__`` is bypassed, so set the strategy it would build: ``close`` drains the strategy
+    # before releasing the backend.
+    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
     return renderer
 
 

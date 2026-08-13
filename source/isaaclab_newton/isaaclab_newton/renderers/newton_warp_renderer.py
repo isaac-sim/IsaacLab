@@ -15,7 +15,7 @@ import newton
 import torch
 import warp as wp
 
-from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec, warn_unsupported_async_rendering
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
@@ -383,6 +383,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
         self.cfg = cfg
+        warn_unsupported_async_rendering(cfg, "newton_warp")
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
         # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
         self._stage: Any = None

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from rendering_test_utils import (
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    _make_sensor_data_type_params,
     group_rendering_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
@@ -17,6 +18,17 @@ from rendering_test_utils import (
     make_kitless_rendering_params,
     make_require_ovlibs_install_fixture,
     rendering_test_cartpole,
+)
+
+# Async variants of the synchronous combinations, so they must match the same golden images: the
+# frame of latency is absorbed by the tolerances, and the harness's warm-up frames prime the pipeline.
+_ASYNC_COMBINATIONS = group_rendering_params(
+    make_kitless_rendering_params(
+        [
+            *_make_sensor_data_type_params("ovphysx", "ovrtx", ["rgb"]),
+            *_make_sensor_data_type_params("newton", "ovrtx", ["rgb"]),
+        ]
+    )
 )
 
 pytestmark = pytest.mark.arm_ci
@@ -35,4 +47,13 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 )
 def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_types):
     """Camera output must match golden images (Cartpole camera presets env)."""
+    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES)
+
+
+@pytest.mark.parametrize(
+    "ovstage_variant,physics_backend,renderer,data_types", _ASYNC_COMBINATIONS, indirect=["ovstage_variant"]
+)
+def test_rendering_cartpole_kitless_async(ovstage_variant, physics_backend, renderer, data_types, monkeypatch):
+    """OVRTX async-rendered camera output must match the synchronous golden images (within tolerance)."""
+    monkeypatch.setenv("ISAAC_LAB_ASYNC_RENDERING", "1")
     rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES)
