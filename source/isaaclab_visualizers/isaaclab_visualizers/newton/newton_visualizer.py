@@ -572,6 +572,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
 
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
+        # TODO: Use Newton's public RGB capture API when one becomes available.
         return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
 
     def _init_window(self) -> None:

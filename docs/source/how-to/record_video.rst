@@ -152,6 +152,11 @@ The ``source`` string selects what to capture:
 The camera angle, resolution, and other visualizer settings are configured on the corresponding
 visualizer config, not on the recorder.
 
+.. note::
+
+   The Newton RTX viewer framebuffer can be recorded with ``"visualizer:newton_rtx"``, but
+   recording its streaming view is not supported.
+
 
 Clip control
 ------------
