@@ -216,8 +216,9 @@ imports the matching class from the active backend package. The ``isaaclab_physx
    actively developed. When backend selection is fully configurable, you will be able to
    switch backends without changing any asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/concepts/backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/overview/developer-guide/add_physics_backend`.
 
 New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
