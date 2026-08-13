@@ -1840,6 +1840,7 @@ def _make_cartpole_camera_env(
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
+    env_cfg.tiled_camera.default.renderer_cfg = env_cfg.tiled_camera.default.renderer_cfg.isaacsim_rtx
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
     visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs

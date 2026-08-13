@@ -22,11 +22,11 @@ class _AutoRtxRendererCfg(RendererCfg):
 
 @configclass
 class MultiBackendRendererCfg(PresetCfg):
-    default: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
+    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     rtx: _AutoRtxRendererCfg = _AutoRtxRendererCfg()
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
     ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()
-    isaacsim_rtx: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
+    isaacsim_rtx = default
 
 
 def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:

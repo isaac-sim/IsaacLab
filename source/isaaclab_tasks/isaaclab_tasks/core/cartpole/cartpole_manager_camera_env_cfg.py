@@ -46,7 +46,9 @@ class CartpoleTiledCameraCfg(PresetCfg):
         )
         width: int = 96
         height: int = 96
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(newton_renderer=NewtonWarpRendererCfg())
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
+            default=NewtonWarpRendererCfg(), newton_renderer=NewtonWarpRendererCfg()
+        )
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
     depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
