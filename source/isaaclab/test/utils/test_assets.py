@@ -452,20 +452,25 @@ def test_unmirror_file_path_recovers_the_url_a_copy_was_cached_from(asset_cache,
 
 @pytest.mark.parametrize(
     "path",
+    ["/home/user/assets/example.usd", "Materials/dex_cube_mod.png", "OmniPBR.mdl", ""],
+)
+def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
+    """Test a locally authored asset path is not mistaken for a cached remote copy."""
+    assert assets_utils.unmirror_file_path(path) == ""
+
+
+@pytest.mark.parametrize(
+    "path",
     [
-        "/home/user/assets/example.usd",
-        "Materials/dex_cube_mod.png",
-        "OmniPBR.mdl",
-        "",
-        # a directory named after a URL scheme is an ordinary local layout -- ``Omniverse`` is
-        # where Omniverse puts user projects by default -- and must not read as a cached copy
-        "/data/omniverse/assets/robot.usd",
+        # ``Omniverse`` is where Omniverse puts user projects by default
         "C:/Users/user/Omniverse/MyProject/scene.usd",
+        "/data/omniverse/assets/robot.usd",
+        "/mnt/nfs/OMNIVERSE/Library/Wood/oak.mdl",
         "/home/user/projects/https/site/logo.png",
     ],
 )
-def test_unmirror_file_path_leaves_paths_the_cache_did_not_write_unclaimed(asset_cache, path):
-    """Test a locally authored asset path is not mistaken for a cached remote copy."""
+def test_unmirror_file_path_leaves_a_directory_named_after_a_url_scheme_unclaimed(asset_cache, path):
+    """Test an ordinary local layout is not read as a cache layout because of a directory name."""
     assert assets_utils.unmirror_file_path(path) == ""
 
 
