@@ -55,6 +55,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
 
+from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -274,7 +275,6 @@ def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
 
 def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """Shape and particle BVHs are built and refit before a render task runs."""
-    from isaaclab.physics import PhysicsManager
 
     state = object()
     status = {"shape_refit": False, "particle_refit": False, "rendered": False}
@@ -363,6 +363,30 @@ def test_mpm_solver_cfg_maps_only_newton_solver_fields():
     assert not hasattr(newton_cfg, "project_outside_colliders")
 
 
+@pytest.mark.parametrize(
+    "deprecated_value, replacement",
+    [
+        ("instantaneous", "forward"),
+        ("finite_difference", "backward"),
+    ],
+)
+def test_mpm_solver_cfg_translates_deprecated_collider_velocity_modes(deprecated_value, replacement):
+    """Deprecated collider velocity modes warn and map to Newton's current values."""
+    with pytest.warns(DeprecationWarning, match=f"use {replacement!r}"):
+        newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=deprecated_value))
+
+    assert newton_cfg.collider_velocity_mode == replacement
+
+
+@pytest.mark.parametrize("mode", ["forward", "backward"])
+def test_mpm_solver_cfg_preserves_canonical_collider_velocity_modes(mode, recwarn):
+    """Canonical collider velocity modes pass through without deprecation warnings."""
+    newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=mode))
+
+    assert newton_cfg.collider_velocity_mode == mode
+    assert not [warning for warning in recwarn if issubclass(warning.category, DeprecationWarning)]
+
+
 # Tuples of ``(field_name, non_default_value)`` covering every solver-tunable
 # field on :class:`MPMSolverCfg`. Each entry exercises the implementation-side
 # SolverImplicitMPM.Config construction so a Newton field rename or accidental
@@ -377,6 +401,10 @@ _MPM_FIELD_VALUES = [
     ("grid_type", "dense"),
     ("grid_padding", 4),
     ("max_active_cell_count", 1024),
+    ("max_leaf_node_count", 512),
+    ("max_lower_node_count", 128),
+    ("max_upper_node_count", 32),
+    ("separate_worlds", True),
     ("transfer_scheme", "pic"),
     ("integration_scheme", "gimp"),
     ("critical_fraction", 0.25),
@@ -706,25 +734,111 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
 
 
 @pytest.mark.parametrize(
-    "grid_type, expected",
+    ("overrides", "expected"),
     [
-        ("fixed", True),
-        ("sparse", False),
-        ("dense", False),
+        pytest.param({"grid_type": "fixed"}, True, id="fixed"),
+        pytest.param({}, True, id="bounded_sparse"),
+        pytest.param({"max_active_cell_count": -1}, False, id="unbounded_sparse"),
+        pytest.param({"grid_type": "dense"}, False, id="dense"),
+        pytest.param({"grid_padding": 1}, False, id="padded_sparse"),
+        pytest.param({"velocity_basis": "P0"}, False, id="velocity_basis"),
+        pytest.param({"strain_basis": "GIMP"}, False, id="strain_basis"),
+        pytest.param({"collider_basis": "GIMP"}, False, id="collider_basis"),
     ],
 )
-def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type, expected):
-    """Newton implicit MPM is CUDA-graph capturable only with a fixed grid."""
-
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type=grid_type), raising=False)
+def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, overrides, expected):
+    """Only fixed and capacity-bounded rebuildable sparse grids support outer capture."""
+    values = {
+        "grid_type": "sparse",
+        "max_active_cell_count": 1024,
+        "grid_padding": 0,
+        "velocity_basis": "Q1",
+        "strain_basis": "P0",
+        "collider_basis": "S2",
+    }
+    solver = SimpleNamespace(**(values | overrides))
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
 
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
 
 
-def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
-    """Sparse/dense MPM should not enter a CUDA graph capture window."""
-    from isaaclab.physics import PhysicsManager
+def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
+    """Sparse-grid asynchronous failures are queried only after graph replay."""
+    calls = []
+    solver = SimpleNamespace(check_sparse_grid_rebuild_status=lambda: calls.append("check"))
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
+    monkeypatch.setattr(NewtonManager, "_graph", None)
 
+    NewtonMPMManager._check_solver_status()
+    monkeypatch.setattr(NewtonManager, "_graph", object())
+    NewtonMPMManager._check_solver_status()
+
+    assert calls == ["check"]
+
+
+def test_nested_mpm_solver_discovery_is_cached(monkeypatch):
+    """A coupled solver's immutable entry table is traversed only once per solver instance."""
+    mpm_solver = object.__new__(SolverImplicitMPM)
+
+    class CoupledSolver:
+        calls = 0
+
+        def entry_names(self):
+            self.calls += 1
+            return ("media",)
+
+        def solver(self, _name):
+            return mpm_solver
+
+    root = CoupledSolver()
+    monkeypatch.setattr(NewtonManager, "_solver", root)
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solver_root", None)
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solver_cache", ())
+
+    assert NewtonMPMManager._implicit_mpm_solvers() == (mpm_solver,)
+    assert NewtonMPMManager._implicit_mpm_solvers() == (mpm_solver,)
+    assert root.calls == 1
+
+
+def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch):
+    """A bounded sparse grid must not capture before reset-authored topology exists."""
+    solver = SimpleNamespace(
+        grid_type="sparse",
+        max_active_cell_count=1024,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False, raising=False)
+
+    class UnexpectedCapture:
+        def __init__(self, *args, **kwargs):
+            pytest.fail("MPM capture started before the initial environment reset.")
+
+    monkeypatch.setattr(wp, "ScopedCapture", UnexpectedCapture)
+
+    NewtonMPMManager._capture_or_defer_graph()
+
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is True
+
+
+def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
+    """An unbounded sparse grid should retain the eager-execution fallback."""
+    solver = SimpleNamespace(
+        grid_type="sparse",
+        max_active_cell_count=-1,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
     monkeypatch.setattr(
         PhysicsManager,
         "_cfg",
@@ -732,7 +846,7 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
         raising=False,
     )
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type="sparse"), raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
 
@@ -744,7 +858,6 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
-    from isaaclab.physics import PhysicsManager
 
     captured_devices = []
     captured_graph = object()
@@ -814,7 +927,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
 def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypatch):
     """Base-class state reads must use the active MPM manager's reset behavior."""
-    world_mask = wp.array([True], dtype=wp.bool, device="cpu")
+    world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([], dtype=wp.bool, device="cpu")
 
     class _RejectingSolver:
@@ -834,7 +947,7 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
 
     NewtonManager.forward()
 
-    assert world_mask.numpy().tolist() == [False]
+    assert world_mask.numpy().tolist() == [False, False]
 
 
 # ---------------------------------------------------------------------------

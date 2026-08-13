@@ -21,6 +21,7 @@
             ["Isaac-Fourbar-Pole-Swingup", "rsl_rl", "newton_kamino", "", ""],
             ["Isaac-Humanoid-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", ""],
             ["Isaac-Humanoid", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_mjwarp,ovphysx", "", ""],
+            ["IsaacContrib-Keyboard-SO101", "rsl_rl", "isaacsim_physx,newton_mjwarp,physx", "", ""],
             ["Isaac-Lift-Cable-Franka", "rsl_rl", "newton_mjwarp_vbd_proxy", "", "ik,joint"],
             ["Isaac-Lift-Cable-Franka-Camera", "rsl_rl", "newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint"],
             ["Isaac-Lift-Cloth-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint"],
@@ -93,7 +94,7 @@
         if (task.includes("Velocity")) {
             return "locomotion";
         }
-        if (/Lift|Reach|Reorient|Drawer|Handover/.test(task)) {
+        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard/.test(task)) {
             return "manipulation";
         }
         return "classic";
@@ -130,6 +131,7 @@
             [/Reorient-Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Reorient-KukaAllegro/, "tasks/manipulation/kuka_allegro_reorient.jpg"],
             [/Shadow-Handover/, "tasks/manipulation/shadow_hand_over.jpg"],
+            [/Keyboard-SO101/, "tasks/manipulation/so101_keyboard.jpg"],
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
             [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
             [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],

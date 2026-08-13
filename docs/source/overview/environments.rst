@@ -266,6 +266,12 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |franka-pour|           | |franka-pour-link|           | Pour granular media from a source cup into a receiver with the Franka robot |                                         |
+    |                         |                              | Generate its local reset artifact first (about two minutes); see            |                                         |
+    |                         |                              | :ref:`franka-pour-reset-artifact`.                                          |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |ur10-particle-push|    | |ur10-particle-push-link|    | Push granular media from randomized piles into a bin with the UR10 robot    |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-cable-franka|     | |lift-cable-franka-link|     | Lift a 12-segment cable by its middle segment with the Franka robot         | **physics=**                            |
     |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
@@ -418,6 +424,8 @@ for the lift-cube environment:
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
 .. |lift-soft-franka| image:: ../_static/newton/franka-mjwarp-vbd-coupling.png
 .. |lift-cloth-franka| image:: ../_static/tasks/manipulation/franka_lift_cloth.jpg
+.. |franka-pour| image:: ../_static/tasks/manipulation/franka_pour.jpg
+.. |ur10-particle-push| image:: ../_static/tasks/manipulation/ur10_particle_push.jpg
 .. |lift-cable-franka| image:: ../_static/tasks/manipulation/franka_lift_cable.jpg
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
@@ -450,6 +458,8 @@ for the lift-cube environment:
 .. |lift-cloth-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
 .. |lift-soft-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Soft-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`
 .. |lift-cloth-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Cloth-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cloth_env_cfg.py>`
+.. |franka-pour-link| replace:: :isaaclab-source:`IsaacContrib-Franka-Pour <source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pour/pour_env_cfg.py>`
+.. |ur10-particle-push-link| replace:: :isaaclab-source:`IsaacContrib-UR10-Particle-Push <source/isaaclab_tasks/isaaclab_tasks/contrib/ur10_particle_push/ur10_particle_push_env_cfg.py>`
 .. |lift-cable-franka-link| replace:: :isaaclab-source:`Isaac-Lift-Cable-Franka <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cable_env_cfg.py>`
 .. |lift-cable-franka-cam-link| replace:: :isaaclab-source:`Isaac-Lift-Cable-Franka-Camera <source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_cable_env_cfg.py>`
 .. |cabi-franka-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`
@@ -1387,6 +1397,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **rl_games** (PPO)
       -
+    * - IsaacContrib-Franka-Pour
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
     * - IsaacContrib-Humanoid-AMP-Dance-Direct
       - Direct
       - **skrl** (AMP)
@@ -1399,6 +1413,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **skrl** (AMP)
       -
+    * - IsaacContrib-Keyboard-SO101
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
     * - IsaacContrib-Lift-Cube-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
@@ -1590,6 +1608,10 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``isaacsim_physx``
+    * - IsaacContrib-UR10-Particle-Push
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
     * - IsaacContrib-Velocity-Flat-AnymalB
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)

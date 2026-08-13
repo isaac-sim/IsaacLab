@@ -47,6 +47,7 @@ from environ_docs import (  # noqa: E402
     collect_environment_doc_rows,
     format_presets_rst,
     format_rl_libraries,
+    get_workflow,
     is_training_task,
     parse_rl_libraries_from_kwargs,
     patch_curated_environment_tables,
@@ -56,6 +57,8 @@ from environ_docs import (  # noqa: E402
     render_environment_browser_task_rows,
 )
 
+from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
+
 import isaaclab_tasks  # noqa: E402, F401
 from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
@@ -64,6 +67,32 @@ def test_is_training_task_filters_inference_variants():
     assert is_training_task("Isaac-Cartpole")
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
+
+
+def test_get_workflow_detects_custom_manager_based_subclass():
+    class CustomManagerBasedEnv(ManagerBasedRLEnv):
+        pass
+
+    assert get_workflow(CustomManagerBasedEnv) == "Manager Based"
+
+
+def test_collect_environment_doc_rows_detects_custom_manager_based_subclasses():
+    specs = [
+        EnvSpec(
+            id="IsaacContrib-Franka-Pour",
+            entry_point="isaaclab_tasks.contrib.franka_pour.pour_env:FrankaPourEnv",
+            kwargs={"env_cfg_entry_point": "cfg:FrankaPourResetDatasetEnvCfg"},
+        ),
+        EnvSpec(
+            id="IsaacContrib-UR10-Particle-Push",
+            entry_point="isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env:UR10ParticlePushEnv",
+            kwargs={"env_cfg_entry_point": "cfg:UR10ParticlePushEnvCfg"},
+        ),
+    ]
+
+    rows = collect_environment_doc_rows(specs)
+
+    assert all(row.workflow == "Manager Based" for row in rows)
 
 
 def test_parse_rl_libraries_from_kwargs_handles_multi_agent_and_amp():

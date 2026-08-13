@@ -56,6 +56,7 @@ def test_mpm_grid_emission_records_constant_offsets_per_env():
             voxel_size=0.1,
             particles_per_cell=1.0,
             jitter=0.0,
+            particle_placement="cell_center",
         ),
     )
     entry = MPMObjectRegistryEntry(cfg)
@@ -63,9 +64,9 @@ def test_mpm_grid_emission_records_constant_offsets_per_env():
     add_mpm_entry_to_builder(builder, entry, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
     add_mpm_entry_to_builder(builder, entry, 1, [1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
 
-    assert entry.particles_per_object == 8
-    assert entry.particle_offsets == [0, 8]
-    assert builder.particle_count == 16
+    assert entry.particles_per_object == 1
+    assert entry.particle_offsets == [0, 1]
+    assert builder.particle_count == 2
 
 
 def test_mpm_points_emission_records_constant_offsets_per_env():
@@ -97,7 +98,12 @@ def test_mpm_object_initializes_from_interactive_scene():
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(lower=(0.0, 0.0, 0.0), upper=(0.1, 0.1, 0.1), voxel_size=0.1),
+            spawn=MPMGridCfg(
+                lower=(0.0, 0.0, 0.0),
+                upper=(0.1, 0.1, 0.1),
+                voxel_size=0.1,
+                particle_placement="cell_center",
+            ),
         )
 
     sim_cfg = SimulationCfg(
@@ -113,8 +119,9 @@ def test_mpm_object_initializes_from_interactive_scene():
 
         media = scene["media"]
         assert media.num_instances == 2
-        assert media.particles_per_object == 8
-        assert media.data.particle_pos_w.torch.shape == (2, 8, 3)
+        assert media.particles_per_object == 1
+        assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
+        assert not NewtonMPMManager._particle_visual_prims
 
         default_state = media.data.default_particle_state_w.torch.clone()
         shifted_state = default_state[0:1].clone()
@@ -181,7 +188,7 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 
 
-def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch):
+def test_mpm_object_creates_usd_points_for_kit_visualizer(monkeypatch):
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
@@ -204,9 +211,10 @@ def test_mpm_object_creates_kit_points_when_kit_visualizer_requested(monkeypatch
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["kit"])
         scene = InteractiveScene(MPMSceneCfg(num_envs=2, env_spacing=1.0))
-        sim.reset()
 
         from pxr import UsdGeom  # noqa: PLC0415
+
+        sim.reset()
 
         media = scene["media"]
         records = NewtonMPMManager._particle_visual_prims
