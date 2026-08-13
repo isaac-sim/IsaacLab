@@ -109,9 +109,15 @@ PhysX advances at the simulation timestep and uses actor iteration counts
 within scene limits. MJWarp and Kamino each run
 :attr:`~isaaclab_newton.physics.NewtonCfg.num_substeps` solver substeps per
 physics tick, so their solver timestep is the simulation timestep divided by
-the substep count. More substeps change integration work and contact refresh
-opportunities; they do not translate a PhysX iteration setting into a Newton
-equivalent.
+the substep count. More substeps change integration work; they do not
+translate a PhysX iteration setting into a Newton equivalent.
+
+Substeps do not inherently refresh Newton-pipeline contacts. When that
+pipeline is active, :attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation`
+can re-collide within a physics tick only when it is positive and less than
+``num_substeps``; the default value of zero collides once at the start of each
+tick. This setting does not apply when MJWarp uses its internal MuJoCo contact
+path or Kamino uses its internal collision detector.
 
 MJWarp provides outer iterations, line-search iterations, and a residual
 tolerance. Kamino's P-ADMM and DVI modes have different iteration and
