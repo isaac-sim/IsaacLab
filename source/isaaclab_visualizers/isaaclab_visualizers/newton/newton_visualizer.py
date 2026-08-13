@@ -1879,14 +1879,6 @@ class NewtonGLVisualizer(NewtonVisualizer):
             self._viewer.begin_frame(self._sim_time)
             try:
                 self._viewer.log_state(self._state)
-                # The interactive render path logs markers every frame; a capture that
-                # skips them records the scene without its goal poses and command arrows.
-                if self.cfg.enable_markers:
-                    render_newton_visualization_markers(
-                        self._viewer,
-                        self._resolved_visible_env_ids,
-                        num_envs=NewtonManager.get_num_envs(),
-                    )
             finally:
                 self._viewer.end_frame()
         return self._viewer.get_frame().numpy()
