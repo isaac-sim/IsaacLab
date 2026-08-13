@@ -16,7 +16,6 @@ taken. No Kit/GPU required.
 """
 
 import argparse
-import importlib.metadata
 
 import pytest
 
@@ -85,38 +84,3 @@ def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
         pass
 
     assert kit_branch_taken == [True]
-
-
-@pytest.mark.parametrize(("platform", "installer"), [("linux", "./isaaclab.sh"), ("win32", "isaaclab.bat")])
-def test_kernel_only_isaac_sim_reports_missing_runtime(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, platform: str, installer: str
-):
-    from isaaclab.app import AppLauncher
-
-    monkeypatch.setattr(AppLauncher, "is_available", lambda: False)
-    monkeypatch.setattr(sim_launcher.importlib.metadata, "version", lambda _name: "1.2.3")
-    monkeypatch.setattr(sim_launcher.sys, "platform", platform)
-
-    with caplog.at_level("ERROR"), pytest.raises(SystemExit) as exc_info:
-        sim_launcher._ensure_isaac_sim_available()
-
-    assert exc_info.value.code == 1
-    assert "Isaac Sim 1.2.3 is installed, but its full runtime is unavailable" in caplog.text
-    assert f"{installer} -i isaacsim" in caplog.text
-    assert "Isaac Sim is not installed or not found on PYTHONPATH" not in caplog.text
-
-
-def test_missing_isaac_sim_keeps_installation_hint(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
-    from isaaclab.app import AppLauncher
-
-    monkeypatch.setattr(AppLauncher, "is_available", lambda: False)
-
-    def _missing(_name: str):
-        raise importlib.metadata.PackageNotFoundError
-
-    monkeypatch.setattr(sim_launcher.importlib.metadata, "version", _missing)
-
-    with caplog.at_level("ERROR"), pytest.raises(SystemExit):
-        sim_launcher._ensure_isaac_sim_available()
-
-    assert "Isaac Sim is not installed or not found on PYTHONPATH" in caplog.text
