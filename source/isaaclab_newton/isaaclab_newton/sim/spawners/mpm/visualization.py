@@ -9,14 +9,17 @@ from collections.abc import Sequence
 
 import numpy as np
 
+from isaaclab.sim.spawners.materials.visual_materials_cfg import VisualMaterialCfg
+
 
 def create_mpm_particle_visualization(
     prim_path: str,
     positions: np.ndarray,
     widths: np.ndarray,
     color: Sequence[float],
+    visual_material: VisualMaterialCfg | None = None,
 ) -> list[str]:
-    """Create one ``UsdGeom.Points`` prim per environment for Kit MPM particle rendering.
+    """Create one ``UsdGeom.Points`` prim per environment for USD-stage MPM particle rendering.
 
     The created prims are static USD containers: per-frame position updates are
     handled by :meth:`isaaclab_newton.physics.NewtonManager.sync_particles_to_usd`
@@ -29,7 +32,8 @@ def create_mpm_particle_visualization(
         positions: Initial world-frame particle positions [m], shape
             ``(num_envs, particles_per_env, 3)``.
         widths: Particle display widths (diameters) [m], one per particle.
-        color: RGB display color of the particles.
+        color: Fallback RGB display color of the particles.
+        visual_material: Optional visual material bound to every particle cloud.
 
     Returns:
         The created ``Points`` prim paths, one per environment.
@@ -49,5 +53,16 @@ def create_mpm_particle_visualization(
             points.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(positions[env_idx]))
             points.CreateWidthsAttr(widths_vt)
             points.CreateDisplayColorAttr(color_vt)
+
+    from isaaclab.utils.version import has_kit  # noqa: PLC0415
+
+    if visual_material is not None and has_kit():
+        UsdGeom.Scope.Define(stage, f"{prim_path}/Looks")
+        material_path = f"{prim_path}/Looks/visualMaterial"
+        visual_material.func(material_path, visual_material)
+        material_prim = stage.GetPrimAtPath(material_path)
+        if material_prim.IsValid():
+            for path in prim_paths:
+                sim_utils.bind_visual_material(path, material_path, stage=stage)
 
     return prim_paths

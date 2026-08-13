@@ -1091,6 +1091,7 @@ def resolve_checkpoint_selector(
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
+    recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using manifests from new training runs.
 
@@ -1107,6 +1108,7 @@ def resolve_checkpoint_selector(
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
         metadata: Additional manifest metadata required for compatibility.
+        recursive: Whether to search recursively below each matching run directory.
 
     Returns:
         Absolute path to the selected checkpoint.
@@ -1146,9 +1148,8 @@ def resolve_checkpoint_selector(
         checkpoint_dir = run_dir.joinpath(*(other_dirs or []))
         if not checkpoint_dir.is_dir():
             continue
-        checkpoints = [
-            path for path in checkpoint_dir.iterdir() if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)
-        ]
+        paths = checkpoint_dir.rglob("*") if recursive else checkpoint_dir.iterdir()
+        checkpoints = [path for path in paths if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)]
         if not checkpoints:
             continue
         if selector == "best" and preferred_checkpoint_pattern is not None:
@@ -1157,7 +1158,7 @@ def resolve_checkpoint_selector(
             ]
             if preferred:
                 checkpoints = preferred
-        checkpoints.sort(key=lambda path: _natural_sort_key(path.name))
+        checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 
     raise ValueError(
