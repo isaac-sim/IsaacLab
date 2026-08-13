@@ -29,7 +29,6 @@ class HumanoidPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
@@ -42,6 +41,7 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    default = newton_mjwarp
 
 
 @configclass

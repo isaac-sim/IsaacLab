@@ -64,7 +64,7 @@ class RoughPhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
     )
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 ##
