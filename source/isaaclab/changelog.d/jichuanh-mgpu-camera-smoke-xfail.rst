@@ -1,9 +1,6 @@
 Added
 ^^^^^
 
-* Added multi-GPU training smoke tests that launch real two-rank runs and select their GPU pair
-  by interconnect class, so cross-socket rendering is exercised instead of whichever pair happens
-  to be ``cuda:0,cuda:1``. The cross-socket camera case is marked ``xfail`` for NVBUG#6565122.
-
-* Added :func:`~isaaclab.test.utils.gpu_pairs_by_topology` to classify GPU pairs from
-  ``nvidia-smi topo -m`` as same-switch, cross-socket, or unknown.
+* Added multi-GPU training smoke tests that launch real four-rank training runs, covering each
+  physics and renderer stack both with the host's default device order and with the devices
+  exposed out of order, which is the case that catches renderer device-selection defects.
