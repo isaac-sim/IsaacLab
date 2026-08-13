@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
   writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
   directory, and cooked colliders now persist across runs.
 
