@@ -73,7 +73,7 @@ The system has three layers:
      ``RigidBodyView`` and exposes its transforms as :class:`SceneDataFormat.Transform`.
      When deformable bodies are present it also exposes flattened simulation nodal positions
      through :class:`SceneDataFormat.Points`.
-   - ``OvPhysxSceneDataBackend`` (internal to :mod:`isaaclab_ovphysx.physics`) mirrors the
+   - ``OvPhysxSceneDataBackend`` (internal to :mod:`isaaclab_ov.physics`) mirrors the
      PhysX contract for rigid transforms and OVPhysX deformable nodal tensors.
    - ``NewtonSceneDataBackend`` (internal to :mod:`isaaclab_newton.physics`) wraps the
      Newton model's ``body_q`` and exposes it as :class:`SceneDataFormat.Transform`.

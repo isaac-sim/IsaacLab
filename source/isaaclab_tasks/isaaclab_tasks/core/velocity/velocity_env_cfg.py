@@ -7,7 +7,7 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils

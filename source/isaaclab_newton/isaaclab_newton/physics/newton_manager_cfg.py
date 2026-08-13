@@ -165,7 +165,8 @@ class NewtonCfg(PhysicsCfg):
     The pipeline is active when the solver delegates collision detection to Newton:
 
     - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``,
-    - :class:`KaminoSolverCfg` with ``use_collision_detector=False``,
+    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
+      ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
@@ -178,7 +179,7 @@ class NewtonCfg(PhysicsCfg):
 
     .. note::
         Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True`` raises
-        :class:`ValueError`.  When ``KaminoSolverCfg.use_collision_detector=True``,
+        :class:`ValueError`.  When a Kamino solver config has ``use_collision_detector=True``,
         the field is ignored because Kamino's internal detector handles contacts.
     """
 
@@ -188,13 +189,6 @@ class NewtonCfg(PhysicsCfg):
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
     construction via :func:`~isaaclab.utils.checked_apply`. See
     :class:`NewtonShapeCfg` for the declared fields.
-    """
-
-    simplify_meshes: bool = True
-    """Whether Newton replication simplifies mesh colliders to convex hulls.
-
-    Keep this enabled for most rigid-body scenes. Disable it when exact triangle
-    meshes are intentional, for example thin or hollow MPM colliders.
     """
 
     load_visual_shapes: bool | None = None

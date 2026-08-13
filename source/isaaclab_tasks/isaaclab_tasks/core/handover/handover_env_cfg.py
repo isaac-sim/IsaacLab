@@ -5,7 +5,7 @@
 
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -295,7 +295,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    # simulation — values mirrored by the manager cfg
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,

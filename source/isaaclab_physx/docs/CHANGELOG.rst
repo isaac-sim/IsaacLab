@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+5.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the Isaac RTX override of the unused temporal-camera-data capability method and the
+  empty ``isaaclab_physx.video_recording`` package.
+
+Fixed
+^^^^^
+
+* Fixed PhysX IMU and PVA acceleration for lazy reads and nonzero update periods.
+
+
+4.2.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton 1.5 actuator target bindings on the PhysX backend.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` when ``CameraCfg.isp_cfg`` is set.
+  It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
 4.2.0 (2026-08-08)
 ~~~~~~~~~~~~~~~~~~
 

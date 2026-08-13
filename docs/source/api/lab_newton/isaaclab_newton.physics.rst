@@ -9,20 +9,28 @@
 
     NewtonManager
     NewtonCfg
-    NewtonSolverCfg
-    MJWarpSolverCfg
-    XPBDSolverCfg
-    FeatherstoneSolverCfg
-    KaminoSolverCfg
-    MPMSolverCfg
     NewtonCollisionPipelineCfg
-    HydroelasticSDFCfg
-    NewtonShapeCfg
-    NewtonMJWarpManager
-    NewtonXPBDManager
     NewtonFeatherstoneManager
     NewtonKaminoManager
     NewtonMPMManager
+    NewtonMJWarpManager
+    NewtonShapeCfg
+    NewtonSolverCfg
+    NewtonXPBDManager
+    MJWarpSolverCfg
+    XPBDSolverCfg
+    FeatherstoneSolverCfg
+    KaminoCollisionDetectorCfg
+    KaminoConstraintsCfg
+    KaminoDVICfg
+    KaminoDVISolverCfg
+    KaminoDynamicsCfg
+    KaminoFKCfg
+    KaminoMaterialsCfg
+    KaminoPADMMCfg
+    KaminoPADMMSolverCfg
+    MPMSolverCfg
+    HydroelasticSDFCfg
 
 .. currentmodule:: isaaclab_newton.physics
 
@@ -62,7 +70,47 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoSolverCfg
+.. autoclass:: KaminoPADMMCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoDVICfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoDynamicsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoConstraintsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoFKCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoCollisionDetectorCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoMaterialsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoPADMMSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoDVISolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
