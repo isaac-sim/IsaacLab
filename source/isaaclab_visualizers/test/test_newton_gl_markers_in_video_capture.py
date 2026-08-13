@@ -30,8 +30,11 @@ from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
 
+import os  # noqa: E402
+
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
+from PIL import Image  # noqa: E402
 
 _TEST_DIR = Path(__file__).resolve().parent
 if str(_TEST_DIR) not in sys.path:
@@ -48,6 +51,8 @@ pytestmark = pytest.mark.isaacsim_ci
 # AnymalD are large colored overlays; even a loose 0.5% threshold is well exceeded
 # when they are present.
 _MIN_DIFF_PCT = 0.5
+
+_COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 
 
 def _pixel_diff_percentage(frame_a: np.ndarray, frame_b: np.ndarray) -> float:
@@ -69,11 +74,10 @@ def _cleanup():
 
 def test_newton_gl_render_rgb_array_includes_markers():
     """render_rgb_array() with enable_markers=True must differ from enable_markers=False."""
-    import copy
 
     import torch
+
     import isaaclab.sim as sim_utils
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     env = None
     try:
@@ -96,8 +100,10 @@ def test_newton_gl_render_rgb_array_includes_markers():
             env.step(action=actions)
 
         newton_viz = next(
-            v for v in env.sim.visualizers
-            if hasattr(v, "render_rgb_array") and hasattr(v.cfg, "enable_markers")
+            v
+            for v in env.sim.visualizers
+            if hasattr(v, "render_rgb_array")
+            and hasattr(v.cfg, "enable_markers")
             and v.cfg.visualizer_type in ("newton_gl", "newton")
         )
         _viz_utils._warm_newton_viewer(newton_viz)
@@ -112,11 +118,20 @@ def test_newton_gl_render_rgb_array_includes_markers():
 
         diff_pct = _pixel_diff_percentage(frame_with_markers, frame_without_markers)
 
-        assert diff_pct >= _MIN_DIFF_PCT, (
-            f"render_rgb_array() with enable_markers=True produced a frame that is only "
-            f"{diff_pct:.3f}% different from enable_markers=False (threshold: {_MIN_DIFF_PCT}%). "
-            "Visualization markers (command-velocity arrows) are not being rendered on the "
-            "headless capture path."
-        )
+        if diff_pct < _MIN_DIFF_PCT:
+            os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
+            Image.fromarray(frame_with_markers).save(
+                os.path.join(_COMPARISON_IMAGES_DIR, "newton_markers_video_capture-with_markers.png")
+            )
+            Image.fromarray(frame_without_markers).save(
+                os.path.join(_COMPARISON_IMAGES_DIR, "newton_markers_video_capture-without_markers.png")
+            )
+            pytest.fail(
+                f"render_rgb_array() with enable_markers=True produced a frame that is only "
+                f"{diff_pct:.3f}% different from enable_markers=False (threshold: {_MIN_DIFF_PCT}%). "
+                "Visualization markers (command-velocity arrows) are not being rendered on the "
+                "headless capture path.\n"
+                f"Frames saved to {_COMPARISON_IMAGES_DIR}/ for inspection."
+            )
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)
