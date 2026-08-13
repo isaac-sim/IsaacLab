@@ -479,10 +479,11 @@ def resolve_matching_prims_from_source(
             instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
-            root_prim = get_current_stage().GetPrimAtPath(instance_root)
             results = [
                 (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
-                for prim in _iter_matching_prims_in_subtree(walk_root, root_prim)
+                for prim in find_matching_prims(walk_root)
+                if prim.GetPath().pathString == instance_root
+                or prim.GetPath().pathString.startswith(instance_root + "/")
             ]
     if predicate is not None:
         results = [
