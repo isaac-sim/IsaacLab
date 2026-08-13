@@ -175,9 +175,7 @@ teleop = [
     "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
-    # IsaacTeleop's legacy pyimgui UI does not build on this Python 3.12 runtime.
-    # Retargeting and CloudXR provide the complete headset path without the tuning UI.
-    "isaacteleop[retargeters,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [

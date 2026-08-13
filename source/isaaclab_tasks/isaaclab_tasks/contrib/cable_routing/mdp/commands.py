@@ -424,6 +424,9 @@ class CableRoutingCommand(CommandTerm):
         self.winding = torch.zeros((self.num_envs, len(cfg.peg_names)), device=self.device)
         self.route_progress_delta = torch.zeros(self.num_envs, device=self.device)
         self._reward_progress_baseline = torch.zeros(self.num_envs, device=self.device)
+        self._finite_route_geometry = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        self._route_state_step = -1
+        self._route_reward_step = -1
 
         self.metrics["route_progress"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["success"] = torch.zeros(self.num_envs, device=self.device)
@@ -460,7 +463,7 @@ class CableRoutingCommand(CommandTerm):
     @property
     def command(self) -> torch.Tensor:
         """Return flattened bounded route tokens, shape ``(num_envs, max_route_steps * 6)``."""
-        return self.goal_tokens.flatten(start_dim=1)
+        return torch.nan_to_num(self.goal_tokens.flatten(start_dim=1), nan=0.0, posinf=0.0, neginf=0.0)
 
     @property
     def peg_positions_w(self) -> torch.Tensor:
@@ -473,6 +476,15 @@ class CableRoutingCommand(CommandTerm):
         active_peg = torch.gather(self.peg_indices, 1, self.active_step[:, None]).squeeze(1)
         return torch.gather(self.peg_positions_w, 1, active_peg[:, None, None].expand(-1, 1, 3)).squeeze(1)
 
+    def ensure_route_state_current(self, *, update_reward_delta: bool = False) -> None:
+        """Refresh route geometry at most once per policy step for any manager consumer."""
+        step = int(self._env.common_step_counter)
+        if self._route_state_step != step:
+            self.refresh_route_state()
+        if update_reward_delta and self._route_reward_step != step:
+            self._update_reward_progress_delta()
+            self._route_reward_step = step
+
     def refresh_route_state(self, *, update_reward_delta: bool = False) -> None:
         """Refresh winding and ordered completion from the live scene.
 
@@ -483,6 +495,7 @@ class CableRoutingCommand(CommandTerm):
         cable_points = self.cable.data.segment_pose_w.torch[..., :3]
         peg_positions = self.peg_positions_w
         finite_geometry = torch.isfinite(cable_points).all(dim=(1, 2)) & torch.isfinite(peg_positions).all(dim=(1, 2))
+        self._finite_route_geometry = finite_geometry
         safe_cable_points = torch.where(finite_geometry[:, None, None], cable_points, torch.zeros_like(cable_points))
         safe_peg_positions = torch.where(finite_geometry[:, None, None], peg_positions, torch.zeros_like(peg_positions))
         self.winding[:] = benchmark_winding_angle(
@@ -511,26 +524,35 @@ class CableRoutingCommand(CommandTerm):
         self.directed_progress[:] = progress
         self.completed_steps[:] = completed
         self.prefix_length[:] = prefix
-        self.succeeded |= success & finite_geometry
         route_length = self.valid_steps.sum(dim=1)
-        self.active_step[:] = torch.minimum(prefix, route_length - 1)
+        has_route = route_length > 0
+        self.succeeded |= success & finite_geometry & has_route
+        self.active_step[:] = torch.minimum(prefix, (route_length - 1).clamp(min=0))
         if update_reward_delta:
-            score = self._route_progress_score()
-            finite_score = finite_geometry & torch.isfinite(score) & torch.isfinite(self._reward_progress_baseline)
-            self.route_progress_delta[:] = torch.where(
-                finite_score,
-                score - self._reward_progress_baseline,
-                torch.zeros_like(score),
-            )
-            self._reward_progress_baseline[:] = torch.where(
-                finite_score,
-                score,
-                torch.nan_to_num(self._reward_progress_baseline),
-            )
-        # Terminations own the geometric refresh before rewards. Keep the
-        # logged metrics atomic with that live state so an episode cannot
-        # terminate successfully while reporting a stale success metric.
-        self._update_metrics()
+            self._update_reward_progress_delta()
+        if hasattr(self, "_env"):
+            step = int(self._env.common_step_counter)
+            self._route_state_step = step
+            if update_reward_delta:
+                self._route_reward_step = step
+        self._write_metrics()
+
+    def _update_reward_progress_delta(self) -> None:
+        """Consume the normalized route-progress change once for the current policy step."""
+        score = self._route_progress_score()
+        finite_score = (
+            self._finite_route_geometry & torch.isfinite(score) & torch.isfinite(self._reward_progress_baseline)
+        )
+        self.route_progress_delta[:] = torch.where(
+            finite_score,
+            score - self._reward_progress_baseline,
+            torch.zeros_like(score),
+        )
+        self._reward_progress_baseline[:] = torch.where(
+            finite_score,
+            score,
+            torch.nan_to_num(self._reward_progress_baseline),
+        )
 
     def _route_progress_score(self) -> torch.Tensor:
         """Return normalized prefix plus active-step progress."""
@@ -540,6 +562,11 @@ class CableRoutingCommand(CommandTerm):
         return (self.prefix_length + active_progress) / route_length
 
     def _update_metrics(self) -> None:
+        self.ensure_route_state_current()
+        self._write_metrics()
+
+    def _write_metrics(self) -> None:
+        """Write logging metrics from the current cached route state."""
         route_length = self.valid_steps.sum(dim=1).clamp(min=1)
         active_winding = torch.gather(self.directed_progress, 1, self.active_step[:, None]).squeeze(1)
         self.metrics["route_progress"][:] = self._route_progress_score()
@@ -1396,15 +1423,8 @@ class CableRoutingCommand(CommandTerm):
         self.goal_tokens[env_ids] = tokens
 
     def _update_command(self) -> None:
-        """Leave route state unchanged after the authoritative termination refresh.
-
-        :class:`ManagerBasedRLEnv` evaluates terminations before rewards, so
-        :func:`route_complete` refreshes the live route geometry at the only
-        point needed by both consumers. Episode resets also refresh the state
-        while assigning the matching route. Recomputing here would duplicate
-        the full winding calculation once per policy step.
-        """
-        pass
+        """Keep route state current even when a task variant omits success terms."""
+        self.ensure_route_state_current()
 
     def _set_debug_vis_impl(self, debug_vis: bool) -> None:
         if debug_vis:

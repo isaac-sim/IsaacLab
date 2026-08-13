@@ -76,7 +76,7 @@ def test_goal_geometry_and_gripper_reward_use_physical_pad_midpoints() -> None:
     cable = SimpleNamespace(
         data=SimpleNamespace(segment_pose_w=_tensor_proxy(torch.nn.functional.pad(cable_points, (0, 4))))
     )
-    command = SimpleNamespace(active_peg_positions_w=target)
+    command = SimpleNamespace(active_peg_positions_w=target, ensure_route_state_current=lambda: None)
     env = SimpleNamespace(
         scene=_scene(cable=cable, left=left, right=right),
         command_manager=SimpleNamespace(get_term=lambda _name: command),

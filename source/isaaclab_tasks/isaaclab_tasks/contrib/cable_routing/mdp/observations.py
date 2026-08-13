@@ -17,9 +17,10 @@ from ..yam_frames import yam_contact_frame_position_w
 def route_task_state(env, command_name: str) -> torch.Tensor:
     """Return active-step, completion, and directed-winding state."""
     command = env.command_manager.get_term(command_name)
+    command.ensure_route_state_current()
     active = torch.nn.functional.one_hot(command.active_step, num_classes=command.cfg.max_route_steps).float()
     route_length = command.valid_steps.sum(dim=1, keepdim=True).float() / command.cfg.max_route_steps
-    return torch.cat(
+    state = torch.cat(
         [
             active,
             command.completed_steps.float(),
@@ -29,6 +30,7 @@ def route_task_state(env, command_name: str) -> torch.Tensor:
         ],
         dim=-1,
     )
+    return torch.nan_to_num(state, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 def active_goal_geometry(
@@ -40,12 +42,19 @@ def active_goal_geometry(
 ) -> torch.Tensor:
     """Ground the active route token in gripper and cable geometry [m]."""
     command = env.command_manager.get_term(command_name)
-    target = command.active_peg_positions_w
-    cable_points = env.scene[cable_cfg.name].data.segment_pose_w.torch[..., :3]
+    command.ensure_route_state_current()
+    target = torch.nan_to_num(command.active_peg_positions_w, nan=0.0, posinf=0.0, neginf=0.0)
+    cable_points = torch.nan_to_num(
+        env.scene[cable_cfg.name].data.segment_pose_w.torch[..., :3], nan=0.0, posinf=0.0, neginf=0.0
+    )
     left_robot = env.scene[left_ee_cfg.name]
     right_robot = env.scene[right_ee_cfg.name]
-    left_ee = yam_contact_frame_position_w(left_robot, left_ee_cfg.body_ids[0])
-    right_ee = yam_contact_frame_position_w(right_robot, right_ee_cfg.body_ids[0])
+    left_ee = torch.nan_to_num(
+        yam_contact_frame_position_w(left_robot, left_ee_cfg.body_ids[0]), nan=0.0, posinf=0.0, neginf=0.0
+    )
+    right_ee = torch.nan_to_num(
+        yam_contact_frame_position_w(right_robot, right_ee_cfg.body_ids[0]), nan=0.0, posinf=0.0, neginf=0.0
+    )
 
     endpoint_error = cable_points[:, (0, -1)] - target[:, None, :]
     cable_distance = torch.linalg.vector_norm(cable_points - target[:, None, :], dim=-1).amin(dim=1, keepdim=True)
@@ -53,7 +62,7 @@ def active_goal_geometry(
     right_cable_distance = torch.linalg.vector_norm(cable_points - right_ee[:, None, :], dim=-1).amin(
         dim=1, keepdim=True
     )
-    return torch.cat(
+    geometry = torch.cat(
         [
             target - left_ee,
             target - right_ee,
@@ -64,6 +73,35 @@ def active_goal_geometry(
         ],
         dim=-1,
     )
+    return torch.nan_to_num(geometry, nan=0.0, posinf=0.0, neginf=0.0)
+
+
+def finite_last_action(env, action_name: str | None = None) -> torch.Tensor:
+    """Return the bounded action that the task's action terms can apply."""
+    action = env.action_manager.action if action_name is None else env.action_manager.get_term(action_name).raw_actions
+    return torch.nan_to_num(action, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0)
+
+
+def finite_joint_pos_rel(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Return limit-bounded relative joint positions with invalid values replaced by defaults."""
+    asset = env.scene[asset_cfg.name]
+    position = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
+    default = asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+    limits = asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids]
+    position = torch.where(torch.isfinite(position), position, default)
+    position = torch.maximum(torch.minimum(position, limits[..., 1]), limits[..., 0])
+    return position - default
+
+
+def finite_joint_vel_rel(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Return bounded relative joint velocities with invalid values replaced by defaults."""
+    asset = env.scene[asset_cfg.name]
+    velocity = asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
+    default = asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
+    limits = asset.data.soft_joint_vel_limits.torch[:, asset_cfg.joint_ids]
+    velocity = torch.where(torch.isfinite(velocity), velocity, default)
+    velocity = torch.maximum(torch.minimum(velocity, 2.0 * limits), -2.0 * limits)
+    return velocity - default
 
 
 def sampled_cable_state_b(env, asset_cfg: SceneEntityCfg, num_samples: int = 32) -> torch.Tensor:
@@ -91,4 +129,5 @@ def sampled_cable_state_b(env, asset_cfg: SceneEntityCfg, num_samples: int = 32)
     tangent = torch.nn.functional.normalize(
         positions_w[:, tangent_end_ids] - positions_w[:, tangent_start_ids], dim=-1, eps=1.0e-8
     )
-    return torch.cat([positions_b, velocities, tangent], dim=-1).flatten(start_dim=1)
+    state = torch.cat([positions_b, velocities, tangent], dim=-1).flatten(start_dim=1)
+    return torch.nan_to_num(state, nan=0.0, posinf=0.0, neginf=0.0)

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyCfg
+from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
 import isaaclab.envs.mdp as env_mdp
 import isaaclab.sim as sim_utils
@@ -27,11 +28,12 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable import NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable import VBDSolverCfg
 
 from . import mdp
 
@@ -61,7 +63,11 @@ CABLE_RADIUS = 0.5 * CABLE_THICKNESS
 ROUTE_AXIAL_CUTOFF = 0.5 * PEG_HEIGHT + CABLE_RADIUS
 """Cable-center height range whose surface can overlap the finite peg [m]."""
 CABLE_CENTER_Z = BOARD_TOP_Z + CABLE_RADIUS + 0.002
-CABLE_CONTACT_FRICTION = 60.0
+CABLE_CONTACT_FRICTION = 5.0
+YAM_CONTACT_FRICTION = 5.0
+FIXTURE_CONTACT_FRICTION = 0.5
+CONTACT_STIFFNESS = 4.0e4
+CONTACT_DAMPING = 1.0e-5
 YAM_BASE_COLLISION_DEPTH = 0.017
 YAM_BASE_Z = TABLE_TOP_Z + YAM_BASE_COLLISION_DEPTH
 YAM_VISUAL_BASE_DEPTH = 0.07
@@ -88,6 +94,22 @@ PEG_BASE_POSITIONS_B = (
     ((20.0 - 15.5) * 0.01, (15.0 - 20.5) * 0.01, PEG_CENTER_Z),
     ((12.0 - 15.5) * 0.01, (29.0 - 20.5) * 0.01, PEG_CENTER_Z),
 )
+
+
+def _make_rigid_contact_material(
+    friction: float,
+) -> list[UsdPhysicsRigidBodyMaterialCfg | NewtonMaterialCfg]:
+    """Create one explicit rigid-contact material for Newton-backed assets."""
+    return [
+        UsdPhysicsRigidBodyMaterialCfg(
+            static_friction=friction,
+            dynamic_friction=friction,
+        ),
+        NewtonMaterialCfg(
+            contact_stiffness=CONTACT_STIFFNESS,
+            contact_damping=CONTACT_DAMPING,
+        ),
+    ]
 
 
 def _make_neutral_rounded_cable_positions() -> list[tuple[float, float, float]]:
@@ -151,6 +173,7 @@ def _make_yam_cfg(prim_path: str, position: tuple[float, float, float], yaw: flo
         spawn=sim_utils.UsdFileCfg(
             usd_path=YAM_USD_PATH,
             copy_from_source=False,
+            physics_material=_make_rigid_contact_material(YAM_CONTACT_FRICTION),
             # The converted Menagerie package retains legacy
             # ``mjc:body:gravcomp`` metadata.  Author the current Newton schema
             # spelling explicitly and route compensation through each drive so
@@ -213,6 +236,7 @@ def _make_peg_cfg(name: str, position: tuple[float, float, float]) -> RigidObjec
         spawn=sim_utils.UsdFileCfg(
             usd_path=ROUND_PEG_USD_PATH,
             copy_from_source=False,
+            physics_material=_make_rigid_contact_material(FIXTURE_CONTACT_FRICTION),
             rigid_props=sim_utils.RigidBodyBaseCfg(
                 kinematic_enabled=True,
             ),
@@ -248,6 +272,7 @@ class CableRoutingSceneCfg(InteractiveSceneCfg):
             size=(1.10, 0.80, TABLE_TOP_Z),
             rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
             collision_props=sim_utils.CollisionBaseCfg(),
+            physics_material=_make_rigid_contact_material(FIXTURE_CONTACT_FRICTION),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.32, 0.23, 0.16)),
         ),
     )
@@ -257,6 +282,7 @@ class CableRoutingSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=BOARD_USD_PATH,
             copy_from_source=False,
+            physics_material=_make_rigid_contact_material(FIXTURE_CONTACT_FRICTION),
             rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
             collision_props=sim_utils.CollisionBaseCfg(contact_offset=0.002, rest_offset=0.0),
         ),
@@ -283,7 +309,10 @@ class CableRoutingSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
-        spawn=sim_utils.GroundPlaneCfg(color=(0.20, 0.20, 0.20)),
+        spawn=sim_utils.GroundPlaneCfg(
+            color=(0.20, 0.20, 0.20),
+            physics_material=_make_rigid_contact_material(FIXTURE_CONTACT_FRICTION),
+        ),
         collision_group=-1,
     )
     sky_light = AssetBaseCfg(
@@ -296,27 +325,27 @@ class CableRoutingSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Fourteen actions: six relative arm joints and one binary gripper per YAM."""
 
-    left_arm = env_mdp.RelativeJointPositionActionCfg(
+    left_arm = mdp.FiniteRelativeJointPositionActionCfg(
         asset_name="yam_left",
         joint_names=["joint[1-6]"],
         scale=0.04,
         use_zero_offset=True,
         preserve_order=True,
     )
-    left_gripper = env_mdp.BinaryJointPositionActionCfg(
+    left_gripper = mdp.FiniteBinaryJointPositionActionCfg(
         asset_name="yam_left",
         joint_names=["left_finger"],
         open_command_expr={"left_finger": YAM_GRIPPER_OPEN_POS},
         close_command_expr={"left_finger": YAM_GRIPPER_CLOSED_POS},
     )
-    right_arm = env_mdp.RelativeJointPositionActionCfg(
+    right_arm = mdp.FiniteRelativeJointPositionActionCfg(
         asset_name="yam_right",
         joint_names=["joint[1-6]"],
         scale=0.04,
         use_zero_offset=True,
         preserve_order=True,
     )
-    right_gripper = env_mdp.BinaryJointPositionActionCfg(
+    right_gripper = mdp.FiniteBinaryJointPositionActionCfg(
         asset_name="yam_right",
         joint_names=["left_finger"],
         open_command_expr={"left_finger": YAM_GRIPPER_OPEN_POS},
@@ -361,7 +390,7 @@ class ObservationsCfg:
                 "right_ee_cfg": SceneEntityCfg("yam_right", body_names=["link_6"]),
             },
         )
-        actions = ObsTerm(func=env_mdp.last_action)
+        actions = ObsTerm(func=mdp.finite_last_action)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -370,21 +399,21 @@ class ObservationsCfg:
     @configclass
     class ProprioCfg(ObsGroup):
         left_joint_pos = ObsTerm(
-            func=env_mdp.joint_pos_rel,
+            func=mdp.finite_joint_pos_rel,
             params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
         )
         left_joint_vel = ObsTerm(
-            func=env_mdp.joint_vel_rel,
+            func=mdp.finite_joint_vel_rel,
             params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
         )
         right_joint_pos = ObsTerm(
-            func=env_mdp.joint_pos_rel,
+            func=mdp.finite_joint_pos_rel,
             params={
                 "asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]", "left_finger", "right_finger"])
             },
         )
         right_joint_vel = ObsTerm(
-            func=env_mdp.joint_vel_rel,
+            func=mdp.finite_joint_vel_rel,
             params={
                 "asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]", "left_finger", "right_finger"])
             },
@@ -479,14 +508,14 @@ class RewardsCfg:
         weight=-0.25,
         params={"cable_cfg": SceneEntityCfg("cable"), "rest_length": CABLE_SEGMENT_LENGTH},
     )
-    action_rate = RewTerm(func=env_mdp.action_rate_l2, weight=-0.002)
+    action_rate = RewTerm(func=mdp.finite_action_rate_l2, weight=-0.002)
     left_joint_velocity = RewTerm(
-        func=env_mdp.joint_vel_l2,
+        func=mdp.finite_joint_vel_l2,
         weight=-0.0001,
         params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]"])},
     )
     right_joint_velocity = RewTerm(
-        func=env_mdp.joint_vel_l2,
+        func=mdp.finite_joint_vel_l2,
         weight=-0.0001,
         params={"asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]"])},
     )
@@ -500,6 +529,15 @@ class TerminationsCfg:
     invalid_cable = DoneTerm(
         func=mdp.cable_invalid_or_out_of_bounds,
         params={"asset_cfg": SceneEntityCfg("cable")},
+    )
+    invalid_robot_or_action = DoneTerm(
+        func=mdp.robot_or_action_invalid,
+        params={
+            "robot_cfgs": [
+                SceneEntityCfg("yam_left"),
+                SceneEntityCfg("yam_right"),
+            ]
+        },
     )
     time_out = DoneTerm(func=env_mdp.time_out, time_out=True)
 
@@ -563,7 +601,7 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
                         source="rigid",
                         destination="cable",
                         bodies=[
-                            r"/World/envs/env_.*/Yam(Left|Right)/Geometry/arm/link_1/link_2/link_3/link_4/link_5/link_6",
+                            r"/World/envs/env_.*/Yam(Left|Right)",
                             r"/World/envs/env_.*/(Table|Board)",
                             r"/World/envs/env_.*/Peg(0|1)",
                         ],
@@ -575,16 +613,16 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
                     )
                 ],
                 iterations=1,
-                model_cfg=NewtonModelCfg(
-                    soft_contact_ke=1.0e4,
-                    soft_contact_kd=1.0e-5,
-                    # Initial calibration target reported for stable YAM fingertip grasps.
-                    soft_contact_mu=CABLE_CONTACT_FRICTION,
-                ),
             ),
-            # Newton sums both shapes' gaps. A 1 mm gap preserves early contact while
-            # avoiding the default 20 mm pair envelope that overloads packed cable resets.
-            default_shape_cfg=NewtonShapeCfg(gap=0.001, ke=4.0e4, kd=1.0e-5, mu=5.0),
+            # CableCfg generates rigid capsules directly from the builder defaults; imported
+            # robots and fixtures use the explicit materials above. Newton sums both shapes'
+            # gaps, so 1 mm preserves early contact without the default 20 mm pair envelope.
+            default_shape_cfg=NewtonShapeCfg(
+                gap=0.001,
+                ke=CONTACT_STIFFNESS,
+                kd=CONTACT_DAMPING,
+                mu=CABLE_CONTACT_FRICTION,
+            ),
             num_substeps=10,
             use_cuda_graph=True,
         ),

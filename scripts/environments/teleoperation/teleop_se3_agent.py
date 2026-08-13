@@ -18,12 +18,9 @@ The script automatically detects which stack to use based on the environment con
 
 """Launch Isaac Sim Simulator first."""
 
-# Import the checkout's pinned Warp before Kit starts. Otherwise the XR
-# experience may satisfy the first ``warp`` import from its bundled
-# ``omni.warp.core`` 1.13 extension, which is incompatible with Newton's Warp
-# 1.16 API and mixes the two packages at environment creation time.
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
 import warp as wp
-import warp.fem  # noqa: F401
 
 wp.config.enable_backward = False
 
@@ -63,15 +60,6 @@ parser.add_argument(
     action=argparse.BooleanOptionalAction,
     default=True,
     help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
-)
-parser.add_argument(
-    "--auto_start_teleop",
-    action=argparse.BooleanOptionalAction,
-    default=False,
-    help=(
-        "Start IsaacTeleop locally instead of waiting for the XR client's Play command. Disabled by default for"
-        " operator safety; use --auto_start_teleop for an explicit hands-free start."
-    ),
 )
 parser.add_argument(
     "--enable_debug_visualization",
@@ -145,62 +133,6 @@ from isaaclab_tasks.utils import parse_env_cfg
 logger = logging.getLogger(__name__)
 
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
-
-
-class _IsaacTeleopStatusReporter:
-    """Print IsaacTeleop state transitions without adding per-frame log noise.
-
-    Tracking diagnostics are intentionally derived from the raw bimanual pose
-    slices before an environment-specific adapter can turn an invalid pose into
-    a zero joint command. This makes a paused control channel distinguishable
-    from a left- or right-hand tracking dropout.
-    """
-
-    _POSE_SLICES = {"LEFT": slice(0, 7), "RIGHT": slice(8, 15)}
-    _BIMANUAL_POSE_ACTION_DIM = 16
-    _RIGHT_ONLY_POSE_SLICES = {"RIGHT": slice(0, 7)}
-    _RIGHT_ONLY_POSE_ACTION_DIM = 8
-
-    def __init__(self, report_bimanual_tracking: bool):
-        self._report_bimanual_tracking = report_bimanual_tracking
-        self._session_ready: bool | None = None
-        self._control_active: bool | None = None
-        self._tracking = {side: None for side in self._POSE_SLICES}
-
-    def update(self, action: torch.Tensor | None, control_active: bool) -> None:
-        """Report only session, control, and per-hand tracking transitions."""
-        session_ready = action is not None
-        if session_ready != self._session_ready:
-            state = "XR_SESSION_READY" if session_ready else "WAITING_FOR_XR_SESSION"
-            print(f"IsaacTeleop status: {state}")
-            self._session_ready = session_ready
-
-        if not session_ready:
-            # Session re-entry should announce fresh control/tracking state even
-            # when it happens to match the state before the disconnect.
-            self._control_active = None
-            self._tracking = {side: None for side in self._POSE_SLICES}
-            return
-
-        if self._report_bimanual_tracking:
-            raw_action = torch.as_tensor(action).reshape(-1)
-            pose_slices = None
-            if raw_action.numel() == self._BIMANUAL_POSE_ACTION_DIM:
-                pose_slices = self._POSE_SLICES
-            elif raw_action.numel() == self._RIGHT_ONLY_POSE_ACTION_DIM:
-                pose_slices = self._RIGHT_ONLY_POSE_SLICES
-            if pose_slices is not None:
-                for side, pose_slice in pose_slices.items():
-                    tracking = bool(torch.isfinite(raw_action[pose_slice]).all())
-                    if tracking != self._tracking[side]:
-                        state = "ACQUIRED" if tracking else "LOST"
-                        print(f"IsaacTeleop status: TRACKING_{side}_{state}")
-                        self._tracking[side] = tracking
-
-        if control_active != self._control_active:
-            state = "RUNNING" if control_active else "PAUSED"
-            print(f"IsaacTeleop status: CONTROL_{state}")
-            self._control_active = control_active
 
 
 def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
@@ -313,22 +245,6 @@ def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window:
         return None
 
 
-def _create_teleop_action_adapter(env_cfg, env, use_isaac_teleop: bool):
-    """Create an optional environment-specific IsaacTeleop action adapter."""
-    adapter_cfg = getattr(env_cfg, "teleop_action_adapter", None)
-    if not use_isaac_teleop or adapter_cfg is None:
-        return None
-    adapter_type = adapter_cfg.class_type
-    if isinstance(adapter_type, str):
-        adapter_type = string_to_callable(adapter_type)
-    adapter = adapter_type(adapter_cfg, env.unwrapped)
-    required_methods = ("process", "reset", "prewarm")
-    missing_methods = [name for name in required_methods if not callable(getattr(adapter, name, None))]
-    if missing_methods:
-        raise TypeError(f"teleop_action_adapter is missing callable methods: {missing_methods}.")
-    return adapter
-
-
 def main() -> None:  # noqa: C901
     """
     Run teleoperation with an Isaac Lab manipulation environment.
@@ -403,15 +319,14 @@ def main() -> None:  # noqa: C901
                 f"The environment '{args_cli.task}' does not support gripper control. The device command will be"
                 " ignored."
             )
-    except Exception:
-        logger.exception("Failed to create environment")
+    except Exception as e:
+        logger.error(f"Failed to create environment: {e}")
         simulation_app.close()
         return
 
     # Flags for controlling teleoperation flow
     should_reset_recording_instance = False
     teleoperation_active = True
-    teleop_action_adapter = _create_teleop_action_adapter(env_cfg, env, use_isaac_teleop)
 
     # Callback handlers
     def reset_recording_instance() -> None:
@@ -437,8 +352,6 @@ def main() -> None:  # noqa: C901
             None
         """
         nonlocal teleoperation_active
-        if teleop_action_adapter is not None:
-            teleop_action_adapter.reset()
         teleoperation_active = True
         print("Teleoperation activated")
 
@@ -548,11 +461,6 @@ def main() -> None:  # noqa: C901
     # carb input subscription is not garbage-collected; a headless run auto-starts
     # (in ``run_loop``) without it.
     control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, app_launcher.has_window)  # noqa: F841
-    status_reporter = (
-        _IsaacTeleopStatusReporter(report_bimanual_tracking=teleop_action_adapter is not None)
-        if use_isaac_teleop
-        else None
-    )
 
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
@@ -561,22 +469,11 @@ def main() -> None:  # noqa: C901
         # reset environment
         env.reset()
         teleop_interface.reset()
-        if teleop_action_adapter is not None:
-            teleop_action_adapter.reset()
-            # Compile/capture IK and execute one safe hold step before accepting
-            # XR input so neither first-use cost appears on the first hand frame.
-            prewarm_action = teleop_action_adapter.prewarm().unsqueeze(0)
-            env.step(prewarm_action.repeat(env.num_envs, 1))
-            env.reset()
-            teleop_action_adapter.reset()
 
-        # Standalone sessions have no headset START command. XR sessions stay
-        # paused for operator safety unless auto-start was explicitly requested
-        # on the CLI or by the environment configuration.
-        should_auto_start = use_isaac_teleop and (
-            not args_cli.xr or args_cli.auto_start_teleop or env_cfg.isaac_teleop.teleoperation_active_default
-        )
-        if should_auto_start:
+        # Without --xr there is no headset to send START, so start locally ([B]/[P] can
+        # still pause/resume). The reset() above is a host reset (a pure pulse), so it does
+        # not cancel this start.
+        if use_isaac_teleop and not args_cli.xr:
             teleop_interface.request_start()
 
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
@@ -596,27 +493,17 @@ def main() -> None:  # noqa: C901
                             teleoperation_active = ctrl.is_active
                         if ctrl.should_reset:
                             should_reset_recording_instance = True
-                        assert status_reporter is not None
-                        status_reporter.update(action, teleoperation_active)
 
                     # action is None when IsaacTeleop session hasn't started yet
                     # (e.g. waiting for user to click "Start AR")
                     if action is None:
-                        if teleop_action_adapter is not None:
-                            teleop_action_adapter.reset()
                         env.sim.render()
                         haptic_stop()
                     elif teleoperation_active:
                         # process actions
-                        if teleop_action_adapter is not None:
-                            action = teleop_action_adapter.process(action)
                         actions = action.repeat(env.num_envs, 1)
                         # apply actions
-                        _, _, terminated, truncated, _ = env.step(actions)
-                        if teleop_action_adapter is not None and bool(torch.any(terminated | truncated)):
-                            # Manager-based environments reset completed episodes inside step().
-                            # Release pre-reset clutch references before accepting the next XR pose.
-                            teleop_action_adapter.reset()
+                        env.step(actions)
                         # render controller haptics from post-step contact forces
                         haptic_update()
                     else:
@@ -627,8 +514,6 @@ def main() -> None:  # noqa: C901
                     if should_reset_recording_instance:
                         env.reset()
                         teleop_interface.reset()
-                        if teleop_action_adapter is not None:
-                            teleop_action_adapter.reset()
                         camera_feed_session.refresh()
                         should_reset_recording_instance = False
                         print("Environment reset complete")

@@ -30,12 +30,3 @@ _register_environment("IsaacContrib-CableRouting-YAM-Peg0-CCW", "CableRoutingPeg
 _register_environment("IsaacContrib-CableRouting-YAM-Peg1-CW", "CableRoutingPeg1CWEnvCfg")
 _register_environment("IsaacContrib-CableRouting-YAM-Tier1-Pegs", "CableRoutingTier1PegsEnvCfg")
 _register_environment("IsaacContrib-CableRouting-YAM-SevenGoals", "CableRoutingSevenGoalsEnvCfg")
-
-gym.register(
-    id="IsaacContrib-CableRouting-YAM-AVP-Teleop",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.cable_routing_avp_env_cfg:CableRoutingAVPTeleopEnvCfg",
-    },
-)

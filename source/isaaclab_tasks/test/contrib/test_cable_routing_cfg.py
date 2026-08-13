@@ -15,6 +15,7 @@ import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyCfg
+from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
 from pxr import UsdUtils
 
@@ -26,6 +27,7 @@ from isaaclab.envs.mdp import (
     OperationalSpaceControllerActionCfg,
     RelativeJointPositionActionCfg,
 )
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 
 from isaaclab_contrib.coupling import CouplerProxyCfg
 from isaaclab_contrib.deformable import VBDSolverCfg
@@ -224,8 +226,10 @@ def test_cable_routing_route_programs_reject_ambiguous_goal_definitions(
 
 
 def test_cable_routing_post_step_command_update_does_not_duplicate_route_refresh(monkeypatch) -> None:
-    """Termination evaluation owns the one route-geometry refresh per policy step."""
+    """The command update reuses route geometry already refreshed for this policy step."""
     command = object.__new__(CableRoutingCommand)
+    command._env = SimpleNamespace(common_step_counter=7)
+    command._route_state_step = 7
 
     def unexpected_refresh(*args, **kwargs) -> None:
         raise AssertionError("_update_command must not recompute route geometry")
@@ -504,7 +508,8 @@ def test_cable_routing_uses_complete_credential_free_yam_snapshot() -> None:
 
 def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
     """Test rigid fixtures use MJWarp and enter the cable's VBD view only as proxies."""
-    physics = CableRoutingEnvCfg().sim.physics
+    cfg = CableRoutingEnvCfg()
+    physics = cfg.sim.physics
 
     assert isinstance(physics, NewtonCfg)
     assert physics.num_substeps == 10
@@ -547,11 +552,28 @@ def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
     assert proxy.collide_interval == 2
     assert physics.num_substeps % proxy.collide_interval == 0
     assert proxy.bodies == [
-        r"/World/envs/env_.*/Yam(Left|Right)/Geometry/arm/link_1/link_2/link_3/link_4/link_5/link_6",
+        r"/World/envs/env_.*/Yam(Left|Right)",
         r"/World/envs/env_.*/(Table|Board)",
         r"/World/envs/env_.*/Peg(0|1)",
     ]
-    assert coupler.model_cfg.soft_contact_mu == 60.0
+    assert coupler.model_cfg is None
+
+    for asset_cfg, expected_friction in (
+        (cfg.scene.yam_left, 5.0),
+        (cfg.scene.yam_right, 5.0),
+        (cfg.scene.table, 0.5),
+        (cfg.scene.board, 0.5),
+        (cfg.scene.peg_0, 0.5),
+        (cfg.scene.peg_1, 0.5),
+        (cfg.scene.ground, 0.5),
+    ):
+        usd_material, newton_material = asset_cfg.spawn.physics_material
+        assert isinstance(usd_material, UsdPhysicsRigidBodyMaterialCfg)
+        assert usd_material.static_friction == expected_friction
+        assert usd_material.dynamic_friction == expected_friction
+        assert isinstance(newton_material, NewtonMaterialCfg)
+        assert newton_material.contact_stiffness == 4.0e4
+        assert newton_material.contact_damping == 1.0e-5
 
 
 def test_cable_routing_cable_matches_length_resolution_and_material_targets() -> None:

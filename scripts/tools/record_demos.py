@@ -31,12 +31,9 @@ optional arguments:
 
 """Launch Isaac Sim Simulator first."""
 
-# Import the checkout's pinned Warp before Kit starts. Otherwise the XR
-# experience may satisfy the first ``warp`` import from its bundled
-# ``omni.warp.core`` 1.13 extension, which is incompatible with Newton's Warp
-# 1.16 API and mixes the two packages at environment creation time.
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
 import warp as wp
-import warp.fem  # noqa: F401
 
 wp.config.enable_backward = False
 
@@ -102,15 +99,6 @@ parser.add_argument(
     action=argparse.BooleanOptionalAction,
     default=True,
     help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
-)
-parser.add_argument(
-    "--auto_start_teleop",
-    action=argparse.BooleanOptionalAction,
-    default=False,
-    help=(
-        "Start IsaacTeleop locally instead of waiting for the XR client's Play command. Disabled by default for"
-        " operator safety; use --auto_start_teleop for an explicit hands-free start."
-    ),
 )
 parser.add_argument(
     "--mcap_record_path",
@@ -498,22 +486,6 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
     return teleop_interface
 
 
-def _create_teleop_action_adapter(env_cfg, env, use_isaac_teleop: bool):
-    """Create an optional environment-specific IsaacTeleop action adapter."""
-    adapter_cfg = getattr(env_cfg, "teleop_action_adapter", None)
-    if not use_isaac_teleop or adapter_cfg is None:
-        return None
-    adapter_type = adapter_cfg.class_type
-    if isinstance(adapter_type, str):
-        adapter_type = string_to_callable(adapter_type)
-    adapter = adapter_type(adapter_cfg, env.unwrapped)
-    required_methods = ("process", "reset", "prewarm")
-    missing_methods = [name for name in required_methods if not callable(getattr(adapter, name, None))]
-    if missing_methods:
-        raise TypeError(f"teleop_action_adapter is missing callable methods: {missing_methods}.")
-    return adapter
-
-
 def setup_ui(label_text: str, env: gym.Env) -> InstructionDisplay:
     """Set up the user interface elements.
 
@@ -636,7 +608,6 @@ def run_simulation_loop(  # noqa: C901
     current_recorded_demo_count = 0
     success_step_count = 0
     should_reset_recording_instance = False
-    teleop_action_adapter = None
     # For IsaacTeleop or XR, default to inactive until START is triggered. Without
     # --xr, recording is started locally (see ``request_start`` below) instead of by
     # a headset; it flows through the same state machine so keyboard/host pause/resume
@@ -657,8 +628,6 @@ def run_simulation_loop(  # noqa: C901
 
     def start_recording_instance():
         nonlocal running_recording_instance
-        if teleop_action_adapter is not None:
-            teleop_action_adapter.reset()
         running_recording_instance = True
         print("Recording started")
 
@@ -678,7 +647,6 @@ def run_simulation_loop(  # noqa: C901
     }
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
-    teleop_action_adapter = _create_teleop_action_adapter(env_cfg, env, use_isaac_teleop)
 
     # Optional controller haptics: no-ops unless the env declares a
     # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
@@ -724,22 +692,11 @@ def run_simulation_loop(  # noqa: C901
             env.sim.reset()
         env.reset()
         teleop_interface.reset()
-        if teleop_action_adapter is not None:
-            teleop_action_adapter.reset()
-            # Keep compilation and the first Newton physics tick outside the
-            # operator-controlled trajectory, then restore a clean episode.
-            prewarm_action = teleop_action_adapter.prewarm().unsqueeze(0)
-            env.step(prewarm_action.repeat(env.num_envs, 1))
-            env.reset()
-            teleop_action_adapter.reset()
 
-        # Standalone sessions have no headset START command. XR sessions stay
-        # paused for operator safety unless auto-start was explicitly requested
-        # on the CLI or by the environment configuration.
-        should_auto_start = use_isaac_teleop and (
-            not args_cli.xr or args_cli.auto_start_teleop or env_cfg.isaac_teleop.teleoperation_active_default
-        )
-        if should_auto_start:
+        # Without --xr there is no headset to send START, so drive the IsaacTeleop
+        # state machine to RUNNING locally ([B]/[P] can still pause/resume). The reset()
+        # above is a host reset (a pure pulse), so it does not cancel this start.
+        if use_isaac_teleop and not args_cli.xr:
             teleop_interface.request_start()
 
         subtasks = {}
@@ -762,24 +719,16 @@ def run_simulation_loop(  # noqa: C901
                         should_reset_recording_instance = True
 
                 if action is None:
-                    if teleop_action_adapter is not None:
-                        teleop_action_adapter.reset()
                     env.sim.render()
                     haptic_stop()
                     continue
                 # Expand to batch dimension
-                if teleop_action_adapter is not None:
-                    action = teleop_action_adapter.process(action)
                 actions = action.repeat(env.num_envs, 1)
 
                 # Perform action on environment
                 if running_recording_instance:
                     # Compute actions based on environment
                     obv = env.step(actions)
-                    if teleop_action_adapter is not None and bool(torch.any(obv[2] | obv[3])):
-                        # Manager-based environments reset completed episodes inside step().
-                        # Release pre-reset clutch references before accepting the next XR pose.
-                        teleop_action_adapter.reset()
                     # render controller haptics from post-step contact forces
                     haptic_update()
                     if subtasks is not None:
@@ -827,8 +776,6 @@ def run_simulation_loop(  # noqa: C901
                     success_step_count = handle_reset(
                         env, success_step_count, instruction_display, label_text, teleop_interface
                     )
-                    if teleop_action_adapter is not None:
-                        teleop_action_adapter.reset()
                     camera_feed_session.refresh()
                     should_reset_recording_instance = False
 
