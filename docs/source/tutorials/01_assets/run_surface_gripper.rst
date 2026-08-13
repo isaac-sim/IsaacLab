@@ -138,14 +138,14 @@ To run the code and see the results, let's run the script from the terminal:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device cpu
+         uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device cpu --viz kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device cpu
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device cpu --viz kit
 
 
 This command should open a stage with a ground plane, lights, and two pick-and-place robots.
@@ -170,14 +170,14 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
-         uv run --extra isaacsim python scripts/demos/pick_and_place.py
+         uv run --extra isaacsim python scripts/demos/pick_and_place.py --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
-         ./isaaclab.sh -p scripts/demos/pick_and_place.py
+         ./isaaclab.sh -p scripts/demos/pick_and_place.py --viz kit
 
 Note that in practice, the users would be expected to register their :class:`assets.SurfaceGripper` instances inside
 a :class:`isaaclab.InteractiveScene` object, which will automatically handle the calls to the
