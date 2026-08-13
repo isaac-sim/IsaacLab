@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import itertools
 import logging
 import re
 from collections.abc import Callable
@@ -375,7 +374,8 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     The expression is a plain Python regular expression matched against the *whole* prim path.
     Standard regex semantics apply: ``.`` matches any character including ``/``, so
     ``/World/Robot/.*`` selects every descendant at any depth, while ``[^/]+`` confines a
-    wildcard to a single path segment.
+    wildcard to a single path segment. Every prim on the stage is tested; the expression does not
+    imply a traversal root or depth limit.
 
     Args:
         prim_path_regex: The regex expression for prim path.
@@ -397,49 +397,12 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     if not prim_path_regex.startswith("/"):
         raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
 
-    pattern = re.compile(f"^{prim_path_regex}$")
-    # the expression itself bounds the walk -- see _bound_search
-    root_path, max_depth = _bound_search(prim_path_regex)
-
-    root = stage.GetPrimAtPath(root_path) if root_path else stage.GetPseudoRoot()
-    if not root.IsValid():
-        return []
-
+    pattern = re.compile(prim_path_regex)
     output_prims = []
-    iterator = iter(Usd.PrimRange(root, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)))
-    for prim in iterator:
-        prim_path = prim.GetPath().pathString
-        if pattern.match(prim_path) is not None:
+    for prim in Usd.PrimRange(stage.GetPseudoRoot(), Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)):
+        if pattern.fullmatch(prim.GetPath().pathString) is not None:
             output_prims.append(prim)
-        if max_depth is not None and prim_path.count("/") >= max_depth:
-            iterator.PruneChildren()
     return output_prims
-
-
-_REGEX_METACHARACTERS = set(".*+?[]{}()|^$\\\x00")
-
-
-def _bound_search(prim_path_regex: str) -> tuple[str, int | None]:
-    """Return the prim path a search may start from and the depth it may stop at.
-
-    Both come from the expression, which is what keeps whole-path matching from implying a
-    whole-stage traversal.
-
-    Args:
-        prim_path_regex: The whole-path regular expression to bound.
-
-    Returns:
-        ``(root_path, max_depth)``; ``root_path`` is empty when the first segment is already a
-        pattern, and ``max_depth`` is None when a wildcard can consume a ``/``.
-    """
-    # mask classes before splitting: '[^/]' holds a '/' that is not a separator. The placeholder
-    # is itself a metacharacter, so a masked segment is never mistaken for a literal one.
-    masked = _CHARACTER_CLASS.sub("\x00", prim_path_regex)
-    segments = masked.split("/")[1:]
-    literal = list(itertools.takewhile(lambda s: s and not _REGEX_METACHARACTERS & set(s), segments))
-    # an unescaped '.' outside a class matches '/', so the expression can reach any depth
-    unbounded = re.search(r"(?<!\\)\.", masked) is not None
-    return ("/" + "/".join(literal) if literal else "", None if unbounded else len(segments))
 
 
 def resolve_matching_prims_from_source(

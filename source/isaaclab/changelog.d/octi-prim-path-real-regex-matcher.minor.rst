@@ -21,7 +21,8 @@ Changed
 * **Breaking:** Changed :func:`~isaaclab.sim.utils.find_matching_prims` to match the whole prim
   path as a plain regular expression instead of one token per path segment. ``.`` now matches
   ``/``, so ``/World/Robot/.*`` selects descendants at any depth; use ``[^/]+`` for a single
-  segment.
+  segment. Every prim on the stage is tested, without inferring a traversal root or depth limit
+  from the expression.
 * Changed :func:`~isaaclab.sim.utils.find_first_matching_prim` to delegate to
   :func:`~isaaclab.sim.utils.find_matching_prims`, so both read an expression the same way.
 * Changed the environment namespace to spell its slot ``[^/]+`` rather than ``.*``, so

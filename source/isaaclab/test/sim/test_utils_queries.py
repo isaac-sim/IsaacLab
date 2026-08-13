@@ -13,6 +13,10 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import ast
+import inspect
+import textwrap
+
 import pytest
 
 from pxr import UsdPhysics
@@ -95,6 +99,43 @@ def test_matches_path_expr_prefix():
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot/base")
+
+
+def test_find_matching_prims_uses_unbounded_full_path_regex():
+    """Regex tokens retain their Python semantics across prim path separators."""
+    sim_utils.create_prim("/World/Robot/foo")
+    sim_utils.create_prim("/World/Robot/foo/bar")
+    sim_utils.create_prim("/World/Robot/Arm")
+
+    matches = sim_utils.find_matching_prims(r"/World/Robot/[^A]+")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/Robot/foo/bar"]
+
+
+def test_find_matching_prims_has_no_inferred_traversal_bounds():
+    """The query must not narrow or prune USD traversal from the user's regex."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(sim_utils.find_matching_prims)))
+    called_methods = {
+        node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    called_functions = {
+        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+    assert "GetPrimAtPath" not in called_methods
+    assert "PruneChildren" not in called_methods
+    assert "_bound_search" not in called_functions
+
+
+def test_find_matching_prims_fullmatches_top_level_alternation():
+    """Anchoring applies to the complete expression rather than individual alternatives."""
+    sim_utils.create_prim("/World/Robot/foo/bar")
+    sim_utils.create_prim("/World/Robot/foo/bar/baz")
+    sim_utils.create_prim("/World/Floor")
+
+    matches = sim_utils.find_matching_prims(r"/World/Robot/foo/bar|/World/Floor")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo/bar", "/World/Floor"]
 
 
 def test_get_all_matching_child_prims():
