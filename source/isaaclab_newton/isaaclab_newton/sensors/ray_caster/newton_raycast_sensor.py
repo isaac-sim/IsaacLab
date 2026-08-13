@@ -102,8 +102,8 @@ class _NewtonRayCasterPoseMixin:
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         if plan is not None:
             for destination_template in plan.destinations:
-                destination_prefix, _ = cloner.path.split(destination_template)
-                if prim_expr.startswith(destination_prefix) and "/" not in prim_expr[len(destination_prefix) :]:
+                matched = cloner.path.match(prim_expr, destination_template)
+                if matched is not None and not matched.suffix:
                     return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
 
         try:

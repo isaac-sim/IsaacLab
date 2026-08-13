@@ -366,13 +366,13 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monke
     sim.set_clone_plan(plan)
 
     traversed_roots = []
-    source_matcher = queries._find_matching_prims_in_subtree
+    source_matcher = queries._iter_matching_prims_in_subtree
 
     def record_source_root(path_expr, root_prim):
         traversed_roots.append(root_prim.GetPath().pathString)
         return source_matcher(path_expr, root_prim)
 
-    monkeypatch.setattr(queries, "_find_matching_prims_in_subtree", record_source_root)
+    monkeypatch.setattr(queries, "_iter_matching_prims_in_subtree", record_source_root)
     monkeypatch.setattr(
         queries,
         "find_matching_prims",

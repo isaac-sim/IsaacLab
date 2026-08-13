@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
 from isaaclab import cloner
@@ -336,12 +336,8 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    # get stage handle
-    if stage is None:
-        stage = get_current_stage()
-
-    matches = find_matching_prims(prim_path_regex, stage)
-    return matches[0] if matches else None
+    stage = get_current_stage() if stage is None else stage
+    return next(_iter_matching_prims_in_subtree(prim_path_regex, stage.GetPseudoRoot()), None)
 
 
 def split_path_expr(path_expr: str) -> list[str]:
@@ -373,17 +369,19 @@ def matches_path_expr_prefix(path_expr: str, prim_path: str) -> bool:
     return re.fullmatch(prefix_expr, prim_path) is not None
 
 
-def _find_matching_prims_in_subtree(prim_path_regex: str, root_prim: Usd.Prim) -> list[Usd.Prim]:
-    """Match a full-path regex against every prim in an explicitly supplied subtree."""
+def _iter_matching_prims_in_subtree(prim_path_regex: str, root_prim: Usd.Prim) -> Iterator[Usd.Prim]:
+    """Yield full-path regex matches from an explicitly supplied subtree."""
     from pxr import Usd  # noqa: PLC0415
 
+    if not prim_path_regex.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
     pattern = re.compile(prim_path_regex)
     if not root_prim.IsValid():
-        return []
+        return
     predicate = Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)
-    return [
-        prim for prim in Usd.PrimRange(root_prim, predicate) if pattern.fullmatch(prim.GetPath().pathString) is not None
-    ]
+    for prim in Usd.PrimRange(root_prim, predicate):
+        if pattern.fullmatch(prim.GetPath().pathString) is not None:
+            yield prim
 
 
 def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
@@ -406,15 +404,8 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    # get stage handle
-    if stage is None:
-        stage = get_current_stage()
-
-    # check prim path is global
-    if not prim_path_regex.startswith("/"):
-        raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
-
-    return _find_matching_prims_in_subtree(prim_path_regex, stage.GetPseudoRoot())
+    stage = get_current_stage() if stage is None else stage
+    return list(_iter_matching_prims_in_subtree(prim_path_regex, stage.GetPseudoRoot()))
 
 
 def resolve_matching_prims_from_source(
@@ -453,7 +444,7 @@ def resolve_matching_prims_from_source(
         source_prim = get_current_stage().GetPrimAtPath(source_path)
         results = [
             (prim, dest_expr + prim.GetPath().pathString[len(source_path) :])
-            for prim in _find_matching_prims_in_subtree(source_expr, source_prim)
+            for prim in _iter_matching_prims_in_subtree(source_expr, source_prim)
         ]
     else:
         # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage
@@ -488,11 +479,10 @@ def resolve_matching_prims_from_source(
             instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
+            root_prim = get_current_stage().GetPrimAtPath(instance_root)
             results = [
                 (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
-                for prim in find_matching_prims(walk_root)
-                if prim.GetPath().pathString == instance_root
-                or prim.GetPath().pathString.startswith(instance_root + "/")
+                for prim in _iter_matching_prims_in_subtree(walk_root, root_prim)
             ]
     if predicate is not None:
         results = [
@@ -523,13 +513,7 @@ def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = Non
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    # obtain matching prims
-    output_prims = find_matching_prims(prim_path_regex, stage)
-    # convert prims to prim paths
-    output_prim_paths = []
-    for prim in output_prims:
-        output_prim_paths.append(prim.GetPath().pathString)
-    return output_prim_paths
+    return [prim.GetPath().pathString for prim in find_matching_prims(prim_path_regex, stage)]
 
 
 def find_global_fixed_joint_prim(

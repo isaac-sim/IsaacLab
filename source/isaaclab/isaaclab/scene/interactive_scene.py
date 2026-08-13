@@ -164,8 +164,6 @@ class InteractiveScene:
         self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = self.cloner_cfg.clone_template
-        self._env_regex_ns = self._env_fmt.format("[^/]+")
-        self._env_ns = self._env_fmt.rsplit("/", 1)[0]
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._scene_asset_names: list[str] = []
         self._clone_valid_set: torch.Tensor | None = None
@@ -231,7 +229,7 @@ class InteractiveScene:
             for child in children:
                 if hasattr(child, "prim_path"):
                     child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
-                    if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
+                    if getattr(child, "spawn", None) is not None and cloner.path.match(child.prim_path, self._env_fmt):
                         clone_asset_names.append(asset_name)
                         variant_counts.append(cloner.num_spawn_variants(child.spawn))
                 cfgs.append(child)
@@ -392,12 +390,12 @@ class InteractiveScene:
     @property
     def env_ns(self) -> str:
         """The namespace ``/World/envs`` in which all environments are created."""
-        return self._env_ns
+        return self._env_fmt.rsplit("/", 1)[0]
 
     @property
     def env_regex_ns(self) -> str:
         """The namespace ``/World/envs/env_[^/]+`` in which all environments are created."""
-        return self._env_regex_ns
+        return self._env_fmt.format("[^/]+")
 
     @property
     def num_envs(self) -> int:
@@ -838,15 +836,12 @@ class InteractiveScene:
         ]
 
         for asset_name, asset_cfg in ordered_items:
-            # resolve prim_path with env regex
-            if hasattr(asset_cfg, "prim_path"):
-                asset_cfg.prim_path = cloner.expand_env_regex_ns(asset_cfg.prim_path, self._env_fmt)
             # set spawn_path on spawner if cloning is needed
             if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
                 is_multi_spawner = isinstance(
                     asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
                 )
-                if self.env_ns not in asset_cfg.prim_path:
+                if cloner.path.match(asset_cfg.prim_path, self._env_fmt) is None:
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path
                 elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
                     raise RuntimeError(f"Clone planning did not assign spawn_paths for '{asset_cfg.prim_path}'.")
@@ -868,13 +863,12 @@ class InteractiveScene:
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    rigid_object_cfg.prim_path = cloner.expand_env_regex_ns(rigid_object_cfg.prim_path, self._env_fmt)
                     # set spawn_path on spawner if cloning is needed
                     if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
                         is_multi_spawner = isinstance(
                             rigid_object_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
                         )
-                        if self.env_ns not in rigid_object_cfg.prim_path:
+                        if cloner.path.match(rigid_object_cfg.prim_path, self._env_fmt) is None:
                             rigid_object_cfg.spawn.spawn_path = rigid_object_cfg.prim_path
                         elif is_multi_spawner and not rigid_object_cfg.spawn.spawn_paths:
                             raise RuntimeError(
@@ -895,11 +889,8 @@ class InteractiveScene:
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
-                    updated_target_frames = []
                     for target_frame in asset_cfg.target_frames:
                         target_frame.prim_path = cloner.expand_env_regex_ns(target_frame.prim_path, self._env_fmt)
-                        updated_target_frames.append(target_frame)
-                    asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
                     asset_cfg.filter_prim_paths_expr = [
                         cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_prim_paths_expr

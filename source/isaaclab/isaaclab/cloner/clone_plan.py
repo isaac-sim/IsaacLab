@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import re
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -33,7 +32,7 @@ import isaaclab.sim as sim_utils
 
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, InclusionSet
 from .cloner_strategies import sequential
-from .path import split
+from .path import match
 
 
 @dataclass(frozen=True, eq=False)
@@ -268,36 +267,18 @@ def make_clone_plan(
                 raise ValueError("Single spawner expects exactly one planned source path.")
             spawn_cfg.spawn_path = active[0]
 
-    # the env root sits at a known depth, so the destination is the env template plus whatever the
-    # cfg authored below it -- no need to find the clone slot by substituting in the cfg's own path
-    env_prefix, _ = split(env_template)
-
-    def env_destination(prim_path: str) -> str | None:
-        """Rebase an env-scoped cfg path onto the env template, or None when it is global.
-
-        The cfg may name one environment (``env_0``) or all of them (``env_.*``, ``env_[^/]+``);
-        only the text before the slot is fixed, so that is what identifies an env-scoped path.
-        """
-        if not prim_path.startswith(env_prefix):
-            return None
-        # blank out character classes so a '/' inside one does not read as a separator; the
-        # replacement is the same length, so the index carries back to the original string
-        masked = re.sub(r"\[\^?[^]]*\]", lambda match: "\x00" * len(match.group()), prim_path)
-        cut = masked.find("/", len(env_prefix))
-        return env_template if cut == -1 else env_template + prim_path[cut:]
-
     # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
     groups: list[tuple[Any, Any, str, int]] = []
     for cfg in cfgs:
         if not hasattr(cfg, "prim_path") or not hasattr(cfg, "spawn") or cfg.spawn is None:
             continue
         prim_path = cfg.prim_path
-        if (destination := env_destination(prim_path)) is None:
+        if (matched := match(prim_path, env_template)) is None:
             continue
         count = num_spawn_variants(cfg.spawn)
         if count <= 0:
             raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
-        groups.append((cfg, cfg.spawn, destination, count))
+        groups.append((cfg, cfg.spawn, env_template + matched.suffix, count))
 
     env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
     positions, _ = grid_transforms(num_clones, env_spacing, device=device)
@@ -424,9 +405,8 @@ def clone_plan_from_env_0(
     """
     from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
 
-    prefix, _ = split(destination)
     cfg_rows: dict[int, tuple[int, ...]] = {
-        id(cfg): (0,) for cfg in REPLICATION_QUEUE if cfg.prim_path.startswith(prefix)
+        id(cfg): (0,) for cfg in REPLICATION_QUEUE if match(cfg.prim_path, destination) is not None
     }
     return ClonePlan(
         sources=(source,),

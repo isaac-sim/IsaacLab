@@ -131,7 +131,7 @@ def test_find_matching_prims_uses_unbounded_full_path_regex():
 
 def test_find_matching_prims_has_no_inferred_traversal_bounds():
     """The query must not narrow or prune USD traversal from the user's regex."""
-    sources = (sim_utils.find_matching_prims, queries._find_matching_prims_in_subtree)
+    sources = (sim_utils.find_matching_prims, queries._iter_matching_prims_in_subtree)
     tree = ast.parse("\n".join(textwrap.dedent(inspect.getsource(function)) for function in sources))
     called_methods = {
         node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)

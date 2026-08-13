@@ -2560,12 +2560,8 @@ class randomize_visual_texture_material(ManagerTermBase):
 
         # join all bodies in the asset
         body_names = asset_cfg.body_names
-        if isinstance(body_names, str):
-            body_names_regex = f"(?:{body_names})"
-        elif isinstance(body_names, list):
-            body_names_regex = f"(?:{'|'.join(body_names)})"
-        else:
-            body_names_regex = ".*"
+        body_names_regex = "|".join(body_names) if isinstance(body_names, list) else body_names
+        body_names_regex = f"(?:{body_names_regex})" if isinstance(body_names_regex, str) else ".*"
 
         # create the affected prim path
         # Check if the pattern with '/visuals' yields results when matching `body_names_regex`.
@@ -2751,12 +2747,8 @@ class randomize_visual_color(ManagerTermBase):
         else:
             # default: the configured bodies' visual meshes
             body_names = asset_cfg.body_names
-            if isinstance(body_names, str):
-                body_names_regex = f"(?:{body_names})"
-            elif isinstance(body_names, list):
-                body_names_regex = f"(?:{'|'.join(body_names)})"
-            else:
-                body_names_regex = ".*"
+            body_names_regex = "|".join(body_names) if isinstance(body_names, list) else body_names
+            body_names_regex = f"(?:{body_names_regex})" if isinstance(body_names_regex, str) else ".*"
             pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
             if sim_utils.resolve_matching_prims_from_source(pattern_with_visuals, raise_if_no_matches=False):
                 mesh_prim_path = pattern_with_visuals
