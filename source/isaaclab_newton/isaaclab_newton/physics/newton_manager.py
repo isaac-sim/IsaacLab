@@ -74,6 +74,7 @@ from newton import (
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
+from newton.solvers import SolverKamino
 from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
@@ -2332,8 +2333,6 @@ class NewtonManager(PhysicsManager):
                     # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
                     # first step() inside graph capture. Replay once to pin those
                     # memory-pool addresses before any eager solver.reset() call.
-                    from newton.solvers import SolverKamino  # noqa: PLC0415
-
                     if isinstance(cls._solver, SolverKamino):
                         wp.capture_launch(cls._graph)
                 else:
