@@ -13,7 +13,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
-    from .pose_commands import DeformableUniformPoseCommand, ObjectUniformPoseCommand
+    from .pose_commands import CableUniformPoseCommand, DeformableUniformPoseCommand, ObjectUniformPoseCommand
 
 ALIGN_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -101,3 +101,13 @@ class DeformableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for the deformable uniform pose command generator."""
 
     class_type: type["DeformableUniformPoseCommand"] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
+
+
+@configclass
+class CableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
+    """Configuration for a cable segment uniform pose command generator."""
+
+    class_type: type["CableUniformPoseCommand"] | str = "{DIR}.pose_commands:CableUniformPoseCommand"
+
+    segment_index: int = MISSING
+    """Zero-based cable segment index tracked by the command."""
