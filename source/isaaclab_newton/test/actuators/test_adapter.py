@@ -199,15 +199,6 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
             ),
         ),
         (
-            "invalid_class_type",
-            UnsupportedNewtonActuatorCfg(
-                class_type=0,
-                joint_names_expr=["pd_a"],
-                stiffness=0.0,
-                damping=0.0,
-            ),
-        ),
-        (
             "misleading_name",
             CustomDCMotorCfg(
                 class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",

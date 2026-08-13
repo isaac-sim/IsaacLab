@@ -19,19 +19,24 @@ Deprecated
 * Deprecated Isaac Lab execution of explicit actuator models. Enable
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these
   models with Newton instead.
-* Deprecated ``effort_limit_sim`` and ``velocity_limit_sim`` in favor of
-  ``joint_effort_limit`` and ``joint_velocity_limit``. The deprecated names
-  remain available through Isaac Lab 3.x and will be removed in 4.0.
-* Deprecated group-level ``effort_limit_sim``, ``velocity_limit_sim``,
-  ``armature``, ``friction``, ``dynamic_friction``, and ``viscous_friction``
-  accessors. Use the corresponding :class:`~isaaclab.assets.ArticulationData`
-  joint property and ``write_joint_*_to_sim_index`` writer instead; the
-  accessors remain forwarding bridges through 3.x and will be removed in 4.0.
+* Deprecated the actuator configuration aliases ``effort_limit_sim`` and
+  ``velocity_limit_sim`` in favor of ``joint_effort_limit`` and
+  ``joint_velocity_limit``. The deprecated configuration aliases remain
+  available through Isaac Lab 3.x and will be removed in 4.0.
 * Deprecated ``write_actuator_stiffness_to_sim`` and
   ``write_actuator_damping_to_sim``. These backend-specific writers remain
   available through 3.x; use
   :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed
   randomization.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed group-level ``effort_limit_sim``, ``velocity_limit_sim``,
+  ``armature``, ``friction``, ``dynamic_friction``, and ``viscous_friction``
+  accessors. Read the corresponding :class:`~isaaclab.assets.ArticulationData`
+  joint property and use the articulation's ``write_joint_*_to_sim_index``
+  writer instead.
 
 Changed
 ^^^^^^^

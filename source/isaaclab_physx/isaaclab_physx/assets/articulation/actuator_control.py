@@ -16,7 +16,7 @@ import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
-from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl, _WarpIndex
+from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
 
@@ -77,7 +77,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
     def _write_joint_friction_properties(
         self,
         properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
     ) -> None:
         articulation = self._articulation
         super()._write_joint_friction_properties(properties, joint_ids)

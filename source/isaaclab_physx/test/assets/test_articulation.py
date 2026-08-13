@@ -40,7 +40,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
@@ -1803,10 +1803,6 @@ def test_setting_velocity_limit_implicit(
     physx_vel_limit = wp.to_torch(articulation.root_view.get_dof_max_velocities()).to(device)
     # check data buffer
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
-    # Keep one warning-covered compatibility projection while canonical data owns the solver value.
-    with pytest.warns(DeprecationWarning, match="velocity_limit_sim"):
-        torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit)
-
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
         sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
@@ -1904,13 +1900,8 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_eff
     # obtain the physx effort limits
     physx_effort_limit = wp.to_torch(articulation.root_view.get_dof_max_forces()).to(device=device)
 
-    # Keep one warning-covered compatibility projection while canonical data owns the solver value.
-    with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
-        torch.testing.assert_close(
-            articulation.actuators["joint"].effort_limit_sim,
-            articulation.actuators["joint"].effort_limit,
-        )
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].effort_limit, physx_effort_limit)
 
     # decide the limit based on what is set
     if joint_effort_limit is None and effort_limit is None:
@@ -1975,7 +1966,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, joint_eff
     if joint_effort_limit is not None:
         limit = joint_effort_limit
     else:
-        limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
+        limit = 1.0e9
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, expected_effort_limit)

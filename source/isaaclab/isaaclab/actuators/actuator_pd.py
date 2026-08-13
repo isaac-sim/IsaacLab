@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import torch
 
@@ -36,6 +36,19 @@ _MODEL_EXECUTION_PARAMETER_NAMES = (
     "damping",
 )
 
+
+def _initialize_pd_gains(
+    actuator: ImplicitActuator | IdealPDActuator,
+    stiffness: torch.Tensor | float,
+    damping: torch.Tensor | float,
+) -> None:
+    """Resolve stiffness and damping for a PD actuator model."""
+    for parameter_name, default_value in (("stiffness", stiffness), ("damping", damping)):
+        cfg_value = getattr(actuator.cfg, parameter_name)
+        value = actuator._parse_joint_parameter(cfg_value, default_value)
+        setattr(actuator, parameter_name, value)
+
+
 """
 Implicit Actuator Models.
 """
@@ -54,6 +67,12 @@ class ImplicitActuator(ActuatorBase):
     """The configuration for the actuator model."""
 
     _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = ("velocity_limit",)
+
+    stiffness: torch.Tensor
+    """Live articulation joint stiffness [N/m or N·m/rad, depending on joint type]."""
+
+    damping: torch.Tensor
+    """Live articulation joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
 
     class _JointDrive:
         """Live projection of articulation-owned implicit joint-drive properties."""
@@ -118,7 +137,18 @@ class ImplicitActuator(ActuatorBase):
             )
         self.__dict__[f"_{name}"] = value
 
-    def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
+    def __init__(
+        self,
+        cfg: ImplicitActuatorCfg,
+        joint_names: list[str],
+        joint_ids: slice | torch.Tensor,
+        num_envs: int,
+        device: str,
+        stiffness: torch.Tensor | float = 0.0,
+        damping: torch.Tensor | float = 0.0,
+        effort_limit: torch.Tensor | float = torch.inf,
+        velocity_limit: torch.Tensor | float = torch.inf,
+    ):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
             # throw a warning that we have a replacement for the deprecated parameter
@@ -167,11 +197,11 @@ class ImplicitActuator(ActuatorBase):
         # set implicit actuator model flag
         ImplicitActuator.is_implicit_model = True
         # call the base class
-        super().__init__(cfg, *args, **kwargs)
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device, effort_limit, velocity_limit)
+        _initialize_pd_gains(self, stiffness, damping)
 
-    def _bind_joint_properties(self, control: ActuatorControl) -> None:
+    def _bind_joint_drive(self, control: ActuatorControl) -> None:
         """Bind implicit drive reads to live articulation-owned joint properties."""
-        super()._bind_joint_properties(control)
         self._joint_drive = self._JointDrive(control, self.joint_indices)
         self.__dict__.pop("_stiffness", None)
         self.__dict__.pop("_damping", None)
@@ -245,6 +275,76 @@ class IdealPDActuator(ActuatorBase):
     """The configuration for the actuator model."""
 
     _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _MODEL_EXECUTION_PARAMETER_NAMES
+
+    stiffness: torch.Tensor
+    """Actuator stiffness [N/m or N·m/rad, depending on joint type]."""
+
+    damping: torch.Tensor
+    """Actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
+
+    class _NativeActuatorGains:
+        """Live controller-owned gain projection for one native actuator group."""
+
+        def __init__(self, control: ActuatorControl, joint_indices: slice | torch.Tensor):
+            self._control = control
+            self._joint_indices = joint_indices
+
+        def get(self, attr: Literal["kp", "kd"]) -> torch.Tensor | None:
+            """Read one controller gain in the group's public joint order."""
+            return self._control.get_native_actuator_gain(attr, self._joint_indices)
+
+    def __init__(
+        self,
+        cfg: IdealPDActuatorCfg,
+        joint_names: list[str],
+        joint_ids: slice | torch.Tensor,
+        num_envs: int,
+        device: str,
+        stiffness: torch.Tensor | float = 0.0,
+        damping: torch.Tensor | float = 0.0,
+        effort_limit: torch.Tensor | float = torch.inf,
+        velocity_limit: torch.Tensor | float = torch.inf,
+    ):
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device, effort_limit, velocity_limit)
+        _initialize_pd_gains(self, stiffness, damping)
+
+    @property
+    def stiffness(self) -> torch.Tensor:
+        """Current actuator stiffness [N/m or N·m/rad, depending on joint type]."""
+        native_gains = self.__dict__.get("_native_actuator_gains")
+        return self._stiffness if native_gains is None else native_gains.get("kp")
+
+    @stiffness.setter
+    def stiffness(self, value: torch.Tensor) -> None:
+        self._set_actuator_gain_property("stiffness", value)
+
+    @property
+    def damping(self) -> torch.Tensor:
+        """Current actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
+        native_gains = self.__dict__.get("_native_actuator_gains")
+        return self._damping if native_gains is None else native_gains.get("kd")
+
+    @damping.setter
+    def damping(self, value: torch.Tensor) -> None:
+        self._set_actuator_gain_property("damping", value)
+
+    def _bind_native_actuator_gains(self, control: ActuatorControl) -> None:
+        """Bind native gain reads when controllers cover every joint in this group."""
+        native_gains = self._NativeActuatorGains(control, self.joint_indices)
+        if native_gains.get("kp") is None or native_gains.get("kd") is None:
+            return
+        self._native_actuator_gains = native_gains
+        self.__dict__.pop("_stiffness", None)
+        self.__dict__.pop("_damping", None)
+
+    def _set_actuator_gain_property(self, name: Literal["stiffness", "damping"], value: torch.Tensor) -> None:
+        """Store a construction gain or reject assignment after native binding."""
+        if "_native_actuator_gains" in self.__dict__:
+            raise AttributeError(
+                f"{type(self).__name__}.{name} is controller-owned after native binding. Use "
+                "randomize_actuator_gains() or the backend native gain API to update it."
+            )
+        self.__dict__[f"_{name}"] = value
 
     """
     Operations.
@@ -474,10 +574,6 @@ class RemotizedPDActuator(DelayedPDActuator):
         device: str,
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
-        armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
-        dynamic_friction: torch.Tensor | float = 0.0,
-        viscous_friction: torch.Tensor | float = 0.0,
         effort_limit: torch.Tensor | float = torch.inf,
         velocity_limit: torch.Tensor | float = torch.inf,
     ):
@@ -486,19 +582,7 @@ class RemotizedPDActuator(DelayedPDActuator):
         cfg.velocity_limit = torch.inf
         # call the base method and set default effort_limit and velocity_limit to inf
         super().__init__(
-            cfg,
-            joint_names,
-            joint_ids,
-            num_envs,
-            device,
-            stiffness,
-            damping,
-            armature,
-            friction,
-            dynamic_friction,
-            viscous_friction,
-            effort_limit,
-            velocity_limit,
+            cfg, joint_names, joint_ids, num_envs, device, stiffness, damping, effort_limit, velocity_limit
         )
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit

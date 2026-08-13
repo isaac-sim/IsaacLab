@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeAliasType
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
@@ -21,21 +21,6 @@ from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 
 if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
-
-_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
-_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
-_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
-_DeprecatedActuatorJointPropertyName = TypeAliasType(
-    "_DeprecatedActuatorJointPropertyName",
-    Literal[
-        "effort_limit",
-        "velocity_limit",
-        "armature",
-        "friction",
-        "dynamic_friction",
-        "viscous_friction",
-    ],
-)
 
 
 @dataclass(frozen=True)
@@ -83,8 +68,8 @@ class ActuatorControl(ABC):
 
     @staticmethod
     def _normalize_index_sequence(
-        indices: Sequence[int] | slice | torch.Tensor | _WarpIndex | None,
-    ) -> list[int] | slice | torch.Tensor | _WarpIndex | None:
+        indices: Sequence[int] | slice | torch.Tensor | wp.array | None,
+    ) -> list[int] | slice | torch.Tensor | wp.array | None:
         """Convert non-list integer sequences to the backend's list convention."""
         if isinstance(indices, Sequence) and not isinstance(indices, list):
             return list(indices)
@@ -165,8 +150,8 @@ class ActuatorControl(ABC):
     @abstractmethod
     def resolve_env_ids(
         self,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
-    ) -> torch.Tensor | _WarpIndex:
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None,
+    ) -> torch.Tensor | wp.array:
         """Resolve optional environment indices.
 
         Args:
@@ -180,8 +165,8 @@ class ActuatorControl(ABC):
     @abstractmethod
     def resolve_joint_ids(
         self,
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
-    ) -> torch.Tensor | _WarpIndex:
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None,
+    ) -> torch.Tensor | wp.array:
         """Resolve optional joint indices.
 
         Args:
@@ -253,7 +238,7 @@ class ActuatorControl(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_default_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
+    def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
         """Return backend defaults used to construct one actuator group.
 
         Args:
@@ -265,40 +250,10 @@ class ActuatorControl(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_current_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
-        """Return current joint properties for deprecated group-level accessors.
-
-        Args:
-            joint_ids: Articulation joints in the actuator group.
-
-        Returns:
-            Current properties for the selected joints.
-        """
-        raise NotImplementedError
-
-    def _write_deprecated_joint_property(
-        self,
-        property_name: _DeprecatedActuatorJointPropertyName,
-        value: torch.Tensor | float,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
-    ) -> None:
-        """Write one deprecated group-level joint-property assignment.
-
-        Args:
-            property_name: Current joint property name.
-            value: Full group value to write.
-            joint_ids: Articulation joints in the actuator group.
-        """
-        raise NotImplementedError(
-            "ActuatorControl._write_deprecated_joint_property is required for deprecated actuator joint-property "
-            "assignment. Write the corresponding Articulation joint property instead."
-        )
-
-    @abstractmethod
     def write_resolved_joint_properties(
         self,
         properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
         *,
         implicit: bool,
         native_managed: bool,
@@ -317,8 +272,8 @@ class ActuatorControl(ABC):
         self,
         command_name: str,
         collection: ActuatorCollection,
-        env_ids: torch.Tensor | _WarpIndex | None,
-        joint_ids: torch.Tensor | _WarpIndex | None,
+        env_ids: torch.Tensor | wp.array | None,
+        joint_ids: torch.Tensor | wp.array | None,
         env_mask: wp.array(dtype=wp.bool) | None,
         joint_mask: wp.array(dtype=wp.bool) | None,
     ) -> None:
@@ -484,14 +439,14 @@ class ArticulationActuatorControl(ActuatorControl):
 
     def resolve_env_ids(
         self,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
-    ) -> torch.Tensor | _WarpIndex:
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None,
+    ) -> torch.Tensor | wp.array:
         return self._articulation._resolve_env_ids(self._normalize_index_sequence(env_ids))
 
     def resolve_joint_ids(
         self,
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None,
-    ) -> torch.Tensor | _WarpIndex:
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None,
+    ) -> torch.Tensor | wp.array:
         return self._articulation._resolve_joint_ids(self._normalize_index_sequence(joint_ids))
 
     def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
@@ -522,66 +477,26 @@ class ArticulationActuatorControl(ActuatorControl):
     ) -> None:
         self._articulation.assert_shape_and_dtype_mask(tensor, masks, dtype, name)
 
-    def get_default_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
-        current = self.get_current_joint_properties(joint_ids)
-        return ActuatorJointProperties(
-            stiffness=current.stiffness.clone(),
-            damping=current.damping.clone(),
-            armature=current.armature.clone(),
-            friction=current.friction.clone(),
-            dynamic_friction=current.dynamic_friction.clone(),
-            viscous_friction=current.viscous_friction.clone(),
-            effort_limit=current.effort_limit.clone(),
-            velocity_limit=current.velocity_limit.clone(),
-        )
-
-    def get_current_joint_properties(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> ActuatorJointProperties:
+    def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
         joint_ids = self._as_torch_joint_ids(joint_ids)
         data = self._articulation.data
         stiffness = data.joint_stiffness.torch[:, joint_ids]
         return ActuatorJointProperties(
-            stiffness=stiffness,
-            damping=data.joint_damping.torch[:, joint_ids],
-            armature=data.joint_armature.torch[:, joint_ids],
-            friction=data.joint_friction_coeff.torch[:, joint_ids],
-            dynamic_friction=self._joint_property_or_zeros("joint_dynamic_friction_coeff", joint_ids, stiffness),
-            viscous_friction=self._joint_property_or_zeros("joint_viscous_friction_coeff", joint_ids, stiffness),
-            effort_limit=data.joint_effort_limits.torch[:, joint_ids],
-            velocity_limit=data.joint_vel_limits.torch[:, joint_ids],
+            stiffness=stiffness.clone(),
+            damping=data.joint_damping.torch[:, joint_ids].clone(),
+            armature=data.joint_armature.torch[:, joint_ids].clone(),
+            friction=data.joint_friction_coeff.torch[:, joint_ids].clone(),
+            dynamic_friction=self._joint_property_or_zeros(
+                "joint_dynamic_friction_coeff", joint_ids, stiffness
+            ).clone(),
+            viscous_friction=self._joint_property_or_zeros(
+                "joint_viscous_friction_coeff", joint_ids, stiffness
+            ).clone(),
+            effort_limit=data.joint_effort_limits.torch[:, joint_ids].clone(),
+            velocity_limit=data.joint_vel_limits.torch[:, joint_ids].clone(),
         )
 
-    def _write_deprecated_joint_property(
-        self,
-        property_name: _DeprecatedActuatorJointPropertyName,
-        value: torch.Tensor | float,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
-    ) -> None:
-        """Forward a deprecated group-level assignment to an articulation joint-property writer."""
-        writer_name, value_name = {
-            "effort_limit": ("write_joint_effort_limit_to_sim_index", "limits"),
-            "velocity_limit": ("write_joint_velocity_limit_to_sim_index", "limits"),
-            "armature": ("write_joint_armature_to_sim_index", "armature"),
-            "friction": ("write_joint_friction_coefficient_to_sim_index", "joint_friction_coeff"),
-            "dynamic_friction": (
-                "write_joint_dynamic_friction_coefficient_to_sim_index",
-                "joint_dynamic_friction_coeff",
-            ),
-            "viscous_friction": (
-                "write_joint_viscous_friction_coefficient_to_sim_index",
-                "joint_viscous_friction_coeff",
-            ),
-        }[property_name]
-        writer = getattr(self._articulation, writer_name, None)
-        if writer is None:
-            raise NotImplementedError(
-                f"The active backend does not support writing the deprecated '{property_name}' actuator property."
-            )
-        if isinstance(value, (float, int)):
-            current = getattr(self.get_current_joint_properties(joint_ids), property_name)
-            value = torch.full_like(current, float(value))
-        writer(**{value_name: value, "joint_ids": joint_ids})
-
-    def _as_torch_joint_ids(self, joint_ids: torch.Tensor | _WarpIndex | slice) -> torch.Tensor | slice:
+    def _as_torch_joint_ids(self, joint_ids: torch.Tensor | wp.array | slice) -> torch.Tensor | slice:
         """Normalize an optional Warp joint selector for Torch property projections."""
         if isinstance(joint_ids, wp.array):
             return wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
@@ -590,7 +505,7 @@ class ArticulationActuatorControl(ActuatorControl):
     def write_resolved_joint_properties(
         self,
         properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
         *,
         implicit: bool,
         native_managed: bool,
@@ -616,7 +531,7 @@ class ArticulationActuatorControl(ActuatorControl):
     def _write_joint_friction_properties(
         self,
         properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
     ) -> None:
         self._articulation.write_joint_friction_coefficient_to_sim_index(
             joint_friction_coeff=properties.friction,
@@ -626,7 +541,7 @@ class ArticulationActuatorControl(ActuatorControl):
     def _joint_property_or_zeros(
         self,
         attr_name: str,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
         reference: torch.Tensor,
     ) -> torch.Tensor:
         joint_property = getattr(self._articulation.data, attr_name, None)

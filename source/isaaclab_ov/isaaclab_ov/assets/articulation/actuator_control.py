@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-from typing import TypeAliasType
-
 import torch
 import warp as wp
 
@@ -18,10 +16,6 @@ from isaaclab.assets.articulation import ordering_kernels
 
 from isaaclab_ov import tensor_types as TT
 
-_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
-_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
-_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
-
 
 class OvPhysxActuatorControl(ArticulationActuatorControl):
     """Actuator control adapter for the OVPhysX backend."""
@@ -29,7 +23,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
     def _write_joint_friction_properties(
         self,
         properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
     ) -> None:
         # OVPhysX writes all friction components through one packed binding.
         self._articulation.write_joint_friction_coefficient_to_sim_index(
@@ -43,8 +37,8 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         self,
         command_name: str,
         collection: ActuatorCollection,
-        env_ids: torch.Tensor | _WarpIndex | None,
-        joint_ids: torch.Tensor | _WarpIndex | None,
+        env_ids: torch.Tensor | wp.array | None,
+        joint_ids: torch.Tensor | wp.array | None,
         env_mask: wp.array(dtype=wp.bool) | None,
         joint_mask: wp.array(dtype=wp.bool) | None,
     ) -> None:

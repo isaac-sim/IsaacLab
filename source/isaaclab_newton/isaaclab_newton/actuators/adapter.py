@@ -340,6 +340,17 @@ class NewtonActuatorAdapter:
 # ---------------------------------------------------------------------------
 
 
+def _actuator_local_joint_ids(
+    actuator: Actuator,
+    dof_offset: int,
+    num_joints: int,
+    env_stride: int,
+) -> set[int]:
+    """Return actuator joints that belong to one articulation."""
+    local_joint_ids = {int(global_dof) % env_stride - dof_offset for global_dof in actuator.indices.numpy()}
+    return {joint_id for joint_id in local_joint_ids if 0 <= joint_id < num_joints}
+
+
 def read_newton_actuator_gain(
     actuators: list[Actuator],
     attr: Literal["kp", "kd"],
@@ -378,25 +389,29 @@ def read_newton_actuator_gain(
                 f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
             )
 
-    articulation_actuators = [
-        actuator for actuator in actuators if dof_offset <= int(actuator.indices.numpy()[0]) < dof_offset + num_joints
-    ]
     covered = torch.zeros(num_joints, dtype=torch.bool, device=device)
     wp_device = wp.get_device(device)
     flat_gains = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
-    for actuator in articulation_actuators:
+    for actuator in actuators:
+        local_joint_ids = _actuator_local_joint_ids(actuator, dof_offset, num_joints, env_stride)
+        if not local_joint_ids:
+            continue
         controller = actuator.controller
         if not hasattr(controller, attr):
             continue
-        per_actuator = actuator.indices.shape[0] // num_envs
-        for global_dof in actuator.indices.numpy()[:per_actuator]:
-            local_dof = int(global_dof) - dof_offset
-            if 0 <= local_dof < num_joints:
-                covered[local_dof] = True
+        covered[list(local_joint_ids)] = True
         wp.launch(
             scatter_gain_kernel,
             dim=actuator.indices.shape[0],
-            inputs=[getattr(controller, attr), flat_gains, actuator.indices, dof_offset, num_joints, env_stride],
+            inputs=[
+                getattr(controller, attr),
+                flat_gains,
+                actuator.indices,
+                dof_offset,
+                num_envs,
+                num_joints,
+                env_stride,
+            ],
             device=wp_device,
         )
 
@@ -419,13 +434,12 @@ def build_newton_actuator_defaults(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | slice]:
     """Snapshot initial Newton actuator gains for one articulation.
 
-    Actuators are filtered to those whose environment-zero DOF lies in
-    ``[dof_offset, dof_offset + num_joints)``. Their gains are scattered in the
-    actuator adapter's local joint order. Without :paramref:`joint_user_to_backend_indices`,
-    the output preserves that local order. PhysX builds its per-articulation adapter from
-    public joint names, so its adapter-local order is public order. Newton's global adapter
-    uses backend-local order; the optional map converts its gains and managed indices to
-    public order.
+    Every actuator is scanned for DOFs in ``[dof_offset, dof_offset + num_joints)``.
+    Matching gains are scattered in the actuator adapter's local joint order. Without
+    :paramref:`joint_user_to_backend_indices`, the output preserves that local order. PhysX
+    builds its per-articulation adapter from public joint names, so its adapter-local order
+    is public order. Newton's global adapter uses backend-local order; the optional map
+    converts its gains and managed indices to public order.
 
     Args:
         actuators: Newton actuators visible to this articulation.
@@ -461,15 +475,9 @@ def build_newton_actuator_defaults(
         ValueError: If :paramref:`joint_user_to_backend_indices` is not a
             complete permutation of all adapter-local joint indices.
     """
-    arti_actuators = [act for act in actuators if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints]
-
     managed_local: set[int] = set()
-    for act in arti_actuators:
-        per_act = act.indices.shape[0] // num_envs
-        for global_dof in act.indices.numpy()[:per_act]:
-            local = int(global_dof) - dof_offset
-            if 0 <= local < num_joints:
-                managed_local.add(local)
+    for actuator in actuators:
+        managed_local.update(_actuator_local_joint_ids(actuator, dof_offset, num_joints, env_stride))
     joint_indices: torch.Tensor | slice
     if len(managed_local) == num_joints:
         joint_indices = slice(None)

@@ -7,16 +7,12 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeAliasType
+from typing import Any
 
 import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
-
-_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
-_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
-_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
 
 
 @wp.kernel(enable_backward=False)
@@ -41,7 +37,7 @@ _WRITE_2D_FLOAT_WITH_INDICES_DISPATCHER = IndexKernelDispatcher(write_2d_float_w
 
 
 def write_2d_float_with_indices_kernel(
-    env_ids: torch.Tensor | _WarpIndex, joint_ids: torch.Tensor | _WarpIndex
+    env_ids: torch.Tensor | wp.array, joint_ids: torch.Tensor | wp.array
 ) -> wp.Kernel:
     """Select the indexed float writer for the selector dtypes.
 

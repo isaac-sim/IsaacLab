@@ -150,12 +150,11 @@ the articulation is built. Their live runtime state belongs to
 articulation data and joint writers; :class:`~isaaclab.actuators.ActuatorCollection` deliberately
 has no joint-property API.
 
-The deprecated group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
-``friction``, ``dynamic_friction``, and ``viscous_friction`` remain forwarding views through 3.x.
-Assignment emits a warning and forwards the group selection and value through
-the corresponding articulation joint writer. It does not recreate an actuator
-or collection-level property buffer. See
-:ref:`actuators-solver-limit-migration` for the replacement data views and writers.
+The former runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
+``friction``, ``dynamic_friction``, and ``viscous_friction`` have been removed. Read their live
+values from articulation data and use the corresponding articulation joint writers. The deprecated
+``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
+See :ref:`actuators-solver-limit-migration` for the replacement data views and writers.
 
 Ordinary explicit actuators retain only model state, such as their ``effort_limit``, rated
 ``velocity_limit``, gains, delay, and motor curve. They do not own solver-limit or friction copies.

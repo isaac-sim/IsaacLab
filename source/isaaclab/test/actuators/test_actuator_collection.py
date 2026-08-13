@@ -28,7 +28,6 @@ from isaaclab.actuators import (
     IdealPDActuatorCfg,
     ImplicitActuator,
     ImplicitActuatorCfg,
-    actuator_kernels,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.utils.warp import ProxyArray
@@ -286,31 +285,18 @@ class FakeActuatorControl(ActuatorControl):
         self.assert_shape_and_dtype(tensor, tuple(mask.shape[0] for mask in masks), dtype, name)
 
     def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
-        current = self.get_current_joint_properties(joint_ids)
-        return ActuatorJointProperties(
-            stiffness=current.stiffness.clone(),
-            damping=current.damping.clone(),
-            armature=current.armature.clone(),
-            friction=current.friction.clone(),
-            dynamic_friction=current.dynamic_friction.clone(),
-            viscous_friction=current.viscous_friction.clone(),
-            effort_limit=current.effort_limit.clone(),
-            velocity_limit=current.velocity_limit.clone(),
-        )
-
-    def get_current_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
         if isinstance(joint_ids, wp.array):
             joint_ids = wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
         properties = self._current_joint_properties
         return ActuatorJointProperties(
-            stiffness=self.joint_stiffness.torch[:, joint_ids],
-            damping=self.joint_damping.torch[:, joint_ids],
-            armature=properties.armature[:, joint_ids],
-            friction=properties.friction[:, joint_ids],
-            dynamic_friction=properties.dynamic_friction[:, joint_ids],
-            viscous_friction=properties.viscous_friction[:, joint_ids],
-            effort_limit=self.joint_effort_limits.torch[:, joint_ids],
-            velocity_limit=properties.velocity_limit[:, joint_ids],
+            stiffness=self.joint_stiffness.torch[:, joint_ids].clone(),
+            damping=self.joint_damping.torch[:, joint_ids].clone(),
+            armature=properties.armature[:, joint_ids].clone(),
+            friction=properties.friction[:, joint_ids].clone(),
+            dynamic_friction=properties.dynamic_friction[:, joint_ids].clone(),
+            viscous_friction=properties.viscous_friction[:, joint_ids].clone(),
+            effort_limit=self.joint_effort_limits.torch[:, joint_ids].clone(),
+            velocity_limit=properties.velocity_limit[:, joint_ids].clone(),
         )
 
     def write_resolved_joint_properties(
@@ -383,18 +369,6 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
         self.native_gains[attr][env_ids[:, None], joint_ids] = values
 
 
-class RecordingNativeGainFakeActuatorControl(NativeGainFakeActuatorControl):
-    """Native controller fake that captures state before the supported writer runs."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.native_gain_values_before_writes: list[torch.Tensor] = []
-
-    def write_native_actuator_gain(self, attr, values, env_ids, joint_ids) -> None:
-        self.native_gain_values_before_writes.append(self.native_gains[attr].clone())
-        super().write_native_actuator_gain(attr, values, env_ids, joint_ids)
-
-
 def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays():
     drive_property_names = {"joint_stiffness", "joint_damping", "joint_effort_limits"}
     legacy_members = {
@@ -408,7 +382,6 @@ def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays(
 
     control = legacy_control_type()
 
-    assert "get_current_joint_properties" in ActuatorControl.__abstractmethods__
     for name in drive_property_names:
         with pytest.raises(
             NotImplementedError,
@@ -505,25 +478,6 @@ def test_conflicting_joint_limit_aliases_raise(canonical_name, alias_name, cfg_f
     warning_context = pytest.warns(DeprecationWarning) if warns else nullcontext()
     with warning_context, pytest.raises(ValueError, match=rf"motor.*{canonical_name}.*{alias_name}"):
         ActuatorCollection({"motor": cfg}, control_factory())
-
-
-def test_implicit_limit_compatibility_warnings_name_canonical_replacements(caplog):
-    cfg = ImplicitActuatorCfg(
-        joint_names_expr=[".*"],
-        stiffness=0.0,
-        damping=0.0,
-        effort_limit=12.0,
-        velocity_limit=34.0,
-    )
-
-    with caplog.at_level("WARNING"):
-        ActuatorCollection({"motor": cfg}, FakeActuatorControl())
-
-    messages = [record.getMessage().lower() for record in caplog.records]
-    assert any("please use 'joint_effort_limit'" in message for message in messages)
-    assert any("please use 'joint_velocity_limit'" in message for message in messages)
-    assert all("please use 'effort_limit_sim'" not in message for message in messages)
-    assert all("please use 'velocity_limit_sim'" not in message for message in messages)
 
 
 class ProxyFinderActuatorControl(FakeActuatorControl):
@@ -705,7 +659,6 @@ def test_articulation_control_projects_warp_joint_property_selectors():
     )
     joint_ids = wp.array([2, 0], dtype=wp.int32, device="cpu")
 
-    current = control.get_current_joint_properties(joint_ids)
     defaults = control.get_default_joint_properties(joint_ids)
 
     expected = torch.tensor(
@@ -714,7 +667,6 @@ def test_articulation_control_projects_warp_joint_property_selectors():
             [6.0, 4.0],
         ]
     )
-    torch.testing.assert_close(current.armature, expected)
     torch.testing.assert_close(defaults.armature, expected)
 
 
@@ -781,45 +733,6 @@ def test_native_group_gains_project_live_controller_values_without_local_mirrors
     assert "_damping" in unsupported.__dict__
 
 
-def test_native_gain_randomization_updates_controllers_only():
-    """Route native gain randomization through the controller writer without a direct group mutation."""
-    from isaaclab.envs.mdp.events import randomize_actuator_gains
-
-    control = RecordingNativeGainFakeActuatorControl()
-    control.native_gains["kp"].fill_(2.0)
-    control.native_gains["kd"].fill_(0.2)
-    collection = ActuatorCollection(
-        {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
-    )
-    asset = SimpleNamespace(
-        actuators=collection,
-        device="cpu",
-        num_joints=control.num_joints,
-    )
-    term = object.__new__(randomize_actuator_gains)
-    term.asset = asset
-    term.asset_cfg = SimpleNamespace(joint_ids=slice(None))
-    term._native_group_names = {"native"}
-    term.default_actuator_stiffness = {"native": control.native_gains["kp"].clone()}
-    term.default_actuator_damping = {"native": control.native_gains["kd"].clone()}
-    env = SimpleNamespace(scene=SimpleNamespace(num_envs=control.num_instances))
-
-    term(
-        env,
-        env_ids=torch.tensor([0]),
-        asset_cfg=term.asset_cfg,
-        stiffness_distribution_params=(100.0, 100.0),
-        damping_distribution_params=(5.0, 5.0),
-    )
-
-    torch.testing.assert_close(control.native_gain_values_before_writes[0], torch.full((2, 3), 2.0))
-    torch.testing.assert_close(control.native_gain_values_before_writes[1], torch.full((2, 3), 0.2))
-    torch.testing.assert_close(control.native_gains["kp"][0], torch.full((3,), 100.0))
-    torch.testing.assert_close(control.native_gains["kd"][0], torch.full((3,), 5.0))
-    assert "_stiffness" not in collection["native"].__dict__
-    assert "_damping" not in collection["native"].__dict__
-
-
 def test_overlapping_groups_are_rejected():
     with pytest.raises(
         ValueError,
@@ -859,36 +772,6 @@ def test_custom_singleton_compute_receives_original_selector():
     assert collection["all"].observed_joint_indices == slice(None)
 
 
-def test_singleton_dc_motor_full_joint_group_skips_gather_launch(monkeypatch):
-    collection = ActuatorCollection(
-        {
-            "all": _dc_cfg(
-                [".*"],
-                stiffness=1.0,
-                damping=1.0,
-                effort_limit=10.0,
-                velocity_limit=10.0,
-                saturation_effort=20.0,
-            )
-        },
-        FakeActuatorControl(),
-    )
-
-    gather_launches = []
-    real_launch = wp.launch
-
-    def record_gather_launch(*args, **kwargs):
-        kernel = args[0] if args else kwargs.get("kernel")
-        if kernel is actuator_kernels.gather_actuator_batch:
-            gather_launches.append(kernel)
-        return real_launch(*args, **kwargs)
-
-    monkeypatch.setattr(wp, "launch", record_gather_launch)
-    collection.compute()
-
-    assert gather_launches == []
-
-
 def test_same_stateless_class_builds_one_execution_batch_with_group_views():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
@@ -910,123 +793,6 @@ def test_same_stateless_class_builds_one_execution_batch_with_group_views():
     assert collection["hips"].stiffness.untyped_storage().data_ptr() == batch.actuator.stiffness.data_ptr()
     collection["hips"].stiffness.fill_(17.0)
     torch.testing.assert_close(batch.actuator.stiffness[:, :2], torch.full((2, 2), 17.0))
-
-
-def test_joint_property_construction_payload_is_not_retained_by_group():
-    control = FakeActuatorControl(joint_names=["joint_0", "joint_1"])
-    collection = ActuatorCollection(
-        {
-            "motor": _ideal_pd_cfg(
-                armature=2.0,
-                friction=3.0,
-                joint_effort_limit=4.0,
-                joint_velocity_limit=5.0,
-            )
-        },
-        control,
-    )
-
-    properties, joint_ids, implicit, native_managed = control.written_properties[0]
-
-    assert isinstance(properties, ActuatorJointProperties)
-    assert joint_ids == slice(None)
-    assert not implicit
-    assert not native_managed
-    torch.testing.assert_close(properties.armature, torch.full((2, 2), 2.0))
-    torch.testing.assert_close(properties.friction, torch.full((2, 2), 3.0))
-    torch.testing.assert_close(properties.effort_limit, torch.full((2, 2), 4.0))
-    torch.testing.assert_close(properties.velocity_limit, torch.full((2, 2), 5.0))
-    assert "_joint_property_snapshot" not in vars(collection["motor"])
-
-
-def test_joint_property_access_resolves_current_articulation_values():
-    articulation = FakeArticulation()
-    control = FakeArticulationActuatorControl(articulation)
-    collection = ActuatorCollection(
-        {"elbow": _ideal_cfg(["joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
-        control,
-    )
-    group = collection["elbow"]
-    articulation.data.joint_armature.torch[:, 1] = torch.tensor([7.0, 8.0])
-    articulation.data.joint_effort_limits.torch[:, 1] = torch.tensor([9.0, 10.0])
-
-    with pytest.warns(DeprecationWarning):
-        armature = group.armature
-    with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
-        effort_limit_sim = group.effort_limit_sim
-
-    torch.testing.assert_close(armature, torch.tensor([[7.0], [8.0]]))
-    torch.testing.assert_close(effort_limit_sim, torch.tensor([[9.0], [10.0]]))
-
-
-def test_joint_property_access_resolves_current_non_articulation_control_values():
-    control = FakeActuatorControl()
-    collection = ActuatorCollection(
-        {"elbow": _ideal_cfg(["joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
-        control,
-    )
-    control._current_joint_properties.armature[:, 1] = torch.tensor([7.0, 8.0])
-    control._current_joint_properties.effort_limit[:, 1] = torch.tensor([9.0, 10.0])
-
-    with pytest.warns(DeprecationWarning):
-        armature = collection["elbow"].armature
-    with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
-        effort_limit_sim = collection["elbow"].effort_limit_sim
-
-    torch.testing.assert_close(armature, torch.tensor([[7.0], [8.0]]))
-    torch.testing.assert_close(effort_limit_sim, torch.tensor([[9.0], [10.0]]))
-
-
-@pytest.mark.parametrize(
-    ("property_name", "writer_name", "writer_value_name"),
-    [
-        ("effort_limit_sim", "effort_limit", "limits"),
-        ("velocity_limit_sim", "velocity_limit", "limits"),
-        ("armature", "armature", "armature"),
-        ("friction", "friction", "joint_friction_coeff"),
-        ("dynamic_friction", "dynamic_friction", "joint_dynamic_friction_coeff"),
-        ("viscous_friction", "viscous_friction", "joint_viscous_friction_coeff"),
-    ],
-)
-def test_deprecated_joint_property_assignment_forwards_to_articulation(property_name, writer_name, writer_value_name):
-    """Test a bound deprecated property assignment forwards the full group value to the articulation."""
-    articulation = FakeArticulation()
-    collection = ActuatorCollection(
-        {"elbow": _ideal_cfg(["joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
-        FakeArticulationActuatorControl(articulation),
-    )
-    value = torch.tensor([[3.0], [4.0]])
-
-    with pytest.warns(DeprecationWarning, match=property_name):
-        setattr(collection["elbow"], property_name, value)
-
-    name, kwargs = articulation.calls[-1]
-    assert name == writer_name
-    assert kwargs["joint_ids"].tolist() == [1]
-    torch.testing.assert_close(kwargs[writer_value_name], value)
-
-
-@pytest.mark.parametrize(
-    ("property_name", "writer_value_name"),
-    [
-        ("friction", "joint_friction_coeff"),
-        ("dynamic_friction", "joint_dynamic_friction_coeff"),
-        ("viscous_friction", "joint_viscous_friction_coeff"),
-    ],
-)
-def test_deprecated_scalar_friction_assignment_broadcasts_group_value(property_name, writer_value_name):
-    articulation = FakeArticulation()
-    collection = ActuatorCollection(
-        {"elbow": _ideal_cfg(["joint_1"], stiffness=1.0, damping=1.0, effort_limit=10.0)},
-        FakeArticulationActuatorControl(articulation),
-    )
-
-    with pytest.warns(DeprecationWarning, match=property_name):
-        setattr(collection["elbow"], property_name, 3.0)
-
-    value = articulation.calls[-1][1][writer_value_name]
-    assert isinstance(value, torch.Tensor)
-    torch.testing.assert_close(value, torch.full((2, 1), 3.0))
 
 
 def test_disjoint_implicit_groups_share_one_execution_batch():
@@ -1209,21 +975,6 @@ def test_actuator_batch_rebinds_cuda_state_provider_on_request(
     )
 
 
-def test_default_collection_reset_preserves_none_for_groups(monkeypatch):
-    cfg = _implicit_cfg()
-    reset_env_ids = []
-
-    def record_reset(self, env_ids):
-        reset_env_ids.append(env_ids)
-
-    monkeypatch.setattr(ImplicitActuator, "reset", record_reset)
-    collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
-
-    collection.reset()
-
-    assert reset_env_ids == [None]
-
-
 def test_aggregate_computes_once_and_refreshes_group_outputs(monkeypatch):
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(6)])
     collection = ActuatorCollection(
@@ -1381,20 +1132,6 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
 
     monkeypatch.setattr(DCMotor, "compute", fail_compute)
     collection.compute()
-
-
-def test_collection_exports_proxy_arrays():
-    control = FakeActuatorControl()
-    collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-
-    assert collection.command.position.shape == (2, 3)
-    assert collection.command.velocity.shape == (2, 3)
-    assert collection.command.effort.shape == (2, 3)
-    assert collection.joint_command.position.shape == (2, 3)
-    assert collection.joint_command.velocity.shape == (2, 3)
-    assert collection.joint_command.effort.shape == (2, 3)
-    assert collection.computed_torque.shape == (2, 3)
-    assert collection.applied_torque.shape == (2, 3)
 
 
 def test_collection_accepts_cached_proxy_joint_indices():

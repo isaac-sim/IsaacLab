@@ -16,7 +16,7 @@ import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
-from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl, _WarpIndex
+from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -77,7 +77,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def _write_joint_friction_properties(
         self,
         properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | _WarpIndex | slice,
+        joint_ids: torch.Tensor | wp.array | slice,
     ) -> None:
         super()._write_joint_friction_properties(properties, joint_ids)
         self._articulation.write_joint_viscous_friction_coefficient_to_sim_index(
@@ -89,21 +89,13 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not self._native_actuator_path_active:
             return
 
-        from newton import Model as NewtonModel  # noqa: PLC0415
-
         from isaaclab_newton.actuators import build_implicit_dof_mask  # noqa: PLC0415
         from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
 
         articulation = self._articulation
         adapter = SimulationManager._adapter
         if adapter is not None:
-            dof_layout = articulation._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-            if dof_layout.slice is not None:
-                arti_start = dof_layout.slice.start
-            elif dof_layout.indices is not None:
-                arti_start = int(dof_layout.indices.numpy()[0])
-            else:
-                arti_start = 0
+            arti_start = self._joint_dof_offset()
             joint_ordering = articulation.data.joint_ordering
             binding = adapter.bind_articulation(
                 lab_actuators=dict(collection.items()),
@@ -225,24 +217,15 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if adapter is None:
             return None
 
-        from newton import Model as NewtonModel  # noqa: PLC0415
-
         from isaaclab_newton.actuators.adapter import read_newton_actuator_gain  # noqa: PLC0415
 
-        dof_layout = articulation._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-        if dof_layout.slice is not None:
-            dof_offset = dof_layout.slice.start
-        elif dof_layout.indices is not None:
-            dof_offset = int(dof_layout.indices.numpy()[0])
-        else:
-            dof_offset = 0
         joint_ordering = articulation.data.joint_ordering
         gains, covered = read_newton_actuator_gain(
             adapter.actuators,
             attr,
             self.num_instances,
             self.num_joints,
-            dof_offset,
+            self._joint_dof_offset(),
             adapter.num_joints,
             self.device,
             joint_ordering.user_to_backend_indices if joint_ordering is not None else None,
@@ -250,6 +233,19 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not bool(torch.all(covered[joint_ids])):
             return None
         return gains[:, joint_ids]
+
+    def _joint_dof_offset(self) -> int:
+        """Return the first selected joint DOF's model offset within an environment."""
+        from newton import Model as NewtonModel  # noqa: PLC0415
+
+        dof_layout = self._articulation._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+        if dof_layout.slice is not None:
+            selection_offset = dof_layout.slice.start
+        elif dof_layout.indices is not None:
+            selection_offset = int(dof_layout.indices.numpy()[0])
+        else:
+            selection_offset = 0
+        return dof_layout.offset + selection_offset
 
     def write_native_actuator_gain(
         self,

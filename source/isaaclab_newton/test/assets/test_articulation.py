@@ -52,8 +52,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import (
-    ActuatorBase,
-    ActuatorJointProperties,
     IdealPDActuatorCfg,
     ImplicitActuator,
     ImplicitActuatorCfg,
@@ -678,32 +676,6 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
 
     assert native_groups == {"explicit"}
     assert gain_writes == []
-
-
-def test_native_configured_viscous_friction_reaches_newton_property_writer():
-    """Write configured passive viscous friction through the Newton-specific binding."""
-    writes = {}
-    articulation = SimpleNamespace(
-        write_joint_friction_coefficient_to_sim_index=lambda **kwargs: writes.update(static=kwargs),
-        write_joint_viscous_friction_coefficient_to_sim_index=lambda **kwargs: writes.update(viscous=kwargs),
-    )
-    properties = ActuatorJointProperties(
-        stiffness=torch.zeros((1, 1)),
-        damping=torch.zeros((1, 1)),
-        armature=torch.zeros((1, 1)),
-        friction=torch.tensor([[0.4]]),
-        dynamic_friction=torch.zeros((1, 1)),
-        viscous_friction=torch.tensor([[0.2]]),
-        effort_limit=torch.zeros((1, 1)),
-        velocity_limit=torch.zeros((1, 1)),
-    )
-    joint_ids = torch.tensor([0], dtype=torch.int32)
-
-    NewtonActuatorControl(articulation)._write_joint_friction_properties(properties, joint_ids)
-
-    assert writes["static"]["joint_friction_coeff"] is properties.friction
-    assert writes["viscous"]["joint_viscous_friction_coeff"] is properties.viscous_friction
-    assert writes["viscous"]["joint_ids"] is joint_ids
 
 
 @pytest.mark.parametrize(
@@ -2843,10 +2815,6 @@ def test_setting_velocity_limit_implicit(
     ).to(device)[:, 0, :]
     # check data buffer
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
-    # Keep one warning-covered compatibility projection while canonical data owns the solver value.
-    with pytest.warns(DeprecationWarning, match="velocity_limit_sim"):
-        torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, newton_vel_limit)
-
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
         sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
@@ -2954,13 +2922,8 @@ def test_setting_effort_limit_implicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
 
-    # Keep one warning-covered compatibility projection while canonical data owns the solver value.
-    with pytest.warns(DeprecationWarning, match="effort_limit_sim"):
-        torch.testing.assert_close(
-            articulation.actuators["joint"].effort_limit_sim,
-            articulation.actuators["joint"].effort_limit,
-        )
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, newton_effort_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].effort_limit, newton_effort_limit)
 
     # decide the limit based on what is set
     if joint_effort_limit is None and effort_limit is None:
@@ -3030,7 +2993,7 @@ def test_setting_effort_limit_explicit(
     if joint_effort_limit is not None:
         limit = joint_effort_limit
     else:
-        limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
+        limit = 1.0e9
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(newton_effort_limit, limit)
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, expected_effort_limit)

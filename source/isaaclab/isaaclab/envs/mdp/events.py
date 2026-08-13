@@ -24,7 +24,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.actuators import ActuatorCollection, ImplicitActuator
+from isaaclab.actuators import ActuatorCollection, IdealPDActuator, ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
@@ -1388,9 +1388,13 @@ class randomize_actuator_gains(ManagerTermBase):
         self.default_joint_stiffness = self.asset.data.joint_stiffness.torch.clone()
         self.default_joint_damping = self.asset.data.joint_damping.torch.clone()
 
-        # For explicit Lab actuators the sim-level stiffness/damping is zeroed out,
-        # so patch the defaults with the actual actuator PD gains.
-        for actuator in self.asset.actuators.values():
+        self._gain_actuators = {
+            name: actuator
+            for name, actuator in self.asset.actuators.items()
+            if isinstance(actuator, (ImplicitActuator, IdealPDActuator))
+        }
+        # Explicit PD gains are actuator-owned, so they replace the zeroed solver gains.
+        for actuator in self._gain_actuators.values():
             if not isinstance(actuator, ImplicitActuator):
                 joint_ids = actuator.joint_indices
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
@@ -1398,7 +1402,7 @@ class randomize_actuator_gains(ManagerTermBase):
         self._native_group_names = getattr(self.asset.actuators, "_native_group_names", set())
         self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
         self.default_actuator_damping: dict[str, torch.Tensor] = {}
-        for name, actuator in self.asset.actuators.items():
+        for name, actuator in self._gain_actuators.items():
             if name in self._native_group_names:
                 joint_ids = actuator.joint_indices
                 self.default_actuator_stiffness[name] = self.default_joint_stiffness[:, joint_ids].clone()
@@ -1443,7 +1447,7 @@ class randomize_actuator_gains(ManagerTermBase):
         actuator_collection = self.asset.actuators if isinstance(self.asset.actuators, ActuatorCollection) else None
 
         # Loop through actuators and randomize gains
-        for actuator_name, actuator in self.asset.actuators.items():
+        for actuator_name, actuator in self._gain_actuators.items():
             if isinstance(self.asset_cfg.joint_ids, slice):
                 # we take all the joints of the actuator
                 actuator_indices = slice(None)

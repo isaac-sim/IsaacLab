@@ -43,24 +43,23 @@ configurations to the canonical fields below. The former names remain accepted w
      - ``joint_velocity_limit``
      - :attr:`~isaaclab.assets.ArticulationData.joint_vel_limits`
 
-The fields remain construction-time overrides selected by an actuator group's joint expression;
-they are not stored on ordinary runtime actuators. Use articulation joint writers or supported
-randomization helpers to mutate live joint state. ``effort_limit`` and ``velocity_limit`` remain
-actuator-model fields: the former clips explicit model output, and the latter describes rated speed
-or an implicit soft-limit snapshot. ``joint_velocity_limit`` only requests solver enforcement,
-which is backend-dependent. See :ref:`actuators-joint-property-ownership` for the full ownership
-model.
+``joint_effort_limit`` and ``joint_velocity_limit`` are construction-time joint-property overrides
+selected by an actuator group's joint expression. The deprecated ``effort_limit_sim`` and
+``velocity_limit_sim`` configuration aliases resolve to those canonical fields and remain accepted
+through 3.x; none of these fields is stored on ordinary runtime actuators. ``effort_limit`` and
+``velocity_limit`` remain actuator-model fields: the former clips explicit model output, and the
+latter describes rated speed or an implicit soft-limit snapshot. ``joint_velocity_limit`` only
+requests solver enforcement, which is backend-dependent. See
+:ref:`actuators-joint-property-ownership` for the full ownership model.
 
-Deprecated group properties remain readable and assignable through 3.x. Assignment emits a
-warning and forwards the group selection and value to the articulation. It does
-not create an actuator-owned mirror. Migrate each property to its articulation
-data view and indexed writer:
+The runtime group properties listed below were removed. Read their live values from articulation
+data and use the corresponding indexed articulation writer:
 
-.. list-table:: Deprecated group-property migration
+.. list-table:: Removed group-property migration
    :header-rows: 1
    :widths: 26 38 36
 
-   * - Deprecated group property
+   * - Removed runtime group property
      - Read
      - Write
    * - ``effort_limit_sim``
@@ -82,8 +81,7 @@ data view and indexed writer:
      - ``data.joint_viscous_friction_coeff``
      - ``write_joint_viscous_friction_coefficient_to_sim_index``
 
-The dynamic-friction view and writer are backend-specific; Newton raises
-:class:`NotImplementedError` for the deprecated assignment because it has no corresponding joint
+The dynamic-friction view and writer are backend-specific; Newton has no corresponding joint
 property.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and

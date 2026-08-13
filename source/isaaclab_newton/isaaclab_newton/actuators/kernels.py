@@ -62,41 +62,31 @@ def scatter_gain_kernel(
     dst: wp.array(dtype=wp.float32),
     indices: wp.array(dtype=wp.uint32),
     dof_offset: int,
+    num_envs: int,
     num_joints: int,
     env_stride: int,
 ):
     """Scatter per-actuator ``src`` values into a flat per-env-per-DOF ``dst``.
 
-    Used at adapter finalize to snapshot each ``controller.kp`` /
-    ``controller.kd`` into the ``(num_envs, num_joints)`` torch tensor
-    that ``randomize_actuator_gains`` reads as
-    ``actuator.stiffness`` / ``.damping`` for its
-    ``default_joint_stiffness`` / ``default_joint_damping`` baseline.
-
-    The actuator's ``indices`` are global DOF ids laid out env-major with a
-    per-env stride of ``env_stride`` — the *whole model's* per-env DOF count,
-    which on a floating-base articulation exceeds ``num_joints`` (the
-    articulation-local, actuated joint count) by the free-root DOFs. The env
-    index must therefore be decoded with ``env_stride``, not ``num_joints``;
-    the articulation-local joint offset is what remains after removing the
-    env's block and lands in ``[0, num_joints)`` because ``indices`` only ever
-    holds this articulation's joints.
+    A Newton actuator can span multiple articulations. Indices outside the
+    requested articulation range are ignored.
 
     Args:
         src: Per-actuator parameter values (e.g. ``controller.kp``).
         dst: Flat ``(num_envs * num_joints)`` articulation-local snapshot buffer.
         indices: Actuator's flat env-major global DOF indices.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
+        dof_offset: Offset of this articulation's DOFs within each environment.
+        num_envs: Number of articulation environments.
         num_joints: Articulation-local joint count (``dst``'s inner stride).
         env_stride: Whole-model per-env DOF count (the stride used to build
             ``indices``).
     """
     i = wp.tid()
-    global_dof = int(indices[i]) - dof_offset
+    global_dof = int(indices[i])
     env = global_dof // env_stride
-    local_dof = global_dof - env * env_stride
-    dst[env * num_joints + local_dof] = src[i]
+    local_dof = global_dof - env * env_stride - dof_offset
+    if env < num_envs and local_dof >= 0 and local_dof < num_joints:
+        dst[env * num_joints + local_dof] = src[i]
 
 
 @wp.kernel(enable_backward=False)

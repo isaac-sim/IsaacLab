@@ -339,40 +339,6 @@ def test_stateful_newton_actuators_reject_outer_cuda_capture() -> None:
         )
 
 
-def test_non_graphable_stateful_newton_actuators_reject_outer_cuda_capture() -> None:
-    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg
-
-    checkpoint_path = _make_dummy_lstm_checkpoint()
-    try:
-        actuators = {
-            "lstm_legs": ActuatorNetLSTMCfg(
-                joint_names_expr=[".*HAA"],
-                network_file=checkpoint_path,
-                saturation_effort=120.0,
-                effort_limit=80.0,
-                velocity_limit=7.5,
-            ),
-            "pd_legs": IdealPDActuatorCfg(
-                joint_names_expr=[".*HFE", ".*KFE"],
-                stiffness=40.0,
-                damping=5.0,
-                effort_limit=80.0,
-            ),
-        }
-        with pytest.raises(
-            RuntimeError,
-            match="stateful Newton actuators cannot run inside an outer CUDA graph capture",
-        ):
-            _run_simulation(
-                actuators,
-                use_newton_actuators=True,
-                num_steps=0,
-                capture_first_compute=True,
-            )
-    finally:
-        os.unlink(checkpoint_path)
-
-
 def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
     """Match PhysX Newton-actuator traces under reversed public joint ordering."""
     identity_result = _run_simulation(

@@ -12,7 +12,7 @@ import logging
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Literal, TypeAliasType
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
@@ -34,10 +34,6 @@ if TYPE_CHECKING:
     from .base_articulation_data import BaseArticulationData
 
 logger = logging.getLogger(__name__)
-
-_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
-_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
-_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
 
 
 class BaseArticulation(AssetBase):
@@ -1622,8 +1618,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set joint position targets into internal buffers.
@@ -1711,8 +1707,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set joint velocity targets into internal buffers.
@@ -1782,8 +1778,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set joint efforts into internal buffers.
@@ -3110,8 +3106,8 @@ class BaseArticulation(AssetBase):
     def set_joint_position_target(
         self,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        joint_ids: Sequence[int] | slice | torch.Tensor | _WarpIndex | None = None,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_position_index`."""
         warnings.warn(
@@ -3127,8 +3123,8 @@ class BaseArticulation(AssetBase):
     def set_joint_velocity_target(
         self,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        joint_ids: Sequence[int] | slice | torch.Tensor | _WarpIndex | None = None,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_velocity_index`."""
         warnings.warn(
@@ -3144,8 +3140,8 @@ class BaseArticulation(AssetBase):
     def set_joint_effort_target(
         self,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        joint_ids: Sequence[int] | slice | torch.Tensor | _WarpIndex | None = None,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated. Use :meth:`isaaclab.actuators.ActuatorCollection.Command.set_effort_index`."""
         warnings.warn(

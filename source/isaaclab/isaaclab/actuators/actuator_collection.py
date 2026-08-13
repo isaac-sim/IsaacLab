@@ -11,7 +11,6 @@ import logging
 import warnings
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TypeAliasType
 
 import torch
 import warp as wp
@@ -30,9 +29,7 @@ from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
 
-_WarpInt32 = TypeAliasType("_WarpInt32", wp.array(dtype=wp.int32))
-_WarpInt64 = TypeAliasType("_WarpInt64", wp.array(dtype=wp.int64))
-_WarpIndex = TypeAliasType("_WarpIndex", _WarpInt32 | _WarpInt64)
+_DEFAULT_JOINT_EFFORT_LIMIT = 1.0e9
 
 
 class ActuatorCollection(Mapping[str, ActuatorBase]):
@@ -99,8 +96,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self,
             *,
             value: torch.Tensor | wp.array(dtype=wp.float32),
-            joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
-            env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
             full_data: bool = False,
         ) -> None:
             """Set desired positions using indices.
@@ -129,8 +126,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self,
             *,
             value: torch.Tensor | wp.array(dtype=wp.float32),
-            joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
-            env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
             full_data: bool = False,
         ) -> None:
             """Set desired velocities using indices.
@@ -159,8 +156,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self,
             *,
             value: torch.Tensor | wp.array(dtype=wp.float32),
-            joint_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
-            env_ids: Sequence[int] | torch.Tensor | _WarpIndex | None = None,
+            joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
             full_data: bool = False,
         ) -> None:
             """Set effort commands using indices.
@@ -329,7 +326,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._control.finalize_native_actuators(self)
         for actuator_name in self._native_group_names:
-            self._groups[actuator_name]._bind_native_actuator_gains(self._control)
+            actuator = self._groups[actuator_name]
+            if isinstance(actuator, IdealPDActuator):
+                actuator._bind_native_actuator_gains(self._control)
         self._validate_coverage()
         self._build_execution_batches()
         if debug_value_resolution:
@@ -631,10 +630,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._groups[actuator_name] = actuator
             self._groups_by_class.setdefault(type(actuator), []).append(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
-            for property_name, rows in actuator.joint_property_resolution_table.items():
-                resolution_rows.setdefault(property_name, tuple(tuple(row) for row in rows))
             self._joint_property_resolution_rows[actuator_name] = resolution_rows
-            actuator.__dict__.pop("joint_property_resolution_table", None)
             construction_records.append(
                 (
                     properties,
@@ -652,7 +648,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 native_managed=native_managed,
             )
         for actuator in self._groups.values():
-            actuator._bind_joint_properties(self._control)
+            if isinstance(actuator, ImplicitActuator):
+                actuator._bind_joint_drive(self._control)
 
     def _resolve_joint_properties(
         self,
@@ -669,7 +666,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             if implicit
             else torch.full_like(
                 defaults.effort_limit,
-                ActuatorBase._DEFAULT_MAX_EFFORT_SIM,
+                _DEFAULT_JOINT_EFFORT_LIMIT,
             )
         )
         values: dict[str, torch.Tensor] = {}
@@ -958,8 +955,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def _write_index_target(
         self,
         target: torch.Tensor | wp.array(dtype=wp.float32),
-        env_ids: torch.Tensor | _WarpIndex,
-        joint_ids: torch.Tensor | _WarpIndex,
+        env_ids: torch.Tensor | wp.array,
+        joint_ids: torch.Tensor | wp.array,
         target_buffer: wp.array(dtype=wp.float32),
         *,
         full_data: bool,
@@ -1049,15 +1046,15 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self,
         attr: str,
         values: torch.Tensor,
-        env_ids: Sequence[int] | torch.Tensor | _WarpIndex,
-        joint_ids: Sequence[int] | torch.Tensor | _WarpIndex,
+        env_ids: Sequence[int] | torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array,
     ) -> None:
         env_ids = self._as_torch_indices(self._control.resolve_env_ids(env_ids))
         joint_ids = self._as_torch_indices(self._control.resolve_joint_ids(joint_ids))
         values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
         self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
 
-    def _as_torch_indices(self, indices: torch.Tensor | _WarpIndex) -> torch.Tensor:
+    def _as_torch_indices(self, indices: torch.Tensor | wp.array) -> torch.Tensor:
         if isinstance(indices, wp.array):
             indices = wp.to_torch(indices)
         return indices.to(self.device, dtype=torch.long)

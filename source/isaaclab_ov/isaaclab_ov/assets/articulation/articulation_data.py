@@ -1742,10 +1742,7 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_vel_limits = wp.zeros((N, D), dtype=wp.float32, device=dev)
         self._gear_ratio = wp.ones((N, D), dtype=wp.float32, device=dev)
 
-        # -- Command buffers
-        self._joint_pos_target = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        self._joint_vel_target = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        self._joint_effort_target = wp.zeros((N, D), dtype=wp.float32, device=dev)
+        # -- Actuator telemetry buffers
         self._computed_torque = wp.zeros((N, D), dtype=wp.float32, device=dev)
         self._applied_torque = wp.zeros((N, D), dtype=wp.float32, device=dev)
 

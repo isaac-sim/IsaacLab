@@ -23,15 +23,11 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     joint_ids = [d for d in range(num_joints)]
     stiffness = None if usd_default else 200
     damping = None if usd_default else 10
-    friction = None if usd_default else 0.1
-    armature = None if usd_default else 0.2
 
     actuator_cfg = IdealPDActuatorCfg(
         joint_names_expr=joint_names,
         stiffness=stiffness,
         damping=damping,
-        armature=armature,
-        friction=friction,
     )
     # assume Articulation class:
     #   - finds joints (names and ids) associate with the provided joint_names_expr
@@ -39,8 +35,6 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     # faux usd defaults
     stiffness_default = 300
     damping_default = 20
-    friction_default = 0.0
-    armature_default = 0.0
 
     actuator = actuator_cfg.class_type(
         actuator_cfg,
@@ -50,8 +44,6 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
         device=device,
         stiffness=stiffness_default,
         damping=damping_default,
-        friction=friction_default,
-        armature=armature_default,
     )
 
     # check initialized actuator
@@ -61,46 +53,23 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
     torch.testing.assert_close(actuator.effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
-    for name in ("effort_limit_sim", "velocity_limit_sim", "armature", "friction"):
-        assert name not in actuator.__dict__
-    with pytest.warns(DeprecationWarning):
-        effort_limit_sim = actuator.effort_limit_sim
-    torch.testing.assert_close(
-        effort_limit_sim, actuator._DEFAULT_MAX_EFFORT_SIM * torch.ones(num_envs, num_joints, device=device)
-    )
     torch.testing.assert_close(actuator.velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
-    with pytest.warns(DeprecationWarning):
-        velocity_limit_sim = actuator.velocity_limit_sim
-    torch.testing.assert_close(velocity_limit_sim, torch.inf * torch.ones(num_envs, num_joints, device=device))
 
     if not usd_default:
         torch.testing.assert_close(actuator.stiffness, stiffness * torch.ones(num_envs, num_joints, device=device))
         torch.testing.assert_close(actuator.damping, damping * torch.ones(num_envs, num_joints, device=device))
-        with pytest.warns(DeprecationWarning):
-            armature_value = actuator.armature
-        torch.testing.assert_close(armature_value, armature * torch.ones(num_envs, num_joints, device=device))
-        with pytest.warns(DeprecationWarning):
-            friction_value = actuator.friction
-        torch.testing.assert_close(friction_value, friction * torch.ones(num_envs, num_joints, device=device))
     else:
         torch.testing.assert_close(
             actuator.stiffness, stiffness_default * torch.ones(num_envs, num_joints, device=device)
         )
         torch.testing.assert_close(actuator.damping, damping_default * torch.ones(num_envs, num_joints, device=device))
-        with pytest.warns(DeprecationWarning):
-            armature_value = actuator.armature
-        torch.testing.assert_close(armature_value, armature_default * torch.ones(num_envs, num_joints, device=device))
-        with pytest.warns(DeprecationWarning):
-            friction_value = actuator.friction
-        torch.testing.assert_close(friction_value, friction_default * torch.ones(num_envs, num_joints, device=device))
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_lim", [None, 300])
-@pytest.mark.parametrize("effort_lim_sim", [None, 400])
-def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effort_lim, effort_lim_sim):
+def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effort_lim):
     """Test initialization of ideal pd actuator with effort limits."""
     # used as a standin for the usd default value read in by articulation.
     # This value should not be propagated for ideal pd actuators
@@ -114,7 +83,6 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
         stiffness=200,
         damping=10,
         effort_limit=effort_lim,
-        effort_limit_sim=effort_lim_sim,
     )
 
     actuator = actuator_cfg.class_type(
@@ -128,29 +96,10 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
         effort_limit=effort_lim_default,
     )
 
-    if effort_lim is not None and effort_lim_sim is None:
-        effort_lim_expected = effort_lim
-        effort_lim_sim_expected = actuator._DEFAULT_MAX_EFFORT_SIM
-
-    elif effort_lim is None and effort_lim_sim is not None:
-        effort_lim_expected = effort_lim_default
-        effort_lim_sim_expected = effort_lim_sim
-
-    elif effort_lim is None and effort_lim_sim is None:
-        effort_lim_expected = effort_lim_default
-        effort_lim_sim_expected = actuator._DEFAULT_MAX_EFFORT_SIM
-
-    elif effort_lim is not None and effort_lim_sim is not None:
-        effort_lim_expected = effort_lim
-        effort_lim_sim_expected = effort_lim_sim
+    effort_lim_expected = effort_lim if effort_lim is not None else effort_lim_default
 
     torch.testing.assert_close(
         actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
-    )
-    with pytest.warns(DeprecationWarning):
-        effort_limit_sim = actuator.effort_limit_sim
-    torch.testing.assert_close(
-        effort_limit_sim, effort_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 
@@ -158,8 +107,7 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("velocity_lim", [None, 300])
-@pytest.mark.parametrize("velocity_lim_sim", [None, 400])
-def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, velocity_lim, velocity_lim_sim):
+def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, velocity_lim):
     """Test initialization of ideal pd actuator with velocity limits.
 
     Note Ideal PD actuator does not use velocity limits in computation, they are passed to physics via articulations.
@@ -173,7 +121,6 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
         stiffness=200,
         damping=10,
         velocity_limit=velocity_lim,
-        velocity_limit_sim=velocity_lim_sim,
     )
 
     actuator = actuator_cfg.class_type(
@@ -186,61 +133,11 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
         damping=actuator_cfg.damping,
         velocity_limit=velocity_limit_default,
     )
-    if velocity_lim is not None and velocity_lim_sim is None:
-        vel_lim_expected = velocity_lim
-        vel_lim_sim_expected = velocity_limit_default
-    elif velocity_lim is None and velocity_lim_sim is not None:
-        vel_lim_expected = velocity_lim_sim
-        vel_lim_sim_expected = velocity_lim_sim
-    elif velocity_lim is None and velocity_lim_sim is None:
-        vel_lim_expected = velocity_limit_default
-        vel_lim_sim_expected = velocity_limit_default
-    elif velocity_lim is not None and velocity_lim_sim is not None:
-        vel_lim_expected = velocity_lim
-        vel_lim_sim_expected = velocity_lim_sim
+    vel_lim_expected = velocity_lim if velocity_lim is not None else velocity_limit_default
 
     torch.testing.assert_close(
         actuator.velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
     )
-    with pytest.warns(DeprecationWarning):
-        velocity_limit_sim = actuator.velocity_limit_sim
-    torch.testing.assert_close(
-        velocity_limit_sim, vel_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
-    )
-
-
-@pytest.mark.parametrize(
-    ("property_name", "value", "as_scalar"),
-    [
-        ("effort_limit_sim", 4.0, True),
-        ("velocity_limit_sim", 5.0, False),
-        ("armature", 6.0, False),
-        ("friction", 7.0, False),
-        ("dynamic_friction", 8.0, False),
-        ("viscous_friction", 9.0, False),
-    ],
-)
-def test_deprecated_joint_property_assignment_remains_available_before_binding(property_name, value, as_scalar):
-    """Test deprecated assignment remains available before an actuator is bound to an articulation."""
-    cfg = IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=1.0, damping=1.0)
-    actuator = cfg.class_type(
-        cfg,
-        joint_names=["joint"],
-        joint_ids=[0],
-        num_envs=1,
-        device="cpu",
-        stiffness=1.0,
-        damping=1.0,
-    )
-    updated_value = torch.full((1, 1), value)
-
-    assignment = value if as_scalar else updated_value
-    with pytest.warns(DeprecationWarning, match=property_name):
-        setattr(actuator, property_name, assignment)
-    with pytest.warns(DeprecationWarning, match=property_name):
-        actual_value = getattr(actuator, property_name)
-
-    torch.testing.assert_close(actual_value, updated_value)
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
