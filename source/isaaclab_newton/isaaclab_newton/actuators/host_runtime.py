@@ -97,7 +97,7 @@ class _HostActuatorRuntime:
             if device.is_cuda and device.is_capturing and self.adapter.is_stateful:
                 raise RuntimeError(
                     "stateful Newton actuators cannot run inside an outer CUDA graph capture; "
-                    "let PhysX capture their alternating state graphs automatically"
+                    "let the host actuator runtime manage their alternating graphs"
                 )
             if self.adapter.is_all_graphable and device.is_cuda and not device.is_capturing:
                 if self.native_actuator_graphs is None:
