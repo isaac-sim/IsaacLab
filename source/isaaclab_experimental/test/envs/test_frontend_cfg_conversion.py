@@ -43,6 +43,10 @@ _STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:ManagerBasedRLEnv"
 # Stable task ids that adapt cleanly under ``--frontend warp``, as produced by
 # :func:`_sweep_warp_support`. Do not curate this by hand: when the test fails it prints the
 # exact set to paste back.
+#
+# The sweep reports what adapts today; this set records what must keep adapting. Without it a
+# task losing warp support only shrinks the computed answer, with nothing to compare against —
+# which is how Reach lost support unnoticed.
 _WARP_SUPPORTED_TASKS = frozenset(
     {
         "Isaac-Ant",
