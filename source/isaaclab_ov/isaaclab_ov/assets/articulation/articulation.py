@@ -266,7 +266,7 @@ class Articulation(BaseArticulation):
                 inst.reset()
 
         # apply actuator models and submit processed commands.
-        self.actuators.compute()
+        self.actuators.compute(OvPhysxManager.get_physics_dt())
         self.actuators.submit_commands()
 
     def update(self, dt: float) -> None:
@@ -4154,6 +4154,8 @@ class Articulation(BaseArticulation):
             debug_value_resolution=self.cfg.actuator_value_resolution_debug_print,
         )
         self._has_implicit_actuators = self.actuators.has_implicit_actuators
+        self._has_newton_actuators = self._actuator_control.native_actuator_path_active
+        self._physx_actuator_wrapper = self._actuator_control._physx_actuator_wrapper
         self._data.bind_actuator_collection(self.actuators)
 
     """

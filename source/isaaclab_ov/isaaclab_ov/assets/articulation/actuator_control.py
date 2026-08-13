@@ -7,18 +7,123 @@
 
 from __future__ import annotations
 
+import importlib.util
+import logging
+from collections.abc import Sequence
+from typing import Literal
+
 import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
+from isaaclab.sim.utils.queries import find_first_matching_prim
 
 from isaaclab_ov import tensor_types as TT
+
+_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
+
+logger = logging.getLogger(__name__)
 
 
 class OvPhysxActuatorControl(ArticulationActuatorControl):
     """Actuator control adapter for the OVPhysX backend."""
+
+    def __init__(self, articulation):
+        super().__init__(articulation)
+        self._host_actuator_runtime = None
+
+    @property
+    def _physx_actuator_wrapper(self):
+        """Expose the shared host wrapper for PhysX-native compatibility."""
+        return None if self._host_actuator_runtime is None else self._host_actuator_runtime.wrapper
+
+    def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
+        """Prepare optional Newton-native explicit actuators for OVPhysX."""
+        articulation = self._articulation
+        articulation._physx_actuator_wrapper = None
+        articulation.newton_actuator_adapter = None
+        articulation.newton_default_stiffness = None
+        articulation.newton_default_damping = None
+        articulation.newton_managed_local_joints = None
+        articulation._implicit_dof_mask = None
+        articulation._has_newton_actuators = False
+        self._host_actuator_runtime = None
+
+        use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
+        if use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
+            logger.warning(
+                "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available. "
+                "Newton-native actuators will be disabled and the simulation will fall back to the "
+                "Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
+            )
+            return set()
+        if not (use_newton_actuators and _HAS_NEWTON_ACTUATORS):
+            return set()
+
+        from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
+
+        from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
+        from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+
+        _validate_newton_native_actuator_cfgs(actuator_cfgs)
+        native_group_names = {
+            name for name, actuator_cfg in actuator_cfgs.items() if not self._is_implicit_cfg(actuator_cfg)
+        }
+        if not native_group_names:
+            return set()
+
+        self._native_actuator_path_active = True
+        articulation._has_newton_actuators = True
+        first_prim = find_first_matching_prim(articulation.cfg.prim_path)
+        articulation_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
+        self._host_actuator_runtime = _HostActuatorRuntime(articulation, logger=logger)
+        self._host_actuator_runtime.prepare(
+            collection,
+            stage=get_current_stage(),
+            articulation_prim_path=articulation_prim_path,
+        )
+        articulation._physx_actuator_wrapper = self._host_actuator_runtime.wrapper
+        articulation.newton_actuator_adapter = self._host_actuator_runtime.adapter
+        return native_group_names
+
+    def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
+        if self._native_actuator_path_active and self._host_actuator_runtime is not None:
+            self._host_actuator_runtime.finalize(collection)
+
+    def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
+        if not self._native_actuator_path_active or self._host_actuator_runtime is None:
+            return False
+        # OVPhysX public-order state uses owned staging buffers, even for identity ordering.
+        # Refresh both fields before every controller step so it observes the current simulation state.
+        self._articulation._data._refresh_joint_pos()
+        self._articulation._data._refresh_joint_vel()
+        self._host_actuator_runtime.compute(collection, dt)
+        return True
+
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+        if self._native_actuator_path_active and self._host_actuator_runtime is not None:
+            self._host_actuator_runtime.reset(env_ids)
+
+    def get_native_actuator_gain(
+        self,
+        attr: Literal["kp", "kd"],
+        joint_ids: torch.Tensor | slice,
+    ) -> torch.Tensor | None:
+        if self._host_actuator_runtime is None:
+            return None
+        return self._host_actuator_runtime.get_gain(attr, joint_ids)
+
+    def write_native_actuator_gain(
+        self,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        if self._host_actuator_runtime is not None:
+            self._host_actuator_runtime.write_gain(attr, values, env_ids, joint_ids)
 
     def _write_joint_friction_properties(
         self,

@@ -82,7 +82,7 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
+from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.assets.articulation import ordering_kernels  # noqa: E402
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
@@ -249,8 +249,15 @@ def _ovphysx_sim_context(device: str, **kwargs):
     """
     dt = kwargs.pop("dt", 1.0 / 60.0)
     gravity_enabled = kwargs.pop("gravity_enabled", True)
+    use_newton_actuators = kwargs.pop("use_newton_actuators", False)
     gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, dt=dt, gravity=gravity)
+    sim_cfg = SimulationCfg(
+        physics=OvPhysxCfg(),
+        device=device,
+        dt=dt,
+        gravity=gravity,
+        use_newton_actuators=use_newton_actuators,
+    )
     return build_simulation_context(device=device, sim_cfg=sim_cfg, **kwargs)
 
 
@@ -393,6 +400,98 @@ def generate_articulation(
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
 
     return articulation, translations
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
+    """Run a Newton-native explicit actuator through the OVPhysX effort binding."""
+    with _ovphysx_sim_context(device=device, use_newton_actuators=True) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
+            actuators={
+                "joint": IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=20.0, damping=1.0, effort_limit=80.0)
+            }
+        )
+        articulation, _ = generate_articulation(articulation_cfg, 1, device)
+        sim.reset()
+
+        target = articulation.data.joint_pos.torch + 0.5
+        articulation.set_joint_position_target_index(target=target)
+        articulation.write_data_to_sim()
+
+        assert articulation._actuator_control.native_actuator_path_active
+        assert articulation.newton_actuator_adapter is not None
+        assert torch.any(articulation.actuators.computed_torque.torch != 0.0)
+        assert torch.any(articulation.actuators.applied_torque.torch != 0.0)
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_ACTUATION_FORCE, device),
+            articulation.actuators.applied_torque.torch,
+        )
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(device):
+    """Reset and randomize only the selected OVPhysX native-controller environment."""
+    from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
+    from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
+
+    class Env:
+        def __init__(self, asset):
+            self.scene = self
+            self.num_envs = asset.num_instances
+            self.device = asset.device
+            self._asset = asset
+
+        def __getitem__(self, name):
+            assert name == "robot"
+            return self._asset
+
+    with _ovphysx_sim_context(device=device, use_newton_actuators=True) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
+            actuators={
+                "joint": DelayedPDActuatorCfg(
+                    joint_names_expr=[".*"],
+                    stiffness=20.0,
+                    damping=1.0,
+                    effort_limit=80.0,
+                    min_delay=1,
+                    max_delay=1,
+                )
+            }
+        )
+        articulation, _ = generate_articulation(articulation_cfg, 2, device)
+        sim.reset()
+        for _ in range(3):
+            articulation.write_data_to_sim()
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        adapter = articulation.newton_actuator_adapter
+        stateful_pairs = [
+            state
+            for actuator, state in zip(adapter.actuators, adapter._states_a)
+            if state is not None and getattr(state, "delay_state", None) is not None
+        ]
+        assert len(stateful_pairs) == 1
+        articulation.reset(env_ids=torch.tensor([0], device=device, dtype=torch.long))
+        assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [0, 1]
+
+        env = Env(articulation)
+        asset_cfg = SceneEntityCfg("robot")
+        event_params = {
+            "asset_cfg": asset_cfg,
+            "stiffness_distribution_params": (101.0, 101.0),
+            "damping_distribution_params": (3.0, 3.0),
+            "operation": "abs",
+            "distribution": "uniform",
+        }
+        event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
+        event(env, env_ids=torch.tensor([0], device=device), **event_params)
+
+        group = articulation.actuators["joint"]
+        torch.testing.assert_close(group.stiffness, torch.tensor([[101.0], [20.0]], device=device))
+        torch.testing.assert_close(group.damping, torch.tensor([[3.0], [1.0]], device=device))
 
 
 @pytest.fixture
