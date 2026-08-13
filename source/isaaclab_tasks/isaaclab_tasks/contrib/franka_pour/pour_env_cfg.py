@@ -55,11 +55,8 @@ from .reset_sampler import ResetDatasetSamplerCfg
 RIGID_ENTRY = "arm"
 MPM_ENTRY = "media"
 
-FRANKA_POUR_ROBOT_ASSET_ID = (
-    "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/"
-    "Assets/Isaac/6.0/Isaac/IsaacLab/Robots/FrankaEmika/franka_panda.usda"
-)
-FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "b3c61e9abf91872144a6d16a2b088907694d1cf73443242979da0be6c275573e"
+FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "0dc38454f02ea14d9ddd2437995fdc7c4a65634443cacdcc2a04e3de25655e00"
 FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/franka_pour_cups.usda"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
 FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
