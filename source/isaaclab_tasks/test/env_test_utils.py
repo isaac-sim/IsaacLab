@@ -470,6 +470,7 @@ def _check_random_actions(
         # Always ensure cleanup happens, regardless of success or failure
         if env is not None:
             env.close()
+            env = None
 
         # Drop unreachable environment objects while the device is still alive. Warp arrays
         # free device memory from a finalizer, so collect them before the simulation teardown
