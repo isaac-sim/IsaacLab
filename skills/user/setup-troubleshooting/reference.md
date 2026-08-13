@@ -22,6 +22,7 @@ Ask which install path the user is following before prescribing commands. For a 
 | Legacy installer or setup without Isaac Sim | `docs/source/setup/installation/index.rst` |
 | Newton setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
 | PhysX setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
+| OvPhysX setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
 
 ## Minimal Verification
 

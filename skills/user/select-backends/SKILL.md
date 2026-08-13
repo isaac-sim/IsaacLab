@@ -1,6 +1,6 @@
 ---
 name: isaaclab-selecting-backends
-description: Selects and validates Isaac Lab physics and rendering backends. Use when choosing PhysX or Newton, adding backend presets, comparing backend behavior, or debugging backend-specific simulation, randomization, sensor, or renderer issues.
+description: Selects and validates Isaac Lab physics and rendering backends. Use when choosing PhysX, Newton, or OvPhysX, adding backend presets, comparing backend behavior, or debugging backend-specific simulation, randomization, sensor, or renderer issues.
 audience: user
 status: experimental
 owners:
@@ -17,7 +17,8 @@ Do not use this skill to duplicate backend reference material. Link to the backe
 
 ## Workflow
 
-1. Identify the target backend: PhysX, Newton, or a task that must support both through presets.
+1. Identify the target backend: PhysX, Newton, OvPhysX, or a task that must
+   support multiple backends through presets.
 2. Read the physics-backends concept, backend architecture, backend and preset
    selector, and schema cfg docs before editing backend configs.
 3. Start with the backend that best matches the source task or current maintained example. Use PhysX first when matching Isaac Gym behavior.
@@ -34,10 +35,10 @@ Do not use this skill to duplicate backend reference material. Link to the backe
 Use this checklist:
 
 1. Run a small reset/step smoke test on the primary backend.
-2. If adding another backend, run the same smoke test there before training.
+2. Run the same smoke test on each selected backend before training.
 3. Compare observation shape, action shape, reset behavior, and contact behavior.
 4. Check randomization events for backend-specific support and device assumptions.
-5. Run short training only after both backends pass smoke tests.
+5. Run short training only after each selected backend passes its smoke test.
 
 For skill changes, run:
 
