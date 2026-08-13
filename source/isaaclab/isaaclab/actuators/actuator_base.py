@@ -73,14 +73,6 @@ class ActuatorBase(ABC):
     actuator characteristics.
     """
 
-    actuator_effort_limit: torch.Tensor
-    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
-
-    Shape is (num_envs, num_joints).
-
-    This is only owned by explicit actuator models.
-    """
-
     velocity_limit: torch.Tensor
     """The joint velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
 

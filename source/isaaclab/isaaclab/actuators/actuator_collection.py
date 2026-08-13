@@ -81,8 +81,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             _resolve_effort_limit_aliases(name, cfg, resolved_group_joints[name][1])
 
         self._allocate_buffers()
-        self._command = _ActuatorCommand(self)
-        self._joint_command = _ActuatorJointCommand(self)
+        self._command = ActuatorCommand(self)
+        self._joint_command = ActuatorJointCommand(self)
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._control.finalize_native_actuators(self)
@@ -124,12 +124,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
 
     @property
-    def command(self) -> _ActuatorCommand:
+    def command(self) -> ActuatorCommand:
         """Commands received by the actuator models."""
         return self._command
 
     @property
-    def joint_command(self) -> _ActuatorJointCommand:
+    def joint_command(self) -> ActuatorJointCommand:
         """Processed commands produced for the simulated joints.
 
         This view is not submitted-command telemetry for native controllers, which
@@ -794,7 +794,7 @@ class _ExecutionBatch:
     gather_outputs: list[wp.array(dtype=wp.float32)] | None = None
 
 
-class _ActuatorCommand:
+class ActuatorCommand:
     """Commands received by the actuator models.
 
     Position and velocity commands use joint-side coordinates. All command
@@ -1041,7 +1041,7 @@ class _ActuatorCommand:
         collection._control.stage_user_command(command_name, collection, None, None, env_mask, joint_mask)
 
 
-class _ActuatorJointCommand:
+class ActuatorJointCommand:
     """Processed commands produced for the simulated joints.
 
     These arrays contain submitted-command telemetry for Isaac Lab-managed

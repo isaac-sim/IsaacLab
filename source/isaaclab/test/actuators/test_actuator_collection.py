@@ -16,7 +16,9 @@ import pytest
 import torch
 import warp as wp
 
+import isaaclab.actuators as actuator_api
 from isaaclab.actuators import (
+    ActuatorBase,
     ActuatorCollection,
     ActuatorControl,
     ActuatorJointProperties,
@@ -845,8 +847,13 @@ def test_overlapping_groups_are_rejected():
 
 
 def test_collection_is_mapping_like_and_read_only():
+    assert hasattr(actuator_api, "ActuatorCommand")
+    assert hasattr(actuator_api, "ActuatorJointCommand")
+
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
+    assert isinstance(collection.command, actuator_api.ActuatorCommand)
+    assert isinstance(collection.joint_command, actuator_api.ActuatorJointCommand)
 
     assert list(collection.keys()) == ["all"]
     assert collection["all"] is next(iter(collection.values()))
@@ -870,6 +877,9 @@ def test_custom_singleton_compute_receives_original_selector():
 
 
 def test_same_stateless_class_builds_one_execution_batch_with_group_views():
+    assert "actuator_effort_limit" not in ActuatorBase.__dict__.get("__annotations__", {})
+    assert "actuator_effort_limit" in IdealPDActuator.__dict__.get("__annotations__", {})
+
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
         {
@@ -893,6 +903,9 @@ def test_same_stateless_class_builds_one_execution_batch_with_group_views():
 
 
 def test_disjoint_implicit_groups_share_one_execution_batch():
+    assert "is_implicit_model" in ImplicitActuator.__dict__.get("__annotations__", {})
+    assert ImplicitActuator.__dict__["is_implicit_model"] is True
+
     control = FakeActuatorControl(num_envs=1, joint_names=["joint_0", "joint_1", "joint_2", "joint_3"])
     collection = ActuatorCollection(
         {

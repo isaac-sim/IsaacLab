@@ -68,6 +68,8 @@ class ImplicitActuator(ActuatorBase):
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
+    is_implicit_model: ClassVar[bool] = True
+
     _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = ("velocity_limit",)
 
     stiffness: torch.Tensor
@@ -217,8 +219,6 @@ class ImplicitActuator(ActuatorBase):
                 " 'joint_velocity_limit'."
             )
 
-        # set implicit actuator model flag
-        ImplicitActuator.is_implicit_model = True
         # call the base class
         super().__init__(cfg, joint_names, joint_ids, num_envs, device, torch.inf, velocity_limit)
         self.joint_effort_limit = self._parse_joint_parameter(cfg.joint_effort_limit, joint_effort_limit)
@@ -305,6 +305,12 @@ class IdealPDActuator(ActuatorBase):
 
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
+
+    actuator_effort_limit: torch.Tensor
+    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
+
+    Shape is (num_envs, num_joints).
+    """
 
     _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _MODEL_EXECUTION_PARAMETER_NAMES
 
