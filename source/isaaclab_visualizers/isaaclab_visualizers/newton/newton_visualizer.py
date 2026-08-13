@@ -28,6 +28,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -936,7 +937,6 @@ class NewtonVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
 
         from isaaclab.sim import SimulationContext
 
@@ -1068,8 +1068,6 @@ class NewtonVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        from isaaclab_newton.physics import NewtonManager
-
         # Headless mode renders on demand via render_rgb_array(). Keep the latest
         # physics state available without paying the per-step render cost.
         if self._runtime_headless:
@@ -1146,8 +1144,6 @@ class NewtonVisualizer(BaseVisualizer):
         """Rebind viewer resources after a hard Newton model reset."""
         if soft or not self._picking_enabled or not self._is_initialized or self._is_closed:
             return
-
-        from isaaclab_newton.physics import NewtonManager
 
         model = NewtonManager.get_model()
         if model is self._model:
@@ -1886,8 +1882,6 @@ class NewtonGLVisualizer(NewtonVisualizer):
                 # The interactive render path logs markers every frame; a capture that
                 # skips them records the scene without its goal poses and command arrows.
                 if self.cfg.enable_markers:
-                    from isaaclab_newton.physics import NewtonManager
-
                     render_newton_visualization_markers(
                         self._viewer,
                         self._resolved_visible_env_ids,
