@@ -210,6 +210,7 @@ exclude_patterns = [
     "README.md",
     "licenses/*",
     "plans",
+    "superpowers/**",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
     "source/migration/include/*",
 ]

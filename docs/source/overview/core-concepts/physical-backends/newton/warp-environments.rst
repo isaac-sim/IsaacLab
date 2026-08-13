@@ -222,7 +222,8 @@ Limitations
 ~~~~~~~~~~~
 
 The warp env path is experimental and has the following known constraints. These are
-specific to warp envs; for Newton physics limitations see :doc:`supported-features`.
+specific to warp envs; for Newton physics maturity and specialist guides see
+:ref:`physics-backends-newton`.
 
 **Physics backend**
 
