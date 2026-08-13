@@ -1,0 +1,128 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'OVRTX Shader Cache'
+description: >
+  Restores, reports on and publishes the NVIDIA driver PSO blobs (nv_shadercache)
+  that Isaac Lab rendering tests would otherwise recompile from scratch on every
+  run. Owns key computation, restore, hit/miss and growth reporting, and the
+  writeback, so a caller only decides when each phase runs. Requires a prior
+  checkout.
+
+  A composite action cannot span the caller's test step, so the phases are
+  separate invocations selected by 'mode': 'restore' before the tests, then
+  either 'report' or 'save' after them. Every mode recomputes the keys from the
+  same key.sh, so the collection a job reads and the one it writes cannot drift.
+
+  Two entries, not one: kit/ is compiled by the RTX renderer inside the Isaac Sim
+  image and kitless/ by the pip-installed ovrtx wheel, so each tree is keyed by
+  its own producer and a bump to one does not invalidate the other. The mount
+  layout that fills them is documented in .github/actions/run-tests/run_tests.sh.
+
+inputs:
+  mode:
+    description: >-
+      'restore' reads the newest compatible snapshot of each tree and never
+      writes. 'report' summarises how far the run compiled beyond what was
+      restored. 'save' reports the same way and writes each populated tree back
+      as a new snapshot; only the cache warmer uses it.
+    required: true
+  isaacsim-version:
+    description: 'Isaac Sim image tag; identifies the exact Kit RTX build that compiles the kit/ blobs'
+    required: true
+
+outputs:
+  host-dir:
+    description: 'Parent directory holding both cache trees; bind-mounted into the test container'
+    value: ${{ steps.compute.outputs.host-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute OVRTX shader cache keys
+      id: compute
+      shell: bash
+      env:
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
+      run: bash "$GITHUB_ACTION_PATH/key.sh"
+
+    - name: Restore OVRTX kit shader cache
+      if: inputs.mode == 'restore'
+      id: restore-kit
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.compute.outputs.kit-dir }}
+        key: ${{ steps.compute.outputs.kit-key }}
+        restore-keys: ${{ steps.compute.outputs.kit-restore-keys }}
+
+    - name: Restore OVRTX kitless shader cache
+      if: inputs.mode == 'restore'
+      id: restore-kitless
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.compute.outputs.kitless-dir }}
+        key: ${{ steps.compute.outputs.kitless-key }}
+        restore-keys: ${{ steps.compute.outputs.kitless-restore-keys }}
+
+    - name: Report restored OVRTX shader cache
+      if: inputs.mode == 'restore'
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        KIT_MATCHED_KEY: ${{ steps.restore-kit.outputs.cache-matched-key }}
+        KITLESS_MATCHED_KEY: ${{ steps.restore-kitless.outputs.cache-matched-key }}
+        KIT_COLLECTION: ${{ steps.compute.outputs.kit-collection }}
+        KITLESS_COLLECTION: ${{ steps.compute.outputs.kitless-collection }}
+      run: bash "$GITHUB_ACTION_PATH/report.sh" restore
+
+    # always() on every post-test step: whether they run at all is the caller's
+    # decision, and the caller already gates this invocation on the job status.
+    # Repeating that here only stops the composite from inheriting a failed job
+    # context and skipping work that is still valid after a test failure.
+    #
+    # Growth is the coverage signal: exactly the blobs this job needed that the
+    # collection did not already hold. Emits kit-files / kitless-files, which is
+    # what the writeback gates on - a size threshold cannot separate a populated
+    # tree from an empty directory, and each tree has to be judged on its own so
+    # a populated kit/ never carries an empty kitless/ into a published snapshot.
+    - name: Report OVRTX shader cache growth
+      if: always() && inputs.mode != 'restore'
+      id: growth
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+      run: bash "$GITHUB_ACTION_PATH/report.sh" growth
+
+    # The count is empty rather than '0' when the growth step aborted before it
+    # counted. Both mean "nothing was measured", so both have to block the save -
+    # an unmeasured tree publishes under a key every consumer prefers over the
+    # last good snapshot. This matches how verify.sh reads the same outputs.
+    - name: Save OVRTX kit shader cache
+      if: >-
+        always() && inputs.mode == 'save'
+        && steps.growth.outputs.kit-files != ''
+        && steps.growth.outputs.kit-files != '0'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.compute.outputs.kit-dir }}
+        key: ${{ steps.compute.outputs.kit-key }}
+
+    - name: Save OVRTX kitless shader cache
+      if: >-
+        always() && inputs.mode == 'save'
+        && steps.growth.outputs.kitless-files != ''
+        && steps.growth.outputs.kitless-files != '0'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.compute.outputs.kitless-dir }}
+        key: ${{ steps.compute.outputs.kitless-key }}
+
+    - name: Verify both OVRTX shader cache trees were populated
+      if: always() && inputs.mode == 'save'
+      shell: bash
+      env:
+        KIT_FILES: ${{ steps.growth.outputs.kit-files }}
+        KITLESS_FILES: ${{ steps.growth.outputs.kitless-files }}
+      run: bash "$GITHUB_ACTION_PATH/verify.sh"
