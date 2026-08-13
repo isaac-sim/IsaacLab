@@ -14,8 +14,8 @@ with VBD.
 
 VBD is usually exposed through a task-specific physics preset rather than a
 general ``newton_vbd`` preset. Deformable-only scenes can use
-:class:`~isaaclab_newton.physics.VBDSolverCfg` directly. Robot or
-rigid-body scenes can use:
+:class:`~isaaclab_newton.physics.VBDSolverCfg` directly. For robot or
+rigid-body scenes, the named-entry coupling options are:
 
 * :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
   used by the core Franka tasks.
