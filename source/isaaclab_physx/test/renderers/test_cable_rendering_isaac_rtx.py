@@ -25,6 +25,8 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import os
+
 import pytest
 import torch
 import warp as wp
@@ -34,15 +36,17 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera
 from isaaclab.sim import build_simulation_context
 from isaaclab.test.utils.cable_rendering import (
-    ENV_NS,
+    ENV_SPACING,
     TRACK_STEPS,
     assert_mask_is_measuring_geometry,
     assert_tracks,
     cable_cfg,
     camera_cfg,
+    capture_rgb_frame,
     geometry_centroid,
     lit_mask,
     lit_pixel_count,
+    maybe_save_rgb_gif,
     sim_cfg,
     spawn_light,
 )
@@ -141,43 +145,66 @@ def test_cable_render_tracks_simulation():
 
 
 def test_cable_renders_across_environments():
-    """Cables must still render and track once the scene is replicated across environments."""
+    """Cables must still render and track once the scene is replicated across environments.
+
+    Covers the *rendering* half of multi-env replication. Other clone tests step with
+    ``render=False``, so they never check that replicated cable USD/render bindings still draw
+    and follow motion.
+
+    Uses the supported tiled-camera pattern: one camera prim per env via ``{ENV_REGEX_NS}``,
+    each framed like the single-env cells so cables stay large enough for the lit-mask metrics.
+    """
     num_envs = 4
-    spacing = 0.6
-    eye = (spacing, -1.6 * spacing, 1.15)
-    target = (spacing, 0.0, 0.55)
 
     @configclass
     class _CableSceneCfg(InteractiveSceneCfg):
+        # Clone cable and camera into every env (supported multi-env / tiled Camera contract).
         cable = cable_cfg().replace(prim_path="{ENV_REGEX_NS}/Cable")
-        camera = camera_cfg(_renderer_cfg(), f"{ENV_NS}/MultiEnvCam", eye, target)
+        camera = camera_cfg(_renderer_cfg(), "{ENV_REGEX_NS}/Camera")
 
     cfg = sim_cfg()
     with build_simulation_context(sim_cfg=cfg) as sim:
+        # Dome light only (no ground plane) so lit-mask segments cables, not a big floor.
         spawn_light()
-        scene = InteractiveScene(_CableSceneCfg(num_envs=num_envs, env_spacing=spacing))
+        scene = InteractiveScene(_CableSceneCfg(num_envs=num_envs, env_spacing=ENV_SPACING))
         sim.reset()
         cable = scene["cable"]
         camera = scene["camera"]
 
+        # Sanity: physics/cloner actually produced one cable instance per env.
         assert cable.num_instances == num_envs, (
             f"replication produced {cable.num_instances} cables, expected {num_envs}"
         )
+        assert camera.num_instances == num_envs, (
+            f"tiled camera has {camera.num_instances} views, expected {num_envs}"
+        )
 
+        # Baseline frame after reset: sync assets, render once, measure lit pixels / centroid / z.
         scene.update(cfg.dt)
         camera.update(cfg.dt)
         assert_mask_is_measuring_geometry(lit_mask(camera.data.output["rgb"]), _RENDERER)
         first_lit = lit_pixel_count(camera.data.output["rgb"])
         first_centroid = geometry_centroid(camera.data.output["rgb"])
         first_z = cable.data.segment_pose_w.torch[..., 2].mean().item()
+        recording = bool(os.environ.get("ISAAC_LAB_SAVE_CABLE_RENDERING_GIF"))
+        frames = [capture_rgb_frame(camera.data.output["rgb"])] if recording else []
 
+        # Keep normal runs cheap; opt-in GIF capture renders and records every physics step.
         for _ in range(TRACK_STEPS):
-            sim.step(render=False)
+            sim.step(render=recording)
             scene.update(cfg.dt)
-        camera.update(cfg.dt)
+            if recording:
+                camera.update(cfg.dt)
+                frames.append(capture_rgb_frame(camera.data.output["rgb"]))
+        # One render after motion; compare against the baseline.
+        if not recording:
+            camera.update(cfg.dt)
         assert_mask_is_measuring_geometry(lit_mask(camera.data.output["rgb"]), _RENDERER)
         last_lit = lit_pixel_count(camera.data.output["rgb"])
         last_centroid = geometry_centroid(camera.data.output["rgb"])
         last_z = cable.data.segment_pose_w.torch[..., 2].mean().item()
+        maybe_save_rgb_gif(frames, "cable-rendering-isaac-rtx-multi-env.gif")
 
+        # Gates: cables fell in sim, image centroid moved, and enough lit pixels remained
+        # (catches frozen spawn-pose draws and post-motion culls).
         assert_tracks(_RENDERER, first_lit, first_centroid, last_lit, last_centroid, first_z, last_z, envs=num_envs)

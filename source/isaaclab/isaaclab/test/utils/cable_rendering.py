@@ -18,6 +18,9 @@ displacement *and* retention, over a segmentation that refuses to measure a fram
 
 from __future__ import annotations
 
+import math
+import os
+
 import torch
 
 # Fraction of the frame above which a "geometry" mask is not geometry but a mis-measurement. A cable
@@ -34,6 +37,12 @@ SPAWN_Z = 0.8
 # Framed to keep the whole fall in view: the cable spawns near z=0.8 and settles at z~0.
 EYE = (2.2, 2.2, 1.3)
 TARGET = (0.0, 0.0, 0.35)
+# Local cable is ~3.1-3.4 m from EYE; keep a little margin so the fall stays in depth.
+CLIPPING_RANGE = (0.1, 4.0)
+# Multi-env spacing must put neighboring cables beyond CLIPPING_RANGE[1]. At EYE/TARGET above,
+# spacing 2.0 puts a neighbor *closer* than the local cable (~2.3 m), so far-clip alone cannot
+# stop cross-env leakage without also raising spacing (~6 m clears a 4 m far plane).
+ENV_SPACING = 6.0
 # OVRTX rejects camera prims outside the standard env namespace outright. Geometry must live there
 # too: scene-partition primvars are authored by walking that subtree, so a prim outside it inherits
 # no partition and the camera cannot see it.
@@ -64,8 +73,14 @@ def lit_mask(rgb, threshold: int = 12) -> torch.Tensor:
     Segments against the **modal** luminance, not an absolute threshold: a renderer with a bright
     backdrop saturates an absolute mask to the whole frame, pinning the centroid at the image
     centre, which reads exactly like a frozen render.
+
+    Batched tiled outputs ``(N, H, W, C)`` are stacked along height into one ``(N*H, W)`` mask so
+    multi-env cells measure every env tile, not only ``env_0``.
     """
     tensor = rgb.torch if hasattr(rgb, "torch") else rgb
+    if tensor.dim() == 4:
+        num_envs, height, width, channels = tensor.shape
+        tensor = tensor.reshape(num_envs * height, width, channels)
     lum = tensor[..., :3].float().mean(dim=-1)
     while lum.dim() > 2:
         lum = lum[0]
@@ -95,6 +110,45 @@ def geometry_centroid(rgb, threshold: int = 12) -> tuple[float, float] | None:
     return float(ys.float().mean().item()), float(xs.float().mean().item())
 
 
+def capture_rgb_frame(rgb) -> torch.Tensor:
+    """Copy an RGB output to CPU, arranging batched camera views in a grid."""
+    tensor = rgb.torch if hasattr(rgb, "torch") else rgb
+    tensor = tensor[..., :3].detach().to("cpu")
+    if tensor.dtype != torch.uint8:
+        tensor = tensor.clamp(0, 255).to(torch.uint8)
+    if tensor.dim() == 3:
+        return tensor.clone()
+
+    num_views, height, width, channels = tensor.shape
+    columns = math.ceil(math.sqrt(num_views))
+    rows = math.ceil(num_views / columns)
+    frame = torch.zeros((rows * height, columns * width, channels), dtype=torch.uint8)
+    for index, view in enumerate(tensor):
+        row, column = divmod(index, columns)
+        frame[row * height : (row + 1) * height, column * width : (column + 1) * width] = view
+    return frame
+
+
+def maybe_save_rgb_gif(frames: list[torch.Tensor], default_name: str) -> str | None:
+    """Save captured RGB frames when ``ISAAC_LAB_SAVE_CABLE_RENDERING_GIF`` is set.
+
+    The environment variable may be a destination path. Values ``1`` and ``true`` use
+    ``default_name`` in the current working directory.
+    """
+    destination = os.environ.get("ISAAC_LAB_SAVE_CABLE_RENDERING_GIF")
+    if not destination:
+        return None
+    if destination.lower() in {"1", "true"}:
+        destination = os.path.join(os.getcwd(), default_name)
+
+    from PIL import Image
+
+    images = [Image.fromarray(frame.numpy(), mode="RGB") for frame in frames]
+    images[0].save(destination, save_all=True, append_images=images[1:], duration=500, loop=0)
+    print(f"Saved cable rendering GIF to {destination}")
+    return destination
+
+
 def assert_mask_is_measuring_geometry(mask: torch.Tensor, renderer: str) -> None:
     """Fail loudly when the mask has latched onto the backdrop instead of the cable."""
     fraction = float(mask.float().mean().item())
@@ -109,15 +163,18 @@ def cable_cfg(prim_path: str | None = None):
     """The cable under test: eleven control points, spawned high enough to fall a measurable way."""
     from isaaclab.assets import CableObjectCfg
     from isaaclab.sim import UsdPhysicsCollisionCfg
-    from isaaclab.sim.spawners.materials import CableMaterialCfg
+    from isaaclab.sim.spawners.materials import CableMaterialCfg, PreviewSurfaceCfg
     from isaaclab.sim.spawners.shapes import CableCfg
 
     return CableObjectCfg(
         prim_path=prim_path or f"{ENV_NS}/Cable",
         spawn=CableCfg(
             positions=[(0.05 * index, 0.0, 0.0) for index in range(11)],
+            visual_material=PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
             physics_material=CableMaterialCfg(
-                thickness=0.01,
+                # Thick enough to stay visible at 320x240 from EYE; thin cables lose too many
+                # lit pixels under modal luminance masking and fail the retention gate falsely.
+                thickness=0.05,
                 density=100.0,
                 stretch_stiffness=3.18309886e8,
                 bend_stiffness=2.03718327e9,
@@ -138,7 +195,7 @@ def camera_cfg(renderer_cfg, prim_path: str | None = None, eye=EYE, target=TARGE
         width=320,
         height=240,
         data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=CLIPPING_RANGE),
         offset=CameraCfg.OffsetCfg(pos=eye, rot=look_at_quat(eye, target), convention="opengl"),
         renderer_cfg=renderer_cfg,
     )
@@ -182,8 +239,6 @@ def assert_tracks(renderer, first_lit, first_centroid, last_lit, last_centroid, 
     moves whatever remnant survives (centroid can pass) while losing most of its pixels (retention
     catches it). Dropping either lets one of the two real defects this suite exists to catch through.
     """
-    import math
-
     where = f" across {envs} envs" if envs > 1 else ""
     assert first_z - last_z > 0.1, f"cable did not fall{where}: {first_z:.4f} -> {last_z:.4f}"
     assert first_centroid is not None, f"no cable geometry rendered in the first frame{where}"
