@@ -61,8 +61,11 @@ Follow :ref:`isaaclab-installation-root` for the supported installation paths
 and current optional extras. Do not combine OvPhysX with a Kit runtime in the
 same process.
 
-For policy validation across PhysX and Newton, see
-:doc:`/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer`.
+For the general PhysX--Newton policy validation workflow, see
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
+checkpoint's joint or body ordering differs from the target backend, use the
+:doc:`articulation ordering guide
+</source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer>`.
 
 
 .. _physics-backends-physx:
@@ -74,6 +77,9 @@ PhysX is Isaac Lab's established reference backend. It runs through Isaac Sim,
 uses the Temporal Gauss-Seidel (TGS) solver by default, and also offers the
 Projective Gauss-Seidel (PGS) solver. Its GPU scene capacities are static, so
 contact-rich or large vectorized scenes may require explicit buffer sizing.
+Keep TGS as the starting point for articulated robots; evaluate PGS when a
+stiff legacy asset behaves poorly with TGS. The generated API remains the
+source of truth for solver selection values and defaults.
 
 Configure scene-level fields with
 :class:`~isaaclab_physx.physics.PhysxCfg`; the generated API reference is the
@@ -92,6 +98,11 @@ integration is beta and supports multiple solver families rather than one
 fixed solver. Configure the backend with
 :class:`~isaaclab_newton.physics.NewtonCfg` and select a solver configuration
 such as :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
+
+Task and component coverage is narrower and task-specific. Check task
+``--help`` and :doc:`the environment catalog </source/overview/environments>`
+for current presets, the generated configuration APIs for available symbols,
+and the specialist guides below for solver-specific workflows and limitations.
 
 Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
 :doc:`/source/how-to/tune_mjwarp` for the primary validated solver path or
