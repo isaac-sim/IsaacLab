@@ -56,7 +56,7 @@ class ActuatorJointProperties:
     viscous_friction: torch.Tensor
     """Passive joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
 
-    effort_limit: torch.Tensor
+    joint_effort_limit: torch.Tensor
     """Joint effort limits [N or N·m, depending on joint type]."""
 
     velocity_limit: torch.Tensor
@@ -492,7 +492,7 @@ class ArticulationActuatorControl(ActuatorControl):
             viscous_friction=self._joint_property_or_zeros(
                 "joint_viscous_friction_coeff", joint_ids, stiffness
             ).clone(),
-            effort_limit=data.joint_effort_limits.torch[:, joint_ids].clone(),
+            joint_effort_limit=data.joint_effort_limits.torch[:, joint_ids].clone(),
             velocity_limit=data.joint_vel_limits.torch[:, joint_ids].clone(),
         )
 
@@ -512,7 +512,7 @@ class ArticulationActuatorControl(ActuatorControl):
     ) -> None:
         articulation = self._articulation
         articulation.write_joint_effort_limit_to_sim_index(
-            limits=properties.effort_limit,
+            limits=properties.joint_effort_limit,
             joint_ids=joint_ids,
         )
         articulation.write_joint_velocity_limit_to_sim_index(

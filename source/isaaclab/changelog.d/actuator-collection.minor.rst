@@ -6,8 +6,9 @@ Added
   views.
 * Added execution aggregation for disjoint stateless actuator groups while
   preserving named group configuration and access.
-* Added ``joint_effort_limit`` and ``joint_velocity_limit`` as canonical
-  construction-time joint-property overrides for actuator configurations.
+* Added ``actuator_effort_limit`` as the explicit actuator-model clipping
+  limit, alongside the canonical ``joint_effort_limit`` and
+  ``joint_velocity_limit`` joint-property overrides.
 
 Deprecated
 ^^^^^^^^^^
@@ -19,10 +20,12 @@ Deprecated
 * Deprecated Isaac Lab execution of explicit actuator models. Enable
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these
   models through the native actuator path.
-* Deprecated the actuator configuration aliases ``effort_limit_sim`` and
-  ``velocity_limit_sim`` in favor of ``joint_effort_limit`` and
-  ``joint_velocity_limit``. The deprecated configuration aliases remain
-  available through Isaac Lab 3.x and will be removed in 4.0.
+* Deprecated the actuator configuration aliases ``effort_limit``,
+  ``effort_limit_sim``, and ``velocity_limit_sim``, and the runtime group
+  property ``effort_limit``. Use
+  ``actuator_effort_limit`` for explicit actuator-model clipping and
+  ``joint_effort_limit`` or ``joint_velocity_limit`` for solver limits. The
+  aliases remain available through Isaac Lab 3.x and will be removed in 4.0.
 * Deprecated ``write_actuator_stiffness_to_sim`` and
   ``write_actuator_damping_to_sim``. These backend-specific writers remain
   available through 3.x; use

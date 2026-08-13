@@ -70,7 +70,9 @@ def test_implicit_actuator_init_minimum(sim, num_envs, num_joints, device, usd_d
     torch.testing.assert_close(actuator.computed_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
-    torch.testing.assert_close(actuator.effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
+    torch.testing.assert_close(actuator.joint_effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
+    with pytest.warns(DeprecationWarning, match="joint_effort_limit"):
+        torch.testing.assert_close(actuator.effort_limit, actuator.joint_effort_limit)
     torch.testing.assert_close(actuator.velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
 
     if not usd_default:
@@ -98,7 +100,7 @@ def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device,
         joint_names_expr=joint_names,
         stiffness=200,
         damping=10,
-        effort_limit=effort_lim,
+        joint_effort_limit=effort_lim,
     )
 
     actuator = actuator_cfg.class_type(
@@ -109,11 +111,11 @@ def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device,
         device=device,
         stiffness=actuator_cfg.stiffness,
         damping=actuator_cfg.damping,
-        effort_limit=effort_limit_default,
+        joint_effort_limit=effort_limit_default,
     )
     effort_lim_expected = effort_lim if effort_lim is not None else effort_limit_default
     torch.testing.assert_close(
-        actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
+        actuator.joint_effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 

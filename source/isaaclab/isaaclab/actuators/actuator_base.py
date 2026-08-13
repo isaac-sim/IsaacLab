@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
@@ -15,8 +16,21 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
+from .actuator_base_cfg import _resolve_effort_limit_aliases
+
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
+
+
+def _effort_limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:
+    """Return whether two constructor effort-limit arguments are equivalent."""
+    if isinstance(first, torch.Tensor):
+        if isinstance(second, torch.Tensor):
+            return first.shape == second.shape and torch.equal(first, second)
+        return bool(torch.all(first == float(second)).item())
+    if isinstance(second, torch.Tensor):
+        return bool(torch.all(second == float(first)).item())
+    return float(first) == float(second)
 
 
 class ActuatorBase(ABC):
@@ -59,16 +73,12 @@ class ActuatorBase(ABC):
     actuator characteristics.
     """
 
-    effort_limit: torch.Tensor
-    """The effort limit [N or N·m, depending on joint type] for the actuator group.
+    actuator_effort_limit: torch.Tensor
+    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
 
     Shape is (num_envs, num_joints).
 
-    This limit is used differently depending on the actuator type:
-
-    - **Explicit actuators**: Used for internal torque clipping within the actuator model
-      (e.g., motor torque limits in DC motor models).
-    - **Implicit actuators**: Live projection of the articulation joint effort limit.
+    This is only owned by explicit actuator models.
     """
 
     velocity_limit: torch.Tensor
@@ -87,8 +97,9 @@ class ActuatorBase(ABC):
         joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
-        effort_limit: torch.Tensor | float = torch.inf,
+        actuator_effort_limit: torch.Tensor | float | None = None,
         velocity_limit: torch.Tensor | float = torch.inf,
+        effort_limit: torch.Tensor | float | None = None,
     ):
         """Initialize the actuator.
 
@@ -105,10 +116,12 @@ class ActuatorBase(ABC):
                 the joints in the articulation are part of the group.
             num_envs: Number of articulations in the view.
             device: Device used for processing.
-            effort_limit: The default effort limit. Defaults to infinity.
+            actuator_effort_limit: Default actuator-model effort clipping limit
+                [N or N·m, depending on joint type]. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
             velocity_limit: The default velocity limit. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
+            effort_limit: Deprecated alias for :paramref:`actuator_effort_limit`.
         """
         # save parameters
         self.cfg = cfg
@@ -117,7 +130,26 @@ class ActuatorBase(ABC):
         self._joint_names = joint_names
         self._joint_indices = joint_ids
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_limit)
+        if self.cfg.effort_limit is not None or self.cfg.effort_limit_sim is not None:
+            _resolve_effort_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
+        if not self.is_implicit_model:
+            if effort_limit is not None:
+                warnings.warn(
+                    "The effort_limit constructor argument is deprecated. Use actuator_effort_limit instead; "
+                    "effort_limit will be removed in 4.0.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                if actuator_effort_limit is not None and not _effort_limits_equal(actuator_effort_limit, effort_limit):
+                    raise ValueError(
+                        "Received conflicting actuator_effort_limit and deprecated effort_limit constructor arguments."
+                    )
+                actuator_effort_limit = effort_limit
+            elif actuator_effort_limit is None:
+                actuator_effort_limit = torch.inf
+            self.actuator_effort_limit = self._parse_joint_parameter(
+                self.cfg.actuator_effort_limit, actuator_effort_limit
+            )
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
@@ -278,9 +310,34 @@ class ActuatorBase(ABC):
         """Clip the desired torques based on the motor limits.
 
         Args:
-            desired_torques: The desired torques to clip.
+            effort: The effort to clip [N or N·m, depending on joint type].
 
         Returns:
-            The clipped torques.
+            The clipped effort [N or N·m, depending on joint type].
         """
-        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
+        return torch.clip(effort, min=-self.actuator_effort_limit, max=self.actuator_effort_limit)
+
+    @property
+    def effort_limit(self) -> torch.Tensor:
+        """Deprecated actuator effort limit [N or N·m, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :attr:`actuator_effort_limit` instead. This alias will be removed in 4.0.
+        """
+        warnings.warn(
+            "ActuatorBase.effort_limit is deprecated. Use actuator_effort_limit instead; "
+            "effort_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.actuator_effort_limit
+
+    @effort_limit.setter
+    def effort_limit(self, value: torch.Tensor) -> None:
+        warnings.warn(
+            "ActuatorBase.effort_limit is deprecated. Use actuator_effort_limit instead; "
+            "effort_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuator_effort_limit = value

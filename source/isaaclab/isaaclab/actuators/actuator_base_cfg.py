@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import MISSING
 
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.string import string_to_callable
+from isaaclab.utils.string import resolve_matching_names_values, string_to_callable
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
@@ -32,6 +33,61 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
     return issubclass(_resolve_actuator_class(cfg.class_type), ImplicitActuator)
 
 
+def _resolve_limit_values(value: dict[str, float | int] | float | int, joint_names: list[str]) -> tuple[float, ...]:
+    """Resolve a scalar or regex limit into group joint order."""
+    if isinstance(value, (float, int)):
+        return (float(value),) * len(joint_names)
+    joint_ids, _, values = resolve_matching_names_values(value, joint_names)
+    resolved_values = [0.0] * len(joint_names)
+    for joint_id, resolved_value in zip(joint_ids, values, strict=True):
+        resolved_values[joint_id] = float(resolved_value)
+    return tuple(resolved_values)
+
+
+def _resolve_effort_limit_aliases(
+    actuator_name: str,
+    cfg: ActuatorBaseCfg,
+    joint_names: list[str],
+    *,
+    warn_deprecated: bool = True,
+) -> None:
+    """Normalize deprecated effort-limit aliases on an actuator configuration.
+
+    The caller owns the configuration copy because this function writes canonical
+    values after validating equivalent scalar or regex configurations.
+    """
+    implicit = _is_implicit_actuator_cfg(cfg)
+    if implicit and cfg.actuator_effort_limit is not None:
+        raise ValueError(
+            f"Implicit actuator group '{actuator_name}' cannot set 'actuator_effort_limit'. "
+            "Use 'joint_effort_limit' for the solver limit."
+        )
+
+    for canonical_name, alias_name in (
+        ("joint_effort_limit", "effort_limit_sim"),
+        ("joint_effort_limit" if implicit else "actuator_effort_limit", "effort_limit"),
+    ):
+        alias_value = getattr(cfg, alias_name)
+        if alias_value is None:
+            continue
+        if warn_deprecated:
+            warnings.warn(
+                f"Actuator group '{actuator_name}' uses deprecated '{alias_name}'. Use "
+                f"'{canonical_name}' instead; '{alias_name}' will be removed in 4.0.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+        canonical_value = getattr(cfg, canonical_name)
+        if canonical_value is None:
+            setattr(cfg, canonical_name, alias_value)
+        elif _resolve_limit_values(canonical_value, joint_names) != _resolve_limit_values(alias_value, joint_names):
+            raise ValueError(
+                f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
+                f"deprecated '{alias_name}' values."
+            )
+        setattr(cfg, alias_name, None)
+
+
 @configclass
 class ActuatorBaseCfg:
     """Configuration for default actuators in an articulation."""
@@ -50,26 +106,11 @@ class ActuatorBaseCfg:
     """
 
     effort_limit: dict[str, float] | float | None = None
-    """Force/Torque limit of the joints in the group. Defaults to None.
+    """Deprecated effort limit [N or N·m, depending on joint type].
 
-    This limit is used to clip the computed torque sent to the simulation. If None, the
-    limit is set to the value specified in the USD joint prim.
-
-    .. attention::
-
-        The :attr:`joint_effort_limit` attribute should be used to set the effort limit for
-        the simulation physics solver.
-
-        The :attr:`effort_limit` attribute is used for clipping the effort output of the
-        actuator model **only** in the case of explicit actuators, such as the
-        :class:`~isaaclab.actuators.IdealPDActuator`.
-
-    .. note::
-
-        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`joint_effort_limit`
-        are equivalent. However, we suggest using the :attr:`joint_effort_limit` attribute because
-        it is more intuitive.
-
+    .. deprecated:: 3.0
+        For explicit actuators, use :attr:`actuator_effort_limit`. For implicit
+        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 4.0.
     """
 
     velocity_limit: dict[str, float] | float | None = None
@@ -178,4 +219,14 @@ class ActuatorBaseCfg:
 
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
+    """
+
+    actuator_effort_limit: dict[str, float] | float | None = None
+    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
+
+    This limit is used by explicit actuator models to clip their computed effort. If
+    None, it defaults to the authored/USD joint effort limit. It is not a solver limit.
+
+    :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
+    angle-dependent limits in its ``joint_parameter_lookup``.
     """

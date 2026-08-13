@@ -212,8 +212,9 @@ boundary, check it explicitly in observations or terminations and use physically
 limits, damping, armature, action scaling, rate limits, or controller clipping to keep the response
 well behaved. PhysX does consume its supported solver clamp; an overly tight PhysX clamp can make a
 velocity-limit termination unreachable and create a hidden transfer difference.
-``joint_effort_limit`` is the simulated effort limit; use per-joint actuator or gearbox limits
-rather than one oversized value for the whole robot.
+``joint_effort_limit`` is the simulated effort limit. Use
+``actuator_effort_limit`` to clip an explicit actuator model, and choose both limits from the
+motor and gearbox rather than using one oversized value for the whole robot.
 
 
 Why MJWarp often needs more armature

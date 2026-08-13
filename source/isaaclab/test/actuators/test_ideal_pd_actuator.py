@@ -52,7 +52,11 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     torch.testing.assert_close(actuator.computed_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
-    torch.testing.assert_close(actuator.effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
+    torch.testing.assert_close(
+        actuator.actuator_effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device)
+    )
+    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
+        torch.testing.assert_close(actuator.effort_limit, actuator.actuator_effort_limit)
     torch.testing.assert_close(actuator.velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
 
     if not usd_default:
@@ -82,7 +86,7 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
         joint_names_expr=joint_names,
         stiffness=200,
         damping=10,
-        effort_limit=effort_lim,
+        actuator_effort_limit=effort_lim,
     )
 
     actuator = actuator_cfg.class_type(
@@ -93,13 +97,13 @@ def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effo
         device=device,
         stiffness=actuator_cfg.stiffness,
         damping=actuator_cfg.damping,
-        effort_limit=effort_lim_default,
+        actuator_effort_limit=effort_lim_default,
     )
 
     effort_lim_expected = effort_lim if effort_lim is not None else effort_lim_default
 
     torch.testing.assert_close(
-        actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
+        actuator.actuator_effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 
@@ -155,7 +159,7 @@ def test_ideal_pd_compute(num_envs, num_joints, device, effort_lim):
         joint_names_expr=joint_names,
         stiffness=stiffness,
         damping=damping,
-        effort_limit=effort_lim,
+        actuator_effort_limit=effort_lim,
     )
 
     actuator = actuator_cfg.class_type(

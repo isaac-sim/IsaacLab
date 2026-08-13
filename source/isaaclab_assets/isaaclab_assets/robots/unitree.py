@@ -39,7 +39,7 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     torque_scale=1.0,
     input_order="pos_vel",
     input_idx=[0, 1, 2],
-    effort_limit=23.7,  # taken from spec sheet
+    actuator_effort_limit=23.7,  # taken from spec sheet
     velocity_limit=30.0,  # taken from spec sheet
     saturation_effort=23.7,  # same as effort limit
 )
@@ -88,7 +88,7 @@ UNITREE_A1_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
-            effort_limit=33.5,
+            actuator_effort_limit=33.5,
             saturation_effort=33.5,
             velocity_limit=21.0,
             stiffness=25.0,
@@ -171,7 +171,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
-            effort_limit=23.5,
+            actuator_effort_limit=23.5,
             saturation_effort=23.5,
             velocity_limit=30.0,
             stiffness=25.0,
@@ -426,7 +426,7 @@ G1_29DOF_CFG = ArticulationCfg(
                 ".*_hip_pitch_joint",
                 ".*_knee_joint",
             ],
-            effort_limit={
+            actuator_effort_limit={
                 ".*_hip_yaw_joint": 88.0,
                 ".*_hip_roll_joint": 88.0,
                 ".*_hip_pitch_joint": 88.0,
@@ -466,7 +466,7 @@ G1_29DOF_CFG = ArticulationCfg(
                 ".*_ankle_pitch_joint": 0.2,
                 ".*_ankle_roll_joint": 0.1,
             },
-            effort_limit={
+            actuator_effort_limit={
                 ".*_ankle_pitch_joint": 50.0,
                 ".*_ankle_roll_joint": 50.0,
             },
@@ -691,7 +691,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
                 ".*_hip_pitch_joint",
                 ".*_knee_joint",
             ],
-            effort_limit={
+            actuator_effort_limit={
                 ".*_hip_yaw_joint": 88.0,
                 ".*_hip_roll_joint": 88.0,
                 ".*_hip_pitch_joint": 88.0,
@@ -730,7 +730,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
                 ".*_ankle_pitch_joint": 2,
                 ".*_ankle_roll_joint": 2,
             },
-            effort_limit={
+            actuator_effort_limit={
                 ".*_ankle_pitch_joint": 50.0,
                 ".*_ankle_roll_joint": 50.0,
             },
@@ -757,7 +757,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
                 ".*_elbow_joint",
                 ".*_wrist_.*_joint",
             ],
-            effort_limit={
+            actuator_effort_limit={
                 ".*_shoulder_pitch_joint": 25.0,
                 ".*_shoulder_roll_joint": 25.0,
                 ".*_shoulder_yaw_joint": 25.0,
@@ -796,7 +796,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
             joint_names_expr=[
                 ".*_hand_.*",
             ],
-            effort_limit=5.0,
+            actuator_effort_limit=5.0,
             velocity_limit=10.0,
             stiffness=8.0,
             damping=1.5,

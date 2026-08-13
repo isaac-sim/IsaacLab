@@ -148,18 +148,20 @@ from articulation data and use the corresponding joint writers. The deprecated
 ``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
 See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
 
-Explicit actuators store model state such as ``effort_limit``, rated ``velocity_limit``, gains,
+Explicit actuators store model state such as ``actuator_effort_limit``, rated ``velocity_limit``, gains,
 delay, and motor curves. They do not store separate solver-limit or friction values. Because the
 backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
 live articulation properties. Native controllers keep their gains separate from solver gains.
 
-``effort_limit`` and ``velocity_limit`` apply to the actuator model. ``joint_effort_limit`` and
-``joint_velocity_limit`` apply to the joint or solver and can have different values. Explicit
-models clip output to ``effort_limit``; ``joint_effort_limit`` limits the solver.
+``actuator_effort_limit`` and ``velocity_limit`` apply to the actuator model.
+``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
+different values. Explicit models clip output to ``actuator_effort_limit``;
+``joint_effort_limit`` limits the solver.
 ``velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for implicit
 actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends enforce it
-differently, solver velocity limits are not portable clamps. For implicit actuators, bare
-``effort_limit`` remains a deprecated alias for ``joint_effort_limit``.
+differently, solver velocity limits are not portable clamps. ``effort_limit`` is a deprecated
+configuration and runtime group alias. It resolves to ``actuator_effort_limit`` for explicit
+actuators and to ``joint_effort_limit`` for implicit actuators.
 
 Choosing a model
 -----------------
@@ -184,7 +186,7 @@ simplest model that meets your requirements.
     * - :class:`~isaaclab.actuators.IdealPDActuator`
         (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
       - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
-      - Model clips directly to :math:`\pm\,\tau_{max}` (``effort_limit``).
+      - Model clips directly to :math:`\pm\,\tau_{max}` (``actuator_effort_limit``).
       - --
     * - :class:`~isaaclab.actuators.DCMotor`
         (:class:`~isaaclab.actuators.DCMotorCfg`)
@@ -194,7 +196,7 @@ simplest model that meets your requirements.
     * - :class:`~isaaclab.actuators.DelayedPDActuator`
         (:class:`~isaaclab.actuators.DelayedPDActuatorCfg`)
       - Ideal PD applied to commands delayed by a circular buffer.
-      - Same as ideal PD (``effort_limit``).
+      - Same as ideal PD (``actuator_effort_limit``).
       - ``min_delay``, ``max_delay``
     * - :class:`~isaaclab.actuators.RemotizedPDActuator`
         (:class:`~isaaclab.actuators.RemotizedPDActuatorCfg`)
@@ -372,7 +374,7 @@ Effort limit
 
 The effort limit is the torque ceiling the motor can produce [N·m or N]. The clip below drives an
 :class:`~isaaclab.actuators.IdealPDActuator` swing-up from hanging to horizontal against a
-~2.94 N·m gravity-hold torque, with the model's ``effort_limit`` swept over
+~2.94 N·m gravity-hold torque, with the model's ``actuator_effort_limit`` swept over
 :math:`[1, 2, 3, 4, 6]` N·m.
 
 The limit shapes the transient response, while gravity determines the steady state. Limits above

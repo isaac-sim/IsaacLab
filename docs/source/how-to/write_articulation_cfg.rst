@@ -146,12 +146,15 @@ ownership model and runtime mutation paths.
     * - ``joint_effort_limit``
       - Writes the solver drive effort limit.
       - Writes the solver effort limit; defaults high to avoid a second model clip.
+    * - ``actuator_effort_limit``
+      - Not supported.
+      - Clips actuator-model output.
     * - ``joint_velocity_limit``
       - Requests a solver velocity constraint.
       - Requests a solver velocity constraint.
     * - ``effort_limit``
-      - Deprecated implicit alias for ``joint_effort_limit``.
-      - Clips actuator-model output.
+      - Deprecated alias for ``joint_effort_limit``.
+      - Deprecated alias for ``actuator_effort_limit``.
     * - ``velocity_limit``
       - Creates the soft velocity-limit snapshot; it is not a solver request.
       - Describes the actuator rated speed; speed-dependent models use it in their torque curve.

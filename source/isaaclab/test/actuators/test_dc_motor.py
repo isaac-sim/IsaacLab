@@ -27,7 +27,7 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device):
         joint_names_expr=joint_names,
         stiffness=stiffness,
         damping=damping,
-        effort_limit=effort_limit,
+        actuator_effort_limit=effort_limit,
         saturation_effort=saturation_effort,
         velocity_limit=velocity_limit,
     )
@@ -46,7 +46,7 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device):
     torch.testing.assert_close(actuator.computed_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(
-        actuator.effort_limit,
+        actuator.actuator_effort_limit,
         effort_limit * torch.ones(num_envs, num_joints, device=device),
     )
     torch.testing.assert_close(
@@ -158,7 +158,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         joint_names_expr=joint_names,
         stiffness=stiffness,
         damping=damping,
-        effort_limit=effort_lim,
+        actuator_effort_limit=effort_lim,
         velocity_limit=velocity_limit,
         saturation_effort=saturation_effort,
     )

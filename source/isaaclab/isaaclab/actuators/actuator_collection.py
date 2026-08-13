@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import warnings
 from collections.abc import Iterator, Mapping, Sequence
@@ -23,7 +24,12 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from . import actuator_kernels
 from .actuator_base import ActuatorBase
-from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
+from .actuator_base_cfg import (
+    ActuatorBaseCfg,
+    _is_implicit_actuator_cfg,
+    _resolve_effort_limit_aliases,
+    _resolve_limit_values,
+)
 from .actuator_control import ActuatorControl, ActuatorJointProperties
 from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
 
@@ -71,8 +77,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         for name, cfg in resolved_cfgs.items():
-            self._resolve_deprecated_limit_aliases(name, cfg, resolved_group_joints[name][1])
-            self._resolve_implicit_effort_limit_alias(name, cfg, resolved_group_joints[name][1])
+            self._resolve_deprecated_velocity_limit_alias(name, cfg, resolved_group_joints[name][1])
+            _resolve_effort_limit_aliases(name, cfg, resolved_group_joints[name][1])
 
         self._allocate_buffers()
         self._command = _ActuatorCommand(self)
@@ -274,14 +280,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             resolved[actuator_name] = (joint_ids, joint_names)
         return resolved
 
-    def _resolve_deprecated_limit_aliases(
+    def _resolve_deprecated_velocity_limit_alias(
         self, actuator_name: str, cfg: ActuatorBaseCfg, joint_names: list[str]
     ) -> None:
         """Resolve deprecated solver-limit aliases on a copied actuator config."""
-        for canonical_name, alias_name in (
-            ("joint_effort_limit", "effort_limit_sim"),
-            ("joint_velocity_limit", "velocity_limit_sim"),
-        ):
+        for canonical_name, alias_name in (("joint_velocity_limit", "velocity_limit_sim"),):
             canonical_value = getattr(cfg, canonical_name)
             alias_value = getattr(cfg, alias_name)
             if alias_value is None:
@@ -295,42 +298,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             )
             if canonical_value is None:
                 setattr(cfg, canonical_name, alias_value)
-            elif self._resolve_joint_limit_values(canonical_value, joint_names) != self._resolve_joint_limit_values(
-                alias_value, joint_names
-            ):
+            elif _resolve_limit_values(canonical_value, joint_names) != _resolve_limit_values(alias_value, joint_names):
                 raise ValueError(
                     f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
                     f"deprecated '{alias_name}' values."
                 )
-
-    @staticmethod
-    def _resolve_joint_limit_values(
-        value: dict[str, float | int] | float | int, joint_names: list[str]
-    ) -> tuple[float, ...]:
-        """Resolve a limit configuration to values in group joint order."""
-        if isinstance(value, (float, int)):
-            return (float(value),) * len(joint_names)
-        joint_ids, _, values = string_utils.resolve_matching_names_values(value, joint_names)
-        resolved_values = [0.0] * len(joint_names)
-        for joint_id, resolved_value in zip(joint_ids, values, strict=True):
-            resolved_values[joint_id] = float(resolved_value)
-        return tuple(resolved_values)
-
-    def _resolve_implicit_effort_limit_alias(
-        self, actuator_name: str, cfg: ActuatorBaseCfg, joint_names: list[str]
-    ) -> None:
-        """Retain the implicit ``effort_limit`` compatibility alias on a copied config."""
-        if not _is_implicit_actuator_cfg(cfg) or cfg.effort_limit is None:
-            return
-        if cfg.joint_effort_limit is None:
-            cfg.joint_effort_limit = cfg.effort_limit
-        elif self._resolve_joint_limit_values(cfg.joint_effort_limit, joint_names) != self._resolve_joint_limit_values(
-            cfg.effort_limit, joint_names
-        ):
-            raise ValueError(
-                f"Implicit actuator group '{actuator_name}' has conflicting 'joint_effort_limit' and "
-                "'effort_limit' values. Use 'joint_effort_limit' for the solver limit."
-            )
 
     def _build_groups(
         self,
@@ -357,7 +329,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 actuator_joint_ids,
                 implicit=implicit,
             )
-            actuator: ActuatorBase = actuator_cfg.class_type(
+            actuator_kwargs = dict(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_ids=actuator_joint_ids,
@@ -365,9 +337,26 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 device=self.device,
                 stiffness=properties.stiffness,
                 damping=properties.damping,
-                effort_limit=properties.effort_limit if implicit else defaults.effort_limit,
                 velocity_limit=properties.velocity_limit,
             )
+            if implicit:
+                effort_limit_name = "joint_effort_limit"
+                effort_limit_value = properties.joint_effort_limit
+            else:
+                effort_limit_name = "actuator_effort_limit"
+                effort_limit_value = defaults.joint_effort_limit
+            constructor_parameters = inspect.signature(actuator_cfg.class_type.__init__).parameters
+            if effort_limit_name not in constructor_parameters and "effort_limit" in constructor_parameters:
+                warnings.warn(
+                    f"The constructor for actuator class '{actuator_cfg.class_type.__name__}' uses the deprecated "
+                    f"'effort_limit' parameter. Rename it to '{effort_limit_name}'; 'effort_limit' support will be "
+                    "removed in 4.0.",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                effort_limit_name = "effort_limit"
+            actuator_kwargs[effort_limit_name] = effort_limit_value
+            actuator: ActuatorBase = actuator_cfg.class_type(**actuator_kwargs)
             self._groups[actuator_name] = actuator
             self._groups_by_class.setdefault(type(actuator), []).append(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
@@ -404,10 +393,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     ) -> tuple[ActuatorJointProperties, dict[str, tuple[tuple[object, ...], ...]]]:
         """Resolve fresh construction-only joint properties for one actuator group."""
         effort_default = (
-            defaults.effort_limit
+            defaults.joint_effort_limit
             if implicit
             else torch.full_like(
-                defaults.effort_limit,
+                defaults.joint_effort_limit,
                 _DEFAULT_JOINT_EFFORT_LIMIT,
             )
         )
@@ -445,7 +434,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 friction=values["friction"],
                 dynamic_friction=values["dynamic_friction"],
                 viscous_friction=values["viscous_friction"],
-                effort_limit=values["effort_limit"],
+                joint_effort_limit=values["effort_limit"],
                 velocity_limit=values["velocity_limit"],
             ),
             resolution_rows,

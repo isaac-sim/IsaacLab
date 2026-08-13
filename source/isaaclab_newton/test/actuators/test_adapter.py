@@ -96,16 +96,16 @@ def _make_actuator_stage() -> Usd.Stage:
         "/World/Robot",
         {
             "pd_a": DelayedPDActuatorCfg(
-                joint_names_expr=["pd_a"], stiffness=11.0, damping=1.5, effort_limit=21.0, max_delay=2
+                joint_names_expr=["pd_a"], stiffness=11.0, damping=1.5, actuator_effort_limit=21.0, max_delay=2
             ),
             "pd_b": DelayedPDActuatorCfg(
-                joint_names_expr=["pd_b"], stiffness=22.0, damping=2.5, effort_limit=32.0, max_delay=4
+                joint_names_expr=["pd_b"], stiffness=22.0, damping=2.5, actuator_effort_limit=32.0, max_delay=4
             ),
             "dc_a": DCMotorCfg(
                 joint_names_expr=["dc_a"],
                 stiffness=33.0,
                 damping=3.5,
-                effort_limit=43.0,
+                actuator_effort_limit=43.0,
                 velocity_limit=7.0,
                 saturation_effort=53.0,
             ),
@@ -113,7 +113,7 @@ def _make_actuator_stage() -> Usd.Stage:
                 joint_names_expr=["dc_b"],
                 stiffness=44.0,
                 damping=4.5,
-                effort_limit=54.0,
+                actuator_effort_limit=54.0,
                 velocity_limit=8.0,
                 saturation_effort=64.0,
             ),
@@ -121,7 +121,7 @@ def _make_actuator_stage() -> Usd.Stage:
                 joint_names_expr=["remote_a"],
                 stiffness=55.0,
                 damping=5.5,
-                effort_limit=65.0,
+                actuator_effort_limit=65.0,
                 max_delay=1,
                 joint_parameter_lookup=[[-1.0, 1.0, 10.0], [1.0, 1.0, 20.0]],
             ),
@@ -129,7 +129,7 @@ def _make_actuator_stage() -> Usd.Stage:
                 joint_names_expr=["remote_b"],
                 stiffness=55.0,
                 damping=5.5,
-                effort_limit=65.0,
+                actuator_effort_limit=65.0,
                 max_delay=1,
                 joint_parameter_lookup=[[-1.0, 1.0, 11.0], [1.0, 1.0, 21.0]],
             ),
@@ -177,10 +177,57 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     ]
     assert len(remotized) == 2
     assert {tuple(actuator.indices.numpy()) for actuator in remotized} == {(4, 10), (5, 11)}
+    assert all(not any(type(clamping) is ClampingMaxEffort for clamping in actuator.clamping) for actuator in remotized)
     assert {
         tuple(next(c for c in actuator.clamping if type(c) is ClampingPositionBased).lookup_efforts.numpy())
         for actuator in remotized
     } == {(10.0, 20.0), (11.0, 21.0)}
+
+
+@pytest.mark.parametrize(
+    ("configured_limit", "expected_limits"),
+    [(None, (71.0, 72.0)), ({"pd_a": 5.0}, (5.0, 0.0))],
+)
+def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, expected_limits):
+    """Match authored fallback and partial-map resolution on native and Lab paths."""
+    stage = _make_actuator_stage()
+    for joint_name, authored_limit in zip(("pd_a", "pd_b"), (71.0, 72.0), strict=True):
+        joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
+        UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(authored_limit)
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=["pd_.*"],
+        stiffness=1.0,
+        damping=0.0,
+        actuator_effort_limit=configured_limit,
+        max_delay=0,
+    )
+
+    _author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
+
+    for joint_name, expected_limit in zip(("pd_a", "pd_b"), expected_limits, strict=True):
+        actuator_prim = stage.GetPrimAtPath(f"/World/Robot/fallback_{joint_name}_actuator")
+        assert actuator_prim.GetAttribute("newton:maxEffort").Get() == pytest.approx(expected_limit)
+
+
+@pytest.mark.parametrize(
+    "configured_limit",
+    [
+        {"pd_.*": 5.0, "pd_a": 7.0},
+        {"missing_joint": 5.0},
+    ],
+)
+def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit):
+    stage = _make_actuator_stage()
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=["pd_.*"],
+        stiffness=1.0,
+        damping=0.0,
+        actuator_effort_limit=configured_limit,
+        max_delay=0,
+    )
+
+    with pytest.raises(ValueError):
+        _author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
 
 
 @pytest.mark.parametrize(
@@ -193,7 +240,7 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
                 joint_names_expr=["pd_a"],
                 stiffness=0.0,
                 damping=0.0,
-                effort_limit=1.0,
+                actuator_effort_limit=1.0,
                 velocity_limit=1.0,
                 saturation_effort=1.0,
             ),
@@ -205,7 +252,7 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
                 joint_names_expr=["pd_a"],
                 stiffness=0.0,
                 damping=0.0,
-                effort_limit=1.0,
+                actuator_effort_limit=1.0,
                 velocity_limit=1.0,
                 saturation_effort=1.0,
             ),
@@ -231,7 +278,7 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
         joint_names_expr=["pd_a"],
         stiffness=1.0,
         damping=0.1,
-        effort_limit=2.0,
+        actuator_effort_limit=2.0,
         velocity_limit=3.0,
         saturation_effort=4.0,
     )

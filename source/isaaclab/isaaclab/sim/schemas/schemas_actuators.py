@@ -23,9 +23,14 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdPhysics
 
-from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_actuator_class
+from isaaclab.actuators.actuator_base_cfg import (
+    _is_implicit_actuator_cfg,
+    _resolve_actuator_class,
+    _resolve_effort_limit_aliases,
+    _resolve_limit_values,
+)
 from isaaclab.utils.string import resolve_matching_names
 
 
@@ -207,7 +212,11 @@ def _author_actuator_prims(
         if not joint_names:
             continue
 
-        cfg_entries.append((group_name, cfg, joint_names))
+        resolved_cfg = cfg.copy()
+        # Collection construction emits the deprecation warning later in the
+        # normal asset lifecycle. Authoring only needs the normalized value.
+        _resolve_effort_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
+        cfg_entries.append((group_name, resolved_cfg, joint_names))
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
 
@@ -220,12 +229,22 @@ def _author_actuator_prims(
     for group_name, cfg, joint_names in cfg_entries:
         stiffness_map = resolve_per_dof(getattr(cfg, "stiffness", None), joint_names)
         damping_map = resolve_per_dof(getattr(cfg, "damping", None), joint_names)
-        effort_map = resolve_per_dof(getattr(cfg, "effort_limit", None), joint_names)
 
         is_neural = isinstance(cfg, (ActuatorNetMLPCfg, ActuatorNetLSTMCfg))
         is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
         is_dc_motor = isinstance(cfg, DCMotorCfg)
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
+
+        configured_effort_limit = getattr(cfg, "actuator_effort_limit", None)
+        effort_map: dict[str, float] = {}
+        if not is_remotized:
+            if configured_effort_limit is None:
+                for joint_name in joint_names:
+                    authored_effort_limit = _get_authored_joint_effort_limit(stage, joint_inventory[joint_name])
+                    if authored_effort_limit is not None:
+                        effort_map[joint_name] = authored_effort_limit
+            else:
+                effort_map = dict(zip(joint_names, _resolve_limit_values(configured_effort_limit, joint_names)))
 
         vel_limit_map = resolve_per_dof(getattr(cfg, "velocity_limit", None), joint_names) if is_dc_motor else {}
         sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
@@ -268,7 +287,7 @@ def _author_actuator_prims(
                     attrs["velocity_limit"] = vel_limit_map[jname]
                 if jname in effort_map:
                     attrs["max_motor_effort"] = effort_map[jname]
-            elif jname in effort_map:
+            elif not is_remotized and jname in effort_map:
                 schemas.append("NewtonMaxEffortClampingAPI")
                 attrs["max_effort"] = effort_map[jname]
 
@@ -321,6 +340,19 @@ _SNAKE_TO_CAMEL_RE = re.compile(r"_([a-z])")
 def _snake_to_camel(name: str) -> str:
     """Convert a snake_case name to camelCase."""
     return _SNAKE_TO_CAMEL_RE.sub(lambda m: m.group(1).upper(), name)
+
+
+def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:
+    """Read a revolute or prismatic joint's authored USD drive effort limit."""
+    joint_prim = stage.GetPrimAtPath(joint_prim_path)
+    if joint_prim.IsA(UsdPhysics.RevoluteJoint):
+        drive_name = "angular"
+    elif joint_prim.IsA(UsdPhysics.PrismaticJoint):
+        drive_name = "linear"
+    else:
+        return None
+    value = UsdPhysics.DriveAPI(joint_prim, drive_name).GetMaxForceAttr().Get()
+    return None if value is None else float(value)
 
 
 def _collect_joint_prims(art_prim: Any) -> dict[str, str]:

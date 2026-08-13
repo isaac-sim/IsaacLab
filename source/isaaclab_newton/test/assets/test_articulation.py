@@ -202,7 +202,7 @@ def generate_articulation_cfg(
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
     velocity_limit: float | None = None,
-    effort_limit: float | None = None,
+    actuator_effort_limit: float | None = None,
     joint_velocity_limit: float | None = None,
     joint_effort_limit: float | None = None,
 ) -> ArticulationCfg:
@@ -218,8 +218,8 @@ def generate_articulation_cfg(
             Defaults to 2.0.
         velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
             and "single_joint_explicit".
-        effort_limit: Effort limit for the actuators. Only currently used for "single_joint_implicit"
-            and "single_joint_explicit".
+        actuator_effort_limit: Effort limit for explicit actuators. Only currently used for
+            "single_joint_explicit".
         joint_velocity_limit: Velocity limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
         joint_effort_limit: Effort limit for the actuators (set into the simulation).
@@ -256,7 +256,6 @@ def generate_articulation_cfg(
                     joint_names_expr=[".*"],
                     joint_effort_limit=joint_effort_limit,
                     joint_velocity_limit=joint_velocity_limit,
-                    effort_limit=effort_limit,
                     velocity_limit=velocity_limit,
                     stiffness=2000.0,
                     damping=100.0,
@@ -280,7 +279,7 @@ def generate_articulation_cfg(
                     joint_names_expr=[".*"],
                     joint_effort_limit=joint_effort_limit,
                     joint_velocity_limit=joint_velocity_limit,
-                    effort_limit=effort_limit,
+                    actuator_effort_limit=actuator_effort_limit,
                     velocity_limit=velocity_limit,
                     stiffness=0.0,
                     damping=10.0,
@@ -1012,7 +1011,7 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
                 stiffness=40.0,
                 damping=5.0,
-                effort_limit=80.0,
+                actuator_effort_limit=80.0,
             )
         },
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
@@ -1331,7 +1330,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
                 stiffness=40.0,
                 damping=5.0,
-                effort_limit=80.0,
+                actuator_effort_limit=80.0,
             )
         },
     )
@@ -2888,11 +2887,8 @@ def test_setting_velocity_limit_explicit(
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-def test_setting_effort_limit_implicit(
-    sim, num_articulations, device, joint_effort_limit, effort_limit, articulation_type
-):
+def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_effort_limit, articulation_type):
     """Test setting of effort limit for implicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -2903,7 +2899,6 @@ def test_setting_effort_limit_implicit(
     articulation_cfg = generate_articulation_cfg(
         articulation_type=articulation_type,
         joint_effort_limit=joint_effort_limit,
-        effort_limit=effort_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -2911,10 +2906,6 @@ def test_setting_effort_limit_implicit(
         device=device,
     )
     # Play sim
-    if joint_effort_limit is not None and effort_limit is not None:
-        with pytest.raises(ValueError):
-            sim.reset()
-        return
     sim.reset()
 
     # obtain the physx effort limits
@@ -2923,15 +2914,13 @@ def test_setting_effort_limit_implicit(
     ).to(device)[:, 0, :]
 
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, newton_effort_limit)
-    torch.testing.assert_close(articulation.actuators["joint"].effort_limit, newton_effort_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].joint_effort_limit, newton_effort_limit)
 
     # decide the limit based on what is set
-    if joint_effort_limit is None and effort_limit is None:
+    if joint_effort_limit is None:
         limit = articulation_cfg.spawn.joint_drive_props.max_force
-    elif joint_effort_limit is not None and effort_limit is None:
+    else:
         limit = joint_effort_limit
-    elif joint_effort_limit is None and effort_limit is not None:
-        limit = effort_limit
 
     # check that the max force is what we set
     expected_effort_limit = torch.full_like(newton_effort_limit, limit)
@@ -2941,10 +2930,10 @@ def test_setting_effort_limit_implicit(
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
+@pytest.mark.parametrize("actuator_effort_limit", [80.0, 1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
 def test_setting_effort_limit_explicit(
-    sim, num_articulations, device, joint_effort_limit, effort_limit, articulation_type
+    sim, num_articulations, device, joint_effort_limit, actuator_effort_limit, articulation_type
 ):
     """Test setting of effort limit for explicit actuators.
 
@@ -2958,7 +2947,7 @@ def test_setting_effort_limit_explicit(
     articulation_cfg = generate_articulation_cfg(
         articulation_type=articulation_type,
         joint_effort_limit=joint_effort_limit,
-        effort_limit=effort_limit,
+        actuator_effort_limit=actuator_effort_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -2975,19 +2964,19 @@ def test_setting_effort_limit_explicit(
     newton_effort_limit = wp.to_torch(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
-    actuator_effort_limit = articulation.actuators["joint"].effort_limit
+    actuator_effort_limit_actual = articulation.actuators["joint"].actuator_effort_limit
 
-    if effort_limit is not None:
-        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit, effort_limit)
+    if actuator_effort_limit is not None:
+        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit_actual, actuator_effort_limit)
         # check actuator is set
-        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
 
         # check physx effort limit does not match the one explicit actuator has
-        assert not (torch.allclose(actuator_effort_limit, newton_effort_limit))
+        assert not (torch.allclose(actuator_effort_limit_actual, newton_effort_limit))
     else:
-        # When effort_limit is None, actuator should use USD default values
+        # When actuator_effort_limit is None, actuator should use USD default values
         expected_actuator_effort_limit = torch.full_like(newton_effort_limit, usd_default_effort_limit)
-        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
 
     # when using explicit actuators, the limits are set to high unless user overrides
     if joint_effort_limit is not None:

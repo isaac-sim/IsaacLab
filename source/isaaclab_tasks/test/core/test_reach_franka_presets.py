@@ -191,7 +191,7 @@ def test_reach_osc_uses_explicit_effort_limited_actuator():
 
     assert cfg.scene.robot.spawn.usd_path.endswith("/Robots/FrankaEmika/franka_panda.usda")
     assert isinstance(arm_actuator, IdealPDActuatorCfg)
-    assert arm_actuator.effort_limit is None
+    assert arm_actuator.actuator_effort_limit is None
     assert arm_actuator.stiffness == 0.0
     assert arm_actuator.damping == 0.0
 
