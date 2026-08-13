@@ -29,9 +29,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Seed used for the environment (overrides config if set)",
     )
-    parser.add_argument("--max_epochs", type=int, default=None, help="RL Policy training iterations.")
+    parser.add_argument(
+        "--max_iterations",
+        type=int,
+        default=None,
+        help="RL policy training iterations.",
+    )
     parser.add_argument("--list_tasks", action="store_true", default=False, help="List all available tasks and exit.")
-    parser.add_argument("--model_path", type=str, default=None, help="Path to pretrained model checkpoint (required).")
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default=None,
+        help="Path to the pretrained base model (optional; can be set in config).",
+    )
     cli_args.add_rlinf_args(parser)
     args_cli = parser.parse_args(argv)
     if not args_cli.list_tasks and not args_cli.config_name:
@@ -115,15 +125,27 @@ def run(argv: list[str]) -> None:
             cfg.env.eval.total_num_envs = args_cli.num_envs
         if args_cli.seed is not None:
             cfg.actor.seed = args_cli.seed
-        if args_cli.max_epochs is not None:
-            cfg.runner.max_epochs = args_cli.max_epochs
+        if args_cli.max_iterations is not None:
+            cfg.runner.max_epochs = args_cli.max_iterations
         if args_cli.model_path is not None:
             cfg.actor.model.model_path = args_cli.model_path
             cfg.rollout.model.model_path = args_cli.model_path
         if args_cli.only_eval:
             cfg.runner.only_eval = True
-        if args_cli.resume_dir:
-            cfg.runner.resume_dir = args_cli.resume_dir
+        if args_cli.checkpoint:
+            checkpoint_path = cli_args._resolve_rlinf_checkpoint(
+                args_cli.checkpoint,
+                log_root_path=str(Path("logs") / "rlinf"),
+                task=args_cli.task or task_id,
+                config_name=config_name,
+            )
+            cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
+
+    from isaaclab_rl.entrypoints.common import write_run_manifest
+
+    write_run_manifest(
+        str(log_dir), library="rlinf", task=args_cli.task or task_id, metadata={"config_name": config_name}
+    )
 
     cfg = validate_cfg(cfg)
 
@@ -132,7 +154,7 @@ def run(argv: list[str]) -> None:
     print("=" * 60)
     print(f"  Task: {cfg.env.train.init_params.id}")
     print(f"  Num envs: {cfg.env.train.total_num_envs}")
-    print(f"  Max epochs: {cfg.runner.max_epochs}")
+    print(f"  Max iterations: {cfg.runner.max_epochs}")
     print(f"  Model: {cfg.actor.model.model_path}")
     print(f"  Algorithm: {cfg.algorithm.loss_type}")
     print(f"  Log dir: {log_dir}")

@@ -14,7 +14,7 @@ from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import Camera
@@ -271,6 +271,24 @@ def deformable_com_in_robot_root_frame(
     com_w = asset.data.root_pos_w.torch
     com_b, _ = subtract_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, com_w)
     return com_b
+
+
+def cable_segment_positions_in_robot_root_frame(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Cable segment positions in the robot root frame [m]."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    robot: Articulation = env.scene[robot_cfg.name]
+    segment_pos_w = asset.data.segment_pose_w.torch[..., :3]
+    num_segments = segment_pos_w.shape[1]
+    root_pos_w = robot.data.root_pos_w.torch.unsqueeze(1).expand(-1, num_segments, -1)
+    root_quat_w = robot.data.root_quat_w.torch.unsqueeze(1).expand(-1, num_segments, -1)
+    segment_pos_b, _ = subtract_frame_transforms(
+        root_pos_w.reshape(-1, 3), root_quat_w.reshape(-1, 4), segment_pos_w.reshape(-1, 3)
+    )
+    return segment_pos_b.view(env.num_envs, -1)
 
 
 class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
