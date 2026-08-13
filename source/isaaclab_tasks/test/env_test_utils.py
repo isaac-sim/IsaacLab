@@ -76,49 +76,18 @@ def _task_tier(task_spec) -> str | None:
     return None
 
 
-def _has_physics_preset(raw_cfg, preset_name: str) -> bool:
-    """Check if a raw (unresolved) env config has a named physics preset.
-
-    Must be called with the result of :func:`load_cfg_from_registry`, not
-    :func:`parse_env_cfg`, because the latter resolves all PresetCfg wrappers
-    to their default before returning.
-
-    Args:
-        raw_cfg: Raw env config from :func:`load_cfg_from_registry`.
-        preset_name: Name of the preset to check for (e.g., 'newton_mjwarp').
-
-    Returns:
-        True if ``raw_cfg.sim.physics`` is a PresetCfg with the given preset field.
-    """
-    if isinstance(raw_cfg, dict):
-        return False
-    # If the top-level cfg is itself a PresetCfg wrapper, unwrap to its default.
-    env_cfg = raw_cfg
-    if (
-        hasattr(env_cfg, "__dataclass_fields__")
-        and hasattr(env_cfg, "default")
-        and not hasattr(type(env_cfg), "class_type")
-    ):
-        env_cfg = env_cfg.default
-    physics = getattr(getattr(env_cfg, "sim", None), "physics", None)
-    return physics is not None and hasattr(physics, preset_name)
-
-
 def setup_environment(
-    include_play: bool = False,
     factory_envs: bool | None = None,
     multi_agent: bool | None = None,
     teleop_envs: bool | None = None,
     cartpole_showcase_envs: bool | None = None,
     pickplace_stack_envs: bool | None = None,
-    newton_mjwarp_envs: bool | None = None,
     tier: str | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
 
     Args:
-        include_play: If True, include environments ending in 'Play-v0'.
         factory_envs:
             - True: include only Factory environments
             - False: exclude Factory environments
@@ -139,10 +108,6 @@ def setup_environment(
             - True: include only PickPlace/Stack environments
             - False: exclude PickPlace/Stack environments
             - None: include all environments regardless of pick-place/stack type
-        newton_mjwarp_envs:
-            - True: include only environments that have an MJWarp physics preset.
-            - False: exclude environments that have an MJWarp physics preset.
-            - None: include all environments regardless of MJWarp preset availability.
         tier:
             - "core": include only core environments (registered under ``isaaclab_tasks.core``).
             - "contrib": include only contributed environments (registered under ``isaaclab_tasks.contrib``).
@@ -159,10 +124,6 @@ def setup_environment(
     for task_spec in gym.registry.values():
         # only consider Isaac environments
         if "Isaac" not in task_spec.id:
-            continue
-
-        # filter Play environments, if needed
-        if not include_play and task_spec.id.endswith("Play-v0"):
             continue
 
         # apply core/contrib tier filter
@@ -211,17 +172,6 @@ def setup_environment(
                 continue
         # if None: no filter
 
-        # apply MJWarp preset filter
-        if newton_mjwarp_envs is not None:
-            # Use load_cfg_from_registry (not parse_env_cfg) so that the PresetCfg
-            # wrapper on sim.physics is not yet resolved to its default.
-            raw_cfg = load_cfg_from_registry(task_spec.id, "env_cfg_entry_point")
-            has_newton_mjwarp = _has_physics_preset(raw_cfg, "newton_mjwarp")
-            if (newton_mjwarp_envs is True and not has_newton_mjwarp) or (
-                newton_mjwarp_envs is False and has_newton_mjwarp
-            ):
-                continue
-        # if None: no filter
 
         registered_tasks.append(task_spec.id)
 

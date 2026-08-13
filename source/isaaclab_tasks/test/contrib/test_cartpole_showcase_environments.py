@@ -26,7 +26,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 @pytest.mark.parametrize(
     "task_name",
     setup_environment(
-        include_play=False, factory_envs=False, multi_agent=False, teleop_envs=False, cartpole_showcase_envs=True
+        factory_envs=False, multi_agent=False, teleop_envs=False, cartpole_showcase_envs=True
     ),
 )
 @pytest.mark.isaacsim_ci

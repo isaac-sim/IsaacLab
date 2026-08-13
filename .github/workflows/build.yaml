@@ -966,8 +966,7 @@ jobs:
         # (dexterous, many contacts). Deformable/MPM kernels are not covered;
         # widen if a test job reports large cache growth.
         include-files: >-
-          test_environments.py,
-          test_environments_newton.py
+          test_environments.py
         # No Soft/Cloth: the deformable envs depend on optional extras the CI
         # image does not install (Soft needs pytetwild), so they only ever fail.
         test-k-expr: "Cartpole or Drawer or AnymalD or Handover"
