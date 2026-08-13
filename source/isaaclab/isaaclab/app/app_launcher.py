@@ -1131,7 +1131,6 @@ class AppLauncher:
         # and the renderer translates them itself, so select the device through that instead and leave
         # ``activeGpu`` unset -- the translation is only applied when no explicit graphics index is given.
         launcher_args["physics_gpu"] = self.device_id
-        launcher_args["active_gpu"] = None
         extra_args = list(launcher_args.get("extra_args") or [])
         # Trailing comma: the setting is parsed as a comma-separated string, and a bare integer is
         # silently ignored.
