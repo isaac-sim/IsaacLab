@@ -22,6 +22,7 @@ This script demonstrates how to work with the deformable object and interact wit
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -45,12 +46,16 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.physics import PhysicsCfg
+
+if TYPE_CHECKING:
+    from isaaclab.assets import DeformableObject
 
 
 def design_scene():
     """Designs the scene."""
+    from isaaclab.assets import DeformableObject, DeformableObjectCfg
+
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
