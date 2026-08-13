@@ -29,7 +29,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 # TODO(mtrepte): re-enable with fabric cloning fix
 # @pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
-# @pytest.mark.parametrize("task_name", setup_environment(include_play=False,factory_envs=False, multi_agent=False))
+# @pytest.mark.parametrize("task_name", setup_environment(factory_envs=False, multi_agent=False))
 # def test_environments_with_stage_in_memory_and_clone_in_fabric_disabled(task_name, num_envs, device):
 # # skip test if stage in memory is not supported
 # if get_isaac_sim_version().major < 5:
@@ -43,7 +43,6 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 @pytest.mark.parametrize(
     "task_name",
     setup_environment(
-        include_play=False,
         multi_agent=False,
         tier="core",
     ),
