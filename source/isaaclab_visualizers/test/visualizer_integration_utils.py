@@ -175,12 +175,19 @@ _TILED_CAMERA_MOTION_CHANNEL_DIFF_THRESHOLD = 5
 _TILED_CAMERA_MOTION_MIN_DIFFERING_PIXELS = 25
 """Minimum differing pixels for tiled camera motion checks."""
 
-# NVBUG 6570125 — Remove both overrides once it ships the fix and paused frames are stable again.
+# NVBUG 6570125 — Remove these overrides once it ships the fix and paused frames are stable again.
 _KIT_PAUSED_VIEWPORT_CHANNEL_DIFF_THRESHOLD = 80
 """Per-channel threshold for paused Kit viewport comparisons (0–255 space)."""
 
-_KIT_PAUSED_TILED_CAMERA_CHANNEL_DIFF_THRESHOLD = 160
-"""Per-channel threshold for paused Kit tiled camera comparisons (0–255 space)."""
+_KIT_PAUSED_TILED_CAMERA_NEWTON_CHANNEL_DIFF_THRESHOLD = 160
+"""Per-channel threshold for paused Kit tiled camera comparisons on Newton (0–255 space)."""
+
+_KIT_PAUSED_TILED_CAMERA_PHYSX_CHANNEL_DIFF_THRESHOLD = 80
+"""Per-channel threshold for paused Kit tiled camera comparisons on PhysX (0–255 space).
+
+Matches the viewport value but is kept separate: this cell measures 103 differing pixels at the
+default threshold, so it needs its own floor rather than tracking whatever the viewport uses.
+"""
 
 _FRAME_MIN_CHANNEL_RANGE = 10
 """Minimum per-frame channel range to reject all-one-color images."""
@@ -580,13 +587,6 @@ def _assert_frames_remain_stable(
 ) -> None:
     """Assert two viewport frames are effectively unchanged while simulation is paused."""
     n_diff = _count_significantly_differing_pixels(frame_a, frame_b, channel_diff_threshold=channel_diff_threshold)
-    logging.getLogger(__name__).info(
-        "%s pause stability: %d px differed at threshold %g (gate %d)",
-        case_label,
-        n_diff,
-        channel_diff_threshold,
-        max_differing_pixels,
-    )
     assert n_diff <= max_differing_pixels, (
         f"{case_label} failed to pause during {phase}: {n_diff} pixels differed, expected at most "
         f"{max_differing_pixels} with per-channel threshold {channel_diff_threshold} in 0-255 space. "
@@ -1440,9 +1440,9 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
             phase="pausing",
             debug_phase="pausing_tiled",
             channel_diff_threshold=(
-                _KIT_PAUSED_TILED_CAMERA_CHANNEL_DIFF_THRESHOLD
+                _KIT_PAUSED_TILED_CAMERA_NEWTON_CHANNEL_DIFF_THRESHOLD
                 if isinstance(visualizer, KitVisualizer) and physics_kind == "newton"
-                else _KIT_PAUSED_VIEWPORT_CHANNEL_DIFF_THRESHOLD
+                else _KIT_PAUSED_TILED_CAMERA_PHYSX_CHANNEL_DIFF_THRESHOLD
                 if isinstance(visualizer, KitVisualizer)
                 else _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD
             ),

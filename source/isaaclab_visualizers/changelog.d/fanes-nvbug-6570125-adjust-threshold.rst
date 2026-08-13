@@ -2,10 +2,11 @@ Changed
 ^^^^^^^
 
 * Changed ``_assert_frames_remain_stable`` in the visualizer integration tests to accept a
-  ``channel_diff_threshold``, and raised it for the two RTX pause comparisons only: 80 for the Kit
-  viewport and 160 for the Kit tiled camera. RTX ResponsiveDenoising keeps refining a paused frame,
-  so the residue is a few high-amplitude pixels that a per-pixel count cannot separate from real
-  motion. The Newton ViewerGL pause checks rasterise without DLSS and keep the strict default of 50.
+  ``channel_diff_threshold``, and raised it for the Kit RTX pause comparisons only: 80 for the Kit
+  viewport, 160 for the Kit tiled camera on Newton, and 80 for the Kit tiled camera on PhysX. RTX
+  ResponsiveDenoising keeps refining a paused frame, so the residue is a few high-amplitude pixels
+  that a per-pixel count cannot separate from real motion. The Newton ViewerGL pause checks
+  rasterise without DLSS and keep the strict default of 50.
   This is a work-around for NVBUG 6570125 and should be reverted once the renderer fix ships.
 
 Fixed
