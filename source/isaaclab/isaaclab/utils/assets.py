@@ -45,6 +45,11 @@ _KIT_EXPERIENCE_PATH = os.path.normpath(
 # legacy ``cloud`` setting is only consulted for experience files that predate it.
 _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
+_STORAGE_PROFILE_ENV_VAR = "ISAACSIM_STORAGE_PROFILE"
+_STORAGE_PROFILE_ASSET_ROOTS = {
+    "china": "https://assets.simready.cn/Assets/Isaac/6.0",
+}
+
 
 def _parse_kit_asset_root() -> str:
     """Parse the configured Isaac asset root.
@@ -68,11 +73,14 @@ def _resolve_asset_root() -> str:
     """Resolve the configured Isaac asset root.
 
     The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
-    asset-root precedence. The kit file remains the fallback for kitless use.
+    asset-root precedence. When it is unset, the asset root from the storage profile
+    named by ``ISAACSIM_STORAGE_PROFILE`` is used. The kit file remains the fallback
+    for kitless use.
 
     Returns:
         Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
-        configured in ``isaaclab.python.kit``.
+        selected by ``ISAACSIM_STORAGE_PROFILE``, or the value configured in
+        ``isaaclab.python.kit``.
     """
     # the value is used exactly as ``isaacsim.storage.native`` uses it, so both sides resolve
     # the same root; only the trailing separator is dropped, for ``/`` and for the documented
@@ -80,6 +88,14 @@ def _resolve_asset_root() -> str:
     asset_root = os.getenv("ISAACSIM_ASSET_ROOT")
     if asset_root:
         return asset_root.rstrip("/\\")
+
+    profile_name = os.getenv(_STORAGE_PROFILE_ENV_VAR)
+    if profile_name:
+        profile_asset_root = _STORAGE_PROFILE_ASSET_ROOTS.get(profile_name)
+        if profile_asset_root:
+            return profile_asset_root
+        logger.warning("Ignoring %s: no storage profile named '%s'", _STORAGE_PROFILE_ENV_VAR, profile_name)
+
     return _parse_kit_asset_root()
 
 

@@ -81,6 +81,19 @@ resolves them once, when :mod:`isaaclab.utils.assets` is imported, so setting
 even though Isaac Sim itself honors those forms. Editing ``persistent.isaac.asset_root.default`` in the
 experience file does work, because that is the value Isaac Lab reads when the variable is unset.
 
+.. rubric:: Using the China Storage Profile
+
+To use the public China asset mirror, select the same named storage profile used by Isaac Sim before launch:
+
+.. code:: bash
+
+   export ISAACSIM_STORAGE_PROFILE=china
+
+In kitless mode, Isaac Lab resolves its asset paths to the profile's public Isaac Sim 6.0 CDN without requiring
+Isaac Sim to be installed. ``ISAACSIM_ASSET_ROOT`` still takes precedence when both variables are set. When
+the installed Isaac Sim native storage extension provides the profile, that extension owns its storage and CDN
+transport configuration.
+
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an
    experience file, that edit no longer has any effect. Isaac Lab now reads

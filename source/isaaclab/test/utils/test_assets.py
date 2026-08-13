@@ -22,6 +22,7 @@ pytestmark = pytest.mark.unit
 def test_asset_root_environment_override_takes_precedence(monkeypatch):
     """Test the documented Isaac Sim asset-root environment override."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/6.0/")
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/6.0"
@@ -30,9 +31,31 @@ def test_asset_root_environment_override_takes_precedence(monkeypatch):
 def test_asset_root_falls_back_to_kit_file(monkeypatch):
     """Test kitless asset-root resolution when the environment override is absent."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+
+def test_asset_root_uses_china_storage_profile(monkeypatch):
+    """Test the China storage profile resolves to its public CDN root."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "https://assets.simready.cn/Assets/Isaac/6.0"
+
+
+def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
+    """Test an unknown profile warns and falls back to the experience file."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "unknown")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
+        assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+    assert "no storage profile named 'unknown'" in caplog.text
 
 
 def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
@@ -46,6 +69,7 @@ def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
 def test_asset_root_ignores_empty_environment_override(monkeypatch):
     """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
@@ -97,6 +121,21 @@ def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
     finally:
         # the context restored the caller's environment, so a suite run with a real
         # ISAACSIM_ASSET_ROOT keeps resolving to it
+        importlib.reload(assets_utils)
+
+
+def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch):
+    """Test kitless asset constants follow the selected China storage profile."""
+    try:
+        with monkeypatch.context() as patched_env:
+            patched_env.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+            patched_env.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+            module = importlib.reload(assets_utils)
+
+            assert module.NUCLEUS_ASSET_ROOT_DIR == "https://assets.simready.cn/Assets/Isaac/6.0"
+            assert module.ISAAC_NUCLEUS_DIR == "https://assets.simready.cn/Assets/Isaac/6.0/Isaac"
+            assert module.ISAACLAB_NUCLEUS_DIR == "https://assets.simready.cn/Assets/Isaac/6.0/Isaac/IsaacLab"
+    finally:
         importlib.reload(assets_utils)
 
 
