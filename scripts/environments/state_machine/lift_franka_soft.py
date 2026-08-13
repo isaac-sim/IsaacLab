@@ -32,7 +32,6 @@ from isaaclab.assets.deformable_object.deformable_object_data import DeformableO
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import ActionsCfg
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 # add argparse arguments
@@ -167,7 +166,7 @@ class PickSmWaitTime:
     REST = wp.constant(0.2)
     APPROACH_ABOVE_OBJECT = wp.constant(1.0)
     APPROACH_OBJECT = wp.constant(1.5)
-    GRASP_OBJECT = wp.constant(1.0)
+    GRASP_OBJECT = wp.constant(1.5)
     LIFT_OBJECT = wp.constant(1.5)
     OPEN_GRIPPER = wp.constant(0.0)
 
@@ -265,9 +264,17 @@ def main():
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     env_cfg.sim.device = args_cli.device
     env_cfg.scene.num_envs = args_cli.num_envs
-    # the state machine emits absolute end-effector poses, so pick the IK action preset; the env
-    # defaults to relative joint targets, which RL trains on.
-    env_cfg.actions = ActionsCfg().ik
+    # Scripted demo: keep only the time-out, extended to 10 s so the slow low-PD Franka can finish a
+    # pick-and-lift, and drop the failure terminations so a transient bound or velocity spike does
+    # not cut a run short.
+    env_cfg.episode_length_s = 10.0
+    for term_name in list(vars(env_cfg.terminations)):
+        if term_name != "time_out":
+            setattr(env_cfg.terminations, term_name, None)
+    # the state machine emits absolute end-effector poses, so pick the task's own IK action preset
+    # (e.g. the cloth closes the gripper fully); the env otherwise defaults to relative joint
+    # targets, which RL trains on.
+    env_cfg.actions = type(env_cfg)().actions.ik
     env_cfg.viewer.eye = (1.3, 0.6, 0.5)
     env_cfg.viewer.lookat = (0.5, 0.0, 0.05)
     env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
@@ -292,7 +299,10 @@ def main():
         object_grasp_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
         object_grasp_orientation[:, 0] = 1.0
         # Grasp 1 cm below the deformable's centre of mass, so the fingers close around its lower half.
-        object_local_grasp_position = torch.tensor([0.0, 0.0, -0.01], device=env.unwrapped.device)
+        # The cloth drapes over a support cube, so its COM sits well below the graspable fold; reach
+        # 8 cm higher to close on the raised cloth instead of the table.
+        grasp_z = -0.01 + (0.08 if "Cloth" in args_cli.task else 0.0)
+        object_local_grasp_position = torch.tensor([0.0, 0.0, grasp_z], device=env.unwrapped.device)
 
         # create state machine
         pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)

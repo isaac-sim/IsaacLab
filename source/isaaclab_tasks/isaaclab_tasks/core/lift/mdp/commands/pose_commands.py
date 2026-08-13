@@ -94,6 +94,8 @@ class ObjectUniformPoseCommand(CommandTerm):
 
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
+        if self.success_vis_asset is not None:
+            self.success_visualizer.visualize(self._get_success_vis_pos_w())
 
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
