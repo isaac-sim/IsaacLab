@@ -267,6 +267,9 @@ class CableRoutingCommandCfg(CommandTermCfg):
     reset_replay: CableResetReplayCfg = CableResetReplayCfg()
     """Success-conditioned full-scene reset replay configuration."""
 
+    failure_termination_names: tuple[str, ...] = ()
+    """Failure terms that invalidate terminal success before replay crediting."""
+
     marker_z_offset: float = 0.040
     """Height of the first ordered-step marker above a peg center [m]."""
 
@@ -1354,6 +1357,13 @@ class CableRoutingCommand(CommandTerm):
         """Return the cached authored mean cable-control-point edge length [m]."""
         return self._cable_rest_length_m
 
+    def _terminal_success(self, env_ids: torch.Tensor) -> torch.Tensor:
+        """Return terminal success after failure terminations take precedence."""
+        succeeded = self.succeeded[env_ids].clone()
+        for term_name in self.cfg.failure_termination_names:
+            succeeded &= ~self._env.termination_manager.get_term(term_name)[env_ids]
+        return succeeded
+
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         """Credit finished episodes, then atomically restore state and route."""
         all_ids = torch.arange(self.num_envs, device=self.device, dtype=torch.long)
@@ -1364,7 +1374,7 @@ class CableRoutingCommand(CommandTerm):
         else:
             ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
 
-        terminal_success = self.succeeded[ids].clone()
+        terminal_success = self._terminal_success(ids)
         terminal_route = self.route_id[ids].clone()
         source_before_reset: torch.Tensor | None = None
         if self.reset_replay is not None and self.reset_replay.built:

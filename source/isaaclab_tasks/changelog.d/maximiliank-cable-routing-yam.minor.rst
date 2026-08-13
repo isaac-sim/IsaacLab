@@ -25,8 +25,12 @@ Fixed
   represented gripper actions by their binary command state, and made terminal success and failure
   rewards independent of control frequency. Newton actuator graph capture and complete-episode PPO
   startup are now enabled for training.
-* Applied explicit Newton contact materials to YAM and fixture assets, proxied every collidable YAM
-  link into the cable solver, and declared the task's Newton and contrib runtime dependencies.
+* Applied explicit Newton contact materials to the fixtures and a task calibration layer that keeps
+  the Menagerie actuator dynamics while targeting high friction to YAM fingers. Limited the cable
+  solver proxy to each wrist/gripper subtree, and declared the task's Newton and contrib runtime
+  dependencies.
+* Prevented simultaneous success and invalid-state terminations from receiving successful reset
+  replay credit.
 * Avoided redundant or manager-order-dependent route evaluation and expensive ordinary cable
   generation when a full-scene replay reset will replace it.
 * Replaced legacy dense tangent-point optimization with a deterministic, fixed-sweep XPBD-style

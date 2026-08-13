@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manager-based bimanual YAM cable routing with Newton MJWarp/VBD coupling."""
+"""Manager-based two-F1-peg cable-routing milestone with Newton MJWarp/VBD coupling."""
 
 from __future__ import annotations
 
@@ -37,11 +37,14 @@ from isaaclab_contrib.deformable import VBDSolverCfg
 
 from . import mdp
 
+YAM_SOURCE_USD_PATH = str(Path(__file__).resolve().parent / "assets" / "yam" / "i2rt_yam_default.usda")
+"""Pinned, unmodified Robot Menagerie YAM source package."""
+
 YAM_USD_PATH = os.environ.get(
     "ISAACLAB_CABLE_ROUTING_YAM_USD_PATH",
-    str(Path(__file__).resolve().parent / "assets" / "yam" / "i2rt_yam_default.usda"),
+    str(Path(__file__).resolve().parent / "assets" / "yam" / "i2rt_yam_cable_routing.usda"),
 )
-"""Pinned Robot Menagerie YAM, optionally replaced by an explicit local asset path."""
+"""Task-calibrated YAM layer, optionally replaced by an explicit local asset path."""
 
 MANIPULATIONNET_ASSET_DIR = Path(__file__).resolve().parent / "assets" / "manipulationnet"
 BOARD_USD_PATH = str(MANIPULATIONNET_ASSET_DIR / "board.usdc")
@@ -63,11 +66,13 @@ CABLE_RADIUS = 0.5 * CABLE_THICKNESS
 ROUTE_AXIAL_CUTOFF = 0.5 * PEG_HEIGHT + CABLE_RADIUS
 """Cable-center height range whose surface can overlap the finite peg [m]."""
 CABLE_CENTER_Z = BOARD_TOP_Z + CABLE_RADIUS + 0.002
-CABLE_CONTACT_FRICTION = 5.0
-YAM_CONTACT_FRICTION = 5.0
+CABLE_CONTACT_FRICTION = 60.0
 FIXTURE_CONTACT_FRICTION = 0.5
 CONTACT_STIFFNESS = 4.0e4
+# Rigid-contact damping is distinct from cable bend damping, which the current
+# CableMaterialCfg and Newton USD cable importer do not expose.
 CONTACT_DAMPING = 1.0e-5
+FAILURE_TERMINATION_NAMES = ("invalid_cable", "invalid_robot_or_action")
 YAM_BASE_COLLISION_DEPTH = 0.017
 YAM_BASE_Z = TABLE_TOP_Z + YAM_BASE_COLLISION_DEPTH
 YAM_VISUAL_BASE_DEPTH = 0.07
@@ -173,7 +178,6 @@ def _make_yam_cfg(prim_path: str, position: tuple[float, float, float], yaw: flo
         spawn=sim_utils.UsdFileCfg(
             usd_path=YAM_USD_PATH,
             copy_from_source=False,
-            physics_material=_make_rigid_contact_material(YAM_CONTACT_FRICTION),
             # The converted Menagerie package retains legacy
             # ``mjc:body:gravcomp`` metadata.  Author the current Newton schema
             # spelling explicitly and route compensation through each drive so
@@ -199,29 +203,20 @@ def _make_yam_cfg(prim_path: str, position: tuple[float, float, float], yaw: flo
         actuators={
             "arm": ImplicitActuatorCfg(
                 joint_names_expr=["joint[1-6]"],
-                effort_limit_sim=40.0,
-                velocity_limit_sim=2.0,
-                stiffness=400.0,
-                damping=40.0,
-                armature=0.02,
+                stiffness=None,
+                damping=None,
             ),
             "gripper_drive": ImplicitActuatorCfg(
                 joint_names_expr=["left_finger"],
-                effort_limit_sim=80.0,
-                velocity_limit_sim=0.2,
-                stiffness=2000.0,
-                damping=100.0,
-                armature=0.1,
+                stiffness=None,
+                damping=None,
             ),
             # Robot Menagerie authors right_finger as a -1 mimic of left_finger.
             # Keeping its drive passive avoids fighting the Newton equality constraint.
             "gripper_passive": ImplicitActuatorCfg(
                 joint_names_expr=["right_finger"],
-                effort_limit_sim=1.0,
-                velocity_limit_sim=0.2,
                 stiffness=0.0,
                 damping=0.0,
-                armature=0.1,
             ),
         },
         soft_joint_pos_limit_factor=0.95,
@@ -363,6 +358,7 @@ class CommandsCfg:
         board_origin_b=(0.0, 0.0, BOARD_TOP_Z),
         radial_cutoff=0.05,
         axial_cutoff=ROUTE_AXIAL_CUTOFF,
+        failure_termination_names=FAILURE_TERMINATION_NAMES,
     )
 
 
@@ -510,13 +506,13 @@ class RewardsCfg:
         weight=20.0,
         params={
             "command_name": "route",
-            "failure_termination_names": ("invalid_cable", "invalid_robot_or_action"),
+            "failure_termination_names": FAILURE_TERMINATION_NAMES,
         },
     )
     failure = RewTerm(
         func=mdp.route_failure,
         weight=-20.0,
-        params={"termination_names": ("invalid_cable", "invalid_robot_or_action")},
+        params={"termination_names": FAILURE_TERMINATION_NAMES},
     )
     stretch = RewTerm(
         func=mdp.cable_stretch,
@@ -563,7 +559,7 @@ class TerminationsCfg:
 
 @configclass
 class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
-    """Goal-conditioned bimanual cable-routing environment using Newton only."""
+    """Goal-conditioned one-meter, two-F1-peg cable-routing environment using Newton."""
 
     scene: CableRoutingSceneCfg = CableRoutingSceneCfg(
         num_envs=256,
@@ -621,7 +617,7 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
                         source="rigid",
                         destination="cable",
                         bodies=[
-                            r"/World/envs/env_.*/Yam(Left|Right)",
+                            r"/World/envs/env_.*/Yam(Left|Right)/Geometry/arm/link_1/link_2/link_3/link_4/link_5/link_6",
                             r"/World/envs/env_.*/(Table|Board)",
                             r"/World/envs/env_.*/Peg(0|1)",
                         ],

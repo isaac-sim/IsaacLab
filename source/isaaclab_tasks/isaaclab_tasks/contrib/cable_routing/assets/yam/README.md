@@ -1,8 +1,8 @@
 # I2RT YAM asset snapshot
 
 This directory contains the self-contained `i2rt_yam_default` USD package used
-by the cable-routing environment. It was copied on 2026-08-05 from NVIDIA's
-Robot Menagerie repository:
+by the cable-routing environment. The eight source USD files were copied on
+2026-08-05 from NVIDIA's Robot Menagerie repository:
 
 - repository: `https://gitlab-master.nvidia.com/isaac-applications-deployment/robot_menagerie`
 - `main` commit: `68ef1e0cc3e863a861b873893f038496e0dfe16b`
@@ -16,18 +16,22 @@ source to `google-deepmind/mujoco_menagerie` commit
 digest `5ae901629db944abd3e6cbb0eaf28ea78bbda3483c840d6db1167e999cc0348c`.
 That source is MIT licensed; the required notice is preserved in `LICENSE.md`.
 
-All eight USD files are included and all layer references are relative. OpenUSD
-dependency traversal resolves seven dependent layers with no unresolved paths,
-so runtime does not require GitLab, Git LFS, Nucleus, or credentials.
+All eight source USD files are included and all layer references are relative.
+The `i2rt_yam_cable_routing.usda` task layer composes that unmodified snapshot,
+retains its authored actuator dynamics, and targets the calibrated high-friction
+contact material to the finger collision subtrees. OpenUSD dependency traversal
+resolves every layer with no unresolved paths, so runtime does not require
+GitLab, Git LFS, Nucleus, or credentials.
 
 - entry-layer SHA-256: `c1bedf1d978d1147f82d1c2cb5e56da1b5003eb14ec78bd0be89258c021404bc`
 - eight-file package size: `1,887,475` bytes
 - deterministic package-manifest SHA-256: `7a1532b694a51f263a9e09b60d212d40104aee871bcfa6e8c6705fd566698d47`
 
-The manifest digest is produced from the pristine USD directory with:
+The manifest digest is produced from the pristine eight-file source package
+(and intentionally excludes the task layer) with:
 
 ```bash
-find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+find i2rt_yam i2rt_yam_default.usda -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
 ```
 
 Set `ISAACLAB_CABLE_ROUTING_YAM_USD_PATH` to an alternate local YAM USD for an

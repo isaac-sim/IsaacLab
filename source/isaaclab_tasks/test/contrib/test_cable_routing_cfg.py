@@ -40,6 +40,7 @@ from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
     BOARD_TOP_Z,
     BOARD_USD_PATH,
     CABLE_BEND_MODULUS,
+    CABLE_CONTACT_FRICTION,
     CABLE_LENGTH,
     CABLE_NUM_SEGMENTS,
     CABLE_SEGMENT_LENGTH,
@@ -55,6 +56,7 @@ from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
     YAM_GRIPPER_CLOSED_POS,
     YAM_GRIPPER_OPEN_POS,
     YAM_LATERAL_OFFSET,
+    YAM_SOURCE_USD_PATH,
     YAM_USD_PATH,
     YAM_VISUAL_BASE_DEPTH,
     YAM_VISUAL_BASE_WIDTH,
@@ -210,6 +212,22 @@ def test_terminal_outcome_rewards_are_control_frequency_independent() -> None:
     torch.testing.assert_close(failure_return, torch.tensor((0.0, -20.0, -20.0)))
 
 
+def test_reset_replay_success_credit_excludes_invalid_terminal_states() -> None:
+    """A simultaneous route completion and invalid state is a failed replay outcome."""
+    term_values = {
+        "invalid_cable": torch.tensor((False, True, False)),
+        "invalid_robot_or_action": torch.tensor((False, False, True)),
+    }
+    command = CableRoutingCommand.__new__(CableRoutingCommand)
+    command.succeeded = torch.tensor((True, True, True))
+    command.cfg = SimpleNamespace(failure_termination_names=tuple(term_values))
+    command._env = SimpleNamespace(termination_manager=SimpleNamespace(get_term=lambda name: term_values[name]))
+
+    terminal_success = command._terminal_success(torch.arange(3))
+
+    torch.testing.assert_close(terminal_success, torch.tensor((True, False, False)))
+
+
 def test_cable_routing_ppo_starts_from_complete_1p2_second_rollouts() -> None:
     """The first SuccessMonitor outcomes come from complete episodes and sufficiently long rollouts."""
     env_cfg = CableRoutingEnvCfg()
@@ -246,6 +264,7 @@ def test_cable_routing_manager_terms_use_menagerie_joint_and_body_names() -> Non
         assert term.params["asset_cfg"].joint_names == ["joint[1-6]"]
 
     assert cfg.events.reset_cable.params["full_scene_replay_command_name"] == "route"
+    assert cfg.commands.route.failure_termination_names == cfg.rewards.success.params["failure_termination_names"]
 
 
 def test_cable_routing_rewards_are_sparse_success_with_penalties_only() -> None:
@@ -533,8 +552,14 @@ def test_cable_routing_table_board_and_yams_have_front_edge_reachable_placement(
         assert yam.spawn.joint_drive_props[0].actuatorgravcomp is True
         assert set(yam.actuators) == {"arm", "gripper_drive", "gripper_passive"}
         assert yam.actuators["arm"].joint_names_expr == ["joint[1-6]"]
+        assert yam.actuators["arm"].stiffness is None
+        assert yam.actuators["arm"].damping is None
+        assert yam.actuators["arm"].effort_limit_sim is None
+        assert yam.actuators["arm"].velocity_limit_sim is None
+        assert yam.actuators["arm"].armature is None
         assert yam.actuators["gripper_drive"].joint_names_expr == ["left_finger"]
-        assert yam.actuators["gripper_drive"].stiffness == 2000.0
+        assert yam.actuators["gripper_drive"].stiffness is None
+        assert yam.actuators["gripper_drive"].damping is None
         assert yam.actuators["gripper_passive"].joint_names_expr == ["right_finger"]
         assert yam.actuators["gripper_passive"].stiffness == 0.0
         assert yam.init_state.joint_pos["left_finger"] == YAM_GRIPPER_OPEN_POS
@@ -562,11 +587,13 @@ def test_cable_routing_table_board_and_yams_have_front_edge_reachable_placement(
 
 
 def test_cable_routing_uses_complete_credential_free_yam_snapshot() -> None:
-    """Test the default YAM is the pinned, dependency-complete Menagerie package."""
+    """Test the default YAM composes a calibration layer over the pinned Menagerie package."""
     yam_path = Path(YAM_USD_PATH)
+    source_path = Path(YAM_SOURCE_USD_PATH)
 
     assert yam_path.is_file()
-    assert yam_path.name == "i2rt_yam_default.usda"
+    assert yam_path.name == "i2rt_yam_cable_routing.usda"
+    assert source_path.name == "i2rt_yam_default.usda"
     expected_hashes = {
         "i2rt_yam_default.usda": "c1bedf1d978d1147f82d1c2cb5e56da1b5003eb14ec78bd0be89258c021404bc",
         "i2rt_yam/i2rt_yam.usda": "d51c03bf78f1724c09ce46ae4c95cf64269871af25450fbc075bc2eb7cf08b55",
@@ -577,12 +604,12 @@ def test_cable_routing_uses_complete_credential_free_yam_snapshot() -> None:
         "i2rt_yam/Payload/MaterialsLibrary.usdc": ("c20c4d119a844c7efbb74905589bef2bcab5eaeb0b5518f81d16f997d9da9adb"),
         "i2rt_yam/Payload/Physics.usda": "51f028b6a305fc788eb0286a7e67bf5d43cab54727ffcfeb20ef6502230b10c9",
     }
-    usd_files = {path.relative_to(yam_path.parent).as_posix(): path for path in yam_path.parent.rglob("*.usd*")}
-    assert usd_files.keys() == expected_hashes.keys()
+    usd_files = {path.relative_to(source_path.parent).as_posix(): path for path in source_path.parent.rglob("*.usd*")}
+    assert usd_files.keys() == expected_hashes.keys() | {"i2rt_yam_cable_routing.usda"}
     for relative_path, expected_hash in expected_hashes.items():
         assert hashlib.sha256(usd_files[relative_path].read_bytes()).hexdigest() == expected_hash
 
-    for usd_path in yam_path.parent.rglob("*.usd*"):
+    for usd_path in source_path.parent.rglob("*.usd*"):
         if usd_path.suffix == ".usda":
             contents = usd_path.read_text(encoding="utf-8")
             assert "omniverse://" not in contents
@@ -594,6 +621,7 @@ def test_cable_routing_uses_complete_credential_free_yam_snapshot() -> None:
     package_root = yam_path.parent.resolve()
     resolved_layers = {Path(layer.identifier).resolve().relative_to(package_root).as_posix() for layer in layers}
     assert resolved_layers == {
+        "i2rt_yam_cable_routing.usda",
         "i2rt_yam_default.usda",
         "i2rt_yam/Payload/Contents.usda",
         "i2rt_yam/Payload/Geometry.usda",
@@ -615,7 +643,7 @@ def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
     assert physics.use_cuda_graph
     assert physics.default_shape_cfg.ke == 4.0e4
     assert physics.default_shape_cfg.gap == 0.001
-    assert physics.default_shape_cfg.mu == 5.0
+    assert physics.default_shape_cfg.mu == CABLE_CONTACT_FRICTION
 
     coupler = physics.solver_cfg
     assert isinstance(coupler, CouplerProxyCfg)
@@ -651,15 +679,15 @@ def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
     assert proxy.collide_interval == 2
     assert physics.num_substeps % proxy.collide_interval == 0
     assert proxy.bodies == [
-        r"/World/envs/env_.*/Yam(Left|Right)",
+        r"/World/envs/env_.*/Yam(Left|Right)/Geometry/arm/link_1/link_2/link_3/link_4/link_5/link_6",
         r"/World/envs/env_.*/(Table|Board)",
         r"/World/envs/env_.*/Peg(0|1)",
     ]
     assert coupler.model_cfg is None
 
+    assert cfg.scene.yam_left.spawn.physics_material is None
+    assert cfg.scene.yam_right.spawn.physics_material is None
     for asset_cfg, expected_friction in (
-        (cfg.scene.yam_left, 5.0),
-        (cfg.scene.yam_right, 5.0),
         (cfg.scene.table, 0.5),
         (cfg.scene.board, 0.5),
         (cfg.scene.peg_0, 0.5),

@@ -9,12 +9,15 @@ import hashlib
 import math
 from pathlib import Path
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
     BOARD_SIZE,
     BOARD_THICKNESS,
     BOARD_USD_PATH,
+    CABLE_CONTACT_FRICTION,
+    CONTACT_DAMPING,
+    CONTACT_STIFFNESS,
     PEG_HEIGHT,
     PEG_RADIUS,
     PEG_SHAFT_RADIUS,
@@ -206,6 +209,22 @@ def test_yam_menagerie_asset_uses_native_newton_primitive_colliders() -> None:
     assert all(prim.GetAttribute("newton:contactGap").IsValid() for prim in colliders)
     assert all(UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get() for prim in colliders)
     assert all(not prim.IsA(UsdGeom.Mesh) for prim in colliders)
+
+    finger_collider = next(prim for prim in colliders if "link_left_finger" in str(prim.GetPath()))
+    arm_collider = next(
+        prim
+        for prim in colliders
+        if "link_left_finger" not in str(prim.GetPath()) and "link_right_finger" not in str(prim.GetPath())
+    )
+    finger_material, _ = UsdShade.MaterialBindingAPI(finger_collider).ComputeBoundMaterial(materialPurpose="physics")
+    arm_material, _ = UsdShade.MaterialBindingAPI(arm_collider).ComputeBoundMaterial(materialPurpose="physics")
+    assert finger_material.GetPrim().GetAttribute("physics:dynamicFriction").Get() == CABLE_CONTACT_FRICTION
+    assert arm_material.GetPrim().GetAttribute("physics:dynamicFriction").Get() == 5.0
+    for material in (finger_material, arm_material):
+        assert material.GetPrim().GetAttribute("newton:contactStiffness").Get() == CONTACT_STIFFNESS
+        assert math.isclose(
+            material.GetPrim().GetAttribute("newton:contactDamping").Get(), CONTACT_DAMPING, rel_tol=1.0e-6
+        )
 
     # Each caging fingertip keeps a detailed open geometry instead of being filled by
     # a visual-mesh convex hull: three capsules, two boxes, and six small contact beads.
