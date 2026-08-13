@@ -78,7 +78,7 @@ Note: Any tests not listed here will use the default timeout.
 
 PROCESS_ISOLATED_TESTS = {
     "source/_isaaclab_testing/test/rendering/test_rendering_kit.py": (
-        ("rendering_scene", ("rendering_scene",)),
+        ("core_scenes", ("rendering_scene", "cartpole")),
         ("shadow_hand", ("shadow_hand",)),
         ("kuka_cloth", ("kuka_heterogeneous", "franka_cloth")),
         ("franka_soft", ("franka_soft",)),

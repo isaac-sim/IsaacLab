@@ -30,6 +30,7 @@ CAMERA_TARGET = (0.05, 0.05, 1.25)
 SEMANTIC_COLORS = {
     "class:ground": (94, 112, 131, 255),
     "class:robot": (246, 184, 59, 255),
+    "class:cartpole": (33, 243, 3, 255),
     "class:moving_cube": (38, 141, 242, 255),
     "class:table": (153, 74, 33, 255),
     "class:cylinder": (239, 62, 54, 255),
@@ -187,8 +188,8 @@ def make_camera_cfg(
     orientation = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets))[0]
     return CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
-        width=128,
-        height=128,
+        width=256,
+        height=256,
         offset=CameraCfg.OffsetCfg(pos=camera_eye, rot=tuple(orientation.tolist()), convention="opengl"),
         update_period=0.0,
         update_latest_camera_pose=True,

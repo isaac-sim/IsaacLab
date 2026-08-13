@@ -129,6 +129,16 @@ class SceneCoverage:
 
 
 SPECIALIZED_SCENE_COVERAGE = {
+    "cartpole": SceneCoverage(
+        (
+            RenderBufferKind.RGB,
+            RenderBufferKind.ALBEDO,
+            RenderBufferKind.DEPTH,
+            RenderBufferKind.SEMANTIC_SEGMENTATION,
+        ),
+        ("physx",),
+        (),
+    ),
     "shadow_hand": SceneCoverage(
         (RenderBufferKind.RGB, RenderBufferKind.SEMANTIC_SEGMENTATION, RenderBufferKind.INSTANCE_SEGMENTATION),
         ("physx", "newton"),

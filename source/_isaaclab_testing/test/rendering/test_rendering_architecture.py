@@ -13,6 +13,7 @@ from pathlib import Path
 
 import tomllib
 from packaging.requirements import Requirement
+from PIL import Image
 
 from isaaclab.renderers.output_contract import RenderBufferKind
 
@@ -206,6 +207,10 @@ def test_scene_composition_has_one_downstream_owner() -> None:
     assert cfg.cylinder.init_state.pos[2] > cfg.table.init_state.pos[2]
     assert cfg.sphere.init_state.pos[2] > cfg.table.init_state.pos[2]
     assert cfg.robot.init_state.joint_pos == {"slider_to_cart": -0.25, "cart_to_pole": 0.45}
+    assert type(cfg.ground.spawn).__name__ == "GroundPlaneCfg"
+    assert type(cfg.table.spawn).__name__ == "UsdFileCfg"
+    assert cfg.table.spawn.usd_path.endswith("/Props/Blocks/DexCube/dex_cube_instanceable.usd")
+    assert cfg.table.spawn.rigid_props.kinematic_enabled
     for name in ("ground", "robot", "moving_cube", "table", "cylinder", "sphere"):
         assert ("class", name) in getattr(cfg, name).spawn.semantic_tags
 
@@ -215,18 +220,30 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
     scene_path = _SUITE_DIR / "rendering_scene_cfgs.py"
     scene_tree = ast.parse(scene_path.read_text())
     classes = _defined_classes(scene_path)
-    expected_scenes = {"franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand"}
+    kit_scenes = {"cartpole", "franka_cloth", "franka_soft", "kuka_heterogeneous", "shadow_hand"}
+    kitless_scenes = {"franka_cloth", "franka_soft", "shadow_hand"}
     assert {
         "RenderingSceneSpec",
+        "CartpoleRenderingSceneCfg",
         "FrankaClothRenderingSceneCfg",
         "FrankaSoftRenderingSceneCfg",
         "KukaHeterogeneousRenderingSceneCfg",
         "ShadowHandRenderingSceneCfg",
     } <= classes
-    assert {case.scene for case in SPECIALIZED_KIT_CASES} == expected_scenes
-    assert {case.scene for _, case in SPECIALIZED_KITLESS_CASES} == expected_scenes - {"kuka_heterogeneous"}
+    assert {case.scene for case in SPECIALIZED_KIT_CASES} == kit_scenes
+    assert {case.scene for _, case in SPECIALIZED_KITLESS_CASES} == kitless_scenes
     assert KIT_RENDERING_CASES == KIT_CASES + SPECIALIZED_KIT_CASES
     assert KITLESS_RENDERING_CASES == KITLESS_CASES + SPECIALIZED_KITLESS_CASES
+
+    from rendering_scene_cfgs import make_rendering_scene_spec
+
+    cartpole = make_rendering_scene_spec("cartpole", "physx").cfg
+    assert cartpole.num_envs == 4 and cartpole.env_spacing == 20.0
+    assert cartpole.camera.width == cartpole.camera.height == 128
+    assert cartpole.robot.init_state.pos == (0.0, 0.0, 2.0)
+    assert cartpole.robot.init_state.joint_pos == {"slider_to_cart": 0.0, "cart_to_pole": 0.0}
+    kuka = make_rendering_scene_spec("kuka_heterogeneous", "physx").cfg
+    assert kuka.camera.width == kuka.camera.height == 128
     shadow_objects = {
         target.id
         for node in scene_tree.body
@@ -237,7 +254,7 @@ def test_specialized_scenes_own_facts_and_runner_stays_generic() -> None:
     assert shadow_objects == {"_SHADOW_OBJECT"}
 
     runner_source = (_SUITE_DIR / "rendering_runner.py").read_text()
-    assert not [scene for scene in expected_scenes if f'"{scene}"' in runner_source]
+    assert not [scene for scene in kit_scenes if f'"{scene}"' in runner_source]
     comparison_call = next(
         node
         for node in ast.walk(ast.parse(runner_source))
@@ -349,6 +366,13 @@ def test_golden_inventory_is_derived_from_the_case_matrix() -> None:
         assert {path.name for path in (renderer_root / scene).glob("*.png")} == filenames
     assert not list(renderer_root.rglob("legacy-*.png"))
     assert not list(renderer_root.rglob("ovstage-*.png"))
+
+    for scene in ("rendering_scene", "cartpole", "kuka_heterogeneous"):
+        sizes = set()
+        for path in (renderer_root / scene).glob("*.png"):
+            with Image.open(path) as image:
+                sizes.add(image.size)
+        assert len(sizes) == 1 and min(sizes.pop()) >= 256, f"{scene} goldens are too small to review."
 
     visualizer_expected = {
         f"{physics}-{visualizer}-{mode}.png"

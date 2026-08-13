@@ -9,10 +9,11 @@ rendering-correctness = [
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[rendering_scene-physx-isaac_rtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[rendering_scene-newton-isaac_rtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[rendering_scene-physx-newton_warp]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[cartpole-physx-isaac_rtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[shadow_hand-physx-isaac_rtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[kuka_heterogeneous-physx-isaac_rtx]",
   "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[franka_cloth-newton-isaac_rtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[franka_soft-newton-newton_warp-rgb]",
+  "source/_isaaclab_testing/test/rendering/test_rendering_kit.py::test_rendering[franka_soft-newton-isaac_rtx]",
 ]
 
 rendering-correctness-kitless-legacy = [

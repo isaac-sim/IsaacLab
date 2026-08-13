@@ -13,5 +13,9 @@ Changed
 * Extended :func:`isaaclab.envs.mdp.reset_scene_to_default` with an optional fixed-root
   preservation list and reused that MDP policy from direct rendering scenes.
 
-* Rendering probes resolve task HDR skies locally and reset RTX temporal accumulation between
-  scenes, avoiding asynchronous texture uploads and cross-test renderer history.
+* Rendering probes resolve task HDR sky paths before scene construction and reset RTX temporal
+  accumulation between scenes.
+
+* PreviewSurface and MDL materials are now authored and bound directly through USD without Kit.
+  Built-in MDL names resolve against the installed Isaac Sim package so authored scene colors are
+  available to Kit-less renderers.

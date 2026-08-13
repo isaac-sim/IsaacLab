@@ -24,40 +24,36 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.output_contract import RenderBufferKind
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG, SHADOW_HAND_NEWTON_CFG
 
-_RENDERING_CARTPOLE_CFG = ArticulationCfg(
+@configclass
+class _RenderingMaterialCfg(sim_utils.MdlFileCfg):
+    """Cross-renderer OmniPBR material for simple task-authored colors."""
+
+    mdl_path: str = "OmniPBR.mdl"
+    diffuse_color_constant: tuple[float, float, float] = (0.2, 0.2, 0.2)
+    reflection_roughness_constant: float = 0.5
+    metallic_constant: float = 0.0
+
+_CARTPOLE_ROBOT = CARTPOLE_CFG.replace(
     prim_path="{ENV_REGEX_NS}/Robot",
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
-        semantic_tags=[("class", "robot")],
-    ),
+    spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+)
+_RENDERING_CARTPOLE_CFG = _CARTPOLE_ROBOT.replace(
+    spawn=_CARTPOLE_ROBOT.spawn.replace(semantic_tags=[("class", "robot")]),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(-0.9, 0.35, 2.0),
         joint_pos={"slider_to_cart": -0.25, "cart_to_pole": 0.45},
     ),
-    actuators={
-        "cart_actuator": ImplicitActuatorCfg(
-            joint_names_expr=["slider_to_cart"],
-            effort_limit_sim=400.0,
-            stiffness=0.0,
-            damping=10.0,
-        ),
-        "pole_actuator": ImplicitActuatorCfg(
-            joint_names_expr=["cart_to_pole"],
-            effort_limit_sim=400.0,
-            stiffness=0.0,
-            damping=0.0,
-        ),
-    },
 )
 
 
@@ -67,13 +63,7 @@ class RenderingSceneCfg(InteractiveSceneCfg):
 
     ground = AssetBaseCfg(
         prim_path="/World/Ground",
-        spawn=sim_utils.CuboidCfg(
-            size=(6.0, 6.0, 0.1),
-            collision_props=sim_utils.CollisionBaseCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.18, 0.22, 0.28), roughness=0.8),
-            semantic_tags=[("class", "ground")],
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+        spawn=sim_utils.GroundPlaneCfg(size=(6.0, 6.0), color=None, semantic_tags=[("class", "ground")]),
     )
     camera: CameraCfg | None = None
     key_light = AssetBaseCfg(
@@ -85,6 +75,40 @@ class RenderingSceneCfg(InteractiveSceneCfg):
         prim_path="/World/FillLight",
         spawn=sim_utils.DomeLightCfg(intensity=650.0, color=(0.58, 0.68, 1.0)),
     )
+
+
+_CARTPOLE_GROUND = AssetBaseCfg(
+    prim_path="/World/ground",
+    spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0), color=None),
+)
+_CARTPOLE_LIGHT = AssetBaseCfg(
+    prim_path="/World/DistantLight",
+    init_state=AssetBaseCfg.InitialStateCfg(
+        rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+    ),
+    spawn=sim_utils.DistantLightCfg(color=(1.0, 1.0, 1.0), intensity=2000.0),
+)
+_CARTPOLE_CAMERA = CameraCfg(
+    prim_path="{ENV_REGEX_NS}/Camera",
+    offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+    data_types=["rgb"],
+    spawn=sim_utils.PinholeCameraCfg(
+        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+    ),
+    width=128,
+    height=128,
+)
+
+
+@configclass
+class CartpoleRenderingSceneCfg(RenderingSceneCfg):
+    """Four-view Cartpole scene preserving the task's partitioning-sensitive composition."""
+
+    ground = _CARTPOLE_GROUND.copy()
+    camera: CameraCfg = _CARTPOLE_CAMERA.copy()
+    key_light = _CARTPOLE_LIGHT.copy()
+    fill_light = None
+    robot: ArticulationCfg = _CARTPOLE_ROBOT.copy()
 
 
 @configclass
@@ -99,11 +123,12 @@ class RenderingTestSceneCfg(RenderingSceneCfg):
             rigid_props=sim_utils.RigidBodyBaseCfg(disable_gravity=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionBaseCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.12, 0.55, 0.95),
-                metallic=0.15,
-                roughness=0.25,
+            visual_material=_RenderingMaterialCfg(
+                diffuse_color_constant=(0.12, 0.55, 0.95),
+                metallic_constant=0.15,
+                reflection_roughness_constant=0.25,
             ),
+            visual_material_path="/World/Looks/RenderingMovingCube",
             semantic_tags=[("class", "moving_cube")],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
@@ -115,12 +140,10 @@ class RenderingTestSceneCfg(RenderingSceneCfg):
     )
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        spawn=sim_utils.CuboidCfg(
-            size=(1.15, 0.8, 0.12),
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.55, 0.25, 0.08),
-                roughness=0.55,
-            ),
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            scale=(19.1666667, 13.3333333, 2.0),
+            rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True, disable_gravity=True),
             semantic_tags=[("class", "table")],
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.95, 0.55, 0.46)),
@@ -130,11 +153,12 @@ class RenderingTestSceneCfg(RenderingSceneCfg):
         spawn=sim_utils.CylinderCfg(
             radius=0.16,
             height=0.42,
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.95, 0.22, 0.18),
-                metallic=0.4,
-                roughness=0.2,
+            visual_material=_RenderingMaterialCfg(
+                diffuse_color_constant=(0.95, 0.22, 0.18),
+                metallic_constant=0.4,
+                reflection_roughness_constant=0.2,
             ),
+            visual_material_path="/World/Looks/RenderingCylinder",
             semantic_tags=[("class", "cylinder")],
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.7, 0.47, 0.73)),
@@ -143,10 +167,11 @@ class RenderingTestSceneCfg(RenderingSceneCfg):
         prim_path="{ENV_REGEX_NS}/Sphere",
         spawn=sim_utils.SphereCfg(
             radius=0.2,
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.28, 0.85, 0.32),
-                roughness=0.35,
+            visual_material=_RenderingMaterialCfg(
+                diffuse_color_constant=(0.28, 0.85, 0.32),
+                reflection_roughness_constant=0.35,
             ),
+            visual_material_path="/World/Looks/RenderingSphere",
             semantic_tags=[("class", "sphere")],
         ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(1.18, 0.66, 0.72)),
@@ -204,7 +229,8 @@ _FRANKA_FAILURE_TABLE_SPAWN = sim_utils.CuboidCfg(
     collision_props=sim_utils.CollisionPropertiesCfg(),
     # The task always draws its otherwise-hidden table through this failure-state command marker. Authoring the
     # marker directly also makes it part of OVRTX's initial scene capture instead of a late manager-owned addition.
-    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
+    visual_material=_RenderingMaterialCfg(diffuse_color_constant=(0.8, 0.5, 0.5)),
+    visual_material_path="/World/Looks/FrankaTable",
     semantic_tags=[("class", "table")],
 )
 _FRANKA_SOFT_TABLE = AssetBaseCfg(
@@ -223,17 +249,17 @@ _FRANKA_CLOTH_SUPPORT = sim_utils.CuboidCfg(
     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     collision_props=sim_utils.CollisionPropertiesCfg(),
     physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
-    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
+    visual_material=_RenderingMaterialCfg(diffuse_color_constant=(0.2, 0.2, 0.25)),
     semantic_tags=[("class", "support")],
 )
 _FRANKA_CLOTH_SUPPORT_NEG_Y = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/SupportNegY",
-    spawn=_FRANKA_CLOTH_SUPPORT,
+    spawn=_FRANKA_CLOTH_SUPPORT.replace(visual_material_path="/World/Looks/FrankaClothSupportNegY"),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.02, 0.075)),
 )
 _FRANKA_CLOTH_SUPPORT_POS_Y = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/SupportPosY",
-    spawn=_FRANKA_CLOTH_SUPPORT,
+    spawn=_FRANKA_CLOTH_SUPPORT.replace(visual_material_path="/World/Looks/FrankaClothSupportPosY"),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.02, 0.075)),
 )
 _FRANKA_GROUND = AssetBaseCfg(
@@ -271,7 +297,8 @@ _SOFT_NEWTON = DeformableObjectCfg(
             k_lambda=_YOUNGS_MODULUS * _POISSONS_RATIO / ((1.0 + _POISSONS_RATIO) * (1.0 - 2.0 * _POISSONS_RATIO)),
             particle_radius=0.0025,
         ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
+        visual_material=_RenderingMaterialCfg(diffuse_color_constant=(0.45, 0.45, 0.85)),
+        visual_material_path="/World/Looks/FrankaSoft",
         semantic_tags=[("class", "soft")],
     ),
     init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.05)),
@@ -291,7 +318,8 @@ _CLOTH_NEWTON = DeformableObjectCfg(
             edge_ke=0.5,
             edge_kd=1.0e-3,
         ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+        visual_material=_RenderingMaterialCfg(diffuse_color_constant=(0.95, 0.85, 0.1)),
+        visual_material_path="/World/Looks/FrankaCloth",
         semantic_tags=[("class", "cloth")],
     ),
     init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
@@ -411,7 +439,8 @@ _KUKA_TABLE = RigidObjectCfg(
         size=(0.8, 1.5, 0.04),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
+        visual_material=_RenderingMaterialCfg(diffuse_color_constant=(0.25, 0.15, 0.15)),
+        visual_material_path="/World/Looks/KukaTable",
         semantic_tags=[("class", "table")],
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235)),
@@ -426,8 +455,8 @@ _KUKA_CAMERA = CameraCfg(
     offset=CameraCfg.OffsetCfg(pos=(0.57, -0.8, 0.5), rot=(0.6124, 0.3536, 0.3536, 0.6124), convention="opengl"),
     data_types=["rgb"],
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
-    width=64,
-    height=64,
+    width=128,
+    height=128,
 )
 
 
@@ -540,6 +569,13 @@ def make_rendering_scene_spec(scene: str, physics: str) -> RenderingSceneSpec:
                 "/World/envs/env_0/Sphere": "sphere",
             },
             image_tolerance_overrides={("isaac_rtx", RenderBufferKind.RGB): (8.0, 0.975)},
+        )
+    if scene == "cartpole":
+        return RenderingSceneSpec(
+            cfg=CartpoleRenderingSceneCfg(num_envs=4, env_spacing=20.0, lazy_sensor_update=True),
+            camera_eye=(-5.0, 0.0, 2.0),
+            camera_target=(0.0, 0.0, 2.0),
+            expected_instances={f"/World/envs/env_{env_id}/Robot": "cartpole" for env_id in range(4)},
         )
     if scene in {"franka_soft", "franka_cloth"}:
         if physics != "newton":

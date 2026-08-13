@@ -31,7 +31,6 @@ from isaaclab.sim.utils import (
     set_prim_visibility,
 )
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
-from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
@@ -494,16 +493,14 @@ def _spawn_from_usd_file(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
+        if not cfg.visual_material_path.startswith("/"):
+            material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:
-            if not cfg.visual_material_path.startswith("/"):
-                material_path = f"{prim_path}/{cfg.visual_material_path}"
-            else:
-                material_path = cfg.visual_material_path
-            # create material
-            cfg.visual_material.func(material_path, cfg.visual_material)
-            # apply material
+            material_path = cfg.visual_material_path
+        # create material
+        material_prim = cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material when its authoring backend is available
+        if material_prim is not None:
             bind_visual_material(prim_path, material_path, stage=stage)
 
     # apply physics material
