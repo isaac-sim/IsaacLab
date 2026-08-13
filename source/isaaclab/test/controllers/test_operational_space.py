@@ -569,19 +569,19 @@ def test_franka_wrench_abs_open_loop(sim):
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(0.2, 0.0, 0.93),
         orientation=(0.0, -0.1736, 0.0, 0.9848),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle2",
+        "/World/envs/env_[^/]+/obstacle2",
         obstacle_spawn_cfg,
         translation=(0.2, 0.35, 0.7),
         orientation=(0.707, 0.0, 0.0, 0.707),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle3",
+        "/World/envs/env_[^/]+/obstacle3",
         obstacle_spawn_cfg,
         translation=(0.55, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
@@ -650,19 +650,19 @@ def test_franka_wrench_abs_closed_loop(sim):
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(0.2, 0.0, 0.93),
         orientation=(0.0, -0.1736, 0.0, 0.9848),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle2",
+        "/World/envs/env_[^/]+/obstacle2",
         obstacle_spawn_cfg,
         translation=(0.2, 0.35, 0.7),
         orientation=(0.707, 0.0, 0.0, 0.707),
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle3",
+        "/World/envs/env_[^/]+/obstacle3",
         obstacle_spawn_cfg,
         translation=(0.55, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
@@ -739,7 +739,7 @@ def test_franka_hybrid_decoupled_motion(sim):
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
@@ -816,7 +816,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
         orientation=(0.0, 0.707, 0.0, 0.707),
@@ -996,7 +996,7 @@ def test_franka_taskframe_hybrid(sim):
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
         orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
@@ -1228,7 +1228,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         activate_contact_sensors=True,
     )
     obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]*/obstacle1",
+        "/World/envs/env_[^/]+/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
         orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),

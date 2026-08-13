@@ -216,7 +216,7 @@ def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exist
     existing_camera = SimpleNamespace(
         _view=SimpleNamespace(count=4),
         cfg=SimpleNamespace(
-            prim_path="/World/envs/env_.*/Camera",
+            prim_path="/World/envs/env_[^/]+/Camera",
             renderer_cfg=SimpleNamespace(renderer_type="newton_warp"),
         ),
     )

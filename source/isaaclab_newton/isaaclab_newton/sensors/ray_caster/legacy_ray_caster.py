@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 # pyright: reportInvalidTypeForm=none, reportPrivateUsage=none
+import re
 import warnings
 from typing import Any
 
@@ -51,10 +52,12 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
         resolved = cloner.query.path_to_source(plan, prim_expr) if plan is not None else None
         if resolved is not None:
             source_path, dest_expr, asset_suffix = resolved
-            walk_root = source_path + asset_suffix
-            source_prims = sim_utils.find_matching_prims(walk_root)
+            source_pattern = re.compile(source_path + asset_suffix)
+            source_prims = sim_utils.get_all_matching_child_prims(
+                source_path, lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None
+            )
             if not source_prims:
-                raise RuntimeError(f"No ClonePlan source prims matched '{walk_root}'.")
+                raise RuntimeError(f"No ClonePlan source prims matched '{source_pattern.pattern}'.")
             owner_exprs: list[str] = []
             for source_prim in source_prims:
                 body = sim_utils.get_first_matching_ancestor_prim(source_prim.GetPath(), predicate=_has_rigid_body_api)

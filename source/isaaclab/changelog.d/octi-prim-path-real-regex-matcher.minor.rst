@@ -21,8 +21,10 @@ Changed
 * **Breaking:** Changed :func:`~isaaclab.sim.utils.find_matching_prims` to match the whole prim
   path as a plain regular expression instead of one token per path segment. ``.`` now matches
   ``/``, so ``/World/Robot/.*`` selects descendants at any depth; use ``[^/]+`` for a single
-  segment. Every prim on the stage is tested, without inferring a traversal root or depth limit
-  from the expression.
+  segment. Unscoped queries test every authored prim, including inactive and undefined prims and
+  instance proxies, without inferring a traversal root or depth limit from the expression.
+  Clone-aware discovery instead rebases the expression through the active clone plan and searches
+  only its concrete source subtree, never every cloned destination environment.
 * Changed :func:`~isaaclab.sim.utils.find_first_matching_prim` to delegate to
   :func:`~isaaclab.sim.utils.find_matching_prims`, so both read an expression the same way.
 * Changed the environment namespace to spell its slot ``[^/]+`` rather than ``.*``, so

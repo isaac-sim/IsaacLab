@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,7 +17,6 @@ from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
@@ -116,8 +116,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 target_cfg = cfg.RaycastTargetCfg(prim_expr=target, track_mesh_transforms=False)
             else:
                 target_cfg = target
-            # the shared default, not a second hardcoded copy that could drift from ``CloneCfg``
-            target_cfg.prim_expr = target_cfg.prim_expr.format(ENV_REGEX_NS=DEFAULT_ENV_TEMPLATE.format("[^/]+"))
+            target_cfg.prim_expr = cloner.expand_env_regex_ns(target_cfg.prim_expr)
             self._raycast_targets_cfg.append(target_cfg)
 
         self._data = MultiMeshRayCasterData()
@@ -217,7 +216,10 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.
-                source_prims = sim_utils.find_matching_prims(source_path)
+                source_pattern = re.compile(source_path)
+                source_prims = sim_utils.get_all_matching_child_prims(
+                    source_root, lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None
+                )
                 if not source_prims:
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
 

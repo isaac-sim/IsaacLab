@@ -81,7 +81,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_forklifts(self, num_forklifts: int):
         for i in range(num_forklifts):
             forklift = AssetBaseCfg(
-                prim_path=f"/World/envs/env_[^/]*/Forklift{i}",
+                prim_path=f"/World/envs/env_[^/]+/Forklift{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
@@ -93,7 +93,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_boxes(self, num_boxes: int):
         for i in range(num_boxes):
             box = AssetBaseCfg(
-                prim_path=f"/World/envs/env_[^/]*/Box{i}",
+                prim_path=f"/World/envs/env_[^/]+/Box{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",

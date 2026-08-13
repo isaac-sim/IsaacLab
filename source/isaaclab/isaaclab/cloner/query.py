@@ -215,7 +215,7 @@ def iter_sources(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, st
     Example:
         For a row with prototype root ``"/World/source/Robot"``, destination template
         ``"/World/scenes/{}/Robot"`` and env ids ``(0, 2)``, querying
-        ``"/World/scenes/[^/]*/Robot/base"`` yields ``("/World/source/Robot",
+        ``"/World/scenes/[^/]+/Robot/base"`` yields ``("/World/source/Robot",
         "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 2))``.
 
     Args:

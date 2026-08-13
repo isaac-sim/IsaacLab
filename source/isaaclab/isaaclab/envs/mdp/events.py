@@ -2561,9 +2561,9 @@ class randomize_visual_texture_material(ManagerTermBase):
         # join all bodies in the asset
         body_names = asset_cfg.body_names
         if isinstance(body_names, str):
-            body_names_regex = body_names
+            body_names_regex = f"(?:{body_names})"
         elif isinstance(body_names, list):
-            body_names_regex = "|".join(body_names)
+            body_names_regex = f"(?:{'|'.join(body_names)})"
         else:
             body_names_regex = ".*"
 
@@ -2573,7 +2573,7 @@ class randomize_visual_texture_material(ManagerTermBase):
         asset_main_prim_path = asset.cfg.prim_path
         pattern_with_visuals = f"{asset_main_prim_path}/{body_names_regex}/visuals"
         # Use sim_utils to check if any prims currently match this pattern
-        matching_prims = sim_utils.find_matching_prim_paths(pattern_with_visuals)
+        matching_prims = sim_utils.resolve_matching_prims_from_source(pattern_with_visuals, raise_if_no_matches=False)
         if matching_prims:
             # If matches are found, use the pattern with /visuals
             prim_path = pattern_with_visuals
@@ -2752,13 +2752,13 @@ class randomize_visual_color(ManagerTermBase):
             # default: the configured bodies' visual meshes
             body_names = asset_cfg.body_names
             if isinstance(body_names, str):
-                body_names_regex = body_names
+                body_names_regex = f"(?:{body_names})"
             elif isinstance(body_names, list):
-                body_names_regex = "|".join(body_names)
+                body_names_regex = f"(?:{'|'.join(body_names)})"
             else:
                 body_names_regex = ".*"
             pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
-            if sim_utils.find_matching_prim_paths(pattern_with_visuals):
+            if sim_utils.resolve_matching_prims_from_source(pattern_with_visuals, raise_if_no_matches=False):
                 mesh_prim_path = pattern_with_visuals
             else:
                 # fall back to any descendant if the asset has no ".../visuals" layout

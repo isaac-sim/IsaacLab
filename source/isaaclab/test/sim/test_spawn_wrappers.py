@@ -70,7 +70,7 @@ def test_spawn_multiple_shapes_with_regex_prefix(sim):
     prim = cfg.func("/World/env_.*/Cone/asset_.*", cfg)
     assert str(prim.GetPath()) == "/World/env_0/Cone/asset_0"
 
-    prim_paths = sim_utils.find_matching_prim_paths("/World/env_[^/]*/Cone/asset_[^/]*")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_[^/]+/Cone/asset_[^/]*")
     assert len(prim_paths) == num_assets * num_envs
 
     for env_idx in range(num_envs):

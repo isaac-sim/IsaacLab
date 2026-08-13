@@ -153,7 +153,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_[^/]*/Robot"],
+                    bodies=[r"/World/envs/env_[^/]+/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -167,8 +167,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_[^/]*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_[^/]*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(

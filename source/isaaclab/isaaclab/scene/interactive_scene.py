@@ -230,7 +230,7 @@ class InteractiveScene:
             )
             for child in children:
                 if hasattr(child, "prim_path"):
-                    child.prim_path = child.prim_path.format(ENV_REGEX_NS=self._env_regex_ns)
+                    child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
                     if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
                         clone_asset_names.append(asset_name)
                         variant_counts.append(cloner.num_spawn_variants(child.spawn))
@@ -840,7 +840,7 @@ class InteractiveScene:
         for asset_name, asset_cfg in ordered_items:
             # resolve prim_path with env regex
             if hasattr(asset_cfg, "prim_path"):
-                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                asset_cfg.prim_path = cloner.expand_env_regex_ns(asset_cfg.prim_path, self._env_fmt)
             # set spawn_path on spawner if cloning is needed
             if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
                 is_multi_spawner = isinstance(
@@ -868,7 +868,7 @@ class InteractiveScene:
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                    rigid_object_cfg.prim_path = cloner.expand_env_regex_ns(rigid_object_cfg.prim_path, self._env_fmt)
                     # set spawn_path on spawner if cloning is needed
                     if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
                         is_multi_spawner = isinstance(
@@ -897,32 +897,32 @@ class InteractiveScene:
                 if isinstance(asset_cfg, FrameTransformerCfg):
                     updated_target_frames = []
                     for target_frame in asset_cfg.target_frames:
-                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                        target_frame.prim_path = cloner.expand_env_regex_ns(target_frame.prim_path, self._env_fmt)
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
                     asset_cfg.filter_prim_paths_expr = [
-                        p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
+                        cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_prim_paths_expr
                     ]
                     if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr:
                         asset_cfg.sensor_shape_prim_expr = [
-                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.sensor_shape_prim_expr
+                            cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.sensor_shape_prim_expr
                         ]
                     if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr:
                         asset_cfg.filter_shape_prim_expr = [
-                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_shape_prim_expr
+                            cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_shape_prim_expr
                         ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
-                        asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
-                            ENV_REGEX_NS=self.env_regex_ns
+                        asset_cfg.camera_cfg.prim_path = cloner.expand_env_regex_ns(
+                            asset_cfg.camera_cfg.prim_path, self._env_fmt
                         )
                     if (
                         hasattr(asset_cfg, "contact_object_prim_path_expr")
                         and asset_cfg.contact_object_prim_path_expr is not None
                     ):
-                        asset_cfg.contact_object_prim_path_expr = asset_cfg.contact_object_prim_path_expr.format(
-                            ENV_REGEX_NS=self.env_regex_ns
+                        asset_cfg.contact_object_prim_path_expr = cloner.expand_env_regex_ns(
+                            asset_cfg.contact_object_prim_path_expr, self._env_fmt
                         )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
