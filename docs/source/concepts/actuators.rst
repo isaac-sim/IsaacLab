@@ -19,7 +19,7 @@ Isaac Lab exposes two ways to reproduce that behavior in simulation:
 * **Explicit actuators** run a model that computes joint effort, clips it to the motor's
   capabilities, and submits the result. They can model saturation, delay, gearing, and learned motor
   behavior. Native paths process commands differently: Newton processes them in the solver, while
-  the PhysX adapter processes them during ``write_data_to_sim()``.
+  PhysX and OVPhysX use a shared host adapter during ``write_data_to_sim()``.
 
 Actuator groups are configured through :attr:`~isaaclab.assets.ArticulationCfg.actuators` and
 exposed at runtime through :class:`~isaaclab.actuators.ActuatorCollection` on
@@ -68,9 +68,9 @@ by articulation joint. The setters are keyword-only and default to all environme
     robot.actuators.command.set_position_index(value=values)
 
 The articulation stages and submits actuator commands inside
-:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Isaac Lab-managed models and the PhysX
-adapter run during this call. Newton-native controllers finish processing inside the solver. The
-following sections describe this pipeline, the available models, and their parameters.
+:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Isaac Lab-managed models and the shared
+host adapter run during this call. Newton-native controllers finish processing inside the solver.
+The following sections describe this pipeline, the available models, and their parameters.
 
 
 .. _actuators-pipeline:
@@ -86,29 +86,30 @@ collection. Each group then follows one of three execution paths:
 #. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
    commands, and telemetry. Actuator models retain their own gains and temporary state.
 #. **Execution path** -- an Isaac Lab explicit model computes and clips effort, an implicit drive
-   applies targets with solver-side PD gains, or a native actuator runs through Newton or the PhysX
-   adapter.
+   applies targets with solver-side PD gains, or a native actuator runs through Newton or the shared
+   host adapter.
 
 For Isaac Lab-managed models, ``actuators.joint_command`` contains the processed position,
-velocity, and effort submitted to the backend. Native paths bypass this view. The PhysX adapter
-processes commands during ``write_data_to_sim()``, while Newton-native controllers process them
-inside the solver. See :ref:`actuators-native` for supported Newton models and limitations.
+velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
+submitted-command telemetry for them. PhysX and OVPhysX process commands during
+``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
+:ref:`actuators-native` for supported native models and limitations.
 
 .. figure:: ../_static/actuators/pipeline-light.png
     :class: only-light
     :align: center
     :width: 90%
     :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
-        execute in the solver, and native models execute inside the Newton/MJWarp solver or in the
-        PhysX adapter before submission.
+        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
+        shared PhysX/OVPhysX host adapter before submission.
 
 .. figure:: ../_static/actuators/pipeline-dark.png
     :class: only-dark
     :align: center
     :width: 90%
     :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
-        execute in the solver, and native models execute inside the Newton/MJWarp solver or in the
-        PhysX adapter before submission.
+        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
+        shared PhysX/OVPhysX host adapter before submission.
 
 Implicit and explicit groups store gains differently:
 
@@ -537,8 +538,8 @@ values directly from the full buffer.
 
 **Reading commands and telemetry.** ``command`` contains the desired values staged for actuator
 processing. For Isaac Lab-managed models, ``joint_command`` contains the processed joint commands.
-Native paths bypass this view, so it does not show the commands submitted to the backend. Newton
-processes commands in the solver, while the PhysX adapter processes them during
+Native paths bypass this view, so it does not show submitted commands. Newton processes commands in
+the solver, while PhysX and OVPhysX process them through the shared host adapter during
 ``write_data_to_sim()``. Access the arrays through ``.torch`` or ``.warp``:
 
 .. code-block:: python
@@ -561,7 +562,8 @@ stiffness or damping writer.
 actuators during environment resets. It runs actuator compute, staging, and submission from
 :meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Call this method before advancing the
 simulation, or let the scene or environment loop call it. The torque telemetry reflects its most
-recent call. Newton-native processing then continues inside the solver.
+recent call. Newton-native processing continues inside the solver; host-adapter processing finishes
+during the call.
 
 .. _actuators-migrating-setters:
 
@@ -603,13 +605,13 @@ configuration leaves a value unspecified. Unspecified values appear as ``Not Spe
 
 .. _actuators-native:
 
-Newton native actuators
-------------------------
+Native actuators
+----------------
 
 By default, Isaac Lab runs explicit actuator models once per step outside the solver, usually on
 Torch or Warp. This path is deprecated. Set
-:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` to run supported explicit
-models inside the Newton solver:
+:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` to use the native path for
+supported explicit models:
 
 .. code-block:: python
 
@@ -618,25 +620,25 @@ models inside the Newton solver:
     sim_cfg = SimulationCfg(use_newton_actuators=True)
 
 With the flag enabled, each supported explicit actuator config becomes a ``NewtonActuator`` USD
-prim. The physics engine steps it instead of :meth:`ActuatorCollection.compute`.
+prim. Newton executes it in the solver. PhysX and OVPhysX execute the same model through the shared
+host adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
 On Newton, native actuators run in the CUDA-graph-captured region. Implicit actuators are unchanged:
-the solver still applies their PD gains. PhysX can run the same Newton-authored actuators through
-its adapter. On CUDA, PhysX captures actuator staging, model execution, and telemetry publication
-when possible; otherwise, it uses eager execution. Stateful Newton actuators cannot run in a
-caller-owned CUDA graph, so the PhysX adapter must manage them.
+the solver still applies their PD gains. On CUDA, the host adapter captures actuator staging, model
+execution, and telemetry publication when possible; otherwise it uses eager execution. Stateful
+native actuators cannot run in a caller-owned CUDA graph, so the host adapter manages them.
 
 Newton executes native actuators in its controller. Isaac Lab retains named groups for configuration
 and access, and stages commands and telemetry.
 
-**Supported models.** Each supported config maps to a set of USD schemas:
+**Supported models.** Each supported config maps to USD schemas:
 
 .. list-table::
     :header-rows: 1
     :widths: 45 55
 
     * - Config
-      - Newton schemas
+      - USD schemas
     * - :class:`~isaaclab.actuators.IdealPDActuatorCfg`
       - ``NewtonPDControlAPI`` + ``NewtonMaxEffortClampingAPI``
     * - :class:`~isaaclab.actuators.DCMotorCfg`
@@ -680,12 +682,14 @@ Submission differs by backend, but the collection interface is the same:
       - Submit behavior
     * - PhysX
       - The Isaac Lab-managed path pushes processed position, velocity, and effort staging buffers
-        through the PhysX Tensor API. The native adapter processes commands during
-        ``write_data_to_sim()`` and submits raw position and velocity targets plus its computed
-        effort. A fused reorder gather runs first when a non-identity joint ordering is active.
+        through the PhysX Tensor API. The shared host adapter processes native commands during
+        ``write_data_to_sim()`` and submits raw position and velocity targets plus raw effort.
+        ``applied_torque`` remains telemetry. A fused reorder gather runs first when a non-identity
+        joint ordering is active.
     * - OVPhysX
-      - OVPhysX pushes ``applied_torque`` together with raw position and velocity targets through
-        ``set_attribute`` tensor bindings. Raw setter writes are mirrored into the binding
+      - The native path uses the shared host adapter during ``write_data_to_sim()``. It writes raw
+        position and velocity targets plus raw effort through ``set_attribute`` tensor bindings.
+        ``applied_torque`` remains telemetry. Raw setter writes are mirrored into the binding
         immediately. A fused reorder gather runs first when joint ordering is non-identity.
     * - Newton / MJWarp
       - Newton writes targets to solver-bound control arrays. Effort is feed-forward, and native

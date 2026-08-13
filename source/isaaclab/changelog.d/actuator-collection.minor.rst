@@ -18,7 +18,7 @@ Deprecated
   :attr:`~isaaclab.assets.Articulation.actuators` instead.
 * Deprecated Isaac Lab execution of explicit actuator models. Enable
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these
-  models with Newton instead.
+  models through the native actuator path.
 * Deprecated the actuator configuration aliases ``effort_limit_sim`` and
   ``velocity_limit_sim`` in favor of ``joint_effort_limit`` and
   ``joint_velocity_limit``. The deprecated configuration aliases remain
