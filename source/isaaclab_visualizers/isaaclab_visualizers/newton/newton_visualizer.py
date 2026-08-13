@@ -147,6 +147,11 @@ class _NewtonViewerUIMixin:
     duplicating code.
     """
 
+    # Set to False by NewtonVisualizer.initialize() when neither native Newton
+    # contacts nor a ContactSensor exists in the scene, so the Show Contacts
+    # checkbox can be greyed out in the UI.
+    _contacts_available: bool = True
+
     def _register_isaaclab_ui_callbacks(self) -> None:
         """Register model-dependent Isaac Lab viewer controls."""
         self.register_ui_callback(self._render_training_controls, position="side")
@@ -327,18 +332,14 @@ class _NewtonViewerUIMixin:
                     _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
                     if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
                         _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
-                    _contacts_available = getattr(viewer, "_contacts_available", True)
-                    if not _contacts_available:
-                        imgui.begin_disabled()
-                    _c, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
-                    if not _contacts_available:
-                        imgui.end_disabled()
-                        try:
-                            _hovered = imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled)
-                        except Exception:
-                            _hovered = False
-                        if _hovered:
-                            imgui.set_tooltip("No contact sensors in this environment")
+                    _contacts_available = viewer._contacts_available
+                    viewer.show_contacts = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Contacts",
+                        viewer.show_contacts,
+                        _contacts_available,
+                        "No contact sensors in this environment",
+                    )
                     if viewer.show_contacts and _contacts_available and renderer is not None:
                         if hasattr(renderer, "arrow_length_scale"):
                             _, renderer.arrow_length_scale = imgui.slider_float(

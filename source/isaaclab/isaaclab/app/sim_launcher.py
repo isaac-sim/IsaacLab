@@ -541,7 +541,10 @@ def launch_simulation(
 
     if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
         if not _get_arg(launcher_args, "enable_cameras", False):
-            logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
+            logger.info(
+                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
+                "or a Kit visualizer with streaming_view=True."
+            )
             _set_arg(launcher_args, "enable_cameras", True)
 
     # Resolve distributed device early, before AppLauncher or physics init.
