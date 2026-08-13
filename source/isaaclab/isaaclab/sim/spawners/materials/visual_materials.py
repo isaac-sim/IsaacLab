@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -119,13 +120,18 @@ def spawn_from_mdl_file(
 
     mdl_path = cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR)
     if Path(mdl_path).name == mdl_path:
+        # Archive installs expose the Kit root directly; pip installs nest it inside isaacsim.
+        kit_paths = []
+        if carb_app_path := os.environ.get("CARB_APP_PATH"):
+            kit_paths.append(Path(carb_app_path))
         isaacsim_spec = importlib.util.find_spec("isaacsim")
         if isaacsim_spec is not None and isaacsim_spec.submodule_search_locations:
-            for location in isaacsim_spec.submodule_search_locations:
-                builtin_path = Path(location) / "kit/mdl/core/Base" / mdl_path
-                if builtin_path.is_file():
-                    mdl_path = str(builtin_path)
-                    break
+            kit_paths.extend(Path(location) / "kit" for location in isaacsim_spec.submodule_search_locations)
+        for kit_path in kit_paths:
+            builtin_path = kit_path / "mdl/core/Base" / mdl_path
+            if builtin_path.is_file():
+                mdl_path = str(builtin_path)
+                break
     material_name = Path(mdl_path).stem
     material_prim = UsdShade.Material.Define(stage, prim_path)
     shader = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")

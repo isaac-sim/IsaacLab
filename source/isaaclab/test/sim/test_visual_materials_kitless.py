@@ -56,3 +56,17 @@ def test_builtin_mdl_authors_and_binds_without_kit() -> None:
         Sdf.Path("/World/Looks/OmniPBR/Shader.outputs:out")
     ]
     _make_cube_and_bind(stage, "/World/Looks/OmniPBR")
+
+
+def test_builtin_mdl_resolves_archive_kit_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mdl_path = tmp_path / "mdl/core/Base/OmniPBR.mdl"
+    mdl_path.parent.mkdir(parents=True)
+    mdl_path.touch()
+    monkeypatch.setenv("CARB_APP_PATH", str(tmp_path))
+    stage = sim_utils.create_new_stage()
+    cfg = sim_utils.MdlFileCfg(mdl_path="OmniPBR.mdl")
+
+    shader_prim = cfg.func("/World/Looks/OmniPBR", cfg)
+
+    assert Path(UsdShade.Shader(shader_prim).GetSourceAsset("mdl").path) == mdl_path
+    assert stage.GetPrimAtPath("/World/Looks/OmniPBR").IsValid()
