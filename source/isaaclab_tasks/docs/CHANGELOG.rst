@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+16.1.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaacsim_physx`` support to the Franka cloth lift tasks.
+
+Changed
+^^^^^^^
+
+* Updated validated Kamino task presets to use
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`. The Cartpole
+  ``newton_kamino`` preset now uses Newton's collision pipeline instead of
+  Kamino's internal collision detector.
+
+Fixed
+^^^^^
+
+* Fixed success table visualization markers appearing at the world origin
+  before the first environment step.
+
+
 16.0.0 (2026-08-12)
 ~~~~~~~~~~~~~~~~~~~
 
