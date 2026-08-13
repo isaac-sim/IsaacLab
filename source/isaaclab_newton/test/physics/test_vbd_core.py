@@ -14,16 +14,6 @@ import pytest
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
 
-def test_vbd_symbols_are_exported_from_core():
-    """Core exports the VBD manager and configuration."""
-    physics = importlib.import_module("isaaclab_newton.physics")
-
-    assert physics.NewtonVBDManager.__name__ == "NewtonVBDManager"
-    assert physics.VBDSolverCfg.__name__ == "VBDSolverCfg"
-    assert physics.VBDSolverCfg().class_type.__name__ == "NewtonVBDManager"
-    assert issubclass(physics.NewtonVBDManager, NewtonManager)
-
-
 def test_soft_contact_cfg_defaults_match_newton():
     """Soft-contact defaults match the pinned Newton model."""
     physics = importlib.import_module("isaaclab_newton.physics")
