@@ -1413,6 +1413,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **skrl** (AMP)
       -
+    * - IsaacContrib-Keyboard-SO101
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
     * - IsaacContrib-Lift-Cube-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
