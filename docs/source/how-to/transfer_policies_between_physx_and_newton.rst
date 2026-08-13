@@ -11,7 +11,7 @@ Transfer Policies Between PhysX and Newton
    :doc:`/source/overview/developer-guide/agent_skills`.
 
    First make every robot and object MJWarp-clean by following
-   :doc:`/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton`
+   :doc:`/source/how-to/prepare_asset_for_newton`
    and the ``isaaclab-preparing-assets-for-newton``
    `skill
    <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__.
@@ -118,8 +118,8 @@ position policy can alternate saturated commands and exploit one solver's drive 
 limit response. Armature is equally important in MJWarp: it adds reflected inertia to the
 generalized mass matrix and prevents small contact or drive impulses from producing excessive
 joint or angular velocity. Retune damping after increasing armature because the effective natural
-frequency and damping ratio change. See the asset migration guide for the equations, physical
-sourcing rules, and the zero-gravity object case.
+frequency and damping ratio change. See :ref:`prepare-asset-for-newton` for the actuator audit and
+physical sourcing guidance.
 
 
 Introducing domain randomization

@@ -285,7 +285,7 @@ Recommended tuning sequence
 #. Optimize line searches, state-update frequency, collision refresh, capacities, and substeps
    only after behavior is acceptable.
 
-See :doc:`migrating-assets-from-physx-to-newton` for the complete model and asset audit. For the
+See :doc:`/source/how-to/prepare_asset_for_newton` for the complete model and asset audit. For the
 authoritative MuJoCo contact formulation, consult the `MuJoCo computation documentation
 <https://mujoco.readthedocs.io/en/stable/computation/index.html#contact>`__ and `option reference
 <https://mujoco.readthedocs.io/en/stable/XMLreference.html#option-impratio>`__.

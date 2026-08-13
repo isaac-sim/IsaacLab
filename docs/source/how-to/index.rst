@@ -148,6 +148,17 @@ and policies trained in Newton and deployed in PhysX.
     transfer_policies_between_physx_and_newton
 
 
+Working with Physics Backends
+-----------------------------
+
+These guides help prepare assets and tasks for the supported physics backends.
+
+.. toctree::
+    :maxdepth: 1
+
+    prepare_asset_for_newton
+
+
 Recording an Animation and Video
 --------------------------------
 

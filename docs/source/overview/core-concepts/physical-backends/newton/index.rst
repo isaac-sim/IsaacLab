@@ -1,10 +1,3 @@
-.. seealso::
-
-   This section is the source of truth for the ``isaaclab-preparing-assets-for-newton`` agent skill
-   (`skills/user/prepare-assets-for-newton/ <../../../../../../skills/user/prepare-assets-for-newton/SKILL.md>`__).
-   When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
-
 Newton Backend
 ==============
 
@@ -23,7 +16,7 @@ are still maturing, and the Isaac Lab integration ships a focused, validated set
 classic RL and flat-terrain locomotion environments. We have validated Newton
 simulation against PhysX by transferring learned policies in both directions and
 have successfully deployed a Newton-trained locomotion policy to a G1 robot.
-See :doc:`migrating-assets-from-physx-to-newton` to migrate an asset and physical
+See :doc:`/source/how-to/prepare_asset_for_newton` to prepare an asset and physical
 model specifically from PhysX to Newton with MJWarp. Then use
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton` to train and
 evaluate policy checkpoints in both directions.
@@ -65,7 +58,7 @@ For direct ``Model``/``State`` access and generic selections, see
 
   installation
   supported-features
-  migrating-assets-from-physx-to-newton
+  /source/how-to/prepare_asset_for_newton
   mjwarp-solver
   kamino-solver
   using-vbd-solver

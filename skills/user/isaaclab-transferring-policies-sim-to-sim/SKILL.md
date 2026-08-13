@@ -35,5 +35,5 @@ Keep this skill synchronized section-for-section with the sim-to-sim how-to, inc
 - [Compact reference](reference.md)
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
-- [Asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst)
+- [Prepare an asset for Newton with MJWarp how-to](../../../docs/source/how-to/prepare_asset_for_newton.rst)
 - [RL train and play guide](../../../docs/source/overview/reinforcement-learning/rl_existing_scripts.rst)
