@@ -23,7 +23,12 @@ import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_presets
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+# Bit-wise determinism is a physics-backend property, so keep these checks on
+# Isaac Sim PhysX rather than following a task's evolving default. Newton
+# MJWarp is not yet run-to-run deterministic on CUDA for the locomotion tasks.
+_PINNED_PHYSICS_PRESET = "isaacsim_physx"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -100,7 +105,7 @@ def _test_environment_determinism(
     device: str,
     *,
     num_steps: int = 100,
-    physics_preset_name: str | None = None,
+    physics_preset_name: str = _PINNED_PHYSICS_PRESET,
     deterministic_mode: str | None = None,
 ):
     """Check deterministic environment creation."""
@@ -138,21 +143,18 @@ def _obtain_transition_tuples(
     device: str,
     num_steps: int,
     *,
-    physics_preset_name: str | None = None,
+    physics_preset_name: str,
     deterministic_mode: str | None = None,
 ) -> tuple[dict, torch.Tensor]:
     """Run random actions and obtain transition tuples after fixed number of steps."""
     # create a new stage
     sim_utils.create_new_stage()
     try:
-        # parse configuration
-        if physics_preset_name is None:
-            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        else:
-            env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-            env_cfg = resolve_presets(env_cfg, selected=(physics_preset_name,))
-            env_cfg.sim.device = device
-            env_cfg.scene.num_envs = num_envs
+        # Parse configuration with an explicit physics backend.
+        env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+        env_cfg = resolve_presets(env_cfg, selected=(physics_preset_name,))
+        env_cfg.sim.device = device
+        env_cfg.scene.num_envs = num_envs
         if deterministic_mode is not None:
             assert isinstance(env_cfg.sim.physics, NewtonCfg)
             env_cfg.sim.physics.deterministic_mode = deterministic_mode
