@@ -1,1 +1,0 @@
-Internal: restored the already released removal of ``NewtonCfg.simplify_meshes`` after a merge reintroduced the field.

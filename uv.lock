@@ -3343,8 +3343,8 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.5.0rc2"
-source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.5#284af96bb563bf68536f070f508ea3561336ee73" }
+version = "1.5.0"
+source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.5#cca3bb8a17a3620a1343df3cf12c625e4161b317" }
 dependencies = [
     { name = "warp-lang", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]

@@ -27,7 +27,7 @@ EXTRA_SCRIPTS = (
     ROOT / "scripts" / "tools" / "convert_urdf.py",
     ROOT / "scripts" / "tools" / "convert_mjcf.py",
 )
-VISUALIZERS = ("none", "kit", "newton", "rerun", "viser")
+VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 DEFAULT_BATCHED_NUM_ENVS = 2
@@ -159,13 +159,22 @@ OVERRIDES = {
     ),
     "scripts/demos/deformables.py": ScriptOverride(
         case_skip_reasons={
-            ("isaacsim_physx", "default", "newton"): "Newton visualizer requires the Newton VBD physics backend",
+            (
+                "isaacsim_physx",
+                "default",
+                "newton_gl",
+            ): "Newton visualizer requires the Newton VBD physics backend",
+            (
+                "isaacsim_physx",
+                "default",
+                "newton_rtx",
+            ): "Newton visualizer requires the Newton VBD physics backend",
             ("isaacsim_physx", "default", "rerun"): "Rerun cannot import PhysX deformable attributes",
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
     "scripts/demos/mpm/newton_mpm_granular.py": ScriptOverride(
-        args=("--max-steps", "20"),
+        args=("--max_steps", "20"),
         readiness_pattern=r"Newton granular MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
@@ -176,9 +185,14 @@ OVERRIDES = {
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "scripts/demos/mpm/particle_pour.py": ScriptOverride(
-        args=("--max-steps", "200"),
-        readiness_pattern=r"particle-pour MPM demo ready",
+    "scripts/demos/mpm/snowball_smash.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        readiness_pattern=r"Newton snowball-smash demo ready",
+        fixed_physics_backend="newton_mpm",
+    ),
+    "scripts/demos/mpm/teapot_fill.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
@@ -202,10 +216,10 @@ OVERRIDES = {
         },
     ),
     "scripts/demos/sensors/newton_raycast_heightfield.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton", "rerun", "viser")
+        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
     ),
     "scripts/demos/sensors/newton_raycast_moving_geometry.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton", "rerun", "viser")
+        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
     ),
     "scripts/demos/pick_and_place.py": ScriptOverride(
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
@@ -259,7 +273,7 @@ OVERRIDES = {
     ),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
-        visualizers=("kit", "newton"),
+        visualizers=("kit", "newton_gl"),
     ),
 }
 
@@ -386,8 +400,10 @@ def visualizer_is_available(visualizer: str) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if importlib.util.find_spec("isaaclab_visualizers") is None:
         return False
-    if visualizer == "newton":
-        return importlib.util.find_spec("isaaclab_newton") is not None
+    if visualizer in {"newton", "newton_gl", "newton_rtx"}:
+        if importlib.util.find_spec("isaaclab_newton") is None:
+            return False
+        return visualizer != "newton_rtx" or importlib.util.find_spec("ovrtx") is not None
     return importlib.util.find_spec(visualizer) is not None
 
 

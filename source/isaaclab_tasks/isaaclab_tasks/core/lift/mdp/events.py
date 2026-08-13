@@ -31,7 +31,7 @@ from .utils import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
     from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
@@ -67,6 +67,23 @@ def reset_joints_shared_offset(
     asset.write_joint_velocity_to_sim_index(
         velocity=torch.zeros_like(positions), joint_ids=asset_cfg.joint_ids, env_ids=env_ids
     )
+
+
+def reset_cable_state_uniform(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> None:
+    """Reset a cable to its default shape with a uniformly sampled translation [m]."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
+    segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
+    ranges = torch.tensor([position_range.get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=asset.device)
+    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device)
+    segment_pose[..., :3] += offset.unsqueeze(1)
+    asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+    asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
 
 
 def reset_to_target(

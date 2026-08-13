@@ -68,6 +68,7 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     assert getattr(forwarded_args, "visualizer_intent") == {
         "has_any_visualizers": True,
         "has_kit_visualizer": True,
+        "has_kit_streaming_view": False,
     }
     assert captured["closed"] is True
 
