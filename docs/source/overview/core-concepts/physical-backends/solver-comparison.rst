@@ -13,8 +13,9 @@ The solvers covered are:
   (Temporal Gauss-Seidel). PhysX also exposes a Projective Gauss-Seidel
   (PGS) variant via :attr:`~isaaclab_physx.physics.PhysxCfg.solver_type`,
   which behaves similarly for the purposes of this comparison.
-* **Newton MuJoCo-Warp (MJWarp)** — primary :doc:`Newton solver <newton/mjwarp-solver>`,
-  configured by :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
+* **Newton MuJoCo-Warp (MJWarp)** — primary solver, configured by
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg`; see :doc:`MJWarp tuning
+  guidance </source/how-to/tune_mjwarp>`.
 * **Newton Kamino** — beta P-ADMM :doc:`Newton solver <newton/kamino-solver>`,
   configured by :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 

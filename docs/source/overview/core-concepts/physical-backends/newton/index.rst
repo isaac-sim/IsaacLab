@@ -26,7 +26,8 @@ Newton can support `multiple solvers
 handling different types of physics simulation. The Isaac Lab integration ships
 the following solver pages:
 
-* :doc:`mjwarp-solver` — the primary, validated solver path.
+* :doc:`/source/how-to/tune_mjwarp` — diagnose-first guidance for the primary,
+  validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
 * :doc:`using-vbd-solver`: experimental VBD solver for cloth and soft bodies,
   with MJWarp and VBD proxy coupling through :mod:`isaaclab_contrib.coupling`.
@@ -59,7 +60,7 @@ For direct ``Model``/``State`` access and generic selections, see
   installation
   supported-features
   /source/how-to/prepare_asset_for_newton
-  mjwarp-solver
+  /source/how-to/tune_mjwarp
   kamino-solver
   using-vbd-solver
   using-mpm

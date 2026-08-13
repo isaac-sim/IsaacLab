@@ -23,8 +23,8 @@ Tasks built specifically for Newton can instead assign
 ``IsaacContrib-UR10-Particle-Push`` use this fixed-Newton pattern and should be launched
 without a ``physics=`` selector. Passing
 ``physics=newton_mjwarp`` to a task without that preset will raise an error at
-launch. The :doc:`mjwarp-solver` page covers how to add a selectable Newton
-preset to your own task.
+launch. See :doc:`MJWarp tuning guidance </source/how-to/tune_mjwarp>` when
+configuring a selectable Newton preset for your own task.
 
 Implicit MPM Demos
 ------------------
