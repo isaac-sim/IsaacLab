@@ -22,11 +22,10 @@ from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg
 from isaaclab.utils.configclass import configclass
 
 from .conveyor_franka_env_cfg import (
+    _CONTACT_GAP,
+    _CUBE_CONTACT_MARGIN,
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
-    _ARM_JOINT_NAMES,
-    _CUBE_CONTACT_MARGIN,
-    _CONTACT_GAP,
     _spawn_hidden_collision_mesh,
     _spawn_shape_with_display_color,
     _validate_common_config,
@@ -308,9 +307,7 @@ class ConveyorFrankaPhysxSceneCfg(ConveyorFrankaSceneCfg):
             )
 
             section_keys = ("top_straight", "bottom_straight", "right_turn", "left_turn")
-            for section_key, (section, root_position) in zip(
-                section_keys, physx_belt_section_specs(side), strict=True
-            ):
+            for section_key, (section, root_position) in zip(section_keys, physx_belt_section_specs(side), strict=True):
                 setattr(
                     self,
                     f"conveyor_{side.lower()}_{section_key}_collision",

@@ -7,7 +7,6 @@
 
 import gymnasium as gym
 import pytest
-
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 

@@ -46,7 +46,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             )
         else:
             belt_specs = tuple(spec_builder(**belt_spec_kwargs))
-        env_path_format = self.cfg.scene.clone_cfg.clone_regex.replace(".*", "{}")
+        env_path_format = self.cfg.scene.clone_cfg.clone_template
 
         # Newton needs solved-contact attributes and graph callbacks registered
         # before the first reset finalizes and captures the solver. PhysX belt
