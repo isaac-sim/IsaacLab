@@ -144,13 +144,41 @@ manager class and holds backend-specific settings:
         class_type = "{DIR}.mybackend_manager:MyBackendManager"
         # Backend-specific settings here.
 
+Register the backend key
+------------------------
+
+``FactoryBase`` does not derive a new backend key from an arbitrary physics
+manager class name. Add the manager prefix to the core selector in
+``isaaclab.utils.backend_utils`` before factories can resolve assets and
+sensors for the backend:
+
+.. code-block:: python
+
+    # source/isaaclab/isaaclab/utils/backend_utils.py
+    @classmethod
+    def _get_backend(cls, *args, **kwargs) -> str:
+        from isaaclab.sim.simulation_context import SimulationContext
+
+        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        if manager_name.startswith("mybackend"):
+            return "mybackend"
+        # Keep the existing newton, ovphysx, and physx cases below.
+
+The existing ``_get_package_name()`` convention maps the ``mybackend`` key to
+the ``isaaclab_mybackend`` package used above. If the integration uses another
+package name, add an explicit case to ``_get_package_name()`` as well.
+``FactoryBase.register()`` only caches the concrete class after this key and
+package mapping has selected and imported the backend module; calling it alone
+does not register a new physics-manager prefix.
+
 Implement assets and sensors
 ----------------------------
 
 Each supported asset or sensor extends the matching base class in
 ``isaaclab``. The implementation class name must match the factory's expected
-name. Use ``lazy_export()`` in package ``__init__.py`` files; the convention
-based factory discovery does not require manual registration.
+name. Use ``lazy_export()`` in package ``__init__.py`` files. Once the core
+backend-key mapping is in place, the factory imports these modules by package
+and module-path convention and caches their implementation classes.
 
 .. code-block:: python
 
@@ -167,8 +195,9 @@ Validate backend discovery
 --------------------------
 
 ``FactoryBase`` maps ``isaaclab.assets.articulation`` to
-``isaaclab_mybackend.assets.articulation`` from the active physics manager
-name. Verify this automatic discovery with the following checklist:
+``isaaclab_mybackend.assets.articulation`` after the registered
+``mybackend`` key is selected from the active physics manager. Verify the
+configured discovery path with the following checklist:
 
 - Construct the backend configuration.
 - Initialize a minimal simulation with that configuration.
