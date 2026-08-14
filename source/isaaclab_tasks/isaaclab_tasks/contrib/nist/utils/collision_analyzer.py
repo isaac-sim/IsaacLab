@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.sim.utils import get_first_matching_child_prim
+from isaaclab.sim.utils import resolve_matching_prims_from_source
 
 from isaaclab_tasks.contrib.nist.utils import mesh_ops as _mesh_ops
 from isaaclab_tasks.contrib.nist.utils.rigid_object_hasher import RigidObjectHasher
@@ -52,14 +52,15 @@ class CollisionAnalyzer:
         self.body_ids = []
         self.local_pts = []
         for body_name in body_names:
-            prim = get_first_matching_child_prim(
-                self.asset.cfg.prim_path.replace(".*", "0", 1),
+            _, prim_path_pattern = resolve_matching_prims_from_source(
+                self.asset.cfg.prim_path,
                 predicate=lambda p: p.GetName() == body_name and p.HasAPI(UsdPhysics.RigidBodyAPI),
-            )
+                expected_num_matches=1,
+            )[0]
             local_pts = _mesh_ops.sample_object_point_cloud(
                 num_envs=env.num_envs,
                 num_points=cfg.num_points,
-                prim_path_pattern=str(prim.GetPath()).replace("env_0", "env_.*", 1),
+                prim_path_pattern=prim_path_pattern,
                 device=device,
             )
             if local_pts is not None:
