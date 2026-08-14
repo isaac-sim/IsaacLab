@@ -1,6 +1,9 @@
 ---
 name: isaaclab-building-environments
 description: Builds complete Isaac Lab environments from task requirements, with manager-based environments preferred and direct environments reserved for migrations, custom control flow, or performance-specialized prototypes. Use when creating or registering a new task, choosing between direct and manager-based workflows, or adapting an entire maintained example into a new environment. Do not use for targeted sensor, sensor-derived observation or reward, contact-history, foot-contact, air-time, or actuator changes in an existing task; use isaaclab-using-sensors-actuators.
+license: BSD-3-Clause
+metadata:
+  author: Isaac Lab Team <isaaclab@nvidia.com>
 audience: user
 status: experimental
 owners:

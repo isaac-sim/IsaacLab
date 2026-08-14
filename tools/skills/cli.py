@@ -25,7 +25,8 @@ AGENT_SKILLS_ROOT = REPO_ROOT / ".agents" / "skills"
 CLAUDE_SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
 NATIVE_SKILLS_ROOTS = (AGENT_SKILLS_ROOT, CLAUDE_SKILLS_ROOT)
 
-AUDIENCES = {"developer", "user"}
+INTERNAL_DIR = "_internal"
+AUDIENCES = {"user"}
 STATUSES = {"experimental", "stable", "deprecated"}
 REQUIRED_SECTIONS = {"When To Use", "Workflow", "Validation", "Maintenance", "References"}
 
@@ -136,6 +137,10 @@ class Skill:
         except ValueError:
             return self.path.parent.parent.name
 
+    @property
+    def is_internal(self) -> bool:
+        return self.audience_dir == INTERNAL_DIR
+
     def validate(self) -> list[str]:
         errors: list[str] = []
         if self.path.name != "SKILL.md":
@@ -154,7 +159,7 @@ class Skill:
         errors.extend(self._validate_links(self.path, body, enforce_one_level=True))
         errors.extend(self._validate_backtick_paths(self.path, body))
         errors.extend(self._validate_reference_files())
-        if metadata.get("audience") == "user":
+        if not self.is_internal:
             errors.extend(self._validate_user_evaluations(body))
         errors.extend(self._validate_scripts(body))
         return errors
@@ -163,9 +168,9 @@ class Skill:
         errors: list[str] = []
         name = metadata.get("name")
         description = metadata.get("description")
-        audience = metadata.get("audience")
-        status = metadata.get("status")
-        owners = metadata.get("owners")
+        license_ = metadata.get("license")
+        # The hand-rolled parser flattens `metadata:\n  author:` into top-level `author`.
+        author = metadata.get("author")
 
         if not isinstance(name, str) or not name:
             errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'name'")
@@ -192,6 +197,20 @@ class Skill:
                 errors.append(f"{_display_path(self.path)}: description must include 'Use when' trigger guidance")
             if lowered.startswith(("i ", "i can", "you ", "you can")):
                 errors.append(f"{_display_path(self.path)}: description must be written in third person")
+
+        if not isinstance(license_, str) or not license_:
+            errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'license'")
+
+        if not isinstance(author, str) or not author:
+            errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'metadata.author'")
+
+        if self.is_internal:
+            return errors
+
+        # Fields required only for published (non-internal) skills.
+        audience = metadata.get("audience")
+        status = metadata.get("status")
+        owners = metadata.get("owners")
 
         if audience not in AUDIENCES:
             errors.append(f"{_display_path(self.path)}: audience must be one of {sorted(AUDIENCES)}")
@@ -270,36 +289,73 @@ class Skill:
     def _validate_user_evaluations(self, body: str) -> list[str]:
         errors: list[str] = []
         evaluations = self.root / "evaluations.md"
-        if not evaluations.exists():
-            errors.append(f"{_display_path(self.path)}: user-facing skills must include evaluations.md")
+        evals_json = self.root / "evals" / "evals.json"
+
+        if not evaluations.exists() and not evals_json.exists():
+            errors.append(
+                f"{_display_path(self.path)}: user-facing skills must include evaluations.md or evals/evals.json"
+            )
             return errors
-        has_evaluations_link = any(
-            unquote(match.group("target").strip().split("#", 1)[0]).removeprefix("./") == "evaluations.md"
-            for match in LINK_RE.finditer(body)
-        )
-        if not has_evaluations_link:
-            errors.append(f"{_display_path(self.path)}: user-facing skills must link to evaluations.md from SKILL.md")
-        text = evaluations.read_text(encoding="utf-8")
-        scenario_matches = list(SCENARIO_RE.finditer(text))
-        if len(scenario_matches) < 3:
-            errors.append(f"{_display_path(evaluations)}: user-facing skills need at least three evaluation scenarios")
-        for index, match in enumerate(scenario_matches, start=1):
-            next_match = scenario_matches[index] if index < len(scenario_matches) else None
-            scenario_text = text[match.start() : next_match.start() if next_match else len(text)]
-            scenario_name = match.group("title").strip()
-            if "Query:" not in scenario_text:
-                errors.append(f"{_display_path(evaluations)}: {scenario_name} must include a sample query")
-            if "Expected behavior:" not in scenario_text:
-                errors.append(f"{_display_path(evaluations)}: {scenario_name} must include expected behavior")
-            if (
-                "Known failure modes:" not in scenario_text
-                and "Pass/fail" not in scenario_text
-                and "pass/fail" not in scenario_text
-            ):
+
+        # Validate evaluations.md when present.
+        if evaluations.exists():
+            has_evaluations_link = any(
+                unquote(match.group("target").strip().split("#", 1)[0]).removeprefix("./") == "evaluations.md"
+                for match in LINK_RE.finditer(body)
+            )
+            if not has_evaluations_link:
                 errors.append(
-                    f"{_display_path(evaluations)}: {scenario_name} must include known failure modes "
-                    "or pass/fail criteria"
+                    f"{_display_path(self.path)}: user-facing skills must link to evaluations.md from SKILL.md"
                 )
+            text = evaluations.read_text(encoding="utf-8")
+            scenario_matches = list(SCENARIO_RE.finditer(text))
+            if len(scenario_matches) < 3:
+                errors.append(
+                    f"{_display_path(evaluations)}: user-facing skills need at least three evaluation scenarios"
+                )
+            for index, match in enumerate(scenario_matches, start=1):
+                next_match = scenario_matches[index] if index < len(scenario_matches) else None
+                scenario_text = text[match.start() : next_match.start() if next_match else len(text)]
+                scenario_name = match.group("title").strip()
+                if "Query:" not in scenario_text:
+                    errors.append(f"{_display_path(evaluations)}: {scenario_name} must include a sample query")
+                if "Expected behavior:" not in scenario_text:
+                    errors.append(
+                        f"{_display_path(evaluations)}: {scenario_name} must include expected behavior"
+                    )
+                if (
+                    "Known failure modes:" not in scenario_text
+                    and "Pass/fail" not in scenario_text
+                    and "pass/fail" not in scenario_text
+                ):
+                    errors.append(
+                        f"{_display_path(evaluations)}: {scenario_name} must include known failure modes "
+                        "or pass/fail criteria"
+                    )
+
+        # Validate evals/evals.json when present.
+        if evals_json.exists():
+            import json
+
+            try:
+                data = json.loads(evals_json.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                errors.append(f"{_display_path(evals_json)}: invalid JSON: {exc}")
+                return errors
+            evals = data.get("evals", []) if isinstance(data, dict) else []
+            if len(evals) < 2:
+                errors.append(f"{_display_path(evals_json)}: must contain at least two eval entries")
+            for entry in evals:
+                if not isinstance(entry, dict):
+                    continue
+                for field in ("id", "prompt", "expected_skill"):
+                    if not entry.get(field) and entry.get(field) is not None:
+                        errors.append(f"{_display_path(evals_json)}: entry missing required field '{field}'")
+                if "assertions" not in entry or not isinstance(entry["assertions"], list):
+                    errors.append(
+                        f"{_display_path(evals_json)}: entry {entry.get('id', '?')!r} missing 'assertions' list"
+                    )
+
         return errors
 
     def _validate_scripts(self, body: str) -> list[str]:
@@ -319,6 +375,11 @@ def iter_skills(root: Path = SKILLS_ROOT) -> list[Skill]:
     if not root.exists():
         return []
     return [Skill(path) for path in sorted(root.glob("*/*/SKILL.md"))]
+
+
+def iter_public_skills(root: Path = SKILLS_ROOT) -> list[Skill]:
+    """Return only published (non-internal) skills."""
+    return [s for s in iter_skills(root) if not s.is_internal]
 
 
 def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...] = NATIVE_SKILLS_ROOTS) -> list[str]:

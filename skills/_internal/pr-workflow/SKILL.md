@@ -1,10 +1,9 @@
 ---
 name: isaaclab-preparing-pr-workflow
 description: Prepares Isaac Lab changes for review using the repository PR checklist, validation commands, commit rules, and changelog policy. Use when opening a PR, finishing a branch, preparing a commit, or checking contribution readiness.
-audience: developer
-status: stable
-owners:
-  - isaaclab-maintainers
+license: BSD-3-Clause
+metadata:
+  author: Isaac Lab Team <isaaclab@nvidia.com>
 ---
 
 # Preparing PR Workflow

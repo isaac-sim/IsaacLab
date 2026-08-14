@@ -1,0 +1,60 @@
+{
+  "skill_name": "isaaclab-installing-isaac-lab",
+  "evals": [
+    {
+      "id": "isaaclab-installing-isaac-lab-001",
+      "prompt": "Install Isaac Lab.",
+      "expected_output": "Runs preflight detection, reads install docs, routes to the automatic uv path, and executes unattended with exactly one go/no-go confirmation.",
+      "assertions": [
+        "The agent identified isaaclab-installing-isaac-lab as the primary skill without being told its name",
+        "Runs read-only preflight detection commands before anything else",
+        "Routes to the automatic uv installation path for a standard Ubuntu system",
+        "Asks exactly one go/no-go question before executing",
+        "Does not interview the user about use case, env manager, or method before auto-picking",
+        "Does not copy install commands from memory without reading the current install docs",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-installing-isaac-lab",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-installing-isaac-lab-002",
+      "prompt": "Install Isaac Lab using conda into env lab3.",
+      "expected_output": "Honors the conda environment name without re-asking, uses the conda variant from docs, and executes unattended.",
+      "assertions": [
+        "The agent identified isaaclab-installing-isaac-lab as the primary skill without being told its name",
+        "Honors conda and the env name lab3 without re-asking",
+        "Uses the conda variant from the docs, not the uv default",
+        "Does not substitute uv because it is the recommended default",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-installing-isaac-lab",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-installing-isaac-lab-003",
+      "prompt": "Set up Isaac Lab on this machine.",
+      "expected_output": "Preflight finds no NVIDIA GPU and stops without executing any install steps.",
+      "assertions": [
+        "The agent identified isaaclab-installing-isaac-lab as the primary skill without being told its name",
+        "Runs preflight detection and stops if a blocker (e.g., no GPU) is found",
+        "Does not proceed with install steps when a preflight blocker is present",
+        "Reports the blocker with a fix or alternative path",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-installing-isaac-lab",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-installing-isaac-lab-neg-001",
+      "prompt": "Randomize joint positions at the start of each training episode.",
+      "expected_output": "Adds a reset-mode event term to the environment config, not installation steps.",
+      "assertions": [
+        "The agent did not use isaaclab-installing-isaac-lab as the primary skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
