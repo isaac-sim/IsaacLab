@@ -482,6 +482,18 @@ Retargeting Framework
 Isaac Teleop uses a graph-based retargeting pipeline. Data flows from **source nodes** through
 **retargeters** and is combined into a single action tensor.
 
+.. figure:: ../../_static/teleop/teleop_diagram.jpg
+   :align: center
+   :figwidth: 100%
+   :alt: Example dexterous-hand retargeting pipeline, using an Apple Vision Pro hand-tracking capture retargeted through Pink IK and dex-retargeting to drive a Unitree G1 with an Inspire hand.
+
+   One example of the retargeting pipeline: hand-tracking data is retargeted through IK (arms) and
+   ``dex-retargeting`` (fingers) to drive a dexterous humanoid hand. This capture used an Apple
+   Vision Pro; the primary supported client is
+   `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_ on
+   Meta Quest 3 / Pico 4 Ultra, which feeds the same pipeline from either hand tracking or motion
+   controllers (trigger / button presses drive the fingers).
+
 Source Nodes
 ~~~~~~~~~~~~
 

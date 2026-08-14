@@ -10,17 +10,6 @@ egocentric and robot data collection in Isaac Lab. It provides a standardized de
 flexible graph-based retargeting pipeline, and works seamlessly across simulated and real-world
 robots.
 
-.. figure:: ../_static/teleop/teleop_diagram.jpg
-   :align: center
-   :figwidth: 100%
-   :alt: Humanoid teleoperation via an XR headset and CloudXR: hand tracking is retargeted through Pink IK and dex-retargeting to drive a Unitree G1 with an Inspire hand.
-
-   Hand tracking from an XR headset flows through the retargeting pipeline (IK for the arms,
-   ``dex-retargeting`` for the fingers) to drive a dexterous humanoid hand. The primary supported
-   client is `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_
-   running in-browser on Meta Quest 3 and Pico 4 Ultra, which supports both hand tracking and
-   motion-controller input (trigger / button presses drive the fingers).
-
 Isaac Teleop replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac
 Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
 
