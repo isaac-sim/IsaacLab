@@ -9,9 +9,12 @@
   },
 
   "per_task_regression_pct": {
-    "_comment": "Overrides for tasks whose run-to-run noise makes the default threshold unusable. A threshold below the noise floor fires on noise; a threshold far above it never fires at all.",
+    "_comment": "Overrides for tasks whose run-to-run noise makes the default threshold unusable. A threshold below the noise floor fires on noise; a threshold far above it never fires at all. Measured by benchmarking six real develop commits inside one pin window, sequentially, on one machine (temp/threshold_probe).",
+    "IsaacContrib-Factory-GearMesh-Direct": {
+      "_comment": "Commit-to-commit CV 2.3% across six develop commits (1194-1277 fps), against 1.18% pure run-to-run CV. Real drift is small and the default 5%/10% is defensible here. This is the sensitive probe: use it, not Cartpole, to detect small regressions."
+    },
     "Isaac-Cartpole-Direct": {
-      "_todo": "Measured 12.99% (physx) / 11.26% (newton) run-to-run CV on RTX 5090. At that noise a 3% block threshold needs n>29 samples to resolve. Either widen these, keep Cartpole advisory-only, or re-measure on L40S and set from that. Do NOT leave it at the default."
+      "_todo": "DO NOT gate this task on the defaults. Three runs of one identical commit produced 647574 / 439091 / 570587 fps -- a 47% spread with no code change -- and a sequential six-commit sweep showed a monotonic decline that a control run proved was machine drift, not a regression. Either keep Cartpole advisory-only, widen these well past 25%, or re-measure on a dedicated L40S runner before trusting any number here."
     }
   },
 
