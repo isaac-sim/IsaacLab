@@ -23,6 +23,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -123,6 +124,9 @@ class _FakeVisualizer:
     def supports_markers(self):
         return False
 
+    def supports_live_plots(self):
+        return False
+
     def flush_startup_messages(self):
         pass
 
@@ -132,6 +136,7 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers = list(visualizers)
     ctx._scene_data_provider = provider
     ctx.physics_manager = _FakePhysicsManager()
+    ctx.vis_marker_registry = VisMarkerRegistry()
     return ctx
 
 
@@ -198,6 +203,37 @@ def test_update_visualizers_handles_training_pause_loop():
     ctx.update_visualizers(0.2)
 
     assert viz.step_calls == [0.0, 0.2]
+
+
+class _LivePlotVisualizer(_FakeVisualizer):
+    def __init__(self, *, enable_live_plots: bool = True, **kwargs):
+        super().__init__(**kwargs)
+        self.cfg = VisualizerCfg(enable_live_plots=enable_live_plots)
+
+    def supports_live_plots(self):
+        return True
+
+
+def test_update_visualizers_dispatches_callbacks_for_live_plot_only_visualizer():
+    """Live-plot panels share the marker registry, so dispatch must not require marker support."""
+    dispatched = []
+    ctx = _make_context([_LivePlotVisualizer()], provider=_FakeProvider())
+    ctx.vis_marker_registry.add_callback("probe", dispatched.append)
+
+    ctx.update_visualizers(0.1)
+
+    assert len(dispatched) == 1
+
+
+def test_update_visualizers_skips_dispatch_when_live_plots_disabled():
+    """Live-plot support with the flag off consumes nothing, so callbacks stay idle."""
+    dispatched = []
+    ctx = _make_context([_LivePlotVisualizer(enable_live_plots=False)], provider=_FakeProvider())
+    ctx.vis_marker_registry.add_callback("probe", dispatched.append)
+
+    ctx.update_visualizers(0.1)
+
+    assert dispatched == []
 
 
 def test_newton_visualizer_is_initialized_and_rebound_before_capture():
