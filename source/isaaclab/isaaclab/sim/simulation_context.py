@@ -848,8 +848,12 @@ class SimulationContext:
             self.physics_manager.forward()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
+        # consumes that state later in this method. Live-plot panels register in the same
+        # registry and their flag is independent of markers, so gate on either capability.
+        if any(
+            viz.supports_markers() or (viz.supports_live_plots() and getattr(viz.cfg, "enable_live_plots", True))
+            for viz in self._visualizers
+        ):
             self.vis_marker_registry.dispatch_callbacks()
 
         visualizers_to_remove = []

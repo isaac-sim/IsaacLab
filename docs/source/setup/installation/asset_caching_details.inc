@@ -85,9 +85,22 @@ experience file does work, because that is the value Isaac Lab reads when the va
 
 To use the public China asset mirror, select the same named storage profile used by Isaac Sim before launch:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: os
 
-   export ISAACSIM_STORAGE_PROFILE=china
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code:: bash
+
+         export ISAACSIM_STORAGE_PROFILE=china
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code:: batch
+
+         set ISAACSIM_STORAGE_PROFILE=china
 
 Isaac Lab uses the same versioned public bucket paths shown by Isaac Sim and routes reads through the profile's CDN.
 This also works in kitless mode without Isaac Sim installed. ``ISAACSIM_ASSET_ROOT`` still takes precedence when
@@ -101,6 +114,11 @@ Isaac Lab launchers and asset helpers apply the profile automatically. A standal
    from isaaclab.utils.assets import configure_storage_profile
 
    configure_storage_profile()
+
+.. note::
+   Asset availability in the China mirror can differ from the global asset set and can change between releases.
+   A workflow that references an unavailable asset returns a not-found error. Use an available mirrored asset or a
+   local asset pack for that workflow.
 
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an

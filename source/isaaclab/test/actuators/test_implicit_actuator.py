@@ -107,7 +107,7 @@ def test_implicit_actuator_init_minimum(sim, num_envs, num_joints, device, usd_d
 @pytest.mark.parametrize("effort_lim", [None, 300, 200])
 @pytest.mark.parametrize("effort_lim_sim", [None, 400, 200])
 def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device, effort_lim, effort_lim_sim):
-    """Test initialization of implicit actuator with effort limits."""
+    """Test independent resolution of the model-facing effort limit and solver clamp."""
     effort_limit_default = 5000
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
@@ -121,56 +121,32 @@ def test_implicit_actuator_init_effort_limits(sim, num_envs, num_joints, device,
         effort_limit_sim=effort_lim_sim,
     )
 
-    if effort_lim is not None and effort_lim_sim is not None and effort_lim != effort_lim_sim:
-        with pytest.raises(ValueError):
-            actuator = actuator_cfg.class_type(
-                actuator_cfg,
-                joint_names=joint_names,
-                joint_ids=joint_ids,
-                num_envs=num_envs,
-                device=device,
-                stiffness=actuator_cfg.stiffness,
-                damping=actuator_cfg.damping,
-                effort_limit=effort_limit_default,
-            )
+    actuator = actuator_cfg.class_type(
+        actuator_cfg,
+        joint_names=joint_names,
+        joint_ids=joint_ids,
+        num_envs=num_envs,
+        device=device,
+        stiffness=actuator_cfg.stiffness,
+        damping=actuator_cfg.damping,
+        effort_limit=effort_limit_default,
+    )
+    effort_lim_sim_expected = effort_lim_sim
+    if effort_lim_sim_expected is None:
+        effort_lim_sim_expected = effort_lim if effort_lim is not None else effort_limit_default
+    if effort_lim is None:
+        assert actuator.cfg.effort_limit == actuator.cfg.effort_limit_sim
+        effort_lim_expected = effort_lim_sim_expected
     else:
-        actuator = actuator_cfg.class_type(
-            actuator_cfg,
-            joint_names=joint_names,
-            joint_ids=joint_ids,
-            num_envs=num_envs,
-            device=device,
-            stiffness=actuator_cfg.stiffness,
-            damping=actuator_cfg.damping,
-            effort_limit=effort_limit_default,
-        )
-        if effort_lim is not None and effort_lim_sim is None:
-            assert actuator.cfg.effort_limit_sim == actuator.cfg.effort_limit
-            effort_lim_expected = effort_lim
-            effort_lim_sim_expected = effort_lim
+        assert actuator.cfg.effort_limit == effort_lim
+        effort_lim_expected = effort_lim
 
-        elif effort_lim is None and effort_lim_sim is not None:
-            assert actuator.cfg.effort_limit_sim == actuator.cfg.effort_limit
-            effort_lim_expected = effort_lim_sim
-            effort_lim_sim_expected = effort_lim_sim
-
-        elif effort_lim is None and effort_lim_sim is None:
-            assert actuator.cfg.effort_limit_sim is None
-            assert actuator.cfg.effort_limit is None
-            effort_lim_expected = effort_limit_default
-            effort_lim_sim_expected = effort_limit_default
-
-        elif effort_lim is not None and effort_lim_sim is not None:
-            assert actuator.cfg.effort_limit_sim == actuator.cfg.effort_limit
-            effort_lim_expected = effort_lim
-            effort_lim_sim_expected = effort_lim_sim
-
-        torch.testing.assert_close(
-            actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
-        )
-        torch.testing.assert_close(
-            actuator.effort_limit_sim, effort_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
-        )
+    torch.testing.assert_close(
+        actuator.effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
+    )
+    torch.testing.assert_close(
+        actuator.effort_limit_sim, effort_lim_sim_expected * torch.ones(num_envs, num_joints, device=device)
+    )
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])

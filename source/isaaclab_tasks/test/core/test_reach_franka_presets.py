@@ -26,7 +26,11 @@ _OSC_TASK = "Isaac-Reach-Franka-OSC"
 
 
 def _load_env_cfg(*presets: str):
-    cfg = load_cfg_from_registry(_TASK, "env_cfg_entry_point")
+    return _load_reach_env_cfg(_TASK, *presets)
+
+
+def _load_reach_env_cfg(task: str, *presets: str):
+    cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
     return resolve_presets(cfg, selected=presets)
 
 
@@ -57,24 +61,30 @@ def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
     assert legacy_cfg.to_dict() == canonical_cfg.to_dict()
 
 
+_REACH_PRESET_CASES = [
+    (_TASK, (), "JointPositionActionCfg", "NewtonCfg"),
+    (_TASK, ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
+    (_TASK, ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
+    (_TASK, ("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
+    (_TASK, ("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+    (_TASK, ("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
+    (_TASK, ("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+    (_TASK, ("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
+    (_TASK, ("diffik_abs", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+    (_TASK, ("diffik_abs", "ovphysx"), "DifferentialInverseKinematicsActionCfg", "OvPhysxCfg"),
+    (_TASK, ("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
+    ("Isaac-Reach-UR10", (), "JointPositionActionCfg", "NewtonCfg"),
+    ("Isaac-Reach-UR10", ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
+    ("Isaac-Reach-UR10", ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
+]
+
+
 @pytest.mark.parametrize(
-    ("presets", "action_type", "physics_type"),
-    [
-        ((), "JointPositionActionCfg", "NewtonCfg"),
-        (("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
-        (("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
-        (("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
-        (("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
-        (("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
-        (("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
-        (("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
-        (("diffik_abs", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
-        (("diffik_abs", "ovphysx"), "DifferentialInverseKinematicsActionCfg", "OvPhysxCfg"),
-        (("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
-    ],
+    ("task", "presets", "action_type", "physics_type"),
+    [pytest.param(*case, id=f"{case[0]}-{'-'.join(case[1]) or 'default'}") for case in _REACH_PRESET_CASES],
 )
-def test_reach_action_and_physics_presets_resolve_supported_combinations(presets, action_type, physics_type):
-    cfg = _load_env_cfg(*presets)
+def test_reach_presets_resolve_supported_combinations(task, presets, action_type, physics_type):
+    cfg = _load_reach_env_cfg(task, *presets)
 
     cfg.validate()
     assert type(cfg.actions.arm_action).__name__ == action_type
@@ -83,6 +93,34 @@ def test_reach_action_and_physics_presets_resolve_supported_combinations(presets
     assert cfg.sim.dt == pytest.approx(1.0 / 120.0)
     assert cfg.decimation == 4
     assert cfg.sim.dt * cfg.decimation == pytest.approx(1.0 / 30.0)
+
+
+def test_reach_ur10_physics_presets_change_only_physics():
+    """UR10 backend selections must preserve the task configuration."""
+    physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
+    newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
+
+    physx_cfg = physx.to_dict()
+    newton_cfg = newton.to_dict()
+    physx_cfg["sim"].pop("physics")
+    newton_cfg["sim"].pop("physics")
+    assert physx_cfg == newton_cfg
+
+
+def test_reach_ur10_uses_shared_mdp_and_arm_motion_penalty():
+    """UR10 retains its shared action, reward, and success contracts."""
+    cfg = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
+
+    assert cfg.actions.arm_action.joint_names == [".*"]
+    assert cfg.actions.arm_action.scale == pytest.approx(0.5)
+    assert cfg.actions.arm_action.clip is None
+    assert cfg.rewards.joint_vel.params["asset_cfg"].joint_names == [".*"]
+    assert cfg.rewards.action_rate.weight == pytest.approx(-0.0001)
+    assert cfg.rewards.action_magnitude.weight == pytest.approx(-0.005)
+    assert cfg.rewards.joint_vel.weight == pytest.approx(-0.0001)
+    assert cfg.terminations.success.params == {"command_name": "ee_pose"}
+    assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
+    assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
 
 
 def test_reach_action_presets_change_only_the_action_configuration():

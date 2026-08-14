@@ -13,6 +13,7 @@ the launcher inputs, then validate and launch.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import logging
 import os
 import sys
@@ -581,14 +582,13 @@ def launch_simulation(
                 {**base, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
             )
 
-    # The import stays after the Kit launch decision. With no selected profile this is a
-    # no-op; with one, it installs process-wide OmniClient routing before user code runs.
-    from isaaclab.utils.assets import configure_storage_profile
-
-    configure_storage_profile()
-
     exit_code = 0
     try:
+        # The import stays after the Kit launch decision. With no selected profile this is a
+        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
+        from isaaclab.utils.assets import configure_storage_profile
+
+        configure_storage_profile()
         yield physics_cfg
     except Exception:
         exit_code = 1
@@ -624,6 +624,27 @@ def _ensure_isaac_sim_available() -> None:
             f"  or in your current shell run:\n"
             f"    {source}\n"
         )
+
+    try:
+        installed_version = importlib.metadata.version("isaacsim")
+    except importlib.metadata.PackageNotFoundError:
+        installed_version = None
+
+    if installed_version:
+        logger.error(
+            f"\n[ERROR] Isaac Sim {installed_version} is installed, but its full runtime is unavailable.\n"
+            "\n"
+            "  This environment requires Isaac Sim and Omniverse Kit.\n"
+            "    PhysX backend and Kit visualizer require Isaac Sim.\n"
+            "\n"
+            "  The current Python environment does not expose the SimulationApp API.\n"
+            f"{extra_hint}"
+            "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
+            "    uv run isaaclab -i isaacsim\n"
+            "\n"
+            "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+        )
+        raise SystemExit(1)
 
     logger.error(
         "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"

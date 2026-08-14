@@ -415,7 +415,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
 
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
@@ -455,7 +455,7 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_g
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
-    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_[^/]*/Robot")
     if zero_actuator_pd:
         cfg.actuators["panda_shoulder"].stiffness = 0.0
         cfg.actuators["panda_shoulder"].damping = 0.0
@@ -682,7 +682,7 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
 ):
     """Resolve configured modes before finalization constructs MuJoCo actuators."""
     articulation_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         actuators={"joint": actuator_cfg},
     )
     articulation = Articulation(articulation_cfg)
@@ -704,7 +704,7 @@ def test_actuator_cfg_matches_explicit_descendant_articulation_root(sim, device,
     """Match target modes against an explicitly configured descendant articulation root."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/Env_.*/Robot",
+            prim_path="/World/Env_[^/]*/Robot",
             articulation_root_prim_path="/base",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
@@ -721,7 +721,7 @@ def test_actuator_cfg_matches_clone_plan_root_glob(sim, device, articulation_typ
     """Match builder labels when clone-plan root resolution returns a glob."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/envs/env_.*/Robot",
+            prim_path="{ENV_REGEX_NS}/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
     )
@@ -742,7 +742,7 @@ def test_actuator_cfg_leaves_excluded_joint_types_imported(sim, device, articula
     """Leave target modes for free and fixed joints unchanged."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/Env_.*/Robot",
+            prim_path="/World/Env_[^/]*/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
     )
@@ -757,7 +757,7 @@ def test_actuator_cfg_leaves_excluded_joint_types_imported(sim, device, articula
 def test_actuator_cfg_keeps_imported_newton_target_mode_for_none_gain(sim, device, articulation_type):
     """Retain the imported stiffness when an implicit actuator config leaves it unset."""
     articulation_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
     )
     articulation = Articulation(articulation_cfg)
@@ -771,7 +771,7 @@ def test_actuator_cfg_keeps_imported_newton_target_mode_for_none_gain(sim, devic
 def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(sim, device, articulation_type):
     """Leave target modes for DOFs outside an actuator group unchanged."""
     subset_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         actuators={
             "shoulder": ImplicitActuatorCfg(joint_names_expr=["left_shoulder"], stiffness=10.0, damping=0.0),
         },
@@ -802,7 +802,7 @@ def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(
     """Resolve sparse stiffness and damping dictionaries independently by joint name."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/Env_.*/Robot",
+            prim_path="/World/Env_[^/]*/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
     )
@@ -904,7 +904,7 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     the MJWarp order), and the request is ``physx``/``body_ordering="physx"``. Cross-backend discovery must
     resolve the breadth-first PhysX order and reorder the public joint/body axes to it. This is the headline
     workflow documented in
-    ``docs/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer.rst``.
+    ``docs/source/overview/core-concepts/physical-backends/joint_and_body_ordering.rst``.
 
     The branching fixture is shared between both backends; a copy lives in this package's
     test data directory so the two backends assert against the same ground-truth asset.
@@ -2875,10 +2875,6 @@ def test_setting_effort_limit_implicit(
         device=device,
     )
     # Play sim
-    if effort_limit_sim is not None and effort_limit is not None:
-        with pytest.raises(ValueError):
-            sim.reset()
-        return
     sim.reset()
 
     # obtain the physx effort limits
@@ -2886,24 +2882,17 @@ def test_setting_effort_limit_implicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
 
-    # check that the two are equivalent
-    torch.testing.assert_close(
-        articulation.actuators["joint"].effort_limit_sim,
-        articulation.actuators["joint"].effort_limit,
-    )
+    # The solver clamp reaches the physics engine; the rated limit remains on the actuator.
     torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, newton_effort_limit)
 
-    # decide the limit based on what is set
-    if effort_limit_sim is None and effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
-    elif effort_limit_sim is not None and effort_limit is None:
-        limit = effort_limit_sim
-    elif effort_limit_sim is None and effort_limit is not None:
-        limit = effort_limit
-
-    # check that the max force is what we set
-    expected_effort_limit = torch.full_like(newton_effort_limit, limit)
-    torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
+    solver_limit = effort_limit_sim if effort_limit_sim is not None else effort_limit
+    if solver_limit is None:
+        solver_limit = articulation_cfg.spawn.joint_drive_props.max_force
+    rated_limit = effort_limit if effort_limit is not None else solver_limit
+    torch.testing.assert_close(newton_effort_limit, torch.full_like(newton_effort_limit, solver_limit))
+    torch.testing.assert_close(
+        articulation.actuators["joint"].effort_limit, torch.full_like(newton_effort_limit, rated_limit)
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -4053,8 +4042,8 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     # per-articulation shape gate without that pre-existing quirk.
     num_per_type = 1
 
-    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_.*/Robot")
-    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_.*/Robot")
+    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_[^/]*/Robot")
+    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_[^/]*/Robot")
 
     for i in range(num_per_type):
         sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))

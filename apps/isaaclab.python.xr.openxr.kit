@@ -16,6 +16,7 @@ app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "IsaacLab"
 app.version = "3.0.0"
+app.enableDeveloperWarnings = false # disable developer warnings to reduce log noise
 
 ### async rendering settings
 # omni.replicator.asyncRendering needs to be false for external camera rendering
@@ -53,6 +54,10 @@ xr.skipInputDeviceUSDWrites = true
 "omni.kit.xr.core" = {}
 "omni.kit.xr.system.openxr" = {}
 "omni.kit.xr.ui.window.profile" = {}
+
+# Required for XR camera picture-in-picture (Kit SceneUI)
+"omni.kit.scene_view.xr" = {}
+"omni.kit.scene_view.xr_utils" = {}
 
 [settings.isaaclab]
 # This is used to check that this experience file is loaded when using cameras

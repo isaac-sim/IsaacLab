@@ -154,7 +154,7 @@ def main():
     )
 
     # Set ball positions over terrain origins using FrameView (before simulation starts)
-    xform_view = sim_utils.FrameView("/World/envs/env_.*/ball")
+    xform_view = sim_utils.FrameView("{ENV_REGEX_NS}/ball")
     # cache initial state of the balls
     ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0
