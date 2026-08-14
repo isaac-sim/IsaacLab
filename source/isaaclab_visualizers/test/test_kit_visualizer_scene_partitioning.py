@@ -14,7 +14,7 @@ from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from pxr import Sdf, Usd, UsdGeom
 
 
-@pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])
+@pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, ""), (False, "env_2")])
 def test_viewport_camera_partition_follows_global_view_setting(
     monkeypatch: pytest.MonkeyPatch, show_global_view: bool, expected_partition: str | None
 ) -> None:

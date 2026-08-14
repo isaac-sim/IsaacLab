@@ -925,8 +925,9 @@ class KitVisualizer(BaseVisualizer):
 
         attr = camera_prim.GetAttribute("omni:scenePartition")
         if get_settings_manager().get(_SHOW_PARTITIONS_IN_BACKGROUND_SETTING, False):
-            if attr.IsValid():
-                attr.Clear()
+            if not attr.IsValid():
+                attr = camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
+            attr.Set("")
             logger.debug(
                 "[KitVisualizer] Leaving viewport camera '%s' unpartitioned for the all-environment spectator view.",
                 self._controlled_camera_path,
