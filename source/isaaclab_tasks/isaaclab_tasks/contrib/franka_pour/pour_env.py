@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 _RESET_DATASET_GENERATOR_COMMAND = "uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0"
+_RESET_DATASET_LOCAL_OVERRIDE = "env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt"
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets import MPMObject
@@ -74,7 +75,8 @@ def _resolve_reset_dataset_path(configured_path: str) -> Path:
         except (FileNotFoundError, RuntimeError) as exc:
             raise FileNotFoundError(
                 f"Franka Pour reset dataset unavailable: {configured_path}. Generate a local artifact from the "
-                f"Isaac Lab repository root with: {_RESET_DATASET_GENERATOR_COMMAND}"
+                f"Isaac Lab repository root with: {_RESET_DATASET_GENERATOR_COMMAND}. Then select it in the launch "
+                f"command with: {_RESET_DATASET_LOCAL_OVERRIDE}"
             ) from exc
 
     cache_path = Path(configured_path).expanduser()

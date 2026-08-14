@@ -71,6 +71,19 @@ def test_remote_reset_dataset_uses_standard_asset_cache(monkeypatch, tmp_path):
     assert pour_env._resolve_reset_dataset_path(FRANKA_POUR_RESET_DATASET_ASSET_ID) == downloaded_path.resolve()
 
 
+def test_remote_reset_dataset_error_names_local_fallback_override(monkeypatch):
+    """A failed remote lookup explains how to select the locally generated artifact."""
+
+    def retrieve_file_path(path: str) -> str:
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr(pour_env, "retrieve_file_path", retrieve_file_path)
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        pour_env._resolve_reset_dataset_path(FRANKA_POUR_RESET_DATASET_ASSET_ID)
+    assert "env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt" in str(exc_info.value)
+
+
 def test_config_is_fully_authored_once_with_compact_reset_contract():
     """Scene assets exist immediately and expose only reset-state compatibility fields."""
     cfg = FrankaPourResetDatasetEnvCfg()
