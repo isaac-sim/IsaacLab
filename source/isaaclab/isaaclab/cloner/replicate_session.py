@@ -16,6 +16,7 @@ from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
 from .clone_plan import make_clone_plan
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
 
@@ -141,6 +142,7 @@ class ReplicateSession:
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
         replicate_physics: bool = True,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -155,6 +157,7 @@ class ReplicateSession:
                 prototype combinations; ``None`` uses the full cartesian product.
             replicate_physics: Whether physics replication clones each environment;
                 forwarded to :func:`replicate`.
+            env_template: Path template for a replicated env prim, ``{}`` marking the env index.
         """
         self._cfgs = cfgs
         self._stage = stage
@@ -165,6 +168,7 @@ class ReplicateSession:
             device=device,
             clone_strategy=clone_strategy,
             valid_set=valid_set,
+            env_template=env_template,
         )
         self._plan: ClonePlan | None = None
 

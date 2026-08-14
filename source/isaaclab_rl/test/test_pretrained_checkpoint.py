@@ -8,7 +8,7 @@
 from pathlib import Path
 
 import pytest
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -90,7 +90,7 @@ def test_get_pretrained_checkpoint_backend_names_identifies_newton_renderer():
 
 def test_get_pretrained_checkpoint_backend_names_rejects_other_newton_solvers():
     """Test that a non-MJWarp Newton solver is not mislabeled as MJWarp."""
-    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=KaminoSolverCfg())))
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=KaminoPADMMSolverCfg())))
 
     with pytest.raises(ValueError, match="Unsupported Newton solver"):
         pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg)
@@ -168,8 +168,9 @@ def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
         "none",
     )
 
-    assert path == ".pretrained_checkpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rsl_rl")
+    assert path == str(Path(expected_download_dir) / "Isaac-Cartpole_physx_none_rsl_rl.pt")
     assert retrieved == {
         "remote_path": "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt",
-        "download_dir": ".pretrained_checkpoints/rsl_rl",
+        "download_dir": expected_download_dir,
     }

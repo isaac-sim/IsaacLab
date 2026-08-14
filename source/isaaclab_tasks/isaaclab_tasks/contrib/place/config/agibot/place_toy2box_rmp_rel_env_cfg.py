@@ -379,7 +379,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
 
         # add contact force sensor for grasped checking
         self.scene.contact_grasp = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
+            prim_path="{ENV_REGEX_NS}/Robot/right_[^/]*_Pad_Link",
             update_period=0.05,
             history_length=6,
             debug_vis=True,

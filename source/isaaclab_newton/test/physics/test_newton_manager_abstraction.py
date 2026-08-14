@@ -33,7 +33,11 @@ import pytest
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
-    KaminoSolverCfg,
+    KaminoDVICfg,
+    KaminoDVISolverCfg,
+    KaminoDynamicsCfg,
+    KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCfg,
@@ -51,6 +55,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
 
+from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -93,7 +98,7 @@ SOLVER_MATRIX = [
         id="featherstone",
     ),
     pytest.param(
-        lambda: KaminoSolverCfg(use_collision_detector=True),
+        lambda: KaminoPADMMSolverCfg(use_collision_detector=True),
         NewtonKaminoManager,
         SolverKamino,
         False,
@@ -101,7 +106,7 @@ SOLVER_MATRIX = [
         id="kamino_internal_contacts",
     ),
     pytest.param(
-        lambda: KaminoSolverCfg(use_collision_detector=False),
+        lambda: KaminoPADMMSolverCfg(use_collision_detector=False),
         NewtonKaminoManager,
         SolverKamino,
         False,
@@ -194,7 +199,7 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
 @pytest.mark.parametrize(
     "solver_cfg",
     [
-        pytest.param(KaminoSolverCfg(), id="kamino"),
+        pytest.param(KaminoPADMMSolverCfg(), id="kamino_padmm"),
         pytest.param(MPMSolverCfg(), id="implicit_mpm"),
         pytest.param(MJWarpSolverCfg(use_mujoco_cpu=True), id="mujoco_cpu"),
         pytest.param(MJWarpSolverCfg(), id="mujoco_warp_sensors"),
@@ -270,7 +275,6 @@ def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
 
 def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """Shape and particle BVHs are built and refit before a render task runs."""
-    from isaaclab.physics import PhysicsManager
 
     state = object()
     status = {"shape_refit": False, "particle_refit": False, "rendered": False}
@@ -359,6 +363,30 @@ def test_mpm_solver_cfg_maps_only_newton_solver_fields():
     assert not hasattr(newton_cfg, "project_outside_colliders")
 
 
+@pytest.mark.parametrize(
+    "deprecated_value, replacement",
+    [
+        ("instantaneous", "forward"),
+        ("finite_difference", "backward"),
+    ],
+)
+def test_mpm_solver_cfg_translates_deprecated_collider_velocity_modes(deprecated_value, replacement):
+    """Deprecated collider velocity modes warn and map to Newton's current values."""
+    with pytest.warns(DeprecationWarning, match=f"use {replacement!r}"):
+        newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=deprecated_value))
+
+    assert newton_cfg.collider_velocity_mode == replacement
+
+
+@pytest.mark.parametrize("mode", ["forward", "backward"])
+def test_mpm_solver_cfg_preserves_canonical_collider_velocity_modes(mode, recwarn):
+    """Canonical collider velocity modes pass through without deprecation warnings."""
+    newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=mode))
+
+    assert newton_cfg.collider_velocity_mode == mode
+    assert not [warning for warning in recwarn if issubclass(warning.category, DeprecationWarning)]
+
+
 # Tuples of ``(field_name, non_default_value)`` covering every solver-tunable
 # field on :class:`MPMSolverCfg`. Each entry exercises the implementation-side
 # SolverImplicitMPM.Config construction so a Newton field rename or accidental
@@ -373,6 +401,10 @@ _MPM_FIELD_VALUES = [
     ("grid_type", "dense"),
     ("grid_padding", 4),
     ("max_active_cell_count", 1024),
+    ("max_leaf_node_count", 512),
+    ("max_lower_node_count", 128),
+    ("max_upper_node_count", 32),
+    ("separate_worlds", True),
     ("transfer_scheme", "pic"),
     ("integration_scheme", "gimp"),
     ("critical_fraction", 0.25),
@@ -397,6 +429,112 @@ def test_mpm_solver_cfg_forwards_every_solver_field(field_name, value):
         f"{field_name!r} disappeared from SolverImplicitMPM.Config — MPMSolverCfg needs to drop or rename it."
     )
     assert getattr(newton_cfg, field_name) == value
+
+
+_KAMINO_PADMM_FIELD_VALUES = [
+    ("max_iterations", 13),
+    ("primal_tolerance", 1.0e-5),
+    ("dual_tolerance", 1.0e-5),
+    ("compl_tolerance", 1.0e-5),
+    ("restart_tolerance", 0.5),
+    ("rho_0", 0.5),
+    ("rho_min", 1.0e-4),
+    ("a_0", 0.5),
+    ("alpha", 11.0),
+    ("tau", 1.6),
+    ("eta", 1.0e-4),
+    ("penalty_update_freq", 2),
+    ("penalty_update_method", "balanced"),
+    ("linear_solver_tolerance", 1.0e-3),
+    ("linear_solver_tolerance_ratio", 0.1),
+    ("use_acceleration", False),
+    ("use_graph_conditionals", False),
+    ("warmstart_mode", "none"),
+    ("contact_warmstart_method", "geom_pair_net_force"),
+]
+
+_KAMINO_DVI_FIELD_VALUES = [
+    ("tolerance", 1.0e-4),
+    ("regularization", 1.0e-5),
+    ("omega", 1.5),
+    ("max_alternating_iterations", 15),
+    ("inequality_sweeps_per_iteration", 2),
+    ("bilateral_solve_interval", 2),
+    ("bilateral_solver_type", "LLTBRCM"),
+    ("bilateral_solver_kwargs", {"block_size": 32}),
+    ("warmstart_mode", "internal"),
+    ("contact_warmstart_method", "geom_pair_net_force"),
+]
+
+_KAMINO_DYNAMICS_FIELD_VALUES = [
+    ("preconditioning", False),
+    ("linear_solver_type", "LLTBRCM"),
+    ("linear_solver_kwargs", {"maxiter": 9}),
+]
+
+
+@pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
+def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
+    """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
+    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
+    newton_cfg = solver_cfg.to_solver_config()
+    assert hasattr(newton_cfg.padmm, field_name), (
+        f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
+    )
+    assert getattr(newton_cfg.padmm, field_name) == value
+
+
+@pytest.mark.parametrize("field_name, value", _KAMINO_DVI_FIELD_VALUES)
+def test_kamino_solver_cfg_forwards_dvi_fields(field_name, value):
+    """Every tunable DVI cfg field round-trips into ``DVISolverConfig``."""
+    solver_cfg = KaminoDVISolverCfg(
+        dynamics=KaminoDynamicsCfg(preconditioning=False),
+        dynamics_solver_cfg=KaminoDVICfg(**{field_name: value}),
+    )
+    newton_cfg = solver_cfg.to_solver_config()
+    assert hasattr(newton_cfg.dvi, field_name), (
+        f"{field_name!r} disappeared from DVISolverConfig — KaminoDVICfg needs to drop or rename it."
+    )
+    assert getattr(newton_cfg.dvi, field_name) == value
+
+
+@pytest.mark.parametrize("field_name, value", _KAMINO_DYNAMICS_FIELD_VALUES)
+def test_kamino_solver_cfg_forwards_dynamics_fields(field_name, value):
+    """Every tunable dynamics cfg field round-trips into ``ConstrainedDynamicsConfig``."""
+    solver_type = KaminoDVISolverCfg if field_name == "preconditioning" and value is False else KaminoPADMMSolverCfg
+    solver_cfg = solver_type(dynamics=KaminoDynamicsCfg(**{field_name: value}))
+    newton_cfg = solver_cfg.to_solver_config()
+    assert hasattr(newton_cfg.dynamics, field_name), (
+        f"{field_name!r} disappeared from ConstrainedDynamicsConfig — KaminoDynamicsCfg needs updating."
+    )
+    assert getattr(newton_cfg.dynamics, field_name) == value
+
+
+def test_kamino_to_solver_config_metadata_excluded():
+    """Isaac Lab metadata and manager-only fields do not leak into Newton config."""
+    solver_cfg = KaminoPADMMSolverCfg(
+        solver_type="isaaclab_metadata_should_not_forward",
+        max_contacts_per_world=32,
+    )
+    newton_cfg = solver_cfg.to_solver_config()
+    assert not hasattr(newton_cfg, "class_type")
+    assert not hasattr(newton_cfg, "solver_type")
+    assert not hasattr(newton_cfg, "max_contacts_per_world")
+
+
+def test_kamino_concrete_solver_configs_select_their_backends():
+    """Concrete solver config types select their corresponding Newton backends."""
+    padmm_cfg = KaminoPADMMSolverCfg(sparse_jacobian=True)
+    dvi_cfg = KaminoDVISolverCfg()
+    assert padmm_cfg.to_solver_config().dynamics_solver == "padmm"
+    assert dvi_cfg.to_solver_config().dynamics_solver == "dvi"
+
+
+def test_kamino_dvi_rejects_preconditioning():
+    """DVI preserves Newton's preconditioning compatibility check."""
+    solver_cfg = KaminoDVISolverCfg(dynamics=KaminoDynamicsCfg(preconditioning=True))
+    with pytest.raises(ValueError, match="preconditioning"):
+        solver_cfg.to_solver_config()
 
 
 def test_mpm_register_builder_attributes_is_idempotent():
@@ -596,25 +734,111 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
 
 
 @pytest.mark.parametrize(
-    "grid_type, expected",
+    ("overrides", "expected"),
     [
-        ("fixed", True),
-        ("sparse", False),
-        ("dense", False),
+        pytest.param({"grid_type": "fixed"}, True, id="fixed"),
+        pytest.param({}, True, id="bounded_sparse"),
+        pytest.param({"max_active_cell_count": -1}, False, id="unbounded_sparse"),
+        pytest.param({"grid_type": "dense"}, False, id="dense"),
+        pytest.param({"grid_padding": 1}, False, id="padded_sparse"),
+        pytest.param({"velocity_basis": "P0"}, False, id="velocity_basis"),
+        pytest.param({"strain_basis": "GIMP"}, False, id="strain_basis"),
+        pytest.param({"collider_basis": "GIMP"}, False, id="collider_basis"),
     ],
 )
-def test_mpm_cuda_graph_capture_supports_only_fixed_grid(monkeypatch, grid_type, expected):
-    """Newton implicit MPM is CUDA-graph capturable only with a fixed grid."""
-
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type=grid_type), raising=False)
+def test_mpm_cuda_graph_capture_supports_static_topology(monkeypatch, overrides, expected):
+    """Only fixed and capacity-bounded rebuildable sparse grids support outer capture."""
+    values = {
+        "grid_type": "sparse",
+        "max_active_cell_count": 1024,
+        "grid_padding": 0,
+        "velocity_basis": "Q1",
+        "strain_basis": "P0",
+        "collider_basis": "S2",
+    }
+    solver = SimpleNamespace(**(values | overrides))
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
 
     assert NewtonMPMManager._supports_cuda_graph_capture() is expected
 
 
-def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
-    """Sparse/dense MPM should not enter a CUDA graph capture window."""
-    from isaaclab.physics import PhysicsManager
+def test_mpm_status_check_runs_only_after_graph_capture(monkeypatch):
+    """Sparse-grid asynchronous failures are queried only after graph replay."""
+    calls = []
+    solver = SimpleNamespace(check_sparse_grid_rebuild_status=lambda: calls.append("check"))
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solvers", classmethod(lambda cls: (solver,)))
+    monkeypatch.setattr(NewtonManager, "_graph", None)
 
+    NewtonMPMManager._check_solver_status()
+    monkeypatch.setattr(NewtonManager, "_graph", object())
+    NewtonMPMManager._check_solver_status()
+
+    assert calls == ["check"]
+
+
+def test_nested_mpm_solver_discovery_is_cached(monkeypatch):
+    """A coupled solver's immutable entry table is traversed only once per solver instance."""
+    mpm_solver = object.__new__(SolverImplicitMPM)
+
+    class CoupledSolver:
+        calls = 0
+
+        def entry_names(self):
+            self.calls += 1
+            return ("media",)
+
+        def solver(self, _name):
+            return mpm_solver
+
+    root = CoupledSolver()
+    monkeypatch.setattr(NewtonManager, "_solver", root)
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solver_root", None)
+    monkeypatch.setattr(NewtonMPMManager, "_implicit_mpm_solver_cache", ())
+
+    assert NewtonMPMManager._implicit_mpm_solvers() == (mpm_solver,)
+    assert NewtonMPMManager._implicit_mpm_solvers() == (mpm_solver,)
+    assert root.calls == 1
+
+
+def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch):
+    """A bounded sparse grid must not capture before reset-authored topology exists."""
+    solver = SimpleNamespace(
+        grid_type="sparse",
+        max_active_cell_count=1024,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False, raising=False)
+
+    class UnexpectedCapture:
+        def __init__(self, *args, **kwargs):
+            pytest.fail("MPM capture started before the initial environment reset.")
+
+    monkeypatch.setattr(wp, "ScopedCapture", UnexpectedCapture)
+
+    NewtonMPMManager._capture_or_defer_graph()
+
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is True
+
+
+def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
+    """An unbounded sparse grid should retain the eager-execution fallback."""
+    solver = SimpleNamespace(
+        grid_type="sparse",
+        max_active_cell_count=-1,
+        grid_padding=0,
+        velocity_basis="Q1",
+        strain_basis="P0",
+        collider_basis="S2",
+    )
     monkeypatch.setattr(
         PhysicsManager,
         "_cfg",
@@ -622,7 +846,7 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
         raising=False,
     )
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", SimpleNamespace(grid_type="sparse"), raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
 
@@ -634,7 +858,6 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     """CUDA graph capture should use the simulation device instead of Warp's default device."""
-    from isaaclab.physics import PhysicsManager
 
     captured_devices = []
     captured_graph = object()
@@ -704,7 +927,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
 def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypatch):
     """Base-class state reads must use the active MPM manager's reset behavior."""
-    world_mask = wp.array([True], dtype=wp.bool, device="cpu")
+    world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     fk_mask = wp.array([], dtype=wp.bool, device="cpu")
 
     class _RejectingSolver:
@@ -724,7 +947,7 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
 
     NewtonManager.forward()
 
-    assert world_mask.numpy().tolist() == [False]
+    assert world_mask.numpy().tolist() == [False, False]
 
 
 # ---------------------------------------------------------------------------
@@ -890,7 +1113,7 @@ def test_initialize_solver_populates_canonical_state(
             # something to work with.
             body = builder.add_body(mass=1.0)
             builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
-            if isinstance(solver_cfg, KaminoSolverCfg) and solver_cfg.use_collision_detector:
+            if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)) and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
         NewtonManager.set_builder(builder)
@@ -1105,7 +1328,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
         device="cuda:0",
         gravity=(0.0, 0.0, -9.81),
         physics=NewtonCfg(
-            solver_cfg=KaminoSolverCfg(),
+            solver_cfg=KaminoPADMMSolverCfg(),
             num_substeps=1,
             use_cuda_graph=False,
         ),

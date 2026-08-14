@@ -368,10 +368,10 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
     sim_utils.update_stage()
 
     cfg = MultiMeshRayCasterCfg(
-        prim_path="/World/envs/env_.*/Sensor",
+        prim_path="{ENV_REGEX_NS}/Sensor",
         mesh_prim_paths=[
             MultiMeshRayCasterCfg.RaycastTargetCfg(
-                prim_expr="/World/envs/env_.*/Object/part_.*",
+                prim_expr="{ENV_REGEX_NS}/Object/part_[^/]*",
                 track_mesh_transforms=True,
             ),
         ],

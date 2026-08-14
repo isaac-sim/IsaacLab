@@ -11,6 +11,7 @@ import dataclasses
 import glob
 import json
 import os
+import posixpath
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
@@ -200,8 +201,8 @@ def get_pretrained_checkpoint_publish_path(
     """Return the path where a checkpoint is published."""
     filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
     if physics_backend is None:
-        return os.path.join(PRETRAINED_CHECKPOINT_PATH, workflow, task_name, filename)
-    return os.path.join(PRETRAINED_CHECKPOINT_PATH, workflow, filename)
+        return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, task_name, filename)
+    return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, filename)
 
 
 def get_published_pretrained_checkpoint_path(
@@ -215,7 +216,7 @@ def get_published_pretrained_checkpoint_path(
     path_parts = [ISAACLAB_NUCLEUS_DIR, "PretrainedCheckpoints", workflow]
     if physics_backend is None:
         path_parts.append(task_name)
-    return os.path.join(*path_parts, filename)
+    return posixpath.join(*path_parts, filename)
 
 
 def get_published_pretrained_checkpoint(

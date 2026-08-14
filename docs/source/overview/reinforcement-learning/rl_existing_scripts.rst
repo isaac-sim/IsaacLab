@@ -308,7 +308,7 @@ RSL-RL
                   # run command for training with Newton backend
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent
                   uv run --extra video isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
@@ -323,7 +323,7 @@ RSL-RL
                   # run command for training with Newton backend
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+                  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
@@ -339,7 +339,7 @@ RSL-RL
             :: run command for training with Newton backend
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
             :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
@@ -363,7 +363,7 @@ RSL-RL
                   # run command for rl training of the teacher agent with Newton backend
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
                   # run command for playing the student with 64 environments
                   uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -378,7 +378,7 @@ RSL-RL
                   # run command for rl training of the teacher agent with Newton backend
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
                   # run command for playing the student with 64 environments
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -394,7 +394,7 @@ RSL-RL
             :: run command for rl training of the teacher agent with Newton backend
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
             :: run command for distilling the teacher agent into a student agent
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
             :: run command for playing the student with 64 environments
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -692,7 +692,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             uv run isaaclab train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -701,7 +701,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             ./isaaclab.sh train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
 -  Evaluating a trained VLA agent:
 
@@ -714,7 +714,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             uv run --extra video isaaclab play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -724,7 +724,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             ./isaaclab.sh play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
 All the commands above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
@@ -751,8 +751,9 @@ New training runs also store a ``run.json`` manifest in their run directory. Thi
          ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest
 
 Pass ``--checkpoint best`` to prefer the library-specific best or final checkpoint. For libraries without a
-distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported
-by RL-Games, RSL-RL, skrl, and Stable-Baselines3. RSL-RL training resume continues to require ``--resume``.
+distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported by RL-Games, RSL-RL, skrl, Stable-Baselines3, and RLinf.
+RLinf uses ``--model_path`` for its base VLA model and ``--checkpoint`` for the
+RL-finetuned weights.
 
 To view the logs, run:
 

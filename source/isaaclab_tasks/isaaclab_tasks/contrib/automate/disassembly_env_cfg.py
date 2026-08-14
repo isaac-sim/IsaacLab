@@ -131,7 +131,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
 
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",
             activate_contact_sensors=True,

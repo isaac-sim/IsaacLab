@@ -129,6 +129,7 @@ class Versions:
     mujoco: str | None = None
     cuda_bindings: str | None = None
     usd_core: str | None = None
+    usd_exchange: str | None = None
     isaaclab_release: str | None = None
 
 

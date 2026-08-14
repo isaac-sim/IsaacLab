@@ -191,7 +191,7 @@ def export_rl_games_agent(
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
-    if args_cli.use_pretrained_checkpoint:
+    if args_cli.checkpoint == "pretrained":
         backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
         resume_path = get_published_pretrained_checkpoint("rl_games", checkpoint_task_name, *backend_names)
         if not resume_path:
@@ -258,7 +258,7 @@ def export_rl_games_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             save_path = os.path.join(".pretrained_checkpoints", "rl_games", checkpoint_task_name)
         else:
             save_path = log_dir

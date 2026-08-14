@@ -71,7 +71,7 @@ class UsdFrameView(BaseFrameView):
 
         Args:
             prim_path: USD prim path pattern to match prims. Supports wildcards (``*``) and
-                regex patterns (e.g., ``"/World/Env_.*/Robot"``). See
+                regex patterns (e.g., ``"/World/Env_[^/]*/Robot"``). See
                 :func:`isaaclab.sim.utils.find_matching_prims` for pattern syntax.
             device: Device to place arrays on. Can be ``"cpu"`` or CUDA devices like
                 ``"cuda:0"``. Defaults to ``"cpu"``.

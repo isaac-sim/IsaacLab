@@ -220,11 +220,13 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
-option resolves an optional integration only when that command needs it. Place it
+option includes the selected optional integration in the command's environment. Place it
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
-any combination resolves into one environment, and ``--extra all`` installs every
-backend, RL library, and visualizer at once:
+any combination resolves into one environment. The ``--extra all`` shortcut installs a
+curated set of backends, RL libraries, and visualizers. It does not include the specialized
+extras ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp``;
+request them by name:
 
 .. code-block:: bash
 
@@ -232,6 +234,10 @@ backend, RL library, and visualizer at once:
       --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
 See :ref:`installation-optional-extras` for the available extras.
+
+``uv run --extra <name> <command>`` syncs the selected extra into the project environment
+and then runs the command. To sync it without running a command, use
+``uv sync --inexact --extra <name>``.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -304,8 +310,8 @@ Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ or
 
 ``-i`` always installs the core source packages. With no value, it also installs the optional
 ``mimic`` and ``teleop`` submodules plus the default Newton, RL, and visualizer dependencies.
-It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim; request those
-explicitly when needed.
+It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim;
+request those explicitly when needed.
 
 Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list of selectors:
 
@@ -594,17 +600,17 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
    * - ``leapp``
      - LEAP model export support.
    * - ``all``
-     - Every backend, RL library, and visualizer: ``isaacsim``, ``ov``, ``rl-games``,
+     - A curated set of backends, RL libraries, and visualizers: ``isaacsim``, ``ov``, ``rl-games``,
        ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``.
    * - ``test``
      - Developer test and documentation tooling.
 
 Extras can be combined freely: none of them conflict, so any set of extras -- including
 the Isaac Sim and OV backend stacks together -- resolves into a single environment.
-Use ``all`` to get every backend, RL library, and visualizer in one flag. The
-specialized extras (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
-``leapp``) and the developer ``test`` tooling are not part of ``all``; request them by
-name.
+Use ``all`` to install the curated set of backends, RL libraries, and visualizers listed
+above with one flag. The specialized extras (``rlinf``, ``mimic``, ``teleop``,
+``tetrahedralization``, ``video``, ``leapp``) and the developer ``test`` tooling are not
+part of ``all``; request them by name.
 
 .. isaaclab-uv-wheel-install::
 

@@ -662,7 +662,12 @@ class KitVisualizer(BaseVisualizer):
             return
         cameras_enabled = get_settings_manager().get("/isaaclab/cameras_enabled", False)
         if not cameras_enabled:
-            logger.info("[KitVisualizer] Streaming view skipped: pass --enable_cameras to activate it.")
+            logger.info(
+                "[KitVisualizer] Streaming view skipped: camera rendering is not enabled "
+                "(cameras_enabled=False). Construct AppLauncher with enable_cameras=True, "
+                "or use launch_simulation() which enables cameras automatically when "
+                "streaming_view=True is set on the KitVisualizerCfg."
+            )
             return
 
         gt_types = list(self.cfg.streaming_gt_types)
@@ -832,7 +837,8 @@ class KitVisualizer(BaseVisualizer):
                     )
                 )
         n_envs = len(self._camera_sensor_indices)
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types))
+        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
+        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
         self._last_streaming_composite = composite
         if self._camera_image_provider is not None:
             self._upload_camera_image_to_panel(composite)

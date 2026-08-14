@@ -59,6 +59,7 @@ import csv
 import fnmatch
 import json
 import os
+import posixpath
 import shutil
 import subprocess
 import sys
@@ -626,7 +627,7 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
             job.physics_backend,
             job.render_backend,
         )
-        publish_path = os.path.join(args.publish_root.rstrip("/"), job.workflow, filename)
+        publish_path = posixpath.join(args.publish_root.rstrip("/"), job.workflow, filename)
     print(f"Publishing {local_path} -> {publish_path}")
     if args.dry_run:
         return True

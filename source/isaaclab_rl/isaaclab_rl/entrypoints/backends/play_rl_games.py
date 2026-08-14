@@ -77,11 +77,6 @@ parser.add_argument(
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument(
-    "--use_pretrained_checkpoint",
-    action="store_true",
-    help="Use the pre-trained checkpoint from Nucleus.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--train_env_cfg",
@@ -123,11 +118,10 @@ def main():
             log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
-            if args_cli.use_pretrained_checkpoint:
+            if args_cli.checkpoint == "pretrained":
                 backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
                 resume_path = get_published_pretrained_checkpoint("rl_games", train_task_name, *backend_names)
                 if not resume_path:
-                    print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 config_name = agent_cfg["params"]["config"]["name"]
