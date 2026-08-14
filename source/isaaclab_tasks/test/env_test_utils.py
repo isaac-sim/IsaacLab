@@ -18,8 +18,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.envs.utils.spaces import sample_space
+from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.version import get_isaac_sim_version
 
 from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
@@ -83,6 +83,7 @@ def setup_environment(
     teleop_envs: bool | None = None,
     cartpole_showcase_envs: bool | None = None,
     pickplace_stack_envs: bool | None = None,
+    physics_preset_name: str | None = None,
     tier: str | None = None,
 ) -> list[str]:
     """
@@ -109,6 +110,7 @@ def setup_environment(
             - True: include only PickPlace/Stack environments
             - False: exclude PickPlace/Stack environments
             - None: include all environments regardless of pick-place/stack type
+        physics_preset_name: Include only environments that support this physics preset.
         tier:
             - "core": include only core environments (registered under ``isaaclab_tasks.core``).
             - "contrib": include only contributed environments (registered under ``isaaclab_tasks.contrib``).
@@ -172,6 +174,15 @@ def setup_environment(
             ):
                 continue
         # if None: no filter
+
+        if physics_preset_name is not None:
+            env_cfg = load_cfg_from_registry(task_spec.id, "env_cfg_entry_point")
+            physics_preset_groups = collect_presets(env_cfg).values()
+            if not any(
+                physics_preset_name in preset_group and isinstance(preset_group[physics_preset_name], PhysicsCfg)
+                for preset_group in physics_preset_groups
+            ):
+                continue
 
         registered_tasks.append(task_spec.id)
 
@@ -295,8 +306,6 @@ def _run_environments(
     num_envs,
     num_steps=20,
     multi_agent=False,
-    create_stage_in_memory=False,
-    disable_clone_in_fabric=False,
     physics_preset_name: str | None = None,
 ):
     """Run all environments and check environments return valid signals.
@@ -307,15 +316,9 @@ def _run_environments(
         num_envs: Number of environments.
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
-        create_stage_in_memory: Whether to create stage in memory.
-        disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
-
-    # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5 and create_stage_in_memory:
-        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation
     if "Suction" in task_name and device != "cpu":
@@ -354,8 +357,6 @@ def _run_environments(
         num_envs,
         num_steps=num_steps,
         multi_agent=multi_agent,
-        create_stage_in_memory=create_stage_in_memory,
-        disable_clone_in_fabric=disable_clone_in_fabric,
         physics_preset_name=physics_preset_name,
     )
     print(f""">>> Closing environment: {task_name}""")
@@ -368,8 +369,6 @@ def _check_random_actions(
     num_envs: int,
     num_steps: int = 20,
     multi_agent: bool = False,
-    create_stage_in_memory: bool = False,
-    disable_clone_in_fabric: bool = False,
     physics_preset_name: str | None = None,
 ):
     """Run random actions and check environments return valid signals.
@@ -380,14 +379,10 @@ def _check_random_actions(
         num_envs: Number of environments.
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
-        create_stage_in_memory: Whether to create stage in memory.
-        disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
-    # create a new context stage, if stage in memory is not enabled
-    if not create_stage_in_memory:
-        sim_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # reset the rtx sensors setting to False
     get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
@@ -407,11 +402,6 @@ def _check_random_actions(
             # the scene config with the preset's default num_envs.
             if num_envs is not None:
                 env_cfg.scene.num_envs = num_envs
-        # set config args
-        env_cfg.sim.create_stage_in_memory = create_stage_in_memory
-        if disable_clone_in_fabric:
-            env_cfg.scene.clone_in_fabric = False
-
         # filter based off multi agents mode and create env
         if multi_agent:
             if not hasattr(env_cfg, "possible_agents"):
