@@ -27,8 +27,7 @@ from .actuator_base import ActuatorBase
 from .actuator_base_cfg import (
     ActuatorBaseCfg,
     _is_implicit_actuator_cfg,
-    _resolve_effort_limit_aliases,
-    _resolve_limit_values,
+    _resolve_limit_aliases,
 )
 from .actuator_control import ActuatorControl, ActuatorJointProperties
 from .actuator_pd import IdealPDActuator, ImplicitActuator
@@ -80,8 +79,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         for name, cfg in resolved_cfgs.items():
-            self._resolve_deprecated_velocity_limit_alias(name, cfg, resolved_group_joints[name][1])
-            _resolve_effort_limit_aliases(name, cfg, resolved_group_joints[name][1])
+            _resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
 
         self._allocate_buffers()
         self._command = ActuatorCommand(self)
@@ -265,30 +263,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 joint_owners[joint_name] = actuator_name
             resolved[actuator_name] = (joint_ids, joint_names)
         return resolved
-
-    def _resolve_deprecated_velocity_limit_alias(
-        self, actuator_name: str, cfg: ActuatorBaseCfg, joint_names: list[str]
-    ) -> None:
-        """Resolve deprecated solver-limit aliases on a copied actuator config."""
-        for canonical_name, alias_name in (("joint_velocity_limit", "velocity_limit_sim"),):
-            canonical_value = getattr(cfg, canonical_name)
-            alias_value = getattr(cfg, alias_name)
-            if alias_value is None:
-                continue
-
-            warnings.warn(
-                f"Actuator group '{actuator_name}' uses deprecated '{alias_name}'. Use "
-                f"'{canonical_name}' instead; '{alias_name}' will be removed in 4.0.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            if canonical_value is None:
-                setattr(cfg, canonical_name, alias_value)
-            elif _resolve_limit_values(canonical_value, joint_names) != _resolve_limit_values(alias_value, joint_names):
-                raise ValueError(
-                    f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
-                    f"deprecated '{alias_name}' values."
-                )
 
     def _build_groups(
         self,

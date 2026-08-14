@@ -17,7 +17,7 @@ from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
 from .actuator_base import ActuatorBase, _effort_limits_equal
-from .actuator_base_cfg import _resolve_effort_limit_aliases
+from .actuator_base_cfg import _resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
@@ -188,8 +188,13 @@ class ImplicitActuator(ActuatorBase):
         velocity_limit: torch.Tensor | float = torch.inf,
         effort_limit: torch.Tensor | float | None = None,
     ):
-        if cfg.actuator_effort_limit is not None or cfg.effort_limit is not None or cfg.effort_limit_sim is not None:
-            _resolve_effort_limit_aliases(type(self).__name__, cfg, joint_names)
+        if (
+            cfg.actuator_effort_limit is not None
+            or cfg.effort_limit is not None
+            or cfg.effort_limit_sim is not None
+            or cfg.velocity_limit_sim is not None
+        ):
+            _resolve_limit_aliases(type(self).__name__, cfg, joint_names)
         if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
@@ -211,14 +216,10 @@ class ImplicitActuator(ActuatorBase):
         # ``joint_vel_out_of_limit`` termination) but is NOT pushed to the physics
         # solver. 'joint_velocity_limit' is a solver-level hard clamp (PhysX
         # ``maxJointVelocity``) with no physical counterpart -- a physical actuator
-        # limits joint speed through its torque curve, not a kinematic clamp. The
-        # two are therefore resolved independently: when only the sim clamp is
-        # given, it doubles as the joint velocity limit so the data buffers stay
-        # meaningful; when only 'velocity_limit' is given, the solver keeps the
-        # USD-authored clamp.
-        if cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
-            cfg.velocity_limit = cfg.velocity_limit_sim
-        elif cfg.velocity_limit is not None and cfg.velocity_limit_sim is None:
+        # limits joint speed through its torque curve, not a kinematic clamp.
+        # ``_resolve_limit_aliases`` mirrors a deprecated 'velocity_limit_sim' into
+        # 'velocity_limit' so the data buffers stay meaningful.
+        if cfg.velocity_limit is not None:
             # notify about the behavior change: this value used to be ignored for implicit actuators
             logger.warning(
                 "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'. Previously, this value"
@@ -623,8 +624,8 @@ class RemotizedPDActuator(DelayedPDActuator):
         velocity_limit: torch.Tensor | float = torch.inf,
         effort_limit: torch.Tensor | float | None = None,
     ):
-        if cfg.effort_limit is not None or cfg.effort_limit_sim is not None:
-            _resolve_effort_limit_aliases(type(self).__name__, cfg, joint_names)
+        if cfg.effort_limit is not None or cfg.effort_limit_sim is not None or cfg.velocity_limit_sim is not None:
+            _resolve_limit_aliases(type(self).__name__, cfg, joint_names)
         # remove effort and velocity box constraints from the base class
         cfg.actuator_effort_limit = torch.inf
         cfg.velocity_limit = torch.inf

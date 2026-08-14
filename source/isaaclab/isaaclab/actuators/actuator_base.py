@@ -15,7 +15,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
-from .actuator_base_cfg import _resolve_effort_limit_aliases
+from .actuator_base_cfg import _resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -121,8 +121,12 @@ class ActuatorBase(ABC):
         self._joint_names = joint_names
         self._joint_indices = joint_ids
         self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, velocity_limit)
-        if self.cfg.effort_limit is not None or self.cfg.effort_limit_sim is not None:
-            _resolve_effort_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
+        if (
+            self.cfg.effort_limit is not None
+            or self.cfg.effort_limit_sim is not None
+            or self.cfg.velocity_limit_sim is not None
+        ):
+            _resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
         if not self.is_implicit_model:
             if effort_limit is not None:
                 warnings.warn(

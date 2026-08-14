@@ -44,14 +44,14 @@ def _resolve_limit_values(value: dict[str, float | int] | float | int, joint_nam
     return tuple(resolved_values)
 
 
-def _resolve_effort_limit_aliases(
+def _resolve_limit_aliases(
     actuator_name: str,
     cfg: ActuatorBaseCfg,
     joint_names: list[str],
     *,
     warn_deprecated: bool = True,
 ) -> None:
-    """Normalize deprecated effort-limit aliases on an actuator configuration.
+    """Normalize deprecated effort- and velocity-limit aliases on an actuator configuration.
 
     The caller owns the configuration copy because this function writes canonical
     values after validating equivalent scalar or regex configurations.
@@ -62,10 +62,15 @@ def _resolve_effort_limit_aliases(
             f"Implicit actuator group '{actuator_name}' cannot set 'actuator_effort_limit'. "
             "Use 'joint_effort_limit' for the solver limit."
         )
+    if implicit and cfg.velocity_limit is None and cfg.velocity_limit_sim is not None:
+        # Deprecated implicit behavior: the solver clamp doubles as the soft joint
+        # velocity limit so the data buffers stay meaningful.
+        cfg.velocity_limit = cfg.velocity_limit_sim
 
     for canonical_name, alias_name in (
         ("joint_effort_limit", "effort_limit_sim"),
         ("joint_effort_limit" if implicit else "actuator_effort_limit", "effort_limit"),
+        ("joint_velocity_limit", "velocity_limit_sim"),
     ):
         alias_value = getattr(cfg, alias_name)
         if alias_value is None:

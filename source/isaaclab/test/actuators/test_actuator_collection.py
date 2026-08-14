@@ -415,6 +415,22 @@ def test_deprecated_effort_limit_forwards_by_actuator_type(
                 group.effort_limit = torch.full((2, 3), 6.0)
 
 
+def test_constructor_resolves_deprecated_velocity_limit_alias():
+    cfg = _ideal_pd_cfg(velocity_limit_sim=34.0)
+
+    with pytest.warns(DeprecationWarning, match="joint_velocity_limit"):
+        actuator = IdealPDActuator(
+            cfg,
+            joint_names=["joint_0", "joint_1", "joint_2"],
+            joint_ids=slice(None),
+            num_envs=2,
+            device="cpu",
+        )
+
+    assert actuator.cfg.joint_velocity_limit == 34.0
+    assert actuator.cfg.velocity_limit_sim is None
+
+
 def test_implicit_actuator_effort_limit_is_rejected():
     cfg = _implicit_cfg(actuator_effort_limit=12.0)
 
