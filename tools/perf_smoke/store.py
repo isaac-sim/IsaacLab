@@ -84,9 +84,12 @@ def parse_row(data: Any, source: str) -> BaselineRow:
     stored_metrics = mapping(payload.get("metrics"), f"{source}.metrics")
     values: dict[str, float] = {}
     for metric in METRICS:
+        # Rows written before a metric was added simply lack it.
         if metric.name not in stored_metrics:
-            raise PerfSmokeError(f"{source}.metrics is missing {metric.name}")
+            continue
         values[metric.name] = number(stored_metrics[metric.name], f"{source}.metrics.{metric.name}")
+    if not values:
+        raise PerfSmokeError(f"{source}.metrics contains no recognised metric")
 
     contract_hash = payload.get("contract_hash")
     if not isinstance(contract_hash, str) or not contract_hash.strip():
@@ -160,8 +163,9 @@ class _S3Backend(_Backend):
         return response["Body"].read().decode("utf-8")
 
     def append_text(self, key: str, text: str) -> None:
-        # S3 objects are immutable, so append is read-modify-write. Safe here because
-        # a single serialised writer job on develop is the only producer.
+        # S3 objects are immutable, so append is read-modify-write. Safe because each
+        # matrix combination owns a distinct contract hash and therefore a distinct
+        # key: the concurrent develop jobs never touch the same object.
         existing = self.read_text(key) or ""
         self._client.put_object(Bucket=self._bucket, Key=self._key(key), Body=(existing + text).encode("utf-8"))
 

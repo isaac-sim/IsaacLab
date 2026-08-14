@@ -24,18 +24,19 @@ from typing import Any
 from .metrics import PerfSmokeError, mapping, positive_int
 
 #: Externally pinned versions that affect measured performance, keyed by where they
-#: apply. Isaac Lab's own packages are intentionally absent (see module docstring).
+#: apply. Keys are the values a bundle reports in ``run.config``, which are NOT the
+#: matrix names. An unrecognised value raises.
 RUNTIME_COMPATIBILITY: dict[str, Any] = {
     "version": 3,
     "always": ("isaacsim", "torch", "warp"),
     "by_physics_backend": {
         "physx": ("ovphysx",),
-        "newton": ("newton", "mujoco", "mjwarp"),
+        "newton_mjwarp": ("newton", "mujoco", "mjwarp"),
     },
     "by_render_backend": {
-        "rtx_renderer": ("ovrtx",),
-        "isaacsim_rtx": ("ovrtx",),
-        "newton_renderer": (),
+        # Newton's Warp renderer; ``warp`` is already required by ``always``.
+        "newton": (),
+        "rtx": ("ovrtx",),
     },
 }
 
@@ -89,11 +90,30 @@ class Contract:
 
 
 def _required_version_names(physics_backend: str, render_backend: str | None) -> tuple[str, ...]:
-    """Return the version keys that matter for these backends."""
+    """Return the version keys that matter for these backends.
+
+    Raises:
+        PerfSmokeError: If either backend is not in :data:`RUNTIME_COMPATIBILITY`.
+    """
     names: list[str] = list(RUNTIME_COMPATIBILITY["always"])
-    names.extend(RUNTIME_COMPATIBILITY["by_physics_backend"].get(physics_backend, ()))
+
+    physics_map = RUNTIME_COMPATIBILITY["by_physics_backend"]
+    if physics_backend not in physics_map:
+        raise PerfSmokeError(
+            f"Unknown physics backend {physics_backend!r}; add it to"
+            f" RUNTIME_COMPATIBILITY['by_physics_backend'] (known: {sorted(physics_map)})"
+        )
+    names.extend(physics_map[physics_backend])
+
     if render_backend:
-        names.extend(RUNTIME_COMPATIBILITY["by_render_backend"].get(render_backend, ()))
+        render_map = RUNTIME_COMPATIBILITY["by_render_backend"]
+        if render_backend not in render_map:
+            raise PerfSmokeError(
+                f"Unknown render backend {render_backend!r}; add it to"
+                f" RUNTIME_COMPATIBILITY['by_render_backend'] (known: {sorted(render_map)})"
+            )
+        names.extend(render_map[render_backend])
+
     return tuple(sorted(set(names)))
 
 

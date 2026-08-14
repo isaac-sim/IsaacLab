@@ -93,7 +93,9 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         "| Combination | Total FPS | Baseline | Change | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
-    for name, report in sorted(reports):
+    # Sort on the label only: a duplicate label would otherwise fall through to
+    # comparing Report objects, which are frozen dataclasses without ordering.
+    for name, report in sorted(reports, key=lambda item: item[0]):
         by_name = {metric.name: metric for metric in report.metrics}
         fps = by_name.get("total_fps")
         lines.append(

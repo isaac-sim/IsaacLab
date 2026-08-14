@@ -84,7 +84,11 @@ def _cmd_aggregate(args: argparse.Namespace) -> int:
     reports: list[tuple[str, compare_mod.Report]] = []
     for path in sorted(args.comparison_dir.rglob("comparison.json")):
         payload = _load_json(path, str(path))
-        metrics = tuple(compare_mod.MetricResult(**metric) for metric in payload.get("metrics", []))
+        try:
+            metrics = tuple(compare_mod.MetricResult(**metric) for metric in payload.get("metrics", []))
+        except TypeError as exc:
+            # An artifact written by a different version of this tool.
+            raise metrics_mod.PerfSmokeError(f"{path} has an incompatible metric schema: {exc}") from exc
         reports.append(
             (
                 payload.get("label") or path.parent.name,

@@ -90,9 +90,7 @@ class Report:
 
     def as_dict(self) -> dict[str, Any]:
         """Return the report as a plain, JSON-serialisable dict."""
-        payload = asdict(self)
-        payload["metrics"] = [asdict(metric) for metric in self.metrics]
-        return payload
+        return asdict(self)
 
 
 def _clean(config: Any, name: str) -> dict[str, Any]:
@@ -293,7 +291,16 @@ def compare(
         results.append(_evaluate(metric, measured[metric.name], series, thresholds[metric.name]))
 
     gating = [result for result in results if result.gating]
-    verdict = max((result.verdict for result in gating), key=lambda value: _SEVERITY[value], default=SKIP)
+    if any(result.verdict == FAIL for result in gating):
+        verdict = FAIL
+    elif any(result.verdict == WARN for result in gating):
+        verdict = WARN
+    elif gating and all(result.verdict == SKIP for result in gating):
+        verdict = SKIP
+    elif gating:
+        verdict = PASS
+    else:
+        verdict = SKIP
     worst = max(gating, key=lambda result: _SEVERITY[result.verdict], default=None)
     if verdict == FAIL:
         message = f"Performance regression in {worst.label}" if worst else "Performance regression"
