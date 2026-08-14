@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import re
 from collections.abc import Callable, Iterator, Sequence
 from typing import TYPE_CHECKING, TypeAlias
 
 import torch
+import warp as wp
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
@@ -33,6 +35,33 @@ if TYPE_CHECKING:
     ]
 else:
     _MappingBatch = tuple
+
+
+def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None) -> ModelBuilder:
+    """Copy a retained clone-source builder without sharing mutable shape geometry.
+
+    Args:
+        source_path: Clone-plan source prim path retained during Newton replication.
+        xform: Optional transform applied while copying the source.
+
+    Returns:
+        An independent builder that is safe to finalize or extend.
+
+    Raises:
+        RuntimeError: If Newton replication did not retain the requested source.
+    """
+    source = NewtonManager._cl_protos.get(source_path)
+    if source is None:
+        raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
+    builder = ModelBuilder(up_axis=source.up_axis)
+    if xform is None:
+        builder.add_builder(source)
+    else:
+        builder.add_builder(source, xform=xform)
+    builder.shape_source = [
+        value.copy() if callable(getattr(value, "copy", None)) else copy.copy(value) for value in builder.shape_source
+    ]
+    return builder
 
 
 @contextlib.contextmanager

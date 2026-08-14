@@ -20,7 +20,7 @@ from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCf
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import FrameTransformer
 
@@ -125,6 +125,21 @@ def deformable_outside_bounds(
     lower = torch.tensor([x_bounds[0], y_bounds[0], z_bounds[0]], device=nodal_pos.device)
     upper = torch.tensor([x_bounds[1], y_bounds[1], z_bounds[1]], device=nodal_pos.device)
     return ((nodal_pos < lower) | (nodal_pos > upper)).flatten(1).any(dim=1)
+
+
+def cable_outside_bounds(
+    env: ManagerBasedRLEnv,
+    x_bounds: tuple[float, float],
+    y_bounds: tuple[float, float],
+    z_bounds: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> torch.Tensor:
+    """Terminate if any cable segment leaves the allowed workspace box."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    segment_pos = asset.data.segment_pose_w.torch[..., :3] - env.scene.env_origins.unsqueeze(1)
+    lower = torch.tensor([x_bounds[0], y_bounds[0], z_bounds[0]], device=segment_pos.device)
+    upper = torch.tensor([x_bounds[1], y_bounds[1], z_bounds[1]], device=segment_pos.device)
+    return ((segment_pos < lower) | (segment_pos > upper)).flatten(1).any(dim=1)
 
 
 def joint_vel_out_of_sim_limit(

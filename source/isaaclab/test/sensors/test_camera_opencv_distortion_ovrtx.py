@@ -132,7 +132,7 @@ def _render_grid(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarr
     )
     camera = Camera(
         CameraCfg(
-            prim_path="/World/envs/env_.*/Camera",
+            prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.0,
             height=HEIGHT,
             width=WIDTH,

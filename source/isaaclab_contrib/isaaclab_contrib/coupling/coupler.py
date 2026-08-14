@@ -212,12 +212,27 @@ class NewtonCouplerManager(NewtonVBDManager):
             NewtonManager._solver.prepare_contacts(cls._contacts)
 
     @classmethod
+    def _check_solver_status(cls) -> None:
+        """Raise asynchronous failures from nested implicit-MPM solvers."""
+        NewtonMPMManager._check_solver_status()
+
+    @classmethod
+    def _solver_specific_clear(cls) -> None:
+        """Clear VBD hooks and cached nested-MPM solver references."""
+        super()._solver_specific_clear()
+        NewtonMPMManager._solver_specific_clear()
+
+    @classmethod
+    def _requires_initial_reset_before_graph_capture(cls) -> bool:
+        """Capture coupled MPM only after the task authors its initial particle state."""
+        return bool(NewtonMPMManager._implicit_mpm_solvers())
+
+    @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
-        """Reject graph capture when a nested MPM entry uses a dynamic grid."""
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        """Reject capture when a nested MPM solver has dynamic storage."""
         return all(
-            not isinstance(entry.solver_cfg, MPMSolverCfg) or entry.solver_cfg.grid_type == "fixed"
-            for entry in getattr(solver_cfg, "entries", ())
+            NewtonMPMManager._solver_supports_cuda_graph_capture(solver)
+            for solver in NewtonMPMManager._implicit_mpm_solvers()
         )
 
     @classmethod

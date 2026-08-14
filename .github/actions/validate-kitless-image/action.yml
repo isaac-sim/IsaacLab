@@ -54,10 +54,8 @@ runs:
       print("ovrtx renderer initialized")
       '
 
-      # The Newton training probe is the shared one architecture CI also runs, so
-      # the command and its assertions live in one place. pytest goes only into
-      # this disposable layer; reinstalling the workspace would fail against the
-      # read-only source mount.
+      # Discover files by grep, not by pointing pytest at a directory: this image has no Isaac
+      # Sim, and collecting a directory imports every module to read its markers.
       docker run --rm --gpus all --network host \
         "${mount_args[@]}" \
         "$IMAGE_TAG" \
@@ -67,6 +65,8 @@ runs:
       python -m pytest \
         source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
         source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics.py \
+        source/isaaclab/test/sim/test_urdf_converter.py \
+        source/isaaclab/test/sim/test_mjcf_converter.py \
         -q -p no:cacheprovider
       '
 

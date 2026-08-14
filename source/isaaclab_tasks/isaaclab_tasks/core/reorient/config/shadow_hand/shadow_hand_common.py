@@ -154,7 +154,7 @@ class ShadowHandManagerEventPresetCfg(PresetCfg):
 
 @configclass
 class ShadowHandRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
+    physx = SHADOW_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot").replace(
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
             rot=(0.0, 0.0, 0.0, 1.0),
@@ -165,9 +165,9 @@ class ShadowHandRobotCfg(PresetCfg):
     # Newton robot lives in the asset (see isaaclab_assets.robots.shadow_hand); reorient
     # uses its default gains. The handover task consumes the same asset cfg and overrides
     # only the finger gains.
-    newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ovphysx = SHADOW_HAND_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
         spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
         init_state=ArticulationCfg.InitialStateCfg(
@@ -180,7 +180,7 @@ class ShadowHandRobotCfg(PresetCfg):
 
 
 CUBE_CFG = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/object",
+    prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

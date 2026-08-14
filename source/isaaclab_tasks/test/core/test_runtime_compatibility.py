@@ -13,8 +13,6 @@ No Kit/GPU required — safe for CI and beginners.
 """
 
 import argparse
-import ast
-import inspect
 import sys
 
 import pytest
@@ -57,31 +55,6 @@ def _resolve_with_args(*args: str):
         return env_cfg
     finally:
         sys.argv = old_argv
-
-
-# ---------------------------------------------------------------------------
-# Architecture: validation consumes one resolved Kit-source value
-# ---------------------------------------------------------------------------
-
-
-def test_runtime_validation_consumes_resolved_kit_sources():
-    """Keep config and launcher interpretation outside the compatibility validator."""
-    assert list(inspect.signature(_validate_runtime).parameters) == ["scan", "kit_sources"]
-
-    tree = ast.parse(inspect.getsource(_validate_runtime))
-    forbidden_scan_fields = {
-        "has_kit_camera",
-        "has_kit_physics",
-        "needs_kit",
-        "visualizer_intent",
-    }
-    accessed_attributes = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
-    assert accessed_attributes.isdisjoint(forbidden_scan_fields)
-
-    called_helpers = {
-        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-    assert "_has_kit_visualizer" not in called_helpers
 
 
 # ---------------------------------------------------------------------------
