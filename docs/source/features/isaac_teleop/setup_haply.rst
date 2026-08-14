@@ -1,7 +1,7 @@
 .. _haply-teleoperation:
 
-Setting up Haply Teleoperation
-===============================
+Set Up Haply Teleoperation
+============================
 
 .. currentmodule:: isaaclab
 
@@ -14,6 +14,11 @@ control with haptic feedback. This enables operators to feel contact forces duri
 tasks, improving control quality and task performance.
 
 This guide explains how to set up and use Haply devices with Isaac Lab for robot teleoperation.
+
+.. tip::
+
+   New to Isaac Teleop? See the :ref:`isaac-teleop-feature` overview for the full list of
+   supported input devices and backends.
 
 .. _Haply Devices: https://haply.co/
 
@@ -153,13 +158,20 @@ Running the Demo
 The Haply teleoperation demo showcases robot manipulation with force feedback using
 a Franka Panda arm.
 
+.. figure:: ../../_static/demos/haply_teleop_franka.jpg
+   :align: center
+   :figwidth: 80%
+   :alt: Haply Inverse3 and VerseGrip teleoperating a Franka Panda arm
+
+   Haply Inverse3 and VerseGrip teleoperating a Franka Panda arm in Isaac Lab.
+
 Basic Usage
 ~~~~~~~~~~~
 
-.. code:: bash
+.. code-block:: bash
 
    # Ensure Haply SDK is running
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+   uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
 The demo will:
 
@@ -181,13 +193,33 @@ Advanced Options
 
 Customize the demo with command-line arguments:
 
-.. code:: bash
+.. code-block:: bash
 
    # Use custom WebSocket URI
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://192.168.1.100:10001
+   uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://192.168.1.100:10001
 
    # Adjust position sensitivity (default: 1.0)
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
+   uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
+
+.. _haply-physics-backends:
+
+Physics and Visualizer Backends
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The demo supports both of Isaac Lab's physics backends, selected with ``--physics``. Pair it with
+a matching ``--visualizer`` when you want the Newton debug viewer instead of the default Kit
+viewport:
+
+.. code-block:: bash
+
+   # Default: PhysX physics, Kit viewer
+   uv run python scripts/demos/haply_teleoperation.py
+
+   # Newton (MJWarp) physics, Kit viewer
+   uv run python scripts/demos/haply_teleoperation.py --physics newton_mjwarp
+
+   # Newton (MJWarp) physics, Newton viewer
+   uv run python scripts/demos/haply_teleoperation.py --physics newton_mjwarp --visualizer newton
 
 Demo Features
 ~~~~~~~~~~~~~

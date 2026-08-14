@@ -1,22 +1,21 @@
 .. _cloudxr-teleoperation:
 
-Setting up Isaac Teleop with CloudXR
-=====================================
+Set Up CloudXR Teleoperation
+=============================
 
 .. currentmodule:: isaaclab
 
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ (https://github.com/NVIDIA/IsaacTeleop) is the unified framework for high-fidelity
-teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
-pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
-
-This guide walks you through setting up CloudXR, connecting an XR device, and running your first
-teleoperation session. For additional details see the `Isaac Teleop Quick Start
-<https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
+This guide walks you through installing the ``teleop`` extra, starting the bundled `NVIDIA
+CloudXR`_ streaming runtime, and connecting an XR headset (Meta Quest 3, Pico 4 Ultra, Apple
+Vision Pro) or Manus gloves for immersive XR-based teleoperation. For additional details see the
+`Isaac Teleop Quick Start <https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
 
 .. tip::
 
-   For architecture details, retargeting pipelines, control scheme recommendations, and how to
-   add new embodiments or devices, see the :ref:`isaac-teleop-feature` page.
+   New to Isaac Teleop? Start at the :ref:`isaac-teleop-feature` overview for supported devices
+   and a first command to try. Come back here for the full CloudXR setup, and see
+   :ref:`isaac-teleop-deep-dive` for architecture, retargeting pipelines, and control scheme
+   details.
 
 
 Prerequisites
@@ -320,7 +319,7 @@ Then in the Isaac Sim UI:
    * Selected Output Plugin: **OpenXR**
    * OpenXR Runtime: **System OpenXR Runtime**
 
-   .. figure:: ../_static/setup/cloudxr_ar_panel.jpg
+   .. figure:: ../../_static/setup/cloudxr_ar_panel.jpg
       :align: center
       :figwidth: 50%
       :alt: Isaac Sim UI: XR Panel
@@ -330,7 +329,7 @@ Then in the Isaac Sim UI:
 You should see "Waiting for connection" displayed in the status bar at the bottom of the viewport.
 The dual-eye stereo render only becomes active once a headset connects and playback begins on the device.
 
-.. figure:: ../_static/setup/cloudxr_viewport.jpg
+.. figure:: ../../_static/setup/cloudxr_viewport.jpg
    :align: center
    :figwidth: 100%
    :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start XR
@@ -397,7 +396,7 @@ choose the tab that matches your hardware.
          connecting. Click the **Click https://<ip>:48322/ to accept cert** link that
          appears on the page.
 
-         .. image:: ../_static/setup/cloudxr_accept_cert.jpg
+         .. image:: ../../_static/setup/cloudxr_accept_cert.jpg
             :alt: CloudXR.js certificate acceptance link
             :align: center
             :width: 400
@@ -405,7 +404,7 @@ choose the tab that matches your hardware.
          A new tab opens with a **"Your connection is not private"** warning. Click
          **Advanced**, then click **Proceed to <ip> (unsafe)**.
 
-         .. image:: ../_static/setup/cloudxr_accept_cert_not_private.jpg
+         .. image:: ../../_static/setup/cloudxr_accept_cert_not_private.jpg
             :alt: Browser privacy warning for self-signed certificate
             :align: center
             :width: 500
@@ -413,7 +412,7 @@ choose the tab that matches your hardware.
          The browser will show a **"Certificate Accepted"** page confirming the certificate
          has been accepted. Close this tab and return to the CloudXR.js client page.
 
-         .. image:: ../_static/setup/cloudxr_accept_cert_accepted.jpg
+         .. image:: ../../_static/setup/cloudxr_accept_cert_accepted.jpg
             :alt: Certificate accepted confirmation page
             :align: center
             :width: 400
@@ -512,7 +511,7 @@ choose the tab that matches your hardware.
 
       #. Open the Isaac XR Teleop Sample Client.
 
-         .. figure:: ../_static/setup/cloudxr_avp_connect_ui.jpg
+         .. figure:: ../../_static/setup/cloudxr_avp_connect_ui.jpg
             :align: center
             :figwidth: 50%
             :alt: Apple Vision Pro connect UI
@@ -527,7 +526,7 @@ choose the tab that matches your hardware.
       #. After a brief period you should see the simulation rendered in the headset along with
          teleoperation controls.
 
-         .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
+         .. figure:: ../../_static/setup/cloudxr_avp_teleop_ui.jpg
             :align: center
             :figwidth: 50%
             :alt: Apple Vision Pro teleop UI
@@ -554,7 +553,7 @@ choose the tab that matches your hardware.
             If the IK solver fails, an error message appears in the headset. Click **Reset** to
             return the robot to its original pose and continue.
 
-            .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
+            .. figure:: ../../_static/setup/cloudxr_avp_ik_error.jpg
                :align: center
                :figwidth: 80%
                :alt: IK error message in XR device
@@ -740,7 +739,7 @@ For a fully headless experience, replace ``--visualizer kit`` with ``--visualize
 
 .. admonition:: Next Steps
 
-   * **Architecture, retargeting, and control schemes**: :ref:`isaac-teleop-feature`
+   * **Architecture, retargeting, and control schemes**: :ref:`isaac-teleop-deep-dive`
    * **Teleoperation for imitation learning**: :ref:`teleoperation-imitation-learning`
    * **API reference**: :ref:`isaaclab_teleop-api`
 
