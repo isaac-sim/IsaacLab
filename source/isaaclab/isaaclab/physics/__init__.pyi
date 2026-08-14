@@ -5,11 +5,14 @@
 
 __all__ = [
     "CallbackHandle",
+    "ConveyorBeltSpec",
+    "ConveyorBeltView",
     "PhysicsEvent",
     "PhysicsManager",
     "PhysicsCfg",
     "PhysxAutoCfg",
 ]
 
+from .conveyor_belt import ConveyorBeltSpec, ConveyorBeltView
 from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
 from .physics_manager_cfg import PhysicsCfg, PhysxAutoCfg

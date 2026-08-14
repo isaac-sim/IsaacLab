@@ -15,6 +15,15 @@ from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import (
     ConveyorGaussianBernoulliDistribution,
 )
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
+from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
+    BELT_CENTER_X,
+    BELT_INNER_STRAIGHT_Y,
+    BELT_OUTER_STRAIGHT_Y,
+)
+from isaaclab_tasks.contrib.conveyor_franka.mdp.actions import (
+    ConveyorRelativeJointPositionAction,
+    ResetBufferedGripperAction,
+)
 from isaaclab_tasks.contrib.conveyor_franka.mdp.commands import ConveyorTransferCommand, transfer_success_mask
 from isaaclab_tasks.contrib.conveyor_franka.mdp.curriculums import (
     deployment_probability_from_progress,
@@ -24,6 +33,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.observations import classify_cub
 from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     CUBE_COUNT,
     ConveyorResetRecipe,
+    _balanced_cube_slots,
     _sample_collision_free_active_x,
     build_reset_rows,
     franka_tool_position,
@@ -31,7 +41,128 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     select_next_transfer_cube,
 )
 from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
-from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import subgoal_time_out, transfer_sequence_time_out
+from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import (
+    invalid_action,
+    subgoal_time_out,
+    transfer_sequence_time_out,
+)
+
+
+def _make_arm_action_term() -> ConveyorRelativeJointPositionAction:
+    """Build the tensor-only portion of the arm action term without a simulator."""
+    workspace_lower = torch.tensor((-0.75, -0.45, -0.55, -2.75, -0.45, 1.85, -0.10))
+    workspace_upper = torch.tensor((0.85, 0.85, 0.35, -1.75, 0.45, 3.05, 1.65))
+    positions = ((workspace_lower + workspace_upper) * 0.5).repeat(2, 1)
+    limits = torch.tensor((-4.0, 4.0)).repeat(2, 7, 1)
+    action = object.__new__(ConveyorRelativeJointPositionAction)
+    action.cfg = SimpleNamespace(max_delta=0.12, joint_limit_margin=0.02, clip=None)
+    action._asset = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_pos=SimpleNamespace(torch=positions),
+            soft_joint_pos_limits=SimpleNamespace(torch=limits),
+        )
+    )
+    action._joint_ids = slice(None)
+    action._scale = 0.12
+    action._offset = 0.0
+    action._workspace_lower = workspace_lower
+    action._workspace_upper = workspace_upper
+    action._raw_actions = torch.zeros((2, 7))
+    action._processed_actions = torch.zeros((2, 7))
+    action._position_targets = positions.clone()
+    action._invalid_actions = torch.zeros(2, dtype=torch.bool)
+    return action
+
+
+def _make_gripper_action_term() -> ResetBufferedGripperAction:
+    """Build the tensor-only portion of the binary gripper action term."""
+    action = object.__new__(ResetBufferedGripperAction)
+    action.cfg = SimpleNamespace(clip=None, command_name="transfer", force_close_steps=2)
+    action._raw_actions = torch.zeros((2, 1))
+    action._processed_actions = torch.zeros((2, 2))
+    action._open_command = torch.full((2,), 0.04)
+    action._close_command = torch.zeros(2)
+    action._invalid_actions = torch.zeros(2, dtype=torch.bool)
+    command = SimpleNamespace(held_cube_ids=torch.full((2,), -1, dtype=torch.long))
+    action._env = SimpleNamespace(
+        command_manager=SimpleNamespace(get_term=lambda _name: command),
+        episode_length_buf=torch.zeros(2, dtype=torch.long),
+    )
+    return action
+
+
+def test_arm_action_sanitizes_nonfinite_values_and_clamps_normalized_input():
+    """Invalid policy outputs cannot reach joint targets or exceed one normalized unit."""
+    action = _make_arm_action_term()
+    policy_actions = torch.tensor(((float("nan"), float("inf"), -float("inf"), 5.0, -5.0, 0.5, -0.5), (-2.0,) * 7))
+
+    action.process_actions(policy_actions)
+
+    expected = torch.tensor(((0.0, 1.0, -1.0, 1.0, -1.0, 0.5, -0.5), (-1.0,) * 7))
+    torch.testing.assert_close(action.raw_actions, expected)
+    assert action.invalid_actions.tolist() == [True, False]
+    assert torch.isfinite(action.processed_actions).all()
+    expected_targets = action._asset.data.joint_pos.torch + expected * 0.12
+    torch.testing.assert_close(action.processed_actions, expected_targets)
+
+
+def test_gripper_action_sanitizes_nonfinite_values_before_binary_mapping():
+    """The eighth policy dimension cannot silently turn a NaN into an open command."""
+    action = _make_gripper_action_term()
+
+    action.process_actions(torch.tensor(((float("nan"),), (float("inf"),))))
+
+    torch.testing.assert_close(action.raw_actions, torch.tensor(((-1.0,), (1.0,))))
+    assert action.invalid_actions.tolist() == [True, True]
+    torch.testing.assert_close(action.processed_actions[0], action._close_command)
+    torch.testing.assert_close(action.processed_actions[1], action._open_command)
+
+
+def test_invalid_action_termination_and_reset_are_per_environment():
+    """Arm and gripper failures aggregate per environment, and reset clears the arm flag."""
+    arm_action = _make_arm_action_term()
+    gripper_action = _make_gripper_action_term()
+    arm_action._invalid_actions[:] = torch.tensor((True, False))
+    gripper_action._invalid_actions[:] = torch.tensor((False, True))
+    actions = {"arm_action": arm_action, "gripper_action": gripper_action}
+    env = SimpleNamespace(action_manager=SimpleNamespace(get_term=actions.__getitem__))
+
+    assert invalid_action(env).tolist() == [True, True]
+    arm_action.reset([0])
+    gripper_action._invalid_actions[1] = False
+
+    assert invalid_action(env).tolist() == [False, False]
+
+
+def test_final_config_validation_catches_overridden_arm_contracts():
+    """Top-level validation runs after overrides and protects workspace-to-joint alignment."""
+    cfg = ConveyorFrankaEnvCfg()
+    assert cfg.seed is None
+    cfg.validate()
+
+    cfg.actions.arm_action.preserve_order = False
+    try:
+        cfg.validate()
+    except ValueError as exc:
+        assert "preserve" in str(exc)
+    else:
+        raise AssertionError("Expected invalid arm ordering to fail configuration validation.")
+
+
+def test_production_solver_and_viewer_defaults_are_bounded():
+    """The task keeps CUDA graphs enabled and avoids scene-wide over-allocation or rendering."""
+    cfg = ConveyorFrankaEnvCfg()
+    physics = cfg.sim.physics
+    solver = physics.solver_cfg
+
+    assert cfg.conveyor_force.speed == 0.35
+    assert physics.use_cuda_graph is True
+    assert physics.load_visual_shapes is None
+    assert solver.njmax == 300
+    assert solver.nconmax == 200
+    assert solver.impratio == 1.0
+    assert cfg.sim.default_visualizer_cfg.max_visible_envs == 1
+    assert cfg.sim.default_visualizer_cfg.randomly_sample_visible_envs is False
 
 
 def test_reset_rows_cover_every_cube_direction_and_phase_once():
@@ -360,3 +491,27 @@ def test_active_cube_sampling_avoids_inactive_source_lane_cubes():
     inactive_on_source = (cube_sides == source_side_ids.unsqueeze(1)) & (cube_ids != target_cube_ids.unsqueeze(1))
     separation = torch.abs(sampled.unsqueeze(1) - base_x)
     assert torch.all(separation[inactive_on_source] >= 0.055)
+
+
+def test_deployment_layout_uses_each_racetrack_straight_run_once():
+    """Every command keeps its target reachable and distributes all four cubes evenly."""
+    target_cube_ids = torch.arange(CUBE_COUNT).repeat_interleave(2)
+    source_side_ids = torch.arange(2).repeat(CUBE_COUNT)
+
+    slots, cube_sides, cube_x, cube_y = _balanced_cube_slots(target_cube_ids, source_side_ids)
+
+    expected_slots = torch.arange(CUBE_COUNT).expand(target_cube_ids.numel(), -1)
+    torch.testing.assert_close(torch.sort(slots, dim=1).values, expected_slots)
+    active_slots = slots.gather(1, target_cube_ids.unsqueeze(1)).squeeze(1)
+    torch.testing.assert_close(active_slots, 2 * source_side_ids)
+    assert torch.all(torch.sum(cube_sides == 0, dim=1) == 2)
+    assert torch.all(torch.sum(cube_sides == 1, dim=1) == 2)
+
+    expected_y = torch.tensor(
+        (-BELT_OUTER_STRAIGHT_Y, -BELT_INNER_STRAIGHT_Y, BELT_INNER_STRAIGHT_Y, BELT_OUTER_STRAIGHT_Y)
+    )
+    torch.testing.assert_close(torch.sort(cube_y, dim=1).values, expected_y.expand_as(cube_y))
+    for side_id in (0, 1):
+        side_x = torch.where(cube_sides == side_id, cube_x, torch.nan)
+        expected_sum = torch.full((source_side_ids.numel(),), 2 * BELT_CENTER_X, dtype=cube_x.dtype)
+        torch.testing.assert_close(torch.nansum(side_x, dim=1), expected_sum)

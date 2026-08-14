@@ -7,10 +7,13 @@
 
 from collections import Counter
 
+from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import _collision_properties, _cube
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     BELT_TOP_Z,
+    BELT_TURN_RADIUS,
     TURN_SEGMENT_COUNT,
     MeshSpec,
+    belt_collision_section_specs,
     belt_mesh_spec,
     guard_mesh_specs,
 )
@@ -48,3 +51,30 @@ def test_belt_top_faces_point_upward():
                 a, b, c = vertices
                 cross_z = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
                 assert cross_z > 0.0
+
+
+def test_contact_configuration_uses_one_mujoco_parameterization():
+    """Raw MuJoCo solref must not be combined with shadowed Newton force-space gains."""
+    mujoco_cfg = _collision_properties()[-1]
+    cube_material = _cube("TestCube", (1.0, 0.0, 0.0), (0.0, 0.0, 0.0)).spawn.physics_material
+
+    assert mujoco_cfg.solref is not None
+    assert cube_material.contact_stiffness is None
+    assert cube_material.contact_damping is None
+    assert cube_material.torsional_friction is None
+    assert cube_material.rolling_friction is None
+
+
+def test_collision_sections_carry_schema_aligned_belt_intent():
+    """Task geometry and runtime descriptions share paths, units, and curve semantics."""
+    sections = belt_collision_section_specs("Left", velocity=0.35, friction_coefficient=0.5, contact_threshold=0.997)
+
+    assert len(sections) == 4
+    assert tuple(section.belt.prim_path for section in sections) == tuple(
+        f"{{ENV_REGEX_NS}}/{section.geometry.name}" for section in sections
+    )
+    assert tuple(section.belt.velocity for section in sections) == (0.35,) * 4
+    assert tuple(section.belt.friction_coefficient for section in sections) == (0.5,) * 4
+    assert tuple(section.belt.contact_threshold for section in sections) == (0.997,) * 4
+    assert tuple(section.belt.curved for section in sections) == (False, False, True, True)
+    assert tuple(section.belt.radius for section in sections) == (None, None, BELT_TURN_RADIUS, BELT_TURN_RADIUS)

@@ -5,12 +5,17 @@
 
 """Task-calibrated Franka configuration for conveyor manipulation."""
 
+from isaaclab_newton.sim.schemas import MujocoJointCfg
+
 from isaaclab.actuators import ImplicitActuatorCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
 
 FRANKA_PANDA_CONVEYOR_CFG = FRANKA_PANDA_MENAGERIE_CFG.copy()
 FRANKA_PANDA_CONVEYOR_CFG.spawn.rigid_props.disable_gravity = False
+# Route gravity compensation through MuJoCo's actuator channel so effort limits
+# and the solver apply it consistently with the configured implicit drives.
+FRANKA_PANDA_CONVEYOR_CFG.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
 FRANKA_PANDA_CONVEYOR_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
@@ -45,4 +50,17 @@ FRANKA_PANDA_CONVEYOR_CFG.actuators = {
         armature=0.1,
     ),
 }
-"""Menagerie Franka with explicit manipulation gains and gravity compensation-ready dynamics."""
+"""Menagerie Franka with explicit manipulation gains and solver-native gravity compensation."""
+
+
+FRANKA_PANDA_CONVEYOR_PHYSX_CFG = FRANKA_PANDA_CONVEYOR_CFG.copy()
+# PhysX does not consume MuJoCo's actuator-gravity-compensation attribute. Disabling
+# gravity on the robot is the closest solver-native equivalent and keeps the trained
+# position-policy contract unchanged without adding a task-side effort loop.
+FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.rigid_props.disable_gravity = True
+FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.joint_drive_props = None
+# Contact-rich manipulation benefits from resolving the articulation for more than
+# the generic asset defaults, especially with the deliberately stiff trained gains.
+FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.articulation_props.solver_position_iteration_count = 32
+FRANKA_PANDA_CONVEYOR_PHYSX_CFG.spawn.articulation_props.solver_velocity_iteration_count = 4
+"""PhysX variant with the same joints, gains, action ordering, and gravity-compensated policy contract."""

@@ -28,9 +28,6 @@ class ConveyorRelativeJointPositionActionCfg(JointActionCfg):
     max_delta: float = 0.12
     """Maximum target change per policy step [rad]."""
 
-    gravity_compensation: bool = False
-    """Whether to add model-based gravity feedforward to the arm joints."""
-
     workspace_lower: tuple[float, ...] = (-0.75, -0.45, -0.55, -2.75, -0.45, 1.85, -0.10)
     """Lower boundary of the validated transfer workspace [rad]."""
 

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Literal
+
+from isaaclab.physics import ConveyorBeltSpec
 
 BELT_COLOR = (0.09, 0.09, 0.09)
 """Dark-rubber color used by Newton's conveyor example."""
@@ -35,6 +36,14 @@ BELT_WIDTH = 0.15
 BELT_THICKNESS = 0.04
 BELT_TOP_Z = 0.04
 TURN_SEGMENT_COUNT = 96
+
+# Four deployment slots place one cube on each straight run of the two
+# racetracks.  The x coordinates are mirrored about the racetrack center, so
+# the inner/outer pair on a belt is separated by exactly half a lap.
+BELT_INNER_STRAIGHT_Y = BELT_CENTER_Y - BELT_TURN_RADIUS
+BELT_OUTER_STRAIGHT_Y = BELT_CENTER_Y + BELT_TURN_RADIUS
+CUBE_INNER_SLOT_X = BELT_CENTER_X - BELT_HALF_STRAIGHT / 3.0
+CUBE_OUTER_SLOT_X = BELT_CENTER_X + BELT_HALF_STRAIGHT / 3.0
 
 # Collision surfaces extend underneath the rails and overlap at section seams.
 # This keeps the dynamic parcels on a continuous +Z-facing surface without
@@ -69,21 +78,10 @@ class CuboidSpec:
 
 @dataclass(frozen=True)
 class ConveyorSectionSpec:
-    """Collision geometry and velocity field for one conveyor section.
-
-    The direction and pivot are expressed in the collision prim's local frame.
-    Constant sections interpret ``direction`` as the unit travel direction;
-    pivot sections interpret it as the unit rotation axis and use ``radius``
-    to convert commanded linear speed to angular speed. ``surface_normal`` is
-    also local, so rotated or inclined sections need no world-space special case.
-    """
+    """Task geometry paired with its backend-neutral conveyor description."""
 
     geometry: MeshSpec | CuboidSpec
-    velocity_field_type: Literal["constant", "pivot"]
-    direction: tuple[float, float, float]
-    pivot_point: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    radius: float | None = None
-    surface_normal: tuple[float, float, float] = (0.0, 0.0, 1.0)
+    belt: ConveyorBeltSpec
 
 
 def belt_direction(side: str) -> float:
@@ -301,39 +299,69 @@ def _turn_collision_mesh(name: str, pivot_x: float, center_y: float, start_angle
 
 def belt_collision_geometry_specs(side: str) -> tuple[CuboidSpec | MeshSpec, ...]:
     """Build native straight and closed-mesh turn collision geometry for one racetrack."""
-    return tuple(section.geometry for section in belt_collision_section_specs(side))
+    center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
+    left_x = BELT_CENTER_X - BELT_HALF_STRAIGHT
+    right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
+    return (
+        _straight_collision_cuboid(f"Conveyor{side}TopStraightCollision", center_y + BELT_TURN_RADIUS),
+        _straight_collision_cuboid(f"Conveyor{side}BottomStraightCollision", center_y - BELT_TURN_RADIUS),
+        _turn_collision_mesh(f"Conveyor{side}RightTurnCollision", right_x, center_y, -0.5 * math.pi),
+        _turn_collision_mesh(f"Conveyor{side}LeftTurnCollision", left_x, center_y, 0.5 * math.pi),
+    )
 
 
 def belt_collision_section_specs(
     side: str,
+    *,
+    velocity: float = 0.0,
+    friction_coefficient: float = 0.7,
+    contact_threshold: float = 0.997,
+    enabled: bool = True,
 ) -> tuple[ConveyorSectionSpec, ConveyorSectionSpec, ConveyorSectionSpec, ConveyorSectionSpec]:
-    """Build collision meshes and their matching conveyor velocity fields."""
+    """Build collision geometry and authored conveyor intent for one racetrack."""
     center_y = BELT_CENTER_Y if side == "Left" else -BELT_CENTER_Y
     left_x = BELT_CENTER_X - BELT_HALF_STRAIGHT
     right_x = BELT_CENTER_X + BELT_HALF_STRAIGHT
     direction = belt_direction(side)
+    top_straight, bottom_straight, right_turn, left_turn = belt_collision_geometry_specs(side)
+
+    def belt(
+        geometry: MeshSpec | CuboidSpec,
+        travel_direction: tuple[float, float, float],
+        *,
+        curved: bool = False,
+        pivot_point: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        radius: float | None = None,
+    ) -> ConveyorSectionSpec:
+        return ConveyorSectionSpec(
+            geometry=geometry,
+            belt=ConveyorBeltSpec(
+                prim_path=f"{{ENV_REGEX_NS}}/{geometry.name}",
+                velocity=velocity,
+                enabled=enabled,
+                direction=travel_direction,
+                curved=curved,
+                pivot_point=pivot_point,
+                radius=radius,
+                contact_threshold=contact_threshold,
+                friction_coefficient=friction_coefficient,
+            ),
+        )
+
     return (
-        ConveyorSectionSpec(
-            geometry=_straight_collision_cuboid(f"Conveyor{side}TopStraightCollision", center_y + BELT_TURN_RADIUS),
-            velocity_field_type="constant",
-            direction=(direction, 0.0, 0.0),
-        ),
-        ConveyorSectionSpec(
-            geometry=_straight_collision_cuboid(f"Conveyor{side}BottomStraightCollision", center_y - BELT_TURN_RADIUS),
-            velocity_field_type="constant",
-            direction=(-direction, 0.0, 0.0),
-        ),
-        ConveyorSectionSpec(
-            geometry=_turn_collision_mesh(f"Conveyor{side}RightTurnCollision", right_x, center_y, -0.5 * math.pi),
-            velocity_field_type="pivot",
-            direction=(0.0, 0.0, -direction),
+        belt(top_straight, (direction, 0.0, 0.0)),
+        belt(bottom_straight, (-direction, 0.0, 0.0)),
+        belt(
+            right_turn,
+            (0.0, 0.0, -direction),
+            curved=True,
             pivot_point=(right_x, center_y, 0.0),
             radius=BELT_TURN_RADIUS,
         ),
-        ConveyorSectionSpec(
-            geometry=_turn_collision_mesh(f"Conveyor{side}LeftTurnCollision", left_x, center_y, 0.5 * math.pi),
-            velocity_field_type="pivot",
-            direction=(0.0, 0.0, -direction),
+        belt(
+            left_turn,
+            (0.0, 0.0, -direction),
+            curved=True,
             pivot_point=(left_x, center_y, 0.0),
             radius=BELT_TURN_RADIUS,
         ),

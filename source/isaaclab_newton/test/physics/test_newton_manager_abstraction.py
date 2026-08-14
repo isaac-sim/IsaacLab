@@ -275,29 +275,60 @@ def test_in_graph_callback_registration_has_symmetric_cleanup(monkeypatch: pytes
     def substep_callback(_solver, _contacts, _state, _dt):
         pass
 
+    def solver_init_callback(_model, _contacts):
+        pass
+
     monkeypatch.setattr(NewtonManager, "_post_actuator_callbacks", [])
     monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [])
     monkeypatch.setattr(NewtonManager, "_post_solver_substep_callbacks", [])
+    monkeypatch.setattr(NewtonManager, "_solver_init_callbacks", [])
 
     NewtonManager.register_post_actuator_callback(actuator_callback)
     NewtonManager.register_state_force_callback(state_force_callback)
     NewtonManager.register_post_solver_substep_callback(substep_callback)
+    NewtonManager.register_solver_init_callback(solver_init_callback)
 
     assert NewtonManager._post_actuator_callbacks == [actuator_callback]
     assert NewtonManager._state_force_callbacks == [state_force_callback]
     assert NewtonManager._post_solver_substep_callbacks == [substep_callback]
+    assert NewtonManager._solver_init_callbacks == [solver_init_callback]
 
     NewtonManager.unregister_post_actuator_callback(actuator_callback)
     NewtonManager.unregister_state_force_callback(state_force_callback)
     NewtonManager.unregister_post_solver_substep_callback(substep_callback)
+    NewtonManager.unregister_solver_init_callback(solver_init_callback)
     # Repeated cleanup is intentionally a safe no-op.
     NewtonManager.unregister_post_actuator_callback(actuator_callback)
     NewtonManager.unregister_state_force_callback(state_force_callback)
     NewtonManager.unregister_post_solver_substep_callback(substep_callback)
+    NewtonManager.unregister_solver_init_callback(solver_init_callback)
 
     assert NewtonManager._post_actuator_callbacks == []
     assert NewtonManager._state_force_callbacks == []
     assert NewtonManager._post_solver_substep_callbacks == []
+    assert NewtonManager._solver_init_callbacks == []
+
+
+def test_solver_init_callbacks_rebind_to_each_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Solver-init callbacks run once per model, including hard-reset replacements."""
+    calls = []
+
+    def callback(model, contacts):
+        calls.append((model, contacts))
+
+    monkeypatch.setattr(NewtonManager, "_solver_init_callbacks", [])
+    NewtonManager.register_solver_init_callback(callback)
+    # Duplicate registration must not cause two graph bindings.
+    NewtonManager.register_solver_init_callback(callback)
+
+    first = (object(), object())
+    second = (object(), object())
+    for model, contacts in (first, second):
+        monkeypatch.setattr(NewtonManager, "_model", model)
+        monkeypatch.setattr(NewtonManager, "_contacts", contacts)
+        NewtonManager._run_solver_init_callbacks()
+
+    assert calls == [first, second]
 
 
 def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):

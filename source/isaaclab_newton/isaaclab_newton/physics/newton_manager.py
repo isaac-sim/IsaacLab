@@ -411,6 +411,10 @@ class NewtonManager(PhysicsManager):
     # In-graph hooks invoked after every solver substep, before the post-step
     # state is swapped into the active buffer and its external forces cleared.
     _post_solver_substep_callbacks: list[Callable[[SolverBase, Contacts | None, State, float], None]] = []
+    # Lifecycle hooks invoked after the solver and contact buffers are created,
+    # but before any CUDA graph is captured. Scene-owned force systems use this
+    # seam to bind model-specific buffers and register their in-graph callbacks.
+    _solver_init_callbacks: list[Callable[[Model, Contacts | None], None]] = []
     # In-graph hooks invoked after the last solver substep and before sensors,
     # in registration order. Articulations with non-identity ordering register
     # their backend-to-user state republish kernels here so the reorders are
@@ -1082,6 +1086,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._state_force_callbacks = []
         NewtonManager._post_solver_substep_callbacks = []
+        NewtonManager._solver_init_callbacks = []
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
@@ -2100,6 +2105,12 @@ class NewtonManager(PhysicsManager):
                     "NewtonManager._supports_rigid_body_force_input."
                 )
             cls._initialize_contacts()
+
+        # Scene-owned systems that consume solver/contact buffers must bind
+        # here: both resources now exist, while CUDA graph capture has not yet
+        # started. The callbacks intentionally persist across hard resets and
+        # rebind to each re-finalized model.
+        cls._run_solver_init_callbacks()
 
         # Picking callbacks must be registered after the concrete solver has
         # published its force-input capability, but before CUDA graph capture.
@@ -3216,6 +3227,40 @@ class NewtonManager(PhysicsManager):
         if callback in NewtonManager._post_solver_substep_callbacks:
             return
         cls._post_solver_substep_callbacks.append(callback)
+
+    @classmethod
+    def register_solver_init_callback(cls, callback: Callable[[Model, Contacts | None], None]) -> None:
+        """Register a callback that binds resources before CUDA graph capture.
+
+        The callback runs after every solver/contact initialization, including
+        hard resets, and before any simulation graph is captured. It may
+        allocate model-specific buffers and register graph-safe step callbacks.
+
+        Args:
+            callback: Function receiving the active model and contact buffer.
+        """
+        if callback in NewtonManager._solver_init_callbacks:
+            return
+        NewtonManager._solver_init_callbacks.append(callback)
+
+    @classmethod
+    def _run_solver_init_callbacks(cls) -> None:
+        """Bind scene-owned solver resources before graph capture."""
+        for callback in tuple(NewtonManager._solver_init_callbacks):
+            callback(cls._model, cls._contacts)
+
+    @classmethod
+    def unregister_solver_init_callback(cls, callback: Callable[[Model, Contacts | None], None]) -> None:
+        """Remove a previously registered solver-initialization callback.
+
+        Removing a callback that was never registered or was already removed is
+        a safe no-op.
+
+        Args:
+            callback: Previously registered callback.
+        """
+        with contextlib.suppress(ValueError):
+            NewtonManager._solver_init_callbacks.remove(callback)
 
     @classmethod
     def unregister_post_solver_substep_callback(

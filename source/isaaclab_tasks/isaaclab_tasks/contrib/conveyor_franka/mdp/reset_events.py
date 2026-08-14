@@ -17,7 +17,14 @@ import torch
 
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 
-from ..conveyor_geometry import BELT_CENTER_Y, BELT_TOP_Z, BELT_TURN_RADIUS
+from ..conveyor_geometry import (
+    BELT_CENTER_X,
+    BELT_INNER_STRAIGHT_Y,
+    BELT_OUTER_STRAIGHT_Y,
+    BELT_TOP_Z,
+    CUBE_INNER_SLOT_X,
+    CUBE_OUTER_SLOT_X,
+)
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -238,8 +245,41 @@ def franka_tool_position(joint_positions: torch.Tensor) -> torch.Tensor:
 
 def side_inner_y(side_ids: torch.Tensor) -> torch.Tensor:
     """Return the reachable inner-straight y coordinate [m] for each side."""
-    magnitude = BELT_CENTER_Y - BELT_TURN_RADIUS
-    return torch.where(side_ids == LEFT_SIDE, magnitude, -magnitude)
+    return torch.where(side_ids == LEFT_SIDE, BELT_INNER_STRAIGHT_Y, -BELT_INNER_STRAIGHT_Y)
+
+
+def _balanced_cube_slots(
+    target_cube_ids: torch.Tensor,
+    source_side_ids: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Assign one cube to every inner/outer racetrack run.
+
+    Slots are ordered ``left inner``, ``left outer``, ``right inner``, and
+    ``right outer``.  The commanded cube swaps with the canonical occupant of
+    its source-side inner slot, keeping it reachable without duplicating or
+    emptying any deployment slot.
+    """
+    if target_cube_ids.ndim != 1 or source_side_ids.shape != target_cube_ids.shape:
+        raise ValueError("Target cube and source-side ids must be matching vectors.")
+    if bool(torch.any((target_cube_ids < 0) | (target_cube_ids >= CUBE_COUNT))):
+        raise ValueError("Target cube ids are out of range.")
+    if bool(torch.any((source_side_ids != LEFT_SIDE) & (source_side_ids != RIGHT_SIDE))):
+        raise ValueError("Source-side ids must be 0 (left) or 1 (right).")
+
+    count = target_cube_ids.numel()
+    cube_slots = torch.arange(CUBE_COUNT, device=target_cube_ids.device).expand(count, -1).clone()
+    source_inner_slots = 2 * source_side_ids
+    displaced_cube_ids = source_inner_slots
+    target_original_slots = target_cube_ids
+    cube_slots.scatter_(1, target_cube_ids.unsqueeze(1), source_inner_slots.unsqueeze(1))
+    cube_slots.scatter_(1, displaced_cube_ids.unsqueeze(1), target_original_slots.unsqueeze(1))
+
+    cube_sides = torch.div(cube_slots, 2, rounding_mode="floor")
+    on_outer_run = torch.remainder(cube_slots, 2).bool()
+    cube_x = torch.where(on_outer_run, CUBE_OUTER_SLOT_X, CUBE_INNER_SLOT_X)
+    y_magnitude = torch.where(on_outer_run, BELT_OUTER_STRAIGHT_Y, BELT_INNER_STRAIGHT_Y)
+    cube_y = torch.where(cube_sides == LEFT_SIDE, y_magnitude, -y_magnitude)
+    return cube_slots, cube_sides, cube_x, cube_y
 
 
 def _sample_collision_free_active_x(
@@ -408,17 +448,11 @@ class ConveyorResetStateTable(ManagerTermBase):
         self._robot.write_joint_velocity_to_sim_index(velocity=joint_velocities, env_ids=env_ids)
 
         count = env_ids.numel()
-        base_x = arm_positions.new_tensor((0.26, 0.42, 0.72, 0.88)).expand(count, -1).clone()
-        base_sides = torch.tensor((LEFT_SIDE, LEFT_SIDE, RIGHT_SIDE, RIGHT_SIDE), device=self.device)
-        cube_sides = base_sides.expand(count, -1).clone()
-        cube_sides.scatter_(1, target_cube_ids.unsqueeze(1), source_side_ids.unsqueeze(1))
+        cube_slots, cube_sides, base_x, cube_y = _balanced_cube_slots(target_cube_ids, source_side_ids)
+        base_x = base_x.to(dtype=arm_positions.dtype)
+        cube_y = cube_y.to(dtype=arm_positions.dtype)
         if cube_position_noise > 0.0:
             base_x += (2.0 * torch.rand_like(base_x) - 1.0) * cube_position_noise
-        cube_y = side_inner_y(cube_sides)
-        cube_positions = torch.stack(
-            (base_x, cube_y, torch.full_like(base_x, CUBE_REST_Z)),
-            dim=2,
-        )
 
         active_lower = torch.full((count,), TRANSFER_X, dtype=arm_positions.dtype, device=self.device)
         active_upper = active_lower.clone()
@@ -437,6 +471,19 @@ class ConveyorResetStateTable(ManagerTermBase):
             active_lower,
             active_upper,
         )
+
+        # On a full deployment reset, mirror the other cube on the source
+        # conveyor across the racetrack center.  Opposite straight runs then
+        # differ by exactly half a lap even when the active start is sampled.
+        source_outer_slots = 2 * source_side_ids + 1
+        source_outer_cube = cube_slots == source_outer_slots.unsqueeze(1)
+        mirrored_outer_x = (2.0 * BELT_CENTER_X - active_x).unsqueeze(1)
+        base_x = torch.where(belt_rows.unsqueeze(1) & source_outer_cube, mirrored_outer_x, base_x)
+        cube_positions = torch.stack(
+            (base_x, cube_y, torch.full_like(base_x, CUBE_REST_Z)),
+            dim=2,
+        )
+
         active_positions = torch.stack(
             (active_x, side_inner_y(source_side_ids), torch.full_like(active_x, CUBE_REST_Z)),
             dim=1,

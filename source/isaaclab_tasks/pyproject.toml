@@ -21,12 +21,14 @@ dependencies = [
     "isaaclab",
     "isaaclab_assets",
     "isaaclab_newton",
+    "isaaclab_physx",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 isaaclab_assets = { path = "../isaaclab_assets", editable = true }
 isaaclab_newton = { path = "../isaaclab_newton", editable = true }
+isaaclab_physx = { path = "../isaaclab_physx", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

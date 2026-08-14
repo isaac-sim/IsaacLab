@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -29,6 +30,25 @@ if TYPE_CHECKING:
 
 
 _TRACK_X_CLEARANCE = BELT_TURN_RADIUS + 0.5 * BELT_WIDTH + GUARD_THICKNESS + CUBE_SIZE
+
+
+def invalid_action(
+    env: ManagerBasedRLEnv,
+    action_names: Sequence[str] = ("arm_action", "gripper_action"),
+) -> torch.Tensor:
+    """Terminate environments whose latest policy action contained a non-finite value.
+
+    Args:
+        env: Manager-based conveyor environment.
+        action_names: Action terms exposing an ``invalid_actions`` Boolean tensor.
+
+    Returns:
+        Per-environment invalid-action mask.
+    """
+    if not action_names:
+        raise ValueError("At least one action term is required for invalid-action termination.")
+    masks = tuple(env.action_manager.get_term(name).invalid_actions for name in action_names)
+    return torch.stack(masks, dim=0).any(dim=0)
 
 
 def subgoal_time_out(

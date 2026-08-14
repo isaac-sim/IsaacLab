@@ -24,36 +24,63 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from . import mdp
 from .conveyor_geometry import (
-    BELT_CENTER_Y,
     BELT_COLOR,
-    BELT_TURN_RADIUS,
+    BELT_INNER_STRAIGHT_Y,
+    BELT_OUTER_STRAIGHT_Y,
     CUBE_COLORS,
+    CUBE_INNER_SLOT_X,
+    CUBE_OUTER_SLOT_X,
     GUARD_COLOR,
     CuboidSpec,
     MeshSpec,
-    belt_collision_section_specs,
+    belt_collision_geometry_specs,
     belt_mesh_spec,
     guard_mesh_specs,
 )
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_CFG
+from .mdp.terminations import invalid_action as invalid_policy_action
 
 _DYNAMIC_PROPERTIES = sim_utils.RigidBodyBaseCfg()
 _CONTACT_GAP = 0.01
 _CUBE_CONTACT_MARGIN = 0.003
-_MANIPULATION_CONTACT_STIFFNESS = 1.0e4
-_MANIPULATION_CONTACT_DAMPING = 200.0
 _MUJOCO_SOLIMP = (0.9, 0.95, 0.001, 0.5, 2.0)
 _MUJOCO_SOLREF = (0.02, 1.0)
 _SUBGOAL_TIMEOUT_S = 20.0
 _TRANSFER_SEQUENCE_LENGTH = 8
+_ARM_JOINT_NAMES = tuple(f"panda_joint{joint_id}" for joint_id in range(1, 8))
+_FINGER_JOINT_NAMES = ("panda_finger_joint1", "panda_finger_joint2")
+
+
+def _validate_common_config(cfg: ConveyorFrankaEnvCfg) -> None:
+    """Validate backend-independent timing and policy tensor contracts."""
+    cfg.conveyor_force.validate_config()
+    if not cfg.sim.use_newton_actuators:
+        raise ValueError("The conveyor Franka requires the shared Newton-actuator execution path.")
+    if not math.isfinite(cfg.sim.dt) or cfg.sim.dt <= 0.0 or cfg.decimation <= 0:
+        raise ValueError("Simulation dt and environment decimation must be positive.")
+    arm_action = cfg.actions.arm_action
+    if arm_action.joint_names != list(_ARM_JOINT_NAMES) or not arm_action.preserve_order:
+        raise ValueError("Arm actions must preserve the explicit panda_joint1-to-panda_joint7 ordering.")
+    if not math.isfinite(arm_action.max_delta) or arm_action.max_delta <= 0.0:
+        raise ValueError("Arm max_delta must be finite and positive.")
+    if not math.isfinite(arm_action.joint_limit_margin) or arm_action.joint_limit_margin < 0.0:
+        raise ValueError("Arm joint_limit_margin must be finite and non-negative.")
+    lower = arm_action.workspace_lower
+    upper = arm_action.workspace_upper
+    if len(lower) != len(_ARM_JOINT_NAMES) or len(upper) != len(_ARM_JOINT_NAMES):
+        raise ValueError("Arm workspace bounds must contain one value per controlled joint.")
+    if any(not math.isfinite(value) for value in (*lower, *upper)):
+        raise ValueError("Arm workspace bounds must be finite.")
+    if any(low >= high for low, high in zip(lower, upper, strict=True)):
+        raise ValueError("Every arm workspace lower bound must be less than its upper bound.")
 
 
 def _collision_properties(contact_margin: float = 0.0, mujoco_priority: int = 0) -> list[CollisionFragment]:
@@ -84,14 +111,14 @@ class ActionsCfg:
 
     arm_action = mdp.ConveyorRelativeJointPositionActionCfg(
         asset_name="robot",
-        joint_names=["panda_joint[1-7]"],
+        joint_names=list(_ARM_JOINT_NAMES),
+        preserve_order=True,
         scale=0.12,
         max_delta=0.12,
-        gravity_compensation=True,
     )
     gripper_action = mdp.ResetBufferedGripperActionCfg(
         asset_name="robot",
-        joint_names=["panda_finger_joint[1-2]"],
+        joint_names=list(_FINGER_JOINT_NAMES),
         open_command_expr={"panda_finger_joint.*": 0.04},
         close_command_expr={"panda_finger_joint.*": 0.0},
         force_close_steps=5,
@@ -129,15 +156,15 @@ class ObservationsCfg:
 
         joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint[1-7]"])},
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=list(_ARM_JOINT_NAMES), preserve_order=True)},
         )
         joint_vel = ObsTerm(
             func=mdp.joint_vel_rel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint[1-7]"])},
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=list(_ARM_JOINT_NAMES), preserve_order=True)},
         )
         gripper_pos = ObsTerm(
             func=mdp.gripper_joint_positions,
-            params={"robot_cfg": SceneEntityCfg("robot", joint_names=["panda_finger_joint[1-2]"])},
+            params={"robot_cfg": SceneEntityCfg("robot", joint_names=list(_FINGER_JOINT_NAMES), preserve_order=True)},
         )
         objects = ObsTerm(func=mdp.transfer_object_observation)
         active_transfer = ObsTerm(func=mdp.active_transfer_features)
@@ -197,7 +224,7 @@ class RewardsCfg:
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1.0e-3)
     joint_velocity_l2 = RewTerm(
         func=mdp.finite_joint_velocity_l2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint[1-7]"])},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=list(_ARM_JOINT_NAMES), preserve_order=True)},
         weight=-1.0e-4,
     )
 
@@ -207,6 +234,10 @@ class TerminationsCfg:
     """Safety failures and bounded training sequences."""
 
     cube_out_of_workspace = DoneTerm(func=mdp.cube_out_of_workspace)
+    invalid_action = DoneTerm(
+        func=invalid_policy_action,
+        params={"action_names": ("arm_action", "gripper_action")},
+    )
     nonfinite_scene_state = DoneTerm(func=mdp.nonfinite_scene_state)
     subgoal_time_out = DoneTerm(
         func=mdp.subgoal_time_out,
@@ -276,6 +307,10 @@ class ConveyorForceCfg:
 
     def __post_init__(self) -> None:
         """Validate conveyor force parameters."""
+        self.validate_config()
+
+    def validate_config(self) -> None:
+        """Validate final conveyor-force values after overrides are applied."""
         if not math.isfinite(self.speed) or self.speed < 0.0:
             raise ValueError(f"Conveyor speed must be non-negative, got {self.speed}.")
         if not math.isfinite(self.friction) or self.friction < 0.0:
@@ -394,16 +429,12 @@ def _visual_mesh(
     )
 
 
-def _collision_material(friction: float, stiff_contact: bool) -> NewtonMaterialPropertiesCfg:
-    """Build frictionless-drive contact material, optionally with manipulation-grade gains."""
+def _collision_material(friction: float) -> NewtonMaterialPropertiesCfg:
+    """Build a contact material for surfaces using the task-wide raw MuJoCo response."""
     return NewtonMaterialPropertiesCfg(
         static_friction=friction,
         dynamic_friction=friction,
         restitution=0.0,
-        torsional_friction=0.0,
-        rolling_friction=0.0,
-        contact_stiffness=_MANIPULATION_CONTACT_STIFFNESS if stiff_contact else None,
-        contact_damping=_MANIPULATION_CONTACT_DAMPING if stiff_contact else None,
     )
 
 
@@ -412,7 +443,6 @@ def _hidden_collision_mesh(
     spec: MeshSpec,
     friction: float,
     mujoco_priority: int,
-    stiff_contact: bool = False,
 ) -> AssetBaseCfg:
     """Build a hidden static triangle-mesh collider."""
     spawn = sim_utils.MeshCustomCfg(
@@ -420,7 +450,7 @@ def _hidden_collision_mesh(
         faces=spec.faces,
         visible=False,
         collision_props=_collision_properties(mujoco_priority=mujoco_priority),
-        physics_material=_collision_material(friction, stiff_contact),
+        physics_material=_collision_material(friction),
     )
     spawn.func = _spawn_hidden_collision_mesh
     return AssetBaseCfg(prim_path=prim_path, spawn=spawn)
@@ -431,7 +461,6 @@ def _hidden_collision_cuboid(
     spec: CuboidSpec,
     friction: float,
     mujoco_priority: int,
-    stiff_contact: bool = False,
 ) -> AssetBaseCfg:
     """Build a hidden native cuboid collider."""
     return AssetBaseCfg(
@@ -441,7 +470,7 @@ def _hidden_collision_cuboid(
             size=spec.size,
             visible=False,
             collision_props=_collision_properties(mujoco_priority=mujoco_priority),
-            physics_material=_collision_material(friction, stiff_contact),
+            physics_material=_collision_material(friction),
         ),
     )
 
@@ -451,7 +480,6 @@ def _hidden_collision_geometry(
     spec: MeshSpec | CuboidSpec,
     friction: float,
     mujoco_priority: int,
-    stiff_contact: bool = False,
 ) -> AssetBaseCfg:
     """Build hidden collision geometry while preferring native primitives where possible."""
     if isinstance(spec, CuboidSpec):
@@ -460,14 +488,12 @@ def _hidden_collision_geometry(
             spec=spec,
             friction=friction,
             mujoco_priority=mujoco_priority,
-            stiff_contact=stiff_contact,
         )
     return _hidden_collision_mesh(
         prim_path=prim_path,
         spec=spec,
         friction=friction,
         mujoco_priority=mujoco_priority,
-        stiff_contact=stiff_contact,
     )
 
 
@@ -490,10 +516,6 @@ def _cube(
         static_friction=0.8,
         dynamic_friction=0.6,
         restitution=0.0,
-        torsional_friction=0.002,
-        rolling_friction=0.0001,
-        contact_stiffness=_MANIPULATION_CONTACT_STIFFNESS,
-        contact_damping=_MANIPULATION_CONTACT_DAMPING,
     )
     spawn.func = _spawn_shape_with_display_color
     return RigidObjectCfg(
@@ -537,17 +559,10 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
         color=(0.18, 0.20, 0.23),
     )
 
-    cube_0 = _cube("Cube0", CUBE_COLORS[0], (0.30, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
-    cube_1 = _cube("Cube1", CUBE_COLORS[1], (0.78, BELT_CENTER_Y - BELT_TURN_RADIUS, 0.06))
-    cube_2 = _cube("Cube2", CUBE_COLORS[2], (0.30, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
-    cube_3 = _cube("Cube3", CUBE_COLORS[3], (0.78, -BELT_CENTER_Y + BELT_TURN_RADIUS, 0.06))
-
-    cube_contacts = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Cube.*",
-        update_period=0.0,
-        history_length=1,
-        debug_vis=False,
-    )
+    cube_0 = _cube("Cube0", CUBE_COLORS[0], (CUBE_INNER_SLOT_X, BELT_INNER_STRAIGHT_Y, 0.06))
+    cube_1 = _cube("Cube1", CUBE_COLORS[1], (CUBE_OUTER_SLOT_X, BELT_OUTER_STRAIGHT_Y, 0.06))
+    cube_2 = _cube("Cube2", CUBE_COLORS[2], (CUBE_INNER_SLOT_X, -BELT_INNER_STRAIGHT_Y, 0.06))
+    cube_3 = _cube("Cube3", CUBE_COLORS[3], (CUBE_OUTER_SLOT_X, -BELT_OUTER_STRAIGHT_Y, 0.06))
 
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -576,8 +591,7 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
             )
 
             section_keys = ("top_straight", "bottom_straight", "right_turn", "left_turn")
-            for section_key, section in zip(section_keys, belt_collision_section_specs(side), strict=True):
-                spec = section.geometry
+            for section_key, spec in zip(section_keys, belt_collision_geometry_specs(side), strict=True):
                 setattr(
                     self,
                     f"conveyor_{side.lower()}_{section_key}_collision",
@@ -589,8 +603,6 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                         friction=1.1e-5,
                         # Override cube friction only for collision-section/cube pairs.
                         mujoco_priority=1,
-                        # Match the locally stable Franka Stack support surface.
-                        stiff_contact=True,
                     ),
                 )
 
@@ -646,14 +658,16 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
-                njmax=2000,
-                nconmax=1000,
-                impratio=0.1,
+                # Per-environment capacities include headroom for all four cubes,
+                # the gripper, table, belts, and guard contacts without allocating
+                # the previous 256k-contact scene-wide driver buffers.
+                njmax=300,
+                nconmax=200,
+                impratio=1.0,
                 cone="elliptic",
                 update_data_interval=1,
                 iterations=100,
                 ls_iterations=50,
-                ls_parallel=False,
                 use_mujoco_contacts=False,
                 ccd_iterations=35,
             ),
@@ -663,37 +677,42 @@ class ConveyorFrankaEnvCfg(ManagerBasedRLEnvCfg):
             collision_decimation=0,
             default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=_CONTACT_GAP, ke=2.5e3, kd=100.0),
             num_substeps=1,
-            use_cuda_graph=False,
-            load_visual_shapes=True,
+            use_cuda_graph=True,
+            # Import render-only geometry only when a visualizer or camera needs it.
+            load_visual_shapes=None,
         ),
+        use_newton_actuators=True,
     )
 
     def __post_init__(self) -> None:
-        self.seed = 42
-        # Frame the complete robot and both conveyor lanes in the Newton viewer.
-        try:
-            import isaaclab_visualizers  # noqa: F401
-        except ModuleNotFoundError as exc:
-            if exc.name != "isaaclab_visualizers":
-                raise
-            return
-        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-        # Explicit --viz newton_rtx replaces this backend while retaining the shared camera hints.
+        # Any visualizer selected at runtime receives these shared camera hints.
         # Newton camera pose: position (2.13, 0.0, 1.0), pitch -23.9 degrees,
         # yaw 180 degrees. The look-at point is one unit along that view ray.
-        self.sim.default_visualizer_cfg = NewtonGLVisualizerCfg(
+        self.sim.default_visualizer_cfg = VisualizerCfg(
             eye=(2.13, 0.0, 1.0),
             lookat=(1.2157460448, 0.0, 0.5948584132),
-            streaming_view=False,
+            max_visible_envs=1,
+            randomly_sample_visible_envs=False,
         )
 
+    def validate_config(self) -> None:
+        """Validate the final task configuration after command-line overrides are applied."""
+        _validate_common_config(self)
+        physics = self.sim.physics
+        if not isinstance(physics, NewtonCfg) or not isinstance(physics.solver_cfg, MJWarpSolverCfg):
+            raise ValueError("The conveyor force driver requires the Newton MJWarp backend.")
+        if physics.solver_cfg.use_mujoco_contacts:
+            raise ValueError("The conveyor force driver requires the Newton collision-pipeline contact path.")
+        if physics.collision_cfg is None:
+            raise ValueError("The conveyor force driver requires an explicit Newton collision pipeline.")
+
     def play_mode(self) -> None:
-        """Run continuing transfers from randomized moving-belt starts."""
+        """Run continuing transfers from evenly distributed moving-belt starts."""
         super().play_mode()
         self.scene.num_envs = min(self.scene.num_envs, 8)
         self.events.reset_from_state_table.params["fixed_recipe"] = int(mdp.ConveyorResetRecipe.BELT)
         self.events.reset_from_state_table.params["fixed_variant_id"] = mdp.BELT_DEPLOYMENT_VARIANT
+        self.events.reset_from_state_table.params["cube_position_noise"] = 0.0
         # Successful placements already transition to a new commanded cube.
         # Playback removes training-only refreshes and runs until physics leaves
         # the recoverable workspace.
