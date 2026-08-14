@@ -1178,9 +1178,9 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
     old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
     actuator_state_inputs = [
-        batch.implicit_inputs if batch.implicit_inputs is not None else batch.gather_inputs
+        batch.implicit_inputs
         for batch in articulation.actuators._execution_batches
-        if batch.implicit_inputs is not None or batch.gather_inputs is not None
+        if batch.implicit_inputs is not None
     ]
     assert actuator_state_inputs
     data.joint_pos_limits.torch.clone()

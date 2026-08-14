@@ -196,23 +196,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             if type(actuator) is ImplicitActuator:
                 self._compute_implicit_batch(batch)
                 continue
-            if batch.control_action is not None:
-                self._gather_explicit_batch(batch)
-                control_action = batch.control_action
-                command_pos = control_action.joint_positions
-                command_vel = control_action.joint_velocities
-                command_effort = control_action.joint_efforts
-                control_action = actuator.compute(
-                    control_action,
-                    joint_pos=batch.joint_pos,
-                    joint_vel=batch.joint_vel,
-                )
-                self._scatter_actuator_output(actuator, control_action, batch.joint_indices_wp)
-                control_action.joint_positions = command_pos
-                control_action.joint_velocities = command_vel
-                control_action.joint_efforts = command_effort
-                continue
-            joint_indices = actuator.joint_indices if len(batch.group_names) == 1 else batch.joint_indices
+            joint_indices = actuator.joint_indices
             control_action = ArticulationActions(
                 joint_positions=self.command.position.torch[:, joint_indices],
                 joint_velocities=self.command.velocity.torch[:, joint_indices],
@@ -558,38 +542,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 self._applied_effort,
                 self._soft_joint_vel_limits,
             ]
-        elif type(executor) in (IdealPDActuator, DCMotor):
-            if len(groups) == 1 and groups[0].joint_indices == slice(None):
-                return batch
-            shape = (self.num_instances, joint_indices.shape[0])
-            command_pos = torch.empty(shape, dtype=torch.float32, device=self.device)
-            command_vel = torch.empty_like(command_pos)
-            command_effort = torch.empty_like(command_pos)
-            joint_pos = torch.empty_like(command_pos)
-            joint_vel = torch.empty_like(command_pos)
-            batch.control_action = ArticulationActions(
-                joint_positions=command_pos,
-                joint_velocities=command_vel,
-                joint_efforts=command_effort,
-                joint_indices=joint_indices,
-            )
-            batch.joint_pos = joint_pos
-            batch.joint_vel = joint_vel
-            batch.gather_inputs = [
-                self._joint_pos_target,
-                self._joint_vel_target,
-                self._joint_effort_target,
-                self._control.joint_pos.warp,
-                self._control.joint_vel.warp,
-                batch.joint_indices_wp,
-            ]
-            batch.gather_outputs = [
-                wp.from_torch(command_pos, dtype=wp.float32),
-                wp.from_torch(command_vel, dtype=wp.float32),
-                wp.from_torch(command_effort, dtype=wp.float32),
-                wp.from_torch(joint_pos, dtype=wp.float32),
-                wp.from_torch(joint_vel, dtype=wp.float32),
-            ]
         return batch
 
     def _build_execution_batches(self) -> None:
@@ -659,32 +611,21 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         )
 
     def _rebind_state_inputs(self) -> None:
-        """Rebind execution batches after backend state storage is replaced."""
-        for batch in self._execution_batches:
-            if batch.implicit_inputs is not None:
-                batch.implicit_inputs[3] = self._control.joint_pos.warp
-                batch.implicit_inputs[4] = self._control.joint_vel.warp
-                batch.implicit_inputs[5] = self._control.joint_stiffness.warp
-                batch.implicit_inputs[6] = self._control.joint_damping.warp
-                batch.implicit_inputs[7] = self._control.joint_effort_limits.warp
-                self._launch_cache.clear(("implicit", id(batch)))
-                continue
-            if batch.gather_inputs is not None:
-                batch.gather_inputs[3] = self._control.joint_pos.warp
-                batch.gather_inputs[4] = self._control.joint_vel.warp
-                self._launch_cache.clear(("gather", id(batch)))
+        """Rebind implicit execution batches after backend state storage is replaced.
 
-    def _gather_explicit_batch(self, batch: _ExecutionBatch) -> None:
-        """Gather articulation commands and state for one explicit actuator batch."""
-        if batch.gather_inputs is None or batch.gather_outputs is None:
-            raise RuntimeError("Explicit actuator execution batch was not initialized.")
-        self._launch_cache.launch(
-            ("gather", id(batch)),
-            actuator_kernels.gather_actuator_batch,
-            dim=(self.num_instances, batch.joint_indices_wp.shape[0]),
-            inputs=batch.gather_inputs,
-            outputs=batch.gather_outputs,
-        )
+        Per-group explicit execution reads backend state through the control
+        object on every :meth:`compute` call, so only the cached implicit
+        launches hold state references that need rebinding.
+        """
+        for batch in self._execution_batches:
+            if batch.implicit_inputs is None:
+                continue
+            batch.implicit_inputs[3] = self._control.joint_pos.warp
+            batch.implicit_inputs[4] = self._control.joint_vel.warp
+            batch.implicit_inputs[5] = self._control.joint_stiffness.warp
+            batch.implicit_inputs[6] = self._control.joint_damping.warp
+            batch.implicit_inputs[7] = self._control.joint_effort_limits.warp
+            self._launch_cache.clear(("implicit", id(batch)))
 
     def _scatter_actuator_output(
         self,
@@ -780,11 +721,6 @@ class _ExecutionBatch:
     joint_indices_wp: wp.array(dtype=wp.int32)
     implicit_inputs: list[wp.array(dtype=wp.float32) | wp.array(dtype=wp.int32)] | None = None
     implicit_outputs: list[wp.array(dtype=wp.float32)] | None = None
-    control_action: ArticulationActions | None = None
-    joint_pos: torch.Tensor | None = None
-    joint_vel: torch.Tensor | None = None
-    gather_inputs: list[wp.array(dtype=wp.float32) | wp.array(dtype=wp.int32)] | None = None
-    gather_outputs: list[wp.array(dtype=wp.float32)] | None = None
 
 
 class ActuatorCommand:

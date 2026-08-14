@@ -1006,44 +1006,24 @@ def test_actuator_batch_rebinds_cuda_state_provider_on_request(
     )
 
 
-def test_stateless_explicit_batch_preserves_tensor_pointers():
+def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
-        {
-            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=8.0, damping=0.5, effort_limit=12.0),
-            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=13.0, damping=1.0, effort_limit=18.0),
-        },
+        {"hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=10.0, damping=0.0, effort_limit=1000.0)},
         control,
     )
-    _assign_deterministic_inputs(collection, control)
-    batch = collection._execution_batches[0]
-
-    collection.compute()
-    pointers = (
-        batch.actuator.computed_effort.data_ptr(),
-        batch.actuator.applied_effort.data_ptr(),
-        batch.control_action.joint_positions.data_ptr(),
-        batch.control_action.joint_velocities.data_ptr(),
-        batch.control_action.joint_efforts.data_ptr(),
-        batch.joint_pos.data_ptr(),
-        batch.joint_vel.data_ptr(),
-    )
-    collection.command.position.torch.mul_(-1.25)
-    collection.command.velocity.torch.add_(2.75)
-    collection.command.effort.torch.sub_(4.5)
-    control.joint_pos.torch.add_(0.125)
-    control.joint_vel.torch.sub_(0.25)
+    collection.command.position.torch[:, [0, 2]] = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
 
     collection.compute()
 
-    assert pointers == (
-        batch.actuator.computed_effort.data_ptr(),
-        batch.actuator.applied_effort.data_ptr(),
-        batch.control_action.joint_positions.data_ptr(),
-        batch.control_action.joint_velocities.data_ptr(),
-        batch.control_action.joint_efforts.data_ptr(),
-        batch.joint_pos.data_ptr(),
-        batch.joint_vel.data_ptr(),
+    expected_first = torch.tensor([[10.0, 20.0], [30.0, 40.0]])
+    torch.testing.assert_close(collection.computed_effort.torch[:, [0, 2]].cpu(), expected_first, rtol=0.0, atol=0.0)
+
+    collection.command.position.torch.mul_(2.0)
+    collection.compute()
+
+    torch.testing.assert_close(
+        collection.computed_effort.torch[:, [0, 2]].cpu(), expected_first * 2.0, rtol=0.0, atol=0.0
     )
 
 
