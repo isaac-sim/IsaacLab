@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from .actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_limit_values
+from isaaclab.utils.string import _resolve_matching_values_dense
+
+from .actuator_base_cfg import _is_implicit_actuator_cfg
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -75,7 +77,9 @@ def _resolve_limit_aliases(
         canonical_value = getattr(cfg, canonical_name)
         if canonical_value is None:
             setattr(cfg, canonical_name, alias_value)
-        elif _resolve_limit_values(canonical_value, joint_names) != _resolve_limit_values(alias_value, joint_names):
+        elif _resolve_matching_values_dense(canonical_value, joint_names) != _resolve_matching_values_dense(
+            alias_value, joint_names
+        ):
             raise ValueError(
                 f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
                 f"deprecated '{alias_name}' values."

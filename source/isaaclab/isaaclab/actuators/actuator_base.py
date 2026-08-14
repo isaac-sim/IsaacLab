@@ -240,14 +240,9 @@ class ActuatorBase(ABC):
         param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
         # parse the parameter
         if cfg_value is not None:
-            if isinstance(cfg_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(cfg_value)
-            elif isinstance(cfg_value, dict):
-                # if dict, then parse the regular expression
-                indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                # note: need to specify type to be safe (e.g. values are ints, but we want floats)
-                param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
+            if isinstance(cfg_value, (float, int, dict)):
+                dense_values = string_utils._resolve_matching_values_dense(cfg_value, self.joint_names)
+                param[:] = torch.tensor(dense_values, dtype=torch.float, device=self._device)
             else:
                 raise TypeError(
                     f"Invalid type for parameter value: {type(cfg_value)} for "

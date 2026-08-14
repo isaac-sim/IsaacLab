@@ -406,12 +406,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         """Resolve one fresh group-shaped joint property from config and authored defaults."""
         if cfg_value is None:
             return default_value.clone()
-        if isinstance(cfg_value, (float, int)):
-            return torch.full_like(default_value, float(cfg_value))
-        if isinstance(cfg_value, dict):
+        if isinstance(cfg_value, (float, int, dict)):
+            dense_values = string_utils._resolve_matching_values_dense(cfg_value, joint_names)
             value = torch.zeros_like(default_value)
-            indices, _, parsed_values = string_utils.resolve_matching_names_values(cfg_value, joint_names)
-            value[:, indices] = torch.tensor(parsed_values, dtype=torch.float32, device=self.device)
+            value[:] = torch.tensor(dense_values, dtype=torch.float32, device=self.device)
             return value
         raise TypeError(
             f"Invalid type for parameter value: {type(cfg_value)} for actuator on joints {joint_names}. "

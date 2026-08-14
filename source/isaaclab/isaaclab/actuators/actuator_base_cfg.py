@@ -8,7 +8,6 @@ from __future__ import annotations
 from dataclasses import MISSING
 
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.string import resolve_matching_names_values
 
 
 def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
@@ -18,21 +17,6 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
     Lazily resolving string references participate through attribute forwarding.
     """
     return bool(getattr(cfg.class_type, "is_implicit_model", False))
-
-
-def _resolve_limit_values(value: dict[str, float | int] | float | int, joint_names: list[str]) -> tuple[float, ...]:
-    """Resolve a scalar or regex limit into group joint order.
-
-    Unmatched joints resolve to zero, matching how the actuator models resolve
-    partial regex dictionaries; invalid patterns raise :class:`ValueError`.
-    """
-    if isinstance(value, (float, int)):
-        return (float(value),) * len(joint_names)
-    joint_ids, _, values = resolve_matching_names_values(value, joint_names)
-    resolved_values = [0.0] * len(joint_names)
-    for joint_id, resolved_value in zip(joint_ids, values, strict=True):
-        resolved_values[joint_id] = float(resolved_value)
-    return tuple(resolved_values)
 
 
 @configclass
