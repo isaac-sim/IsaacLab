@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-from .adapter import NewtonActuatorAdapter, build_implicit_dof_mask, read_newton_actuator_parameter
+from .adapter import (
+    NewtonActuatorAdapter,
+    build_implicit_dof_mask,
+    read_newton_actuator_parameter,
+    write_newton_actuator_parameter,
+)
 from .physx_wrapper import PhysxActuatorWrapper
 
 if TYPE_CHECKING:
@@ -145,40 +150,23 @@ class PhysxActuatorRuntime:
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        """Patch selected native controller gains in-place."""
+        """Patch selected native controller parameters in place."""
         if self.adapter is None:
             return
-        from . import kernels as actuator_kernels  # noqa: PLC0415
-
         articulation = self._articulation
-        env_id_pos = torch.full((articulation.num_instances,), -1, dtype=torch.int32, device=articulation.device)
-        env_id_pos[env_ids.to(articulation.device, dtype=torch.long)] = torch.arange(
-            env_ids.shape[0], dtype=torch.int32, device=articulation.device
+        write_newton_actuator_parameter(
+            self.adapter.actuators,
+            "controller",
+            attr,
+            values=values,
+            env_ids=env_ids,
+            joint_ids=joint_ids,
+            num_envs=articulation.num_instances,
+            num_joints=articulation.num_joints,
+            dof_offset=0,
+            env_stride=articulation.num_joints,
+            device=articulation.device,
         )
-        joint_id_pos = torch.full((articulation.num_joints,), -1, dtype=torch.int32, device=articulation.device)
-        joint_ids_local = joint_ids.to(articulation.device, dtype=torch.long)
-        joint_id_pos[joint_ids_local] = torch.arange(joint_ids.shape[0], dtype=torch.int32, device=articulation.device)
-        values_wp = wp.from_torch(values.to(articulation.device, dtype=torch.float32).contiguous(), dtype=wp.float32)
-        env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
-        joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
-        for actuator in self.adapter.actuators:
-            controller = actuator.controller
-            if not hasattr(controller, attr):
-                continue
-            wp.launch(
-                actuator_kernels.patch_actuator_param_kernel,
-                dim=actuator.indices.shape[0],
-                inputs=[
-                    actuator.indices,
-                    env_id_pos_wp,
-                    joint_id_pos_wp,
-                    values_wp,
-                    0,
-                    articulation.num_joints,
-                ],
-                outputs=[getattr(controller, attr)],
-                device=articulation.device,
-            )
 
     def _run_native_actuator_kernels(self, collection: ActuatorCollection, dt: float) -> None:
         from . import kernels as actuator_kernels  # noqa: PLC0415

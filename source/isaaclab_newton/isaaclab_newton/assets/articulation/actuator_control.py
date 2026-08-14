@@ -19,7 +19,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import build_implicit_dof_mask
 from isaaclab.actuators.newton import kernels as actuator_kernels
-from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter
+from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter, write_newton_actuator_parameter
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 
@@ -222,38 +222,24 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        # Native gain buffers are indexed per actuator, so update each controller's view.
         articulation = self._articulation
         adapter = articulation.newton_actuator_adapter
         if adapter is None:
             return
-
-        env_ids_wp = wp.from_torch(env_ids.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        env_mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(
-            actuator_kernels.set_mask_kernel,
-            dim=env_ids_wp.shape[0],
-            inputs=[env_mask, env_ids_wp],
+        joint_ordering = articulation.data.joint_ordering
+        write_newton_actuator_parameter(
+            adapter.actuators,
+            "controller",
+            attr,
+            values=values,
+            env_ids=env_ids,
+            joint_ids=joint_ids,
+            num_envs=self.num_instances,
+            num_joints=self.num_joints,
+            dof_offset=self._joint_dof_offset(),
+            env_stride=adapter.num_joints,
             device=self.device,
+            joint_user_to_backend_indices=(
+                joint_ordering.user_to_backend_indices if joint_ordering is not None else None
+            ),
         )
-
-        env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
-        joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
-        if articulation.data.has_joint_ordering:
-            joint_ids_backend = articulation._joint_user_to_backend_torch[joint_ids_backend]
-        joint_ids_backend = joint_ids_backend.unsqueeze(0)
-
-        for actuator in adapter.actuators:
-            ctrl = actuator.controller
-            if not hasattr(ctrl, attr):
-                continue
-            cur_wp = articulation._root_view.get_actuator_parameter(actuator, ctrl, attr)
-            cur_torch = wp.to_torch(cur_wp)
-            cur_torch[env_ids_long, joint_ids_backend] = values.to(cur_torch.device, dtype=cur_torch.dtype)
-            articulation._root_view.set_actuator_parameter(
-                actuator=actuator,
-                component=ctrl,
-                name=attr,
-                values=cur_wp,
-                mask=env_mask,
-            )

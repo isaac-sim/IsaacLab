@@ -618,7 +618,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
     Drives ``randomize_actuator_gains`` and verifies that kp/kd values reach
     the controllers of the articulation's Newton actuators through
-    ``ArticulationView.set_actuator_parameter``.
+    ``write_newton_actuator_parameter``; the assertions read the controllers
+    back independently via ``ArticulationView.get_actuator_parameter``.
 
     With ``operation="abs"`` and ``distribution="uniform"`` over a
     degenerate range ``(K, K)``, every randomized cell is set to exactly
@@ -1610,6 +1611,113 @@ def test_newton_actuator_parameter_read_rejects_bad_selectors() -> None:
     )
     with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
         read_newton_actuator_parameter([actuator], "gains", "kp", 1, 1, 0, 1, "cpu")
+
+
+def test_newton_actuator_parameter_write_follows_requested_public_joint_order() -> None:
+    """Patch an explicitly addressed component parameter through the public-order selection."""
+    from isaaclab.actuators.newton.adapter import write_newton_actuator_parameter
+
+    controller = types.SimpleNamespace(
+        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
+        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
+    )
+    clamping = types.SimpleNamespace(max_effort=wp.array((7.0, 8.0, 7.1, 8.1), dtype=wp.float32, device="cpu"))
+    actuator = types.SimpleNamespace(
+        controller=controller,
+        delay=None,
+        clamping=[clamping],
+        # env-major, env_stride=3, dof_offset=0: slots are (env0: dof0, dof2), (env1: dof0, dof2)
+        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
+    )
+    # public order via permutation (2, 0, 1): public joint 1 -> backend 0.
+    # Write public joint 1 (backend dof 0) on env 1 only.
+    write_newton_actuator_parameter(
+        [actuator],
+        "clamping",
+        "max_effort",
+        values=torch.tensor([[99.0]]),
+        env_ids=torch.tensor([1]),
+        joint_ids=torch.tensor([1]),
+        num_envs=2,
+        num_joints=3,
+        dof_offset=0,
+        env_stride=3,
+        device="cpu",
+        joint_user_to_backend_indices=(2, 0, 1),
+    )
+
+    # Slot layout: indices (0, 2, 3, 5) -> (env0/dof0, env0/dof2, env1/dof0, env1/dof2).
+    # env 1 + backend dof 0 is slot index 2; everything else untouched.
+    torch.testing.assert_close(wp.to_torch(clamping.max_effort), torch.tensor([7.0, 8.0, 99.0, 8.1]))
+    torch.testing.assert_close(wp.to_torch(controller.kp), torch.tensor([10.0, 30.0, 11.0, 31.0]))
+
+
+def test_newton_actuator_parameter_write_handles_stride_and_integer_dtypes() -> None:
+    """Decode floating-base strides and round-trip an int32 delay parameter (generic kernels)."""
+    from isaaclab.actuators.newton.adapter import (
+        read_newton_actuator_parameter,
+        write_newton_actuator_parameter,
+    )
+
+    # 2 envs, env_stride=5 (e.g. free root DOFs), articulation joints at dof_offset=1, num_joints=3.
+    delay = types.SimpleNamespace(delay_steps=wp.array((0, 1, 2, 3), dtype=wp.int32, device="cpu"))
+    actuator = types.SimpleNamespace(
+        controller=types.SimpleNamespace(),
+        delay=delay,
+        clamping=[],
+        # slots: (env0: local 0, local 2), (env1: local 0, local 2) with stride 5, offset 1
+        indices=wp.array((1, 3, 6, 8), dtype=wp.uint32, device="cpu"),
+    )
+
+    write_newton_actuator_parameter(
+        [actuator],
+        "delay",
+        "delay_steps",
+        values=torch.tensor([[50], [60]], dtype=torch.int64),
+        env_ids=torch.tensor([0, 1]),
+        joint_ids=torch.tensor([2]),
+        num_envs=2,
+        num_joints=3,
+        dof_offset=1,
+        env_stride=5,
+        device="cpu",
+    )
+
+    # Local joint 2 is slots 1 and 3; storage stays int32.
+    torch.testing.assert_close(wp.to_torch(delay.delay_steps), torch.tensor([0, 50, 2, 60], dtype=torch.int32))
+
+    steps, covered = read_newton_actuator_parameter([actuator], "delay", "delay_steps", 2, 3, 1, 5, "cpu")
+    assert steps.dtype == torch.int32
+    torch.testing.assert_close(steps, torch.tensor([[0, 0, 50], [2, 0, 60]], dtype=torch.int32))
+    torch.testing.assert_close(covered, torch.tensor([True, False, True]))
+
+
+def test_newton_actuator_parameter_write_rejects_unknown_attr() -> None:
+    """Raise on parameters the addressed component does not expose instead of silently no-oping."""
+    from isaaclab.actuators.newton.adapter import write_newton_actuator_parameter
+
+    controller = types.SimpleNamespace(kp=wp.array((1.0,), dtype=wp.float32, device="cpu"))
+    actuator = types.SimpleNamespace(
+        controller=controller,
+        delay=None,
+        clamping=[],
+        indices=wp.array((0,), dtype=wp.uint32, device="cpu"),
+    )
+
+    with pytest.raises(ValueError, match=r"No actuator exposes parameter \('controller', 'kq'\)"):
+        write_newton_actuator_parameter(
+            [actuator],
+            "controller",
+            "kq",
+            values=torch.tensor([[1.0]]),
+            env_ids=torch.tensor([0]),
+            joint_ids=torch.tensor([0]),
+            num_envs=1,
+            num_joints=1,
+            dof_offset=0,
+            env_stride=1,
+            device="cpu",
+        )
 
 
 if __name__ == "__main__":

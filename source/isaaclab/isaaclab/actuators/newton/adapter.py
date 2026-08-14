@@ -29,6 +29,7 @@ from newton.actuators import Actuator, Clamping, Delay
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
+    patch_actuator_param_kernel,
     scatter_gain_kernel,
     set_mask_kernel,
     zero_at_indices_kernel,
@@ -445,6 +446,90 @@ def read_newton_actuator_parameter(
         values_out = values_out.index_select(1, backend_column_indices)
         covered = covered.index_select(0, backend_column_indices)
     return values_out, covered
+
+
+def write_newton_actuator_parameter(
+    actuators: list[Actuator],
+    component: str,
+    attr: str,
+    values: torch.Tensor,
+    env_ids: torch.Tensor,
+    joint_ids: torch.Tensor,
+    num_envs: int,
+    num_joints: int,
+    dof_offset: int,
+    env_stride: int,
+    device: str,
+    joint_user_to_backend_indices: Sequence[int] | None = None,
+) -> None:
+    """Patch one Newton actuator parameter over an env/joint selection.
+
+    The counterpart of :func:`read_newton_actuator_parameter`: values and joint
+    indices are given in public joint order and scattered in place into the
+    explicitly addressed component array of every actuator that exposes it.
+
+    Args:
+        actuators: Newton actuators visible to the model.
+        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+        values: New values, shape ``(len(env_ids), len(joint_ids))``.
+        env_ids: Environment indices to update.
+        joint_ids: Public joint indices to update.
+        num_envs: Number of articulation environments.
+        num_joints: Articulation-local joint count.
+        dof_offset: Offset of this articulation's DOFs in the model buffer.
+        env_stride: Model DOFs per environment.
+        device: Torch and Warp device.
+        joint_user_to_backend_indices: Optional public-to-backend joint mapping.
+
+    Raises:
+        ValueError: If the joint mapping is not a complete permutation, the
+            component name is unknown, no actuator exposes the parameter, or
+            matching actuators store it with mixed dtypes.
+        TypeError: If a resolved parameter is not a ``wp.array``.
+    """
+    user_to_backend = _validated_user_to_backend(joint_user_to_backend_indices, num_joints)
+
+    joint_ids_backend = joint_ids.to(device, dtype=torch.long)
+    if user_to_backend is not None:
+        mapping = torch.tensor(user_to_backend, dtype=torch.long, device=device)
+        joint_ids_backend = mapping[joint_ids_backend]
+
+    env_id_pos = torch.full((num_envs,), -1, dtype=torch.int32, device=device)
+    env_id_pos[env_ids.to(device, dtype=torch.long)] = torch.arange(env_ids.shape[0], dtype=torch.int32, device=device)
+    joint_id_pos = torch.full((num_joints,), -1, dtype=torch.int32, device=device)
+    joint_id_pos[joint_ids_backend] = torch.arange(joint_ids.shape[0], dtype=torch.int32, device=device)
+
+    resolved = [(_resolve_actuator_parameter(actuator, component, attr), actuator) for actuator in actuators]
+    parameters = [(parameter, actuator) for parameter, actuator in resolved if parameter is not None]
+    if not parameters:
+        raise ValueError(f"No actuator exposes parameter ('{component}', '{attr}').")
+    dtypes = {parameter.dtype for parameter, _ in parameters}
+    if len(dtypes) > 1:
+        raise ValueError(f"Actuators expose ('{component}', '{attr}') with mixed dtypes; cannot write one value set.")
+    parameter_dtype = parameters[0][0].dtype
+    values_torch = values.to(device, dtype=wp.dtype_to_torch(parameter_dtype)).contiguous()
+    values_wp = wp.from_torch(values_torch, dtype=parameter_dtype)
+    env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
+    joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
+
+    for parameter, actuator in parameters:
+        wp.launch(
+            patch_actuator_param_kernel,
+            dim=actuator.indices.shape[0],
+            inputs=[
+                actuator.indices,
+                env_id_pos_wp,
+                joint_id_pos_wp,
+                values_wp,
+                dof_offset,
+                num_envs,
+                num_joints,
+                env_stride,
+            ],
+            outputs=[parameter],
+            device=device,
+        )
 
 
 # ---------------------------------------------------------------------------

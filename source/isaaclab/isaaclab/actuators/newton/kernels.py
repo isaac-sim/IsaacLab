@@ -15,10 +15,10 @@ from isaaclab.actuators import ActuatorBase, ImplicitActuator
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
 # per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`),
-# and a partial scatter for DR gain updates that overwrites only the cells
-# in a (env_ids × joint_ids) sub-grid of a Newton ``Actuator``'s controller
-# parameter array. Used on the PhysX backend (no Newton view available);
-# the Newton backend uses ``ArticulationView.set_actuator_parameter`` instead.
+# and a partial scatter that overwrites only the cells in a
+# (env_ids × joint_ids) sub-grid of a Newton ``Actuator``'s component
+# parameter array. Shared by every backend through
+# ``write_newton_actuator_parameter`` in :mod:`.adapter`.
 # ---------------------------------------------------------------------------
 
 
@@ -96,48 +96,45 @@ def patch_actuator_param_kernel(
     indices: wp.array(dtype=wp.uint32),
     env_id_pos: wp.array(dtype=wp.int32),
     joint_id_pos: wp.array(dtype=wp.int32),
-    values: wp.array2d(dtype=wp.float32),
+    values: wp.array2d(dtype=Any),
     dof_offset: int,
+    num_envs: int,
     num_joints: int,
-    dst: wp.array(dtype=wp.float32),
+    env_stride: int,
+    dst: wp.array(dtype=Any),
 ):
-    """Per-actuator scatter for partial DR gain updates.
+    """Per-actuator scatter for partial parameter updates.
 
     For each slot ``i`` in the actuator's flat env-major ``indices``, derive
-    the (env, local-joint) pair, look it up against the dense position
-    arrays, and — when both axes are in the DR sub-grid — overwrite
-    ``dst[i]`` (the controller parameter) with ``values[e_pos, j_pos]``.
-    Cells outside the sub-grid are left untouched.
-
-    Note:
-        This kernel is PhysX-only (the Newton backend patches gains via
-        :meth:`ArticulationView.set_actuator_parameter`). On PhysX every
-        joint's coordinate count equals its DOF count, so the per-env stride
-        used to build ``indices`` equals ``num_joints`` and the ``env`` /
-        ``joint`` split below is exact. Do not reuse this kernel on a layout
-        whose per-env DOF stride exceeds ``num_joints`` (e.g. a floating-base
-        Newton model) without threading the true stride, or the ``joint``
-        split will alias across envs — see :func:`scatter_gain_kernel`.
+    the (env, backend-local joint) pair, look it up against the dense
+    position arrays, and — when both axes are in the selected sub-grid —
+    overwrite ``dst[i]`` (the component parameter) with ``values[e_pos, j_pos]``.
+    Cells outside the sub-grid or outside this articulation's DOF range are
+    left untouched.
 
     Args:
-        indices: Actuator's flat indices into the (env-major) DOF layout.
-        env_id_pos: ``env_id_pos[env]`` gives the row in ``values`` for
-            envs being updated, ``-1`` otherwise. Length ``num_envs``.
-        joint_id_pos: ``joint_id_pos[joint]`` gives the column in
-            ``values`` for joints being updated, ``-1`` otherwise.
-            Length ``num_joints`` (articulation-local).
+        indices: Actuator's flat env-major global DOF indices.
+        env_id_pos: ``env_id_pos[env]`` gives the row in ``values`` for envs
+            being updated, ``-1`` otherwise. Length ``num_envs``.
+        joint_id_pos: ``joint_id_pos[joint]`` gives the column in ``values``
+            for backend-local joints being updated, ``-1`` otherwise.
+            Length ``num_joints``.
         values: New parameter values shaped ``(len(env_ids), len(joint_ids))``.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
+        dof_offset: Offset of this articulation's DOFs within each environment.
+        num_envs: Number of articulation environments.
         num_joints: Articulation-local joint count.
-        dst: Per-actuator controller parameter array (e.g. ``controller.kp``).
+        env_stride: Whole-model per-env DOF count (the stride used to build
+            ``indices``).
+        dst: Per-actuator component parameter array (e.g. ``controller.kp``).
     """
     i = wp.tid()
-    global_dof = int(indices[i]) - dof_offset
-    env = global_dof // num_joints
-    joint = global_dof % num_joints
+    global_dof = int(indices[i])
+    env = global_dof // env_stride
+    local_dof = global_dof - env * env_stride - dof_offset
+    if env >= num_envs or local_dof < 0 or local_dof >= num_joints:
+        return
     e_pos = env_id_pos[env]
-    j_pos = joint_id_pos[joint]
+    j_pos = joint_id_pos[local_dof]
     if e_pos >= 0 and j_pos >= 0:
         dst[i] = values[e_pos, j_pos]
 
