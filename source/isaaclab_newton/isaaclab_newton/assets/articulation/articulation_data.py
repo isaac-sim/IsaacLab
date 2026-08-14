@@ -1727,7 +1727,6 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_vel_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- update the soft joint position limits
         self._soft_joint_pos_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
@@ -2344,7 +2343,6 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
             self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
             body_mass = self._body_mass_user if self.has_body_ordering else self._sim_bind_body_mass
             body_inertia = self._body_inertia_user if self.has_body_ordering else self._sim_bind_body_inertia
             body_com_pos_b = self._body_com_pos_b_user if self.has_body_ordering else self._sim_bind_body_com_pos_b

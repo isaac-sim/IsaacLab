@@ -41,6 +41,11 @@ Removed
   accessors. Read the corresponding :class:`~isaaclab.assets.ArticulationData`
   joint property and use the articulation's ``write_joint_*_to_sim_index``
   writer instead.
+* **Breaking:** Removed ``ArticulationData.gear_ratio`` and its backing buffers.
+  The property was legacy :class:`~isaaclab.actuators.DCMotor` telemetry that
+  was no longer updated by any execution path and always read one. Gear ratios
+  are an actuator configuration input; read them from your actuator
+  configuration instead.
 
 Changed
 ^^^^^^^

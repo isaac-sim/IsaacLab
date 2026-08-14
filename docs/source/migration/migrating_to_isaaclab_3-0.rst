@@ -1212,10 +1212,11 @@ future release:
    when used. Your existing code will continue to work, but you should migrate to the new API to
    avoid issues in future releases.
 
-   :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits` and
-   :attr:`~isaaclab.assets.ArticulationData.gear_ratio` remain on
-   :class:`~isaaclab.assets.ArticulationData`; do not migrate either property to the actuator
-   collection.
+   :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits` remains on
+   :class:`~isaaclab.assets.ArticulationData`; do not migrate it to the actuator collection.
+   ``ArticulationData.gear_ratio`` was removed: it was legacy :class:`~isaaclab.actuators.DCMotor`
+   telemetry that was no longer updated and always read one. Gear ratios are an actuator
+   configuration input, not simulation output; read them from your actuator configuration.
 
 .. important::
 

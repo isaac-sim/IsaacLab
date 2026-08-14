@@ -82,14 +82,12 @@ class BaseArticulationData(ABC):
         self._computed_torque = actuators.computed_effort.warp
         self._applied_torque = actuators.applied_effort.warp
         self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
-        self._gear_ratio = actuators._gear_ratio
         self._joint_pos_target_ta = actuators.command.position
         self._joint_vel_target_ta = actuators.command.velocity
         self._joint_effort_target_ta = actuators.command.effort
         self._computed_torque_ta = actuators.computed_effort
         self._applied_torque_ta = actuators.applied_effort
         self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-        self._gear_ratio_ta = ProxyArray(self._gear_ratio)
 
     def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
         collection = self._actuator_collection
@@ -554,17 +552,6 @@ class BaseArticulationData(ABC):
         the solver velocity limits remain :attr:`joint_vel_limits`.
         """
         return self._soft_joint_vel_limits_ta
-
-    @property
-    @leapp_tensor_semantics(const=True)
-    def gear_ratio(self) -> ProxyArray:
-        """Legacy actuator gear-ratio compatibility view [dimensionless].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-
-        Values are initialized to one and are not updated by actuator execution.
-        """
-        return self._gear_ratio_ta
 
     ##
     # Fixed tendon properties.

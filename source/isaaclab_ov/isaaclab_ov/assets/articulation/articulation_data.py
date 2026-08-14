@@ -1740,7 +1740,6 @@ class ArticulationData(BaseArticulationData):
         # -- Soft limits / custom joint properties
         self._soft_joint_pos_limits = wp.zeros((N, D), dtype=wp.vec2f, device=dev)
         self._soft_joint_vel_limits = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        self._gear_ratio = wp.ones((N, D), dtype=wp.float32, device=dev)
 
         # -- Actuator telemetry buffers
         self._computed_torque = wp.zeros((N, D), dtype=wp.float32, device=dev)
@@ -2195,7 +2194,6 @@ class ArticulationData(BaseArticulationData):
         # Joint properties (custom)
         self._soft_joint_pos_limits_ta: ProxyArray | None = None
         self._soft_joint_vel_limits_ta: ProxyArray | None = None
-        self._gear_ratio_ta: ProxyArray | None = None
         # Fixed tendon properties
         self._fixed_tendon_stiffness_ta: ProxyArray | None = None
         self._fixed_tendon_damping_ta: ProxyArray | None = None

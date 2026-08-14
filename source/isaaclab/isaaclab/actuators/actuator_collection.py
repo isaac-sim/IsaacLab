@@ -231,7 +231,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._computed_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._applied_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=self.device)
-        self._gear_ratio = wp.ones(shape, dtype=wp.float32, device=self.device)
         self._all_joint_ids = wp.array(list(range(self.num_joints)), dtype=wp.int32, device=self.device)
 
         self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)

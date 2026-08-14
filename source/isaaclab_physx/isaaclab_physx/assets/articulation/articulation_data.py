@@ -1808,7 +1808,6 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_vel_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- Fixed tendon properties
         if self._num_fixed_tendons > 0:
             self._fixed_tendon_stiffness = wp.clone(self._root_view.get_fixed_tendon_stiffnesses(), device=self.device)
@@ -2040,7 +2039,6 @@ class ArticulationData(BaseArticulationData):
         # Joint properties (custom)
         self._soft_joint_pos_limits_ta: ProxyArray | None = None
         self._soft_joint_vel_limits_ta: ProxyArray | None = None
-        self._gear_ratio_ta: ProxyArray | None = None
         # Fixed tendon properties
         self._fixed_tendon_stiffness_ta: ProxyArray | None = None
         self._fixed_tendon_damping_ta: ProxyArray | None = None
