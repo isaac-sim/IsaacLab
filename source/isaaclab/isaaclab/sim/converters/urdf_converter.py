@@ -37,8 +37,8 @@ def _find_ros_package(urdf_path: str) -> dict[str, str] | None:
             continue
         try:
             name = ElementTree.parse(manifest).getroot().findtext("name")
-        except ElementTree.ParseError:
-            logger.warning(f"UrdfConverter: could not parse '{manifest}' to resolve 'package://' URLs.")
+        except (ElementTree.ParseError, OSError):
+            logger.warning(f"UrdfConverter: could not read '{manifest}' to resolve 'package://' URLs.")
             return None
         return {"name": name.strip(), "path": str(directory)} if name and name.strip() else None
     return None
