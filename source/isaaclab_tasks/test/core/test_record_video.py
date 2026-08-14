@@ -41,7 +41,7 @@ def setup_video_params():
     return num_envs, device, video_length
 
 
-@pytest.mark.parametrize("task_name", setup_environment(include_play=True, tier="core"))
+@pytest.mark.parametrize("task_name", setup_environment(tier="core"))
 def test_record_video(task_name, setup_video_params):
     """Run random actions agent with internal VideoRecorder capturing from the active visualizer."""
     num_envs, device, video_length = setup_video_params

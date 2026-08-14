@@ -46,7 +46,6 @@ def _task_tier(task_spec) -> str | None:
 
 
 def setup_environment(
-    include_play: bool = False,
     multi_agent: bool | None = None,
     physics_preset_name: str | None = None,
     tier: str | None = None,
@@ -55,7 +54,6 @@ def setup_environment(
     Acquire all registered Isaac environment task IDs with optional filters.
 
     Args:
-        include_play: If True, include environments ending in 'Play-v0'.
         multi_agent:
             - True: include only multi-agent environments
             - False: include only single-agent environments
@@ -77,10 +75,6 @@ def setup_environment(
     for task_spec in gym.registry.values():
         # only consider Isaac environments
         if "Isaac" not in task_spec.id:
-            continue
-
-        # filter Play environments, if needed
-        if not include_play and task_spec.id.endswith("Play-v0"):
             continue
 
         # apply core/contrib tier filter
