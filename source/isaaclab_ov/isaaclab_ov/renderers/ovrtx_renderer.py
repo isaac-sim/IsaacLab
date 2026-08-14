@@ -395,6 +395,14 @@ class OVRTXRenderer(BaseRenderer):
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
         )
+        # Isaac Lab still drives ovrtx's legacy stage API until the ovstage path is the default, so
+        # its deprecation warnings are noise no user of this renderer can act on. Set after
+        # construction because ``RendererConfig`` is a plain dataclass and wheels predating the
+        # option would reject it as an unexpected keyword argument.
+        # TODO: Remove this once the ovstage path is the default and the legacy stage API is removed.
+        if hasattr(OVRTX_CONFIG, "suppress_deprecation_warnings"):
+            OVRTX_CONFIG.suppress_deprecation_warnings = True
+
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
             raise RuntimeError(
