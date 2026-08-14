@@ -83,7 +83,10 @@ Tune contacts and stability
 Validate colliders, material properties, and reset overlap before changing
 scene-wide contact settings. Then use the same fixed reproduction to tune:
 
-* ``enable_ccd`` for fast-moving bodies that tunnel through thin geometry.
+* ``enable_ccd`` for fast-moving bodies that tunnel through thin geometry when
+  using CPU dynamics. CCD is not supported with GPU dynamics; Isaac Lab forces
+  it off and emits a warning if ``enable_ccd=True`` is requested on a GPU
+  simulation.
 * ``enable_stabilization`` only for low-rate simulations where ``dt`` is larger
   than about ``1 / 30`` seconds; this extra pass can make reported
   contact-sensor force magnitudes inaccurate, so keep it disabled when those
@@ -101,13 +104,13 @@ slip, bounce, contact counts, task success, and runtime after every adjustment.
 Size GPU buffers
 ----------------
 
-PhysX GPU scene buffers do not grow dynamically. When a scene exceeds a
-capacity, PhysX can drop contacts or fail with a ``[PhysX]`` warning. Treat
-those warnings as hard failures for the reproduction and increase only the
-capacity that overflowed.
+Most PhysX GPU scene-buffer capacities are fixed and do not grow dynamically.
+When a scene exceeds one of these capacities, PhysX can drop contacts or fail
+with a ``[PhysX]`` warning. Treat those warnings as hard failures for the
+reproduction and increase only the capacity that overflowed.
 
-The most common capacities to raise for large vectorized or contact-rich scenes
-are:
+The most common fixed capacities to raise for large vectorized or contact-rich
+scenes are:
 
 * ``gpu_max_rigid_contact_count``
 * ``gpu_max_rigid_patch_count``
@@ -115,7 +118,11 @@ are:
 * ``gpu_found_lost_aggregate_pairs_capacity``
 * ``gpu_total_aggregate_pairs_capacity``
 * ``gpu_collision_stack_size``
-* ``gpu_heap_capacity``
+
+``gpu_heap_capacity`` is different: it sets the initial capacity of the GPU
+and pinned-host-memory heaps, and PhysX allocates additional memory when those
+heaps need to grow. Increase the initial heap capacity when measurements show
+that repeated growth is undesirable, not because it is a fixed upper bound.
 
 Measure the busiest reset and contact state, add task-specific headroom, and
 then verify that the same fixed reproduction remains stable. Buffer sizing

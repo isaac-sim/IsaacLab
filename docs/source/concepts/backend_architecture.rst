@@ -22,11 +22,12 @@ Factory dispatch
 ----------------
 
 All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`.
-They locate backend implementations through convention rather than a central
-registration table:
+They locate supported backend implementations through a core backend-key
+selector followed by package and module-path conventions:
 
-1. The active physics backend comes from
-   ``SimulationContext.physics_manager``.
+1. The name of ``SimulationContext.physics_manager`` is mapped to one of the
+   backend keys recognized by ``FactoryBase._get_backend()``. Adding another
+   physics backend requires extending this core selector.
 2. The factory module path determines the backend module path. For example,
    ``isaaclab.assets.articulation`` maps to
    ``isaaclab_physx.assets.articulation``,
@@ -86,8 +87,14 @@ Assets and sensors use the same layering as the factories:
 
 Data classes use the same pattern, for example
 ``ArticulationData(FactoryBase, BaseArticulationData)``. Implementations expose
-Warp ``wp.array`` values for asset and sensor data, allowing portable code to
-interoperate with PyTorch through ``wp.to_torch()`` when needed.
+:class:`~isaaclab.utils.warp.ProxyArray` values through public asset and sensor
+data properties. Each proxy wraps the underlying ``wp.array`` and provides
+explicit ``.warp`` access to that array and cached, zero-copy ``.torch`` access
+to a :class:`torch.Tensor` view. Use those accessors when an API specifically
+requires one representation. Passing a ``ProxyArray`` to ``wp.to_torch()`` is
+supported only by a deprecated compatibility shim; new code should use
+``proxy_array.torch``. Backend-native and internal storage may still use raw
+Warp arrays.
 
 Portable renderer and scene-data interfaces
 -------------------------------------------
@@ -127,13 +134,14 @@ Design principles
 
 - **Lazy loading:** Backend modules are imported only when first instantiated,
   keeping startup fast and avoiding dependencies on unused backends.
-- **Convention over configuration:** Backend module paths mirror the
-  ``isaaclab.X.Y`` structure. OvPhysX maps to ``isaaclab_ov.X.Y``; other
-  backends use ``isaaclab_<backend>.X.Y`` packages, so no manual registration
-  is required.
+- **Recognized keys plus convention:** Once the core selector recognizes a
+  backend key, module paths mirror the ``isaaclab.X.Y`` structure. OvPhysX
+  maps to ``isaaclab_ov.X.Y``; other recognized backends use
+  ``isaaclab_<backend>.X.Y`` by default.
 - **Independent selection:** Physics backend, renderer, and visualizer are
   selected independently.
-- **Warp-native data types:** Backend implementations return ``wp.array`` for
-  asset and sensor data.
+- **Explicit data interop:** Public asset and sensor data properties return
+  :class:`~isaaclab.utils.warp.ProxyArray`; its ``.warp`` and ``.torch``
+  accessors expose the required array representation without copying.
 - **Zero runtime overhead:** Selection occurs at instantiation time; it does
   not add dispatch logic to the simulation hot path.
