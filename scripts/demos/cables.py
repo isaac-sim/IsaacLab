@@ -42,7 +42,6 @@ if args_cli.num_segments < 2:
     parser.error("--num_segments must be at least 2.")
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import CableObject, CableObjectCfg
 from isaaclab.physics import PhysicsCfg
 
 if TYPE_CHECKING:
