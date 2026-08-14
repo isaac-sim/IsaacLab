@@ -16,5 +16,6 @@ and defaults remain in the generated API reference.
 .. toctree::
    :maxdepth: 1
 
+   tune_physx
    tune_mjwarp
    tune_kamino
