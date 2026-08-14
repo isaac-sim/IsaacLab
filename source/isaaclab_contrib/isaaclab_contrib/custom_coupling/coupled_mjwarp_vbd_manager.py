@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
-
-from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg

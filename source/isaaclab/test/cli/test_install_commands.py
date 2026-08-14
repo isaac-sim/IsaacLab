@@ -22,6 +22,7 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_prebundle,
@@ -70,6 +71,29 @@ def _make_site_packages(
         for sub in subs:
             (site_pkgs / pkg / sub).mkdir(parents=True, exist_ok=True)
     return site_pkgs
+
+
+def test_kernel_only_install_adds_extras_at_installed_version():
+    with (
+        mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+        mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
+        mock.patch(
+            "isaaclab.cli.commands.install.run_command",
+            side_effect=[_cp(0, "1.2.3+local"), _cp(1), _cp(0)],
+        ) as mock_run,
+    ):
+        _install_isaacsim()
+
+    assert mock_run.call_args.args[0] == [
+        "uv",
+        "pip",
+        "install",
+        "isaacsim[all,extscache]==1.2.3+local",
+        "--extra-index-url",
+        install_cmd.NVIDIA_INDEX_URL,
+        "--index-strategy",
+        "unsafe-best-match",
+    ]
 
 
 # ---------------------------------------------------------------------------

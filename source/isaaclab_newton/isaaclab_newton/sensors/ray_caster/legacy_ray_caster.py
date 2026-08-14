@@ -16,7 +16,6 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
 from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
@@ -47,32 +46,11 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
 
     def _resolve_target_owner_exprs(self, prim_expr: str) -> list[str]:
         """Resolve mesh target expressions to owning rigid-body expressions."""
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = cloner.query.path_to_source(plan, prim_expr) if plan is not None else None
-        if resolved is not None:
-            source_path, dest_glob, asset_suffix = resolved
-            walk_root = source_path + asset_suffix
-            source_prims = sim_utils.find_matching_prims(walk_root)
-            if not source_prims:
-                raise RuntimeError(f"No ClonePlan source prims matched '{walk_root}'.")
-            owner_exprs: list[str] = []
-            for source_prim in source_prims:
-                body = sim_utils.get_first_matching_ancestor_prim(source_prim.GetPath(), predicate=_has_rigid_body_api)
-                if body is None:
-                    raise RuntimeError(
-                        f"Cannot track non-physics ray-cast target '{prim_expr}' with Newton. "
-                        "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI "
-                        "to dynamic targets."
-                    )
-                owner_prim_path = str(body.GetPath())
-                owner_exprs.append(dest_glob + owner_prim_path[len(source_path) :])
-            return list(dict.fromkeys(owner_exprs))
-
-        prims = sim_utils.find_matching_prims(prim_expr)
-        if not prims:
+        matches = sim_utils.resolve_matching_prims_from_source(prim_expr, raise_if_no_matches=False)
+        if not matches:
             return [_newton_body_pattern(prim_expr)]
         owner_exprs = []
-        for prim in prims:
+        for prim, dest_expr in matches:
             body = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), predicate=_has_rigid_body_api)
             if body is None:
                 raise RuntimeError(
@@ -80,7 +58,9 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
                     "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI "
                     "to dynamic targets."
                 )
-            owner_exprs.append(_newton_body_pattern(str(body.GetPath())))
+            prim_path = prim.GetPath().pathString
+            owner_suffix = prim_path[len(body.GetPath().pathString) :]
+            owner_exprs.append(_newton_body_pattern(dest_expr.removesuffix(owner_suffix)))
         return list(dict.fromkeys(owner_exprs))
 
     def _register_target_sites_for_exprs(self, owner_exprs: list[str]) -> list[str]:

@@ -30,9 +30,9 @@ import torch
 
 import isaaclab.sim as sim_utils
 
-from .cloner_cfg import InclusionSet
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE, InclusionSet
 from .cloner_strategies import sequential
-from .path import split
+from .path import match
 
 
 @dataclass(frozen=True, eq=False)
@@ -224,6 +224,7 @@ def make_clone_plan(
     *,
     clone_strategy: Callable = sequential,
     valid_set: torch.Tensor | None = None,
+    env_template: str = DEFAULT_ENV_TEMPLATE,
 ) -> ClonePlan:
     """Build a :class:`ClonePlan` from asset cfgs.
 
@@ -266,22 +267,18 @@ def make_clone_plan(
                 raise ValueError("Single spawner expects exactly one planned source path.")
             spawn_cfg.spawn_path = active[0]
 
-    env_root_marker = "/World/envs/"
-    env_template = "/World/envs/env_{}"
-
     # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
     groups: list[tuple[Any, Any, str, int]] = []
     for cfg in cfgs:
         if not hasattr(cfg, "prim_path") or not hasattr(cfg, "spawn") or cfg.spawn is None:
             continue
         prim_path = cfg.prim_path
-        if env_root_marker not in prim_path:
+        if (matched := match(prim_path, env_template)) is None:
             continue
         count = num_spawn_variants(cfg.spawn)
         if count <= 0:
             raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
-        destination = prim_path.replace(".*", "{}")
-        groups.append((cfg, cfg.spawn, destination, count))
+        groups.append((cfg, cfg.spawn, env_template + matched.suffix, count))
 
     env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
     positions, _ = grid_transforms(num_clones, env_spacing, device=device)
@@ -408,9 +405,8 @@ def clone_plan_from_env_0(
     """
     from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
 
-    prefix, _ = split(destination)
     cfg_rows: dict[int, tuple[int, ...]] = {
-        id(cfg): (0,) for cfg in REPLICATION_QUEUE if cfg.prim_path.startswith(prefix)
+        id(cfg): (0,) for cfg in REPLICATION_QUEUE if match(cfg.prim_path, destination) is not None
     }
     return ClonePlan(
         sources=(source,),

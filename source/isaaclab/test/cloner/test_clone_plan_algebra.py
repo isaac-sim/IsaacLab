@@ -50,6 +50,16 @@ def test_path_rebase():
         cloner.path.rebase("/World/envs/env_0/Robot/base", "/World/envs/env_0", "/World/envs/env_5")
         == "/World/envs/env_5/Robot/base"
     )
+
+
+def test_expand_env_regex_ns_preserves_regex_quantifiers():
+    """Macro expansion changes only the named macro, not braces owned by the regex."""
+    path_expr = r"{ENV_REGEX_NS}/Robot/link_[0-9]{2}"
+
+    assert cloner.expand_env_regex_ns(path_expr) == r"/World/envs/env_[^/]+/Robot/link_[0-9]{2}"
+    assert cloner.expand_env_regex_ns(path_expr, "/World/scenes/scene_{}") == (
+        r"/World/scenes/scene_[^/]+/Robot/link_[0-9]{2}"
+    )
     # boundary-safe: str.replace would corrupt this, rebase leaves it unchanged
     assert (
         cloner.path.rebase("/World/envs/env_0X/Robot", "/World/envs/env_0", "/World/envs/env_5")
@@ -101,7 +111,7 @@ def test_path_match_captures_the_clone_slot():
     """match keeps the instance the template's slot captured, which relativize discards."""
     tmpl = "/World/envs/env_{}/Robot"
     assert cloner.path.match("/World/envs/env_3/Robot/base", tmpl) == ("3", "/base")
-    assert cloner.path.match("/World/envs/env_.*/Robot", tmpl) == (".*", "")
+    assert cloner.path.match("/World/envs/env_[^/]+/Robot", tmpl) == ("[^/]+", "")
     assert cloner.path.match("/World/envs/env_3/RobotArm", tmpl) is None
 
 
@@ -230,13 +240,13 @@ def test_path_to_source_nested_templates_pick_most_specific():
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_0/Robot/ee_link/palm_link/Camera")
     assert resolved == (
         "/World/envs/env_0/Robot/ee_link/palm_link/Camera",
-        "/World/envs/env_*/Robot/ee_link/palm_link/Camera",
+        "/World/envs/env_[^/]+/Robot/ee_link/palm_link/Camera",
         "",
     )
 
     # A path that only the ancestor template owns still resolves against it with its suffix.
     resolved = cloner.query.path_to_source(plan, "/World/envs/env_0/Robot/base")
-    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_*/Robot", "/base")
+    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_[^/]+/Robot", "/base")
 
 
 def test_path_to_source_ambiguous_templates_raise():
@@ -263,12 +273,12 @@ def test_path_to_source_merges_same_template_rows():
     )
 
     # Without an env id, the first populated row represents the asset.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_.*/Object/Body/Camera")
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
+    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera")
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
     # With an env id, the variant that actually populates that env is reported.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_.*/Object/Body/Camera", env_id=3)
-    assert resolved == ("/World/envs/env_1/Object", "/World/envs/env_*/Object", "/Body/Camera")
+    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3)
+    assert resolved == ("/World/envs/env_1/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
 
 def test_path_to_source_partial_coverage_returns():
@@ -280,11 +290,11 @@ def test_path_to_source_partial_coverage_returns():
         [[True, False, True, False], [False, True, False, False]],
     )
 
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_.*/Object/Body/Camera")
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
+    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera")
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
     # No row populates env 3, so resolving for that env reports nothing.
-    assert cloner.query.path_to_source(plan, "/World/envs/env_.*/Object/Body/Camera", env_id=3) is None
+    assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3) is None
 
 
 def test_path_to_source_inactive_rows_return_none():
@@ -295,7 +305,7 @@ def test_path_to_source_inactive_rows_return_none():
         [[False, False, False, False]],
     )
 
-    assert cloner.query.path_to_source(plan, "/World/envs/env_.*/Object/Body") is None
+    assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body") is None
 
 
 def test_iter_sources_yields_nearest_owner():
@@ -306,7 +316,7 @@ def test_iter_sources_yields_nearest_owner():
         [[True, True, False, False], [False, False, True, True]],
     )
 
-    matches = list(cloner.query.iter_sources(plan, "/World/envs/env_.*/Object/Body/Camera"))
+    matches = list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Object/Body/Camera"))
 
     assert matches == [
         (
@@ -332,7 +342,7 @@ def test_iter_sources_skips_rows_without_envs():
         [[False, False, True, True]],
     )
 
-    assert list(cloner.query.iter_sources(plan, "/World/envs/env_.*/Object/Body/Camera")) == [
+    assert list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Object/Body/Camera")) == [
         (
             "/World/envs/env_2/Object",
             "/World/envs/env_{}/Object",
@@ -346,7 +356,7 @@ def test_iter_sources_distinct_env_root():
     """The destination template need not sit under the default env root."""
     plan = PLANS["distinct_env_root"]
 
-    assert list(cloner.query.iter_sources(plan, "/World/scenes/.*/Robot/base")) == [
+    assert list(cloner.query.iter_sources(plan, "/World/scenes/[^/]+/Robot/base")) == [
         ("/World/source/Robot", "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 1))
     ]
 
@@ -361,7 +371,7 @@ def test_iter_sources_ranks_variants_independently_of_env_id_width():
     """
     plan = _wide_env_id_plan()
 
-    matches = list(cloner.query.iter_sources(plan, "/World/envs/env_.*/Object/Body"))
+    matches = list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Object/Body"))
 
     assert [match[0] for match in matches] == ["/World/envs/env_0/Object", "/World/envs/env_10/Object"]
     assert [match[3] for match in matches] == [tuple(range(10)), (10, 11)]
@@ -451,7 +461,7 @@ def test_query_resolve_distinguishes_concrete_paths_from_wildcards():
     assert source + suffix == "/World/envs/env_2/Object/base"
 
     # Wildcard: one-to-many, so it reports a representative variant...
-    wildcard = "/World/envs/env_.*/Object/base"
+    wildcard = "/World/envs/env_[^/]+/Object/base"
     source, _glob, suffix = cloner.query.path_to_source(plan, wildcard)
     assert source + suffix == "/World/envs/env_0/Object/base"
 
@@ -478,7 +488,7 @@ def test_query_translates_env_ids_through_the_plan():
     assert cloner.query.path_to_clone(plan, path, 5) == "/World/envs/env_5/Robot/base"
     # Column indices are not environments: env 1 is not targeted by this plan.
     assert cloner.query.path_to_clone(plan, path, 1) is None
-    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_.*/Robot")))[3] == (2, 5)
+    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot")))[3] == (2, 5)
 
     source, _glob, suffix = cloner.query.path_to_source(plan, "/World/envs/env_5/Robot/base")
     assert source + suffix == path
@@ -489,7 +499,7 @@ def test_query_rejects_env_ids_outside_the_plan(env_id):
     """Out-of-range and negative ids resolve to nothing instead of wrapping the mask."""
     plan = _robot_plan()
     assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", env_id) is None
-    assert cloner.query.path_to_source(plan, "/World/envs/env_.*/Robot", env_id=env_id) is None
+    assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Robot", env_id=env_id) is None
 
 
 def test_query_agrees_across_duplicate_source_rows():

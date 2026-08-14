@@ -20,7 +20,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -31,8 +31,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-
-from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
 NEWTON_VBD_CFG = SimulationCfg(
     physics=NewtonCfg(
@@ -69,7 +67,7 @@ def generate_cubes_scene(
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
     cube_object_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cube",
+        prim_path="/World/env_[^/]+/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.1, 0.1, 0.1),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -109,7 +107,7 @@ def generate_cloth_scene(
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
     cloth_object_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cloth",
+        prim_path="/World/env_[^/]+/Cloth",
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             resolution=(3, 3),
@@ -130,7 +128,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
     sim_utils.create_prim("/World/env_0", "Xform", translation=(0.0, 0.0, 0.0))
 
     cuboid_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cuboid",
+        prim_path="/World/env_[^/]+/Cuboid",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.16, 0.08, 0.12),
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -144,7 +142,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
     cylinder_cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cylinder",
+        prim_path="/World/env_[^/]+/Cylinder",
         spawn=sim_utils.MeshCylinderCfg(
             radius=0.06,
             height=0.14,

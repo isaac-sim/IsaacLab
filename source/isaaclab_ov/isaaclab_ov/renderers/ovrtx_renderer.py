@@ -754,7 +754,9 @@ class OVRTXRenderer(BaseRenderer):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particle_counts.append(entry.particles_per_body)
 
-                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
+                vis_mesh_prim_paths.append(
+                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
+                )
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
@@ -1903,7 +1905,9 @@ class OVRTXRenderer(BaseRenderer):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particle_counts.append(entry.particles_per_body)
 
-                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
+                vis_mesh_prim_paths.append(
+                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
+                )
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
