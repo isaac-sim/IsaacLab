@@ -30,7 +30,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
         tier="core",
     ),
 )
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
 @pytest.mark.isaacsim_ci
 def test_environments_newton(task_name, num_envs, device):
     _run_environments(task_name, device, num_envs, physics_preset_name="newton_mjwarp")

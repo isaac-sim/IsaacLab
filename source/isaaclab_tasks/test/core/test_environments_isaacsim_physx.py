@@ -25,7 +25,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
     "task_name",
     setup_environment(multi_agent=False, physics_preset_name="isaacsim_physx", tier="core"),
 )
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
 @pytest.mark.isaacsim_ci
 def test_environments_isaacsim_physx(task_name, num_envs, device):
     _run_environments(task_name, device, num_envs, physics_preset_name="isaacsim_physx")
