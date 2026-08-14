@@ -21,8 +21,16 @@ if TYPE_CHECKING:
     from isaaclab.actuators import ActuatorCollection
 
 
-class _HostActuatorRuntime:
-    """Own Newton-native actuator lifecycle shared by host-PhysX backends."""
+class PhysxActuatorRuntime:
+    """Step Newton actuators on a PhysX-family backend.
+
+    PhysX does not host Newton actuators natively, so this runtime builds the
+    execution environment around them: it constructs the adapter from the
+    authored USD prims, binds a :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
+    that impersonates Newton's ``State``/``Control`` over pointer-stable PhysX
+    and command buffers, and steps the actuators each physics step, eagerly or
+    through captured CUDA graphs. Shared by the PhysX and OVPhysX backends.
+    """
 
     def __init__(self, articulation: Any, *, logger: logging.Logger):
         self._articulation = articulation

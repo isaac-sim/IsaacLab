@@ -16,7 +16,7 @@ import torch
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
-from isaaclab.actuators.newton.host_runtime import _HostActuatorRuntime
+from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 from isaaclab.sim.utils.queries import find_first_matching_prim
@@ -38,21 +38,21 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             articulation: PhysX articulation that owns backend simulation handles.
         """
         super().__init__(articulation)
-        self._host_actuator_runtime = None
+        self._actuator_runtime = None
 
     @property
     def _physx_actuator_wrapper(self):
         """Preserve the compatibility wrapper used by native actuator callers."""
-        return None if self._host_actuator_runtime is None else self._host_actuator_runtime.wrapper
+        return None if self._actuator_runtime is None else self._actuator_runtime.wrapper
 
     @property
     def _native_actuator_graphs(self):
         """Expose graph capture state used by native-actuator benchmarks."""
-        return None if self._host_actuator_runtime is None else self._host_actuator_runtime.native_actuator_graphs
+        return None if self._actuator_runtime is None else self._actuator_runtime.native_actuator_graphs
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation
-        self._host_actuator_runtime = None
+        self._actuator_runtime = None
         articulation._physx_actuator_wrapper = None
         articulation.newton_actuator_adapter = None
         articulation._implicit_dof_mask = None
@@ -75,24 +75,24 @@ class PhysxActuatorControl(ArticulationActuatorControl):
 
         first_prim = find_first_matching_prim(articulation.cfg.prim_path)
         art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
-        self._host_actuator_runtime = _HostActuatorRuntime(articulation, logger=logger)
-        self._host_actuator_runtime.prepare(
+        self._actuator_runtime = PhysxActuatorRuntime(articulation, logger=logger)
+        self._actuator_runtime.prepare(
             collection,
             stage=get_current_stage(),
             articulation_prim_path=art_prim_path,
         )
-        articulation._physx_actuator_wrapper = self._host_actuator_runtime.wrapper
-        articulation.newton_actuator_adapter = self._host_actuator_runtime.adapter
+        articulation._physx_actuator_wrapper = self._actuator_runtime.wrapper
+        articulation.newton_actuator_adapter = self._actuator_runtime.adapter
 
         return native_group_names
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
-        if not self._native_actuator_path_active or self._host_actuator_runtime is None:
+        if not self._native_actuator_path_active or self._actuator_runtime is None:
             return
-        self._host_actuator_runtime.finalize(collection)
+        self._actuator_runtime.finalize(collection)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
-        if not self._native_actuator_path_active or self._host_actuator_runtime is None:
+        if not self._native_actuator_path_active or self._actuator_runtime is None:
             return False
 
         articulation = self._articulation
@@ -101,7 +101,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             # stepping so the native controller observes this PhysX step's state.
             articulation._data._refresh_joint_pos()
             articulation._data._refresh_joint_vel()
-        self._host_actuator_runtime.compute(collection, dt)
+        self._actuator_runtime.compute(collection, dt)
         return True
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
@@ -149,8 +149,8 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             articulation.root_view.set_dof_velocity_targets(vel_target, articulation._ALL_INDICES)
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        if self._native_actuator_path_active and self._host_actuator_runtime is not None:
-            self._host_actuator_runtime.reset(env_ids)
+        if self._native_actuator_path_active and self._actuator_runtime is not None:
+            self._actuator_runtime.reset(env_ids)
 
     def get_native_actuator_gain(
         self,
@@ -158,9 +158,9 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         joint_ids: torch.Tensor | slice,
     ) -> torch.Tensor | None:
         """Return a complete native controller-gain projection in public joint order."""
-        if self._host_actuator_runtime is None:
+        if self._actuator_runtime is None:
             return None
-        return self._host_actuator_runtime.get_gain(attr, joint_ids)
+        return self._actuator_runtime.get_gain(attr, joint_ids)
 
     def write_native_actuator_gain(
         self,
@@ -169,5 +169,5 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        if self._host_actuator_runtime is not None:
-            self._host_actuator_runtime.write_gain(attr, values, env_ids, joint_ids)
+        if self._actuator_runtime is not None:
+            self._actuator_runtime.write_gain(attr, values, env_ids, joint_ids)

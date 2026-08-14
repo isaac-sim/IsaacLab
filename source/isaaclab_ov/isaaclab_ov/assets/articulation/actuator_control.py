@@ -16,7 +16,7 @@ import warp as wp
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
-from isaaclab.actuators.newton.host_runtime import _HostActuatorRuntime
+from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 from isaaclab.sim.utils.queries import find_first_matching_prim
@@ -32,12 +32,12 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def __init__(self, articulation):
         super().__init__(articulation)
-        self._host_actuator_runtime = None
+        self._actuator_runtime = None
 
     @property
     def _physx_actuator_wrapper(self):
         """Expose the shared host wrapper for PhysX-native compatibility."""
-        return None if self._host_actuator_runtime is None else self._host_actuator_runtime.wrapper
+        return None if self._actuator_runtime is None else self._actuator_runtime.wrapper
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         """Prepare optional Newton-native explicit actuators for OVPhysX."""
@@ -46,7 +46,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         articulation.newton_actuator_adapter = None
         articulation._implicit_dof_mask = None
         articulation._has_newton_actuators = False
-        self._host_actuator_runtime = None
+        self._actuator_runtime = None
 
         use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
         if not use_newton_actuators:
@@ -63,42 +63,42 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         articulation._has_newton_actuators = True
         first_prim = find_first_matching_prim(articulation.cfg.prim_path)
         articulation_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
-        self._host_actuator_runtime = _HostActuatorRuntime(articulation, logger=logger)
-        self._host_actuator_runtime.prepare(
+        self._actuator_runtime = PhysxActuatorRuntime(articulation, logger=logger)
+        self._actuator_runtime.prepare(
             collection,
             stage=get_current_stage(),
             articulation_prim_path=articulation_prim_path,
         )
-        articulation._physx_actuator_wrapper = self._host_actuator_runtime.wrapper
-        articulation.newton_actuator_adapter = self._host_actuator_runtime.adapter
+        articulation._physx_actuator_wrapper = self._actuator_runtime.wrapper
+        articulation.newton_actuator_adapter = self._actuator_runtime.adapter
         return native_group_names
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
-        if self._native_actuator_path_active and self._host_actuator_runtime is not None:
-            self._host_actuator_runtime.finalize(collection)
+        if self._native_actuator_path_active and self._actuator_runtime is not None:
+            self._actuator_runtime.finalize(collection)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
-        if not self._native_actuator_path_active or self._host_actuator_runtime is None:
+        if not self._native_actuator_path_active or self._actuator_runtime is None:
             return False
         # OVPhysX public-order state uses owned staging buffers, even for identity ordering.
         # Refresh both fields before every controller step so it observes the current simulation state.
         self._articulation._data._refresh_joint_pos()
         self._articulation._data._refresh_joint_vel()
-        self._host_actuator_runtime.compute(collection, dt)
+        self._actuator_runtime.compute(collection, dt)
         return True
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        if self._native_actuator_path_active and self._host_actuator_runtime is not None:
-            self._host_actuator_runtime.reset(env_ids)
+        if self._native_actuator_path_active and self._actuator_runtime is not None:
+            self._actuator_runtime.reset(env_ids)
 
     def get_native_actuator_gain(
         self,
         attr: str,
         joint_ids: torch.Tensor | slice,
     ) -> torch.Tensor | None:
-        if self._host_actuator_runtime is None:
+        if self._actuator_runtime is None:
             return None
-        return self._host_actuator_runtime.get_gain(attr, joint_ids)
+        return self._actuator_runtime.get_gain(attr, joint_ids)
 
     def write_native_actuator_gain(
         self,
@@ -107,8 +107,8 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        if self._host_actuator_runtime is not None:
-            self._host_actuator_runtime.write_gain(attr, values, env_ids, joint_ids)
+        if self._actuator_runtime is not None:
+            self._actuator_runtime.write_gain(attr, values, env_ids, joint_ids)
 
     def stage_user_command(
         self,
@@ -143,8 +143,8 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
         user_effort = collection._applied_effort
-        if self._host_actuator_runtime is not None:
-            user_effort = self._host_actuator_runtime.wrapper.joint_f_2d
+        if self._actuator_runtime is not None:
+            user_effort = self._actuator_runtime.wrapper.joint_f_2d
         if articulation.data.has_joint_ordering:
             if write_effort or write_pos or write_vel:
                 ordering_kernels.launch_reorder_joint_targets_user_to_backend(
