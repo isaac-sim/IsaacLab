@@ -234,6 +234,13 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert "--enable_cameras" in ray_camera_case.command()
 
+    usd_camera_case = next(
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "scripts/tutorials/04_sensors/run_usd_camera.py" and case.visualizer == "none"
+    )
+    assert "--enable_cameras" not in usd_camera_case.command()
+
 
 @pytest.mark.parametrize(
     "relative_path",
