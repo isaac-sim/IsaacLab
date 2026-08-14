@@ -904,7 +904,7 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     the MJWarp order), and the request is ``physx``/``body_ordering="physx"``. Cross-backend discovery must
     resolve the breadth-first PhysX order and reorder the public joint/body axes to it. This is the headline
     workflow documented in
-    ``docs/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer.rst``.
+    ``docs/source/overview/core-concepts/physical-backends/joint_and_body_ordering.rst``.
 
     The branching fixture is shared between both backends; a copy lives in this package's
     test data directory so the two backends assert against the same ground-truth asset.
