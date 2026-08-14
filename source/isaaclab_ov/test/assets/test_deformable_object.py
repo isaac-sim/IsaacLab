@@ -115,7 +115,7 @@ def _generate_deformable_scene(
     for index in range(num_objects):
         sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 1.0, 0.0, height))
     cfg = DeformableObjectCfg(
-        prim_path="/World/Table_.*/Object",
+        prim_path="/World/Table_[^/]*/Object",
         spawn=spawn,
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )

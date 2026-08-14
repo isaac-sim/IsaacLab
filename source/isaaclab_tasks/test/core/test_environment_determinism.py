@@ -58,7 +58,7 @@ def test_manipulation_env_determinism(task_name, device):
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_locomotion_env_determinism(task_name, device):
     """Check deterministic environment creation for locomotion."""
-    _test_environment_determinism(task_name, device, physics_preset_name="physx")
+    _test_environment_determinism(task_name, device)
 
 
 @pytest.mark.parametrize(
@@ -145,7 +145,7 @@ def _obtain_transition_tuples(
     # create a new stage
     sim_utils.create_new_stage()
     try:
-        # Parse configuration.
+        # parse configuration
         if physics_preset_name is None:
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         else:

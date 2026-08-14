@@ -592,23 +592,37 @@ def _upgrade_extension_pip_dependencies(
 
 
 def _install_isaacsim() -> None:
-    """Install Isaac Sim pip package if not already present."""
+    """Install the full Isaac Sim pip runtime if not already present."""
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
 
-    # Check if already installed.
-    result = run_command(
+    version_result = run_command(
         [python_exe, "-c", "from importlib.metadata import version; print(version('isaacsim'))"],
         capture_output=True,
         text=True,
         check=False,
     )
-    if result.returncode == 0:
-        installed_ver = result.stdout.strip()
-        print_info(f"Isaac Sim {installed_ver} already installed.")
-        return
+    installed_ver = version_result.stdout.strip() if version_result.returncode == 0 else ""
+    if installed_ver:
+        runtime_result = run_command(
+            [
+                python_exe,
+                "-c",
+                "import isaacsim, sys; sys.exit(0 if getattr(isaacsim, 'SimulationApp', None) is not None else 1)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if runtime_result.returncode == 0:
+            print_info(f"Isaac Sim {installed_ver} already installed.")
+            return
+        requirement = f"isaacsim[all,extscache]=={installed_ver}"
+        print_info(f"Completing Isaac Sim {installed_ver} installation with all and extscache extras...")
+    else:
+        requirement = _isaacsim_requirement()
+        print_info("Installing Isaac Sim...")
 
-    print_info("Installing Isaac Sim...")
     using_uv = pip_cmd[0] == "uv"
     extra_flags = []
     if using_uv:
@@ -620,7 +634,7 @@ def _install_isaacsim() -> None:
         pip_cmd
         + [
             "install",
-            _isaacsim_requirement(),
+            requirement,
             "--extra-index-url",
             NVIDIA_INDEX_URL,
         ]
@@ -1246,6 +1260,9 @@ def command_install(install_type: str = "all") -> None:
             if not using_uv:
                 print_info("Upgrading pip...")
                 run_command(pip_cmd + ["install", "--upgrade", "pip"])
+            else:
+                # Tolerate transient failures from indexes queried by ``unsafe-best-match``.
+                os.environ.setdefault("UV_HTTP_RETRIES", "6")
 
             # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
             run_command(pip_cmd + ["install", "setuptools<82.0.0"])

@@ -51,7 +51,11 @@ class MPMSolverCfg(NewtonSolverCfg):
     """Warm-start mode for the rheology solver."""
 
     collider_velocity_mode: Literal["forward", "backward", "instantaneous", "finite_difference"] = "forward"
-    """Collider velocity computation mode."""
+    """Collider velocity computation mode.
+
+    ``"instantaneous"`` is deprecated in favor of ``"forward"``, and
+    ``"finite_difference"`` is deprecated in favor of ``"backward"``.
+    """
 
     # grid
     voxel_size: float = 0.1
@@ -64,7 +68,33 @@ class MPMSolverCfg(NewtonSolverCfg):
     """Number of empty cells to add around particles when allocating the grid."""
 
     max_active_cell_count: int = -1
-    """Maximum active cell count for dense-grid active subsets. ``-1`` means unlimited."""
+    """Maximum active grid-cell count shared by all worlds.
+
+    A positive value reserves persistent capacity for rebuildable sparse grids and bounds active
+    subsets of dense and fixed grids. ``-1`` keeps sparse allocation dynamic and uses exact active
+    counts for the other grid types.
+    """
+
+    max_leaf_node_count: int = -1
+    """Maximum sparse-grid leaf-node count shared by all worlds.
+
+    ``-1`` lets Newton derive the capacity from :attr:`max_active_cell_count`.
+    """
+
+    max_lower_node_count: int = -1
+    """Maximum sparse-grid lower internal-node count shared by all worlds.
+
+    ``-1`` lets Newton derive the capacity from the initial topology.
+    """
+
+    max_upper_node_count: int = -1
+    """Maximum sparse-grid upper internal-node count shared by all worlds.
+
+    ``-1`` lets Newton derive the capacity from the initial topology.
+    """
+
+    separate_worlds: bool = False
+    """Whether each Newton world uses an independent local MPM grid environment."""
 
     transfer_scheme: Literal["apic", "pic"] = "apic"
     """Particle-grid transfer scheme."""

@@ -8,7 +8,7 @@
 A block of granular material is dropped onto static box colliders. The demo
 shows the intended Isaac Lab MPM path: configure
 :class:`~isaaclab_newton.physics.MPMSolverCfg`, add an
-:class:`~isaaclab_newton.assets.mpm_object.MPMObject` to an
+:class:`~isaaclab_newton.assets.MPMObject` to an
 :class:`~isaaclab.scene.InteractiveScene`, and let
 :class:`~isaaclab_newton.physics.NewtonMPMManager` own solver creation and
 stepping.
@@ -26,9 +26,19 @@ import math
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular demo.")
-parser.add_argument("--max-steps", type=int, default=-1, help="Stop after this many frames; negative runs forever.")
+parser.add_argument(
+    "--max_steps",
+    type=int,
+    default=-1,
+    help="Stop after this many frames; negative runs forever.",
+)
 parser.add_argument("--collider", default="cube", choices=["cube", "wedge", "concave", "none"], help="Collider set.")
-parser.add_argument("--voxel-size", type=float, default=0.1, help="MPM grid voxel size [m].")
+parser.add_argument(
+    "--voxel_size",
+    type=float,
+    default=0.1,
+    help="MPM grid voxel size [m].",
+)
 parser.add_argument("--substeps", type=int, default=1, help="Solver substeps per frame.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -40,11 +50,10 @@ GRAVITY = (0.0, 0.0, -10.0)
 VOXEL_SIZE = float(args_cli.voxel_size)
 
 # Solver settings that differ from the MPMSolverCfg defaults. A fixed grid has a
-# static topology, so the MPM step can be captured as a CUDA graph
-# (``NewtonMPMManager._supports_cuda_graph_capture``). ``grid_padding`` sizes the
-# frozen grid to contain the block as it falls and spreads over the colliders,
-# and ``max_active_cell_count`` bounds the per-step active set so the
-# graph-captured allocations stay static.
+# static topology, so the MPM step can be captured as a CUDA graph.
+# ``grid_padding`` sizes the frozen grid to contain the block as it falls and
+# spreads over the colliders, and ``max_active_cell_count`` bounds the per-step
+# active set so the graph-captured allocations stay static.
 GRID_TYPE = "fixed"
 GRID_PADDING = 48
 MAX_ACTIVE_CELL_COUNT = 1 << 18
@@ -54,8 +63,6 @@ EMIT_LO = (-1.0, -1.0, 2.0)
 EMIT_HI = (1.0, 1.0, 3.5)
 PARTICLES_PER_CELL = 3.0
 PARTICLE_JITTER = VOXEL_SIZE / PARTICLES_PER_CELL
-NEWTON_VISUAL_UPDATE_FREQUENCY = 1
-KIT_PARTICLE_VISUAL_UPDATE_FREQUENCY = 4
 
 PARTICLE_COLOR = (0.7, 0.6, 0.4)
 
@@ -69,13 +76,13 @@ def create_visualizer_cfgs():
     if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
         return []
 
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
+    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
-        NewtonGLVisualizerCfg(
+        cfg_type(
             show_particles=True,
             particle_color=PARTICLE_COLOR,
-            update_frequency=NEWTON_VISUAL_UPDATE_FREQUENCY,
         )
     ]
 
@@ -116,7 +123,7 @@ def preview_material(color):
 
 def create_scene_cfg():
     """Create an Isaac Lab scene config using declarative assets."""
-    from isaaclab_newton.assets.mpm_object import MPMObjectCfg
+    from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
     import isaaclab.sim as sim_utils
@@ -160,9 +167,9 @@ def create_scene_cfg():
                 upper=EMIT_HI,
                 voxel_size=VOXEL_SIZE,
                 particles_per_cell=PARTICLES_PER_CELL,
+                particle_placement="cell_center",
                 jitter=PARTICLE_JITTER,
                 visual_color=PARTICLE_COLOR,
-                visual_update_frequency=KIT_PARTICLE_VISUAL_UPDATE_FREQUENCY,
             ),
         )
 

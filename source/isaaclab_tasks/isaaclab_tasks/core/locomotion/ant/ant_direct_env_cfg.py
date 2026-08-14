@@ -86,12 +86,12 @@ class AntEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # effort scale per joint, keyed by joint name expression
     joint_gears: dict[str, float] = {".*": 15.0}
 
     # sensors
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="/World/envs/env_.*/Robot")
+    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     feet_body_names: list[str] = ["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
 
     # walk target, relative to the environment origin
