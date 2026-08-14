@@ -54,12 +54,15 @@ matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy an
 camera so tiled views render only that environment's geometry.
 
 Set ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` before launching Isaac Lab
-to disable scene partitioning. The variable accepts only ``0`` or ``1``; other values
-raise an error.
+to disable Isaac RTX scene-partition authoring and Kit viewport-camera tagging. The
+variable accepts only ``0`` or ``1``; other values raise an error. It does not affect
+OVRTX, which always partitions multi-environment scenes.
 
-Prims outside the environment hierarchies do not inherit an environment partition and
-remain in the shared background partition. This includes global
-:class:`~isaaclab.markers.VisualizationMarkers` groups such as task goal markers.
+Prims outside the environment hierarchies remain in the shared background partition.
+Global :class:`~isaaclab.markers.VisualizationMarkers` groups can instead assign each
+``PointInstancer`` instance to an environment by passing ``environment_ids`` to
+:meth:`~isaaclab.markers.VisualizationMarkers.visualize`. Isaac RTX and OVRTX then
+isolate those marker instances with the matching tiled cameras.
 
 Architecture Overview
 ---------------------

@@ -24,6 +24,9 @@ from isaaclab.utils.version import has_kit
 
 logger = logging.getLogger(__name__)
 
+_ENV_SCENE_PARTITION_ATTR = "primvars:omni:scenePartition"
+_INSTANCE_SCENE_PARTITION_PRIMVAR = "omni:scenePartition"
+
 
 class KitVisualizationMarkers:
     """USD PointInstancer backend for visualization markers.
@@ -57,6 +60,7 @@ class KitVisualizationMarkers:
         self.prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         self._is_visible = visible
         self._count = len(cfg.markers)
+        self._environment_ids: tuple[int, ...] | None = None
 
         from pxr import Gf, UsdGeom  # noqa: PLC0415
 
@@ -99,6 +103,7 @@ class KitVisualizationMarkers:
         orientations: torch.Tensor | None,
         scales: torch.Tensor | None,
         marker_indices: torch.Tensor | None,
+        environment_ids: torch.Tensor | None = None,
     ) -> None:
         """Write marker transforms to USD PointInstancer attributes.
 
@@ -111,9 +116,12 @@ class KitVisualizationMarkers:
                 (M, 3).
             marker_indices: Decides which marker prototype to visualize. Shape
                 is (M).
+            environment_ids: Environment index for each marker instance. Shape
+                is (M).
         """
         from pxr import Vt  # noqa: PLC0415
 
+        previous_count = self._count
         num_markers = 0
         if translations is not None:
             translations_np = translations.detach().cpu().numpy()
@@ -140,8 +148,53 @@ class KitVisualizationMarkers:
                 # Set all markers to the first prototype when the marker count
                 # changes and explicit marker indices are not provided.
                 self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
+        if environment_ids is not None:
+            self._environment_ids = tuple(int(env_id) for env_id in environment_ids.detach().cpu().tolist())
+            if num_markers == 0:
+                num_markers = len(self._environment_ids)
+        elif num_markers != 0 and num_markers != previous_count:
+            self._environment_ids = None
         if num_markers != 0:
             self._count = num_markers
+        self._sync_scene_partition_primvar()
+
+    def _sync_scene_partition_primvar(self) -> None:
+        """Assign each marker instance to its environment's active scene partition."""
+        from pxr import Sdf, UsdGeom, Vt  # noqa: PLC0415
+
+        primvars_api = UsdGeom.PrimvarsAPI(self._instancer_manager.GetPrim())
+        primvar = primvars_api.GetPrimvar(_INSTANCE_SCENE_PARTITION_PRIMVAR)
+        if self._environment_ids is None or not self._scene_partitioning_is_active():
+            if primvar:
+                primvar.GetAttr().Clear()
+            return
+
+        if not primvar:
+            primvar = primvars_api.CreatePrimvar(
+                _INSTANCE_SCENE_PARTITION_PRIMVAR,
+                Sdf.ValueTypeNames.TokenArray,
+                UsdGeom.Tokens.vertex,
+            )
+        elif primvar.GetTypeName() != Sdf.ValueTypeNames.TokenArray:
+            raise RuntimeError(
+                f"Expected '{primvar.GetAttr().GetPath()}' to have type TokenArray. Received: {primvar.GetTypeName()}."
+            )
+        primvar.SetInterpolation(UsdGeom.Tokens.vertex)
+        primvar.Set(Vt.TokenArray([f"env_{env_id}" for env_id in self._environment_ids]))
+
+    def _scene_partitioning_is_active(self) -> bool:
+        """Return whether renderer stage preparation authored environment partitions."""
+        candidate_env_ids = {0}
+        if self._environment_ids is not None:
+            candidate_env_ids.update(self._environment_ids)
+        for env_id in candidate_env_ids:
+            env_prim = self.stage.GetPrimAtPath(f"/World/envs/env_{env_id}")
+            if not env_prim.IsValid():
+                continue
+            attr = env_prim.GetAttribute(_ENV_SCENE_PARTITION_ATTR)
+            if attr.IsValid() and attr.Get() is not None:
+                return True
+        return False
 
     def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]) -> None:
         """Add marker prototypes to the scene and register them with the point instancer."""

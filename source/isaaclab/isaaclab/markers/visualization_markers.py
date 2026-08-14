@@ -154,6 +154,7 @@ class VisualizationMarkers:
         orientations: np.ndarray | torch.Tensor | None = None,
         scales: np.ndarray | torch.Tensor | None = None,
         marker_indices: list[int] | np.ndarray | torch.Tensor | None = None,
+        environment_ids: list[int] | np.ndarray | torch.Tensor | None = None,
     ):
         """Update markers in all initialized visualizer backends.
 
@@ -195,6 +196,10 @@ class VisualizationMarkers:
                 that the total number of markers is the same as the previous
                 call. If the number of markers is different, the function will
                 update the number of markers.
+            environment_ids: Environment index for each marker instance. Shape
+                is (M). Scene-partition-aware backends assign each instance to
+                the corresponding ``env_<index>`` partition. Defaults to None,
+                which means left unchanged when the marker count is unchanged.
 
         Raises:
             ValueError: When input arrays do not follow the expected shapes.
@@ -209,9 +214,10 @@ class VisualizationMarkers:
         norm_translations = self._to_tensor(translations, expected_width=3, name="translations")
         norm_orientations = self._to_tensor(orientations, expected_width=4, name="orientations")
         norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
-        norm_marker_indices = self._to_index_tensor(marker_indices)
+        norm_marker_indices = self._to_index_tensor(marker_indices, name="marker_indices")
+        norm_environment_ids = self._to_index_tensor(environment_ids, name="environment_ids")
         target_device = self._resolve_target_device(
-            norm_translations, norm_orientations, norm_scales, norm_marker_indices
+            norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
         )
         if norm_translations is not None:
             norm_translations = norm_translations.to(device=target_device)
@@ -221,11 +227,16 @@ class VisualizationMarkers:
             norm_scales = norm_scales.to(device=target_device)
         if norm_marker_indices is not None:
             norm_marker_indices = norm_marker_indices.to(device=target_device)
+        if norm_environment_ids is not None:
+            norm_environment_ids = norm_environment_ids.to(device=target_device)
+            if torch.any(norm_environment_ids < 0):
+                raise ValueError("Expected `environment_ids` to contain non-negative indices.")
 
-        num_markers = 0
-        for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices):
-            if value is not None:
-                num_markers = value.shape[0]
+        marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+        marker_counts = {value.shape[0] for value in marker_values if value is not None}
+        if len(marker_counts) > 1:
+            raise ValueError(f"Expected all marker inputs to have the same length. Received: {sorted(marker_counts)}.")
+        num_markers = next(iter(marker_counts), 0)
 
         if (
             norm_marker_indices is None
@@ -234,12 +245,21 @@ class VisualizationMarkers:
         ):
             norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
         elif norm_marker_indices is None and num_markers == 0:
-            if all(value is None for value in (norm_translations, norm_orientations, norm_scales)):
-                raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
+            if all(value is None for value in marker_values):
+                if norm_environment_ids is None:
+                    raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
             num_markers = self._count
 
+        if norm_environment_ids is not None and norm_environment_ids.shape[0] != num_markers:
+            raise ValueError(
+                "Expected `environment_ids` to contain one index per marker. "
+                f"Received {norm_environment_ids.shape[0]} indices for {num_markers} markers."
+            )
+
         for backend in self._backends:
-            backend.visualize(norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+            backend.visualize(
+                norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
+            )
 
         if num_markers != 0:
             self._count = num_markers
@@ -314,7 +334,7 @@ class VisualizationMarkers:
         return tensor.to(dtype=torch.float32)
 
     @staticmethod
-    def _to_index_tensor(value: list[int] | np.ndarray | torch.Tensor | None) -> torch.Tensor | None:
+    def _to_index_tensor(value: list[int] | np.ndarray | torch.Tensor | None, name: str) -> torch.Tensor | None:
         if value is None:
             return None
         if isinstance(value, list):
@@ -324,5 +344,5 @@ class VisualizationMarkers:
         else:
             tensor = value.detach()
         if tensor.ndim != 1:
-            raise ValueError(f"Expected `marker_indices` to have shape (M,). Received: {tuple(tensor.shape)}.")
+            raise ValueError(f"Expected `{name}` to have shape (M,). Received: {tuple(tensor.shape)}.")
         return tensor.to(dtype=torch.int32)

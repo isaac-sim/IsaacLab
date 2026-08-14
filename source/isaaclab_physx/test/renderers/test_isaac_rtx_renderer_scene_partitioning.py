@@ -39,6 +39,7 @@ from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacR
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
@@ -156,6 +157,69 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
         assert max_diff > 3.0, (
             f"RigidObject tiles render near-identical content (max tile diff {max_diff:.3f}). "
             "Top-level partitioning may have regressed."
+        )
+
+        shared_pose = torch.zeros_like(root_pose)
+        shared_pose[:, 0] = 2.0
+        shared_pose[:, 2] = 1.0
+        shared_pose[:, 6] = 1.0
+        cube.write_root_pose_to_sim_index(
+            root_pose=wp.from_torch(shared_pose.contiguous(), dtype=wp.transformf),
+            env_ids=wp.from_torch(torch.arange(scene.num_envs, device=device, dtype=torch.int32)),
+        )
+        marker_positions = shared_pose[:, :3].clone()
+        marker_positions[:, 1] = offsets[:, 0]
+        marker_positions[:, 2] += offsets[:, 1]
+        marker_colors = {
+            "green": (0.05, 1.0, 0.05),
+            "blue": (0.05, 0.05, 1.0),
+            "yellow": (1.0, 1.0, 0.05),
+            "magenta": (1.0, 0.05, 1.0),
+        }
+        markers = VisualizationMarkers(
+            VisualizationMarkersCfg(
+                prim_path="/Visuals/partitioned_cubes",
+                markers={
+                    name: sim_utils.CuboidCfg(
+                        size=(0.25, 0.25, 0.25),
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, emissive_color=color),
+                    )
+                    for name, color in marker_colors.items()
+                },
+            )
+        )
+        markers.visualize(
+            marker_positions,
+            marker_indices=scene._ALL_INDICES,
+            environment_ids=scene._ALL_INDICES,
+        )
+        for _ in range(4):
+            sim.step()
+            scene.update(sim.cfg.dt)
+
+        rgb = scene["camera"].data.output["rgb"].torch.float()
+        red, green, blue = rgb.unbind(dim=-1)
+        marker_masks = torch.stack(
+            (
+                (green > 1.5 * red) & (green > 1.5 * blue) & (green > 80.0),
+                (blue > 1.5 * red) & (blue > 1.5 * green) & (blue > 80.0),
+                (red > 80.0) & (green > 80.0) & (blue < 0.6 * torch.minimum(red, green)),
+                (red > 80.0) & (blue > 80.0) & (green < 0.6 * torch.minimum(red, blue)),
+            ),
+            dim=1,
+        )
+        marker_pixel_counts = marker_masks.sum(dim=(2, 3))
+        expected_counts = marker_pixel_counts.diagonal()
+        unexpected_counts = marker_pixel_counts.masked_fill(
+            torch.eye(scene.num_envs, dtype=torch.bool, device=device),
+            0,
+        )
+        assert torch.all(expected_counts > 10), (
+            f"Expected each camera to see its PointInstancer marker. Pixel counts:\n{marker_pixel_counts}"
+        )
+        assert torch.all(unexpected_counts < 5), (
+            "PointInstancer markers leaked across scene partitions. "
+            f"Per-camera color pixel counts:\n{marker_pixel_counts}"
         )
 
 

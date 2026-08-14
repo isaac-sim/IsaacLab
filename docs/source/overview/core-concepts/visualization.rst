@@ -208,6 +208,9 @@ worlds visually without changing their simulated poses:
 
 Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
 selection and visual offsets. This includes point-cloud and task-geometry markers.
+For RTX tiled cameras, pass one ``environment_ids`` entry per marker instance to
+:meth:`~isaaclab.markers.VisualizationMarkers.visualize` so global point-instancer
+markers are isolated with their environments.
 
 .. _visualization-common-modes:
 

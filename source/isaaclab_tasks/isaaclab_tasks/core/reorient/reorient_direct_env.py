@@ -389,7 +389,11 @@ class ReorientDirectEnv(DirectRLEnv):
         # update goal pose and markers
         self.goal_rot[env_ids] = new_rot
         goal_pos = self.goal_pos + self.scene.env_origins
-        self.goal_markers.visualize(goal_pos, self.goal_rot)
+        self.goal_markers.visualize(
+            goal_pos,
+            self.goal_rot,
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
         self.reset_goal_buf[env_ids] = 0
 
