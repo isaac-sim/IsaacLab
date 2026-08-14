@@ -11,14 +11,33 @@ import logging
 import time
 from typing import Any
 
+from packaging.version import Version
+
 import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
 logger = logging.getLogger(__name__)
+
+SHOW_ALL_PARTITIONS_MIN_ISAAC_SIM_VERSION = Version("6.1")
+"""First Isaac Sim release whose RTX renderer implements the all-partitions spectator view."""
+
+
+def show_all_partitions_supported() -> bool:
+    """Return whether the running RTX renderer implements the all-partitions spectator view.
+
+    ``/rtx/scenePartitioning/showAllPartitionsByDefault`` makes a camera that carries no
+    ``omni:scenePartition`` token render every partition. Carb settings are schemaless, so the
+    experience files set the key on every runtime and reading it back cannot distinguish a
+    renderer that honors it from one that ignores it. Older renderers cull such a camera down to
+    nothing, so the capability is resolved from the Isaac Sim version instead.
+    """
+    return get_isaac_sim_version() >= SHOW_ALL_PARTITIONS_MIN_ISAAC_SIM_VERSION
+
 
 _RTX_FIELD_TO_SETTING = {
     "enable_translucency": "/rtx/translucency/enabled",

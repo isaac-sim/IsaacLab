@@ -29,10 +29,12 @@ from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
 from .isaac_rtx_renderer_utils import (
+    SHOW_ALL_PARTITIONS_MIN_ISAAC_SIM_VERSION,
     apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
+    show_all_partitions_supported,
 )
 
 logger = logging.getLogger(__name__)
@@ -205,9 +207,30 @@ class IsaacRtxRenderer(BaseRenderer):
         non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
+
+        Authoring is also skipped when the all-partitions spectator view is requested but the
+        running RTX renderer does not implement it, because partitioning every env root would
+        then leave interactive viewports with nothing to render.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
 
         if not self.cfg.enable_scene_partitioning:
+            return
+
+        # Kit viewport cameras live outside ``/World/envs``, so they inherit no partition token and
+        # depend on the spectator view to see partitioned geometry. On a renderer that ignores the
+        # spectator setting such a camera matches no partition and the viewport renders black, so
+        # leave the stage unpartitioned rather than half-applying the feature. Setting
+        # ``show_all_partitions_by_default=False`` keeps partitioning on these runtimes; the
+        # visualizer then binds the viewport to a single environment.
+        if self.cfg.global_settings.show_all_partitions_by_default and not show_all_partitions_supported():
+            logger.warning(
+                "Skipping RTX scene partitioning: the all-partitions spectator view requires Isaac Sim %s or"
+                " newer, but %s is running. Partitioning without it renders an empty Kit viewport. Set"
+                " IsaacRtxRendererCfg.global_settings.show_all_partitions_by_default=False to partition anyway"
+                " and view a single environment, or upgrade Isaac Sim.",
+                SHOW_ALL_PARTITIONS_MIN_ISAAC_SIM_VERSION,
+                get_isaac_sim_version(),
+            )
             return
 
         logger.debug(

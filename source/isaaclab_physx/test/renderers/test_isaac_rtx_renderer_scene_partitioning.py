@@ -33,6 +33,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import os
 
+import isaaclab_physx.renderers.isaac_rtx_renderer as isaac_rtx_renderer_module
 import pytest
 import torch
 import warp as wp
@@ -57,17 +58,28 @@ def _isolation_renderer_cfg() -> IsaacRtxRendererCfg:
     return IsaacRtxRendererCfg(global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=False))
 
 
+def _stage_with_one_env():
+    """Build an in-memory stage holding a single environment root."""
+    from pxr import Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World", "Xform")
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    return stage
+
+
+def _force_spectator_support(monkeypatch: pytest.MonkeyPatch, supported: bool) -> None:
+    """Pin the RTX spectator-view capability so authoring does not depend on the running Isaac Sim."""
+    monkeypatch.setattr(isaac_rtx_renderer_module, "show_all_partitions_supported", lambda: supported)
+
+
 @pytest.mark.isaacsim_ci
 def test_partitioning_enabled_by_default(monkeypatch):
     """``primvars:omni:scenePartition`` must be authored when the environment variable is absent."""
-    from pxr import Usd
-
     monkeypatch.delenv(_ENV_VAR, raising=False)
+    _force_spectator_support(monkeypatch, True)
 
-    stage = Usd.Stage.CreateInMemory()
-    world = stage.DefinePrim("/World", "Xform")  # noqa: F841
-    env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
-
+    stage = _stage_with_one_env()
     renderer = object.__new__(IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
     renderer.prepare_stage(stage, num_envs=1)
@@ -82,20 +94,52 @@ def test_partitioning_enabled_by_default(monkeypatch):
 @pytest.mark.parametrize(("cfg_enabled", "environment_value"), [(True, "0"), (False, "1")])
 def test_partitioning_cfg_overrides_legacy_environment_variable(monkeypatch, cfg_enabled: bool, environment_value: str):
     """The renderer configuration should take precedence over the legacy environment variable."""
-    from pxr import Usd
-
     monkeypatch.setenv(_ENV_VAR, environment_value)
+    _force_spectator_support(monkeypatch, True)
 
-    stage = Usd.Stage.CreateInMemory()
-    world = stage.DefinePrim("/World", "Xform")  # noqa: F841
-    env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
-
+    stage = _stage_with_one_env()
     renderer = object.__new__(IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
     renderer.prepare_stage(stage, num_envs=1)
 
     prim = stage.GetPrimAtPath("/World/envs/env_0")
     assert prim.HasAttribute("primvars:omni:scenePartition") is cfg_enabled
+
+
+@pytest.mark.isaacsim_ci
+def test_partitioning_skipped_when_spectator_view_unsupported(monkeypatch: pytest.MonkeyPatch):
+    """A renderer that ignores the spectator setting must be left unpartitioned.
+
+    Partitioning every env root on such a runtime culls the Kit viewport camera -- which carries no
+    ``omni:scenePartition`` token -- down to an empty image.
+    """
+    monkeypatch.delenv(_ENV_VAR, raising=False)
+    _force_spectator_support(monkeypatch, False)
+
+    stage = _stage_with_one_env()
+    renderer = object.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    renderer.prepare_stage(stage, num_envs=1)
+
+    prim = stage.GetPrimAtPath("/World/envs/env_0")
+    assert not prim.HasAttribute("primvars:omni:scenePartition"), (
+        "Partitioning must be skipped when the spectator view is requested but unsupported."
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_partitioning_kept_without_spectator_view_on_unsupported_runtime(monkeypatch: pytest.MonkeyPatch):
+    """Opting out of the spectator view keeps per-env isolation on renderers that lack it."""
+    monkeypatch.delenv(_ENV_VAR, raising=False)
+    _force_spectator_support(monkeypatch, False)
+
+    stage = _stage_with_one_env()
+    renderer = object.__new__(IsaacRtxRenderer)
+    renderer.cfg = _isolation_renderer_cfg()
+    renderer.prepare_stage(stage, num_envs=1)
+
+    prim = stage.GetPrimAtPath("/World/envs/env_0")
+    assert prim.GetAttribute("primvars:omni:scenePartition").Get() == "env_0"
 
 
 @pytest.mark.isaacsim_ci
