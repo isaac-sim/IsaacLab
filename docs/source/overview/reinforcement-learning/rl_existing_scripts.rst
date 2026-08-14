@@ -164,6 +164,8 @@ algorithms, are algorithm choices rather than preset requirements.
    :ref:`rlinf-post-training` has been completed.
 
 
+.. _pretrained-checkpoints:
+
 Pretrained checkpoints
 ----------------------
 
@@ -172,9 +174,14 @@ and availability may vary by RL library and backend combination. Other
 registered tasks, including contributed tasks, are not covered by the
 published checkpoint set.
 
-Pass ``--use_pretrained_checkpoint`` to load the published policy matching the
-resolved task configuration. Checkpoints are grouped by RL library and use the
-following filename:
+Pass ``--checkpoint pretrained`` to load the published policy matching the
+resolved task configuration. The selector does not guarantee that an artifact
+exists for every registered task: if the matching artifact has not been
+published, the command reports that it is unavailable and exits. In that case,
+train the task locally and omit ``--checkpoint`` to use automatic local
+discovery, or pass an explicit checkpoint path.
+
+Published checkpoints are grouped by RL library and use the following filename:
 
 .. code-block:: text
 
@@ -194,7 +201,7 @@ the checkpoint and policy network agree:
 
    uv run isaaclab play --rl_library rsl_rl \
        --task Isaac-Cartpole-Camera \
-       --use_pretrained_checkpoint \
+       --checkpoint pretrained \
        physics=newton_mjwarp renderer=isaacsim_rtx
 
 Maintainers can generate the preferred core-task checkpoint matrix with
@@ -203,6 +210,10 @@ when available, falls back to RL-Games, and uses SKRL MAPPO for multi-agent
 tasks. It preserves each task's default domain preset and trains only backend
 combinations declared by that task. Newton Kamino presets are excluded from
 this matrix; tasks whose only Newton preset is Kamino are skipped for Newton.
+Use ``--list --all --core`` to list the tasks and backend combinations targeted
+for publication by the current source tree. This matrix is not a live check of
+the remote asset store; a listed combination becomes usable with
+``--checkpoint pretrained`` only after its checkpoint has been uploaded.
 
 .. code-block:: bash
 

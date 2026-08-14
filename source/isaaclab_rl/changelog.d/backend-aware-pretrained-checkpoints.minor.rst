@@ -21,3 +21,5 @@ Fixed
   directories.
 * Fixed LEAPP export scripts to select pretrained checkpoints for the resolved
   physics and rendering backends.
+* Fixed checkpoint documentation and CLI help to describe the ``pretrained``
+  selector, automatic local discovery, and published-asset availability.
