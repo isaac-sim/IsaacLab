@@ -23,7 +23,7 @@ jobs:
     name: Request Docker CI
     if: >-
       github.event.issue.pull_request &&
-      github.event.comment.body == '/run-docker-ci'
+      github.event.comment.body == 'run-ci'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

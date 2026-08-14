@@ -47,7 +47,7 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 
 ## Checklist
 
-Docker and GPU tests run on demand. Comment `/run-docker-ci` on the pull request
+Docker and GPU tests run on demand. Comment `run-ci` on the pull request
 when the changes are ready for CI.
 
 - [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)
