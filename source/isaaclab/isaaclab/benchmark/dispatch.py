@@ -144,8 +144,6 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     if request.workflow == "runtime":
         _append_value(argv, "--num_steps", request.num_steps)
         _append_value(argv, "--warmup_steps", request.warmup_steps)
-        if request.aggregate_throughput:
-            argv.append("--aggregate_throughput")
     elif request.workflow == "startup":
         _append_value(argv, "--top_n", request.top_n)
         _append_value(argv, "--whitelist_config", request.whitelist_config)

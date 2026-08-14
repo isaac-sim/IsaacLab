@@ -27,7 +27,7 @@ from isaaclab.benchmark import (
     TrainingBundle,
     dispatch,
 )
-from isaaclab.benchmark.entrypoints import runtime, startup
+from isaaclab.benchmark.entrypoints import startup
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 
 
@@ -128,20 +128,6 @@ def test_runtime_request_uses_runtime_defaults() -> None:
         "--benchmark_formatter",
         "schema",
     ]
-
-
-def test_runtime_throughput_aggregation_is_opt_in(monkeypatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["isaaclab", "benchmark", "runtime"])
-
-    default_args, _ = runtime._parse_args(["--task", "Isaac-Cartpole-Direct"])
-    aggregate_args, _ = runtime._parse_args(["--task", "Isaac-Cartpole-Direct", "--aggregate_throughput"])
-    request_args = dispatch._request_argv(
-        BenchmarkRuntimeRequest(task="Isaac-Cartpole-Direct", aggregate_throughput=True)
-    )
-
-    assert default_args.aggregate_throughput is False
-    assert aggregate_args.aggregate_throughput is True
-    assert "--aggregate_throughput" in request_args
 
 
 @pytest.mark.parametrize("backend", ["rsl_rl", "rl_games", "skrl", "sb3"])

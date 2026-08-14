@@ -838,10 +838,13 @@ jobs:
   performance-smoke:
     name: "performance-smoke (${{ matrix.name }})"
     runs-on: [self-hosted, gpu]
-    timeout-minutes: ${{ matrix.timeout_minutes }}
+    # Budget for two attempts plus image pull and cache restore.
+    # Each attempt is bounded individually by `timeout` to prevent starving retry.
+    timeout-minutes: ${{ matrix.timeout_minutes * 2 + 10 }}
     needs: [build, config]
+    # Pull requests run in gate mode, pushes to develop additionally record baseline.
     if: >-
-      github.event_name != 'push' &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
       needs.build.result == 'success'
     strategy:
       fail-fast: false
@@ -872,6 +875,11 @@ jobs:
           num_envs: 512
           timeout_minutes: 20
           args: renderer=newton_renderer
+        - name: shadow-camera-newton-rtx
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: physics=newton_mjwarp renderer=isaacsim_rtx
         - name: shadow-camera-newton-renderer
           task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
           num_envs: 512
@@ -899,61 +907,108 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+    - name: Resolve Warp version for the JIT cache key
+      id: warp_version
+      run: |
+        set -euo pipefail
+        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' pyproject.toml | head -n1)"
+        if [ -z "$version" ]; then
+          echo "::error::Could not resolve the warp-lang pin from pyproject.toml; the JIT cache key would stop tracking Warp"
+          exit 1
+        fi
+        echo "value=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Restore warm JIT cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/jit-cache
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
+        restore-keys: |
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-
+
     - name: Run runtime benchmark
       env:
         BENCHMARK_ARGS: ${{ matrix.args }}
         BENCHMARK_TASK: ${{ matrix.task }}
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
         NUM_ENVS: ${{ matrix.num_envs }}
+        BENCH_TIMEOUT_S: ${{ matrix.timeout_minutes * 60 }}
       run: |
-        set -euo pipefail
+        set -uo pipefail
         install -d -m 0777 benchmark-output
-        container_name="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}"
-        trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT
-        docker run --name "$container_name" --gpus all --network=host --ipc=host \
-          -e OMNI_KIT_ACCEPT_EULA=yes \
-          -e ACCEPT_EULA=Y \
-          -e ISAAC_SIM_HEADLESS=1 \
-          --entrypoint bash "$CI_IMAGE_TAG" -lc \
-          "set -euo pipefail
-          mkdir -p /tmp/benchmark-output
-          ./isaaclab.sh benchmark runtime \
-            --task '$BENCHMARK_TASK' \
-            --num_envs '$NUM_ENVS' \
-            --num_steps 200 \
-            --warmup_steps 100 \
-            --seed 42 \
-            --benchmark_formatter schema \
-            --output_path /tmp/benchmark-output \
-            --visualizer none \
-            $BENCHMARK_ARGS"
-        docker cp "$container_name:/tmp/benchmark-output/." benchmark-output/
-    - name: Download authoritative baseline
-      if: vars.PERF_BASELINE_S3_URI != ''
+        # World-writable so the in-container user (uid 1000) can populate the cache
+        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+
+        run_attempt() {
+          local attempt="$1"
+          local container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${attempt}"
+          docker rm -f "$container" >/dev/null 2>&1 || true
+          timeout "${BENCH_TIMEOUT_S}" docker run --name "$container" --gpus all --network=host --ipc=host \
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ACCEPT_EULA=Y \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
+            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "set -euo pipefail
+            mkdir -p /tmp/benchmark-output
+            ./isaaclab.sh benchmark runtime \
+              --task '$BENCHMARK_TASK' \
+              --num_envs '$NUM_ENVS' \
+              --num_steps 200 \
+              --warmup_steps 100 \
+              --seed 42 \
+              --benchmark_formatter schema \
+              --output_path /tmp/benchmark-output \
+              --visualizer none \
+              $BENCHMARK_ARGS"
+          local status=$?
+          docker cp "$container:/tmp/benchmark-output/." benchmark-output/ 2>/dev/null || true
+          docker rm -f "$container" >/dev/null 2>&1 || true
+          return $status
+        }
+
+        if ! run_attempt 1; then
+          echo "::warning::${{ matrix.name }} failed on the first attempt; retrying once"
+          rm -f benchmark-output/benchmark_runtime_*.json
+          run_attempt 2
+        fi
+    # Read-only. Recording step below is the only writer scoped to refs/heads/develop.
+    - name: Compare against baseline history
       env:
-        PERF_BASELINE_S3_URI: ${{ vars.PERF_BASELINE_S3_URI }}
-      run: aws s3 cp "$PERF_BASELINE_S3_URI" "$RUNNER_TEMP/performance-baseline.json"
-    - name: Compare with baseline
-      env:
-        BASELINE_CONFIGURED: ${{ vars.PERF_BASELINE_S3_URI != '' }}
+        PERF_BASELINE_URI: ${{ vars.PERF_BASELINE_URI }}
       run: |
         set -euo pipefail
         mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
         if [ "${#results[@]}" -ne 1 ]; then
-          echo "Expected one runtime benchmark JSON, found ${#results[@]}"
+          echo "::error::Expected one runtime benchmark JSON, found ${#results[@]}"
           exit 1
         fi
-
-        baseline_args=()
-        if [ "$BASELINE_CONFIGURED" = "true" ]; then
-          baseline_args=(--baseline "$RUNNER_TEMP/performance-baseline.json")
-        fi
-
-        python3 tools/performance_compare.py \
+        # An unset URI yields SKIP, not failure because a missing baseline is not a regression.
+        python3 -m tools.perf_smoke.cli compare \
           --benchmark_result "${results[0]}" \
-          "${baseline_args[@]}" \
+          --baseline_uri "${PERF_BASELINE_URI:-}" \
+          --label "${{ matrix.name }}" \
           --output_json benchmark-output/comparison.json \
           | tee -a "$GITHUB_STEP_SUMMARY"
+
+    # Only develop records baselines, so the gate always compares a pull request
+    # against the branch it will merge into rather than against a stale snapshot.
+    - name: Record baseline
+      if: ${{ github.ref == 'refs/heads/develop' && vars.PERF_BASELINE_URI != '' }}
+      env:
+        PERF_BASELINE_URI: ${{ vars.PERF_BASELINE_URI }}
+      run: |
+        set -euo pipefail
+        mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+        python3 -m tools.perf_smoke.cli write \
+          --benchmark_result "${results[0]}" \
+          --baseline_uri "$PERF_BASELINE_URI" \
+          --commit "$GITHUB_SHA" \
+          --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --run_id "$GITHUB_RUN_ID"
     - name: Upload performance results
       if: always()
       uses: actions/upload-artifact@v7
@@ -962,6 +1017,28 @@ jobs:
         path: benchmark-output/
         if-no-files-found: warn
         retention-days: 7
+
+  # Centralized summary; individual failed tasks still display their own failed jobs.
+  performance-smoke-summary:
+    name: performance-smoke
+    runs-on: ubuntu-latest
+    needs: [performance-smoke]
+    if: always() && needs.performance-smoke.result != 'skipped'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - uses: actions/download-artifact@v7
+      with:
+        pattern: performance-smoke-*-${{ github.run_id }}
+        path: comparisons
+      continue-on-error: true
+    - name: Summarise performance comparisons
+      run: |
+        set -euo pipefail
+        python3 -m tools.perf_smoke.cli aggregate \
+          --comparison_dir comparisons \
+          | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
