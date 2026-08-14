@@ -494,82 +494,81 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             joint_indices = wp.to_torch(joint_indices)
         return joint_indices.to(self.device, dtype=torch.int32).contiguous()
 
-    def _make_execution_batch(
-        self,
-        group_names: tuple[str, ...],
-        groups: tuple[ActuatorBase, ...],
-        joint_indices: torch.Tensor,
-        *,
-        executor: ActuatorBase | None = None,
-    ) -> _ExecutionBatch:
-        """Create the execution batch for one or more logical actuator groups."""
-        group_slices = []
-        start = 0
-        for group in groups:
-            stop = start + group.num_joints
-            group_slices.append(slice(start, stop))
-            start = stop
-        joint_indices = joint_indices.to(self.device, dtype=torch.int32).contiguous()
-        if executor is None:
-            executor = groups[0]
-        else:
-            executor._joint_names = [name for group in groups for name in group.joint_names]
-            executor._joint_indices = joint_indices
+    def _make_group_batch(self, name: str, group: ActuatorBase) -> _ExecutionBatch:
+        """Create the execution batch for one logical actuator group."""
+        joint_indices = self._joint_indices_as_torch(group)
         batch = _ExecutionBatch(
-            actuator=executor,
-            group_names=group_names,
-            group_slices=tuple(group_slices),
-            joint_indices=joint_indices,
+            actuator=group,
+            group_names=(name,),
             joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
         )
-        if type(executor) is ImplicitActuator:
-            batch.implicit_inputs = [
-                self._joint_pos_target,
-                self._joint_vel_target,
-                self._joint_effort_target,
-                self._control.joint_pos.warp,
-                self._control.joint_vel.warp,
-                self._control.joint_stiffness.warp,
-                self._control.joint_damping.warp,
-                self._control.joint_effort_limits.warp,
-                wp.from_torch(executor.velocity_limit, dtype=wp.float32),
-                batch.joint_indices_wp,
-            ]
-            batch.implicit_outputs = [
-                wp.from_torch(executor.computed_effort, dtype=wp.float32),
-                wp.from_torch(executor.applied_effort, dtype=wp.float32),
-                self._joint_pos_target_sim,
-                self._joint_vel_target_sim,
-                self._joint_effort_target_sim,
-                self._computed_effort,
-                self._applied_effort,
-                self._soft_joint_vel_limits,
-            ]
+        if type(group) is ImplicitActuator:
+            self._bind_implicit_kernel_arrays(batch)
         return batch
+
+    def _make_implicit_batch(self, names: tuple[str, ...], groups: tuple[ActuatorBase, ...]) -> _ExecutionBatch:
+        """Create one shared execution batch for disjoint implicit actuator groups."""
+        joint_indices = torch.cat([self._joint_indices_as_torch(group) for group in groups])
+        executor = ImplicitActuator._build_execution_actuator(groups, joint_indices)
+        batch = _ExecutionBatch(
+            actuator=executor,
+            group_names=names,
+            joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
+        )
+        self._bind_implicit_kernel_arrays(batch)
+        self._bind_execution_batch_parameters(batch, groups)
+        return batch
+
+    def _bind_implicit_kernel_arrays(self, batch: _ExecutionBatch) -> None:
+        """Assemble the implicit kernel argument arrays for one execution batch.
+
+        Existing argument lists are updated in place so holders of the list
+        objects observe rebound backend state.
+        """
+        executor = batch.actuator
+        inputs = [
+            self._joint_pos_target,
+            self._joint_vel_target,
+            self._joint_effort_target,
+            self._control.joint_pos.warp,
+            self._control.joint_vel.warp,
+            self._control.joint_stiffness.warp,
+            self._control.joint_damping.warp,
+            self._control.joint_effort_limits.warp,
+            wp.from_torch(executor.velocity_limit, dtype=wp.float32),
+            batch.joint_indices_wp,
+        ]
+        outputs = [
+            wp.from_torch(executor.computed_effort, dtype=wp.float32),
+            wp.from_torch(executor.applied_effort, dtype=wp.float32),
+            self._joint_pos_target_sim,
+            self._joint_vel_target_sim,
+            self._joint_effort_target_sim,
+            self._computed_effort,
+            self._applied_effort,
+            self._soft_joint_vel_limits,
+        ]
+        if batch.implicit_inputs is None:
+            batch.implicit_inputs = inputs
+            batch.implicit_outputs = outputs
+        else:
+            batch.implicit_inputs[:] = inputs
+            batch.implicit_outputs[:] = outputs
 
     def _build_execution_batches(self) -> None:
         """Build execution batches in actuator configuration order."""
         native_actuator_path_active = self._control.native_actuator_path_active
         batch_by_group: dict[str, _ExecutionBatch] = {}
-        if not self._groups:
-            self._execution_batches = []
-            return
-        group_joint_indices = {name: self._joint_indices_as_torch(group) for name, group in self._groups.items()}
-
         for actuator_type in self._groups_by_class:
             names = tuple(name for name, group in self._groups.items() if type(group) is actuator_type)
             groups = tuple(self._groups[name] for name in names)
-            joint_indices = [group_joint_indices[name] for name in names]
 
             if native_actuator_path_active or actuator_type is not ImplicitActuator or len(groups) < 2:
-                for name, group, indices in zip(names, groups, joint_indices):
-                    batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
+                for name, group in zip(names, groups):
+                    batch_by_group[name] = self._make_group_batch(name, group)
                 continue
 
-            combined = torch.cat(joint_indices)
-            executor = ImplicitActuator._build_execution_actuator(groups)
-            batch = self._make_execution_batch(names, groups, combined, executor=executor)
-            self._bind_execution_batch_parameters(batch, groups)
+            batch = self._make_implicit_batch(names, groups)
             for name in names:
                 batch_by_group[name] = batch
 
@@ -590,7 +589,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         """Bind logical implicit group tensors to slices of their shared executor tensors."""
         tensor_names = ("velocity_limit", "computed_effort", "applied_effort")
         bindings: list[tuple[ActuatorBase, str, torch.Tensor]] = []
-        for group, group_slice in zip(groups, batch.group_slices):
+        start = 0
+        for group in groups:
+            group_slice = slice(start, start + group.num_joints)
+            start += group.num_joints
             for name in tensor_names:
                 original = getattr(group, name)
                 view = getattr(batch.actuator, name)[:, group_slice]
@@ -623,11 +625,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         for batch in self._execution_batches:
             if batch.implicit_inputs is None:
                 continue
-            batch.implicit_inputs[3] = self._control.joint_pos.warp
-            batch.implicit_inputs[4] = self._control.joint_vel.warp
-            batch.implicit_inputs[5] = self._control.joint_stiffness.warp
-            batch.implicit_inputs[6] = self._control.joint_damping.warp
-            batch.implicit_inputs[7] = self._control.joint_effort_limits.warp
+            self._bind_implicit_kernel_arrays(batch)
             self._launch_cache.clear(("implicit", id(batch)))
 
     def _scatter_actuator_output(
@@ -709,8 +707,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 class _ExecutionBatch:
     actuator: ActuatorBase
     group_names: tuple[str, ...]
-    group_slices: tuple[slice, ...]
-    joint_indices: torch.Tensor
     joint_indices_wp: wp.array(dtype=wp.int32)
     implicit_inputs: list[wp.array(dtype=wp.float32) | wp.array(dtype=wp.int32)] | None = None
     implicit_outputs: list[wp.array(dtype=wp.float32)] | None = None

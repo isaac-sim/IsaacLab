@@ -90,7 +90,9 @@ class ImplicitActuator(ActuatorBase):
             return self._control.joint_effort_limits.torch[:, self._joint_indices]
 
     @classmethod
-    def _build_execution_actuator(cls, actuators: Sequence[ImplicitActuator]) -> ImplicitActuator:
+    def _build_execution_actuator(
+        cls, actuators: Sequence[ImplicitActuator], joint_indices: torch.Tensor
+    ) -> ImplicitActuator:
         """Build one private executor for a shared implicit execution batch.
 
         Retains the first group's config metadata; replaces the execution
@@ -98,6 +100,7 @@ class ImplicitActuator(ActuatorBase):
         """
         executor = copy.copy(actuators[0])
         executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
+        executor._joint_indices = joint_indices
         executor.velocity_limit = torch.cat([actuator.velocity_limit for actuator in actuators], dim=1)
         executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
         executor.applied_effort = torch.zeros_like(executor.computed_effort)
