@@ -61,5 +61,5 @@ Keep this skill synchronized with `AGENTS.md`, `.github/PULL_REQUEST_TEMPLATE.md
 
 - [PR template](../../../.github/PULL_REQUEST_TEMPLATE.md)
 - [Contributing guide](../../../docs/source/refs/contributing.rst)
-- [Changelog skill](../changelog-fragments/SKILL.md)
+- [Changelog skill](../../user/changelog-fragments/SKILL.md)
 - [Examples](examples.md)
