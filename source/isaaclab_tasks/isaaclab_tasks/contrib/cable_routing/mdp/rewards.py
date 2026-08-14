@@ -11,7 +11,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
-from ..yam_frames import yam_contact_frame_position_w
+from ..frames import contact_frame_position_w
 from .actions import canonical_task_actions
 from .cable_geometry import cable_relative_joint_gap
 
@@ -95,14 +95,17 @@ def cable_near_active_peg(env, command_name: str, cable_cfg: SceneEntityCfg, std
 def grippers_near_cable(
     env,
     cable_cfg: SceneEntityCfg,
-    left_ee_cfg: SceneEntityCfg,
-    right_ee_cfg: SceneEntityCfg,
+    end_effector_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
+    contact_frame_offset_positions: tuple[tuple[float, float, float], tuple[float, float, float]],
     std: float,
 ) -> torch.Tensor:
-    """Reward both grippers for approaching the cable."""
+    """Reward both configured contact frames for approaching the cable."""
     points = env.scene[cable_cfg.name].data.segment_pose_w.torch[..., :3]
-    left = yam_contact_frame_position_w(env.scene[left_ee_cfg.name], left_ee_cfg.body_ids[0])
-    right = yam_contact_frame_position_w(env.scene[right_ee_cfg.name], right_ee_cfg.body_ids[0])
+    contact_positions = [
+        contact_frame_position_w(env.scene[ee_cfg.name], ee_cfg.body_ids[0], offset_position)
+        for ee_cfg, offset_position in zip(end_effector_cfgs, contact_frame_offset_positions, strict=True)
+    ]
+    left, right = contact_positions
     left_distance = torch.linalg.vector_norm(points - left[:, None, :], dim=-1).amin(dim=1)
     right_distance = torch.linalg.vector_norm(points - right[:, None, :], dim=-1).amin(dim=1)
     reward = 1.0 - 0.5 * (torch.tanh(left_distance / std) + torch.tanh(right_distance / std))

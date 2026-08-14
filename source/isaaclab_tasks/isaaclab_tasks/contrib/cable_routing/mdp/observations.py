@@ -11,7 +11,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
-from ..yam_frames import yam_contact_frame_position_w
+from ..frames import contact_frame_position_w
 from .actions import canonical_task_actions
 
 
@@ -38,24 +38,26 @@ def active_goal_geometry(
     env,
     command_name: str,
     cable_cfg: SceneEntityCfg,
-    left_ee_cfg: SceneEntityCfg,
-    right_ee_cfg: SceneEntityCfg,
+    end_effector_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
+    contact_frame_offset_positions: tuple[tuple[float, float, float], tuple[float, float, float]],
 ) -> torch.Tensor:
-    """Ground the active route token in gripper and cable geometry [m]."""
+    """Ground the active route token in bimanual contact and cable geometry [m]."""
     command = env.command_manager.get_term(command_name)
     command.ensure_route_state_current()
     target = torch.nan_to_num(command.active_peg_positions_w, nan=0.0, posinf=0.0, neginf=0.0)
     cable_points = torch.nan_to_num(
         env.scene[cable_cfg.name].data.segment_pose_w.torch[..., :3], nan=0.0, posinf=0.0, neginf=0.0
     )
-    left_robot = env.scene[left_ee_cfg.name]
-    right_robot = env.scene[right_ee_cfg.name]
-    left_ee = torch.nan_to_num(
-        yam_contact_frame_position_w(left_robot, left_ee_cfg.body_ids[0]), nan=0.0, posinf=0.0, neginf=0.0
-    )
-    right_ee = torch.nan_to_num(
-        yam_contact_frame_position_w(right_robot, right_ee_cfg.body_ids[0]), nan=0.0, posinf=0.0, neginf=0.0
-    )
+    contact_positions = [
+        torch.nan_to_num(
+            contact_frame_position_w(env.scene[ee_cfg.name], ee_cfg.body_ids[0], offset_position),
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+        for ee_cfg, offset_position in zip(end_effector_cfgs, contact_frame_offset_positions, strict=True)
+    ]
+    left_ee, right_ee = contact_positions
 
     endpoint_error = cable_points[:, (0, -1)] - target[:, None, :]
     cable_distance = torch.linalg.vector_norm(cable_points - target[:, None, :], dim=-1).amin(dim=1, keepdim=True)

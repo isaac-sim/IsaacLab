@@ -87,8 +87,16 @@ def test_goal_geometry_and_gripper_reward_use_physical_pad_midpoints() -> None:
     right_cfg = SceneEntityCfg("right")
     right_cfg.body_ids = [0]
 
-    geometry = active_goal_geometry(env, "route", cable_cfg, left_cfg, right_cfg)
-    reward = grippers_near_cable(env, cable_cfg, left_cfg, right_cfg, std=0.15)
+    end_effector_cfgs = (left_cfg, right_cfg)
+    contact_frame_offsets = (YAM_CONTACT_FRAME_OFFSET_POS, YAM_CONTACT_FRAME_OFFSET_POS)
+    geometry = active_goal_geometry(env, "route", cable_cfg, end_effector_cfgs, contact_frame_offsets)
+    reward = grippers_near_cable(
+        env,
+        cable_cfg,
+        end_effector_cfgs,
+        contact_frame_offsets,
+        std=0.15,
+    )
 
     torch.testing.assert_close(geometry[:, 0:3], target - left_contact)
     torch.testing.assert_close(geometry[:, 3:6], target - right_contact)
@@ -171,7 +179,13 @@ def test_cable_rewards_zero_only_nonfinite_environment_rows() -> None:
     rewards = torch.stack(
         (
             cable_near_active_peg(env, "route", SceneEntityCfg("cable"), std=0.08),
-            grippers_near_cable(env, SceneEntityCfg("cable"), left_cfg, right_cfg, std=0.15),
+            grippers_near_cable(
+                env,
+                SceneEntityCfg("cable"),
+                (left_cfg, right_cfg),
+                (YAM_CONTACT_FRAME_OFFSET_POS, YAM_CONTACT_FRAME_OFFSET_POS),
+                std=0.15,
+            ),
             cable_stretch(env, SceneEntityCfg("cable"), rest_length=0.01),
         ),
         dim=-1,

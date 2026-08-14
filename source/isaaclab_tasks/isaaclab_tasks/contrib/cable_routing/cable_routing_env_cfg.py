@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import os
+from dataclasses import MISSING
 from pathlib import Path
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
@@ -35,6 +36,8 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from . import mdp
+from .manipulator_cfg import CableRoutingManipulatorCfg, validate_bimanual_manipulators
+from .yam_frames import YAM_CONTACT_FRAME_OFFSET_POS, YAM_CONTACT_FRAME_OFFSET_QUAT
 
 YAM_SOURCE_USD_PATH = str(Path(__file__).resolve().parent / "assets" / "yam" / "i2rt_yam_default.usda")
 """Pinned, unmodified Robot Menagerie YAM source package."""
@@ -89,9 +92,37 @@ YAM_LATERAL_OFFSET = 0.5 * (BOARD_SIZE[1] + YAM_VISUAL_BASE_WIDTH)
 YAM_GRIPPER_OPEN_POS = 0.0375
 YAM_GRIPPER_CLOSED_POS = 0.0
 
+BIMANUAL_YAM_MANIPULATORS = (
+    CableRoutingManipulatorCfg(
+        asset_name="yam_left",
+        arm_joint_names=["joint[1-6]"],
+        gripper_joint_names=["left_finger", "right_finger"],
+        gripper_joint_multipliers=[1.0, -1.0],
+        end_effector_body_name="link_6",
+        contact_frame_offset_pos=YAM_CONTACT_FRAME_OFFSET_POS,
+        contact_frame_offset_quat=YAM_CONTACT_FRAME_OFFSET_QUAT,
+        arm_action_name="left_arm",
+        gripper_action_name="left_gripper",
+        cage_gripper_joint_position=0.0045,
+    ),
+    CableRoutingManipulatorCfg(
+        asset_name="yam_right",
+        arm_joint_names=["joint[1-6]"],
+        gripper_joint_names=["left_finger", "right_finger"],
+        gripper_joint_multipliers=[1.0, -1.0],
+        end_effector_body_name="link_6",
+        contact_frame_offset_pos=YAM_CONTACT_FRAME_OFFSET_POS,
+        contact_frame_offset_quat=YAM_CONTACT_FRAME_OFFSET_QUAT,
+        arm_action_name="right_arm",
+        gripper_action_name="right_gripper",
+        cage_gripper_joint_position=0.0045,
+    ),
+)
+"""Ordered task interface supplied by the concrete bimanual YAM embodiment."""
+
 # Convert the solver-level targets to the elastic moduli authored by CableMaterialCfg.
 CABLE_STRETCH_MODULUS = 2.0e5 * CABLE_SEGMENT_LENGTH / (math.pi * CABLE_RADIUS**2)
-CABLE_BEND_MODULUS = 0.08 * CABLE_SEGMENT_LENGTH / (0.25 * math.pi * CABLE_RADIUS**4)
+CABLE_BEND_MODULUS = 0.02 * CABLE_SEGMENT_LENGTH / (0.25 * math.pi * CABLE_RADIUS**4)
 
 # ManipulationNet Tier-1 round pegs, mapped from the 10 mm board lattice into a centered board frame.
 PEG_BASE_POSITIONS_B = (
@@ -240,19 +271,8 @@ def _make_peg_cfg(name: str, position: tuple[float, float, float]) -> RigidObjec
 
 
 @configclass
-class CableRoutingSceneCfg(InteractiveSceneCfg):
-    """Full table, board, dual YAM, two round pegs, and one Newton cable."""
-
-    yam_left: ArticulationCfg = _make_yam_cfg(
-        "{ENV_REGEX_NS}/YamLeft",
-        (YAM_FRONT_X, YAM_LATERAL_OFFSET, YAM_BASE_Z),
-        0.0,
-    )
-    yam_right: ArticulationCfg = _make_yam_cfg(
-        "{ENV_REGEX_NS}/YamRight",
-        (YAM_FRONT_X, -YAM_LATERAL_OFFSET, YAM_BASE_Z),
-        0.0,
-    )
+class CableBoardSceneCfg(InteractiveSceneCfg):
+    """Robot-independent table, board, pegs, cable, and materials."""
 
     # The table and board are kinematic bodies instead of static shapes. Coupled Newton
     # requires every shape to have exactly one owning entry, so a static collider cannot
@@ -316,7 +336,38 @@ class CableRoutingSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class ActionsCfg:
+class YamCableBoardSceneCfg(CableBoardSceneCfg):
+    """Cable-board scene populated by the concrete bimanual YAM embodiment."""
+
+    yam_left: ArticulationCfg = _make_yam_cfg(
+        "{ENV_REGEX_NS}/YamLeft",
+        (YAM_FRONT_X, YAM_LATERAL_OFFSET, YAM_BASE_Z),
+        0.0,
+    )
+    yam_right: ArticulationCfg = _make_yam_cfg(
+        "{ENV_REGEX_NS}/YamRight",
+        (YAM_FRONT_X, -YAM_LATERAL_OFFSET, YAM_BASE_Z),
+        0.0,
+    )
+
+
+# Backward-compatible scene names for existing imports.
+BimanualYamCableBoardSceneCfg = YamCableBoardSceneCfg
+CableRoutingSceneCfg = YamCableBoardSceneCfg
+
+
+@configclass
+class CableRoutingTaskActionsCfg:
+    """Ordered bimanual action roles supplied by an embodiment."""
+
+    left_arm: object = MISSING
+    left_gripper: object = MISSING
+    right_arm: object = MISSING
+    right_gripper: object = MISSING
+
+
+@configclass
+class BimanualYamActionsCfg(CableRoutingTaskActionsCfg):
     """Fourteen actions: six relative arm joints and one binary gripper per YAM."""
 
     left_arm = mdp.FiniteRelativeJointPositionActionCfg(
@@ -348,7 +399,7 @@ class ActionsCfg:
 
 
 @configclass
-class CommandsCfg:
+class CableRoutingCommandsCfg:
     """Geometry-grounded route programs with staged sampling subsets."""
 
     route = mdp.CableRoutingCommandCfg(
@@ -362,7 +413,7 @@ class CommandsCfg:
 
 
 @configclass
-class ObservationsCfg:
+class CableRoutingTaskObservationsCfg:
     """Structured privileged observations for the first learning milestone."""
 
     @configclass
@@ -381,40 +432,13 @@ class ObservationsCfg:
             params={
                 "command_name": "route",
                 "cable_cfg": SceneEntityCfg("cable"),
-                "left_ee_cfg": SceneEntityCfg("yam_left", body_names=["link_6"]),
-                "right_ee_cfg": SceneEntityCfg("yam_right", body_names=["link_6"]),
+                "end_effector_cfgs": MISSING,
+                "contact_frame_offset_positions": MISSING,
             },
         )
         actions = ObsTerm(
             func=mdp.finite_last_action,
-            params={"binary_action_names": ("left_gripper", "right_gripper")},
-        )
-
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    @configclass
-    class ProprioCfg(ObsGroup):
-        left_joint_pos = ObsTerm(
-            func=mdp.finite_joint_pos_rel,
-            params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
-        )
-        left_joint_vel = ObsTerm(
-            func=mdp.finite_joint_vel_rel,
-            params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
-        )
-        right_joint_pos = ObsTerm(
-            func=mdp.finite_joint_pos_rel,
-            params={
-                "asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]", "left_finger", "right_finger"])
-            },
-        )
-        right_joint_vel = ObsTerm(
-            func=mdp.finite_joint_vel_rel,
-            params={
-                "asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]", "left_finger", "right_finger"])
-            },
+            params={"binary_action_names": ()},
         )
 
         def __post_init__(self) -> None:
@@ -434,37 +458,54 @@ class ObservationsCfg:
 
     goal: GoalCfg = GoalCfg()
     policy: PolicyCfg = PolicyCfg()
-    proprio: ProprioCfg = ProprioCfg()
+    proprio: ObsGroup = MISSING
     cable_state: CableStateCfg = CableStateCfg()
 
 
 @configclass
-class EventCfg:
-    """Heterogeneous robot, fixture, and cable resets."""
+class BimanualYamProprioCfg(ObsGroup):
+    """Joint-state observations supplied by the YAM embodiment."""
+
+    left_joint_pos = ObsTerm(
+        func=mdp.finite_joint_pos_rel,
+        params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
+    )
+    left_joint_vel = ObsTerm(
+        func=mdp.finite_joint_vel_rel,
+        params={"asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
+    )
+    right_joint_pos = ObsTerm(
+        func=mdp.finite_joint_pos_rel,
+        params={"asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
+    )
+    right_joint_vel = ObsTerm(
+        func=mdp.finite_joint_vel_rel,
+        params={"asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]", "left_finger", "right_finger"])},
+    )
+
+    def __post_init__(self) -> None:
+        self.enable_corruption = False
+        self.concatenate_terms = True
+
+
+@configclass
+class BimanualYamObservationsCfg(CableRoutingTaskObservationsCfg):
+    """Task observations completed by YAM proprioception."""
+
+    proprio: BimanualYamProprioCfg = BimanualYamProprioCfg()
+
+
+@configclass
+class CableRoutingTaskEventCfg:
+    """Robot-neutral scene, fixture, and cable reset ordering."""
 
     reset_scene = EventTerm(
         func=env_mdp.reset_scene_to_default,
         mode="reset",
         params={"reset_joint_targets": True},
     )
-    reset_left_arm = EventTerm(
-        func=env_mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "position_range": (-0.05, 0.05),
-            "velocity_range": (0.0, 0.0),
-            "asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]"]),
-        },
-    )
-    reset_right_arm = EventTerm(
-        func=env_mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "position_range": (-0.05, 0.05),
-            "velocity_range": (0.0, 0.0),
-            "asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]"]),
-        },
-    )
+    reset_left_arm: EventTerm = MISSING
+    reset_right_arm: EventTerm = MISSING
     reset_pegs = EventTerm(
         func=mdp.reset_peg_offsets,
         mode="reset",
@@ -497,7 +538,31 @@ class EventCfg:
 
 
 @configclass
-class RewardsCfg:
+class BimanualYamEventCfg(CableRoutingTaskEventCfg):
+    """Task reset sequence completed by YAM joint resets."""
+
+    reset_left_arm = EventTerm(
+        func=env_mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "position_range": (-0.05, 0.05),
+            "velocity_range": (0.0, 0.0),
+            "asset_cfg": SceneEntityCfg("yam_left", joint_names=["joint[1-6]"]),
+        },
+    )
+    reset_right_arm = EventTerm(
+        func=env_mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "position_range": (-0.05, 0.05),
+            "velocity_range": (0.0, 0.0),
+            "asset_cfg": SceneEntityCfg("yam_right", joint_names=["joint[1-6]"]),
+        },
+    )
+
+
+@configclass
+class CableRoutingTaskRewardsCfg:
     """Sparse ordered-route success reward with safety and control penalties."""
 
     success = RewTerm(
@@ -521,8 +586,14 @@ class RewardsCfg:
     action_rate = RewTerm(
         func=mdp.finite_action_rate_l2,
         weight=-0.002,
-        params={"binary_action_names": ("left_gripper", "right_gripper")},
+        params={"binary_action_names": ()},
     )
+
+
+@configclass
+class BimanualYamRewardsCfg(CableRoutingTaskRewardsCfg):
+    """Task rewards completed by YAM arm regularization."""
+
     left_joint_velocity = RewTerm(
         func=mdp.finite_joint_vel_l2,
         weight=-0.0001,
@@ -536,7 +607,7 @@ class RewardsCfg:
 
 
 @configclass
-class TerminationsCfg:
+class CableRoutingTaskTerminationsCfg:
     """Success, numerical failure, workspace bounds, and timeout."""
 
     success = DoneTerm(func=mdp.route_complete, params={"command_name": "route"})
@@ -546,31 +617,100 @@ class TerminationsCfg:
     )
     invalid_robot_or_action = DoneTerm(
         func=mdp.robot_or_action_invalid,
-        params={
-            "robot_cfgs": [
-                SceneEntityCfg("yam_left"),
-                SceneEntityCfg("yam_right"),
-            ]
-        },
+        params={"robot_cfgs": []},
     )
     time_out = DoneTerm(func=env_mdp.time_out, time_out=True)
 
 
-@configclass
-class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
-    """Goal-conditioned one-meter, two-F1-peg cable-routing environment using Newton."""
+# Backward-compatible names for the original concrete YAM manager configurations.
+ActionsCfg = BimanualYamActionsCfg
+CommandsCfg = CableRoutingCommandsCfg
+ObservationsCfg = BimanualYamObservationsCfg
+EventCfg = BimanualYamEventCfg
+RewardsCfg = BimanualYamRewardsCfg
+TerminationsCfg = CableRoutingTaskTerminationsCfg
 
-    scene: CableRoutingSceneCfg = CableRoutingSceneCfg(
+
+@configclass
+class CableRoutingTaskEnvCfg(ManagerBasedRLEnvCfg):
+    """Robot-neutral manager-based cable-routing task.
+
+    An embodiment mixin supplies two robot assets, their ordered actions and
+    proprioception, reset terms, regularizers, and a compatible physics graph.
+    """
+
+    manipulators: tuple[CableRoutingManipulatorCfg, ...] = MISSING
+
+    scene: CableBoardSceneCfg = CableBoardSceneCfg(
         num_envs=256,
         env_spacing=1.5,
         replicate_physics=True,
     )
-    actions: ActionsCfg = ActionsCfg()
-    observations: ObservationsCfg = ObservationsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    events: EventCfg = EventCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    actions: CableRoutingTaskActionsCfg = CableRoutingTaskActionsCfg()
+    observations: CableRoutingTaskObservationsCfg = CableRoutingTaskObservationsCfg()
+    commands: CableRoutingCommandsCfg = CableRoutingCommandsCfg()
+    events: CableRoutingTaskEventCfg = CableRoutingTaskEventCfg()
+    rewards: CableRoutingTaskRewardsCfg = CableRoutingTaskRewardsCfg()
+    terminations: CableRoutingTaskTerminationsCfg = CableRoutingTaskTerminationsCfg()
+    sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0)
+
+    def __post_init__(self) -> None:
+        """Bind robot-neutral task terms to the selected bimanual embodiment."""
+        manipulators = validate_bimanual_manipulators(self.manipulators)
+        self.commands.route.manipulators = manipulators
+
+        end_effector_cfgs = tuple(
+            SceneEntityCfg(manipulator.asset_name, body_names=[manipulator.end_effector_body_name])
+            for manipulator in manipulators
+        )
+        contact_frame_offsets = tuple(manipulator.contact_frame_offset_pos for manipulator in manipulators)
+        binary_action_names = tuple(manipulator.gripper_action_name for manipulator in manipulators)
+        self.observations.policy.active_geometry.params["end_effector_cfgs"] = end_effector_cfgs
+        self.observations.policy.active_geometry.params["contact_frame_offset_positions"] = contact_frame_offsets
+        self.observations.policy.actions.params["binary_action_names"] = binary_action_names
+        self.rewards.action_rate.params["binary_action_names"] = binary_action_names
+        self.terminations.invalid_robot_or_action.params["robot_cfgs"] = [
+            SceneEntityCfg(manipulator.asset_name) for manipulator in manipulators
+        ]
+
+        for manipulator in manipulators:
+            if not hasattr(self.actions, manipulator.arm_action_name):
+                raise ValueError(f"Missing arm action term '{manipulator.arm_action_name}'.")
+            if not hasattr(self.actions, manipulator.gripper_action_name):
+                raise ValueError(f"Missing gripper action term '{manipulator.gripper_action_name}'.")
+
+        self.decimation = 4
+        self.episode_length_s = 12.0
+        self.sim.render_interval = self.decimation
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(1.25, -1.10, 1.55),
+            lookat=(0.0, 0.0, BOARD_TOP_Z),
+            focal_length=28.0,
+        )
+
+    def play_mode(self) -> None:
+        """Use a small scene for interactive inspection."""
+        super().play_mode()
+        self.scene.num_envs = 4
+        self.commands.route.reset_replay.buffer_size = 8
+        self.commands.route.debug_vis = True
+
+
+@configclass
+class BimanualYamEmbodimentCfg:
+    """YAM assets, control interface, observations, resets, and Newton coupling."""
+
+    manipulators: tuple[CableRoutingManipulatorCfg, ...] = BIMANUAL_YAM_MANIPULATORS
+
+    scene: YamCableBoardSceneCfg = YamCableBoardSceneCfg(
+        num_envs=256,
+        env_spacing=1.5,
+        replicate_physics=True,
+    )
+    actions: BimanualYamActionsCfg = BimanualYamActionsCfg()
+    observations: BimanualYamObservationsCfg = BimanualYamObservationsCfg()
+    events: BimanualYamEventCfg = BimanualYamEventCfg()
+    rewards: BimanualYamRewardsCfg = BimanualYamRewardsCfg()
     sim: SimulationCfg = SimulationCfg(
         dt=1.0 / 120.0,
         use_newton_actuators=True,
@@ -606,7 +746,7 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
                         # contacts per body during multigoal training.
                         # The Newton cable-pile reference uses 256; this retains all
                         # observed contacts with ample headroom at modest memory cost.
-                        solver_cfg=VBDSolverCfg(iterations=10, rigid_body_contact_buffer_size=256),
+                        solver_cfg=VBDSolverCfg(iterations=6, rigid_body_contact_buffer_size=256),
                         bodies=[r"/World/envs/env_.*/Cable"],
                         include_static_shapes=True,
                     ),
@@ -616,6 +756,8 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
                         source="rigid",
                         destination="cable",
                         bodies=[
+                            # Body selectors include descendants, so link_6 exposes only
+                            # the wrist and gripper trees to the cable collision solver.
                             r"/World/envs/env_.*/Yam(Left|Right)/Geometry/arm/link_1/link_2/link_3/link_4/link_5/link_6",
                             r"/World/envs/env_.*/(Table|Board)",
                             r"/World/envs/env_.*/Peg(0|1)",
@@ -643,23 +785,14 @@ class CableRoutingEnvCfg(ManagerBasedRLEnvCfg):
         ),
     )
 
-    def __post_init__(self) -> None:
-        """Set control frequency, episode duration, and the overview camera."""
-        self.decimation = 4
-        self.episode_length_s = 12.0
-        self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(1.25, -1.10, 1.55),
-            lookat=(0.0, 0.0, BOARD_TOP_Z),
-            focal_length=28.0,
-        )
+    def __post_init__(self: CableRoutingTaskEnvCfg) -> None:
+        """Delegate robot-neutral manager-term binding to the task configuration."""
+        super().__post_init__()
 
-    def play_mode(self) -> None:
-        """Use a small scene for interactive inspection."""
-        super().play_mode()
-        self.scene.num_envs = 4
-        self.commands.route.reset_replay.buffer_size = 8
-        self.commands.route.debug_vis = True
+
+@configclass
+class CableRoutingEnvCfg(BimanualYamEmbodimentCfg, CableRoutingTaskEnvCfg):
+    """Current bimanual YAM composition of the robot-neutral cable-routing task."""
 
 
 @configclass

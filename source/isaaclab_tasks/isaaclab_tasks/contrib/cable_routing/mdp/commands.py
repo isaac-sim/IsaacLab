@@ -23,17 +23,17 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, subtract_frame_transforms
 
-from ..yam_frames import YAM_CONTACT_FRAME_OFFSET_POS, YAM_CONTACT_FRAME_OFFSET_QUAT
+from ..manipulator_cfg import CableRoutingManipulatorCfg, validate_bimanual_manipulators
 from .cable_geometry import cable_relative_joint_gap
 from .events import reset_peg_offsets
 from .reset_curves import generate_route_conditioned_cable_poses, validate_route_conditioned_cable_poses
 from .reset_replay import CableResetReplay, CableResetReplayCfg, finite_scene_state_rows
 from .reset_robot_targets import (
-    build_top_down_yam_contact_target_poses,
+    build_top_down_contact_target_poses,
     finite_reset_target_rows,
     select_nearest_cable_segment_indices,
     select_workspace_aware_cable_contact_indices,
-    valid_top_down_yam_target_rows,
+    valid_top_down_target_rows,
 )
 from .route_metrics import benchmark_local_cable_spans, benchmark_winding_angle, ordered_route_state
 
@@ -203,6 +203,9 @@ class CableRoutingCommandCfg(CommandTermCfg):
     peg_names: tuple[str, ...] = ("peg_0", "peg_1")
     """Scene names of route pegs in canonical order."""
 
+    manipulators: tuple[CableRoutingManipulatorCfg, ...] = ()
+    """Ordered bimanual embodiment contract used by reset-state authoring."""
+
     route_options: tuple[tuple[tuple[int, int], ...], ...] = (
         ((0, -1),),
         ((1, 1),),
@@ -243,7 +246,7 @@ class CableRoutingCommandCfg(CommandTermCfg):
     """Maximum vertical distance from a peg center used by route metrics [m].
 
     ``None`` retains radial-only behavior for fixtures without a finite axial
-    extent. The YAM environment configures this from peg and cable geometry.
+    extent. A concrete scene configures this from peg and cable geometry.
     """
 
     completion_winding: float = 2.6
@@ -394,6 +397,8 @@ class CableRoutingCommandCfg(CommandTermCfg):
             raise ValueError(
                 "reset_replay.completed_winding must lie between completion_winding and maximum_completion_winding."
             )
+        if self.manipulators:
+            validate_bimanual_manipulators(self.manipulators)
 
 
 class CableRoutingCommand(CommandTerm):
@@ -448,18 +453,29 @@ class CableRoutingCommand(CommandTerm):
         self.reset_replay: CableResetReplay | None = None
         if cfg.reset_replay.enabled:
             self.reset_replay = CableResetReplay(cfg.reset_replay, env)
+        if cfg.reset_replay.robot_targets.enabled:
+            self._manipulators = validate_bimanual_manipulators(cfg.manipulators)
+        else:
+            self._manipulators = cfg.manipulators
+        self._manipulator_by_name = {manipulator.asset_name: manipulator for manipulator in self._manipulators}
+        self._robot_names = tuple(manipulator.asset_name for manipulator in self._manipulators)
         self._arm_joint_ids = {
-            name: env.scene[name].find_joints(["joint[1-6]"])[0] for name in ("yam_left", "yam_right")
+            manipulator.asset_name: env.scene[manipulator.asset_name].find_joints(
+                manipulator.arm_joint_names, preserve_order=True
+            )[0]
+            for manipulator in self._manipulators
         }
         self._gripper_joint_ids = {
-            name: (
-                env.scene[name].find_joints("left_finger")[0][0],
-                env.scene[name].find_joints("right_finger")[0][0],
-            )
-            for name in ("yam_left", "yam_right")
+            manipulator.asset_name: env.scene[manipulator.asset_name].find_joints(
+                manipulator.gripper_joint_names, preserve_order=True
+            )[0]
+            for manipulator in self._manipulators
         }
         self._contact_body_ids = {
-            name: env.scene[name].find_bodies("link_6")[0][0] for name in ("yam_left", "yam_right")
+            manipulator.asset_name: env.scene[manipulator.asset_name].find_bodies(manipulator.end_effector_body_name)[
+                0
+            ][0]
+            for manipulator in self._manipulators
         }
         self._reset_ik_helpers: dict[str, object] | None = None
 
@@ -744,9 +760,10 @@ class CableRoutingCommand(CommandTerm):
         self._reset_ik_helpers = {}
         target_cfg = self.cfg.reset_replay.robot_targets
         for name in self._arm_joint_ids:
+            manipulator = self._manipulator_by_name[name]
             helper_cfg = NewtonInverseKinematicsActionCfg(
                 asset_name=name,
-                joint_names=["joint[1-6]"],
+                joint_names=manipulator.arm_joint_names,
                 isolate_articulation_model=True,
                 use_cuda_graph=str(self.device).startswith("cuda"),
                 controller=NewtonIKSolverCfg(
@@ -762,9 +779,9 @@ class CableRoutingCommand(CommandTerm):
                 objectives=[
                     NewtonIKPoseObjectiveCfg(
                         name=f"{name}_reset_contact",
-                        body_name="link_6",
-                        body_offset_pos=YAM_CONTACT_FRAME_OFFSET_POS,
-                        body_offset_rot=YAM_CONTACT_FRAME_OFFSET_QUAT,
+                        body_name=manipulator.end_effector_body_name,
+                        body_offset_pos=manipulator.contact_frame_offset_pos,
+                        body_offset_rot=manipulator.contact_frame_offset_quat,
                         command_type="pose",
                         use_relative_mode=False,
                         scale=1.0,
@@ -778,13 +795,14 @@ class CableRoutingCommand(CommandTerm):
         return self._reset_ik_helpers
 
     def _contact_pose_w(self, robot_name: str, env_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return the physical inner-pad midpoint pose for one YAM."""
+        """Return the configured physical contact-frame pose for one manipulator."""
         robot = self._env.scene[robot_name]
+        manipulator = self._manipulator_by_name[robot_name]
         body_id = self._contact_body_ids[robot_name]
         body_pos = robot.data.body_pos_w.torch[env_ids, body_id]
         body_quat = robot.data.body_quat_w.torch[env_ids, body_id]
-        offset_pos = body_pos.new_tensor(YAM_CONTACT_FRAME_OFFSET_POS).expand(len(env_ids), -1)
-        offset_quat = body_quat.new_tensor(YAM_CONTACT_FRAME_OFFSET_QUAT).expand(len(env_ids), -1)
+        offset_pos = body_pos.new_tensor(manipulator.contact_frame_offset_pos).expand(len(env_ids), -1)
+        offset_quat = body_quat.new_tensor(manipulator.contact_frame_offset_quat).expand(len(env_ids), -1)
         return combine_frame_transforms(body_pos, body_quat, offset_pos, offset_quat)
 
     def _solve_reset_ik(
@@ -836,7 +854,7 @@ class CableRoutingCommand(CommandTerm):
         active_steps: torch.Tensor,
         interaction_phase: torch.Tensor,
     ) -> _RobotResetCondition:
-        """Pair generated cables with reachable reach, cage, and bimanual YAM states."""
+        """Pair generated cables with reachable reach, cage, and bimanual robot states."""
         target_cfg = self.cfg.reset_replay.robot_targets
         num_rows = len(env_ids)
         assigned = torch.zeros((num_rows, 2), device=self.device, dtype=torch.bool)
@@ -858,7 +876,7 @@ class CableRoutingCommand(CommandTerm):
                 step_rows = route_rows[active_steps[route_rows] == step]
                 active_peg_indices[step_rows] = peg_index
         row_ids = torch.arange(num_rows, device=self.device)
-        robot_names = ("yam_left", "yam_right")
+        robot_names = self._robot_names
         base_xy = torch.stack(
             [self._env.scene[name].data.root_pos_w.torch[env_ids, :2] for name in robot_names],
             dim=1,
@@ -913,7 +931,7 @@ class CableRoutingCommand(CommandTerm):
             if len(local_rows) == 0:
                 continue
             selected_poses = cable_poses[local_rows, segment_indices[local_rows, arm_index]]
-            target_poses_w = build_top_down_yam_contact_target_poses(
+            target_poses_w = build_top_down_contact_target_poses(
                 selected_poses,
                 base_xy[local_rows, arm_index],
                 height_offsets[local_rows, arm_index],
@@ -924,13 +942,22 @@ class CableRoutingCommand(CommandTerm):
             robot = self._env.scene[robot_name]
             position = robot.data.joint_pos.torch[env_ids[local_rows]].clone()
             position[:, self._arm_joint_ids[robot_name]] = solved
-            left_finger, right_finger = self._gripper_joint_ids[robot_name]
-            cage_position = position.new_full((len(local_rows),), target_cfg.cage_gripper_joint_position)
-            open_position = robot.data.default_joint_pos.torch[env_ids[local_rows], left_finger]
+            manipulator = self._manipulator_by_name[robot_name]
+            gripper_joint_ids = self._gripper_joint_ids[robot_name]
+            gripper_multipliers = position.new_tensor(manipulator.gripper_joint_multipliers)
+            cage_gripper_position = (
+                manipulator.cage_gripper_joint_position
+                if target_cfg.cage_gripper_joint_position is None
+                else target_cfg.cage_gripper_joint_position
+            )
+            cage_position = position.new_full((len(local_rows),), cage_gripper_position)
+            first_joint_id = gripper_joint_ids[0]
+            open_position = (
+                robot.data.default_joint_pos.torch[env_ids[local_rows], first_joint_id] / gripper_multipliers[0]
+            )
             arm_reach = height_offsets[local_rows, arm_index] == target_cfg.reach_height
-            finger_position = torch.where(arm_reach, open_position, cage_position)
-            position[:, left_finger] = finger_position
-            position[:, right_finger] = -finger_position
+            gripper_position = torch.where(arm_reach, open_position, cage_position)
+            position[:, gripper_joint_ids] = gripper_position[:, None] * gripper_multipliers[None]
             velocity = torch.zeros_like(position)
             robot.write_joint_position_to_sim_index(position=position, env_ids=env_ids[local_rows])
             robot.write_joint_velocity_to_sim_index(velocity=velocity, env_ids=env_ids[local_rows])
@@ -1025,7 +1052,7 @@ class CableRoutingCommand(CommandTerm):
                 diagnostics["robot_ik"] = robot_condition.ik_valid
             local_x = poses.new_tensor((1.0, 0.0, 0.0)).expand(len(env_ids), -1)
             local_z = poses.new_tensor((0.0, 0.0, 1.0)).expand(len(env_ids), -1)
-            for arm_index, robot_name in enumerate(("yam_left", "yam_right")):
+            for arm_index, robot_name in enumerate(self._robot_names):
                 assigned_rows = robot_condition.assigned[:, arm_index].nonzero(as_tuple=False).squeeze(-1)
                 if len(assigned_rows) == 0:
                     continue
@@ -1060,7 +1087,7 @@ class CableRoutingCommand(CommandTerm):
                     search_radius=target_cfg.post_settle_segment_window,
                 )
                 segment_poses = poses[assigned_rows, live_segment_indices]
-                target_geometry_valid = valid_top_down_yam_target_rows(segment_poses)
+                target_geometry_valid = valid_top_down_target_rows(segment_poses)
                 valid[assigned_rows] &= target_geometry_valid
                 if robot_geometry_valid is not None:
                     robot_geometry_valid[assigned_rows] &= target_geometry_valid
@@ -1071,7 +1098,7 @@ class CableRoutingCommand(CommandTerm):
                 contact_quat = contact_quat[target_geometry_valid]
                 base_xy = base_xy[target_geometry_valid]
                 segment_poses = segment_poses[target_geometry_valid]
-                live_target = build_top_down_yam_contact_target_poses(
+                live_target = build_top_down_contact_target_poses(
                     segment_poses,
                     base_xy,
                     robot_condition.height_offsets[assigned_rows, arm_index],

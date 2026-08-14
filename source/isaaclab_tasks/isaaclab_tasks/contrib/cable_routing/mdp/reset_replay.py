@@ -130,8 +130,11 @@ class CableResetReplayCfg:
     completed_winding: float = 4.0
     """Directed winding [rad] used for route steps before the active step."""
 
-    settle_steps: int = 16
-    """Physics steps used to relax each generated cable state before it is banked."""
+    settle_steps: int = 30
+    """Policy steps used to relax each generated cable state before it is banked.
+
+    At the cable-routing task's 30 Hz control rate, 30 steps provide one simulated second of settling.
+    """
 
     max_settle_attempts: int = 64
     """Maximum generate-and-settle attempts used to fill each replay-bank row.
@@ -151,10 +154,10 @@ class CableResetReplayCfg:
     batch does not receive a disproportionately strict limit.
     """
 
-    max_settle_linear_speed: float = 0.15
+    max_settle_linear_speed: float = 0.10
     """Maximum cable-segment linear speed [m/s] accepted after settling."""
 
-    max_settle_angular_speed: float = 15.0
+    max_settle_angular_speed: float = 10.0
     """Maximum cable-segment angular speed [rad/s] accepted after settling."""
 
     max_segment_length_relative_error: float = 0.15

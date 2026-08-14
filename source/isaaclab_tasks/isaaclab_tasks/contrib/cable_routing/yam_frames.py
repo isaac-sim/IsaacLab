@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.math import combine_frame_transforms, quat_apply
+from .frames import contact_frame_pose_w, contact_frame_position_w
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -35,16 +35,9 @@ def yam_contact_frame_pose_w(robot: Articulation, body_id: int) -> tuple[torch.T
         Contact-frame positions [m] and quaternions, with shapes ``(N, 3)`` and
         ``(N, 4)`` respectively.
     """
-    body_pos_w = robot.data.body_pos_w.torch[:, body_id]
-    body_quat_w = robot.data.body_quat_w.torch[:, body_id]
-    offset_pos = body_pos_w.new_tensor(YAM_CONTACT_FRAME_OFFSET_POS).expand_as(body_pos_w)
-    offset_quat = body_quat_w.new_tensor(YAM_CONTACT_FRAME_OFFSET_QUAT).expand_as(body_quat_w)
-    return combine_frame_transforms(body_pos_w, body_quat_w, offset_pos, offset_quat)
+    return contact_frame_pose_w(robot, body_id, YAM_CONTACT_FRAME_OFFSET_POS, YAM_CONTACT_FRAME_OFFSET_QUAT)
 
 
 def yam_contact_frame_position_w(robot: Articulation, body_id: int) -> torch.Tensor:
     """Return the YAM inner-pad midpoint position in world coordinates [m]."""
-    body_pos_w = robot.data.body_pos_w.torch[:, body_id]
-    body_quat_w = robot.data.body_quat_w.torch[:, body_id]
-    offset_pos = body_pos_w.new_tensor(YAM_CONTACT_FRAME_OFFSET_POS).expand_as(body_pos_w)
-    return body_pos_w + quat_apply(body_quat_w, offset_pos)
+    return contact_frame_position_w(robot, body_id, YAM_CONTACT_FRAME_OFFSET_POS)

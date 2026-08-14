@@ -34,6 +34,7 @@ from isaaclab_contrib.coupling import CouplerProxyCfg
 import isaaclab_tasks.contrib.cable_routing  # noqa: F401
 from isaaclab_tasks.contrib.cable_routing.agents.rsl_rl_ppo_cfg import CableRoutingPPORunnerCfg
 from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
+    BIMANUAL_YAM_MANIPULATORS,
     BOARD_SIZE,
     BOARD_THICKNESS,
     BOARD_TOP_Z,
@@ -59,11 +60,15 @@ from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import (
     YAM_USD_PATH,
     YAM_VISUAL_BASE_DEPTH,
     YAM_VISUAL_BASE_WIDTH,
+    BimanualYamEmbodimentCfg,
+    CableBoardSceneCfg,
     CableRoutingEnvCfg,
     CableRoutingPeg0CCWEnvCfg,
     CableRoutingPeg1CWEnvCfg,
     CableRoutingSevenGoalsEnvCfg,
+    CableRoutingTaskEnvCfg,
     CableRoutingTier1PegsEnvCfg,
+    YamCableBoardSceneCfg,
 )
 from isaaclab_tasks.contrib.cable_routing.mdp.actions import FiniteRelativeJointPositionAction
 from isaaclab_tasks.contrib.cable_routing.mdp.commands import (
@@ -126,6 +131,19 @@ def test_cable_routing_actions_are_relative_joint_position_with_binary_grippers(
 
     resolved_policy_action_dim = 6 + 1 + 6 + 1
     assert resolved_policy_action_dim == 14
+
+
+def test_cable_routing_composes_robot_neutral_task_with_yam_embodiment() -> None:
+    """The task contract is independent while the existing environment remains the YAM composition."""
+    cfg = CableRoutingEnvCfg()
+
+    assert issubclass(YamCableBoardSceneCfg, CableBoardSceneCfg)
+    assert issubclass(CableRoutingEnvCfg, BimanualYamEmbodimentCfg)
+    assert issubclass(CableRoutingEnvCfg, CableRoutingTaskEnvCfg)
+    assert tuple(manipulator.asset_name for manipulator in cfg.manipulators) == ("yam_left", "yam_right")
+    assert cfg.commands.route.manipulators == cfg.manipulators
+    assert cfg.commands.route.reset_replay.robot_targets.cage_gripper_joint_position is None
+    assert all(manipulator.cage_gripper_joint_position == 0.0045 for manipulator in cfg.manipulators)
 
 
 def test_relative_joint_action_holds_one_limit_clamped_target() -> None:
@@ -242,8 +260,11 @@ def test_cable_routing_manager_terms_use_menagerie_joint_and_body_names() -> Non
     cfg = CableRoutingEnvCfg()
 
     active_geometry = cfg.observations.policy.active_geometry.params
-    assert active_geometry["left_ee_cfg"].body_names == ["link_6"]
-    assert active_geometry["right_ee_cfg"].body_names == ["link_6"]
+    assert tuple(entity.name for entity in active_geometry["end_effector_cfgs"]) == ("yam_left", "yam_right")
+    assert all(entity.body_names == ["link_6"] for entity in active_geometry["end_effector_cfgs"])
+    assert active_geometry["contact_frame_offset_positions"] == tuple(
+        manipulator.contact_frame_offset_pos for manipulator in BIMANUAL_YAM_MANIPULATORS
+    )
 
     expected_proprio_joints = ["joint[1-6]", "left_finger", "right_finger"]
     for term in (
@@ -664,7 +685,7 @@ def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
     ]
     assert not rigid_entry.include_static_shapes
     assert isinstance(cable_entry.solver_cfg, VBDSolverCfg)
-    assert cable_entry.solver_cfg.iterations == 10
+    assert cable_entry.solver_cfg.iterations == 6
     assert cable_entry.solver_cfg.rigid_body_contact_buffer_size == 256
     assert cable_entry.bodies == [r"/World/envs/env_.*/Cable"]
     assert cable_entry.include_static_shapes

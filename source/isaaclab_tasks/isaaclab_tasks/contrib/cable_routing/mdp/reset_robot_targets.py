@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pure geometry helpers for route-conditioned YAM reset targets."""
+"""Pure geometry helpers for route-conditioned manipulator reset targets."""
 
 from __future__ import annotations
 
@@ -16,11 +16,13 @@ from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_unique
 
 __all__ = [
     "CableResetRobotTargetCfg",
+    "build_top_down_contact_target_poses",
     "build_top_down_yam_contact_target_poses",
     "finite_reset_target_rows",
     "select_downstream_cable_segment_indices",
     "select_nearest_cable_segment_indices",
     "select_workspace_aware_cable_contact_indices",
+    "valid_top_down_target_rows",
     "valid_top_down_yam_target_rows",
 ]
 
@@ -37,7 +39,9 @@ class CableResetRobotTargetCfg:
         bimanual_segment_separation: Ordered segment separation between the two arm contacts.
         reach_height: World ``+Z`` offset used for the collision-free approach target [m].
         cage_height: World ``+Z`` offset used for the cable-caging target [m].
-        cage_gripper_joint_position: Finger-joint position used to cage the cable [m].
+        cage_gripper_joint_position: Optional embodiment-wide scalar gripper position used to cage
+            the cable [m or rad, depending on joint type]. If unset, each manipulator descriptor
+            supplies its calibrated value.
         max_contact_position_error: Largest accepted contact-frame position error [m].
         min_tangent_alignment: Smallest accepted absolute tangent-axis cosine similarity.
         post_settle_segment_window: Material-index radius searched after the cable settles.
@@ -51,7 +55,7 @@ class CableResetRobotTargetCfg:
     bimanual_segment_separation: int = 12
     reach_height: float = 0.055
     cage_height: float = 0.003
-    cage_gripper_joint_position: float = 0.0045
+    cage_gripper_joint_position: float | None = None
     max_contact_position_error: float = 0.02
     min_tangent_alignment: float = 0.70
     post_settle_segment_window: int = 8
@@ -75,12 +79,13 @@ class CableResetRobotTargetCfg:
         for name in (
             "reach_height",
             "cage_height",
-            "cage_gripper_joint_position",
             "max_contact_position_error",
         ):
             value = getattr(self, name)
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and non-negative.")
+        if self.cage_gripper_joint_position is not None and not math.isfinite(self.cage_gripper_joint_position):
+            raise ValueError("cage_gripper_joint_position must be None or finite.")
         if self.max_contact_position_error == 0.0:
             raise ValueError("max_contact_position_error must be positive.")
         if self.reach_height < self.cage_height:
@@ -158,7 +163,7 @@ def finite_reset_target_rows(
     )
 
 
-def valid_top_down_yam_target_rows(cable_segment_poses_w: torch.Tensor) -> torch.Tensor:
+def valid_top_down_target_rows(cable_segment_poses_w: torch.Tensor) -> torch.Tensor:
     """Return rows whose cable frame can define a planar top-down target."""
     if not isinstance(cable_segment_poses_w, torch.Tensor):
         raise TypeError("cable_segment_poses_w must be a torch.Tensor.")
@@ -471,12 +476,12 @@ def select_nearest_cable_segment_indices(
     return torch.gather(candidates, 1, distances.argmin(dim=1, keepdim=True)).squeeze(1)
 
 
-def build_top_down_yam_contact_target_poses(
+def build_top_down_contact_target_poses(
     cable_segment_poses_w: torch.Tensor,
     robot_base_xy_w: torch.Tensor,
     height_offsets: torch.Tensor | float = 0.0,
 ) -> torch.Tensor:
-    """Build top-down YAM contact targets from selected cable-segment poses.
+    """Build top-down manipulator contact targets from selected cable-segment poses.
 
     The target's local ``+X`` axis follows the cable tangent, with its sign
     selected to point toward the corresponding robot base. Local ``+Z`` points
@@ -491,7 +496,7 @@ def build_top_down_yam_contact_target_poses(
             either a scalar or one value per row with shape ``(N,)``.
 
     Returns:
-        YAM target poses ``(x, y, z, qx, qy, qz, qw)`` in world frame, shape ``(N, 7)``.
+        Target poses ``(x, y, z, qx, qy, qz, qw)`` in world frame, shape ``(N, 7)``.
 
     Raises:
         ValueError: If shapes or values are invalid, a cable tangent has no
@@ -554,5 +559,19 @@ def build_top_down_yam_contact_target_poses(
     target_position[:, 2] += height_offsets
     target_poses_w = torch.cat((target_position, target_quaternion), dim=-1)
     if not bool(torch.isfinite(target_poses_w).all()):
-        raise ValueError("Constructed YAM contact target poses must be finite.")
+        raise ValueError("Constructed contact target poses must be finite.")
     return target_poses_w
+
+
+def valid_top_down_yam_target_rows(cable_segment_poses_w: torch.Tensor) -> torch.Tensor:
+    """Compatibility alias for :func:`valid_top_down_target_rows`."""
+    return valid_top_down_target_rows(cable_segment_poses_w)
+
+
+def build_top_down_yam_contact_target_poses(
+    cable_segment_poses_w: torch.Tensor,
+    robot_base_xy_w: torch.Tensor,
+    height_offsets: torch.Tensor | float = 0.0,
+) -> torch.Tensor:
+    """Compatibility alias for :func:`build_top_down_contact_target_poses`."""
+    return build_top_down_contact_target_poses(cable_segment_poses_w, robot_base_xy_w, height_offsets)

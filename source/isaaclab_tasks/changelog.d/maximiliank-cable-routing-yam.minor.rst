@@ -11,6 +11,8 @@ Added
 * Added three staged round-peg routing goals plus an explicit seven-goal task spanning both
   fixtures and winding directions, with an RSL-RL PPO configuration and shared route encoder for
   the actor and critic.
+* Split cable routing into a robot-neutral board scene and task configuration plus a bimanual YAM
+  embodiment, with a reusable two-manipulator contract for actions, contact frames, and reset IK.
 Fixed
 ^^^^^
 
@@ -33,6 +35,8 @@ Fixed
   replay credit.
 * Avoided redundant or manager-order-dependent route evaluation and expensive ordinary cable
   generation when a full-scene replay reset will replace it.
+* Softened cable bending and twist for rope-like motion, and required replay states to settle for
+  one simulated second under tighter residual-speed limits before acceptance.
 * Replaced legacy dense tangent-point optimization with a deterministic, fixed-sweep XPBD-style
   Warp projector using Chebyshev acceleration, a Taubin smoothing tail, and current Torch CUDA
   streams. Added a 12 mm bend gate, bend-limited exact-length reconstruction, and replay-forward

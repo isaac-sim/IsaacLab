@@ -701,11 +701,11 @@ def test_reset_replay_settle_validation_defaults_are_probe_grounded() -> None:
     cfg = CableResetReplayCfg()
 
     assert cfg.completed_winding == pytest.approx(4.0)
-    assert cfg.settle_steps == 16
+    assert cfg.settle_steps == 30
     assert cfg.max_settle_attempts == 64
     assert cfg.max_donor_fraction == pytest.approx(0.10)
-    assert cfg.max_settle_linear_speed == pytest.approx(0.15)
-    assert cfg.max_settle_angular_speed == pytest.approx(15.0)
+    assert cfg.max_settle_linear_speed == pytest.approx(0.10)
+    assert cfg.max_settle_angular_speed == pytest.approx(10.0)
     assert cfg.max_segment_length_relative_error == pytest.approx(0.15)
     assert cfg.restore_clearance == pytest.approx(5.0e-6)
     assert cfg.post_settle_progress_tolerance == pytest.approx(0.35)

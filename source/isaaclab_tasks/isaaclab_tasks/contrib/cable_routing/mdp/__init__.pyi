@@ -20,6 +20,7 @@ __all__ = [
     "active_step_progress_from_route_progress",
     "benchmark_local_cable_spans",
     "benchmark_winding_angle",
+    "build_top_down_contact_target_poses",
     "build_top_down_yam_contact_target_poses",
     "cable_capsule_clearance_mask",
     "cable_capsule_self_clearance_mask",
@@ -60,6 +61,7 @@ __all__ = [
     "shape_cable_poses_planar",
     "tangent_point_energy",
     "validate_route_conditioned_cable_poses",
+    "valid_top_down_target_rows",
     "valid_top_down_yam_target_rows",
 ]
 
@@ -112,11 +114,13 @@ from .reset_replay import (
 )
 from .reset_robot_targets import (
     CableResetRobotTargetCfg,
+    build_top_down_contact_target_poses,
     build_top_down_yam_contact_target_poses,
     finite_reset_target_rows,
     select_downstream_cable_segment_indices,
     select_nearest_cable_segment_indices,
     select_workspace_aware_cable_contact_indices,
+    valid_top_down_target_rows,
     valid_top_down_yam_target_rows,
 )
 from .rewards import (

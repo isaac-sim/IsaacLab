@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for route-conditioned YAM reset-target geometry."""
+"""Unit tests for route-conditioned manipulator reset-target geometry."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def test_reset_robot_target_cfg_has_runtime_defaults() -> None:
     assert cfg.bimanual_segment_separation == 12
     assert cfg.reach_height == 0.055
     assert cfg.cage_height == 0.003
-    assert cfg.cage_gripper_joint_position == 0.0045
+    assert cfg.cage_gripper_joint_position is None
     assert cfg.max_contact_position_error == 0.02
     assert cfg.min_tangent_alignment == 0.70
     assert cfg.post_settle_segment_window == 8
