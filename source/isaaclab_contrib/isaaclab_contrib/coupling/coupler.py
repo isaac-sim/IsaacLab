@@ -21,13 +21,13 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
-from ..deformable.vbd_manager import NewtonVBDManager
 from .coupler_cfg import (
     CouplerAdmmCfg,
     CouplerCfg,
@@ -140,11 +140,6 @@ class NewtonCouplerManager(NewtonVBDManager):
             if isinstance(nested_cfg, CouplerCfg):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
-                )
-            if getattr(nested_cfg, "model_cfg", None) is not None:
-                raise ValueError(
-                    f"CouplerEntryCfg {entry.name!r} sets solver_cfg.model_cfg, but model parameters are global. "
-                    "Set model_cfg on the outer CouplerCfg instead."
                 )
             manager = nested_cfg.class_type
             factory = getattr(manager, "_create_solver", None)
