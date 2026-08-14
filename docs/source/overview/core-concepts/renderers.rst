@@ -66,7 +66,7 @@ still supplies the construction default when set to ``0`` or ``1``. An explicit 
 value takes precedence. This setting does not affect OVRTX, which always partitions
 multi-environment scenes.
 
-By default, ``global_settings.show_partitions_in_background=True`` leaves the Kit
+By default, ``global_settings.show_all_partitions_by_default=True`` leaves the Kit
 spectator camera unpartitioned so it sees all environments while tiled cameras remain
 isolated. Isaac Lab's standard Kit experiences enable this capability before RTX
 initialization. Custom experiences must likewise set
@@ -76,10 +76,8 @@ content leak into another environment or disappear. Set the field to ``False`` t
 prioritize partition isolation and show only the selected environment in the Kit viewport.
 
 Prims outside the environment hierarchies remain in the shared background partition.
-Global :class:`~isaaclab.markers.VisualizationMarkers` groups can instead assign each
-``PointInstancer`` instance to an environment by passing ``environment_ids`` to
-:meth:`~isaaclab.markers.VisualizationMarkers.visualize`. Isaac RTX and OVRTX then
-isolate those marker instances with the matching tiled cameras.
+Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
+token per instance; markers without that ownership information remain shared.
 
 Architecture Overview
 ---------------------

@@ -2,7 +2,7 @@ Added
 ^^^^^
 
 * Added ``IsaacRtxRendererCfg.enable_scene_partitioning`` and
-  ``IsaacRtxRendererGlobalSettingsCfg.show_partitions_in_background`` settings.
+  ``IsaacRtxRendererGlobalSettingsCfg.show_all_partitions_by_default`` settings.
   The latter enables an all-environment spectator view by default and requires
   spatially separated environments.
 

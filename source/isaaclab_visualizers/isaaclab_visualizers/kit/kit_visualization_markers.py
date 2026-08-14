@@ -170,6 +170,7 @@ class KitVisualizationMarkers:
             return
 
         if not primvar:
+            # Vertex interpolation maps each token-array element to one PointInstancer instance.
             primvar = primvars_api.CreatePrimvar(
                 _INSTANCE_SCENE_PARTITION_PRIMVAR,
                 Sdf.ValueTypeNames.TokenArray,

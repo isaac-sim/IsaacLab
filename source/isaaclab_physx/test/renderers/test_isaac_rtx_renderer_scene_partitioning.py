@@ -17,8 +17,9 @@ first articulation scene the app builds. The CI harness launches every
 ``isaacsim_ci`` test file in its own app, so keeping these tests isolated here gives them
 a clean renderer and exercises the real single-scene use case.
 
-Per-env scene partitioning is enabled by default. Set
-``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to disable it.
+Per-environment scene partitioning is enabled through
+``IsaacRtxRendererCfg.enable_scene_partitioning`` by default. The environment
+variable remains a legacy construction-time override.
 
 Launch Isaac Sim Simulator first.
 """
@@ -36,6 +37,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacRtxRendererCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -48,6 +50,11 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
+
+
+def _isolation_renderer_cfg() -> IsaacRtxRendererCfg:
+    """Disable spectator world-space layout for intentionally overlapping test environments."""
+    return IsaacRtxRendererCfg(global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=False))
 
 
 @pytest.mark.isaacsim_ci
@@ -120,6 +127,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             height=128,
             width=192,
             data_types=["rgb"],
+            renderer_cfg=_isolation_renderer_cfg(),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.0, clipping_range=(0.05, 100.0)
             ),
@@ -240,6 +248,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
             height=128,
             width=192,
             data_types=["rgb"],
+            renderer_cfg=_isolation_renderer_cfg(),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=24.0, clipping_range=(0.05, 100.0)
             ),

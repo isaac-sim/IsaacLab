@@ -17,4 +17,4 @@ def test_global_settings_cfg_is_publicly_exported():
 
 def test_global_view_is_enabled_by_default():
     """Unpartitioned spectator cameras should see partitioned content by default."""
-    assert IsaacRtxRendererCfg().global_settings.show_partitions_in_background
+    assert IsaacRtxRendererCfg().global_settings.show_all_partitions_by_default

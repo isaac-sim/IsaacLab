@@ -88,7 +88,7 @@ class IsaacRtxRendererGlobalSettingsCfg:
     view_tile_limit: int | None = None
     """Maximum number of view tiles."""
 
-    show_partitions_in_background: bool = True
+    show_all_partitions_by_default: bool = True
     """Show partitioned content in cameras without a scene-partition token.
 
     This provides an all-environment spectator view while partitioned cameras
