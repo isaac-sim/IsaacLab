@@ -19,7 +19,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import build_implicit_dof_mask
 from isaaclab.actuators.newton import kernels as actuator_kernels
-from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
+from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 
@@ -187,8 +187,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return None
 
         joint_ordering = articulation.data.joint_ordering
-        gains, covered = read_newton_actuator_gain(
+        gains, covered = read_newton_actuator_parameter(
             adapter.actuators,
+            "controller",
             attr,
             self.num_instances,
             self.num_joints,

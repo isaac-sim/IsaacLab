@@ -5,6 +5,8 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
+from typing import Any
+
 import torch
 import warp as wp
 
@@ -58,8 +60,8 @@ def build_per_dof_env_mask_kernel(
 
 @wp.kernel(enable_backward=False)
 def scatter_gain_kernel(
-    src: wp.array(dtype=wp.float32),
-    dst: wp.array(dtype=wp.float32),
+    src: wp.array(dtype=Any),
+    dst: wp.array(dtype=Any),
     indices: wp.array(dtype=wp.uint32),
     dof_offset: int,
     num_envs: int,

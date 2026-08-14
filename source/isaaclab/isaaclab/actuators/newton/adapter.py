@@ -301,7 +301,7 @@ class NewtonActuatorAdapter:
 
 
 # ---------------------------------------------------------------------------
-# Per-articulation controller-gain projections.
+# Per-articulation component-parameter projections.
 # ---------------------------------------------------------------------------
 
 
@@ -316,8 +316,61 @@ def _actuator_local_joint_ids(
     return {joint_id for joint_id in local_joint_ids if 0 <= joint_id < num_joints}
 
 
-def read_newton_actuator_gain(
+def _validated_user_to_backend(
+    joint_user_to_backend_indices: Sequence[int] | None, num_joints: int
+) -> tuple[int, ...] | None:
+    """Validate an optional public-to-backend joint permutation."""
+    if joint_user_to_backend_indices is None:
+        return None
+    user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
+    if sorted(user_to_backend) != list(range(num_joints)):
+        raise ValueError(
+            "joint_user_to_backend_indices must contain each backend joint index exactly once; "
+            f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
+        )
+    return user_to_backend
+
+
+def _resolve_actuator_parameter(actuator: Actuator, component: str, attr: str) -> wp.array | None:
+    """Resolve one explicitly addressed component parameter array.
+
+    Args:
+        actuator: Newton actuator to inspect.
+        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+
+    Returns:
+        The parameter array, or ``None`` when the component is absent on this
+        actuator or does not expose :paramref:`attr`.
+
+    Raises:
+        ValueError: On unknown component names, or when more than one clamping
+            entry exposes :paramref:`attr`.
+        TypeError: If the resolved parameter is not a ``wp.array``.
+    """
+    if component == "controller":
+        owner = actuator.controller
+    elif component == "delay":
+        owner = getattr(actuator, "delay", None)
+    elif component == "clamping":
+        matches = [entry for entry in (getattr(actuator, "clamping", None) or []) if hasattr(entry, attr)]
+        if len(matches) > 1:
+            names = ", ".join(type(entry).__name__ for entry in matches)
+            raise ValueError(f"Ambiguous clamping parameter '{attr}': exposed by {names}.")
+        owner = matches[0] if matches else None
+    else:
+        raise ValueError(f"Unknown actuator component '{component}'. Expected 'controller', 'delay', or 'clamping'.")
+    if owner is None or not hasattr(owner, attr):
+        return None
+    parameter = getattr(owner, attr)
+    if not isinstance(parameter, wp.array):
+        raise TypeError(f"Actuator parameter ('{component}', '{attr}') on {type(owner).__name__} is not a wp.array.")
+    return parameter
+
+
+def read_newton_actuator_parameter(
     actuators: list[Actuator],
+    component: str,
     attr: str,
     num_envs: int,
     num_joints: int,
@@ -326,11 +379,12 @@ def read_newton_actuator_gain(
     device: str,
     joint_user_to_backend_indices: Sequence[int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Project one live Newton controller gain into public joint order.
+    """Project one live Newton actuator parameter, addressed by component and name, into public joint order.
 
     Args:
         actuators: Newton actuators visible to the model.
-        attr: Controller gain name.
+        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
         num_envs: Number of articulation environments.
         num_joints: Articulation-local joint count.
         dof_offset: Offset of this articulation's DOFs in the model buffer.
@@ -339,38 +393,41 @@ def read_newton_actuator_gain(
         joint_user_to_backend_indices: Optional public-to-backend joint mapping.
 
     Returns:
-        The live controller gain and a public-order mask that identifies joints
-        covered by a controller exposing :paramref:`attr`.
+        The live parameter values (in the parameter's dtype; zeros where
+        uncovered) and a public-order mask that identifies joints covered by
+        an actuator exposing the addressed parameter.
 
     Raises:
-        ValueError: If the requested joint mapping is not a complete permutation.
+        ValueError: If the joint mapping is not a complete permutation, the
+            component name is unknown, or matching actuators store the
+            parameter with mixed dtypes.
+        TypeError: If a resolved parameter is not a ``wp.array``.
     """
-    user_to_backend: tuple[int, ...] | None = None
-    if joint_user_to_backend_indices is not None:
-        user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
-        if sorted(user_to_backend) != list(range(num_joints)):
-            raise ValueError(
-                "joint_user_to_backend_indices must contain each backend joint index exactly once; "
-                f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
-            )
+    user_to_backend = _validated_user_to_backend(joint_user_to_backend_indices, num_joints)
 
     covered = torch.zeros(num_joints, dtype=torch.bool, device=device)
     wp_device = wp.get_device(device)
-    flat_gains = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
+    flat_values: wp.array | None = None
     for actuator in actuators:
         local_joint_ids = _actuator_local_joint_ids(actuator, dof_offset, num_joints, env_stride)
         if not local_joint_ids:
             continue
-        controller = actuator.controller
-        if not hasattr(controller, attr):
+        parameter = _resolve_actuator_parameter(actuator, component, attr)
+        if parameter is None:
             continue
+        if flat_values is None:
+            flat_values = wp.zeros(num_envs * num_joints, dtype=parameter.dtype, device=wp_device)
+        elif parameter.dtype != flat_values.dtype:
+            raise ValueError(
+                f"Actuators expose ('{component}', '{attr}') with mixed dtypes; cannot project into one buffer."
+            )
         covered[list(local_joint_ids)] = True
         wp.launch(
             scatter_gain_kernel,
             dim=actuator.indices.shape[0],
             inputs=[
-                getattr(controller, attr),
-                flat_gains,
+                parameter,
+                flat_values,
                 actuator.indices,
                 dof_offset,
                 num_envs,
@@ -380,12 +437,14 @@ def read_newton_actuator_gain(
             device=wp_device,
         )
 
-    gains = wp.to_torch(flat_gains.reshape((num_envs, num_joints)))
+    if flat_values is None:
+        flat_values = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
+    values_out = wp.to_torch(flat_values.reshape((num_envs, num_joints)))
     if user_to_backend is not None:
         backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=device)
-        gains = gains.index_select(1, backend_column_indices)
+        values_out = values_out.index_select(1, backend_column_indices)
         covered = covered.index_select(0, backend_column_indices)
-    return gains, covered
+    return values_out, covered
 
 
 # ---------------------------------------------------------------------------

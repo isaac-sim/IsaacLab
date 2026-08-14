@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-from .adapter import NewtonActuatorAdapter, build_implicit_dof_mask, read_newton_actuator_gain
+from .adapter import NewtonActuatorAdapter, build_implicit_dof_mask, read_newton_actuator_parameter
 from .physx_wrapper import PhysxActuatorWrapper
 
 if TYPE_CHECKING:
@@ -124,8 +124,9 @@ class PhysxActuatorRuntime:
         if self.adapter is None:
             return None
         articulation = self._articulation
-        gains, covered = read_newton_actuator_gain(
+        gains, covered = read_newton_actuator_parameter(
             self.adapter.actuators,
+            "controller",
             attr,
             articulation.num_instances,
             articulation.num_joints,

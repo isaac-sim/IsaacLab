@@ -782,7 +782,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 class TestNewtonActuatorGainEnvStride(unittest.TestCase):
     """Regression: native gain reads must decode the env-major DOF stride for every env.
 
-    ``read_newton_actuator_gain`` gathers each Newton actuator's
+    ``read_newton_actuator_parameter`` gathers each Newton actuator's
     ``controller.kp`` / ``controller.kd`` into a per-articulation
     ``(num_envs, num_joints)`` tensor — the projection behind
     ``actuators[...].stiffness`` on native groups. On a floating-base
@@ -1564,30 +1564,33 @@ def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> Non
     np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
 
 
-def test_newton_actuator_gain_read_follows_requested_public_joint_order() -> None:
-    """Project Newton actuator gains and coverage into public joint order."""
-    from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
+def test_newton_actuator_parameter_read_follows_requested_public_joint_order() -> None:
+    """Project Newton actuator component parameters into public joint order."""
+    from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter
 
     controller = types.SimpleNamespace(
         kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
         kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
     )
+    clamping = types.SimpleNamespace(max_effort=wp.array((7.0, 8.0, 7.1, 8.1), dtype=wp.float32, device="cpu"))
     actuator = types.SimpleNamespace(
         controller=controller,
+        delay=None,
+        clamping=[clamping],
         indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
     )
 
-    stiffness, covered = read_newton_actuator_gain([actuator], "kp", 2, 3, 0, 3, "cpu", (2, 0, 1))
-    damping, _ = read_newton_actuator_gain([actuator], "kd", 2, 3, 0, 3, "cpu", (2, 0, 1))
+    stiffness, covered = read_newton_actuator_parameter([actuator], "controller", "kp", 2, 3, 0, 3, "cpu", (2, 0, 1))
+    max_effort, _ = read_newton_actuator_parameter([actuator], "clamping", "max_effort", 2, 3, 0, 3, "cpu", (2, 0, 1))
 
     torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
-    torch.testing.assert_close(damping, torch.tensor([[3.0, 1.0, 0.0], [3.1, 1.1, 0.0]]))
+    torch.testing.assert_close(max_effort, torch.tensor([[8.0, 7.0, 0.0], [8.1, 7.1, 0.0]]))
     torch.testing.assert_close(covered, torch.tensor([True, True, False]))
 
 
-def test_newton_actuator_gain_read_rejects_incomplete_joint_permutation() -> None:
-    """Reject malformed gain-projection ordering maps with an actionable error."""
-    from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
+def test_newton_actuator_parameter_read_rejects_bad_selectors() -> None:
+    """Reject malformed ordering maps and unknown component names with actionable errors."""
+    from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter
 
     with pytest.raises(
         ValueError,
@@ -1596,7 +1599,17 @@ def test_newton_actuator_gain_read_rejects_incomplete_joint_permutation() -> Non
             r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
         ),
     ):
-        read_newton_actuator_gain([], "kp", 1, 3, 0, 3, "cpu", (0, 0, 2))
+        read_newton_actuator_parameter([], "controller", "kp", 1, 3, 0, 3, "cpu", (0, 0, 2))
+
+    controller = types.SimpleNamespace(kp=wp.array((1.0,), dtype=wp.float32, device="cpu"))
+    actuator = types.SimpleNamespace(
+        controller=controller,
+        delay=None,
+        clamping=[],
+        indices=wp.array((0,), dtype=wp.uint32, device="cpu"),
+    )
+    with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
+        read_newton_actuator_parameter([actuator], "gains", "kp", 1, 1, 0, 1, "cpu")
 
 
 if __name__ == "__main__":

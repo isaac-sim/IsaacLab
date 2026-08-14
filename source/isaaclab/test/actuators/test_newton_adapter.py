@@ -43,7 +43,7 @@ class MisleadingImplicitActuatorDCMotor(DCMotor):
 
 def test_live_gain_projection_follows_controller_values_in_public_order():
     """Read current controller gains with the articulation env stride and public ordering."""
-    from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
+    from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter
 
     controller = SimpleNamespace(kp=wp.array((10.0, 0.0, 11.0, 31.0), dtype=wp.float32, device="cpu"))
     actuator = SimpleNamespace(
@@ -51,8 +51,9 @@ def test_live_gain_projection_follows_controller_values_in_public_order():
         indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
     )
 
-    gains, covered = read_newton_actuator_gain(
+    gains, covered = read_newton_actuator_parameter(
         actuators=[actuator],
+        component="controller",
         attr="kp",
         num_envs=2,
         num_joints=3,
@@ -66,8 +67,9 @@ def test_live_gain_projection_follows_controller_values_in_public_order():
     assert torch.equal(covered, torch.tensor([True, True, False]))
 
     wp.to_torch(controller.kp)[3] = 71.0
-    updated, _ = read_newton_actuator_gain(
+    updated, _ = read_newton_actuator_parameter(
         actuators=[actuator],
+        component="controller",
         attr="kp",
         num_envs=2,
         num_joints=3,
