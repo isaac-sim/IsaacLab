@@ -31,7 +31,6 @@ import types  # noqa: E402
 
 import pytest  # noqa: E402
 from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
-from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
 from isaaclab.renderers import RendererCfg  # noqa: E402
@@ -80,9 +79,6 @@ _VALID_COMBOS = [
     ("isaac_rtx", ["simple_shading_full_mdl"], True),
     ("isaac_rtx", ["rgb", "depth", "semantic_segmentation"], True),
     ("isaac_rtx", ["depth"], False),
-    pytest.param("ovrtx", ["rgb"], True, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
-    pytest.param("ovrtx", ["albedo"], True, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
-    pytest.param("ovrtx", ["depth"], False, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
     # ── Warp renderer: rgb, depth, and semantic_segmentation are supported ──
     ("newton_warp", ["rgb"], True),
     ("newton_warp", ["depth"], False),  # depth-only OK when CNN disabled
@@ -141,13 +137,6 @@ _INVALID_COMBOS = [
         True,
         "Depth-only",
     ),
-    pytest.param(
-        "ovrtx",
-        ["depth"],
-        True,
-        "Depth-only",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
-    ),
     (
         "newton_warp",
         ["depth"],
@@ -189,38 +178,19 @@ _CAMERA_DATA_TYPE_PRESETS = [
 
 
 @pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
-def test_camera_preset_data_types(shadow_hand_camera_presets, preset_name, expected_data_types):
+def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets, preset_name, expected_data_types):
+    """Camera presets must be discoverable, request data, and have valid dimensions."""
     camera_presets = shadow_hand_camera_presets["tiled_camera"]
     assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
     resolved = camera_presets[preset_name]
     assert resolved.data_types == expected_data_types, (
         f"Preset '{preset_name}': expected data_types={expected_data_types}, got {resolved.data_types}"
     )
-
-
-@pytest.mark.parametrize("preset_name,_", _CAMERA_DATA_TYPE_PRESETS)
-def test_camera_preset_cfg_is_valid(shadow_hand_camera_presets, preset_name, _):
-    """Every camera preset config must request at least one data type and have valid dimensions.
-
-    Note: this is a config-level check only. It verifies that the preset is correctly wired up
-    (non-empty data_types, positive width/height) but does NOT run the renderer or inspect actual
-    pixel values. Verifying that rendered frames are non-empty requires a full integration test
-    that steps the simulation and checks the camera output tensors.
-    """
-    resolved = shadow_hand_camera_presets["tiled_camera"][preset_name]
     assert len(resolved.data_types) > 0, (
         f"Camera preset '{preset_name}' has an empty data_types list — nothing would be rendered."
     )
     assert resolved.width > 0, f"Camera preset '{preset_name}' has non-positive width: {resolved.width}"
     assert resolved.height > 0, f"Camera preset '{preset_name}' has non-positive height: {resolved.height}"
-
-
-def test_all_camera_presets_present(shadow_hand_camera_presets):
-    """Every preset defined in ShadowHandTiledCameraCfg is discoverable."""
-    camera_presets = shadow_hand_camera_presets["tiled_camera"]
-    expected_names = {name for name, _ in _CAMERA_DATA_TYPE_PRESETS}
-    missing = expected_names - set(camera_presets.keys())
-    assert not missing, f"Camera presets missing from collected presets: {missing}"
 
 
 # ---------------------------------------------------------------------------
@@ -232,39 +202,24 @@ _RENDERER_PRESETS = [
     ("default", IsaacRtxRendererCfg),
     ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
-    pytest.param("ovrtx", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
 ]
 
 
 @pytest.mark.parametrize("preset_name,expected_class", _RENDERER_PRESETS)
-def test_renderer_preset_class(shadow_hand_camera_presets, preset_name, expected_class):
+def test_renderer_presets_resolve_to_expected_configs(shadow_hand_camera_presets, preset_name, expected_class):
+    """Renderer presets must resolve to the expected configuration and renderer type."""
     renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
     assert preset_name in renderer_presets, f"Preset '{preset_name}' not found in renderer presets"
     resolved = renderer_presets[preset_name]
     assert isinstance(resolved, expected_class), (
         f"Renderer preset '{preset_name}': expected {expected_class.__name__}, got {type(resolved).__name__}"
     )
+    if preset_name == "newton_renderer":
+        assert resolved.renderer_type == "newton_warp"
 
-
-def test_warp_renderer_has_correct_renderer_type(shadow_hand_camera_presets):
-    """NewtonWarpRendererCfg must expose renderer_type='newton_warp' for validation to work."""
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
-    assert warp_cfg.renderer_type == "newton_warp"
-
-
-def test_rtx_preset_has_auto_renderer_type(shadow_hand_camera_presets):
-    """The ``rtx`` preset is an automatic renderer placeholder resolved at launch."""
-    rtx_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["rtx"]
+    rtx_cfg = renderer_presets["rtx"]
     assert isinstance(rtx_cfg, RendererCfg)
     assert rtx_cfg.renderer_type == "auto_rtx"
-
-
-def test_all_renderer_presets_present(shadow_hand_camera_presets):
-    """Every preset in MultiBackendRendererCfg is discoverable."""
-    renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
-    expected_names = {"default", "rtx", "isaacsim_rtx", "newton_renderer", "ovrtx"}
-    missing = expected_names - set(renderer_presets.keys())
-    assert not missing, f"Renderer presets missing from collected presets: {missing}"
 
 
 # ---------------------------------------------------------------------------
@@ -272,30 +227,27 @@ def test_all_renderer_presets_present(shadow_hand_camera_presets):
 # when paired with the warp renderer preset
 # ---------------------------------------------------------------------------
 
-_WARP_VALID_CAMERA_PRESETS = ["rgb", "depth", "default", "full"]
-_WARP_INVALID_CAMERA_PRESETS = [
-    "albedo",
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
+_WARP_CAMERA_PRESETS = [
+    ("rgb", False),
+    ("depth", False),
+    ("default", False),
+    ("full", False),
+    ("albedo", True),
+    ("simple_shading_constant_diffuse", True),
+    ("simple_shading_diffuse_mdl", True),
+    ("simple_shading_full_mdl", True),
 ]
 
 
-@pytest.mark.parametrize("camera_preset", _WARP_VALID_CAMERA_PRESETS)
-def test_warp_with_valid_camera_preset(shadow_hand_camera_presets, camera_preset):
-    """Warp + supported camera presets must not raise (depth-only with CNN disabled)."""
+@pytest.mark.parametrize("camera_preset,raises", _WARP_CAMERA_PRESETS)
+def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_preset, raises):
+    """Warp support must match the camera preset's requested data types."""
     camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
     warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
-    enabled = camera_cfg.data_types != ["depth"]  # disable CNN for depth-only
+    enabled = camera_cfg.data_types != ["depth"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
-    cfg.validate_config()  # must not raise
-
-
-@pytest.mark.parametrize("camera_preset", _WARP_INVALID_CAMERA_PRESETS)
-def test_warp_with_invalid_camera_preset(shadow_hand_camera_presets, camera_preset):
-    """Warp + unsupported camera presets must raise ValueError."""
-    camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
-    cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, True)
-    with pytest.raises(ValueError):
+    if raises:
+        with pytest.raises(ValueError):
+            cfg.validate_config()
+    else:
         cfg.validate_config()

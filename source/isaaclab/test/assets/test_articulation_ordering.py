@@ -517,11 +517,11 @@ def test_describe_newton_usd_builder_unavailability_reports_missing_source_asset
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
 
     class _Articulation:
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
 
     reason = ordering_resolvers._describe_newton_usd_builder_unavailability(_Articulation())
 
-    assert reason == "source asset prim matching '/World/envs/env_.*/Robot' was not found"
+    assert reason == "source asset prim matching '/World/envs/env_[^/]+/Robot' was not found"
 
 
 def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matching_prims_from_source) -> None:
@@ -541,7 +541,7 @@ def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matc
 
 
 _ROBOT_SCHEMA_PRIM_PATH = "/World/envs/env_0/Robot"
-_ROBOT_SCHEMA_SOURCE_EXPR = "/World/envs/env_.*/Robot"
+_ROBOT_SCHEMA_SOURCE_EXPR = "/World/envs/env_[^/]+/Robot"
 
 
 def _author_robot_schema_relationship(prim: Usd.Prim, relationship_name: str, target_paths: list[str]) -> None:
@@ -785,10 +785,10 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     root_prim = stage.DefinePrim("/World/envs/env_0/Robot/base", "Xform")
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
+        assert path_expr == "/World/envs/env_[^/]+/Robot"
         if predicate is None:
-            return [(robot_prim, "/World/envs/env_.*/Robot")]
-        return [(root_prim, "/World/envs/env_.*/Robot/base")]
+            return [(robot_prim, "/World/envs/env_[^/]+/Robot")]
+        return [(root_prim, "/World/envs/env_[^/]+/Robot/base")]
 
     _install_newton_usd_builder_mocks(
         monkeypatch,
@@ -801,7 +801,7 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     class _Articulation:
         __backend_name__ = "physx"
         _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
 
         @property
         def backend_joint_names(self) -> list[str]:
@@ -831,10 +831,10 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     root_prim = stage.DefinePrim("/World/envs/env_0/Robot/base", "Xform")
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
+        assert path_expr == "/World/envs/env_[^/]+/Robot"
         if predicate is None:
-            return [(robot_prim, "/World/envs/env_.*/Robot")]
-        return [(root_prim, "/World/envs/env_.*/Robot/base")]
+            return [(robot_prim, "/World/envs/env_[^/]+/Robot")]
+        return [(root_prim, "/World/envs/env_[^/]+/Robot/base")]
 
     _install_newton_usd_builder_mocks(
         monkeypatch,
@@ -850,7 +850,7 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     class _Articulation:
         __backend_name__ = "newton"
         _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
 
         @property
         def backend_joint_names(self) -> list[str]:

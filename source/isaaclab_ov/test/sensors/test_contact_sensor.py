@@ -488,7 +488,7 @@ def test_multi_body_per_sensor_indexing(device, num_envs):
         scene_cfg.shape_2.init_state.pos = (0.0, 1.5, 3.0)
         # Single ContactSensor that matches BOTH cubes via a regex glob.
         scene_cfg.contact_sensor = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Cube_.*",
+            prim_path="{ENV_REGEX_NS}/Cube_[^/]*",
             track_pose=False,
             debug_vis=False,
             update_period=0.0,
@@ -593,7 +593,7 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
 
         contact_sensor = ContactSensor(
             ContactSensorCfg(
-                prim_path="/World/envs/env_.*/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
                 track_pose=False,
                 debug_vis=False,
                 update_period=0.0,

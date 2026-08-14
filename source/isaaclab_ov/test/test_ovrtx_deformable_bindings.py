@@ -118,8 +118,8 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
     """Surface deformable registry entries create OVRTX ``points`` array bindings."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[7],
         particles_per_body=3,
@@ -149,8 +149,8 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
     """Volume deformable registry entries create OVRTX ``points`` bindings."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="volume",
         particle_offsets=[7],
         particles_per_body=3,
@@ -171,15 +171,15 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
     """Surface and volume deformable registry entries bind together with distinct offsets."""
     renderer, backend = _make_renderer_without_backend()
     surface_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/DeformableSurface",
-        vis_mesh_prim_path="/World/envs/env_.*/DeformableSurface/mesh",
+        prim_path="/World/envs/env_[^/]+/DeformableSurface",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableSurface/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3],
         particles_per_body=3,
     )
     volume_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/DeformableVolume",
-        vis_mesh_prim_path="/World/envs/env_.*/DeformableVolume/mesh",
+        prim_path="/World/envs/env_[^/]+/DeformableVolume",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableVolume/mesh",
         deformable_type="volume",
         particle_offsets=[6, 9],
         particles_per_body=3,
@@ -203,8 +203,8 @@ def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.Monke
     """Deformable bindings are created from registry metadata without a USD stage."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0],
         particles_per_body=3,
@@ -224,8 +224,8 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
     """Surface deformable registry entries bind every cloned visual mesh instance."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3, 6, 9],
         particles_per_body=3,
@@ -284,15 +284,15 @@ def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: py
     """Registry entries must provide one particle offset per environment, listing every bad entry."""
     renderer, _backend = _make_renderer_without_backend()
     bad_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0],
         particles_per_body=3,
     )
     other_bad_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/DeformableOther",
-        vis_mesh_prim_path="/World/envs/env_.*/DeformableOther/mesh",
+        prim_path="/World/envs/env_[^/]+/DeformableOther",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableOther/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3, 6],
         particles_per_body=3,

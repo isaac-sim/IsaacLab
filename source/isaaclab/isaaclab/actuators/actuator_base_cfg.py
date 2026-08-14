@@ -30,23 +30,16 @@ class ActuatorBaseCfg:
     effort_limit: dict[str, float] | float | None = None
     """Force/Torque limit of the joints in the group. Defaults to None.
 
-    This limit is used to clip the computed torque sent to the simulation. If None, the
-    limit is set to the value specified in the USD joint prim.
+    This is the actuator's rated force/torque reflected at the joint. It clips the output of explicit
+    actuator models and remains available as the model-facing limit for implicit actuators. If None, it
+    uses the value specified in the USD joint prim. An implicit actuator configured with only
+    :attr:`effort_limit_sim` also uses that solver clamp as its model-facing limit.
 
     .. attention::
 
-        The :attr:`effort_limit_sim` attribute should be used to set the effort limit for
-        the simulation physics solver.
-
-        The :attr:`effort_limit` attribute is used for clipping the effort output of the
-        actuator model **only** in the case of explicit actuators, such as the
-        :class:`~isaaclab.actuators.IdealPDActuator`.
-
-    .. note::
-
-        For implicit actuators, the attributes :attr:`effort_limit` and :attr:`effort_limit_sim`
-        are equivalent. However, we suggest using the :attr:`effort_limit_sim` attribute because
-        it is more intuitive.
+        Use :attr:`effort_limit_sim` for the solver-level clamp. Implicit actuators resolve the two
+        fields independently when both are configured. When only one is configured, it fills both fields
+        for backwards compatibility.
 
     """
 
@@ -72,10 +65,11 @@ class ActuatorBaseCfg:
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
-    """Effort limit of the joints in the group applied to the simulation physics solver. Defaults to None.
+    """Solver-level effort clamp of the joints in the group. Defaults to None.
 
     The effort limit is used to constrain the computed joint efforts in the physics engine. If the
-    computed effort exceeds this limit, the physics engine will clip the effort to this value.
+    computed effort exceeds this limit, the physics engine will clip the effort to this value. It is
+    resolved independently of :attr:`effort_limit` when both fields are configured.
 
     Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this
     limit is by default set to a large value to prevent the physics engine from any additional clipping.
@@ -83,7 +77,8 @@ class ActuatorBaseCfg:
 
     If None, the limit is resolved based on the type of actuator model:
 
-    * For implicit actuators, the limit is set to the value specified in the USD joint prim.
+    * For implicit actuators, the limit is set to :attr:`effort_limit` when it is configured, otherwise
+      to the value specified in the USD joint prim.
     * For explicit actuators, the limit is set to 1.0e9.
 
     """
