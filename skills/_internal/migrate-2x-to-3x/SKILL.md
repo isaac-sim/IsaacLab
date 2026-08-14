@@ -4,10 +4,6 @@ description: Migrates Isaac Lab 2.x projects to Isaac Lab 3.0 by routing agents 
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <isaaclab@nvidia.com>
-audience: user
-status: experimental
-owners:
-  - isaaclab-maintainers
 ---
 
 # Migrating 2.x To 3.x
