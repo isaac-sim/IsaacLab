@@ -196,6 +196,7 @@ def command_build_isaacsim(source_path: str) -> None:
     # back to the registry. uv only honors a version this specific per conflicting-extra fork when
     # it is written into the requirement itself, so pin the extra to the version just built.
     _pin_isaacsim_local_extra(local_version)
+    _add_isaacsim_local_conflicts()
 
     # Re-resolve Isaac Sim so the lock file picks the local wheels over the published release.
     if shutil.which("uv") is not None:
@@ -336,6 +337,61 @@ def _pin_isaacsim_local_extra(version: str) -> None:
     if updated != text:
         pyproject.write_text(updated, encoding="utf-8")
     print_info(f"Pinned the 'isaacsim-local' extra to isaacsim=={version}.")
+
+
+def _add_isaacsim_local_conflicts() -> None:
+    """Add local-only conflicts for extras that pin the published Isaac Sim wheel.
+
+    A source build has a pre-release local version, whereas these extras require the published
+    release exactly. The normal project deliberately has no such conflicts; they are needed only
+    after :func:`_pin_isaacsim_local_extra` changes the local checkout.
+    """
+    pyproject = ISAACLAB_ROOT / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    config = tomllib.loads(text)
+    existing_conflicts = config.get("tool", {}).get("uv", {}).get("conflicts", [])
+    if not isinstance(existing_conflicts, list):
+        print_error(f"The 'conflicts' entry in {pyproject} must be an array.")
+        raise SystemExit(1)
+
+    conflicts: list[list[dict[str, str]]] = []
+    for conflict in existing_conflicts:
+        if not (
+            isinstance(conflict, list)
+            and all(isinstance(term, dict) and isinstance(term.get("extra"), str) for term in conflict)
+        ):
+            print_error(f"The 'conflicts' entry in {pyproject} must contain extra selectors.")
+            raise SystemExit(1)
+        conflicts.append([{"extra": term["extra"]} for term in conflict])
+
+    existing_pairs = {frozenset(term["extra"] for term in conflict) for conflict in conflicts}
+    for extra in ("isaacsim", "teleop", "all"):
+        pair = frozenset(("isaacsim-local", extra))
+        if pair not in existing_pairs:
+            conflicts.append([{"extra": "isaacsim-local"}, {"extra": extra}])
+
+    conflict_lines = []
+    for conflict in conflicts:
+        terms = ", ".join(f"{{ extra = {json.dumps(term['extra'])} }}" for term in conflict)
+        conflict_lines.append(f"    [{terms}],")
+    entry = "conflicts = [\n" + "\n".join(conflict_lines) + "\n]"
+    header = re.search(r"^\[tool\.uv\]$", text, flags=re.MULTILINE)
+    if header is None:
+        print_error(f"Could not find the '[tool.uv]' table in {pyproject}.")
+        raise SystemExit(1)
+    start = header.end()
+    following = re.search(r"^\[", text[start:], flags=re.MULTILINE)
+    end = start + (following.start() if following is not None else len(text) - start)
+    section = text[start:end]
+    conflict_match = re.search(r"^conflicts\s*=\s*\[\n.*?^\]$", section, flags=re.MULTILINE | re.DOTALL)
+    if conflict_match is None:
+        section = (
+            f"\n# Local source builds cannot co-resolve with extras that pin published Isaac Sim.\n{entry}{section}"
+        )
+    else:
+        section = section[: conflict_match.start()] + entry + section[conflict_match.end() :]
+    pyproject.write_text(text[:start] + section + text[end:], encoding="utf-8")
+    print_info("Added local-only uv conflicts for the pinned 'isaacsim-local' extra.")
 
 
 def command_run_docker(args: list[str]) -> None:

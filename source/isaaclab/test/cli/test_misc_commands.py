@@ -86,6 +86,7 @@ def test_build_isaacsim_runs_incremental_build_for_existing_checkout(tmp_path):
         mock.patch.object(misc, "run_command") as run_command,
         mock.patch.object(misc, "_set_uv_find_links"),
         mock.patch.object(misc, "_pin_isaacsim_local_extra"),
+        mock.patch.object(misc, "_add_isaacsim_local_conflicts"),
         mock.patch("shutil.which", return_value=None),
     ):
         misc.command_build_isaacsim(str(isaacsim_root))
@@ -115,3 +116,24 @@ def test_build_isaacsim_preserves_multiline_find_links(tmp_path):
         "local-wheels",
         "_isaac_sim_wheels",
     ]
+
+
+def test_build_isaacsim_adds_local_conflicts_without_duplicates(tmp_path):
+    """A local Isaac Sim pin must split from extras using the published wheel."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[tool.uv]\nconflicts = [\n    [{ extra = "other" }, { extra = "extra" }],\n]\n',
+        encoding="utf-8",
+    )
+
+    with mock.patch.object(misc, "ISAACLAB_ROOT", tmp_path):
+        misc._add_isaacsim_local_conflicts()
+        misc._add_isaacsim_local_conflicts()
+
+    assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["tool"]["uv"]["conflicts"] == [
+        [{"extra": "other"}, {"extra": "extra"}],
+        [{"extra": "isaacsim-local"}, {"extra": "isaacsim"}],
+        [{"extra": "isaacsim-local"}, {"extra": "teleop"}],
+        [{"extra": "isaacsim-local"}, {"extra": "all"}],
+    ]
+
