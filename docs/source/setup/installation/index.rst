@@ -224,7 +224,9 @@ option resolves an optional integration only when that command needs it. Place i
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
 any combination resolves into one environment, and ``--extra all`` installs every
-backend, RL library, and visualizer at once:
+backend, RL library, and visualizer at once (the specialized extras ``rlinf``, ``mimic``,
+``teleop``, ``tetrahedralization``, ``video``, and ``leapp`` are not included; request
+them by name):
 
 .. code-block:: bash
 
@@ -232,6 +234,9 @@ backend, RL library, and visualizer at once:
       --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
 See :ref:`installation-optional-extras` for the available extras.
+
+Use ``uv run --extra <name> <command>`` for one invocation, or
+``uv sync --inexact --extra <name>`` to prepare the project environment for multiple commands.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
