@@ -262,11 +262,14 @@ class IsaacLabOvrtxInstall(SphinxDirective):
     has_content = False
 
     def run(self) -> list[nodes.Node]:
+        # Mirror resolve-ov-pins / extras: digit-leading values are exact pins
+        # (including ``0.4.1.*``); otherwise the value is already a full specifier.
         spec = self.config.ovrtx_spec
+        req = f"=={spec}" if spec and spec[0].isdigit() else spec
         content = f"""\
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com "ovrtx{spec}"
+   pip install --extra-index-url https://pypi.nvidia.com "ovrtx{req}"
 """
         return _parse_rst(self, content)
 

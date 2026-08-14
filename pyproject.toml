@@ -161,9 +161,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0rc4"]
 
-ov = ["ovphysx==0.5.10", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.1.355824"]
+ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364272", "ovstage==0.1.1.355824"]
 ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
-ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx==0.4.1.364272", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
@@ -212,7 +212,7 @@ torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.5.10"
-ovrtx = ">=0.4.0,<0.5.0"
+ovrtx = "0.4.1.364272"
 ovstage = "0.1.1.355824"
 newton = "release-1.5"
 warp = "1.16.0"
@@ -436,6 +436,7 @@ package = false
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
+ovrtx = { index = "ct-omniverse-pypi" }
 ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
