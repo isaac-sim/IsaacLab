@@ -24,7 +24,7 @@ see :ref:`backends-and-presets`. This guide prepares an asset and task for
 ``physics=newton_mjwarp``. After both backends run the asset and task, use
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton` to transfer a policy checkpoint.
 For the conceptual differences that require target-solver validation, see
-:ref:`solver-differences`; use :doc:`tune_mjwarp` for the focused MJWarp tuning
+:ref:`solver-differences`; use :doc:`/source/how-to/solver_tuning/tune_mjwarp` for the focused MJWarp tuning
 procedure.
 
 Import a multi-physics asset

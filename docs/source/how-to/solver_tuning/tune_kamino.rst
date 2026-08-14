@@ -30,7 +30,7 @@ Prerequisites
 -------------
 
 First understand :ref:`backends-and-presets` and prepare the asset for Newton
-with :doc:`prepare_asset_for_newton`. Start with a task that already runs with
+with :doc:`/source/how-to/prepare_asset_for_newton`. Start with a task that already runs with
 ``physics=newton_mjwarp``. A task supports Kamino only when it exposes a
 ``newton_kamino`` preset; use the :doc:`environment catalog
 </source/overview/environments>` or the task's ``--help`` output to discover

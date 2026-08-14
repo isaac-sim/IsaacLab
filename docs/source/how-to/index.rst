@@ -157,8 +157,6 @@ These guides help prepare assets and tasks for the supported physics backends.
     :maxdepth: 1
 
     prepare_asset_for_newton
-    tune_mjwarp
-    enable_kamino
     /source/how-to/native_physics_api/index
 
 For experimental Newton solver and Warp-environment workflows, see
@@ -175,6 +173,16 @@ For experimental Newton solver and Warp-environment workflows, see
     /source/overview/core-concepts/physical-backends/newton/warp-environments
     /source/overview/core-concepts/physical-backends/newton/warp-env-migration
 
+Solver Tuning
+-------------
+
+These guides diagnose and tune solver-specific behavior after backend, task,
+and asset validation.
+
+.. toctree::
+   :maxdepth: 1
+
+   solver_tuning/index
 
 Recording an Animation and Video
 --------------------------------

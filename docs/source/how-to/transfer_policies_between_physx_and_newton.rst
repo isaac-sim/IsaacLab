@@ -284,5 +284,5 @@ See also
 
 * :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 * :doc:`/source/features/hydra`
-* :doc:`/source/how-to/tune_mjwarp`
+* :doc:`/source/how-to/solver_tuning/tune_mjwarp`
 * :ref:`physics-backends-newton`

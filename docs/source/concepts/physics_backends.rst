@@ -105,8 +105,8 @@ for current presets, the generated configuration APIs for available symbols,
 and the specialist guides below for solver-specific workflows and limitations.
 
 Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
-:doc:`/source/how-to/tune_mjwarp` for the primary validated solver path or
-:doc:`/source/how-to/enable_kamino` for the beta Kamino path. Experimental
+:doc:`/source/how-to/solver_tuning/tune_mjwarp` for the primary validated solver path or
+:doc:`/source/how-to/solver_tuning/tune_kamino` for the beta Kamino path. Experimental
 specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
 :ref:`newton-using-cables`, :ref:`warp-environments`, and
 :ref:`warp-env-migration`. Backend developers can also read

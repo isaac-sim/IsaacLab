@@ -17,7 +17,7 @@ configuration field and its current default.
 Prerequisites
 -------------
 
-First follow :doc:`prepare_asset_for_newton` and reproduce one failure with a
+First follow :doc:`/source/how-to/prepare_asset_for_newton` and reproduce one failure with a
 fixed initial state, seed, and action sequence. Before changing solver
 settings, check the mechanical model, collision geometry, reset overlap,
 actuator limits, and unsupported features. A solver setting cannot correct an

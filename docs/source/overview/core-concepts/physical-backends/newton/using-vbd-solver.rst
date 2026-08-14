@@ -250,7 +250,7 @@ registered task.
 
 MJWarp ``nconmax`` and ``njmax`` must cover the rigid contacts and constraints
 in the scene. ``ccd_iterations`` can affect fast rigid contacts near
-deformables. See :doc:`/source/how-to/tune_mjwarp` for the rigid-solver
+deformables. See :doc:`/source/how-to/solver_tuning/tune_mjwarp` for the rigid-solver
 parameters.
 
 Use the custom manager for direct shared-model substep ordering. Use proxy
