@@ -24,6 +24,8 @@ import logging
 import math
 import os
 import re
+import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -125,6 +127,11 @@ _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
 
 
+# Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
+# See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
+_DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
+
+
 if _OVSTAGE_AVAILABLE:
     # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
     # as one 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
@@ -199,6 +206,25 @@ def _read_gpu_transforms_enabled() -> bool:
     if value not in {"0", "1"}:
         raise ValueError(
             f"Invalid value for environment variable `{_READ_GPU_TRANSFORMS_ENV}`: {value}. Expected 0 or 1."
+        )
+    return value == "1"
+
+
+def _gpu_side_render_var_sync_enabled() -> bool:
+    """Return whether a render-var mapping is ordered by a GPU-side wait rather than a host wait.
+
+    See :meth:`OVRTXRenderer._map_render_var_to_dlpack` for why Linux is the exception, and
+    :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` for opting out of it.
+
+    Raises:
+        ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
+    """
+    if not sys.platform.startswith("linux"):
+        return True
+    value = os.environ.get(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "0").strip()
+    if value not in {"0", "1"}:
+        raise ValueError(
+            f"Invalid value for environment variable `{_DISABLE_LINUX_CUDA_CPU_SYNC_ENV}`: {value}. Expected 0 or 1."
         )
     return value == "1"
 
@@ -1016,6 +1042,40 @@ class OVRTXRenderer(BaseRenderer):
         )
         return output_colors
 
+    @contextlib.contextmanager
+    def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
+        """Map ``render_var`` for CUDA reads and yield it as a Warp array.
+
+        The render is still in flight when the mapping returns, so reading it has to be ordered
+        against render completion. Normally that is a ``cudaStreamWaitEvent`` on the Warp stream the
+        consuming kernels run on, which is the ordering the OVRTX API is designed around.
+
+        On Linux that GPU-side wait measures substantially slower end to end, so the mapping is
+        instead requested with no GPU-side barrier and the calling thread blocks on the
+        render-completion event. Setting :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` to ``1`` puts
+        Linux back on the GPU-side wait; it is an escape hatch for platforms where that trade-off
+        no longer holds, and is worth re-measuring before being relied on.
+
+        Note that ``sync_stream=0`` is OVRTX's "no sync" sentinel, *not* the NULL CUDA stream: the
+        field encodes ``0=no sync, 1=default stream, >1=specific stream``, so omitting the argument
+        entirely means ``1``, not ``0``.
+
+        The yielded array is a zero-copy view of the mapped memory and is only valid inside the
+        ``with`` block -- the mapping is released on exit.
+
+        Args:
+            render_var: OVRTX ``RenderVarOutput`` to map (``frame.render_vars[name]``).
+
+        Yields:
+            The render var's contents as a Warp array, valid for the duration of the context.
+        """
+        gpu_side_sync = _gpu_side_render_var_sync_enabled()
+        sync_stream = wp.get_stream(self._device).cuda_stream if gpu_side_sync else 0
+        with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
+            if not gpu_side_sync:
+                mapping.wait()
+            yield wp.from_dlpack(mapping)
+
     def _process_id_segmentation_render_var(
         self,
         render_data: OVRTXRenderData,
@@ -1042,8 +1102,7 @@ class OVRTXRenderer(BaseRenderer):
         if render_var_name not in frame.render_vars or buffer_key not in output_buffers:
             return
 
-        with frame.render_vars[render_var_name].map(device=Device.CUDA) as mapping:
-            tiled_data = wp.from_dlpack(mapping)
+        with self._map_render_var_to_dlpack(frame.render_vars[render_var_name]) as tiled_data:
             if tiled_data.dtype != wp.uint32:
                 return
 
@@ -1255,15 +1314,13 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
-                    tiled_data = wp.from_dlpack(mapping)
+                with self._map_render_var_to_dlpack(frame.render_vars["LdrColor"]) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
-            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
-                tiled_depth_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars[depth_var]) as tiled_depth_data:
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
@@ -1272,13 +1329,11 @@ class OVRTXRenderer(BaseRenderer):
             break
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
-                tiled_albedo_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["DiffuseAlbedoSD"]) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
-            with frame.render_vars["HdrColor"].map(device=Device.CUDA) as mapping:
-                tiled_hdr_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["HdrColor"]) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
@@ -1308,16 +1363,14 @@ class OVRTXRenderer(BaseRenderer):
             self._process_instance_segmentation_maps(render_data, frame)
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
-            with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
-                tiled_normals_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["NormalSD"]) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
         if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
-            with frame.render_vars["TargetMotionSD"].map(device=Device.CUDA) as mapping:
-                tiled_motion_vectors_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["TargetMotionSD"]) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def _render_legacy(self, render_data: OVRTXRenderData) -> None:
