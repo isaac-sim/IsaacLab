@@ -281,6 +281,9 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
         def is_paused(self):
             return False
 
+        def is_running(self):
+            return True
+
         def begin_frame(self, sim_time):
             self.calls.append(("begin_frame", sim_time))
 
@@ -313,6 +316,9 @@ def test_newton_visualizer_step_renders_markers(monkeypatch: pytest.MonkeyPatch)
     import isaaclab_newton.physics as newton_physics
 
     monkeypatch.setattr(newton_physics, "NewtonManager", _FakeNewtonManager)
+    # newton_visualizer now imports NewtonManager at module level, so patch the
+    # module-level name directly (not just the origin module attribute).
+    monkeypatch.setattr(newton_visualizer, "NewtonManager", _FakeNewtonManager)
     monkeypatch.setattr(newton_visualizer, "render_newton_visualization_markers", _fake_render_markers)
 
     viewer = _FakeViewer()

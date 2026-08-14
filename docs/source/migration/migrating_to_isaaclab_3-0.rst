@@ -146,6 +146,49 @@ script path and pass ``--rl_library`` to it:
       --rl_library rsl_rl --task Isaac-Cartpole --distributed
 
 
+Unified Checkpoint and Iteration Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+RL entrypoints now use ``--checkpoint`` consistently to select a checkpoint
+for training, resuming, or play. Update scripts that use the removed arguments
+as follows:
+
+.. list-table:: RL command migration
+   :header-rows: 1
+   :widths: 28 32 40
+
+   * - Previous command
+     - Isaac Lab 3.0 command
+     - Notes
+   * - RSL-RL ``--resume --load_run <run>``
+     - ``--checkpoint <path>``, ``--checkpoint latest``, or ``--checkpoint best``
+     - Pass a checkpoint path or select one from a compatible recorded run.
+   * - ``--use_pretrained_checkpoint``
+     - ``--checkpoint pretrained``
+     - Use this for play with RL-Games, RSL-RL, skrl, or Stable-Baselines3.
+   * - RLinf ``--rl_model_path <checkpoint-dir>`` or ``--resume_dir <checkpoint-dir>``
+     - ``--checkpoint <checkpoint-dir>``
+     - The directory must contain the RLinf ``full_weights.pt`` checkpoint.
+   * - RLinf ``--max_epochs <N>``
+     - ``--max_iterations <N>``
+     - This is the common training-iteration argument used by the unified API.
+
+For RLinf, ``--model_path`` now identifies the pretrained base VLA model, not
+the RL-finetuned weights. Supply both arguments when evaluating a finetuned
+policy:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rlinf \
+      --config_name isaaclab_ppo_gr00t_assemble_trocar \
+      --model_path /path/to/base_model \
+      --checkpoint /path/to/rlinf_checkpoint
+
+``latest`` and ``best`` select checkpoints from the newest compatible run for
+RL-Games, RSL-RL, skrl, Stable-Baselines3, and RLinf. ``pretrained`` selects a
+published policy where one is available; RLinf does not support this selector.
+
+
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -164,8 +207,8 @@ When you instantiate an asset class from the ``isaaclab`` package (e.g., ``Artic
    robot = Articulation(cfg=ArticulationCfg(...))
 
 The factory works by convention: for a class defined in ``isaaclab.assets.articulation``, it
-imports the matching class from ``isaaclab_{backend}.assets.articulation``. This means the
-``isaaclab_physx`` and ``isaaclab_newton`` packages mirror the ``isaaclab`` module structure.
+imports the matching class from the active backend package. The ``isaaclab_physx``,
+``isaaclab_newton``, and ``isaaclab_ov`` packages mirror the ``isaaclab`` module structure.
 
 .. note::
 
@@ -707,7 +750,7 @@ when no CLI override is given. Other fields are named presets selectable with
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
-   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
@@ -766,7 +809,7 @@ subclass that carries both a PhysX and a Newton variant.
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 

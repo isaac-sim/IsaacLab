@@ -16,6 +16,7 @@ from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
 from .clone_plan import make_clone_plan
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
 
@@ -70,9 +71,8 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     queued = REPLICATION_QUEUE.copy()
     REPLICATION_QUEUE.clear()
 
-    backend_physics_ctx = getattr(
-        importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
-    )
+    backend_package = FactoryBase._get_package_name(FactoryBase._get_backend())
+    backend_physics_ctx = getattr(importlib.import_module(f"{backend_package}.cloner"), "PHYSICS_CONTEXT", None)
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication
@@ -142,6 +142,7 @@ class ReplicateSession:
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
         replicate_physics: bool = True,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -156,6 +157,7 @@ class ReplicateSession:
                 prototype combinations; ``None`` uses the full cartesian product.
             replicate_physics: Whether physics replication clones each environment;
                 forwarded to :func:`replicate`.
+            env_template: Path template for a replicated env prim, ``{}`` marking the env index.
         """
         self._cfgs = cfgs
         self._stage = stage
@@ -166,6 +168,7 @@ class ReplicateSession:
             device=device,
             clone_strategy=clone_strategy,
             valid_set=valid_set,
+            env_template=env_template,
         )
         self._plan: ClonePlan | None = None
 

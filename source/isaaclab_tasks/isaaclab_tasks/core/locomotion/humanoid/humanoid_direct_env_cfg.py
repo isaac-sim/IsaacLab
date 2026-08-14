@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -78,7 +78,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # effort scale per joint, keyed by joint name expression
     joint_gears: dict[str, float] = {
@@ -94,7 +94,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     }
 
     # sensors
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="/World/envs/env_.*/Robot")
+    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     feet_body_names: list[str] = ["left_foot", "right_foot"]
 
     # walk target, relative to the environment origin

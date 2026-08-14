@@ -205,8 +205,8 @@ def test_shadow_hand_num_envs_override():
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
     cfg = ShadowHandEnvCfg()
-    cfg.scene.newton_mjwarp.num_envs = 8
-    assert cfg.scene.newton_mjwarp.num_envs == 8
+    cfg.scene.num_envs = 8
+    assert cfg.scene.num_envs == 8
 
 
 def test_streaming_cfg_fields_on_visualizer_cfg():
@@ -308,3 +308,25 @@ def test_normals_in_supported_gt_types():
 def test_normals_sensor_key():
     """Sensor key for 'normals' is 'normals'."""
     assert sensor_key_for_gt_type("normals") == "normals"
+
+
+def test_best_streaming_cols_target_aspect_16_9():
+    """target_aspect=16/9 should prefer a wider layout than the default square target."""
+    cols_widescreen = _best_streaming_cols(6, 1, 240, 320, target_aspect=16 / 9)
+    cols_square = _best_streaming_cols(6, 1, 240, 320)
+    assert cols_widescreen > cols_square, (
+        f"Expected more columns for 16:9 target ({cols_widescreen}) than square ({cols_square})"
+    )
+
+
+def test_compose_streaming_grid_invalid_target_aspect_fallback():
+    """Non-positive or non-finite target_aspect falls back to 1.0 without raising."""
+    import math
+
+    h, w = 48, 64
+    frames = [np.zeros((h, w, 3), dtype=np.uint8)] * 4
+    shape_default = compose_streaming_grid(frames, 4, 1).shape
+    assert compose_streaming_grid(frames, 4, 1, target_aspect=float("nan")).shape == shape_default
+    assert compose_streaming_grid(frames, 4, 1, target_aspect=0.0).shape == shape_default
+    assert compose_streaming_grid(frames, 4, 1, target_aspect=-1.0).shape == shape_default
+    assert compose_streaming_grid(frames, 4, 1, target_aspect=math.inf).shape == shape_default

@@ -14,13 +14,20 @@ import re
 import selectors
 import signal
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 SCRIPT_ROOTS = (ROOT / "scripts" / "demos", ROOT / "scripts" / "tutorials")
-VISUALIZERS = ("none", "kit", "newton", "rerun", "viser")
+# ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
+# converters are: they build a SimulationContext to preview the converted asset.
+EXTRA_SCRIPTS = (
+    ROOT / "scripts" / "tools" / "convert_urdf.py",
+    ROOT / "scripts" / "tools" / "convert_mjcf.py",
+)
+VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 DEFAULT_BATCHED_NUM_ENVS = 2
@@ -134,6 +141,9 @@ class SmokeResult:
     fatal_patterns: tuple[str, ...] = ()
 
 
+# newton ships the same NVIDIA Ant model the Kit importer bundles, as in test_mjcf_converter.py.
+_NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
+
 OVERRIDES = {
     "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
     "scripts/demos/h1_locomotion.py": ScriptOverride(
@@ -149,23 +159,55 @@ OVERRIDES = {
     ),
     "scripts/demos/deformables.py": ScriptOverride(
         case_skip_reasons={
-            ("isaacsim_physx", "default", "newton"): "Newton visualizer requires the Newton VBD physics backend",
+            (
+                "isaacsim_physx",
+                "default",
+                "newton_gl",
+            ): "Newton visualizer requires the Newton VBD physics backend",
+            (
+                "isaacsim_physx",
+                "default",
+                "newton_rtx",
+            ): "Newton visualizer requires the Newton VBD physics backend",
             ("isaacsim_physx", "default", "rerun"): "Rerun cannot import PhysX deformable attributes",
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
     "scripts/demos/mpm/newton_mpm_granular.py": ScriptOverride(
-        args=("--max-steps", "20"),
+        args=("--max_steps", "20"),
         readiness_pattern=r"Newton granular MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "scripts/demos/mpm/particle_pour.py": ScriptOverride(
-        args=("--max-steps", "200"),
-        readiness_pattern=r"particle-pour MPM demo ready",
+    "scripts/demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.2"),
+        readiness_pattern=r"Newton two-way MPM demo ready",
+        fixed_physics_backend="newton_coupler",
+        visualizers=("newton_gl",),
+        required_modules=("isaaclab_contrib",),
+    ),
+    "scripts/demos/mpm/snowball_smash.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        readiness_pattern=r"Newton snowball-smash demo ready",
+        fixed_physics_backend="newton_mpm",
+    ),
+    "scripts/demos/mpm/teapot_fill.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
     "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
-    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
+    "scripts/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_vbd",
+        visualizers=("newton_gl",),
+        required_modules=("isaaclab_contrib",),
+    ),
+    "scripts/demos/newton_viewer_dominoes.py": ScriptOverride(
+        args=("--max_steps", "20"),
+        fixed_physics_backend="newton_xpbd",
+        visualizers=("newton_gl",),
+    ),
+    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,
@@ -174,10 +216,10 @@ OVERRIDES = {
         },
     ),
     "scripts/demos/sensors/newton_raycast_heightfield.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton", "rerun", "viser")
+        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
     ),
     "scripts/demos/sensors/newton_raycast_moving_geometry.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton", "rerun", "viser")
+        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
     ),
     "scripts/demos/pick_and_place.py": ScriptOverride(
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
@@ -191,6 +233,19 @@ OVERRIDES = {
         args=("--max_steps", "3", "--warmup_steps", "1"),
         visualizers=("none",),
         required_modules=("ovrtx",),
+    ),
+    # Readiness fires once conversion succeeds, so the preview runs inside the soak.
+    "scripts/tools/convert_urdf.py": ScriptOverride(
+        args=(
+            str(ROOT / "source" / "isaaclab" / "test" / "sim" / "urdfs" / "test_merge_joints.urdf"),
+            str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "urdf"),
+            "--merge_joints",
+        ),
+        readiness_pattern=r"Generated USD file:",
+    ),
+    "scripts/tools/convert_mjcf.py": ScriptOverride(
+        args=(_NEWTON_MJCF, str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "mjcf")),
+        readiness_pattern=r"Generated USD file:",
     ),
     "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=("none", "kit")),
@@ -218,16 +273,16 @@ OVERRIDES = {
     ),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
-        visualizers=("kit", "newton"),
+        visualizers=("kit", "newton_gl"),
     ),
 }
 
 
 def discover_specs() -> list[ScriptSpec]:
-    """Discover executable demo/tutorial scripts and their literal CLI choices."""
+    """Discover the executable demo, tutorial, and tool scripts and their literal CLI choices."""
     specs = []
-    for root in SCRIPT_ROOTS:
-        for path in sorted(root.rglob("*.py")):
+    for group in (*(sorted(root.rglob("*.py")) for root in SCRIPT_ROOTS), EXTRA_SCRIPTS):
+        for path in group:
             source = path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(path))
             if not _has_main_guard(tree):
@@ -325,6 +380,8 @@ def backend_is_available(backend: str) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if backend in {"physx", "isaacsim_physx"}:
         package = "isaaclab_physx"
+    elif backend == "ovphysx":
+        package = "isaaclab_ov"
     else:
         package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
     return importlib.util.find_spec(package) is not None
@@ -343,8 +400,10 @@ def visualizer_is_available(visualizer: str) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if importlib.util.find_spec("isaaclab_visualizers") is None:
         return False
-    if visualizer == "newton":
-        return importlib.util.find_spec("isaaclab_newton") is not None
+    if visualizer in {"newton", "newton_gl", "newton_rtx"}:
+        if importlib.util.find_spec("isaaclab_newton") is None:
+            return False
+        return visualizer != "newton_rtx" or importlib.util.find_spec("ovrtx") is not None
     return importlib.util.find_spec(visualizer) is not None
 
 
@@ -384,21 +443,30 @@ def run_until_ready(
     stopped_after_soak = False
     screenshot_captured = False
     fatal_patterns = set()
+    monitor_fatal_patterns = True
 
     def record_output(chunk: bytes) -> None:
         """Record bounded output while retaining fatal-pattern state."""
         output.extend(chunk)
         decoded_output = output.decode(errors="replace")
-        fatal_patterns.update(pattern for pattern in _FATAL_PATTERNS if pattern in decoded_output)
+        if monitor_fatal_patterns:
+            fatal_patterns.update(pattern for pattern in _FATAL_PATTERNS if pattern in decoded_output)
         if len(output) > MAX_OUTPUT_BYTES:
             del output[:-MAX_OUTPUT_BYTES]
 
+    def read_available_output(timeout: float) -> bool:
+        """Read one available chunk per ready stream and report whether any bytes were read."""
+        read_output = False
+        for key, _ in selector.select(timeout=timeout):
+            chunk = os.read(key.fileobj.fileno(), 65536)
+            if chunk:
+                record_output(chunk)
+                read_output = True
+        return read_output
+
     try:
         while True:
-            for key, _ in selector.select(timeout=0.1):
-                chunk = os.read(key.fileobj.fileno(), 65536)
-                if chunk:
-                    record_output(chunk)
+            read_available_output(timeout=0.1)
             decoded = output.decode(errors="replace")
             if ready_at is None and re.search(readiness_pattern, decoded):
                 ready_at = time.monotonic()
@@ -417,6 +485,11 @@ def run_until_ready(
                 screenshot_captured = True
             if ready_at is not None and now - ready_at >= soak_time:
                 stopped_after_soak = True
+                # Classify every byte already waiting in the pipe before crossing the teardown boundary.
+                while read_available_output(timeout=0.0):
+                    pass
+                # Preserve shutdown logs without treating errors caused by intentional teardown as runtime failures.
+                monitor_fatal_patterns = False
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break

@@ -27,7 +27,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     enable_ambient_lighting: bool = True
     """Enable ambient lighting for the scene."""
 
-    enable_backface_culling: bool = True
+    enable_backface_culling: bool = False
     """Cull back-facing triangles."""
 
     max_distance: float = 1000.0

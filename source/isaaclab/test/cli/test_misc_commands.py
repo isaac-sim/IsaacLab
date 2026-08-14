@@ -8,6 +8,7 @@
 from unittest import mock
 
 import pytest
+import tomllib
 
 import isaaclab.cli.commands.misc as misc
 
@@ -89,4 +90,28 @@ def test_build_isaacsim_runs_incremental_build_for_existing_checkout(tmp_path):
     ):
         misc.command_build_isaacsim(str(isaacsim_root))
 
-    assert run_command.call_args_list[0] == mock.call([str(build_script)], cwd=isaacsim_root)
+    assert run_command.call_args_list == [
+        mock.call([str(build_script)], cwd=isaacsim_root),
+        mock.call([str(isaacsim_root / "repo.sh"), "python_package", "--create"], cwd=isaacsim_root),
+        mock.call([str(isaacsim_root / "repo.sh"), "comment_archive_deps"], cwd=isaacsim_root),
+        mock.call([str(isaacsim_root / "repo.sh"), "python_package", "--wheel"], cwd=isaacsim_root),
+    ]
+
+
+def test_build_isaacsim_preserves_multiline_find_links(tmp_path):
+    """The source-build workflow must retain existing uv wheel indexes."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[tool.uv]\nfind-links = [\n    "https://example.com/wheels",\n    "local-wheels",\n]\n',
+        encoding="utf-8",
+    )
+
+    with mock.patch.object(misc, "ISAACLAB_ROOT", tmp_path):
+        misc._set_uv_find_links("_isaac_sim_wheels")
+        misc._set_uv_find_links("_isaac_sim_wheels")
+
+    assert tomllib.loads(pyproject.read_text(encoding="utf-8"))["tool"]["uv"]["find-links"] == [
+        "https://example.com/wheels",
+        "local-wheels",
+        "_isaac_sim_wheels",
+    ]

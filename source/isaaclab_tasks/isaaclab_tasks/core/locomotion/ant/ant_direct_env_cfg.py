@@ -5,8 +5,12 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+)
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -42,24 +46,7 @@ class AntPhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            use_collision_detector=False,
-            sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1e-4,
-            padmm_dual_tolerance=1e-4,
-            padmm_compl_tolerance=1e-4,
-            padmm_rho_0=0.05,
-            padmm_eta=1e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
-        ),
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
         debug_mode=False,
         use_cuda_graph=True,
     )
@@ -99,12 +86,12 @@ class AntEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # effort scale per joint, keyed by joint name expression
     joint_gears: dict[str, float] = {".*": 15.0}
 
     # sensors
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="/World/envs/env_.*/Robot")
+    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     feet_body_names: list[str] = ["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
 
     # walk target, relative to the environment origin

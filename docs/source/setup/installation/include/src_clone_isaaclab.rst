@@ -58,7 +58,7 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
            --isaacsim_source PATH
                                  Build Isaac Sim from the source checkout at PATH, package it as wheels, and link
                                  them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.
-                                 Skips the build when the checkout is already built.
+                                 Runs the normal incremental build on every invocation.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -101,4 +101,4 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
            --isaacsim_source PATH
                                  Build Isaac Sim from the source checkout at PATH, package it as wheels, and link
                                  them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.
-                                 Skips the build when the checkout is already built.
+                                 Runs the normal incremental build on every invocation.

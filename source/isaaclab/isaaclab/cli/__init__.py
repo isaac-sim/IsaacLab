@@ -89,7 +89,7 @@ def teleop(args: list[str] | None = None) -> None:
 
 
 def benchmark(args: list[str] | None = None) -> None:
-    """Run a runtime, startup, training, or play benchmark.
+    """Run a runtime, startup, training, or play benchmark, optionally across several GPUs.
 
     Args:
         args: Command-line arguments. Uses sys.argv when omitted.
@@ -137,6 +137,7 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
+            "                  (append -multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"

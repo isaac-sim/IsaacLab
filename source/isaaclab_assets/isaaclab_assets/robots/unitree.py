@@ -534,7 +534,7 @@ G1_29DOF_CFG = ArticulationCfg(
             armature=0.001,
         ),
     },
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
 )
 """Configuration for the Unitree G1 Humanoid robot for locomanipulation tasks.
 
@@ -632,7 +632,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
             enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
         ),
     ),
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.75),
         joint_pos={

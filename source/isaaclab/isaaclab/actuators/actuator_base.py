@@ -54,23 +54,18 @@ class ActuatorBase(ABC):
     """
 
     effort_limit: torch.Tensor
-    """The effort limit for the actuator group. Shape is (num_envs, num_joints).
+    """The joint effort limit for the actuator group [N or N·m]. Shape is (num_envs, num_joints).
 
-    This limit is used differently depending on the actuator type:
-
-    - **Explicit actuators**: Used for internal torque clipping within the actuator model
-      (e.g., motor torque limits in DC motor models).
-    - **Implicit actuators**: Same as :attr:`effort_limit_sim` (aliased for consistency).
+    The actuator's rated force/torque reflected at the joint. It clips explicit-model output and remains
+    available as the model-facing limit for implicit actuators. When configured separately, it is not
+    pushed to the physics solver; that is :attr:`effort_limit_sim`.
     """
 
     effort_limit_sim: torch.Tensor
-    """The effort limit for the actuator group in the simulation. Shape is (num_envs, num_joints).
+    """The solver-level effort clamp for the actuator group [N or N·m]. Shape is (num_envs, num_joints).
 
-    For implicit actuators, the :attr:`effort_limit` and :attr:`effort_limit_sim` are the same.
-
-    - **Explicit actuators**: Typically set to a large value (1.0e9) to avoid double-clipping,
-      since the actuator model already clips efforts using :attr:`effort_limit`.
-    - **Implicit actuators**: Same as :attr:`effort_limit` (both values are synchronized).
+    Written to the simulation physics solver and resolved independently of :attr:`effort_limit` when both
+    fields are configured.
     """
 
     velocity_limit: torch.Tensor

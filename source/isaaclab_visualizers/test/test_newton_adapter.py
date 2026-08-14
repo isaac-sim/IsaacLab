@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -116,9 +117,10 @@ def test_apply_viewer_visible_worlds_delegates_to_resolved():
     assert calls[-1] is None
 
 
-def test_newton_visualizer_cfg_exposes_particle_options():
-    cfg = NewtonGLVisualizerCfg(show_particles=True, particle_color=(0.1, 0.2, 0.3))
+def test_newton_visualizer_cfg_exposes_viewer_options():
+    cfg = NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
 
+    assert cfg.enable_picking is False
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
 
@@ -214,7 +216,7 @@ def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exist
     existing_camera = SimpleNamespace(
         _view=SimpleNamespace(count=4),
         cfg=SimpleNamespace(
-            prim_path="/World/envs/env_.*/Camera",
+            prim_path="/World/envs/env_[^/]+/Camera",
             renderer_cfg=SimpleNamespace(renderer_type="newton_warp"),
         ),
     )
@@ -419,6 +421,9 @@ class _Viewer:
     def is_paused(self):
         return False
 
+    def is_running(self):
+        return True
+
     def begin_frame(self, _time):
         pass
 
@@ -466,20 +471,80 @@ class _SceneDataProvider:
 
 
 def _make_newton_visualizer(viewer, scene_data_provider=None):
-    visualizer = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
-    visualizer.cfg = NewtonGLVisualizerCfg(enable_markers=False)
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg(enable_markers=False))
     visualizer._is_initialized = True
     visualizer._is_closed = False
     visualizer._sim_time = 0.0
     visualizer._step_counter = 0
     visualizer._runtime_headless = False
     visualizer._viewer = viewer
-    visualizer._state = None
     visualizer._scene_data_provider = scene_data_provider
     visualizer._resolved_visible_env_ids = None
     visualizer._live_plot_sources = []
+    if viewer is not None:
+        visualizer._viewer_picking_binding.bind(viewer)
     visualizer._log_camera_sensor_image = lambda: None
     return visualizer
+
+
+def test_newton_visualizer_forwards_and_neutralizes_picking():
+    viewer = _Viewer()
+    viewer.picking_enabled = True
+    viewer.picking = SimpleNamespace(release=Mock())
+    viewer.apply_forces = Mock()
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer._picking_enabled = True
+    callback = visualizer._viewer_picking_binding.apply
+
+    state = object()
+    callback(state)
+    viewer.apply_forces.assert_called_once_with(state)
+
+    visualizer.close()
+
+    assert viewer.picking_enabled is False
+    viewer.picking.release.assert_called_once_with()
+    assert visualizer._viewer is None
+    assert visualizer._viewer_picking_binding._viewer is None
+    assert visualizer._viewer_picking_binding._retained_picking is viewer.picking
+
+    callback(object())
+    assert visualizer._viewer_picking_binding._retained_picking is None
+
+
+def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    new_model = object()
+    new_state = object()
+    monkeypatch.setattr(NewtonManager, "get_model", lambda: new_model)
+    monkeypatch.setattr(NewtonManager, "get_state_0", lambda: new_state)
+
+    viewer = _Viewer()
+    viewer.picking_enabled = False
+    viewer.set_model = Mock()
+    viewer._register_isaaclab_ui_callbacks = Mock()
+    viewer.set_visible_worlds = Mock()
+    viewer.set_world_offsets = Mock()
+    visualizer = _make_newton_visualizer(viewer)
+    visualizer._resolved_visible_env_ids = [1, 3]
+    visualizer._picking_enabled = True
+    visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
+    visualizer.cfg.show_contacts = True
+
+    visualizer.reset(soft=False)
+    visualizer.reset(soft=False)
+
+    assert visualizer._model is new_model
+    assert visualizer._state is new_state
+    viewer.set_model.assert_called_once_with(new_model)
+    viewer._register_isaaclab_ui_callbacks.assert_called_once_with()
+    viewer.set_visible_worlds.assert_called_once_with([1, 3])
+    viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
+    assert viewer.show_contacts is True
+    assert viewer.picking_enabled is True
+    assert viewer.wind is None
+    assert visualizer._viewer_picking_binding._viewer is viewer
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
@@ -683,11 +748,17 @@ def test_eye_lookat_to_pitch_yaw_degenerate_returns_zero():
     assert yaw == 0.0
 
 
-def test_newton_rtx_visualizer_render_rgb_array_returns_none():
+def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     frame = np.zeros((4, 6, 3), dtype=np.uint8)
-    viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
+    viewer = SimpleNamespace(get_frame=lambda: frame)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     visualizer._viewer = viewer
+
+    assert visualizer.render_rgb_array() is frame
+
+
+def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     assert visualizer.render_rgb_array() is None
 

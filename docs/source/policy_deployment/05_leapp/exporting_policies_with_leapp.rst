@@ -117,7 +117,7 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
                    --task <TASK_NAME> ^
                    --checkpoint <PATH_TO_CHECKPOINT>
 
-For example, to export a UR10 reach policy trained with RSL-RL:
+For example, to export a Humanoid policy trained with RSL-RL:
 
 .. tab-set::
    :sync-group: os
@@ -133,8 +133,8 @@ For example, to export a UR10 reach policy trained with RSL-RL:
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
                    scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Reach-UR10 \
-                   --checkpoint logs/rsl_rl/ur10_reach/<date timestamp>/model_4999.pt
+                   --task Isaac-Humanoid \
+                   --checkpoint logs/rsl_rl/humanoid/<date timestamp>/model_999.pt
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -142,8 +142,8 @@ For example, to export a UR10 reach policy trained with RSL-RL:
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
                    scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Reach-UR10 \
-                   --checkpoint logs/rsl_rl/ur10_reach/<date timestamp>/model_4999.pt
+                   --task Isaac-Humanoid \
+                   --checkpoint logs/rsl_rl/humanoid/<date timestamp>/model_999.pt
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -157,8 +157,8 @@ For example, to export a UR10 reach policy trained with RSL-RL:
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                uv run --extra leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task Isaac-Reach-UR10 ^
-                   --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
+                   --task Isaac-Humanoid ^
+                   --checkpoint logs\rsl_rl\humanoid\<date timestamp>\model_999.pt
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -167,8 +167,8 @@ For example, to export a UR10 reach policy trained with RSL-RL:
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task Isaac-Reach-UR10 ^
-                   --checkpoint logs\rsl_rl\ur10_reach\<date timestamp>\model_4999.pt
+                   --task Isaac-Humanoid ^
+                   --checkpoint logs\rsl_rl\humanoid\<date timestamp>\model_999.pt
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.
@@ -205,9 +205,7 @@ backend-specific and AppLauncher arguments:
      - ``False``
      - Skip generating the pipeline graph PNG.
 
-The script also accepts ``--checkpoint`` and ``--use_pretrained_checkpoint`` for locating the
-trained model. Some backends expose additional checkpoint-selection options, such as
-``--load_run`` for RSL-RL and ``--use_last_checkpoint`` for RL-Games.
+The script accepts ``--checkpoint`` for locating the trained model.
 
 
 How It Works (High Level)

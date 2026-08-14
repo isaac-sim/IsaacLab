@@ -852,7 +852,7 @@ def test_camera_multi_regex_init(setup_camera_device, device):
         sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -907,7 +907,7 @@ def test_camera_all_annotators(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -970,7 +970,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation", "instance_id_segmentation_fast"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
@@ -1000,7 +1000,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["normals"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()

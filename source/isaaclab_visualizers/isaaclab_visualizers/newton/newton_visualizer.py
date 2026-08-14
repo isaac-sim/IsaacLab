@@ -28,6 +28,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -85,7 +86,25 @@ CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
+    from newton import State
+
     from isaaclab.scene_data import SceneDataProvider
+
+
+def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str) -> bool:
+    """Render a checkbox greyed out with a tooltip when *available* is False."""
+    if not available:
+        imgui.begin_disabled()
+    _, new_val = imgui.checkbox(label, value)
+    if not available:
+        imgui.end_disabled()
+        try:
+            if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
+                imgui.set_tooltip(tip)
+        except Exception:
+            pass
+        return value
+    return new_val
 
 
 def _eye_lookat_to_pitch_yaw(
@@ -127,6 +146,15 @@ class _NewtonViewerUIMixin:
     mixin to share panel-patching helpers and training-controls widgets without
     duplicating code.
     """
+
+    # Set to False by NewtonVisualizer.initialize() when neither native Newton
+    # contacts nor a ContactSensor exists in the scene, so the Show Contacts
+    # checkbox can be greyed out in the UI.
+    _contacts_available: bool = True
+
+    def _register_isaaclab_ui_callbacks(self) -> None:
+        """Register model-dependent Isaac Lab viewer controls."""
+        self.register_ui_callback(self._render_training_controls, position="side")
 
     def _patch_scalar_plot_width(self) -> None:
         """Set up ImPlot and suppress Newton's built-in floating Plots window.
@@ -304,8 +332,15 @@ class _NewtonViewerUIMixin:
                     _c, viewer.show_joints = imgui.checkbox("Show Joints", viewer.show_joints)
                     if viewer.show_joints and renderer is not None and hasattr(renderer, "joint_scale"):
                         _, renderer.joint_scale = imgui.slider_float("Joint Scale", renderer.joint_scale, 0.25, 5.0)
-                    _c, viewer.show_contacts = imgui.checkbox("Show Contacts", viewer.show_contacts)
-                    if viewer.show_contacts and renderer is not None:
+                    _contacts_available = viewer._contacts_available
+                    viewer.show_contacts = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Contacts",
+                        viewer.show_contacts,
+                        _contacts_available,
+                        "No contact sensors in this environment",
+                    )
+                    if viewer.show_contacts and _contacts_available and renderer is not None:
                         if hasattr(renderer, "arrow_length_scale"):
                             _, renderer.arrow_length_scale = imgui.slider_float(
                                 "Contact Length", renderer.arrow_length_scale, 0.25, 5.0
@@ -314,12 +349,34 @@ class _NewtonViewerUIMixin:
                             _, renderer.arrow_scale = imgui.slider_float(
                                 "Contact Width", renderer.arrow_scale, 0.25, 5.0
                             )
-                    _c, viewer.show_particles = imgui.checkbox("Show Particles", viewer.show_particles)
-                    _c, viewer.show_springs = imgui.checkbox("Show Springs", viewer.show_springs)
+                    _model = viewer.model
+                    _has_particles = _model is not None and int(getattr(_model, "particle_count", 0)) > 0
+                    _has_springs = _model is not None and int(getattr(_model, "spring_count", 0)) > 0
+                    _has_cloth = _model is not None and int(getattr(_model, "tri_count", 0)) > 0
+                    viewer.show_particles = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Particles",
+                        viewer.show_particles,
+                        _has_particles,
+                        "No particle bodies in this environment",
+                    )
+                    viewer.show_springs = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Springs",
+                        viewer.show_springs,
+                        _has_springs,
+                        "No spring constraints in this environment",
+                    )
                     _c, viewer.show_com = imgui.checkbox("Show Center of Mass", viewer.show_com)
                     if viewer.show_com and renderer is not None and hasattr(renderer, "com_scale"):
                         _, renderer.com_scale = imgui.slider_float("COM Scale", renderer.com_scale, 0.25, 5.0)
-                    _c, viewer.show_triangles = imgui.checkbox("Show Cloth", viewer.show_triangles)
+                    viewer.show_triangles = _imgui_optional_checkbox(
+                        imgui,
+                        "Show Cloth",
+                        viewer.show_triangles,
+                        _has_cloth,
+                        "No cloth/triangle meshes in this environment",
+                    )
                     _c, viewer.show_collision = imgui.checkbox("Show Collision", viewer.show_collision)
                     if renderer is not None and hasattr(renderer, "draw_edges"):
                         _c, renderer.draw_edges = imgui.checkbox("Show Edges", renderer.draw_edges)
@@ -335,6 +392,15 @@ class _NewtonViewerUIMixin:
                             )
                     _c, viewer.show_visual = imgui.checkbox("Show Visual", viewer.show_visual)
                     _c, viewer.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", viewer.show_inertia_boxes)
+                    from isaaclab.sim import SimulationContext
+
+                    sim = SimulationContext.instance()
+                    marker_groups = () if sim is None else sim.vis_marker_registry.get_groups().values()
+                    for marker in marker_groups:
+                        name = marker.cfg.prim_path.rsplit("/", 1)[-1].replace("_", " ")
+                        changed, visible = imgui.checkbox(f"Show {name}##{marker.group_id}", marker.is_visible())
+                        if changed:
+                            marker.set_visibility(visible)
 
             # --- Rendering Options ------------------------------------------
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
@@ -370,7 +436,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("WASD - Move camera")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                imgui.text("Right Click - Pick objects")
+                imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
                 imgui.text("Ctrl + Middle Click - Dolly")
@@ -418,13 +484,6 @@ class _NewtonViewerUIMixin:
                 "Controls visualizer update frequency\nlower values -> more responsive visualizer but slower"
                 " training\nhigher values -> less responsive visualizer but faster training"
             )
-
-    def _render_physics_panel(self, imgui):
-        """Render Simulation collapsing section at the top of the Newton viewer panel."""
-        imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if imgui.collapsing_header("Simulation"):
-            imgui.separator()
-            imgui.text(f"Physics: {self._backend_display}")
 
     def _draw_streaming_view_controls(self) -> None:
         """Render streaming image panel selector in the HUD sidebar.
@@ -567,10 +626,14 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # UI patches must be deferred: ViewerRTX creates self.gui lazily in
         # _init_window() (called from _init_ovrtx() on the first end_frame()).
         # _patch_viewer_panel() sets gui._render_left_panel, which requires gui to
-        # exist.  Register the callbacks now (they are buffered by ViewerRTX until
+        # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
-        self.register_ui_callback(self._render_physics_panel, position="panel")
+
+    def get_frame(self) -> np.ndarray:
+        """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
+        # TODO: Use Newton's public RGB capture API when one becomes available.
+        return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
 
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
@@ -807,6 +870,45 @@ class NewtonVisualizer(BaseVisualizer):
     :class:`NewtonRTXVisualizer`.
     """
 
+    class _ViewerPickingBinding:
+        """Stable Newton-manager callback for viewer picking.
+
+        CUDA graphs record picking arrays by address, so closing the window
+        neutralizes and retains them until the captured graph is gone.
+        """
+
+        def __init__(self) -> None:
+            self._viewer: NewtonViewerGL | NewtonViewerRTX | None = None
+            self._retained_picking = None
+
+        def bind(self, viewer: NewtonViewerGL | NewtonViewerRTX) -> None:
+            """Bind picking to the current viewer model."""
+            self._viewer = viewer
+            self._retained_picking = None
+
+        def apply(self, state: State) -> None:
+            """Apply picking while the viewer is active."""
+            if self._viewer is None:
+                # Host callbacks do not run during graph replay, so reaching
+                # this branch means captured inputs are no longer needed.
+                self._retained_picking = None
+                return
+            self._viewer.apply_forces(state)
+
+        def deactivate(self) -> None:
+            """Make captured picking inert while preserving its inputs."""
+            viewer = self._viewer
+            if viewer is None:
+                return
+
+            picking = getattr(viewer, "picking", None)
+            if picking is not None:
+                viewer.picking_enabled = False
+                picking.release()
+
+            self._retained_picking = picking
+            self._viewer = None
+
     def __init__(self, cfg: NewtonVisualizerCfg):
         """Initialize shared Newton visualizer state.
 
@@ -830,6 +932,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._viewer_picking_binding = self._ViewerPickingBinding()
+        self._picking_enabled = False
         self._streaming_camera_key: tuple | None = None
         self._live_plots_manager_visible: dict[str, bool] = {}
         self._last_streaming_composite: np.ndarray | None = None
@@ -848,19 +952,27 @@ class NewtonVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
+
+        from isaaclab.sim import SimulationContext
 
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        newton_backend_active = self.physics_backend == "newton"
+        physics_manager = SimulationContext.instance().physics_manager
+        picking_supported = newton_backend_active and bool(
+            getattr(physics_manager, "_supports_rigid_body_force_input", False)
+        )
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        self._state = (
+            NewtonManager.get_state_0() if newton_backend_active else NewtonManager.get_state(self._scene_data_provider)
+        )
 
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -887,10 +999,14 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
+        self._picking_enabled = self.cfg.enable_picking and picking_supported and not runtime_headless
         self._viewer = self._create_viewer(runtime_headless, metadata)
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
+            if self._picking_enabled:
+                # Keep Newton's public force path scoped to picking for this integration.
+                self._viewer.wind = None
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
@@ -898,13 +1014,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._apply_camera_pose(initial_pose)
             self._viewer._paused = False
 
-            self._viewer.show_joints = self.cfg.show_joints
-            self._viewer.show_contacts = self.cfg.show_contacts
-            self._viewer.show_collision = self.cfg.show_collision
-            self._viewer.show_springs = self.cfg.show_springs
-            self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
-            self._viewer.show_com = self.cfg.show_com
-            self._viewer.show_particles = self.cfg.show_particles
+            self._apply_model_visualization_options()
+            self._viewer.picking_enabled = self._picking_enabled
 
             self._apply_viewer_post_init()
 
@@ -929,9 +1040,36 @@ class NewtonVisualizer(BaseVisualizer):
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
                 ("show_particles", self.cfg.show_particles),
+                ("enable_picking", self._picking_enabled),
             ],
         )
+        if self._viewer is not None and self._picking_enabled:
+            self._viewer_picking_binding.bind(self._viewer)
+            NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
+        if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
+            logger.info(
+                "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
+                " rigid-body force input."
+            )
         self._is_initialized = True
+        # Inform the viewer whether contact data is available so the UI can grey
+        # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
+        # exists in the scene.
+        if self._viewer is not None:
+            contact_sensors = self._scene_data_provider.get_contact_sensors() if self._scene_data_provider else {}
+            self._viewer._contacts_available = newton_backend_active or bool(contact_sensors)
+
+    def _apply_model_visualization_options(self) -> None:
+        """Apply configured options reset by Newton model changes."""
+        if self._viewer is None:
+            return
+        self._viewer.show_joints = self.cfg.show_joints
+        self._viewer.show_contacts = self.cfg.show_contacts
+        self._viewer.show_collision = self.cfg.show_collision
+        self._viewer.show_springs = self.cfg.show_springs
+        self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
+        self._viewer.show_com = self.cfg.show_com
+        self._viewer.show_particles = self.cfg.show_particles
 
     def step(self, dt: float) -> None:
         """Advance visualization by one simulation step.
@@ -944,8 +1082,6 @@ class NewtonVisualizer(BaseVisualizer):
 
         self._sim_time += dt
         self._step_counter += 1
-
-        from isaaclab_newton.physics import NewtonManager
 
         # Headless mode renders on demand via render_rgb_array(). Keep the latest
         # physics state available without paying the per-step render cost.
@@ -989,8 +1125,12 @@ class NewtonVisualizer(BaseVisualizer):
                         self._render_live_plots()
                 finally:
                     self._viewer.end_frame()
+                    if not self._viewer.is_running():
+                        self._viewer_picking_binding.deactivate()
             else:
                 self._pump_paused()
+                if not self._viewer.is_running():
+                    self._viewer_picking_binding.deactivate()
         except Exception:
             logger.exception("[%s] Viewer update failed.", type(self).__name__)
             # Subclasses that cannot recover from a viewer failure (e.g. RTX when OVRTX is
@@ -1015,10 +1155,36 @@ class NewtonVisualizer(BaseVisualizer):
             return self._viewer.consume_reset_request()
         return False
 
+    def reset(self, soft: bool = False) -> None:
+        """Rebind viewer resources after a hard Newton model reset."""
+        if soft or not self._picking_enabled or not self._is_initialized or self._is_closed:
+            return
+
+        model = NewtonManager.get_model()
+        if model is self._model:
+            return
+        self._model = model
+        self._state = NewtonManager.get_state_0()
+        if self._viewer is not None:
+            self._viewer.set_model(self._model)
+            if self._picking_enabled:
+                self._viewer.wind = None
+            self._viewer._register_isaaclab_ui_callbacks()
+            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_world_offsets(self.cfg.world_spacing)
+            self._apply_model_visualization_options()
+            self._viewer.picking_enabled = self._picking_enabled
+            if self._picking_enabled:
+                self._viewer_picking_binding.bind(self._viewer)
+
     def close(self) -> None:
         """Release viewer resources."""
         if self._is_closed:
             return
+        if self._picking_enabled:
+            # Keep the stable callback registered: captured graphs replay its
+            # now-neutral device inputs without retaining the viewer.
+            self._viewer_picking_binding.deactivate()
         if self._viewer is not None:
             self._viewer = None
         if self._camera_sensor is not None and self._camera_is_owned:
@@ -1178,6 +1344,28 @@ class NewtonVisualizer(BaseVisualizer):
             cameras = self._scene_data_provider.get_camera_sensors()
             self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
             self._camera_sensor_indices = env_ids
+            return
+
+        # When streaming_cam_target_prim_path is None, try to adopt the first scene camera
+        # rather than creating a new one with a hardcoded prim path.
+        if self.cfg.streaming_cam_target_prim_path is None:
+            cameras = self._scene_data_provider.get_camera_sensors()
+            if cameras:
+                first_name, first_cam = next(iter(cameras.items()))
+                logger.debug(
+                    "[%s] streaming_cam_target_prim_path is None; adopting scene camera %r.",
+                    type(self).__name__,
+                    first_name,
+                )
+                self._camera_sensor = first_cam
+                self._camera_sensor_indices = env_ids
+                return
+            logger.debug(
+                "[%s] streaming_cam_target_prim_path is None and no scene cameras found; "
+                "streaming view will be empty. Add a TiledCamera sensor or set "
+                "streaming_cam_target_prim_path to enable the streaming panel.",
+                type(self).__name__,
+            )
             return
 
         renderer_cfg = self._resolve_streaming_renderer_cfg()
@@ -1786,7 +1974,8 @@ class NewtonGLVisualizer(NewtonVisualizer):
                 frames.append(frame)
 
         n_envs = len(self._camera_sensor_indices)
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types))
+        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
+        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
         self._last_streaming_composite = composite
         self._composite_step = self._step_counter
         return composite
@@ -1862,11 +2051,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
 
     Use :class:`NewtonRTXVisualizerCfg` (factory type ``"newton_rtx"``) to select this backend.
 
-    Current limitations (stubs pending Newton-side support):
-
-    - ``render_rgb_array()`` returns ``None``. ``ViewerRTX`` does not yet expose
-      ``get_frame()`` for GPU framebuffer readback. Once available, replace the stub.
-    - Tiled camera panel is disabled for the same reason.
+    ``render_rgb_array()`` reads back the path-traced LDR render product directly.
+    The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
+    display sink.
 
     .. note::
         RTX render quality settings (fps, lighting environment, denoiser, etc.)
@@ -1950,19 +2137,22 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         return False
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return the latest RGB frame — currently a stub for the RTX backend.
+        """Return the latest RGB frame rendered by the Newton RTX viewer.
+
+        In headless mode, render the state captured during the latest simulation step
+        before reading back the path-traced LDR framebuffer.
 
         Returns:
-            ``None``. ``ViewerRTX`` does not yet expose ``get_frame()`` for GPU
-            framebuffer readback. Also returns ``None`` when the viewer was skipped
-            due to the SONAME guard (see :meth:`_create_viewer`). Once the Newton
-            team adds ``get_frame()``, replace this with
-            ``return self._viewer.get_frame().numpy()``.
+            The latest viewer framebuffer as a uint8 array with shape ``(H, W, 3)``,
+            or ``None`` when the viewer is unavailable.
         """
-        # TODO: replace with ``return self._viewer.get_frame().numpy()`` once
-        # ViewerRTX.get_frame() is available from the Newton SDK.  Until then,
-        # video recording with source="visualizer:newton_rtx" produces no frames;
-        # use source="visualizer:newton_gl" (or a sensor source) instead.
         if self._viewer is None:
             return None
-        return None
+        if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
+            self._pre_step()
+            self._viewer.begin_frame(self._sim_time)
+            try:
+                self._viewer.log_state(self._state)
+            finally:
+                self._viewer.end_frame()
+        return self._viewer.get_frame()

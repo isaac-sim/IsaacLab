@@ -26,6 +26,7 @@ from typing import Any, get_args
 
 from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
+    GpuResources,
     Hardware,
     MeanStd,
     PhysicsBackend,
@@ -170,6 +171,7 @@ def capture_versions(bm: Any) -> Versions:
         mujoco=md.get("mujoco_version"),
         cuda_bindings=md.get("cuda_bindings_version"),
         usd_core=md.get("usd_core_version"),
+        usd_exchange=md.get("usd_exchange_version"),
         isaaclab_release=md.get("isaaclab_release_version"),
     )
 
@@ -415,17 +417,17 @@ def capture_resources(bm: Any) -> Resources:
     # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
     gpu_metadata = {m.name: m.data for m in gpu_data.metadata or []} if gpu_data is not None else {}
-    gpu_prefix = (
-        f"GPU {gpu_metadata.get('gpu_current_device', 0)} " if gpu_metadata.get("gpu_device_count", 1) > 1 else "GPU "
-    )
+    # Without the recorder there is nothing to attribute to a device, so the per-device mapping
+    # stays empty rather than claiming an idle device 0.
+    device_count = int(gpu_metadata.get("gpu_device_count", 1)) if gpu_data is not None else 0
+    current_device = int(gpu_metadata.get("gpu_current_device", 0))
 
-    gpu_util_mean = _find_value(gpu_meas, f"{gpu_prefix}Utilization")
-    gpu_util_std = _find_value(gpu_meas, f"{gpu_prefix}Utilization std")
-
-    gpu_mem_mean = _find_value(gpu_meas, f"{gpu_prefix}Memory Used")
-    gpu_mem_std = _find_value(gpu_meas, f"{gpu_prefix}Memory Used std")
-    _gpu_mem_peak_raw = _find_value(gpu_meas, f"{gpu_prefix}Memory Used peak", default=0.0)
-    gpu_mem_peak = max(gpu_mem_mean, _gpu_mem_peak_raw)
+    # The recorder drops the device index from the measurement names on a single-GPU host.
+    devices = {
+        str(index): _gpu_device_resources(gpu_meas, f"GPU {index} " if device_count > 1 else "GPU ")
+        for index in range(device_count)
+    }
+    current = devices.get(str(current_device), _gpu_device_resources(gpu_meas, "GPU "))
 
     # --- CPU ---
     cpu_meas = cpu_data.measurements if cpu_data is not None else []
@@ -442,8 +444,26 @@ def capture_resources(bm: Any) -> Resources:
     ram_peak = max(ram_mean, _ram_peak_raw)
 
     return Resources(
-        gpu_util_pct=MeanStd(mean=gpu_util_mean, std=gpu_util_std, peak=None),
-        gpu_mem_gb=MeanStd(mean=gpu_mem_mean, std=gpu_mem_std, peak=gpu_mem_peak),
+        gpu_util_pct=current.util_pct,
+        gpu_mem_gb=current.mem_gb,
         cpu_util_pct=MeanStd(mean=cpu_util_mean, std=cpu_util_std, peak=None),
         ram_gb=MeanStd(mean=ram_mean, std=ram_std, peak=ram_peak),
+        devices=devices,
+    )
+
+
+def _gpu_device_resources(measurements: Any, prefix: str) -> GpuResources:
+    """Read one GPU device's utilisation and memory from prefixed measurement names."""
+    mem_mean = _find_value(measurements, f"{prefix}Memory Used")
+    return GpuResources(
+        util_pct=MeanStd(
+            mean=_find_value(measurements, f"{prefix}Utilization"),
+            std=_find_value(measurements, f"{prefix}Utilization std"),
+            peak=None,
+        ),
+        mem_gb=MeanStd(
+            mean=mem_mean,
+            std=_find_value(measurements, f"{prefix}Memory Used std"),
+            peak=max(mem_mean, _find_value(measurements, f"{prefix}Memory Used peak", default=0.0)),
+        ),
     )

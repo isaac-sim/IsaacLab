@@ -116,7 +116,7 @@ _RTX_MINIMAL_MODES = {
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
@@ -330,11 +330,6 @@ class OVRTXRenderer(BaseRenderer):
     """
 
     cfg: OVRTXRendererCfg
-
-    @classmethod
-    def provides_temporal_camera_data(cls, data_type: str) -> bool:
-        # OV-RTX, like Isaac RTX, temporally accumulates only the rgb/rgba beauty buffer (DLSS).
-        return data_type in ("rgb", "rgba")
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
@@ -759,7 +754,9 @@ class OVRTXRenderer(BaseRenderer):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particle_counts.append(entry.particles_per_body)
 
-                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
+                vis_mesh_prim_paths.append(
+                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
+                )
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
@@ -1908,7 +1905,9 @@ class OVRTXRenderer(BaseRenderer):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particle_counts.append(entry.particles_per_body)
 
-                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
+                vis_mesh_prim_paths.append(
+                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
+                )
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:

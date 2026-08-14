@@ -58,7 +58,7 @@ Equivalent sets exist under:
 
 * ``source/isaaclab_physx/benchmark/assets/``
 * ``source/isaaclab_newton/benchmark/assets/``
-* ``source/isaaclab_ovphysx/benchmark/assets/``
+* ``source/isaaclab_ov/benchmark/assets/``
 
 .. list-table::
    :header-rows: 1

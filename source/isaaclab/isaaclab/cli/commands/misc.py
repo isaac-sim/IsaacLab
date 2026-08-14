@@ -5,10 +5,13 @@
 
 """Misc commands"""
 
+import json
 import re
 import shutil
 import zipfile
 from pathlib import Path
+
+import tomllib
 
 from ..utils import (
     ISAACLAB_ROOT,
@@ -127,8 +130,8 @@ def command_build_isaacsim(source_path: str) -> None:
     Runs an incremental Isaac Sim build, packages the resulting Python wheels, links them into the
     Isaac Lab repository as ``_isaac_sim_wheels``, points uv at that directory through
     ``find-links``, pins the ``isaacsim-local`` extra to the version that was built, and re-resolves
-    that was built, and re-resolves Isaac Sim from those wheels. Afterwards, run Isaac Lab against
-    the build with ``uv run --extra isaacsim-local``.
+    Isaac Sim from those wheels. Afterwards, run Isaac Lab against the build with
+    ``uv run --extra isaacsim-local``.
 
     The pin is required: source builds produce pre-release local versions that sort below the
     published release, so an unpinned extra resolves back to the registry wheels instead. It
@@ -175,7 +178,9 @@ def command_build_isaacsim(source_path: str) -> None:
             raise SystemExit(1)
     try:
         link_path.symlink_to(wheel_dir, target_is_directory=True)
-        find_links = link_path.name
+        # Store the absolute symlink path.  Unlike a bare ``_isaac_sim_wheels`` path, it remains
+        # valid when the command is run from another directory.
+        find_links = str(link_path)
         print_info(f"Linked {link_path} -> {wheel_dir}")
     except OSError as error:
         # Windows requires elevation (or developer mode) to create symbolic links.
@@ -195,14 +200,14 @@ def command_build_isaacsim(source_path: str) -> None:
     # Re-resolve Isaac Sim so the lock file picks the local wheels over the published release.
     if shutil.which("uv") is not None:
         print_info("Re-resolving Isaac Sim from the local wheels...")
-        run_command(["uv", "lock", "--upgrade-package", "isaacsim"])
+        run_command(["uv", "lock", "--upgrade-package", "isaacsim"], cwd=ISAACLAB_ROOT)
     else:
         print_warning("uv was not found on PATH. Run 'uv lock --upgrade-package isaacsim' once uv is available.")
 
     print_info("Isaac Sim is ready. Run Isaac Lab against it with:")
     print_info(
         "  uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct"
-        " presets=isaacsim_physx"
+        " physics=isaacsim_physx"
     )
     print_warning(
         f"pyproject.toml now points uv at '{find_links}' and pins the 'isaacsim-local' extra to your build"
@@ -283,21 +288,31 @@ def _set_uv_find_links(find_links: str) -> None:
         print_error(f"Could not find the '[tool.uv]' table in {pyproject}.")
         raise SystemExit(1)
 
+    config = tomllib.loads(text)
+    existing_links = config.get("tool", {}).get("uv", {}).get("find-links", [])
+    if not isinstance(existing_links, list) or not all(isinstance(link, str) for link in existing_links):
+        print_error(f"The 'find-links' entry in {pyproject} must be an array of strings.")
+        raise SystemExit(1)
+
     # Confine the edit to the ``[tool.uv]`` table so a ``find-links`` entry in another table is
-    # neither read nor rewritten. Windows paths are normalized to forward slashes, which uv accepts
-    # and which need no escaping in a TOML string.
+    # neither read nor rewritten. Preserve user-provided entries: this command only adds its own
+    # local wheel directory. Windows paths are normalized to forward slashes, which uv accepts.
     start = header.end()
     following = re.search(r"^\[", text[start:], flags=re.MULTILINE)
     end = start + (following.start() if following is not None else len(text) - start)
     section = text[start:end]
-    entry = f'find-links = ["{Path(find_links).as_posix()}"]'
+    find_links = Path(find_links).as_posix()
+    links = [link for link in existing_links if link != find_links] + [find_links]
+    entry = f"find-links = [{', '.join(json.dumps(link) for link in links)}]"
 
-    # Replace through a callable: a Windows path reaches this as a literal and ``re`` would read
-    # its backslashes as escapes in a replacement string.
-    section, count = re.subn(r"^find-links = \[.*\]$", lambda _: entry, section, count=1, flags=re.MULTILINE)
-    if count == 0:
+    # ``find-links`` may be formatted over several lines. Re-rendering just this array retains all
+    # entries while avoiding duplicate TOML keys on repeated source-build invocations.
+    find_links_match = re.search(r"^find-links\s*=\s*\[(?:[^\]]|\n)*?\]", section, flags=re.MULTILINE)
+    if find_links_match is None:
         comment = "# Locally built Isaac Sim wheels ('isaaclab --isaacsim_source'). Local-only, do not commit."
         section = f"\n{comment}\n{entry}{section}"
+    else:
+        section = section[: find_links_match.start()] + entry + section[find_links_match.end() :]
 
     updated = text[:start] + section + text[end:]
     if updated != text:

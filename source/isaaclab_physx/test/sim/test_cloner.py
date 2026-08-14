@@ -633,7 +633,7 @@ def test_disabled_fabric_change_notifies_speedup_regression():
 
     def _body(i: int) -> RigidObjectCfg:
         return RigidObjectCfg(
-            prim_path=f"/World/envs/env_.*/Body_{i}",
+            prim_path=f"/World/envs/env_[^/]+/Body_{i}",
             spawn=sim_utils.SphereCfg(radius=0.1, rigid_props=sim_utils.RigidBodyPropertiesCfg()),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3 * (i % 4), 0.3 * (i // 4), 0.5)),
         )
