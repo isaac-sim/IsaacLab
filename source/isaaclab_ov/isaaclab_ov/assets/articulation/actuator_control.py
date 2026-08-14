@@ -17,8 +17,11 @@ import warp as wp
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.actuators.newton.host_runtime import _HostActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
+from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 from isaaclab.sim.utils.queries import find_first_matching_prim
+from isaaclab.sim.utils.stage import get_current_stage
 
 from isaaclab_ov import tensor_types as TT
 
@@ -49,20 +52,6 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
         if not use_newton_actuators:
             return set()
-        try:
-            from isaaclab.actuators.newton.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_newton", "isaaclab.actuators.newton"}:
-                raise
-            logger.warning(
-                "use_newton_actuators is enabled but 'isaaclab.actuators.newton' is not available. "
-                "Newton-native actuators will be disabled and the simulation will fall back to the "
-                "Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
-            )
-            return set()
-
-        from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
-        from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
         _validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {

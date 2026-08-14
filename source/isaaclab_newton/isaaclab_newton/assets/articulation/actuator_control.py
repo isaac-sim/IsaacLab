@@ -17,7 +17,11 @@ import warp as wp
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.actuators.newton import build_implicit_dof_mask
+from isaaclab.actuators.newton import kernels as actuator_kernels
+from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
 from isaaclab.assets.articulation import ordering_kernels
+from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
@@ -47,8 +51,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if not getattr(articulation._sim_cfg, "use_newton_actuators", False):
             return set()
 
-        from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
-
         _validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
@@ -65,9 +67,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
         if not self._native_actuator_path_active:
             return
-
-        from isaaclab.actuators.newton import build_implicit_dof_mask  # noqa: PLC0415
-        from isaaclab.actuators.newton import kernels as actuator_kernels  # noqa: PLC0415
 
         articulation = self._articulation
         adapter = SimulationManager._adapter
@@ -187,8 +186,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if adapter is None:
             return None
 
-        from isaaclab.actuators.newton.adapter import read_newton_actuator_gain  # noqa: PLC0415
-
         joint_ordering = articulation.data.joint_ordering
         gains, covered = read_newton_actuator_gain(
             adapter.actuators,
@@ -225,8 +222,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         joint_ids: torch.Tensor,
     ) -> None:
         # Native gain buffers are indexed per actuator, so update each controller's view.
-        from isaaclab.actuators.newton import kernels as actuator_kernels  # noqa: PLC0415
-
         articulation = self._articulation
         adapter = articulation.newton_actuator_adapter
         if adapter is None:
