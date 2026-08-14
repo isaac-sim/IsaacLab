@@ -21,6 +21,7 @@ import pytest
 
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as isaaclab_utils
+import isaaclab.utils.assets as assets_utils
 from isaaclab.app import launch_simulation
 from isaaclab.physics import PhysicsCfg
 
@@ -39,6 +40,18 @@ def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
     with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
         pass
 
+    assert kit_branch_taken == []
+
+
+def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
+    """A direct OmniClient read inside a kitless runtime must see profile routing."""
+    events = []
+    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: events.append("configured"))
+
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
+        events.append("user-code")
+
+    assert events == ["configured", "user-code"]
     assert kit_branch_taken == []
 
 

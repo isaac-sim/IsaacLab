@@ -59,14 +59,14 @@ launching:
 
       .. code:: bash
 
-         export ISAACSIM_ASSET_ROOT=/path/to/Assets/Isaac/6.0
+         export ISAACSIM_ASSET_ROOT=/path/to/Assets/Isaac/X.Y
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         set ISAACSIM_ASSET_ROOT=C:\path\to\Assets\Isaac\6.0
+         set ISAACSIM_ASSET_ROOT=C:\path\to\Assets\Isaac\X.Y
 
 The variable must point at the versioned asset root, that is the directory containing ``Isaac`` and
 ``NVIDIA``. It takes precedence over the value shipped in the experience files, and it always applies to
@@ -89,10 +89,18 @@ To use the public China asset mirror, select the same named storage profile used
 
    export ISAACSIM_STORAGE_PROFILE=china
 
-In kitless mode, Isaac Lab resolves its asset paths to the profile's public Isaac Sim 6.0 CDN without requiring
-Isaac Sim to be installed. ``ISAACSIM_ASSET_ROOT`` still takes precedence when both variables are set. When
-the installed Isaac Sim native storage extension provides the profile, that extension owns its storage and CDN
-transport configuration.
+Isaac Lab uses the same versioned public bucket paths shown by Isaac Sim and routes reads through the profile's CDN.
+This also works in kitless mode without Isaac Sim installed. ``ISAACSIM_ASSET_ROOT`` still takes precedence when
+both variables are set.
+
+Isaac Lab launchers and asset helpers apply the profile automatically. A standalone kitless script that calls
+``omni.client`` before launching an Isaac Lab runtime must initialize the profile first:
+
+.. code:: python
+
+   from isaaclab.utils.assets import configure_storage_profile
+
+   configure_storage_profile()
 
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an
