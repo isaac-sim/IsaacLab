@@ -23,6 +23,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.utils.version import get_isaac_sim_version
@@ -43,6 +44,7 @@ if TYPE_CHECKING:
 
     from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
 
+    from isaaclab.cloner import ClonePlan
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -193,39 +195,34 @@ class IsaacRtxRenderer(BaseRenderer):
 
         return specs
 
-    def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
-        """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """Defer live-stage preparation until replicated environments exist."""
+        pass
 
-        Authoring is only performed when
-        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` is set.
-        When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
-        or ``omni:scenePartition`` attributes are written to the stage.
-
-        When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
-        ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
-        non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
-        RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
-        geometry and isolates each env's render tile.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
-
+    def _author_scene_partitions(self, stage: Usd.Stage, num_envs: int, clone_plan: ClonePlan | None) -> None:
+        """Author optional per-environment RTX scene partitions after USD replication."""
         if not isaac_rtx_per_env_scene_partition_enabled():
             return
-
+        if clone_plan is not None and clone_plan.env_ids is not None and clone_plan.env_template is not None:
+            env_roots = [
+                (int(env_id), clone_plan.env_template.format(int(env_id)))
+                for env_id in clone_plan.env_ids.detach().cpu().tolist()
+            ]
+        else:
+            env_roots = [(env_idx, f"/World/envs/env_{env_idx}") for env_idx in range(num_envs)]
         logger.debug(
             "Per-environment RTX scene partitioning is enabled"
             " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
             " Authoring primvars:omni:scenePartition on %d env(s).",
-            num_envs,
+            len(env_roots),
         )
-
         root_layer = stage.GetRootLayer()
-        token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
-            for env_idx in range(num_envs):
-                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+            for env_id, env_path in env_roots:
+                env_prim = stage.GetPrimAtPath(env_path)
                 if not env_prim.IsValid():
                     continue
-                token = f"env_{env_idx}"
+                token = f"env_{env_id}"
                 for prim in Usd.PrimRange(env_prim):
                     if prim == env_prim:
                         attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
@@ -233,13 +230,10 @@ class IsaacRtxRenderer(BaseRenderer):
                         attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
                     else:
                         continue
-                    # Idempotent: a different renderer backend sharing this stage may have already
-                    # authored this attribute. Re-creating an existing spec raises, so only create
-                    # it when absent, then (re)assign the per-env token either way.
                     attr_spec = root_layer.GetAttributeAtPath(attr_path)
                     if attr_spec is None:
                         Sdf.JustCreatePrimAttributeInLayer(
-                            root_layer, attr_path, token_type, Sdf.VariabilityUniform, True
+                            root_layer, attr_path, Sdf.ValueTypeNames.Token, Sdf.VariabilityUniform, True
                         )
                         attr_spec = root_layer.GetAttributeAtPath(attr_path)
                     attr_spec.default = token
@@ -249,7 +243,6 @@ class IsaacRtxRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData
-        from pxr import UsdGeom
 
         from isaaclab.sim.utils.stage import get_current_stage
 
@@ -275,9 +268,14 @@ class IsaacRtxRenderer(BaseRenderer):
                     " The simple shading data types will be ignored."
                 )
 
+        stage = get_current_stage()
+        sim = SimulationContext.instance()
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+        self._author_scene_partitions(stage, spec.num_instances, clone_plan)
+
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
-        stage = get_current_stage()
+
         if isaac_sim_version == version.parse("4.5") and (
             "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation" in spec.cfg.data_types
         ):
@@ -291,12 +289,11 @@ class IsaacRtxRenderer(BaseRenderer):
                 for prim in stage.Traverse():
                     prim.SetInstanceable(False)
 
-        # Get camera prim paths from sensor view
-        cam_prim_paths = list(spec.camera_prim_paths)
-        for cam_prim_path in cam_prim_paths:
-            cam_prim = stage.GetPrimAtPath(cam_prim_path)
-            if not cam_prim.IsA(UsdGeom.Camera):
-                raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
+        # Expand source cameras only after deferred USD replication has populated the live stage.
+        cam_prim_paths = spec.resolve_camera_prim_paths(clone_plan)
+        for camera_path in cam_prim_paths:
+            if not stage.GetPrimAtPath(camera_path).IsA(UsdGeom.Camera):
+                raise RuntimeError(f"Prim at path '{camera_path}' is not a Camera.")
 
         # Unique UUID name so concurrent tiled cameras and sequential env create/destroy
         # cycles in one Kit process do not reuse a stale Replicator / SyntheticData activation.

@@ -3,16 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD manipulation for OVRTX: Render scope building, camera injection, and stage prim activation."""
+"""USD string construction for OVRTX render products."""
 
 from __future__ import annotations
 
-import logging
 import math
-
-from pxr import Sdf, Usd, UsdGeom
-
-logger = logging.getLogger(__name__)
 
 
 def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
@@ -180,36 +175,29 @@ def Scope "Render"
 '''
 
 
-def _tiled_resolution(num_envs: int, width: int, height: int) -> tuple[int, int]:
-    """Compute tiled width and height from env count and per-env resolution (same as Camera)."""
-    num_cols = math.ceil(math.sqrt(num_envs))
-    num_rows = math.ceil(num_envs / num_cols)
-    return num_cols * width, num_rows * height
-
-
 def build_render_product_as_string(
     width: int,
     height: int,
     num_envs: int,
     data_types: list[str],
+    camera_path: str,
     minimal_mode: int | None = None,
-    camera_rel_path: str = "Camera",
     background_color: tuple[float, float, float] | None = None,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
     This string is meant to be appended to an exported stage (ASCII) before loading into OVRTX.
-    The initial camera relationship targets only environment zero, whose camera is guaranteed to
-    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
-    resolved camera path after runtime cloning.
+    The initial camera relationship targets one camera authored in the prototype stage.
+    Multi-environment rendering rewrites the relationship with every resolved camera path after
+    runtime cloning.
 
     Args:
         width: Tile width from sensor config [px].
         height: Tile height from sensor config [px].
         num_envs: Number of environments from scene.
         data_types: Data types from sensor config.
+        camera_path: Absolute path of a camera authored in the prototype stage.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
-        camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
             When set, the render product uses a solid color background instead of the dome light.
             When ``None``, the default dome-light background is used.
@@ -218,9 +206,10 @@ def build_render_product_as_string(
         Tuple of (render product USD snippet as a string, absolute render product prim path).
     """
     data_types = data_types if data_types else ["rgb"]
-    tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
+    num_cols = math.ceil(math.sqrt(num_envs))
+    tiled_width, tiled_height = num_cols * width, math.ceil(num_envs / num_cols) * height
 
-    camera_paths = [f"/World/envs/env_0/{camera_rel_path}"]
+    camera_paths = [camera_path]
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
@@ -240,164 +229,3 @@ def build_render_product_as_string(
         background_color,
     )
     return camera_content, render_product_path
-
-
-def create_scene_partition_attributes(
-    stage,
-    num_envs: int = 1,
-) -> None:
-    """Create scene partition attributes for env roots and cameras.
-
-    Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by name, so this works regardless of
-    where the camera is placed in the hierarchy.
-
-    Args:
-        stage: USD stage to modify.
-        num_envs: Number of environments.
-    """
-    # Collect the attribute paths and scene partition tokens to update.
-    attr_updates: list[tuple[Sdf.Path, str]] = []
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        env_prim = stage.GetPrimAtPath(env_path)
-        if not env_prim.IsValid():
-            logger.warning("Failed to get env root prim at '%s'", env_path)
-            continue
-
-        scene_partition = f"env_{env_idx}"
-
-        for prim in Usd.PrimRange(env_prim):
-            if prim.GetPath() == env_prim.GetPath():
-                attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
-            elif prim.IsA(UsdGeom.Camera):
-                attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
-            else:
-                continue
-            attr_updates.append((attr_path, scene_partition))
-
-    root_layer = stage.GetRootLayer()
-    type_name = Sdf.ValueTypeNames.Token
-    variability = Sdf.VariabilityUniform
-    is_custom = True
-
-    # Create the attributes and set the default values.
-    with Sdf.ChangeBlock():
-        for attr_path, scene_partition in attr_updates:
-            Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
-            root_layer.GetAttributeAtPath(attr_path).default = scene_partition
-            logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
-
-
-def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
-    """Collect child prims under ``parent_prim`` for deactivation.
-
-    For each child:
-
-    * If the child is a source, keep the full subtree and stop descending.
-    * If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
-    * Otherwise, deactivate the child prim (including descendants).
-
-    Args:
-        parent_prim: Parent prim whose children are considered.
-        source_paths: The paths to the cloning sources.
-
-    Returns:
-        Paths of prims to deactivate on the root layer.
-    """
-    prim_paths: list[Sdf.Path] = []
-
-    for child in parent_prim.GetChildren():
-        child_path = child.GetPath()
-
-        # If the child is a source, keep it and stop walking down the tree.
-        if child_path in source_paths:
-            continue
-
-        # If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
-        if any(source.HasPrefix(child_path) for source in source_paths):
-            prim_paths.extend(_collect_prims_to_deactivate(child, source_paths))
-            continue
-
-        # Otherwise, deactivate the child prim (including descendants).
-        if child.IsActive():
-            prim_paths.append(child_path)
-
-    return prim_paths
-
-
-def _set_prims_active_on_layer(layer: Sdf.Layer, prim_paths: list[Sdf.Path], active: bool) -> None:
-    """Activate or deactivate prims on the given layer.
-
-    Args:
-        layer: Layer to modify the prims on.
-        prim_paths: Paths of prims to activate or deactivate.
-        active: Whether to activate or deactivate the prims.
-    """
-    action_str = "Activated" if active else "Deactivated"
-
-    with Sdf.ChangeBlock():
-        for prim_path in prim_paths:
-            # If a prim already exists at the given path it will be returned unmodified.
-            prim_spec = Sdf.CreatePrimInLayer(layer, prim_path)
-            prim_spec.active = active
-            logger.debug("%s prim: %s", action_str, prim_path)
-
-    logger.info("%s %d prims in total", action_str, len(prim_paths))
-
-
-def export_stage_to_string(
-    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
-) -> str:
-    """Export the USD stage as a USDA string for OVRTX loading.
-
-    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives
-    only the prototype geometry it replicates at clone time. Non-source env descendants are temporarily deactivated
-    on the root layer during export and restored afterwards; ``stage.ExportToString`` re-composes the stage, so
-    deactivated prims drop out of the exported text and their paths are absent when the clone path repopulates them.
-
-    When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
-    active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
-    additionally trims the non-source env roots themselves; ``stage.clone`` recreates them and the RenderProduct's
-    camera relationship is re-authored after clone.
-
-    Args:
-        stage: USD stage to export.
-        num_envs: Number of parallel environments on the stage.
-        source_paths: The paths to source prims to keep in the exported stage.
-        keep_env_roots: Whether to keep the non-source env root prims active in the exported stage. Pass False for
-            the ovstage clone path, which repopulates env roots itself.
-
-    Returns:
-        USDA text of the (possibly trimmed) stage.
-    """
-    if num_envs <= 1:
-        return stage.ExportToString()
-
-    envs_path = Sdf.Path("/World/envs")
-    envs_prim = stage.GetPrimAtPath(envs_path)
-    if not envs_prim.IsValid():
-        raise RuntimeError(f"Failed to get prim at path: {envs_path}")
-
-    source_path_set = frozenset(map(Sdf.Path, source_paths))
-    prim_paths: list[Sdf.Path] = []
-
-    if keep_env_roots:
-        for child in envs_prim.GetChildren():
-            # Legacy code path: keep env roots so we can query their xforms after opening stage
-            child_path = child.GetPath()
-            if child_path not in source_path_set:
-                prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
-    else:
-        # Ovstage code path: strip env roots, their xforms are queried beforehand.
-        prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
-
-    root_layer = stage.GetRootLayer()
-
-    # Temporarily deactivate the prims so that the stage is exported without them.
-    _set_prims_active_on_layer(root_layer, prim_paths, active=False)
-
-    try:
-        return stage.ExportToString()
-    finally:
-        # Restore the active state of the prims.
-        _set_prims_active_on_layer(root_layer, prim_paths, active=True)

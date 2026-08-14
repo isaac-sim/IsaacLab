@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import torch
@@ -18,7 +18,9 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.logging_utils import force_log_level
+from isaaclab.cloner import path as clone_path
 from isaaclab.cloner import queue_replication
+from isaaclab.physics import PhysicsEvent
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -213,11 +215,19 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # Renderer and render data — assigned in _initialize_impl.
+        # Renderer inputs are prepared before the stage; render data is created in _initialize_impl.
         self._renderer: BaseRenderer | None = None
+        self._render_spec: CameraRenderSpec | None = None
         self._render_data = None
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
+        assert sim_ctx is not None
+        self._renderer_prepare_handle = sim_ctx.physics_manager.register_callback(
+            self._prepare_renderer, PhysicsEvent.MODEL_INIT, order=-1
+        )
+        self._renderer_stage_prepare_handle = sim_ctx.physics_manager.register_callback(
+            self._prepare_renderer_stage, PhysicsEvent.MODEL_INIT, order=0
+        )
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -515,40 +525,9 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            raise RuntimeError("SimulationContext is not initialized.")
-        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
-        with force_log_level(logging.INFO):
-            logger.info("Using renderer: %s", type(self._renderer).__name__)
-
-        # Build the render spec early — both the wrapper ISP (which delegates
-        # any renderer-side per-camera setup) and ``create_render_data`` consume
-        # it, and the prims are already authored at this point.
-        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
-        env_0_prefix = "/World/envs/env_0/"
-        rel_under_env0 = (
-            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
-        )
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
-        render_spec = CameraRenderSpec(
-            cfg=self.cfg,
-            device=device_str,
-            num_instances=self._num_envs,
-            camera_prim_paths=cam_paths,
-            view_count=self._num_envs,
-            camera_path_relative_to_env_0=rel_under_env0,
-        )
-
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
-        self._renderer.prepare_cameras(self.stage, render_spec)
-
-        # Stage preprocessing must happen before creating the view because the view keeps
-        # references to prims located in the stage.
-        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
+        assert self._renderer is not None
+        assert self._render_spec is not None
+        cam_paths = self._render_spec.camera_prim_paths
 
         self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
@@ -577,10 +556,51 @@ class Camera(SensorBase):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        self._render_data = self._renderer.create_render_data(render_spec)
+        self._render_data = self._renderer.create_render_data(self._render_spec)
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
+
+    def _prepare_renderer(self, _payload: Any = None) -> None:
+        """Prepare this camera's renderer inputs before the renderer snapshots the stage."""
+        if self._render_spec is not None:
+            return
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            raise RuntimeError("SimulationContext is not initialized.")
+        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+        with force_log_level(logging.INFO):
+            logger.info("Using renderer: %s", type(self._renderer).__name__)
+
+        cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        clone_plan = sim_ctx.get_clone_plan()
+        num_envs = len(cam_paths) if clone_plan is None or clone_plan.env_ids is None else len(clone_plan.env_ids)
+        relative_to_env_0 = ""
+        if clone_plan is not None and clone_plan.env_template is not None:
+            env_0_path = clone_plan.env_template.format(0)
+            for camera_path in cam_paths:
+                relative_path = clone_path.relative_to(camera_path, env_0_path)
+                if relative_path is not None:
+                    relative_to_env_0 = relative_path.removeprefix("/")
+                    break
+        render_spec = CameraRenderSpec(
+            cfg=self.cfg,
+            device=str(sim_ctx.device),
+            num_instances=num_envs,
+            camera_prim_paths=cam_paths,
+            view_count=num_envs,
+            camera_path_relative_to_env_0=relative_to_env_0,
+        )
+        self._renderer.prepare_cameras(self.stage, render_spec)
+        self._render_spec = render_spec
+
+    def _prepare_renderer_stage(self, _payload: Any = None) -> None:
+        """Prepare every registered renderer after all cameras have applied their USD overrides."""
+        assert self._render_spec is not None
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            raise RuntimeError("SimulationContext is not initialized.")
+        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._render_spec.num_instances)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
@@ -899,12 +919,22 @@ class Camera(SensorBase):
     Internal simulation callbacks.
     """
 
+    def _clear_callbacks(self) -> None:
+        """Clear renderer preparation callbacks before the base sensor callbacks."""
+        for attribute in ("_renderer_prepare_handle", "_renderer_stage_prepare_handle"):
+            handle = getattr(self, attribute, None)
+            if handle is not None:
+                handle.deregister()
+                setattr(self, attribute, None)
+        super()._clear_callbacks()
+
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         if self._renderer is not None and self._render_data is not None:
             self._renderer.cleanup(self._render_data)
         self._render_data = None
         self._renderer = None
+        self._render_spec = None
         # call parent
         super()._invalidate_initialize_callback(event)
         # release backend state deterministically, then invalidate the view

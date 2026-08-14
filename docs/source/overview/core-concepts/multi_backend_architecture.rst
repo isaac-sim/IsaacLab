@@ -287,8 +287,9 @@ The physics manager also provides a **callback system** via
         name="my_callback",
     )
 
-Available events: ``MODEL_INIT`` (during scene building), ``PHYSICS_READY`` (after physics
-initialization), and ``STOP`` (on simulation shutdown).
+Available events: ``MODEL_INIT`` (after scene prototypes are authored and immediately before the
+backend attaches, loads, or constructs its model), ``PHYSICS_READY`` (after physics initialization),
+and ``STOP`` (on simulation shutdown).
 
 Asset and Sensor Interfaces
 ---------------------------

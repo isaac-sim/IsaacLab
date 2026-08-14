@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import atexit
 import logging
-import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
 
 from pxr import UsdPhysics
 
+from isaaclab.cloner import path as clone_path
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -100,13 +101,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             paths.extend(list(entry["pose"].prim_paths))
         return paths
 
-    def setup(self, physx, stage, device: str) -> None:
+    def setup(self, physx, stage, device: str, env_template: str = DEFAULT_ENV_TEMPLATE) -> None:
         """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
             stage: USD stage to traverse for RigidBodyAPI prims.
             device: Warp device string used to allocate the staging and merged buffers.
+            env_template: Clone-plan environment-root template used to deduplicate rigid paths.
         """
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
         from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -126,7 +128,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         patterns: set[str] = set()
         for prim in stage.Traverse():
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+                prim_path = prim.GetPath().pathString
+                matched = clone_path.match(prim_path, env_template)
+                patterns.add(prim_path if matched is None else env_template.format("*") + matched.suffix)
 
         # Rigid discovery may be empty for deformable-only scenes; still set up
         # deformable nodal bindings so SceneData geometry export stays available.
@@ -372,7 +376,7 @@ class OvPhysxManager(PhysicsManager):
     # re-warmup can rebuild serialized-stage or runtime-only clones.
     _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
-    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
+    # these into serialized USDA; prototype-only warmup replays them with physx.clone().
     _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
@@ -486,6 +490,13 @@ class OvPhysxManager(PhysicsManager):
         cls._stage_usda = None
         cls._pending_clones = []
         cls._active_clone_recipes = []
+        cls.register_callback(
+            cls._capture_stage_usda,
+            PhysicsEvent.MODEL_INIT,
+            order=1,
+            name="ovphysx_capture_stage_usda",
+            wrap_weak_ref=False,
+        )
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
         # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
@@ -701,7 +712,6 @@ class OvPhysxManager(PhysicsManager):
         if exported_stage is None:
             raise RuntimeError("OvPhysxManager: failed to open the flattened full-stage layer.")
 
-        envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
         processed_targets: set[Sdf.Path] = set()
         for source, targets, _ in pending_clones:
@@ -712,13 +722,6 @@ class OvPhysxManager(PhysicsManager):
                 target_path = Sdf.Path(target)
                 if target_path in processed_targets:
                     continue
-                boundary_path = target_path.GetParentPath()
-                for prefix in target_path.GetPrefixes():
-                    if prefix.GetParentPath() == envs_path:
-                        boundary_path = prefix
-                        break
-                if layer.GetPrimAtPath(boundary_path) is None:
-                    raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
                 operations.append((source_path, target_path, layer.GetPrimAtPath(target_path) is not None))
                 processed_targets.add(target_path)
 
@@ -754,40 +757,37 @@ class OvPhysxManager(PhysicsManager):
             logger.info("OvPhysxManager: materialized %d clone targets in the full-stage layer", len(operations))
         return len(operations)
 
-    @staticmethod
-    def _strip_nonzero_environments(layer: Any) -> int:
-        """Strip authored ``env_<i>`` prims other than ``env_0`` from a stage layer."""
-        envs_spec = layer.GetPrimAtPath("/World/envs")
-        if envs_spec is None or not envs_spec:
-            return 0
-
-        env_name_re = re.compile(r"^env_(\d+)$")
-        names_to_remove = [
-            child_name
-            for child_name in list(envs_spec.nameChildren.keys())
-            if (match := env_name_re.match(child_name)) and match.group(1) != "0"
-        ]
-        for child_name in names_to_remove:
-            del envs_spec.nameChildren[child_name]
-        return len(names_to_remove)
-
     @classmethod
     def _serialize_selected_stage(cls, sim_stage: Any) -> str:
-        """Serialize the selected stage representation for OVStage population."""
+        """Serialize prototypes, expanding roots and targets only for full-stage consumers."""
         layer = sim_stage.Flatten()
         if cls._requires_full_stage:
+            from pxr import Gf, Usd, UsdGeom  # noqa: PLC0415
+
+            sim = PhysicsManager._sim
+            clone_plan = sim.get_clone_plan() if sim is not None else None
+            if clone_plan is not None and clone_plan.env_ids is not None and clone_plan.env_template is not None:
+                env_ids = clone_plan.env_ids.detach().cpu().tolist()
+                positions = clone_plan.positions.detach().cpu().tolist() if clone_plan.positions is not None else None
+                private_stage = Usd.Stage.Open(layer)
+                for env_index, env_id in enumerate(env_ids):
+                    root = UsdGeom.Xform.Define(private_stage, clone_plan.env_template.format(env_id))
+                    if positions is not None:
+                        UsdGeom.XformCommonAPI(root).SetTranslate(Gf.Vec3d(*positions[env_index]))
+
             cls._materialize_pending_clones_in_layer(layer)
             logger.info("OvPhysxManager: serialized the full USD stage in memory")
-        else:
-            removed_count = cls._strip_nonzero_environments(layer)
-            if removed_count:
-                logger.info(
-                    "OvPhysxManager: stripped %d env_<i!=0> subtrees from in-memory USD (kept env_0 + globals)",
-                    removed_count,
-                )
-            else:
-                logger.debug("OvPhysxManager: no cloned environments to strip — serialized stage as-is.")
         return layer.ExportToString()
+
+    @classmethod
+    def _capture_stage_usda(cls, _event: Any) -> None:
+        """Capture the prototype stage before common-stage USD replication."""
+        if cls._stage_usda is not None:
+            return
+        sim = PhysicsManager._sim
+        if sim is None:
+            raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
+        cls._stage_usda = cls._serialize_selected_stage(sim.stage)
 
     @classmethod
     def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
@@ -854,29 +854,13 @@ class OvPhysxManager(PhysicsManager):
         if scene_prim.IsValid():
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        # Flatten the current USD stage to USDA text so OVStage can populate it
-        # without an intermediate file.
-        #
-        # When ``InteractiveScene`` runs with ``clone_usd=True``, the live USD
-        # stage carries env_0..N's full asset subtrees as authored copies.
-        # Handing that whole stage to OVStage would make the wheel ingest
-        # all 4096 envs as independent USD-defined bodies, defeating the
-        # ``physx.clone()`` fast path and turning every subsequent
-        # ``create_tensor_binding`` call into an O(N) USD enumeration -- the
-        # hang you'd see at large env counts.
-        #
-        # By default, strip ``/World/envs/env_<i>`` for i != 0 from the
-        # flattened layer before handing it to the wheel. Sensors that read
-        # USD directly (RayCaster, Camera, ContactSensor discovery) still see
-        # the full N-env stage; only the wheel-side physics ingestion is
-        # scoped to env_0, and ``physx.clone()`` re-populates env_1..N in
-        # the physics runtime with proper clone lineage (which is what the
-        # binding fast path expects). Features that need distinct authored
-        # physics in every environment request the full stage; missing
-        # heterogeneous clone targets are materialized in its flattened layer.
+        # The live stage contains only clone-plan prototypes. Full-stage consumers materialize
+        # targets in the flattened copy; the default path replays them through ``physx.clone``.
         cls._rearm_pending_clones()
-        stage_usda = cls._serialize_selected_stage(sim.stage)
-        cls._stage_usda = stage_usda
+        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+        stage_usda = cls._stage_usda
+        if stage_usda is None:
+            raise RuntimeError("OvPhysxManager: MODEL_INIT did not capture the prototype stage.")
 
         if cls._physx is None:
             cls._construct_physx(ovphysx_device, gpu_index)
@@ -903,9 +887,14 @@ class OvPhysxManager(PhysicsManager):
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls._physx, sim.stage, PhysicsManager._device)
+        clone_plan = sim.get_clone_plan()
+        env_template = (
+            clone_plan.env_template
+            if clone_plan is not None and clone_plan.env_template is not None
+            else DEFAULT_ENV_TEMPLATE
+        )
+        cls._scene_data_backend.setup(cls._physx, sim.stage, PhysicsManager._device, env_template=env_template)
 
-        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True
 
     @classmethod

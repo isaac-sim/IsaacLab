@@ -168,20 +168,8 @@ class InteractiveScene:
         self._scene_asset_names: list[str] = []
         self._clone_valid_set: torch.Tensor | None = None
 
-        # create source prim
-        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
         # allocate env indices
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
-        # clone env_0 xform to env_1..env_{N-1} at grid origins
-        env_origins, _ = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing, device=self.device)
-        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-            cloner.usd_replicate(
-                self.stage,
-                [self.env_prim_paths[0]],
-                [self._env_fmt],
-                self._ALL_INDICES,
-                positions=env_origins,
-            )
 
         # Always enter so a ClonePlan is published even when the scene cfg has no entities.
         self._global_prim_paths = list()
@@ -281,12 +269,8 @@ class InteractiveScene:
         calling this method is idempotent and safe to invoke before
         :meth:`~isaaclab.sim.SimulationContext.reset`.
 
-        Pre-creating backends here makes the order of renderer construction
-        deterministic (matches sensor registration order) and front-loads logging
-        instead of trickling out during the first :meth:`Camera._initialize_impl`.
-        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` is
-        intentionally not invoked here; it runs on first camera initialization
-        with the correct ``num_envs`` and final stage.
+        Pre-creating backends here makes construction deterministic in sensor registration order
+        and front-loads logging. Each camera owns its renderer's model-initialization callbacks.
 
         Returns:
             The list of unique renderer backends now registered on the

@@ -35,9 +35,11 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _write_file  # noqa: E402
 
-    from pxr import Usd, UsdGeom  # noqa: E402
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 else:
     OVRTXRenderer = None
+    Gf = None
+    Sdf = None
     OVRTXRendererCfg = None
     Usd = None
     UsdGeom = None
@@ -48,37 +50,19 @@ _PRE_OVRTX_STAGE_FILE = "pre_ovrtx_renderer_stage.usda"
 _OVRTX_STAGE_FILE = "ovrtx_renderer_stage.usda"
 
 
-def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
-    """Build an in-memory stage with distinguishable content per environment."""
+def _make_prototype_stage() -> Usd.Stage:
+    """Build an in-memory stage containing only the environment-zero prototype."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.Xform.Define(stage, "/World/envs")
 
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        UsdGeom.Xform.Define(stage, env_path)
-        UsdGeom.Xform.Define(stage, f"{env_path}/Robot")
-        UsdGeom.Xform.Define(stage, f"{env_path}/Object_env{env_idx}_only")
-        UsdGeom.Camera.Define(stage, f"{env_path}/Camera")
+    env_path = "/World/envs/env_0"
+    UsdGeom.Xform.Define(stage, env_path)
+    UsdGeom.Xform.Define(stage, f"{env_path}/Robot")
+    UsdGeom.Xform.Define(stage, f"{env_path}/Object_env0_only")
+    UsdGeom.Camera.Define(stage, f"{env_path}/Camera")
 
     return stage
-
-
-def _assert_export_contains_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environment roots appear in the stage export."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' in exported
-        assert f'def Xform "Object_env{env_idx}_only"' in exported
-
-    assert exported.count('def Xform "Robot"') == len(env_indices)
-    assert exported.count('def Camera "Camera"') == len(env_indices)
-
-
-def _assert_export_contains_env_roots_but_omits_children(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environments and their unique children are omitted from the stage export."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' in exported
-        assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
 def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: ClonePlan | None) -> None:
@@ -98,7 +82,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._clone_plan = None
-    renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
@@ -131,21 +114,68 @@ def _make_camera_render_spec(num_envs: int = 1) -> CameraRenderSpec:
     )
 
 
+def _make_env_plan(num_envs: int, positions: torch.Tensor | None = None) -> ClonePlan:
+    """Build a complete homogeneous plan for tests that do not exercise heterogeneous layouts."""
+    return ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.ones((1, num_envs), dtype=torch.bool),
+        env_ids=torch.arange(num_envs),
+        positions=torch.zeros((num_envs, 3)) if positions is None else positions,
+        env_template="/World/envs/env_{}",
+    )
+
+
+def test_ovrtx_clone_layout_has_no_default_environment_namespace():
+    """OVRTX must consume ClonePlan paths without restoring the old stage-patching helpers."""
+    package = Path(__file__).parents[1] / "isaaclab_ov" / "renderers"
+    renderer_source = (package / "ovrtx_renderer.py").read_text(encoding="utf-8")
+    usd_source = (package / "ovrtx_usd.py").read_text(encoding="utf-8")
+    physics_source = (package.parent / "physics" / "ovphysx_manager.py").read_text(encoding="utf-8")
+
+    assert "/World/envs/" not in renderer_source
+    assert "/World/envs/" not in usd_source
+    assert "/World/envs/" not in physics_source
+    assert "camera_path_relative_to_env_0" not in renderer_source
+    combined_source = renderer_source + usd_source + physics_source
+    for helper in (
+        "def create_scene_partition_attributes(",
+        "def export_stage_to_string(",
+        "def _collect_prims_to_deactivate(",
+        "def _set_prims_active_on_layer(",
+        "def _strip_nonzero_environments(",
+        "def _init_fields_legacy(",
+        "def _init_fields_ovstage(",
+        "def _initialize_from_spec(",
+    ):
+        assert helper not in combined_source
+
+
 def test_clone_sources_in_ovrtx_heterogeneous_rows():
     """Each active row clones its targets while an inactive row is skipped."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_1/Object", "/World/envs/env_0/Light"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object", "/World/envs/env_{}/Light"),
+        sources=(
+            "/World/scenes/scene_2/Robot",
+            "/World/scenes/scene_7/Object",
+            "/World/scenes/scene_2/Light",
+        ),
+        destinations=(
+            "/World/scenes/scene_{}/Robot",
+            "/World/scenes/scene_{}/Object",
+            "/World/scenes/scene_{}/Light",
+        ),
         clone_mask=torch.tensor(
             [
-                [True, True, True, True],
-                [False, False, True, True],
+                [True, False, True, False],
+                [False, True, False, True],
                 [False, False, False, False],
             ],
             dtype=torch.bool,
         ),
+        env_ids=torch.tensor([2, 7, 11, 19]),
         positions=torch.zeros((4, 3)),
+        env_template="/World/scenes/scene_{}",
     )
 
     clone_calls: list[tuple[str, list[str]]] = []
@@ -159,16 +189,12 @@ def test_clone_sources_in_ovrtx_heterogeneous_rows():
 
     assert clone_calls == [
         (
-            "/World/envs/env_0/Robot",
-            [
-                "/World/envs/env_1/Robot",
-                "/World/envs/env_2/Robot",
-                "/World/envs/env_3/Robot",
-            ],
+            "/World/scenes/scene_2/Robot",
+            ["/World/scenes/scene_11/Robot"],
         ),
         (
-            "/World/envs/env_1/Object",
-            ["/World/envs/env_2/Object", "/World/envs/env_3/Object"],
+            "/World/scenes/scene_7/Object",
+            ["/World/scenes/scene_19/Object"],
         ),
     ]
 
@@ -180,7 +206,9 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
         clone_mask=torch.ones((1, 2), dtype=torch.bool),
+        env_ids=torch.arange(2),
         positions=torch.zeros((2, 3)),
+        env_template="/World/envs/env_{}",
     )
 
     def _clone_usd(source: str, target_paths: list[str]) -> None:
@@ -197,10 +225,12 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     renderer = _make_ovrtx_renderer_without_backend()
     positions = torch.tensor([[0.0, 0.0, 0.0], [2.0, -1.0, 0.5], [-3.0, 4.0, 1.5]])
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
+        sources=("/World/scenes/scene_2",),
+        destinations=("/World/scenes/scene_{}",),
         clone_mask=torch.ones((1, 3), dtype=torch.bool),
+        env_ids=torch.tensor([2, 7, 11]),
         positions=positions,
+        env_template="/World/scenes/scene_{}",
     )
     call_order: list[str] = []
     clone_calls: list[tuple[str, list[str]]] = []
@@ -223,8 +253,13 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
     expected[:, 3, :3] = positions.numpy()
     assert call_order == ["clone", "write"]
-    assert clone_calls == [("/World/envs/env_0", ["/World/envs/env_1", "/World/envs/env_2"])]
+    assert clone_calls == [("/World/scenes/scene_2", ["/World/scenes/scene_7", "/World/scenes/scene_11"])]
     assert len(write_calls) == 1
+    assert write_calls[0]["prim_paths"] == [
+        "/World/scenes/scene_2",
+        "/World/scenes/scene_7",
+        "/World/scenes/scene_11",
+    ]
     assert write_calls[0]["attribute_name"] == "omni:xform"
     np.testing.assert_array_equal(write_calls[0]["tensor"], expected)
 
@@ -235,10 +270,12 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     renderer = _make_ovrtx_renderer_without_backend()
     positions = torch.tensor([[0.0, 0.0, 0.0], [1.5, -2.0, 0.25], [3.0, 4.0, 0.5]])
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
+        sources=("/World/scenes/scene_2/Robot", "/World/scenes/scene_7/Object"),
+        destinations=("/World/scenes/scene_{}/Robot", "/World/scenes/scene_{}/Object"),
         clone_mask=torch.tensor([[False, False, False], [False, True, True]]),
+        env_ids=torch.tensor([2, 7, 11]),
         positions=positions,
+        env_template="/World/scenes/scene_{}",
     )
     events: list[tuple[str, str, object]] = []
     xforms: list[np.ndarray] = []
@@ -282,8 +319,12 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
     expected[:, 3, :3] = positions.numpy()
     assert events == [
-        ("clone", "/World/envs/env_1/Object", ["/World/envs/env_2/Object"]),
-        ("paths", "envs", ["/World/envs/env_0", "/World/envs/env_1", "/World/envs/env_2"]),
+        ("clone", "/World/scenes/scene_7/Object", ["/World/scenes/scene_11/Object"]),
+        (
+            "paths",
+            "envs",
+            ["/World/scenes/scene_2", "/World/scenes/scene_7", "/World/scenes/scene_11"],
+        ),
         ("query", "envs", "env_paths"),
         ("write", "omni:xform", "root_xforms"),
     ]
@@ -310,6 +351,8 @@ def test_write_file_creates_parent_directory_and_writes_utf8(tmp_path: Path):
             sources=("/World/envs/env_0",),
             destinations=("/World/envs/env_{}",),
             clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2),
+            env_template="/World/envs/env_{}",
         ),
     ],
 )
@@ -317,23 +360,18 @@ def test_prepare_stage_requires_published_plan_positions(monkeypatch: pytest.Mon
     """OVRTX stage preparation rejects an absent plan and a plan without positions."""
     _patch_simulation_context(monkeypatch, clone_plan)
 
-    with pytest.raises(RuntimeError, match="Clone plan with environment positions is required"):
-        _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
+    with pytest.raises(RuntimeError, match="Clone plan with environment ids, positions"):
+        _make_ovrtx_renderer_without_backend().prepare_stage(_make_prototype_stage(), 2)
 
 
 def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """prepare_stage writes the raw stage before OVRTX-specific preparation."""
     _patch_simulation_context(
         monkeypatch,
-        ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            positions=torch.zeros((2, 3)),
-        ),
+        _make_env_plan(2),
     )
 
-    stage = _make_multi_env_stage(2)
+    stage = _make_prototype_stage()
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
     expected_pre_export = stage.ExportToString()
@@ -343,7 +381,7 @@ def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: 
     pre_stage_path = tmp_path / _PRE_OVRTX_STAGE_FILE
     assert pre_stage_path.is_file()
     assert pre_stage_path.read_text(encoding="utf-8") == expected_pre_export
-    assert pre_stage_path.read_text(encoding="utf-8") != stage.ExportToString()
+    assert stage.ExportToString() == expected_pre_export
     assert (tmp_path / _OVRTX_STAGE_FILE).exists() is False
 
 
@@ -351,12 +389,7 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
     """prepare_stage does not write debug dumps when temp_usd_dir is None."""
     _patch_simulation_context(
         monkeypatch,
-        ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            positions=torch.zeros((2, 3)),
-        ),
+        _make_env_plan(2),
     )
     write_calls: list[tuple[Path, str, str]] = []
 
@@ -365,7 +398,7 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
 
     monkeypatch.setattr("isaaclab_ov.renderers.ovrtx_renderer._write_file", _record_write)
 
-    stage = _make_multi_env_stage(2)
+    stage = _make_prototype_stage()
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = None
 
@@ -374,18 +407,20 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
     assert write_calls == []
 
 
-def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
-    """_initialize_from_spec writes the combined stage when temp_usd_dir is set."""
+def test_initialize_from_spec_legacy_writes_combined_stage_dump(tmp_path: Path):
+    """Legacy initialization writes the combined stage when temp_usd_dir is set."""
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._clone_plan = _make_env_plan(1)
     renderer.cfg.temp_usd_dir = str(tmp_path)
     renderer._exported_usd_string = "#usda 1.0\n"
 
     open_calls: list[str] = []
     renderer._renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
     renderer._renderer.bind_attribute = lambda **kwargs: object()
-    renderer._renderer.write_attribute = lambda **kwargs: None
+    renderer._renderer.write_attribute = lambda *_args, **_kwargs: None
 
-    renderer._initialize_from_spec(_make_camera_render_spec(num_envs=1))
+    spec = _make_camera_render_spec(num_envs=1)
+    renderer._initialize_from_spec_legacy(spec, list(spec.camera_prim_paths))
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -395,10 +430,21 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     assert renderer._exported_usd_string is None
 
 
-def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
-    """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
-    num_envs = 4
+def test_initialize_from_spec_legacy_refreshes_camera_relationship_after_cloning():
+    """Initialization resolves sparse heterogeneous cameras in ClonePlan column order."""
+    env_ids = [2, 7, 11, 19]
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._clone_plan = ClonePlan(
+        sources=("/World/scenes/scene_2/Camera", "/World/scenes/scene_7/Camera"),
+        destinations=("/World/scenes/scene_{}/Camera", "/World/scenes/scene_{}/Camera"),
+        clone_mask=torch.tensor(
+            [[True, False, True, False], [False, True, False, True]],
+            dtype=torch.bool,
+        ),
+        env_ids=torch.tensor(env_ids),
+        positions=torch.zeros((len(env_ids), 3)),
+        env_template="/World/scenes/scene_{}",
+    )
     renderer._exported_usd_string = "#usda 1.0\n"
 
     call_order: list[str] = []
@@ -406,7 +452,7 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
 
     renderer._renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
     renderer._clone_sources_in_ovrtx = lambda: call_order.append("clone")
-    renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
+    renderer._update_scene_partitions_after_clone = lambda _camera_paths: call_order.append("partitions")
 
     def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
         call_order.append("rewrite_cameras")
@@ -415,41 +461,125 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
     renderer._renderer.write_array_attribute = _write_array_attribute
     renderer._renderer.bind_attribute = lambda **_kwargs: object()
     renderer._renderer.write_attribute = lambda **_kwargs: None
-    renderer._setup_xform_bindings = lambda: None
-    renderer._setup_deformable_bindings = lambda _num_envs: None
+    renderer._setup_xform_bindings_legacy = lambda _camera_paths: None
+    renderer._setup_deformable_bindings_legacy = lambda _num_envs: None
+    renderer._setup_particle_bindings_legacy = lambda: None
 
-    spec = _make_camera_render_spec(num_envs=num_envs)
-    renderer._initialize_from_spec(spec)
+    spec = _make_camera_render_spec()
+    spec.cfg.prim_path = "/World/scenes/scene_[^/]+/Camera"
+    spec = CameraRenderSpec(
+        cfg=spec.cfg,
+        device=spec.device,
+        num_instances=len(env_ids),
+        camera_prim_paths=("/World/scenes/scene_2/Camera", "/World/scenes/scene_7/Camera"),
+        view_count=len(env_ids),
+        camera_path_relative_to_env_0="",
+    )
+    camera_paths = spec.resolve_camera_prim_paths(renderer._clone_plan)
+    renderer._initialize_from_spec_legacy(spec, camera_paths)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
     assert write_array_calls == [
         (
             ["/Render/RenderProduct"],
             "camera",
-            [[f"/World/envs/env_{env_id}/Camera" for env_id in range(num_envs)]],
+            [[f"/World/scenes/scene_{env_id}/Camera" for env_id in env_ids]],
         )
     ]
 
 
-def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyPatch):
-    """prepare_stage stores the published clone plan and exports a trimmed prototype stage."""
-    num_envs = 4
+def test_prepare_stage_builds_legacy_private_env_roots(monkeypatch: pytest.MonkeyPatch):
+    """Legacy preparation preserves sparse prototypes and adds only planned private roots."""
+    env_ids = [2, 7, 11, 19]
+    positions = torch.tensor([[1.0, -1.0, 0.0], [1.0, 1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]])
 
     published = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, num_envs), dtype=torch.bool),
-        positions=torch.zeros((num_envs, 3)),
+        sources=("/World/scenes/scene_2", "/World/scenes/scene_7"),
+        destinations=("/World/scenes/scene_{}", "/World/scenes/scene_{}"),
+        clone_mask=torch.tensor(
+            [[True, False, True, False], [False, True, False, True]],
+            dtype=torch.bool,
+        ),
+        env_ids=torch.tensor(env_ids),
+        positions=positions,
+        env_template="/World/scenes/scene_{}",
     )
     _patch_simulation_context(monkeypatch, published)
 
-    stage = _make_multi_env_stage(num_envs)
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/scenes")
+    for column, env_id in enumerate(env_ids[:2]):
+        root = UsdGeom.Xform.Define(stage, f"/World/scenes/scene_{env_id}")
+        UsdGeom.XformCommonAPI(root).SetTranslate(Gf.Vec3d(*positions[column].tolist()))
+        UsdGeom.Xform.Define(stage, f"/World/scenes/scene_{env_id}/Asset")
+        UsdGeom.Camera.Define(stage, f"/World/scenes/scene_{env_id}/Camera")
+    prototype_export = stage.ExportToString()
     renderer = _make_ovrtx_renderer_without_backend()
 
-    renderer.prepare_stage(stage, 4)
+    renderer.prepare_stage(stage, len(env_ids))
 
     assert renderer._clone_plan is published
+    assert stage.ExportToString() == prototype_export
 
-    # Only the env_0 prototype subtree is exported.
-    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
-    _assert_export_contains_env_roots_but_omits_children(renderer._exported_usd_string, [1, 2, 3])
+    layer = Sdf.Layer.CreateAnonymous("private.usda")
+    assert layer.ImportFromString(renderer._exported_usd_string)
+    private_stage = Usd.Stage.Open(layer)
+    for column, env_id in enumerate(env_ids):
+        env_prim = private_stage.GetPrimAtPath(f"/World/scenes/scene_{env_id}")
+        assert env_prim.IsA(UsdGeom.Xform)
+        assert env_prim.GetAttribute("primvars:omni:scenePartition").Get() == f"env_{env_id}"
+        translate_ops = [
+            op
+            for op in UsdGeom.Xformable(env_prim).GetOrderedXformOps()
+            if op.GetOpType() == UsdGeom.XformOp.TypeTranslate
+        ]
+        if column < 2:
+            assert len(translate_ops) == 1
+            assert Gf.IsClose(translate_ops[0].Get(), Gf.Vec3d(*map(float, positions[column])), 1.0e-8)
+        else:
+            assert translate_ops == []
+        assert private_stage.GetPrimAtPath(f"/World/scenes/scene_{env_id}/Asset").IsValid() == (column < 2)
+        assert private_stage.GetPrimAtPath(f"/World/scenes/scene_{env_id}/Camera").IsValid() == (column < 2)
+
+    for env_id in env_ids[:2]:
+        camera = private_stage.GetPrimAtPath(f"/World/scenes/scene_{env_id}/Camera")
+        assert camera.GetAttribute("omni:scenePartition").Get() == f"env_{env_id}"
+    assert private_stage.GetPrimAtPath("/World/envs").IsValid() is False
+
+
+def test_prepare_stage_selects_heterogeneous_prototypes_for_ovstage(monkeypatch: pytest.MonkeyPatch):
+    """OVStage consumes the heterogeneous prototype stage without another filtering pass."""
+    env_ids = [2, 7, 11, 19]
+    published = ClonePlan(
+        sources=("/World/scenes/scene_2/Robot", "/World/scenes/scene_7/Camera"),
+        destinations=("/World/scenes/scene_{}/Robot", "/World/scenes/scene_{}/Camera"),
+        clone_mask=torch.tensor(
+            [[True, True, False, False], [False, False, True, True]],
+            dtype=torch.bool,
+        ),
+        env_ids=torch.tensor(env_ids),
+        positions=torch.zeros((len(env_ids), 3)),
+        env_template="/World/scenes/scene_{}",
+    )
+    _patch_simulation_context(monkeypatch, published)
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/scenes")
+    UsdGeom.Xform.Define(stage, "/World/scenes/scene_2")
+    UsdGeom.Xform.Define(stage, "/World/scenes/scene_2/Robot")
+    UsdGeom.Xform.Define(stage, "/World/scenes/scene_7")
+    UsdGeom.Camera.Define(stage, "/World/scenes/scene_7/Camera")
+    UsdGeom.Xform.Define(stage, "/World/Ground")
+    live_export = stage.ExportToString()
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = True
+
+    renderer.prepare_stage(stage, len(env_ids))
+
+    assert stage.ExportToString() == live_export
+    assert renderer._exported_usd_string == live_export
+    assert stage.GetPrimAtPath("/World/scenes/scene_11").IsValid() is False
+    assert stage.GetPrimAtPath("/World/scenes/scene_19").IsValid() is False
+    assert stage.GetPrimAtPath("/World/envs").IsValid() is False

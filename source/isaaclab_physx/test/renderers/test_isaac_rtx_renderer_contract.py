@@ -16,7 +16,7 @@ import pytest
 import warp as wp
 from packaging import version
 
-from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import CameraRenderSpec, RenderBufferKind, RenderBufferSpec
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -93,10 +93,9 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     replicator_core_module.AnnotatorRegistry = registry
 
     # Minimal CameraRenderSpec: one rgb tiled camera is enough to exercise naming.
-    spec = SimpleNamespace(
-        camera_prim_paths=["/World/envs/env_0/Camera"],
-        device="cpu",
+    spec = CameraRenderSpec(
         cfg=SimpleNamespace(
+            prim_path="/World/envs/env_[^/]+/Camera",
             data_types=["rgb"],
             width=64,
             height=64,
@@ -105,6 +104,10 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
             colorize_instance_segmentation=False,
             colorize_instance_id_segmentation=False,
         ),
+        device="cpu",
+        num_instances=1,
+        camera_prim_paths=("/World/envs/env_0/Camera",),
+        view_count=1,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -135,6 +138,73 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         # Replicator builds a USD prim from this name; reject illegal identifiers.
         assert Sdf.Path.IsValidIdentifier(name)
         assert Sdf.Path.IsValidPathString(f"/Render/{name}")
+
+
+def test_create_render_data_expands_camera_paths_from_custom_clone_template(monkeypatch):
+    """Prototype cameras expand through the clone plan instead of a hardcoded environment namespace."""
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    import torch
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import Usd, UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.sim import SimulationContext
+
+    stage = Usd.Stage.CreateInMemory()
+    camera_paths = [
+        str(UsdGeom.Camera.Define(stage, f"/World/scenes/scene_{env_id}/Robot/Camera").GetPath())
+        for env_id in (2, 7, 11)
+    ]
+    plan = ClonePlan(
+        sources=(camera_paths[0], camera_paths[1]),
+        destinations=("/World/scenes/scene_{}/Robot/Camera", "/World/scenes/scene_{}/Robot/Camera"),
+        clone_mask=torch.tensor([[True, False, True], [False, True, False]]),
+        env_ids=torch.tensor([2, 7, 11]),
+        env_template="/World/scenes/scene_{}",
+    )
+    sim = SimpleNamespace(get_clone_plan=lambda: plan)
+    spec = CameraRenderSpec(
+        cfg=SimpleNamespace(
+            prim_path="/World/scenes/scene_[^/]+/Robot/Camera", data_types=["rgb"], width=8, height=8, isp_cfg=None
+        ),
+        device="cpu",
+        num_instances=3,
+        camera_prim_paths=tuple(camera_paths[:2]),
+        view_count=3,
+        camera_path_relative_to_env_0="Robot/Camera",
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    settings = MagicMock()
+    settings.get.return_value = False
+
+    class _PathsObserved(Exception):
+        pass
+
+    def _observe_paths(**kwargs):
+        assert kwargs["cameras"] == camera_paths
+        for env_id, camera_path in zip((2, 7, 11), camera_paths):
+            token = f"env_{env_id}"
+            env_prim = stage.GetPrimAtPath(f"/World/scenes/scene_{env_id}")
+            assert env_prim.GetAttribute("primvars:omni:scenePartition").Get() == token
+            assert stage.GetPrimAtPath(camera_path).GetAttribute("omni:scenePartition").Get() == token
+        raise _PathsObserved
+
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=_observe_paths)
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(SimulationContext, "instance", return_value=sim),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+        patch.object(rtx_renderer, "isaac_rtx_per_env_scene_partition_enabled", return_value=True),
+        pytest.raises(_PathsObserved),
+    ):
+        renderer.create_render_data(spec)
 
 
 def test_render_product_uuid_name_format_is_sdf_safe():
@@ -184,9 +254,12 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     # color-render setting is selected, keeping this a lightweight unit test.
     stage = MagicMock()
     stage.GetPrimAtPath.return_value.IsA.return_value = False
-    spec = SimpleNamespace(
-        camera_prim_paths=["/World/NotACamera"],
-        cfg=SimpleNamespace(data_types=["depth"]),
+    spec = CameraRenderSpec(
+        cfg=SimpleNamespace(prim_path="/World/NotACamera", data_types=["depth"]),
+        device="cpu",
+        num_instances=1,
+        camera_prim_paths=("/World/NotACamera",),
+        view_count=1,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()

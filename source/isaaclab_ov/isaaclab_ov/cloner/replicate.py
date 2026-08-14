@@ -12,7 +12,7 @@ this point in the scene setup — it is created lazily on the first
 
 This function records an active clone recipe on :class:`OvPhysxManager`.  When
 :meth:`~isaaclab_ov.physics.OvPhysxManager._warmup_and_load` eventually
-creates the ``PhysX`` instance, env-0-only loads replay each recipe via
+creates the ``PhysX`` instance, prototype-only loads replay each recipe via
 ``physx.clone(source, targets, transforms)`` after loading. Full-stage loads instead
 materialize or overlay every recipe in serialized USDA before attaching OVStage.
 Recipes remain active for the current simulation context so a forced re-warmup
@@ -32,14 +32,6 @@ from isaaclab import cloner
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 
 
-def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
-    row_mask = mapping[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
-
-
 def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
     """Convert a USD pose matrix to an OvPhysX xyzw clone transform."""
     matrix = matrix.RemoveScaleShear()
@@ -57,22 +49,15 @@ def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
     )
 
 
-def _pose_tensor_rows(tensor: torch.Tensor | None, name: str, component_count: int) -> list[list[float]] | None:
+def _pose_tensor_rows(
+    tensor: torch.Tensor | None, name: str, num_envs: int, component_count: int
+) -> list[list[float]] | None:
     """Validate and copy an optional per-environment pose tensor to CPU rows."""
     if tensor is None:
         return None
-    if tensor.ndim != 2 or tensor.shape[1] != component_count:
-        raise ValueError(f"{name} must have shape [num_envs, {component_count}], got {list(tensor.shape)}.")
+    if tensor.ndim != 2 or tuple(tensor.shape) != (num_envs, component_count):
+        raise ValueError(f"{name} must have shape [{num_envs}, {component_count}], got {list(tensor.shape)}.")
     return tensor.detach().cpu().tolist()
-
-
-def _validate_pose_rows(name: str, rows: list[list[float]] | None, env_ids: Sequence[int]) -> None:
-    """Validate that optional pose rows contain every selected environment."""
-    if rows is None:
-        return
-    for env_id in env_ids:
-        if env_id < 0 or env_id >= len(rows):
-            raise ValueError(f"{name} does not contain selected environment id {env_id}; it has {len(rows)} rows.")
 
 
 class OvPhysxReplicateContext:
@@ -128,24 +113,24 @@ class OvPhysxReplicateContext:
             env_ids: Environment indices.
             mapping: Bool/int mask selecting envs per source.
             positions: Optional per-environment world positions [m], shape
-                ``[num_envs, 3]``.
+                ``[num_envs, 3]``, aligned with env-id columns.
             quaternions: Optional per-environment orientations in xyzw order,
-                shape ``[num_envs, 4]``.
+                shape ``[num_envs, 4]``, aligned with env-id columns.
 
         Raises:
             ValueError: If a provided pose tensor is malformed or lacks a selected
                 environment, or if an active source or source anchor prim is invalid.
         """
-        positions_list = _pose_tensor_rows(positions, "positions", 3)
-        quaternions_list = _pose_tensor_rows(quaternions, "quaternions", 4)
+        positions_list = _pose_tensor_rows(positions, "positions", len(env_ids), 3)
+        quaternions_list = _pose_tensor_rows(quaternions, "quaternions", len(env_ids), 4)
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         for i, src in enumerate(sources):
-            active_env_ids = [int(env_id) for env_id in _select_env_ids(env_ids, mapping, i).tolist()]
+            row_mask = mapping[i].to(dtype=torch.bool)
+            active_columns = row_mask.nonzero().flatten().tolist()
+            active_env_ids = [int(env_id) for env_id in env_ids[row_mask].tolist()]
             if not active_env_ids:
                 continue
-            _validate_pose_rows("positions", positions_list, active_env_ids)
-            _validate_pose_rows("quaternions", quaternions_list, active_env_ids)
 
             self_env_id: int | None = None
             matched = cloner.path.match(src, destinations[i])
@@ -171,17 +156,17 @@ class OvPhysxReplicateContext:
 
             targets: list[str] = []
             target_transforms: list[CloneTransform] = []
-            for env_id in active_env_ids:
+            for column, env_id in zip(active_columns, active_env_ids, strict=True):
                 if env_id == self_env_id:
                     continue
                 targets.append(destinations[i].format(env_id))
 
                 target_env_world = Gf.Matrix4d(1.0)
                 if positions_list is not None:
-                    pos = positions_list[env_id]
+                    pos = positions_list[column]
                     target_env_world.SetTranslateOnly(Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2])))
                 if quaternions_list is not None:
-                    quat = quaternions_list[env_id]
+                    quat = quaternions_list[column]
                     target_env_world.SetRotateOnly(
                         Gf.Quatd(
                             float(quat[3]),
@@ -203,10 +188,7 @@ class OvPhysxReplicateContext:
 
 
 PHYSICS_CONTEXT = OvPhysxReplicateContext
-"""Physics replication context for OvPhysX assets.  OvPhysxReplicateContext authors USD
-internally, so USD replication is not separately added.
-TODO: decompose into UsdReplicateContext + a pure-physics OvPhysxReplicateContext to match
-the physx/newton split."""
+"""Pure-physics replication context that registers clone recipes for OvPhysX model initialization."""
 
 
 def ovphysx_replicate(

@@ -30,7 +30,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import Sdf, Usd, UsdPhysics, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -72,8 +72,8 @@ class IsaacEvents(Enum):
     TIMELINE_STOP = "isaac.timeline_stop"
 
 
+# MODEL_INIT is dispatched directly before model load; PHYSICS_WARMUP retains its legacy post-load timing.
 _PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
-    PhysicsEvent.MODEL_INIT: IsaacEvents.PHYSICS_WARMUP,
     PhysicsEvent.PHYSICS_READY: IsaacEvents.PHYSICS_READY,
     PhysicsEvent.STOP: IsaacEvents.TIMELINE_STOP,
 }
@@ -428,6 +428,13 @@ class PhysxManager(PhysicsManager):
         cls._stage_id = get_current_stage_id()
 
         cls._setup_subscriptions()
+        cls.register_callback(
+            cls._materialize_clone_plan_env_roots,
+            PhysicsEvent.MODEL_INIT,
+            order=3,
+            name="physx_materialize_clone_plan_env_roots",
+            wrap_weak_ref=False,
+        )
         cls._configure_physics()
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context)
@@ -662,7 +669,7 @@ class PhysxManager(PhysicsManager):
     def _subscribe_to_event(
         cls, callback_id: int, callback: Callable, event: PhysicsEvent, order: int, name: str | None
     ) -> Any:
-        """Subscribe to PhysX events. Maps PhysicsEvent → IsaacEvents."""
+        """Subscribe cross-backend events that share a legacy PhysX event."""
         isaac_event = _PHYSICS_EVENT_TO_ISAAC_EVENT.get(event)
         if isaac_event is None:
             isaac_event = _PHYSICS_EVENT_VALUE_TO_ISAAC_EVENT.get(getattr(event, "value", event))
@@ -938,6 +945,9 @@ class PhysxManager(PhysicsManager):
         physx = omni.physx.get_physx_interface()
         physx_sim = omni.physx.get_physx_simulation_interface()
 
+        # MODEL_INIT listeners must finish authoring the stage before PhysX attaches or loads it.
+        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+
         # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
         # For CPU, the old SimulationManager never called attach_stage() explicitly.
         # Calling attach_stage() + force_load_physics_from_usd() together causes a
@@ -974,6 +984,21 @@ class PhysxManager(PhysicsManager):
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
+
+    @classmethod
+    def _materialize_clone_plan_env_roots(cls, _event: Any) -> None:
+        """Author clone-plan environment roots after common-stage USD replication."""
+        sim = PhysicsManager._sim
+        plan = sim.get_clone_plan() if sim is not None else None
+        if plan is None or plan.env_ids is None or plan.env_template is None:
+            return
+
+        env_ids = plan.env_ids.detach().cpu().tolist()
+        positions = plan.positions.detach().cpu().tolist() if plan.positions is not None else None
+        for env_idx, env_id in enumerate(env_ids):
+            root = UsdGeom.Xform.Define(sim.stage, plan.env_template.format(env_id))
+            if positions is not None:
+                UsdGeom.XformCommonAPI(root).SetTranslate(Gf.Vec3d(*positions[env_idx]))
 
     @classmethod
     def _invalidate_views(cls) -> None:

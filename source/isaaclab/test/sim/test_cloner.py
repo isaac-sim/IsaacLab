@@ -428,23 +428,26 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
 
 
 def test_make_clone_plan_skips_global_cfgs(sim):
-    """Cfgs whose prim_path is not under /World/envs/ are excluded from the plan."""
+    """Global cfgs are excluded while an empty plan retains its environment template."""
     global_cfg = SimpleNamespace(
         prim_path="/World/global/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
     )
 
+    env_template = "/World/scenes/scene_{}"
     plan = make_clone_plan(
         cfgs=[global_cfg],
         num_clones=3,
         env_spacing=1.0,
         device=sim.cfg.device,
+        env_template=env_template,
     )
 
     assert plan.sources == ()
     assert plan.destinations == ()
     assert plan.clone_mask.shape == (0, 3)
     assert plan.cfg_rows == {}
+    assert plan.env_template == env_template
 
 
 def test_clone_plan_from_env_0_populates_cfg_rows(sim):
@@ -468,8 +471,17 @@ def test_clone_plan_from_env_0_populates_cfg_rows(sim):
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,)}
+    assert plan.env_template == "/World/envs/env_{}"
     assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
     assert torch.equal(plan.env_ids, torch.arange(4, dtype=torch.long, device=sim.cfg.device))
+
+    nested_plan = cloner.clone_plan_from_env_0(
+        source="/World/envs/env_0/Robot",
+        destination="/World/envs/env_{}/Robot",
+        num_clones=4,
+        device=sim.cfg.device,
+    )
+    assert nested_plan.env_template == "/World/envs/env_{}"
 
 
 def test_replicate_physics_false_keeps_usd_only(sim):

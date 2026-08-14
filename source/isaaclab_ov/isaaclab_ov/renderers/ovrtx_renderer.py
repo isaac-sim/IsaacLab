@@ -23,7 +23,6 @@ import contextlib
 import logging
 import math
 import os
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -73,6 +72,7 @@ except ModuleNotFoundError as exc:
         "'ovrtx>=0.4.0,<0.5.0')."
     ) from exc
 
+from isaaclab import cloner
 from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
@@ -92,11 +92,7 @@ from .ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
-from .ovrtx_usd import (
-    build_render_product_as_string,
-    create_scene_partition_attributes,
-    export_stage_to_string,
-)
+from .ovrtx_usd import build_render_product_as_string
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -325,9 +321,7 @@ class OVRTXRenderer(BaseRenderer):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         self._render_product_paths = []
-        # Shared by both paths. The legacy-only binding handles that pair with these live in
-        # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
-        # through its stage queries.
+        # Shared by the legacy and OVStage paths.
         self._object_newton_indices: wp.array | None = None
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particle_counts: list[int] = []
@@ -335,14 +329,31 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_visual_counts: list[int] = []
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
-        self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
 
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
         self._use_ovstage = ovrtx_use_ovstage_enabled()
-        self._init_fields()
+        if self._use_ovstage:
+            self._stage = None
+            self._stage_paths = None
+            self._ovstage_exit_stack: contextlib.ExitStack | None = None
+            self._current_ordinal: int = 0
+            self._camera_xform_query = None
+            self._camera_paths_list = None
+            self._object_xform_query = None
+            self._object_paths_list = None
+            self._deformable_points_query = None
+            self._deformable_paths_list = None
+            self._particle_points_query = None
+            self._particle_paths_list = None
+        else:
+            self._camera_xform_binding = None
+            self._object_xform_binding = None
+            self._deformable_points_binding = None
+            self._particle_points_binding = None
+            self._particle_workaround_applied = False
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
@@ -385,52 +396,65 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
-        Adds scene partition attributes and exports the stage to a string held on the renderer until
-        :meth:`create_render_data` is called.
+        OVStage consumes the prototype stage directly. The legacy path adds private destination roots and scene
+        partitions because its renderer discovers that structure while loading USD, then clones prototype assets
+        when :meth:`create_render_data` initializes the scene.
         """
         if stage is None:
             return
 
         self._clone_plan = SimulationContext.instance().get_clone_plan()
-        if self._clone_plan is None or self._clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment positions is required when preparing OVRTX stage")
+        if (
+            self._clone_plan is None
+            or self._clone_plan.env_ids is None
+            or self._clone_plan.positions is None
+            or self._clone_plan.env_template is None
+        ):
+            raise RuntimeError(
+                "Clone plan with environment ids, positions, and an environment template is required when preparing"
+                " OVRTX stage"
+            )
+        env_ids = [int(env_id) for env_id in self._clone_plan.env_ids.detach().cpu().tolist()]
+        if len(env_ids) != num_envs:
+            raise RuntimeError(f"Clone plan contains {len(env_ids)} environments, expected {num_envs}.")
 
-        # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
+        stage_usda = stage.ExportToString()
         if self.cfg.temp_usd_dir is not None:
-            _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
+            _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage_usda)
 
         logger.info("Preparing stage (%d envs)...", num_envs)
-        create_scene_partition_attributes(stage, num_envs)
+        if self._use_ovstage:
+            self._exported_usd_string = stage_usda
+            return
 
-        # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
-        # path to not already exist, so the non-source env roots must be trimmed from the exported
-        # stage for it to recreate them.
-        self._exported_usd_string = export_stage_to_string(
-            stage,
-            num_envs,
-            source_paths=self._clone_plan.sources,
-            keep_env_roots=not self._use_ovstage,
-        )
+        # Import after ovrtx so its native library does not load pxr's potentially incompatible USD libraries.
+        from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
 
-    def _init_fields_legacy(self) -> None:
-        """Initialize the legacy-path instance fields.
+        private_stage = Usd.Stage.CreateInMemory("ovrtx-private.usda")
+        private_layer = private_stage.GetRootLayer()
+        if not private_layer.ImportFromString(stage_usda):
+            raise RuntimeError("Failed to create the legacy OVRTX stage from the prototype USD")
 
-        Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles and the
-        ``UsdGeom.Points`` seeding flag. State shared by both paths (``_object_newton_indices``, the
-        particle offset/count lists) stays in :meth:`__init__`.
-        """
-        self._camera_xform_binding = None
-        self._object_xform_binding = None
-        self._deformable_points_binding = None
-        self._particle_points_binding = None
-        self._particle_workaround_applied = False
+        for env_id in env_ids:
+            env_name = f"env_{env_id}"
+            env_prim = UsdGeom.Xform.Define(private_stage, self._clone_plan.env_template.format(env_id)).GetPrim()
+            env_prim.CreateAttribute(
+                "primvars:omni:scenePartition", Sdf.ValueTypeNames.Token, True, Sdf.VariabilityUniform
+            ).Set(env_name)
+            for prim in Usd.PrimRange(env_prim):
+                if prim.IsA(UsdGeom.Camera):
+                    prim.CreateAttribute(
+                        "omni:scenePartition", Sdf.ValueTypeNames.Token, True, Sdf.VariabilityUniform
+                    ).Set(env_name)
 
-    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec):
+        self._exported_usd_string = private_layer.ExportToString()
+
+    def _initialize_from_spec_legacy(self, spec: CameraRenderSpec, camera_paths: list[str]):
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
             spec: Tiled camera description (resolution, paths, data types).
+            camera_paths: Resolved camera paths in clone-plan environment order.
         """
         width = spec.cfg.width
         height = spec.cfg.height
@@ -438,12 +462,6 @@ class OVRTXRenderer(BaseRenderer):
         data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
             data_types = [*data_types, "rgb_hdr"]
-
-        env_0_prefix = "/World/envs/env_0/"
-        first_cam_path = spec.camera_prim_paths[0]
-        if not first_cam_path.startswith(env_0_prefix):
-            raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = spec.camera_path_relative_to_env_0
 
         logger.info("Injecting camera definitions...")
 
@@ -456,7 +474,7 @@ class OVRTXRenderer(BaseRenderer):
             num_envs=num_envs,
             data_types=data_types,
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=self._camera_rel_path,
+            camera_path=spec.camera_prim_paths[0],
             background_color=getattr(spec.cfg, "background_color", None),
         )
         self._render_product_paths.append(render_product_path)
@@ -472,17 +490,15 @@ class OVRTXRenderer(BaseRenderer):
         self._renderer.open_usd_from_string(combined_usd_string)
         logger.info("OVRTX loaded USD from string successfully")
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
-        if num_envs > 1:
-            self._clone_sources_in_ovrtx()
-            self._update_scene_partitions_after_clone(num_envs)
-            # OVRTX 0.4 keeps the initial Fabric camera relationship after clone_usd creates the remaining
-            # cameras. Rewrite it so the RenderProduct includes every camera in its tiled output.
-            self._renderer.write_array_attribute(
-                prim_paths=[render_product_path],
-                attribute_name="camera",
-                tensors=[camera_paths],
-            )
+        self._clone_sources_in_ovrtx()
+        self._update_scene_partitions_after_clone(camera_paths)
+        # OVRTX 0.4 keeps the initial Fabric camera relationship after clone_usd creates the remaining
+        # cameras. Rewrite it so the RenderProduct includes every camera in its tiled output.
+        self._renderer.write_array_attribute(
+            prim_paths=[render_product_path],
+            attribute_name="camera",
+            tensors=[camera_paths],
+        )
 
         self._initialized_scene = True
 
@@ -505,25 +521,25 @@ class OVRTXRenderer(BaseRenderer):
         else:
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
-        self._setup_xform_bindings()
-        self._setup_deformable_bindings(num_envs)
-        self._setup_particle_bindings()
+        self._setup_xform_bindings_legacy(camera_paths)
+        self._setup_deformable_bindings_legacy(num_envs)
+        self._setup_particle_bindings_legacy()
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment positions is required when using OVRTX cloning")
+        assert clone_plan is not None and clone_plan.env_ids is not None
+        assert clone_plan.positions is not None and clone_plan.env_template is not None
 
-        num_envs = clone_plan.clone_mask.shape[1]
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        env_ids = clone_plan.env_ids.to(device=clone_plan.clone_mask.device)
+        env_id_values = [int(env_id) for env_id in env_ids.detach().cpu().tolist()]
+        env_prim_paths = [clone_plan.env_template.format(env_id) for env_id in env_id_values]
         logger.info("Cloning sources in OVRTX...")
-        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
 
         num_cloned_sources = 0
 
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
-            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
+            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].detach().cpu().tolist()
 
             target_paths = []
             for env_id in target_env_ids:
@@ -543,7 +559,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+        env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_ids), 1, 1))
         env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
         self._renderer.write_attribute(
             prim_paths=env_prim_paths,
@@ -553,12 +569,14 @@ class OVRTXRenderer(BaseRenderer):
             prim_mode=PrimMode.MUST_EXIST,
         )
 
-    def _update_scene_partitions_after_clone(self, num_envs: int):
+    def _update_scene_partitions_after_clone(self, camera_paths: list[str]):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
-        logger.info("Writing scene partitions for %d environments...", num_envs)
-        partition_tokens = [f"env_{i}" for i in range(num_envs)]
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        clone_plan = self._clone_plan
+        assert clone_plan is not None and clone_plan.env_ids is not None and clone_plan.env_template is not None
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids.detach().cpu().tolist()]
+        partition_tokens = [f"env_{env_id}" for env_id in env_ids]
+        env_prim_paths = [clone_plan.env_template.format(env_id) for env_id in env_ids]
+        logger.info("Writing scene partitions for %d environments...", len(env_ids))
 
         self._renderer.write_attribute(
             env_prim_paths,
@@ -566,17 +584,17 @@ class OVRTXRenderer(BaseRenderer):
             partition_tokens,
             semantic=Semantic.TOKEN_STRING,
         )
-        logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
+        logger.info("Written primvars:omni:scenePartition to %d environments", len(env_ids))
 
         self._renderer.write_attribute(
-            camera_prim_paths,
+            camera_paths,
             "omni:scenePartition",
             partition_tokens,
             semantic=Semantic.TOKEN_STRING,
         )
-        logger.info("Written omni:scenePartition to %d cameras", num_envs)
+        logger.info("Written omni:scenePartition to %d cameras", len(camera_paths))
 
-    def _setup_xform_bindings_legacy(self):
+    def _setup_xform_bindings_legacy(self, camera_paths: list[str]):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -598,10 +616,17 @@ class OVRTXRenderer(BaseRenderer):
             logger.info("Newton model has no body_label, skipping object bindings")
             return
 
+        clone_plan = self._clone_plan
+        assert clone_plan is not None and clone_plan.env_template is not None
+        camera_path_set = set(camera_paths)
         object_paths = []
         newton_indices = []
         for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
+            if (
+                cloner.path.match(path, clone_plan.env_template) is not None
+                and path not in camera_path_set
+                and "GroundPlane" not in path
+            ):
                 object_paths.append(path)
                 newton_indices.append(idx)
 
@@ -645,6 +670,10 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
 
+        clone_plan = self._clone_plan
+        assert clone_plan is not None and clone_plan.env_ids is not None and clone_plan.env_template is not None
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids.detach().cpu().tolist()]
+
         # Validate the number of particle offsets for each deformable entry upfront.
         bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
         if bad_entries:
@@ -661,27 +690,17 @@ class OVRTXRenderer(BaseRenderer):
 
         vis_mesh_prim_paths: list[str] = []
 
-        # Each registry entry is one deformable asset registered at spawn time. Its
-        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
-        # homogeneous visual mesh replicated into every environment, not a subset of envs.
-        # During replication, Newton appends one particle block per env in contiguous env order
-        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
-        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
-        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
-        # the flat ``particle_q`` array.
-        #
-        # This mapping is valid only while deformable registry entries remain homogeneous across
-        # all envs with dense, contiguous env ids. If deformables later support env subsets or
-        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
-        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
         for entry in deformable_registry:
-            for idx, particle_offset in enumerate(entry.particle_offsets):
+            matched = cloner.path.match(entry.vis_mesh_prim_path, clone_plan.env_template)
+            if matched is None:
+                raise RuntimeError(
+                    f"Deformable visual path '{entry.vis_mesh_prim_path}' is outside the environment template"
+                    f" '{clone_plan.env_template}'."
+                )
+            for env_id, particle_offset in zip(env_ids, entry.particle_offsets, strict=True):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particle_counts.append(entry.particles_per_body)
-
-                vis_mesh_prim_paths.append(
-                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
-                )
+                vis_mesh_prim_paths.append(clone_plan.env_template.format(env_id) + matched.suffix)
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
@@ -775,7 +794,13 @@ class OVRTXRenderer(BaseRenderer):
         """
         self._device = spec.device
         if not self._initialized_scene:
-            self._initialize_from_spec(spec)
+            clone_plan = self._clone_plan
+            assert clone_plan is not None and clone_plan.env_ids is not None
+            camera_paths = spec.resolve_camera_prim_paths(clone_plan)
+            if self._use_ovstage:
+                self._initialize_from_spec_ovstage(spec, camera_paths)
+            else:
+                self._initialize_from_spec_legacy(spec, camera_paths)
         return OVRTXRenderData(spec, self._device)
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
@@ -1382,36 +1407,6 @@ class OVRTXRenderer(BaseRenderer):
     # Dispatch methods — route to ovstage or legacy implementation
     # ---------------------------------------------------------------------------
 
-    def _init_fields(self) -> None:
-        if self._use_ovstage:
-            self._init_fields_ovstage()
-        else:
-            self._init_fields_legacy()
-
-    def _initialize_from_spec(self, spec: CameraRenderSpec) -> None:
-        if self._use_ovstage:
-            self._initialize_from_spec_ovstage(spec)
-        else:
-            self._initialize_from_spec_legacy(spec)
-
-    def _setup_xform_bindings(self) -> None:
-        if self._use_ovstage:
-            self._setup_xform_bindings_ovstage()
-        else:
-            self._setup_xform_bindings_legacy()
-
-    def _setup_deformable_bindings(self, num_envs: int) -> None:
-        if self._use_ovstage:
-            self._setup_deformable_bindings_ovstage(num_envs)
-        else:
-            self._setup_deformable_bindings_legacy(num_envs)
-
-    def _setup_particle_bindings(self) -> None:
-        if self._use_ovstage:
-            self._setup_particle_bindings_ovstage()
-        else:
-            self._setup_particle_bindings_legacy()
-
     def update_transforms(self) -> None:
         """Sync transforms to OVRTX."""
         if self._use_ovstage:
@@ -1479,25 +1474,12 @@ class OVRTXRenderer(BaseRenderer):
     #   ovstage 0.1.1 will address this.
     # ---------------------------------------------------------------------------
 
-    def _init_fields_ovstage(self) -> None:
-        self._stage = None
-        self._stage_paths = None
-        self._ovstage_exit_stack: contextlib.ExitStack | None = None
-        self._current_ordinal: int = 0
-        self._camera_xform_query = None
-        self._camera_paths_list = None
-        self._object_xform_query = None
-        self._object_paths_list = None
-        self._deformable_points_query = None
-        self._deformable_paths_list = None
-        self._particle_points_query = None
-        self._particle_paths_list = None
-
-    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec) -> None:
+    def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec, camera_paths: list[str]) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
 
         Args:
             spec: Tiled camera description (resolution, paths, data types).
+            camera_paths: Resolved camera paths in clone-plan environment order.
         """
         width = spec.cfg.width
         height = spec.cfg.height
@@ -1505,12 +1487,6 @@ class OVRTXRenderer(BaseRenderer):
         data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
             data_types = [*data_types, "rgb_hdr"]
-
-        env_0_prefix = "/World/envs/env_0/"
-        first_cam_path = spec.camera_prim_paths[0]
-        if not first_cam_path.startswith(env_0_prefix):
-            raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = spec.camera_path_relative_to_env_0
 
         logger.info("Injecting camera definitions...")
 
@@ -1523,7 +1499,7 @@ class OVRTXRenderer(BaseRenderer):
             num_envs=num_envs,
             data_types=data_types,
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=self._camera_rel_path,
+            camera_path=spec.camera_prim_paths[0],
         )
         self._render_product_paths.append(render_product_path)
 
@@ -1547,13 +1523,10 @@ class OVRTXRenderer(BaseRenderer):
             domains=ovstage.PopulationDomain.RENDERING,
         )
 
-        if num_envs > 1:
-            self._clone_sources_ovstage()
-            self._update_scene_partitions_after_clone_ovstage(num_envs)
+        self._clone_sources_ovstage()
+        self._update_scene_partitions_after_clone_ovstage(camera_paths)
 
         self._initialized_scene = True
-
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
 
         # Re-author the RenderProduct's camera relationship after clone. ``stage.clone`` recreates the per-env
         # cameras, so the RenderProduct must be pointed at the freshly-interned camera path ids to discover every
@@ -1591,7 +1564,7 @@ class OVRTXRenderer(BaseRenderer):
             is_array=False,
         ).wait()
 
-        self._setup_xform_bindings_ovstage()
+        self._setup_xform_bindings_ovstage(camera_paths)
         self._setup_deformable_bindings_ovstage(num_envs)
         self._setup_particle_bindings_ovstage()
 
@@ -1605,18 +1578,18 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_ovstage(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
         clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment positions is required when using OVRTX cloning")
+        assert clone_plan is not None and clone_plan.env_ids is not None
+        assert clone_plan.positions is not None and clone_plan.env_template is not None
 
-        num_envs = clone_plan.clone_mask.shape[1]
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        env_ids = clone_plan.env_ids.to(device=clone_plan.clone_mask.device)
+        env_id_values = [int(env_id) for env_id in env_ids.detach().cpu().tolist()]
+        env_prim_paths = [clone_plan.env_template.format(env_id) for env_id in env_id_values]
 
         logger.info("Cloning sources in OVRTX...")
-        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
 
         num_cloned_sources = 0
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
-            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
+            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].detach().cpu().tolist()
 
             target_paths = []
             for env_id in target_env_ids:
@@ -1636,7 +1609,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+        env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_ids), 1, 1))
         env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
@@ -1652,14 +1625,16 @@ class OVRTXRenderer(BaseRenderer):
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
 
-    def _update_scene_partitions_after_clone_ovstage(self, num_envs: int):
+    def _update_scene_partitions_after_clone_ovstage(self, camera_paths: list[str]):
         """Update scene partition attributes on cloned environments and cameras (ovstage path)."""
-        logger.info("Writing scene partitions for %d environments...", num_envs)
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        clone_plan = self._clone_plan
+        assert clone_plan is not None and clone_plan.env_ids is not None and clone_plan.env_template is not None
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids.detach().cpu().tolist()]
+        env_prim_paths = [clone_plan.env_template.format(env_id) for env_id in env_ids]
+        logger.info("Writing scene partitions for %d environments...", len(env_ids))
         # TOKEN_ID semantic tells ovstage the uint64 values are interned string tokens, not raw integers;
         # the renderer resolves them back to the original "env_N" strings for scene-partition lookup.
-        token_ids = np.array([self._stage_paths.intern_token(f"env_{i}") for i in range(num_envs)], dtype=np.uint64)
+        token_ids = np.array([self._stage_paths.intern_token(f"env_{env_id}") for env_id in env_ids], dtype=np.uint64)
 
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
@@ -1673,9 +1648,9 @@ class OVRTXRenderer(BaseRenderer):
         ).wait()
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
-        logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
+        logger.info("Written primvars:omni:scenePartition to %d environments", len(env_ids))
 
-        cam_paths_list = self._stage_paths.create_path_list_from_strings(camera_prim_paths)
+        cam_paths_list = self._stage_paths.create_path_list_from_strings(camera_paths)
         cam_query = self._stage.query_from_path_list(cam_paths_list)
         self._stage.write_attribute(
             cam_query,
@@ -1687,9 +1662,9 @@ class OVRTXRenderer(BaseRenderer):
         ).wait()
         self._stage.release_query(cam_query).wait()
         self._stage_paths.destroy_path_list(cam_paths_list)
-        logger.info("Written omni:scenePartition to %d cameras", num_envs)
+        logger.info("Written omni:scenePartition to %d cameras", len(camera_paths))
 
-    def _setup_xform_bindings_ovstage(self) -> None:
+    def _setup_xform_bindings_ovstage(self, camera_paths: list[str]) -> None:
         """Setup OVRTX bindings for scene objects to sync with Newton physics (ovstage path)."""
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -1711,10 +1686,17 @@ class OVRTXRenderer(BaseRenderer):
             logger.info("Newton model has no body_label, skipping object bindings")
             return
 
+        clone_plan = self._clone_plan
+        assert clone_plan is not None and clone_plan.env_template is not None
+        camera_path_set = set(camera_paths)
         object_paths = []
         newton_indices = []
         for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
+            if (
+                cloner.path.match(path, clone_plan.env_template) is not None
+                and path not in camera_path_set
+                and "GroundPlane" not in path
+            ):
                 object_paths.append(path)
                 newton_indices.append(idx)
 
@@ -1756,6 +1738,10 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
 
+        clone_plan = self._clone_plan
+        assert clone_plan is not None and clone_plan.env_ids is not None and clone_plan.env_template is not None
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids.detach().cpu().tolist()]
+
         # Validate the number of particle offsets for each deformable entry upfront.
         bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
         if bad_entries:
@@ -1772,27 +1758,17 @@ class OVRTXRenderer(BaseRenderer):
 
         vis_mesh_prim_paths: list[str] = []
 
-        # Each registry entry is one deformable asset registered at spawn time. Its
-        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
-        # homogeneous visual mesh replicated into every environment, not a subset of envs.
-        # During replication, Newton appends one particle block per env in contiguous env order
-        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
-        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
-        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
-        # the flat ``particle_q`` array.
-        #
-        # This mapping is valid only while deformable registry entries remain homogeneous across
-        # all envs with dense, contiguous env ids. If deformables later support env subsets or
-        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
-        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
         for entry in deformable_registry:
-            for idx, particle_offset in enumerate(entry.particle_offsets):
+            matched = cloner.path.match(entry.vis_mesh_prim_path, clone_plan.env_template)
+            if matched is None:
+                raise RuntimeError(
+                    f"Deformable visual path '{entry.vis_mesh_prim_path}' is outside the environment template"
+                    f" '{clone_plan.env_template}'."
+                )
+            for env_id, particle_offset in zip(env_ids, entry.particle_offsets, strict=True):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particle_counts.append(entry.particles_per_body)
-
-                vis_mesh_prim_paths.append(
-                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
-                )
+                vis_mesh_prim_paths.append(clone_plan.env_template.format(env_id) + matched.suffix)
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:

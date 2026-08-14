@@ -55,9 +55,11 @@ class BaseRenderer(ABC):
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the stage for rendering before :meth:`create_render_data` is called.
 
-        Some renderers need to export or preprocess the USD stage before
-        creating render data. This method is called after the renderer is
-        instantiated and before :meth:`create_render_data`.
+        Some renderers need to export or preprocess the USD stage before creating render data.
+        This method runs at :attr:`~isaaclab.physics.PhysicsEvent.MODEL_INIT`, after camera
+        overrides and before backend replication. In replicated scenes, ``stage`` contains the
+        authored clone-plan prototypes; renderers that need destination environments must expand
+        the clone plan in their private stage or defer that work until replication completes.
 
         Args:
             stage: USD stage to prepare, or None if not applicable.

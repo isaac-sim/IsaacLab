@@ -259,16 +259,17 @@
             "OVRTXRenderer._clone_sources_ovstage",
             "OVRTXRenderer._update_scene_partitions_after_clone",
             "OVRTXRenderer._update_scene_partitions_after_clone_ovstage",
-            "OVRTXRenderer._setup_xform_bindings",
-            "OVRTXRenderer._setup_deformable_bindings",
-            "OVRTXRenderer._setup_particle_bindings",
+            "OVRTXRenderer._setup_xform_bindings_legacy",
+            "OVRTXRenderer._setup_xform_bindings_ovstage",
+            "OVRTXRenderer._setup_deformable_bindings_legacy",
+            "OVRTXRenderer._setup_deformable_bindings_ovstage",
+            "OVRTXRenderer._setup_particle_bindings_legacy",
+            "OVRTXRenderer._setup_particle_bindings_ovstage",
             "OVRTXRenderer.update_transforms",
             "OVRTXRenderer.update_geometries",
             "OVRTXRenderer.update_camera",
             "OVRTXRenderer.render",
-            "OVRTXRenderer.read_output",
-            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "create_scene_partition_attributes"},
-            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"}
+            "OVRTXRenderer.read_output"
         ]
     },
     {

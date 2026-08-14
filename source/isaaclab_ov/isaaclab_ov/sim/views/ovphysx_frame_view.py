@@ -17,6 +17,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
@@ -315,6 +316,10 @@ class OvPhysxFrameView(BaseFrameView):
         self._stage = stage
         sim = sim_utils.SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None
+        self._clone_plan = plan
+        self._env_template = (
+            plan.env_template if plan is not None and plan.env_template is not None else DEFAULT_ENV_TEMPLATE
+        )
         source_matches = tuple(cloner.query.iter_sources(plan, prim_path)) if plan is not None else ()
         self._source_records = []
         self._prims: list[Usd.Prim] = []
@@ -367,8 +372,8 @@ class OvPhysxFrameView(BaseFrameView):
         """Resolve prims to rigid-body ancestors and create a RIGID_BODY_POSE tensor binding.
 
         With a ClonePlan, site discovery reads only its authored source prims, whether or not
-        destination USD prims exist. The RIGID_BODY_POSE binding is the source of truth for the
-        site count, and per-env site paths are synthesized from the source prim paths.
+        destination USD prims exist. Authored sources provide site transforms; the
+        RIGID_BODY_POSE binding maps replicated ancestors to physics rows.
         """
         from isaaclab_ov import tensor_types as TT  # noqa: PLC0415
         from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
@@ -411,7 +416,7 @@ class OvPhysxFrameView(BaseFrameView):
 
         # 3. Dedup discovered ancestor paths into env-wildcarded patterns (one binding per pattern).
         all_ancestors = [p for p in (per_prim_ancestor + parent_ancestor) if p is not None]
-        patterns = sorted({self._env_wildcardify(p) for p in all_ancestors})
+        patterns = sorted({self._retarget_environment(path, "*") for path in all_ancestors})
         if len(patterns) > 1:
             raise NotImplementedError(
                 f"OvPhysxFrameView v1 supports a single body-type pattern; resolved {len(patterns)}"
@@ -439,7 +444,7 @@ class OvPhysxFrameView(BaseFrameView):
             binding_paths = []
 
         world_sites = self._expand_world_sites_from_clone_plan(xform_cache) if not binding_paths else []
-        # 5. Expand source prim data to one entry per binding row.
+        # 5. Broadcast a single authored site across replicated physics binding rows.
         if binding_paths and len(binding_paths) > len(self._prims):
             template_ancestor = per_prim_ancestor[0]
             template_site_local = per_prim_site_local[0]
@@ -453,24 +458,24 @@ class OvPhysxFrameView(BaseFrameView):
             parent_site_local = []
             synthetic_prim_paths: list[str] = []
             for body_path in binding_paths:
-                env_match = re.search(r"/World/envs/env_(\d+)", body_path)
-                env_token = env_match.group(0) if env_match else None
-                # Re-target the template path's env segment to this row's env_id.
-                if env_token is not None:
-                    synthetic_path = re.sub(r"/World/envs/env_\d+", env_token, template_path)
-                    ap = re.sub(r"/World/envs/env_\d+", env_token, template_ancestor) if template_ancestor else None
-                    pap = (
-                        re.sub(r"/World/envs/env_\d+", env_token, template_parent_ancestor)
+                matched = cloner.path.match(body_path, self._env_template)
+                if matched is not None:
+                    synthetic_path = self._retarget_environment(template_path, matched.instance)
+                    ancestor = (
+                        self._retarget_environment(template_ancestor, matched.instance) if template_ancestor else None
+                    )
+                    parent = (
+                        self._retarget_environment(template_parent_ancestor, matched.instance)
                         if template_parent_ancestor
                         else None
                     )
                 else:
                     synthetic_path = template_path
-                    ap = template_ancestor
-                    pap = template_parent_ancestor
-                per_prim_ancestor.append(ap)
+                    ancestor = template_ancestor
+                    parent = template_parent_ancestor
+                per_prim_ancestor.append(ancestor)
                 per_prim_site_local.append(template_site_local)
-                parent_ancestor.append(pap)
+                parent_ancestor.append(parent)
                 parent_site_local.append(template_parent_site_local)
                 synthetic_prim_paths.append(synthetic_path)
             self._synthetic_prim_paths: list[str] | None = synthetic_prim_paths
@@ -486,13 +491,9 @@ class OvPhysxFrameView(BaseFrameView):
             self._synthetic_prim_paths = None
 
         # 6. Build site_body and parent_site_body indices into the binding's row order.
-        path_to_row = {p: i for i, p in enumerate(binding_paths)}
-        site_bodies = [
-            path_to_row.get(ap, WORLD_BODY_INDEX) if ap is not None else WORLD_BODY_INDEX for ap in per_prim_ancestor
-        ]
-        parent_bodies = [
-            path_to_row.get(pap, WORLD_BODY_INDEX) if pap is not None else WORLD_BODY_INDEX for pap in parent_ancestor
-        ]
+        path_to_row = {path: row for row, path in enumerate(binding_paths)}
+        site_bodies = [path_to_row[ap] if ap is not None else WORLD_BODY_INDEX for ap in per_prim_ancestor]
+        parent_bodies = [path_to_row[pap] if pap is not None else WORLD_BODY_INDEX for pap in parent_ancestor]
 
         # 7. Allocate Warp arrays.
         device = self._device
@@ -520,6 +521,16 @@ class OvPhysxFrameView(BaseFrameView):
         if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
             return []
 
+        clone_plan = self._clone_plan
+        assert clone_plan is not None
+        plan_env_ids = (
+            list(range(clone_plan.clone_mask.shape[1]))
+            if clone_plan.env_ids is None
+            else [int(env_id) for env_id in clone_plan.env_ids.detach().cpu().tolist()]
+        )
+        positions = clone_plan.positions.detach().cpu().tolist() if clone_plan.positions is not None else None
+        position_by_env = dict(zip(plan_env_ids, positions, strict=True)) if positions is not None else {}
+
         records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
         for source_root, destination_template, source_prim, env_ids in self._source_records:
             source_prim_path = source_prim.GetPath().pathString
@@ -528,21 +539,20 @@ class OvPhysxFrameView(BaseFrameView):
                 raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
             source_world = xform_cache.GetLocalToWorldTransform(source_prim)
             source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
+            source_match = cloner.path.match(source_prim_path, self._env_template)
+            source_anchor_world = Gf.Matrix4d(1.0)
+            if source_match is not None:
+                source_anchor = self._stage.GetPrimAtPath(self._env_template.format(source_match.instance))
+                if not source_anchor.IsValid():
+                    raise RuntimeError(f"OvPhysxFrameView source root is absent for {source_prim_path!r}.")
+                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor)
+            source_inverse = source_anchor_world.GetInverse()
 
             for env_id in env_ids:
                 destination_root = destination_template.format(env_id)
-                source_anchor_path, destination_anchor_path = source_root, destination_root
-                destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
-                while not destination_anchor.IsValid() and destination_anchor_path != "/":
-                    source_anchor_path = source_anchor_path.rsplit("/", 1)[0] or "/"
-                    destination_anchor_path = destination_anchor_path.rsplit("/", 1)[0] or "/"
-                    destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
-
-                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
-                if not source_anchor.IsValid() or not destination_anchor.IsValid():
-                    raise RuntimeError(f"OvPhysxFrameView could not project {source_prim_path!r} into env {env_id}.")
-                source_inverse = xform_cache.GetLocalToWorldTransform(source_anchor).GetInverse()
-                destination_world = xform_cache.GetLocalToWorldTransform(destination_anchor)
+                destination_world = Gf.Matrix4d(1.0)
+                if env_id in position_by_env:
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*position_by_env[env_id]))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
                 records.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
@@ -557,12 +567,10 @@ class OvPhysxFrameView(BaseFrameView):
     ) -> tuple[str | None, list[float]]:
         """Walk USD ancestors to find the nearest prim with ``UsdPhysics.RigidBodyAPI``.
 
-        Under OVPhysX scenes built with ``clone_usd=False`` (the default for
-        :class:`~isaaclab.scene.InteractiveScene`), only ``env_0`` carries the
-        authored RigidBodyAPI -- ``env_1..N`` exist only as physics-layer clones
-        and the corresponding USD prims (when present) are untyped Xforms.
-        :meth:`_prim_or_template_has_rigid_body_api` handles this by checking
-        the prim's env_0 equivalent when the API is not directly applied.
+        Under OVPhysX scenes built from clone-plan prototypes, destination bodies exist only as
+        physics-layer clones. Source prims carry the authored physics schemas used for lookup.
+        :meth:`_prim_or_template_has_rigid_body_api` handles this by resolving
+        destination prims back to their clone-plan sources.
 
         Returns:
             ``(ancestor_path, [tx, ty, tz, qx, qy, qz, qw])``. ``ancestor_path`` is
@@ -571,7 +579,7 @@ class OvPhysxFrameView(BaseFrameView):
         """
         prim_world_tf = xform_cache.GetLocalToWorldTransform(prim)
         prim_world_tf.Orthonormalize()
-        # If the prim itself is a rigid body (directly or via env_0 template), the site offset is identity.
+        # If the prim itself is a rigid body, directly or through its plan source, the site offset is identity.
         if self._prim_or_template_has_rigid_body_api(prim):
             return prim.GetPath().pathString, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         ancestor = prim.GetParent()
@@ -585,31 +593,29 @@ class OvPhysxFrameView(BaseFrameView):
         return None, _gf_matrix_to_xform7(prim_world_tf)
 
     def _prim_or_template_has_rigid_body_api(self, prim: Usd.Prim) -> bool:
-        """Return whether the prim (or its ``env_0`` equivalent) has ``RigidBodyAPI`` applied.
-
-        Falls back to the env_0 template lookup so that ``clone_usd=False`` envs
-        (whose USD prims lack physics schemas) still resolve to the right body.
-        """
+        """Return whether the prim or its clone-plan source has ``RigidBodyAPI`` applied."""
         if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             return True
         path = prim.GetPath().pathString
-        env_zero_path = self._env_zero_equivalent(path)
-        if env_zero_path == path:
-            return False
-        template_prim = self._stage.GetPrimAtPath(env_zero_path) if self._stage is not None else None
+        if self._clone_plan is None:
+            source_path = self._retarget_environment(path, 0)
+            if source_path == path:
+                return False
+        else:
+            resolved = cloner.query.path_to_source(self._clone_plan, path)
+            if resolved is None:
+                return False
+            source_root, _, suffix = resolved
+            source_path = (source_root.rstrip("/") + suffix) or "/"
+        template_prim = self._stage.GetPrimAtPath(source_path) if self._stage is not None else None
         if template_prim is None or not template_prim.IsValid():
             return False
         return template_prim.HasAPI(UsdPhysics.RigidBodyAPI)
 
-    @staticmethod
-    def _env_zero_equivalent(path: str) -> str:
-        """Replace ``/World/envs/env_<digits>`` with ``/World/envs/env_0`` for template lookup."""
-        return re.sub(r"/World/envs/env_\d+", "/World/envs/env_0", path)
-
-    @staticmethod
-    def _env_wildcardify(path: str) -> str:
-        """Replace ``/World/envs/env_<digits>`` with ``/World/envs/env_*`` for binding patterns."""
-        return re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
+    def _retarget_environment(self, path: str, instance: int | str) -> str:
+        """Retarget an environment-scoped path through the clone plan's root template."""
+        matched = cloner.path.match(path, self._env_template)
+        return path if matched is None else self._env_template.format(instance) + matched.suffix
 
     # ------------------------------------------------------------------
     # Properties
@@ -628,9 +634,9 @@ class OvPhysxFrameView(BaseFrameView):
     def prim_paths(self) -> list[str]:
         """List of one prim path per site.
 
-        For ``clone_usd=False`` scenes (where ``env_1..N`` have no USD prim)
-        the paths are synthesized by replacing ``env_0`` in the template prim's
-        path with each binding row's env_id.
+        For prototype-only scenes, paths are synthesized by retargeting the
+        authored source path through the plan's environment template for each
+        binding row.
         """
         if hasattr(self, "_synthetic_prim_paths") and self._synthetic_prim_paths is not None:
             return self._synthetic_prim_paths

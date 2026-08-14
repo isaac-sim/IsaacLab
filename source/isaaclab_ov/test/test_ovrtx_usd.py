@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for OVRTX USD render product authoring and stage export."""
+"""Tests for OVRTX USD render product authoring."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import importlib.util
 
 import pytest
 
-_REQUIRED_MODULES = ("isaaclab_ov", "pxr")
+_REQUIRED_MODULES = ("isaaclab_ov",)
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
@@ -26,56 +26,14 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
         build_render_product_as_string,
         build_render_scope_usd,
-        create_scene_partition_attributes,
-        export_stage_to_string,
         get_render_var_config,
         get_render_var_configs,
     )
-
-    from pxr import Sdf, Usd, UsdGeom  # noqa: E402
 else:
-    Sdf = None
-    Usd = None
-    UsdGeom = None
     build_render_product_as_string = None
     build_render_scope_usd = None
-    create_scene_partition_attributes = None
-    export_stage_to_string = None
     get_render_var_config = None
     get_render_var_configs = None
-
-
-def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
-    """Build an in-memory stage with distinguishable content per environment."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/envs")
-
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        UsdGeom.Xform.Define(stage, env_path)
-        UsdGeom.Xform.Define(stage, f"{env_path}/Robot")
-        UsdGeom.Xform.Define(stage, f"{env_path}/Object_env{env_idx}_only")
-        UsdGeom.Camera.Define(stage, f"{env_path}/Camera")
-
-    return stage
-
-
-def _assert_export_contains_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environment roots appear in the stage export."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' in exported
-        assert f'def Xform "Object_env{env_idx}_only"' in exported
-
-    assert exported.count('def Xform "Robot"') == len(env_indices)
-    assert exported.count('def Camera "Camera"') == len(env_indices)
-
-
-def _assert_export_omits_env_children(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environments keep their roots but omit prototype children from the stage export."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' in exported
-        assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
 def test_build_render_scope_usd_default_background_is_dome_light():
@@ -139,18 +97,18 @@ def test_ovrtx_motion_vectors_with_rgb_falls_back_to_rgb():
 
 
 def test_render_product_initially_targets_only_the_resolvable_source_camera():
-    """Multi-environment RenderProducts initially target env zero while retaining tiled resolution."""
+    """Multi-environment RenderProducts initially target the authored prototype camera."""
     render_product, render_product_path = build_render_product_as_string(
         width=16,
         height=8,
         num_envs=4,
         data_types=["rgb"],
-        camera_rel_path="Robot/head_cam",
+        camera_path="/World/scenes/scene_7/Robot/head_cam",
     )
 
     assert render_product_path == "/Render/RenderProduct"
-    assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
-    assert "/World/envs/env_1/Robot/head_cam" not in render_product
+    assert "rel camera = [</World/scenes/scene_7/Robot/head_cam>]" in render_product
+    assert "/World/envs/" not in render_product
     assert "uniform int2 resolution = (32, 16)" in render_product
 
 
@@ -246,135 +204,3 @@ def test_ovrtx_semantic_and_instance_segmentation_share_a_single_semantic_id_map
     assert sources.count("SemanticIdMap") == 1
     # Both segmentations' map render vars are authored regardless of which AOV get_render_var_config resolves.
     assert {"SemanticIdMap", "StableIdSemanticIdMap", "StableIdMap"} <= set(sources)
-
-
-def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
-    """Listing every env root as a source preserves the full stage content."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    exported = export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
-    )
-
-    _assert_export_contains_env_roots_and_children(exported, range(num_envs))
-
-
-def test_export_stage_full_when_single_env():
-    """Single-environment stages are exported without trimming."""
-    num_envs = 1
-    stage = _make_multi_env_stage(num_envs)
-
-    exported = export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=("/World/envs/env_0",),
-    )
-
-    _assert_export_contains_env_roots_and_children(exported, range(num_envs))
-
-
-def test_export_stage_homogeneous_keeps_only_env0_prototype():
-    """Homogeneous cloning exports only the env_0 prototype subtree."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    exported = export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=("/World/envs/env_0",),
-    )
-
-    _assert_export_contains_env_roots_and_children(exported, [0])
-    _assert_export_omits_env_children(exported, range(1, num_envs))
-
-
-def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
-    """The ovstage clone path also trims the non-source env roots themselves.
-
-    ``ovstage.Stage.clone`` requires every target path to not already exist, so the exported stage
-    must not retain env roots that the clone will recreate. This is the only difference from the
-    legacy ``renderer.clone_usd`` path, which keeps the roots as placeholders.
-    """
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    exported = export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=("/World/envs/env_0",),
-        keep_env_roots=False,
-    )
-
-    _assert_export_contains_env_roots_and_children(exported, [0])
-    for env_idx in range(1, num_envs):
-        assert f'def Xform "env_{env_idx}"' not in exported
-        assert f'def Xform "Object_env{env_idx}_only"' not in exported
-
-
-def test_export_stage_heterogeneous_keeps_multiple_sources():
-    """Heterogeneous source paths export only prototype env subtrees."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    exported = export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=("/World/envs/env_0/Object_env0_only", "/World/envs/env_3/Object_env3_only"),
-    )
-
-    # Only the source subtrees are exported:
-    assert 'def Xform "env_0"' in exported
-    assert 'def Xform "Object_env0_only"' in exported
-    assert 'def Xform "env_3"' in exported
-    assert 'def Xform "Object_env3_only"' in exported
-
-    # Other env roots remain, but their prototype children are omitted.
-    _assert_export_omits_env_children(exported, [1, 2])
-    assert 'def Xform "Robot"' not in exported
-    assert 'def Camera "Camera"' not in exported
-
-
-def test_export_stage_restores_active_state():
-    """Export temporarily deactivates prims but restores them afterward."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        assert stage.GetPrimAtPath(env_path).IsActive()
-        assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
-
-    export_stage_to_string(
-        stage,
-        num_envs,
-        source_paths=("/World/envs/env_0",),
-    )
-
-    for env_idx in range(num_envs):
-        env_path = f"/World/envs/env_{env_idx}"
-        assert stage.GetPrimAtPath(env_path).IsActive()
-        assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
-
-
-def test_create_scene_partition_attributes_all_envs():
-    """Scene partition attributes are authored on every env root and camera."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    create_scene_partition_attributes(stage, num_envs)
-
-    root_layer = stage.GetRootLayer()
-    for env_idx in range(num_envs):
-        env_partition_attr = root_layer.GetAttributeAtPath(
-            Sdf.Path(f"/World/envs/env_{env_idx}").AppendProperty("primvars:omni:scenePartition")
-        )
-        camera_partition_attr = root_layer.GetAttributeAtPath(
-            Sdf.Path(f"/World/envs/env_{env_idx}/Camera").AppendProperty("omni:scenePartition")
-        )
-        assert env_partition_attr is not None
-        assert env_partition_attr.default == f"env_{env_idx}"
-        assert camera_partition_attr is not None
-        assert camera_partition_attr.default == f"env_{env_idx}"

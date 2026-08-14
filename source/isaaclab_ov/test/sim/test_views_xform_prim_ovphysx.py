@@ -66,21 +66,23 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         device=device, sim_cfg=OVPHYSX_SIM_CFG, auto_add_lighting=False, add_ground_plane=False
     ) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=4, env_spacing=2.0))
+        scene_cfg = _OvPhysxFrameViewSceneCfg(num_envs=4, env_spacing=2.0)
+        scene_cfg.clone_cfg.clone_template = "/World/scenes/scene_{}"
+        scene = InteractiveScene(scene_cfg)
         sim.reset()
 
         stage = sim_utils.get_current_stage()
-        prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
+        prim = stage.DefinePrim("/World/scenes/scene_0/WorldCamera", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
 
-        view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)
+        view = FrameView("/World/scenes/scene_[^/]+/WorldCamera", device=device)
 
-        assert not stage.GetPrimAtPath("/World/envs/env_1/WorldCamera").IsValid()
+        assert not stage.GetPrimAtPath("/World/scenes/scene_1/WorldCamera").IsValid()
         assert view.count == scene.num_envs
         assert len(view.prims) == scene.num_envs
-        assert {prim.GetPath().pathString for prim in view.prims} == {"/World/envs/env_0/WorldCamera"}
-        assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in range(scene.num_envs)]
+        assert {prim.GetPath().pathString for prim in view.prims} == {"/World/scenes/scene_0/WorldCamera"}
+        assert view.prim_paths == [f"/World/scenes/scene_{i}/WorldCamera" for i in range(scene.num_envs)]
         positions, _ = view.get_world_poses()
     expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
     torch.testing.assert_close(positions.torch, expected_positions)
@@ -182,17 +184,24 @@ def view_factory():
         sim._app_control_on_stop_handle = None
         contexts.append(ctx)
 
-        InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=num_envs, env_spacing=2.0))
+        scene_cfg = _OvPhysxFrameViewSceneCfg(num_envs=num_envs, env_spacing=2.0)
+        scene_cfg.clone_cfg.clone_template = "/World/scenes/scene_{}"
+        scene = InteractiveScene(scene_cfg)
 
         stage = sim_utils.get_current_stage()
-        for i in range(num_envs):
-            prim = stage.DefinePrim(f"/World/envs/env_{i}/Cube/CameraMount", "Xform")
-            sim_utils.standardize_xform_ops(prim)
-            prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*CHILD_OFFSET))
-            prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
+        prim = stage.DefinePrim(f"{scene.env_prim_paths[0]}/Cube/CameraMount", "Xform")
+        sim_utils.standardize_xform_ops(prim)
+        prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*CHILD_OFFSET))
+        prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
         sim.reset()
-        view = OvPhysxFrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
+        assert not stage.GetPrimAtPath(f"{scene.env_prim_paths[1]}/Cube/CameraMount").IsValid()
+        for env_path in scene.env_prim_paths[1:]:
+            destination = stage.DefinePrim(f"{env_path}/Cube/CameraMount", "Xform")
+            sim_utils.standardize_xform_ops(destination)
+            destination.GetAttribute("xformOp:translate").Set(Gf.Vec3d(*CHILD_OFFSET))
+        view = OvPhysxFrameView(f"{scene.env_regex_ns}/Cube/CameraMount", device=device)
+        assert view.prim_paths == [f"{env_path}/Cube/CameraMount" for env_path in scene.env_prim_paths]
 
         # Capture binding row order, populate _pose_buf once with the live spawn poses,
         # then detach the binding so subsequent reads do not overwrite the buffer.
@@ -201,7 +210,7 @@ def view_factory():
         path_to_row = {p: i for i, p in enumerate(view._pose_binding.prim_paths)}
         view._pose_binding = None
 
-        cube_rows = [path_to_row[f"/World/envs/env_{i}/Cube"] for i in range(num_envs)]
+        cube_rows = [path_to_row[f"{env_path}/Cube"] for env_path in scene.env_prim_paths]
         pose_buf_torch = wp.to_torch(view._pose_buf)  # shape [num_bodies, 7] float32
 
         def _get_parent_pos(n: int, dev: str) -> torch.Tensor:

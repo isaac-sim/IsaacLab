@@ -35,9 +35,10 @@ class PhysicsEvent(Enum):
     """
 
     MODEL_INIT = "model_init"
-    """Physics model is being constructed.
-    Fired during scene building, before simulation can run. Use this to register
-    physics representations (rigid bodies, joints, constraints) with the solver.
+    """The backend physics model is about to be attached, loaded, or constructed.
+
+    Fired after scene prototypes are authored and immediately before the backend consumes the
+    stage. Ordered callbacks may finish backend-specific stage preparation at this boundary.
     """
 
     PHYSICS_READY = "physics_ready"

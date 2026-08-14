@@ -12,7 +12,10 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 import warp as wp
+
+from isaaclab.cloner import ClonePlan
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "pxr", "isaaclab_newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -90,11 +93,22 @@ class _FakeOVRTXBackend:
         self.writes.append(kwargs)
 
 
-def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
+def _make_renderer_without_backend(
+    device: str = "cpu",
+    env_ids: tuple[int, ...] = (0,),
+    env_template: str = "/World/envs/env_{}",
+) -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     renderer._device = device
-    renderer._camera_rel_path = "Camera"
+    renderer._clone_plan = ClonePlan(
+        sources=(env_template.format(env_ids[0]),),
+        destinations=(env_template,),
+        clone_mask=torch.ones((1, len(env_ids)), dtype=torch.bool),
+        env_ids=torch.tensor(env_ids),
+        positions=torch.zeros((len(env_ids), 3)),
+        env_template=env_template,
+    )
     renderer._renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
     renderer._deformable_particle_offsets = []
@@ -127,7 +141,7 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=1)
+    renderer._setup_deformable_bindings_legacy(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -158,7 +172,7 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=1)
+    renderer._setup_deformable_bindings_legacy(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -169,7 +183,7 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
 
 def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkeypatch: pytest.MonkeyPatch):
     """Surface and volume deformable registry entries bind together with distinct offsets."""
-    renderer, backend = _make_renderer_without_backend()
+    renderer, backend = _make_renderer_without_backend(env_ids=(0, 1))
     surface_entry = SimpleNamespace(
         prim_path="/World/envs/env_[^/]+/DeformableSurface",
         vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableSurface/mesh",
@@ -187,7 +201,7 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [surface_entry, volume_entry])
 
-    renderer._setup_deformable_bindings(num_envs=2)
+    renderer._setup_deformable_bindings_legacy(num_envs=2)
 
     assert backend.calls[0]["prim_paths"] == [
         "/World/envs/env_0/DeformableSurface/mesh",
@@ -213,7 +227,7 @@ def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.Monke
     monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=1)
+    renderer._setup_deformable_bindings_legacy(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -221,11 +235,12 @@ def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.Monke
 
 
 def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch: pytest.MonkeyPatch):
-    """Surface deformable registry entries bind every cloned visual mesh instance."""
-    renderer, backend = _make_renderer_without_backend()
+    """Surface deformable paths follow sparse ClonePlan IDs and its custom root template."""
+    env_ids = (2, 7, 11, 19)
+    renderer, backend = _make_renderer_without_backend(env_ids=env_ids, env_template="/World/scenes/scene_{}")
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Deformable",
-        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
+        prim_path="/World/scenes/scene_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/scenes/scene_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3, 6, 9],
         particles_per_body=3,
@@ -233,9 +248,9 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings(num_envs=4)
+    renderer._setup_deformable_bindings_legacy(num_envs=4)
 
-    expected_paths = [f"/World/envs/env_{i}/Deformable/mesh" for i in range(4)]
+    expected_paths = [f"/World/scenes/scene_{env_id}/Deformable/mesh" for env_id in env_ids]
     assert backend.calls[0]["prim_paths"] == expected_paths
     assert renderer._deformable_particle_offsets == [0, 3, 6, 9]
     assert renderer._deformable_particle_counts == [3, 3, 3, 3]
@@ -282,7 +297,7 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
 
 def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: pytest.MonkeyPatch):
     """Registry entries must provide one particle offset per environment, listing every bad entry."""
-    renderer, _backend = _make_renderer_without_backend()
+    renderer, _backend = _make_renderer_without_backend(env_ids=(0, 1))
     bad_entry = SimpleNamespace(
         prim_path="/World/envs/env_[^/]+/Deformable",
         vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
@@ -301,7 +316,7 @@ def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: py
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [bad_entry, other_bad_entry])
 
     with pytest.raises(RuntimeError, match="one particle offset per environment") as excinfo:
-        renderer._setup_deformable_bindings(num_envs=2)
+        renderer._setup_deformable_bindings_legacy(num_envs=2)
 
     message = str(excinfo.value)
     assert bad_entry.prim_path in message
@@ -335,7 +350,7 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_bindings()
+    renderer._setup_particle_bindings_legacy()
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == [
@@ -365,7 +380,7 @@ def test_setup_particle_points_bindings_binds_multiple_mpm_assets(monkeypatch: p
 
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", particle_visual_prims)
 
-    renderer._setup_particle_bindings()
+    renderer._setup_particle_bindings_legacy()
 
     # Binding order follows dict insertion order (no path sort).
     assert backend.calls[0]["prim_paths"] == [

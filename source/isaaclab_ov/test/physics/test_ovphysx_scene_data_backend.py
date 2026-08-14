@@ -7,11 +7,11 @@
 
 from __future__ import annotations
 
-import logging
 import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
+import torch
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -88,6 +88,46 @@ def test_manager_full_stage_requirement_preserves_authored_environments():
         OvPhysxManager._requires_full_stage = previous
 
 
+def test_manager_full_stage_materializes_empty_plan_roots(monkeypatch):
+    """A private full-stage copy positions custom roots even when the plan has no asset rows."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.physics import PhysicsManager
+
+    env_template = "/World/scenes/scene_{}"
+    positions = torch.tensor([[1.0, 2.0, 3.0], [-4.0, 5.0, 6.0], [7.0, -8.0, 9.0]])
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim(f"{env_template.format(0)}/Marker", "Xform")
+    plan = ClonePlan(
+        sources=(),
+        destinations=(),
+        clone_mask=torch.zeros((0, 3), dtype=torch.bool),
+        env_ids=torch.arange(3),
+        positions=positions,
+        env_template=env_template,
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(get_clone_plan=lambda: plan))
+
+    previous = OvPhysxManager._pending_clones
+    try:
+        OvPhysxManager._pending_clones = []
+        layer = Sdf.Layer.CreateAnonymous("full.usda")
+        assert layer.ImportFromString(_serialize_full_stage_with_pending_clones(stage))
+        exported = Usd.Stage.Open(layer)
+        for env_id, expected_position in enumerate(positions):
+            root = exported.GetPrimAtPath(env_template.format(env_id))
+            assert root.IsValid() and root.GetTypeName() == "Xform"
+            assert tuple(root.GetAttribute("xformOp:translate").Get()) == pytest.approx(expected_position.tolist())
+            assert not root.HasAttribute("xformOp:orient")
+        assert exported.GetPrimAtPath(f"{env_template.format(0)}/Marker").IsValid()
+        assert not stage.GetPrimAtPath(env_template.format(1)).IsValid()
+    finally:
+        OvPhysxManager._pending_clones = previous
+
+
 def test_manager_full_stage_never_replays_runtime_clones():
     """A full-stage load never mutates the already loaded runtime through cloning."""
     from isaaclab_ov.physics import OvPhysxManager
@@ -102,20 +142,32 @@ def test_manager_full_stage_never_replays_runtime_clones():
         OvPhysxManager._pending_clones = previous
 
 
-def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
-    """A full-stage export copies missing heterogeneous targets without replacing authored ones."""
+def test_manager_full_stage_materializes_only_missing_heterogeneous_targets(monkeypatch):
+    """A full-stage copy creates and positions missing roots without replacing authored targets."""
     from isaaclab_ov.physics import OvPhysxManager
 
     from pxr import Sdf, Usd
 
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.physics import PhysicsManager
+
     stage = Usd.Stage.CreateInMemory()
     stage.DefinePrim("/World/envs/env_0", "Xform")
     stage.DefinePrim("/World/envs/env_1", "Xform")
-    stage.DefinePrim("/World/envs/env_2", "Xform")
     source = stage.DefinePrim("/World/envs/env_0/Object", "Xform")
     source.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set("source")
     existing = stage.DefinePrim("/World/envs/env_1/Object", "Xform")
     existing.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set("authored")
+    positions = torch.tensor([[1.0, 2.0, 3.0], [-4.0, 5.0, 6.0], [7.0, -8.0, 9.0]])
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Object",),
+        destinations=("/World/envs/env_{}/Object",),
+        clone_mask=torch.ones((1, 3), dtype=torch.bool),
+        env_ids=torch.arange(3),
+        positions=positions,
+        env_template="/World/envs/env_{}",
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(get_clone_plan=lambda: plan))
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
@@ -131,6 +183,11 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
         exported = Usd.Stage.Open(layer)
         assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("test:variant").Get() == "authored"
         assert exported.GetPrimAtPath("/World/envs/env_2/Object").GetAttribute("test:variant").Get() == "source"
+        for env_id, expected_position in enumerate(positions):
+            root = exported.GetPrimAtPath(f"/World/envs/env_{env_id}")
+            assert tuple(root.GetAttribute("xformOp:translate").Get()) == pytest.approx(expected_position.tolist())
+            assert not root.HasAttribute("xformOp:orient")
+        assert not stage.GetPrimAtPath("/World/envs/env_2").IsValid()
         assert OvPhysxManager._pending_clones == []
     finally:
         OvPhysxManager._pending_clones = previous
@@ -276,31 +333,36 @@ def test_manager_retains_clone_recipes_across_full_stage_serializations():
         OvPhysxManager._active_clone_recipes = previous_active
 
 
-def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
-    """A validation failure clears the queue without partially modifying the export."""
+def test_manager_serializes_authored_prototype_poses_unchanged():
+    """The default copy retains every prototype pose without creating destinations."""
     from isaaclab_ov.physics import OvPhysxManager
 
-    from pxr import Usd
+    from pxr import Gf, Sdf, Usd, UsdGeom
 
     stage = Usd.Stage.CreateInMemory()
-    stage.DefinePrim("/World/envs/env_0", "Xform")
-    stage.DefinePrim("/World/envs/env_1", "Xform")
-    stage.DefinePrim("/World/envs/env_0/Object", "Xform")
-    previous = OvPhysxManager._pending_clones
+    root_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    root_2 = UsdGeom.Xform.Define(stage, "/World/envs/env_2")
+    stage.DefinePrim("/World/envs/env_2/Sphere", "Xform")
+    positions = {0: (1.0, 2.0, 3.0), 2: (7.0, -8.0, 9.0)}
+    UsdGeom.XformCommonAPI(root_0).SetTranslate(Gf.Vec3d(*positions[0]))
+    UsdGeom.XformCommonAPI(root_2).SetTranslate(Gf.Vec3d(*positions[2]))
+    root_2.AddRotateZOp().Set(15.0)
+    previous = OvPhysxManager._requires_full_stage
     try:
-        OvPhysxManager._pending_clones = [
-            (
-                "/World/envs/env_0/Object",
-                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
-                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
-            )
-        ]
-        with pytest.raises(RuntimeError, match="clone target parent is absent"):
-            _serialize_full_stage_with_pending_clones(stage)
-        assert OvPhysxManager._pending_clones == []
-        assert not stage.GetPrimAtPath("/World/envs/env_1/Object").IsValid()
+        OvPhysxManager._requires_full_stage = False
+        layer = Sdf.Layer.CreateAnonymous("prototypes.usda")
+        assert layer.ImportFromString(OvPhysxManager._serialize_selected_stage(stage))
+        exported = Usd.Stage.Open(layer)
+        assert exported.GetPrimAtPath("/World/envs/env_0/Robot").IsValid()
+        assert exported.GetPrimAtPath("/World/envs/env_2/Sphere").IsValid()
+        assert not exported.GetPrimAtPath("/World/envs/env_1").IsValid()
+        for env_id in (0, 2):
+            root = exported.GetPrimAtPath(f"/World/envs/env_{env_id}")
+            assert tuple(root.GetAttribute("xformOp:translate").Get()) == pytest.approx(positions[env_id])
+        assert exported.GetPrimAtPath("/World/envs/env_2").GetAttribute("xformOp:rotateZ").Get() == 15.0
     finally:
-        OvPhysxManager._pending_clones = previous
+        OvPhysxManager._requires_full_stage = previous
 
 
 def test_manager_replays_pending_runtime_clones_without_full_stage_requirement():
@@ -339,6 +401,102 @@ def test_manager_resets_full_stage_requirement_between_contexts():
     OvPhysxManager.require_full_stage()
     OvPhysxManager.close()
     assert OvPhysxManager._requires_full_stage is False
+
+
+def test_manager_captures_prototypes_before_live_replication_and_reuses_them(monkeypatch):
+    """OvPhysX snapshots after renderer prep and reuses that snapshot during re-warmup."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from isaaclab.physics import PhysicsEvent, PhysicsManager
+
+    events = []
+    invalid_prim = SimpleNamespace(IsValid=lambda: False)
+    stage = SimpleNamespace(expanded=False, GetPrimAtPath=lambda _path: invalid_prim)
+    sim = SimpleNamespace(
+        stage=stage,
+        cfg=SimpleNamespace(physics=None, device="cpu", physics_prim_path="/physicsScene"),
+    )
+
+    for name, value in {
+        "_sim": None,
+        "_cfg": None,
+        "_device": "cpu",
+        "_sim_time": 0.0,
+    }.items():
+        monkeypatch.setattr(PhysicsManager, name, value)
+    for name, value in {
+        "_callbacks": {},
+        "_callback_id": 0,
+        "_physx": None,
+        "_stage_usda": None,
+        "_warmup_done": False,
+        "_requires_full_stage": False,
+        "_locked_device": None,
+        "_active_clone_recipes": [],
+        "_pending_clones": [],
+        "_scene_data_backend": None,
+    }.items():
+        monkeypatch.setattr(OvPhysxManager, name, value)
+    monkeypatch.setattr(OvPhysxManager, "_ensure_physx_schemas_registered", lambda: None)
+
+    def serialize_prototypes(sim_stage):
+        events.append(("capture", sim_stage.expanded))
+        return "prototype stage"
+
+    monkeypatch.setattr(OvPhysxManager, "_serialize_selected_stage", serialize_prototypes)
+    OvPhysxManager.initialize(sim)
+    OvPhysxManager.register_callback(
+        lambda _event: events.append("prepare_renderer"),
+        PhysicsEvent.MODEL_INIT,
+        order=0,
+        wrap_weak_ref=False,
+    )
+
+    def replicate_live_stage(_event):
+        if not stage.expanded:
+            events.append("replicate_live_stage")
+            stage.expanded = True
+
+    OvPhysxManager.register_callback(
+        replicate_live_stage,
+        PhysicsEvent.MODEL_INIT,
+        order=2,
+        wrap_weak_ref=False,
+    )
+    monkeypatch.setattr(OvPhysxManager, "_rearm_pending_clones", lambda: events.append("rearm"))
+
+    def construct_physx(_device, _gpu_index):
+        events.append("construct")
+        OvPhysxManager._physx = object()
+
+    monkeypatch.setattr(OvPhysxManager, "_construct_physx", construct_physx)
+    monkeypatch.setattr(OvPhysxManager, "_prepare_physx_for_stage_reuse", lambda: events.append("reuse"))
+
+    def stop_after_attach(stage_usda):
+        events.append(("attach", stage_usda))
+        raise RuntimeError("stop after attach")
+
+    monkeypatch.setattr(OvPhysxManager, "_attach_ovstage", stop_after_attach)
+
+    with pytest.raises(RuntimeError, match="stop after attach"):
+        OvPhysxManager._warmup_and_load()
+    with pytest.raises(RuntimeError, match="stop after attach"):
+        OvPhysxManager._warmup_and_load()
+
+    assert events == [
+        "rearm",
+        "prepare_renderer",
+        ("capture", False),
+        "replicate_live_stage",
+        "construct",
+        ("attach", "prototype stage"),
+        "rearm",
+        "prepare_renderer",
+        "reuse",
+        ("attach", "prototype stage"),
+    ]
+    assert stage.expanded
+    assert OvPhysxManager._stage_usda == "prototype stage"
 
 
 def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
@@ -404,53 +562,6 @@ def test_manager_supports_pinned_runtime_api(device, gpu_index, expected_cpu_mod
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
-
-
-def test_manager_serializes_env0_only_stage_in_memory(caplog):
-    """The OVPhysX input keeps globals and env 0 without writing cloned envs."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    from pxr import Sdf, Usd, UsdGeom
-
-    stage = Usd.Stage.CreateInMemory()
-    for path in ("/World/Ground", "/World/envs/env_0/Cube", "/World/envs/env_1/Cube"):
-        UsdGeom.Xform.Define(stage, path)
-
-    previous = OvPhysxManager._requires_full_stage
-    try:
-        OvPhysxManager._requires_full_stage = False
-        with caplog.at_level(logging.INFO, logger=OvPhysxManager.__module__):
-            usda = OvPhysxManager._serialize_selected_stage(stage)
-    finally:
-        OvPhysxManager._requires_full_stage = previous
-    layer = Sdf.Layer.CreateAnonymous("filtered.usda")
-    assert layer.ImportFromString(usda)
-    filtered = Usd.Stage.Open(layer)
-
-    assert filtered.GetPrimAtPath("/World/Ground").IsValid()
-    assert filtered.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
-    assert not filtered.GetPrimAtPath("/World/envs/env_1").IsValid()
-    assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
-
-
-def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
-    """The in-memory serializer diagnoses stages without the standard env namespace."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    from pxr import Usd, UsdGeom
-
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/Ground")
-
-    previous = OvPhysxManager._requires_full_stage
-    try:
-        OvPhysxManager._requires_full_stage = False
-        with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
-            OvPhysxManager._serialize_selected_stage(stage)
-    finally:
-        OvPhysxManager._requires_full_stage = previous
-
-    assert "no cloned environments to strip — serialized stage as-is" in caplog.text
 
 
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
@@ -750,7 +861,7 @@ def test_transform_paths_empty_when_no_bindings():
 
 
 def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
-    """``setup(physx, stage, device)`` buckets RigidBodyAPI prims by env-wildcard form.
+    """``setup`` buckets RigidBodyAPI prims through the clone plan's environment template.
 
     For cartpole-shaped scenes (``cart``, ``pole``), expect 2 bindings — one
     per distinct env-relative prim path.
@@ -761,10 +872,10 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
 
     # Stage stub: traversal yields four RigidBodyAPI prims (cart/pole across two envs).
     paths = [
-        "/World/envs/env_0/Robot/cart",
-        "/World/envs/env_0/Robot/pole",
-        "/World/envs/env_1/Robot/cart",
-        "/World/envs/env_1/Robot/pole",
+        "/World/scenes/scene_2/Robot/cart",
+        "/World/scenes/scene_2/Robot/pole",
+        "/World/scenes/scene_7/Robot/cart",
+        "/World/scenes/scene_7/Robot/pole",
     ]
 
     def fake_traverse():
@@ -797,13 +908,13 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
     # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
     monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
-    b.setup(FakePhysX(), stage, "cpu")
+    b.setup(FakePhysX(), stage, "cpu", env_template="/World/scenes/scene_{}")
 
     # Cartpole = 2 distinct env-wildcard patterns -> 2 bindings.
     assert len(created) == 2
     assert {c.pattern for c in created} == {
-        "/World/envs/env_*/Robot/cart",
-        "/World/envs/env_*/Robot/pole",
+        "/World/scenes/scene_*/Robot/cart",
+        "/World/scenes/scene_*/Robot/pole",
     }
     # Per-binding row counts sum to 4.
     assert b.transform_count == 4

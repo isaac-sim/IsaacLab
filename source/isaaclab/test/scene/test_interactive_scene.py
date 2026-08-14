@@ -194,7 +194,7 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
     captured: list = []
 
     def fake_replicate(plan, *, stage, replicate_physics=True):
-        captured.append((plan, stage, replicate_physics))
+        captured.append((plan, stage, replicate_physics, stage.ExportToString()))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
@@ -203,12 +203,35 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
         scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, stage, replicate_physics = captured[0]
+    plan, stage, replicate_physics, stage_usda = captured[0]
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
     assert stage is scene.stage
     assert replicate_physics is True
+    assert 'def Xform "env_0"' in stage_usda
+    assert '"Robot"' in stage_usda
+    assert '"RigidObj"' in stage_usda
+    for env_idx in range(1, 4):
+        assert f'def Xform "env_{env_idx}"' not in stage_usda
+
+
+def test_initialize_renderers_precreates_unique_backends():
+    """Renderer backends are pre-created once per unique camera configuration."""
+    renderer = object()
+    renderer_cfg = object()
+
+    class FakeCamera:
+        cfg = SimpleNamespace(renderer_cfg=renderer_cfg)
+
+    render_context = SimpleNamespace(get_renderer=lambda _cfg: renderer)
+    scene = SimpleNamespace(
+        _sensors={"first": FakeCamera(), "second": FakeCamera()},
+        sim=SimpleNamespace(render_context=render_context),
+    )
+
+    assert InteractiveScene.initialize_renderers(scene) == [renderer]
+    assert InteractiveScene.initialize_renderers(scene) == [renderer]
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

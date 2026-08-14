@@ -17,6 +17,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import copy
 import random
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -82,6 +83,61 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     # load stage
     sim_utils.update_stage()
     return sim, camera_cfg, dt
+
+
+def test_camera_owns_model_init_renderer_callbacks(setup_sim_camera):
+    """Camera prepares its renderer before one shared stage snapshot at MODEL_INIT."""
+    from isaaclab.physics import PhysicsEvent
+
+    sim, camera_cfg, _ = setup_sim_camera
+    camera = Camera(camera_cfg)
+
+    prepare_registration = sim.physics_manager._callbacks[camera._renderer_prepare_handle.id]
+    stage_registration = sim.physics_manager._callbacks[camera._renderer_stage_prepare_handle.id]
+    assert prepare_registration[0] is PhysicsEvent.MODEL_INIT
+    assert prepare_registration[2] == -1
+    assert stage_registration[0] is PhysicsEvent.MODEL_INIT
+    assert stage_registration[2] == 0
+
+    del camera
+
+
+def test_prepare_renderer_retries_after_failure(monkeypatch):
+    """A failed renderer preparation leaves the camera ready for a later retry."""
+    attempts = []
+
+    class FailingOnceRenderer:
+        def prepare_cameras(self, stage, spec):
+            attempts.append((stage, spec))
+            if len(attempts) == 1:
+                raise RuntimeError("renderer preparation failed")
+
+    renderer = FailingOnceRenderer()
+    sim = SimpleNamespace(
+        device="cpu",
+        render_context=SimpleNamespace(get_renderer=lambda _cfg: renderer),
+        get_clone_plan=lambda: SimpleNamespace(env_ids=torch.arange(4), env_template="/World/envs/env_{}"),
+    )
+    camera = SimpleNamespace(
+        _renderer=None,
+        _render_spec=None,
+        cfg=SimpleNamespace(renderer_cfg=object(), prim_path="/World/envs/env_.*/Camera"),
+        stage=object(),
+    )
+    camera_prim = SimpleNamespace(GetPath=lambda: "/World/envs/env_0/Camera")
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: sim))
+    monkeypatch.setattr(sim_utils, "find_matching_prims", lambda _prim_path, _stage: [camera_prim])
+
+    with pytest.raises(RuntimeError, match="renderer preparation failed"):
+        Camera._prepare_renderer(camera)
+
+    assert camera._render_spec is None
+
+    Camera._prepare_renderer(camera)
+
+    assert len(attempts) == 2
+    assert camera._render_spec is attempts[-1][1]
+    assert camera._render_spec.camera_path_relative_to_env_0 == "Camera"
 
 
 def teardown(sim: sim_utils.SimulationContext):

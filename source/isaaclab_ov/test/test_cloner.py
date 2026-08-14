@@ -76,6 +76,35 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
 
 
+def test_sparse_environment_ids_use_column_aligned_poses(monkeypatch):
+    """Sparse environment ids use their clone-plan columns to select target poses."""
+    monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
+    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    stage = Usd.Stage.CreateInMemory()
+    source_root = UsdGeom.Xform.Define(stage, "/World/scenes/scene_2")
+    UsdGeom.XformCommonAPI(source_root).SetTranslate(Gf.Vec3d(1.0, 2.0, 3.0))
+    UsdGeom.Xform.Define(stage, "/World/scenes/scene_2/Robot")
+    positions = torch.tensor([[1.0, 2.0, 3.0], [-4.0, 5.0, 6.0], [7.0, -8.0, 9.0]])
+
+    context = OvPhysxReplicateContext(stage)
+    context.queue_mapping(
+        sources=["/World/scenes/scene_2/Robot"],
+        destinations=["/World/scenes/scene_{}/Robot"],
+        env_ids=torch.tensor([2, 7, 11]),
+        mapping=torch.tensor([[True, False, True]]),
+        positions=positions,
+    )
+    context.replicate()
+
+    assert OvPhysxManager._pending_clones == [
+        (
+            "/World/scenes/scene_2/Robot",
+            ["/World/scenes/scene_11/Robot"],
+            [(7.0, -8.0, 9.0, 0.0, 0.0, 0.0, 1.0)],
+        )
+    ]
+
+
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
     monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])

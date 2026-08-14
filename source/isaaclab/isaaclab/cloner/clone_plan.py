@@ -32,7 +32,7 @@ import isaaclab.sim as sim_utils
 
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, InclusionSet
 from .cloner_strategies import sequential
-from .path import match
+from .path import match, split
 
 
 @dataclass(frozen=True, eq=False)
@@ -60,6 +60,9 @@ class ClonePlan:
 
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
+
+    env_template: str | None = None
+    """Environment-root path template, or ``None`` when the plan does not own root materialization."""
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
@@ -292,6 +295,7 @@ def make_clone_plan(
             clone_mask=empty_mask,
             env_ids=env_ids,
             positions=positions,
+            env_template=env_template,
             cfg_rows={},
         )
 
@@ -306,6 +310,7 @@ def make_clone_plan(
             clone_mask=torch.ones((1, num_clones), dtype=torch.bool, device=device),
             env_ids=env_ids,
             positions=positions,
+            env_template=env_template,
             cfg_rows=cfg_rows,
         )
 
@@ -374,6 +379,7 @@ def make_clone_plan(
         clone_mask=clone_mask,
         env_ids=env_ids,
         positions=positions,
+        env_template=env_template,
         cfg_rows=cfg_rows,
     )
 
@@ -414,5 +420,6 @@ def clone_plan_from_env_0(
         clone_mask=torch.ones((1, num_clones), dtype=torch.bool, device=device),
         env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
         positions=positions,
+        env_template=f"{split(destination)[0]}{{}}",
         cfg_rows=cfg_rows,
     )

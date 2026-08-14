@@ -34,6 +34,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import os
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -42,9 +43,11 @@ from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacR
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import ClonePlan
+from isaaclab.renderers import CameraRenderSpec
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
@@ -62,15 +65,9 @@ def enable_scene_partition(monkeypatch):
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_disabled_by_default(monkeypatch):
-    """``primvars:omni:scenePartition`` must NOT be authored when the env var is absent.
-
-    The feature is off by default; this test confirms that :meth:`IsaacRtxRenderer.prepare_stage`
-    is a no-op without ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``.
-    """
+def test_prepare_stage_defers_partitioning(enable_scene_partition):
+    """Stage preparation stays read-only before implicit USD replication."""
     from pxr import Usd
-
-    monkeypatch.delenv(_ENV_VAR, raising=False)
 
     stage = Usd.Stage.CreateInMemory()
     world = stage.DefinePrim("/World", "Xform")  # noqa: F841
@@ -81,9 +78,60 @@ def test_partitioning_disabled_by_default(monkeypatch):
     renderer.prepare_stage(stage, num_envs=1)
 
     prim = stage.GetPrimAtPath("/World/envs/env_0")
-    assert not prim.HasAttribute("primvars:omni:scenePartition"), (
-        "primvars:omni:scenePartition must not be authored when partitioning is disabled."
+    assert not prim.HasAttribute("primvars:omni:scenePartition")
+
+
+@pytest.mark.isaacsim_ci
+def test_create_render_data_partitions_replicated_environments(enable_scene_partition, monkeypatch):
+    """Render-data creation partitions every environment after implicit USD replication."""
+    import omni.replicator.core as rep
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdGeom.Xform.Define(stage, "/World/envs")
+    camera_paths = []
+    for env_idx in range(2):
+        env_path = f"/World/envs/env_{env_idx}"
+        UsdGeom.Xform.Define(stage, env_path)
+        camera_paths.append(str(UsdGeom.Camera.Define(stage, f"{env_path}/Camera").GetPath()))
+
+    renderer = object.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    spec = CameraRenderSpec(
+        cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Camera", data_types=["rgb"], height=8, width=8),
+        device="cpu",
+        num_instances=2,
+        camera_prim_paths=(camera_paths[0],),
+        view_count=2,
+        camera_path_relative_to_env_0="Camera",
     )
+    plan = ClonePlan(
+        sources=(camera_paths[0],),
+        destinations=("/World/envs/env_{}/Camera",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool),
+        env_ids=torch.tensor([0, 1]),
+        env_template="/World/envs/env_{}",
+    )
+    sim = SimpleNamespace(get_clone_plan=lambda: plan)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: stage)
+
+    class _PartitionsObserved(Exception):
+        pass
+
+    def _observe_partitions(**kwargs):
+        assert kwargs["cameras"] == camera_paths
+        for env_idx, camera_path in enumerate(camera_paths):
+            token = f"env_{env_idx}"
+            env_prim = stage.GetPrimAtPath(f"/World/envs/{token}")
+            assert env_prim.GetAttribute("primvars:omni:scenePartition").Get() == token
+            assert stage.GetPrimAtPath(camera_path).GetAttribute("omni:scenePartition").Get() == token
+        raise _PartitionsObserved
+
+    monkeypatch.setattr(rep.create, "render_product_tiled", _observe_partitions)
+    with pytest.raises(_PartitionsObserved):
+        renderer.create_render_data(spec)
 
 
 @pytest.mark.isaacsim_ci
