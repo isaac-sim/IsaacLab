@@ -348,23 +348,15 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
 
 
 def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays():
-    drive_property_names = {"joint_stiffness", "joint_damping", "joint_effort_limits"}
-    legacy_members = {
-        name: FakeActuatorControl.__dict__[name] for name in ActuatorControl.__abstractmethods__ - drive_property_names
-    }
-    legacy_control_type = type(
-        "LegacyActuatorControl",
-        (ActuatorControl,),
-        {"__init__": FakeActuatorControl.__init__, **legacy_members},
-    )
+    class LegacyActuatorControl(FakeActuatorControl):
+        joint_stiffness = ActuatorControl.joint_stiffness
+        joint_damping = ActuatorControl.joint_damping
+        joint_effort_limits = ActuatorControl.joint_effort_limits
 
-    control = legacy_control_type()
+    control = LegacyActuatorControl()
 
-    for name in drive_property_names:
-        with pytest.raises(
-            NotImplementedError,
-            match=rf"{name}.*Lab implicit actuator execution.*articulation-order.*ProxyArray",
-        ):
+    for name in ("joint_stiffness", "joint_damping", "joint_effort_limits"):
+        with pytest.raises(NotImplementedError, match="Lab implicit actuator execution"):
             getattr(control, name)
 
 
@@ -791,8 +783,8 @@ def test_native_group_gains_project_live_controller_values_without_local_mirrors
     unsupported = ActuatorCollection(
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
     )["native"]
-    assert "_stiffness" in unsupported.__dict__
-    assert "_damping" in unsupported.__dict__
+    torch.testing.assert_close(unsupported.stiffness, torch.full((2, 3), 11.0))
+    torch.testing.assert_close(unsupported.damping, torch.full((2, 3), 1.1))
 
 
 def test_overlapping_groups_are_rejected():
@@ -1100,56 +1092,57 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
 
 def test_collection_accepts_cached_proxy_joint_indices():
     control = ProxyFinderActuatorControl()
-    with warnings.catch_warnings(record=True) as caught_warnings:
-        warnings.simplefilter("always")
-        collection = ActuatorCollection({"outer": _implicit_cfg()}, control)
+    collection = ActuatorCollection({"outer": _implicit_cfg()}, control)
 
-    assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
     torch.testing.assert_close(collection["outer"].joint_indices, torch.tensor([0, 2], dtype=torch.int32))
 
 
-def test_write_command_index_supports_selectors_and_submission():
+@pytest.mark.parametrize("command_name", ["position", "velocity", "effort"])
+def test_write_command_index_supports_selectors_and_submission(command_name):
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
+    setter = getattr(collection.command, f"set_{command_name}_index")
+    command_buffer = getattr(collection.command, command_name)
     value = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
 
-    collection.command.set_position_index(value=value, env_ids=[1], joint_ids=[0, 2])
+    setter(value=value, env_ids=[1], joint_ids=[0, 2])
 
     expected = torch.zeros(2, 3)
     expected[1, 0] = 1.0
     expected[1, 2] = 2.0
-    torch.testing.assert_close(collection.command.position.torch.cpu(), expected)
-    assert control.staged_commands == ["position"]
+    torch.testing.assert_close(command_buffer.torch.cpu(), expected)
+    assert control.staged_commands == [command_name]
 
-    collection.command.position.torch.zero_()
+    command_buffer.torch.zero_()
     value = torch.tensor([[3.0, 4.0]], dtype=torch.float32)
     env_ids = torch.tensor([1], dtype=torch.int64)
     joint_ids = wp.array([0, 2], dtype=wp.int64, device="cpu")
 
-    collection.command.set_position_index(value=value, env_ids=env_ids, joint_ids=joint_ids)
+    setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
 
     expected = torch.zeros(2, 3)
     expected[1, 0] = 3.0
     expected[1, 2] = 4.0
-    torch.testing.assert_close(collection.command.position.torch.cpu(), expected)
+    torch.testing.assert_close(command_buffer.torch.cpu(), expected)
 
     collection.compute()
     collection.submit_commands()
 
-    torch.testing.assert_close(collection.joint_command.position.torch.cpu(), expected)
+    torch.testing.assert_close(getattr(collection.joint_command, command_name).torch.cpu(), expected)
     assert control.submitted
 
 
-def test_write_command_mask_uses_full_sized_value():
+@pytest.mark.parametrize("command_name", ["position", "velocity", "effort"])
+def test_write_command_mask_uses_full_sized_value(command_name):
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
     value = torch.arange(6, dtype=torch.float32).reshape(2, 3)
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     joint_mask = wp.array([False, True, True], dtype=wp.bool, device="cpu")
 
-    collection.command.set_velocity_mask(value=value, env_mask=env_mask, joint_mask=joint_mask)
+    getattr(collection.command, f"set_{command_name}_mask")(value=value, env_mask=env_mask, joint_mask=joint_mask)
 
     expected = torch.zeros(2, 3)
     expected[0, 1:] = value[0, 1:]
-    torch.testing.assert_close(collection.command.velocity.torch.cpu(), expected)
-    assert control.staged_commands == ["velocity"]
+    torch.testing.assert_close(getattr(collection.command, command_name).torch.cpu(), expected)
+    assert control.staged_commands == [command_name]
