@@ -110,6 +110,7 @@ dependencies = [
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
     "typing-extensions>=4.15.0",
+    "vulkan-renderer @ git+https://github.com/NVIDIA-dev/dhasenbring-vulkan-render.git",
 ]
 
 [project.optional-dependencies]
