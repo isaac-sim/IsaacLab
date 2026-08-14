@@ -12,7 +12,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
 import torch
-import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
@@ -37,8 +36,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         """
         super().__init__(articulation)
         self._host_actuator_runtime = None
-        self._all_env_mask: wp.array(dtype=wp.bool) | None = None
-        self._all_joint_mask: wp.array(dtype=wp.bool) | None = None
 
     @property
     def _physx_actuator_wrapper(self):
@@ -49,34 +46,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
     def _native_actuator_graphs(self):
         """Expose graph capture state used by native-actuator benchmarks."""
         return None if self._host_actuator_runtime is None else self._host_actuator_runtime.native_actuator_graphs
-
-    def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
-        """Resolve an optional environment mask to a full Warp bool mask.
-
-        PhysX's articulation-level mask resolution converts masks to int32
-        indices for its index-only tensor API. The collection's mask write
-        path consumes full bool masks instead, so normalize here.
-        """
-        return self._resolve_bool_mask(env_mask, "_all_env_mask", self.num_instances)
-
-    def resolve_joint_mask(self, joint_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
-        """Resolve an optional joint mask to a full Warp bool mask."""
-        return self._resolve_bool_mask(joint_mask, "_all_joint_mask", self.num_joints)
-
-    def _resolve_bool_mask(self, mask: wp.array(dtype=wp.bool) | None, cache_attr: str, size: int) -> wp.array(
-        dtype=wp.bool
-    ):
-        if mask is None:
-            cached = getattr(self, cache_attr)
-            if cached is None:
-                cached = wp.ones(size, dtype=wp.bool, device=self.device)
-                setattr(self, cache_attr, cached)
-            return cached
-        if isinstance(mask, wp.array) and mask.dtype == wp.bool:
-            return mask
-        # Legacy mask resolution accepted any nonzero-selectable mask; keep that.
-        mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
-        return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation

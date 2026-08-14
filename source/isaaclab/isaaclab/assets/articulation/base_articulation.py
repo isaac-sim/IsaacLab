@@ -36,6 +36,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _as_bool_mask(mask: torch.Tensor | wp.array | None) -> wp.array | None:
+    """Coerce legacy nonzero-selectable masks to the ``wp.bool`` masks the command API expects.
+
+    Deprecated with the ``set_joint_*_target_mask`` forwarders that consume it;
+    remove together in 4.0.
+    """
+    if mask is None or (isinstance(mask, wp.array) and mask.dtype == wp.bool):
+        return mask
+    mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
+    return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
+
+
 class BaseArticulation(AssetBase):
     """An articulation asset class.
 
@@ -1709,7 +1721,11 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_position_mask(value=target, joint_mask=joint_mask, env_mask=env_mask)
+        self.actuators.command.set_position_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_index(
@@ -1782,7 +1798,11 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_velocity_mask(value=target, joint_mask=joint_mask, env_mask=env_mask)
+        self.actuators.command.set_velocity_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_index(
@@ -1853,7 +1873,11 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_effort_mask(value=target, joint_mask=joint_mask, env_mask=env_mask)
+        self.actuators.command.set_effort_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
     """
     Operations - Tendons.

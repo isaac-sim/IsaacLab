@@ -227,6 +227,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._applied_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._all_joint_ids = wp.array(list(range(self.num_joints)), dtype=wp.int32, device=self.device)
+        self._all_true_env_mask = wp.ones(self.num_instances, dtype=wp.bool, device=self.device)
+        self._all_true_joint_mask = wp.ones(self.num_joints, dtype=wp.bool, device=self.device)
 
         self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
         self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
@@ -820,8 +822,8 @@ class ActuatorCommand:
             env_mask: Environment selection mask. Defaults to all environments.
         """
         collection = self._collection
-        env_mask_resolved = collection._control.resolve_env_mask(env_mask)
-        joint_mask_resolved = collection._control.resolve_joint_mask(joint_mask)
+        env_mask_resolved = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
+        joint_mask_resolved = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
         self._write_mask_target(
             value,
             env_mask_resolved,
@@ -846,8 +848,8 @@ class ActuatorCommand:
             env_mask: Environment selection mask. Defaults to all environments.
         """
         collection = self._collection
-        env_mask_resolved = collection._control.resolve_env_mask(env_mask)
-        joint_mask_resolved = collection._control.resolve_joint_mask(joint_mask)
+        env_mask_resolved = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
+        joint_mask_resolved = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
         self._write_mask_target(
             value,
             env_mask_resolved,
@@ -872,8 +874,8 @@ class ActuatorCommand:
             env_mask: Environment selection mask. Defaults to all environments.
         """
         collection = self._collection
-        env_mask_resolved = collection._control.resolve_env_mask(env_mask)
-        joint_mask_resolved = collection._control.resolve_joint_mask(joint_mask)
+        env_mask_resolved = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
+        joint_mask_resolved = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
         self._write_mask_target(
             value,
             env_mask_resolved,
@@ -881,6 +883,17 @@ class ActuatorCommand:
             collection._joint_effort_target,
             command_name="effort",
         )
+
+    @staticmethod
+    def _resolve_mask(
+        mask: wp.array(dtype=wp.bool) | None, all_true_mask: wp.array(dtype=wp.bool), name: str
+    ) -> wp.array(dtype=wp.bool):
+        """Return the full selection mask for an optional ``wp.bool`` mask argument."""
+        if mask is None:
+            return all_true_mask
+        if not isinstance(mask, wp.array) or mask.dtype != wp.bool:
+            raise TypeError(f"Expected '{name}' to be a wp.array of dtype wp.bool, got {type(mask)!r}.")
+        return mask
 
     def _write_index_target(
         self,

@@ -232,20 +232,6 @@ class FakeActuatorControl(ActuatorControl):
             return joint_ids
         return wp.array(list(joint_ids), dtype=wp.int32, device=self.device)
 
-    def resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
-        return (
-            env_mask
-            if env_mask is not None
-            else wp.array([True] * self.num_instances, dtype=wp.bool, device=self.device)
-        )
-
-    def resolve_joint_mask(self, joint_mask: wp.array | None) -> wp.array:
-        return (
-            joint_mask
-            if joint_mask is not None
-            else wp.array([True] * self.num_joints, dtype=wp.bool, device=self.device)
-        )
-
     def assert_shape_and_dtype(
         self, tensor: torch.Tensor | wp.array | float, shape: tuple[int, ...], dtype: type, name: str
     ) -> None:
@@ -615,20 +601,6 @@ class FakeArticulation:
         self.resolved_joint_ids.append(joint_ids)
         values = list(range(self.num_joints)) if joint_ids is None else list(joint_ids)
         return wp.array(values, dtype=wp.int32, device=self.device)
-
-    def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
-        return (
-            env_mask
-            if env_mask is not None
-            else wp.array([True] * self.num_instances, dtype=wp.bool, device=self.device)
-        )
-
-    def _resolve_joint_mask(self, joint_mask: wp.array | None) -> wp.array:
-        return (
-            joint_mask
-            if joint_mask is not None
-            else wp.array([True] * self.num_joints, dtype=wp.bool, device=self.device)
-        )
 
     def assert_shape_and_dtype(
         self, tensor: torch.Tensor | wp.array | float, shape: tuple[int, ...], dtype: type, name: str
@@ -1162,3 +1134,8 @@ def test_write_command_mask_uses_full_sized_value(command_name):
     expected[0, 1:] = value[0, 1:]
     torch.testing.assert_close(getattr(collection.command, command_name).torch.cpu(), expected)
     assert control.staged_commands == [command_name]
+
+    with pytest.raises(TypeError, match="wp.bool"):
+        getattr(collection.command, f"set_{command_name}_mask")(
+            value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask
+        )

@@ -178,30 +178,6 @@ class ActuatorControl(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
-        """Resolve an optional environment mask.
-
-        Args:
-            env_mask: Environment selection mask. Defaults to all environments.
-
-        Returns:
-            Full environment selection mask.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def resolve_joint_mask(self, joint_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
-        """Resolve an optional joint mask.
-
-        Args:
-            joint_mask: Joint selection mask. Defaults to all joints.
-
-        Returns:
-            Full joint selection mask.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def assert_shape_and_dtype(
         self,
         tensor: torch.Tensor | wp.array(dtype=wp.float32) | float,
@@ -448,16 +424,6 @@ class ArticulationActuatorControl(ActuatorControl):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None,
     ) -> torch.Tensor | wp.array:
         return self._articulation._resolve_joint_ids(self._normalize_index_sequence(joint_ids))
-
-    def resolve_env_mask(self, env_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
-        if hasattr(self._articulation, "_resolve_env_mask"):
-            return self._articulation._resolve_env_mask(env_mask)
-        return self._articulation._resolve_mask(env_mask, self._articulation._ALL_ENV_MASK)
-
-    def resolve_joint_mask(self, joint_mask: wp.array(dtype=wp.bool) | None) -> wp.array(dtype=wp.bool):
-        if hasattr(self._articulation, "_resolve_joint_mask"):
-            return self._articulation._resolve_joint_mask(joint_mask)
-        return self._articulation._resolve_mask(joint_mask, self._articulation._ALL_JOINT_MASK)
 
     def assert_shape_and_dtype(
         self,
