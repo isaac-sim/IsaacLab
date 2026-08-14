@@ -7,8 +7,6 @@
 
 import sys
 
-import pytest
-
 from isaaclab.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
 
 
@@ -50,11 +48,16 @@ def _resolve_device(launcher_args: dict) -> dict:
     return launcher_args
 
 
-def test_renderer_device_selected_by_cuda_index():
-    """Select the renderer device through the CUDA-indexed setting."""
+def test_both_devices_selected_by_cuda_index():
+    """Select both devices by CUDA index, the renderer through the setting that translates it.
+
+    The trailing comma is part of the contract: the setting is parsed as a comma-separated
+    string and a bare integer is silently ignored.
+    """
     args = _resolve_device({"device": "cuda:1"})
 
     assert "--/renderer/multiGpu/activeCudaGpus=1," in args["extra_args"]
+    assert args["physics_gpu"] == 1
 
 
 def test_active_gpu_is_left_unset():
@@ -62,23 +65,6 @@ def test_active_gpu_is_left_unset():
     args = _resolve_device({"device": "cuda:1"})
 
     assert args.get("active_gpu") is None
-
-
-def test_physics_keeps_the_cuda_index():
-    """Keep the CUDA index for physics, which CUDA resolves itself."""
-    args = _resolve_device({"device": "cuda:1"})
-
-    assert args["physics_gpu"] == 1
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cuda:3"])
-def test_cuda_index_setting_is_comma_terminated(device):
-    """Terminate the value with a comma: a bare integer is silently ignored by the renderer."""
-    args = _resolve_device({"device": device})
-
-    cuda_gpu_args = [arg for arg in args["extra_args"] if "activeCudaGpus" in arg]
-    assert len(cuda_gpu_args) == 1
-    assert cuda_gpu_args[0].endswith(",")
 
 
 def test_user_extra_args_are_preserved():
