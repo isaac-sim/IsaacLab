@@ -22,6 +22,7 @@ __all__ = [
     "cube_out_of_workspace",
     "end_effector_axes",
     "end_effector_velocity",
+    "finite_action_rate_l2",
     "finite_joint_velocity_l2",
     "gripper_joint_positions",
     "invalid_action",
@@ -61,6 +62,7 @@ from .reset_events import (
 )
 from .rewards import (
     action_term_l2,
+    finite_action_rate_l2,
     finite_joint_velocity_l2,
     physical_cube_acquisition_mask,
     terminal_failure,

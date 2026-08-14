@@ -46,8 +46,14 @@ class ConveyorRelativeJointPositionAction(JointAction):
             raise ValueError("Every lower workspace bound must be less than its upper bound.")
         if not torch.all(torch.isfinite(self._workspace_lower)) or not torch.all(torch.isfinite(self._workspace_upper)):
             raise ValueError("workspace bounds must be finite.")
+        self._previous_actions = torch.zeros_like(self._raw_actions)
         self._invalid_actions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._position_targets = self._asset.data.joint_pos.torch[:, self._joint_ids].clone()
+
+    @property
+    def previous_actions(self) -> torch.Tensor:
+        """Previous finite policy actions, shape ``(num_envs, action_dim)``."""
+        return self._previous_actions
 
     @property
     def invalid_actions(self) -> torch.Tensor:
@@ -56,6 +62,7 @@ class ConveyorRelativeJointPositionAction(JointAction):
 
     def process_actions(self, actions: torch.Tensor) -> None:
         """Convert normalized residuals into bounded position targets [rad]."""
+        self._previous_actions.copy_(self._raw_actions)
         self._invalid_actions.copy_(~torch.isfinite(actions).all(dim=1))
         finite_actions = torch.nan_to_num(actions, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0)
         super().process_actions(finite_actions)
@@ -81,6 +88,7 @@ class ConveyorRelativeJointPositionAction(JointAction):
         else:
             self._position_targets[env_ids] = positions[env_ids]
             self._processed_actions[env_ids] = positions[env_ids]
+        self._previous_actions[env_ids] = 0.0
         self._invalid_actions[env_ids] = False
 
 
@@ -91,7 +99,13 @@ class ResetBufferedGripperAction(BinaryJointPositionAction):
 
     def __init__(self, cfg: ResetBufferedGripperActionCfg, env: ManagerBasedEnv) -> None:
         super().__init__(cfg, env)
+        self._previous_actions = torch.zeros_like(self._raw_actions)
         self._invalid_actions = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+    @property
+    def previous_actions(self) -> torch.Tensor:
+        """Previous finite policy actions, shape ``(num_envs, action_dim)``."""
+        return self._previous_actions
 
     @property
     def invalid_actions(self) -> torch.Tensor:
@@ -100,6 +114,7 @@ class ResetBufferedGripperAction(BinaryJointPositionAction):
 
     def process_actions(self, actions: torch.Tensor) -> None:
         """Map finite binary commands and preserve initially held cubes."""
+        self._previous_actions.copy_(self._raw_actions)
         if actions.dtype == torch.bool:
             self._invalid_actions.zero_()
             finite_actions = actions
@@ -116,4 +131,5 @@ class ResetBufferedGripperAction(BinaryJointPositionAction):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Clear buffered invalid-command state for selected environments."""
         super().reset(env_ids)
+        self._previous_actions[env_ids] = 0.0
         self._invalid_actions[env_ids] = False

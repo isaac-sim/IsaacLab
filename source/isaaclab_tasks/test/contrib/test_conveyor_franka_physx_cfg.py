@@ -17,6 +17,7 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_physx_env_cfg import
     physx_belt_section_specs,
 )
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import BELT_TURN_RADIUS, MeshSpec
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
 def test_physx_task_is_registered_with_a_dedicated_config() -> None:
@@ -46,6 +47,14 @@ def test_physx_config_preserves_policy_and_timing_contracts() -> None:
     assert physx_cfg.conveyor_force.speed == newton_cfg.conveyor_force.speed == 0.35
     assert physx_cfg.scene.robot.spawn.joint_drive_props is None
     assert physx_cfg.scene.robot.spawn.rigid_props.disable_gravity is True
+
+
+def test_physx_task_default_device_survives_an_unset_parser_override() -> None:
+    """Default-backend callers can preserve the task's declared CPU device."""
+    cfg = parse_env_cfg("IsaacContrib-Conveyor-Franka-PhysX-CPU-v0", device=None, num_envs=2)
+
+    assert cfg.sim.device == "cpu"
+    assert cfg.scene.num_envs == 2
 
 
 @pytest.mark.parametrize("device", ["cuda", "cuda:0", "cuda:1"])

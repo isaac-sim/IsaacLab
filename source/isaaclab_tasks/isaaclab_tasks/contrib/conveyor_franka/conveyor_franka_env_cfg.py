@@ -221,7 +221,11 @@ class RewardsCfg:
         params={"action_name": "arm_action"},
         weight=-1.0e-3,
     )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1.0e-3)
+    action_rate_l2 = RewTerm(
+        func=mdp.finite_action_rate_l2,
+        params={"action_names": ("arm_action", "gripper_action")},
+        weight=-1.0e-3,
+    )
     joint_velocity_l2 = RewTerm(
         func=mdp.finite_joint_velocity_l2,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=list(_ARM_JOINT_NAMES), preserve_order=True)},

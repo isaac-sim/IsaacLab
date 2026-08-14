@@ -61,4 +61,4 @@ def _contrib_environment_params() -> list:
 
 @pytest.mark.parametrize("task_name", _contrib_environment_params())
 def test_contrib_environments(task_name):
-    _run_environments(task_name, device="cuda", num_envs=2)
+    _run_environments(task_name, device=None, num_envs=2)

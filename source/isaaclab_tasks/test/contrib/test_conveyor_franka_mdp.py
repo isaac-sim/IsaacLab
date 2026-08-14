@@ -40,7 +40,7 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     reset_variant_counts,
     select_next_transfer_cube,
 )
-from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
+from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import finite_action_rate_l2, transfer_potential
 from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import (
     invalid_action,
     subgoal_time_out,
@@ -68,6 +68,7 @@ def _make_arm_action_term() -> ConveyorRelativeJointPositionAction:
     action._workspace_lower = workspace_lower
     action._workspace_upper = workspace_upper
     action._raw_actions = torch.zeros((2, 7))
+    action._previous_actions = torch.zeros((2, 7))
     action._processed_actions = torch.zeros((2, 7))
     action._position_targets = positions.clone()
     action._invalid_actions = torch.zeros(2, dtype=torch.bool)
@@ -79,6 +80,7 @@ def _make_gripper_action_term() -> ResetBufferedGripperAction:
     action = object.__new__(ResetBufferedGripperAction)
     action.cfg = SimpleNamespace(clip=None, command_name="transfer", force_close_steps=2)
     action._raw_actions = torch.zeros((2, 1))
+    action._previous_actions = torch.zeros((2, 1))
     action._processed_actions = torch.zeros((2, 2))
     action._open_command = torch.full((2,), 0.04)
     action._close_command = torch.zeros(2)
@@ -132,6 +134,50 @@ def test_invalid_action_termination_and_reset_are_per_environment():
     gripper_action._invalid_actions[1] = False
 
     assert invalid_action(env).tolist() == [False, False]
+
+
+def test_action_rate_uses_finite_commands_and_preserves_invalid_termination():
+    """A rejected policy output has a finite final reward without hiding its termination."""
+    arm_action = _make_arm_action_term()
+    gripper_action = _make_gripper_action_term()
+    arm_action.process_actions(torch.full((2, 7), 0.25))
+    gripper_action.process_actions(torch.tensor(((-1.0,), (1.0,))))
+    arm_action.process_actions(
+        torch.tensor(((float("nan"), float("inf"), -float("inf"), 5.0, -5.0, 0.5, -0.5), (0.5,) * 7))
+    )
+    gripper_action.process_actions(torch.tensor(((float("nan"),), (-1.0,))))
+    actions = {"arm_action": arm_action, "gripper_action": gripper_action}
+    env = SimpleNamespace(num_envs=2, action_manager=SimpleNamespace(get_term=actions.__getitem__))
+
+    reward = finite_action_rate_l2(env)
+
+    expected_arm = torch.square(arm_action.raw_actions - arm_action.previous_actions).sum(dim=1)
+    expected_gripper = torch.square(gripper_action.raw_actions - gripper_action.previous_actions).sum(dim=1)
+    torch.testing.assert_close(reward, expected_arm + expected_gripper)
+    assert torch.isfinite(reward).all()
+    assert invalid_action(env).tolist() == [True, False]
+
+
+def test_action_rate_matches_standard_l2_for_ordinary_policy_actions():
+    """Finite in-range policy commands retain the standard action-rate semantics."""
+    arm_action = _make_arm_action_term()
+    gripper_action = _make_gripper_action_term()
+    previous_arm = torch.tensor(((0.1,) * 7, (-0.2,) * 7))
+    current_arm = torch.tensor(((-0.3,) * 7, (0.4,) * 7))
+    previous_gripper = torch.tensor(((-1.0,), (1.0,)))
+    current_gripper = -previous_gripper
+    arm_action.process_actions(previous_arm)
+    gripper_action.process_actions(previous_gripper)
+    arm_action.process_actions(current_arm)
+    gripper_action.process_actions(current_gripper)
+    actions = {"arm_action": arm_action, "gripper_action": gripper_action}
+    env = SimpleNamespace(num_envs=2, action_manager=SimpleNamespace(get_term=actions.__getitem__))
+
+    reward = finite_action_rate_l2(env)
+
+    previous = torch.cat((previous_arm, previous_gripper), dim=1)
+    current = torch.cat((current_arm, current_gripper), dim=1)
+    torch.testing.assert_close(reward, torch.square(current - previous).sum(dim=1))
 
 
 def test_final_config_validation_catches_overridden_arm_contracts():

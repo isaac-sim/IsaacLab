@@ -101,6 +101,19 @@ def action_term_l2(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
     return torch.sum(torch.square(action), dim=1)
 
 
+def finite_action_rate_l2(
+    env: ManagerBasedRLEnv,
+    action_names: tuple[str, ...] = ("arm_action", "gripper_action"),
+) -> torch.Tensor:
+    """Penalize changes between the finite policy commands accepted by action terms."""
+    if not action_names:
+        raise ValueError("At least one action term is required for the action-rate reward.")
+    terms = tuple(env.action_manager.get_term(name) for name in action_names)
+    action = torch.cat(tuple(term.raw_actions for term in terms), dim=1)
+    previous_action = torch.cat(tuple(term.previous_actions for term in terms), dim=1)
+    return torch.sum(torch.square(action - previous_action), dim=1)
+
+
 def physical_cube_acquisition_mask(
     env: ManagerBasedRLEnv,
     command_name: str = "transfer",
