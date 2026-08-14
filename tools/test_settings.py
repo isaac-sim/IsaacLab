@@ -84,23 +84,15 @@ These tests are skipped in the base image CI jobs and run in the dedicated
 ``test-curobo`` CI job which uses the cuRobo Docker image.
 """
 
-SKILLGEN_TESTS = [
-    "test_generate_dataset_skillgen.py",
-]
-"""SkillGen and AutoMate environment tests.
-
-These tests are skipped in the base image CI jobs and run in the dedicated
-``test-skillgen`` CI job which uses the cuRobo Docker image.
-"""
-
 CUROBO_TESTS = [
     *CUROBO_PLANNER_TESTS,
-    *SKILLGEN_TESTS,
+    "test_generate_dataset_skillgen.py",
+    "test_contrib_environments.py",
 ]
 """A list of tests that require cuRobo installation.
 
 These tests are skipped in the base image CI jobs and run separately in the
-dedicated ``test-curobo`` and ``test-skillgen`` CI jobs which use the cuRobo
+dedicated ``test-curobo`` and ``test-contrib-environments`` CI jobs which use the cuRobo
 Docker image.
 """
 

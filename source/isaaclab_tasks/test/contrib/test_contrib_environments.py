@@ -21,7 +21,17 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("task_name", setup_environment(multi_agent=False, tier="contrib"))
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
-def test_contrib_environments(task_name, num_envs, device):
-    _run_environments(task_name, device, num_envs)
+def _contrib_environment_params() -> list:
+    """Return each contributed environment with its supported test device."""
+    params = []
+    for task_param in setup_environment(multi_agent=False, tier="contrib"):
+        task_name = getattr(task_param, "values", (task_param,))[0]
+        marks = getattr(task_param, "marks", ())
+        device = "cpu" if "Suction" in task_name else "cuda"
+        params.append(pytest.param(task_name, device, id=task_name, marks=marks))
+    return params
+
+
+@pytest.mark.parametrize("task_name, device", _contrib_environment_params())
+def test_contrib_environments(task_name, device):
+    _run_environments(task_name, device, num_envs=2)

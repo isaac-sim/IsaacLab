@@ -250,10 +250,6 @@ def _run_environments(
     if get_isaac_sim_version().major < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
-    # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation
-    if "Suction" in task_name and device != "cpu":
-        return
-
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if num_envs == 32 and task_name in [
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
@@ -261,10 +257,6 @@ def _run_environments(
         "IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
         "IsaacContrib-PickPlace-G1-InspireFTP-Abs",
     ]:
-        return
-
-    # these environments are using SingleArticulation class, which need to be updated
-    if "RmpFlow" in task_name or "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor" in task_name:
         return
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
