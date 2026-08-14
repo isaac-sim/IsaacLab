@@ -49,11 +49,11 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 
    Extras install capabilities; task selectors choose how to use them. For example,
    ``--extra ovphysx`` makes the OV PhysX integration available, while
-   ``physics=ovphysx`` selects it for the task. Extras can be combined freely, and
-   ``--extra all`` installs every backend, RL library, and visualizer at once (the specialized
-   extras ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp``
-   are not included; request them by name). See :ref:`installation-optional-extras` for the
-   complete list.
+   ``physics=ovphysx`` selects it for the task. Extras can be combined freely. The
+   ``--extra all`` shortcut installs a curated set of backends, RL libraries, and visualizers.
+   It does not include the specialized extras ``rlinf``, ``mimic``, ``teleop``,
+   ``tetrahedralization``, ``video``, and ``leapp``; request them by name. See
+   :ref:`installation-optional-extras` for the complete list.
 
 
 Choose an RL library
