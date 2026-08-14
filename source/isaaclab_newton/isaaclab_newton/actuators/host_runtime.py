@@ -83,9 +83,6 @@ class _HostActuatorRuntime:
             dof_offset=0,
             num_joints=articulation.num_joints,
         )
-        articulation.newton_default_stiffness = self.binding.stiffness
-        articulation.newton_default_damping = self.binding.damping
-        articulation.newton_managed_local_joints = self.binding.joint_indices
         articulation._implicit_dof_mask = self.binding.implicit_dof_mask
         articulation._implicit_dof_mask_owner = self.binding.implicit_dof_mask_owner
         articulation._data._sim_bind_joint_computed_effort = self.binding.computed_effort_view

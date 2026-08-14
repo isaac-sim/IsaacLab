@@ -24,7 +24,7 @@ USD authoring lives on the schema side as
 it through :meth:`ArticulationCfg._post_spawn`.
 """
 
-from .adapter import NewtonActuatorAdapter, build_newton_actuator_defaults
+from .adapter import NewtonActuatorAdapter
 from .kernels import build_implicit_dof_mask
 from .physx_wrapper import PhysxActuatorWrapper
 
@@ -32,5 +32,4 @@ __all__ = [
     "NewtonActuatorAdapter",
     "PhysxActuatorWrapper",
     "build_implicit_dof_mask",
-    "build_newton_actuator_defaults",
 ]

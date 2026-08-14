@@ -52,9 +52,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         self._host_actuator_runtime = None
         articulation._physx_actuator_wrapper = None
         articulation.newton_actuator_adapter = None
-        articulation.newton_default_stiffness = None
-        articulation.newton_default_damping = None
-        articulation.newton_managed_local_joints = None
         articulation._implicit_dof_mask = None
         articulation._has_newton_actuators = False
 

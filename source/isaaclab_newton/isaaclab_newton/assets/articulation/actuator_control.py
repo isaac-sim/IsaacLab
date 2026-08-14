@@ -46,9 +46,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         articulation._has_newton_actuators = False
         articulation._implicit_dof_mask = None
         articulation.newton_actuator_adapter = None
-        articulation.newton_default_stiffness = None
-        articulation.newton_default_damping = None
-        articulation.newton_managed_local_joints = None
 
         use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
         if use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
@@ -91,14 +88,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 lab_actuators=dict(collection.items()),
                 dof_offset=arti_start,
                 num_joints=self.num_joints,
-                joint_user_to_backend_indices=(
-                    joint_ordering.user_to_backend_indices if joint_ordering is not None else None
-                ),
             )
             articulation.newton_actuator_adapter = adapter
-            articulation.newton_default_stiffness = binding.stiffness
-            articulation.newton_default_damping = binding.damping
-            articulation.newton_managed_local_joints = binding.joint_indices
             articulation._implicit_dof_mask = binding.implicit_dof_mask
             articulation._implicit_dof_mask_owner = binding.implicit_dof_mask_owner
             articulation._data._sim_bind_joint_computed_effort = binding.computed_effort_view

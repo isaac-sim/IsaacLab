@@ -779,29 +779,26 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
                 torch.testing.assert_close(cartpole_joints.damping[env_idx], cartpole_damping_before[env_idx])
 
 
-class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
-    """Regression: the init-time kp/kd snapshot must be correct for every env.
+class TestNewtonActuatorGainEnvStride(unittest.TestCase):
+    """Regression: native gain reads must decode the env-major DOF stride for every env.
 
-    ``build_newton_actuator_defaults`` scatters each Newton actuator's
+    ``read_newton_actuator_gain`` gathers each Newton actuator's
     ``controller.kp`` / ``controller.kd`` into a per-articulation
-    ``(num_envs, num_joints)`` tensor (``newton_default_stiffness`` /
-    ``newton_default_damping``), which ``randomize_actuator_gains`` reads as
-    its DR baseline. On a floating-base articulation the actuator ``indices``
-    are laid out env-major with a per-env stride equal to the *whole model's*
-    per-env DOF count (free-root DOFs + joints), which exceeds
-    ``articulation.num_joints``. If the scatter decodes the env with
-    ``num_joints`` instead of that stride, env 1's DOFs alias to the wrong
-    rows (and partly out of bounds), corrupting the snapshot for every env
-    past the first.
+    ``(num_envs, num_joints)`` tensor — the projection behind
+    ``actuators[...].stiffness`` on native groups. On a floating-base
+    articulation the actuator ``indices`` are laid out env-major with a
+    per-env stride equal to the *whole model's* per-env DOF count
+    (free-root DOFs + joints), which exceeds ``articulation.num_joints``.
+    If the gather decodes the env with ``num_joints`` instead of that
+    stride, env 1's DOFs alias to the wrong rows (and partly out of
+    bounds), corrupting the projection for every env past the first.
 
     ANYmal-C is floating base (6 free-root DOFs + 12 actuated joints -> a
-    per-env stride of 18 vs. ``num_joints == 12``), so the bug manifests here
-    with ``NUM_ENVS == 2``: without the fix, ``newton_default_stiffness[1]``
-    is not uniformly the configured gain (its leading entries stay zero, as
-    they are never written).
+    per-env stride of 18 vs. ``num_joints == 12``), so the bug manifests
+    here with ``NUM_ENVS == 2``.
     """
 
-    def test_snapshot_matches_config_for_all_envs(self):
+    def test_projected_gains_match_config_for_all_envs(self):
         sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
         with build_simulation_context(
             device="cuda:0",
@@ -820,21 +817,11 @@ class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
             sim.reset()
             assert anymal.is_initialized
 
-            stiffness = anymal.newton_default_stiffness
-            damping = anymal.newton_default_damping
-            self.assertIsNotNone(stiffness, "expected a Newton kp snapshot with use_newton_actuators=True")
-            self.assertIsNotNone(damping, "expected a Newton kd snapshot with use_newton_actuators=True")
-
-            n_j = anymal.num_joints
-            self.assertEqual(tuple(stiffness.shape), (NUM_ENVS, n_j))
-            self.assertEqual(tuple(damping.shape), (NUM_ENVS, n_j))
-
             # IDEAL_PD_ACTUATORS covers all 12 joints with constant gains, so
             # every cell of both env rows must equal the configured value.
+            n_j = anymal.num_joints
             expected_kp = torch.full((NUM_ENVS, n_j), 40.0, device=anymal.device)
             expected_kd = torch.full((NUM_ENVS, n_j), 5.0, device=anymal.device)
-            torch.testing.assert_close(stiffness, expected_kp)
-            torch.testing.assert_close(damping, expected_kd)
             torch.testing.assert_close(anymal.actuators["legs"].stiffness, expected_kp)
             torch.testing.assert_close(anymal.actuators["legs"].damping, expected_kd)
 
@@ -1577,9 +1564,9 @@ def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> Non
     np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
 
 
-def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
-    """Convert Newton actuator gain snapshots and managed IDs into public joint order."""
-    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+def test_newton_actuator_gain_read_follows_requested_public_joint_order() -> None:
+    """Project Newton actuator gains and coverage into public joint order."""
+    from isaaclab_newton.actuators.adapter import read_newton_actuator_gain
 
     controller = types.SimpleNamespace(
         kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
@@ -1590,24 +1577,17 @@ def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
         indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
     )
 
-    stiffness, damping, managed = build_newton_actuator_defaults(
-        actuators=[actuator],
-        num_envs=2,
-        num_joints=3,
-        dof_offset=0,
-        env_stride=3,
-        device="cpu",
-        joint_user_to_backend_indices=(2, 0, 1),
-    )
+    stiffness, covered = read_newton_actuator_gain([actuator], "kp", 2, 3, 0, 3, "cpu", (2, 0, 1))
+    damping, _ = read_newton_actuator_gain([actuator], "kd", 2, 3, 0, 3, "cpu", (2, 0, 1))
 
     torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
     torch.testing.assert_close(damping, torch.tensor([[3.0, 1.0, 0.0], [3.1, 1.1, 0.0]]))
-    torch.testing.assert_close(managed, torch.tensor([0, 1], dtype=torch.int32))
+    torch.testing.assert_close(covered, torch.tensor([True, True, False]))
 
 
-def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
-    """Reject malformed actuator-default ordering maps with an actionable error."""
-    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+def test_newton_actuator_gain_read_rejects_incomplete_joint_permutation() -> None:
+    """Reject malformed gain-projection ordering maps with an actionable error."""
+    from isaaclab_newton.actuators.adapter import read_newton_actuator_gain
 
     with pytest.raises(
         ValueError,
@@ -1616,15 +1596,7 @@ def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
             r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
         ),
     ):
-        build_newton_actuator_defaults(
-            actuators=[],
-            num_envs=1,
-            num_joints=3,
-            dof_offset=0,
-            env_stride=3,
-            device="cpu",
-            joint_user_to_backend_indices=(0, 0, 2),
-        )
+        read_newton_actuator_gain([], "kp", 1, 3, 0, 3, "cpu", (0, 0, 2))
 
 
 if __name__ == "__main__":
