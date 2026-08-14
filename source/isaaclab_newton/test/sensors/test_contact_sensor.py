@@ -558,7 +558,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         scene_cfg.contact_sensor_a = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/ObjectA",
             update_period=0.0,
-            history_length=1,
+            history_length=0,
             filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
         )
 
