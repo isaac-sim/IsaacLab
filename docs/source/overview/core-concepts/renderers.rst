@@ -68,10 +68,12 @@ multi-environment scenes.
 
 By default, ``global_settings.show_partitions_in_background=True`` leaves the Kit
 spectator camera unpartitioned so it sees all environments while tiled cameras remain
-isolated. This mode requires environments to remain spatially separated; overlapping
-partition bounds can make content leak into another environment or disappear. Set the
-field to ``False`` to prioritize partition isolation and show only the selected
-environment in the Kit viewport.
+isolated. Isaac Lab's standard Kit experiences enable this capability before RTX
+initialization. Custom experiences must likewise set
+``rtx.scenePartitioning.showPartitionsInBackground=true`` at launch. This mode requires
+environments to remain spatially separated; overlapping partition bounds can make
+content leak into another environment or disappear. Set the field to ``False`` to
+prioritize partition isolation and show only the selected environment in the Kit viewport.
 
 Prims outside the environment hierarchies remain in the shared background partition.
 Global :class:`~isaaclab.markers.VisualizationMarkers` groups can instead assign each

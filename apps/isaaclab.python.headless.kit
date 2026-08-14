@@ -88,6 +88,7 @@ app.useFabricSceneDelegate = false
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 renderer.scenePartitioning.enabled = true # Enable before RTX initialization so env-root partitions are honored
+rtx.scenePartitioning.showPartitionsInBackground = true # Enable the all-environment spectator view
 
 # Avoid warning on shutdown from audio context
 app.audio.enabled = false

@@ -13,6 +13,8 @@ Changed
   ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
   still supplies the config construction default and now accepts only ``0`` or
   ``1``. OVRTX remains always-on.
+* Changed the standard Kit experiences to initialize the all-environment
+  spectator view before RTX startup.
 
 Fixed
 ^^^^^

@@ -55,3 +55,20 @@ def test_base_experiences_enable_native_storage(experience: str):
 def test_derived_experiences_inherit_native_storage(experience: str, base: str):
     """Test the derived experiences inherit native storage from a base experience."""
     assert base in _kit_dependencies(experience)
+
+
+@pytest.mark.parametrize(
+    "experience",
+    [
+        "isaaclab.python.kit",
+        "isaaclab.python.headless.kit",
+        "isaaclab.python.rendering.kit",
+        "isaaclab.python.headless.rendering.kit",
+        "isaaclab.python.xr.openxr.kit",
+        "isaaclab.python.xr.openxr.headless.kit",
+    ],
+)
+def test_experiences_enable_scene_partition_spectator_view(experience: str):
+    """Test spectator-view support is enabled before RTX initialization."""
+    experience_text = (APPS_DIR / experience).read_text(encoding="utf-8")
+    assert "rtx.scenePartitioning.showPartitionsInBackground = true" in experience_text
