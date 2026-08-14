@@ -605,22 +605,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             names = tuple(name for name, group in self._groups.items() if type(group) is actuator_type)
             groups = tuple(self._groups[name] for name in names)
             joint_indices = [group_joint_indices[name] for name in names]
-            parameter_names = actuator_type.__dict__.get("_EXECUTION_PARAMETER_NAMES")
 
-            if native_actuator_path_active or parameter_names is None:
-                for name, group, indices in zip(names, groups, joint_indices):
-                    batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
-                continue
-
-            if len(groups) < 2:
+            if native_actuator_path_active or actuator_type is not ImplicitActuator or len(groups) < 2:
                 for name, group, indices in zip(names, groups, joint_indices):
                     batch_by_group[name] = self._make_execution_batch((name,), (group,), indices)
                 continue
 
             combined = torch.cat(joint_indices)
-            executor = actuator_type._build_execution_actuator(groups)
+            executor = ImplicitActuator._build_execution_actuator(groups)
             batch = self._make_execution_batch(names, groups, combined, executor=executor)
-            self._bind_execution_batch_parameters(batch, groups, parameter_names)
+            self._bind_execution_batch_parameters(batch, groups)
             for name in names:
                 batch_by_group[name] = batch
 
@@ -637,10 +631,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self,
         batch: _ExecutionBatch,
         groups: Sequence[ActuatorBase],
-        parameter_names: tuple[str, ...],
     ) -> None:
-        """Bind logical group tensors to slices of their shared executor tensors."""
-        tensor_names = (*parameter_names, "computed_effort", "applied_effort")
+        """Bind logical implicit group tensors to slices of their shared executor tensors."""
+        tensor_names = ("velocity_limit", "computed_effort", "applied_effort")
         bindings: list[tuple[ActuatorBase, str, torch.Tensor]] = []
         for group, group_slice in zip(groups, batch.group_slices):
             for name in tensor_names:

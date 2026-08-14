@@ -31,13 +31,6 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
-_MODEL_EXECUTION_PARAMETER_NAMES = (
-    "actuator_effort_limit",
-    "velocity_limit",
-    "stiffness",
-    "damping",
-)
-
 
 def _initialize_pd_gains(
     actuator: ImplicitActuator | IdealPDActuator,
@@ -312,8 +305,6 @@ class IdealPDActuator(ActuatorBase):
     Shape is (num_envs, num_joints).
     """
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = _MODEL_EXECUTION_PARAMETER_NAMES
-
     stiffness: torch.Tensor
     """Actuator stiffness [N/m or N·m/rad, depending on joint type]."""
 
@@ -485,8 +476,6 @@ class DCMotor(IdealPDActuator):
     cfg: DCMotorCfg
     """The configuration for the actuator model."""
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = IdealPDActuator._EXECUTION_PARAMETER_NAMES
-
     def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # parse configuration
@@ -518,23 +507,6 @@ class DCMotor(IdealPDActuator):
     """
     Helper functions.
     """
-
-    @classmethod
-    def _build_execution_actuator(cls, actuators: Sequence[ActuatorBase]) -> ActuatorBase:
-        executor = super()._build_execution_actuator(actuators)
-        executor._saturation_effort = torch.cat(
-            [
-                torch.full_like(actuator.actuator_effort_limit, float(actuator._saturation_effort))
-                for actuator in actuators
-            ],
-            dim=1,
-        )
-        executor._vel_at_effort_lim = executor.velocity_limit * (
-            1 + executor.actuator_effort_limit / executor._saturation_effort
-        )
-        executor._joint_vel = torch.zeros_like(executor.computed_effort)
-        executor._zeros_effort = torch.zeros_like(executor.computed_effort)
-        return executor
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         # save current joint vel
