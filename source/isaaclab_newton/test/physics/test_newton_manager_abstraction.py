@@ -984,20 +984,42 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
         assert manager._supports_rigid_body_force_input is False
 
 
-def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch):
-    """Viewer force callbacks are registered after capability publication and before capture."""
+@pytest.mark.parametrize(
+    "native_path_active, native_graphable, expected_events",
+    [
+        pytest.param(False, False, ["prepare", "capture"], id="lab_actuators"),
+        pytest.param(True, False, ["prepare", "capture"], id="native_non_graphable"),
+        pytest.param(True, True, ["prepare"], id="native_graphable"),
+    ],
+)
+def test_initialize_solver_prepares_picking_before_graph_capture(
+    monkeypatch, native_path_active, native_graphable, expected_events
+):
+    """Viewer setup precedes initial capture, which only graphable native actuators defer."""
     events: list[str] = []
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
-        device="cuda:0",
+        device="cpu",
         physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        build_solver = NewtonMJWarpManager._build_solver
+
+        def build_solver_with_actuator_mode(cls, model, solver_cfg):
+            build_solver(model, solver_cfg)
+            NewtonManager._use_newton_actuators_active = native_path_active
+            NewtonManager._adapter = SimpleNamespace(is_all_graphable=native_graphable)
+
         builder = sim.physics_manager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
+        monkeypatch.setattr(
+            NewtonMJWarpManager,
+            "_build_solver",
+            classmethod(build_solver_with_actuator_mode),
+        )
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
         monkeypatch.setattr(
             NewtonMJWarpManager,
@@ -1007,7 +1029,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch):
 
         sim.reset()
 
-    assert events == ["prepare", "capture"]
+    assert events == expected_events
 
 
 def test_abstract_build_solver_raises():

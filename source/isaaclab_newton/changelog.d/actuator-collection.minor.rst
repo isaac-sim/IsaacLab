@@ -12,3 +12,9 @@ Changed
 * Changed host-adapter execution of Newton actuators on PhysX and OVPhysX to
   aggregate structurally compatible joints while retaining their per-joint
   parameters.
+
+Fixed
+^^^^^
+
+* Fixed Newton-native execution with non-graphable actuators to keep solver
+  stepping in a CUDA graph.
