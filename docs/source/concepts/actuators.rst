@@ -509,10 +509,10 @@ Logical groups and execution batches
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Named groups such as ``hips`` and ``knees`` remain distinct when you configure or access them.
-Isaac Lab may batch compatible stateless groups internally without changing the tensors returned
-by ``robot.actuators["hips"]``. Each joint may belong to only one group; overlapping selections
-raise :class:`ValueError`. Stateful, neural, native, and incompatible groups are not batched.
-Batching is an internal optimization.
+Isaac Lab may batch disjoint implicit actuator groups internally without changing the tensors
+returned by ``robot.actuators["hips"]``. Each joint may belong to only one group; overlapping
+selections raise :class:`ValueError`. Explicit, stateful, neural, native, and subclassed groups
+are not batched and execute one group at a time. Batching is an internal optimization.
 
 Commands, telemetry, and lifecycle
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -47,6 +47,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     before construction; assigning or deleting mapping entries raises
     :class:`TypeError`. Each joint can belong to at most one group; overlapping
     joint selections raise :class:`ValueError` during construction.
+
+    Disjoint :class:`~isaaclab.actuators.ImplicitActuator` groups may share one
+    internal execution batch; all other groups execute one group at a time.
     """
 
     # Initialization.

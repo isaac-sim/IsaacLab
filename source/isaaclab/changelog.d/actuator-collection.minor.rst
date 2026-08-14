@@ -4,8 +4,9 @@ Added
 * Added :class:`~isaaclab.actuators.ActuatorCollection` as the runtime
   actuator API, with separate command, processed joint-command, and telemetry
   views.
-* Added execution aggregation for disjoint stateless actuator groups while
-  preserving named group configuration and access.
+* Added execution aggregation for disjoint implicit actuator groups while
+  preserving named group configuration and access. Explicit actuator groups
+  execute one group at a time.
 * Added ``actuator_effort_limit`` as the explicit actuator-model clipping
   limit, alongside the canonical ``joint_effort_limit`` and
   ``joint_velocity_limit`` joint-property overrides.
@@ -45,8 +46,8 @@ Changed
 ^^^^^^^
 
 * Changed :class:`~isaaclab.actuators.ActuatorCollection` so named groups retain
-  their configuration and access identity while compatible groups can share
-  execution.
+  their configuration and access identity while disjoint implicit groups can
+  share execution.
 * Changed :attr:`~isaaclab.actuators.ImplicitActuatorCfg.velocity_limit` to
   populate the actuator soft velocity-limit view. Use ``joint_velocity_limit``
   to configure the solver velocity clamp.
