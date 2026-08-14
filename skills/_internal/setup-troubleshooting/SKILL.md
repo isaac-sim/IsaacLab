@@ -4,10 +4,6 @@ description: Use when installing Isaac Lab, verifying setup, debugging launch fa
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <isaaclab@nvidia.com>
-audience: user
-status: experimental
-owners:
-  - isaaclab-maintainers
 ---
 
 # Setup Troubleshooting
