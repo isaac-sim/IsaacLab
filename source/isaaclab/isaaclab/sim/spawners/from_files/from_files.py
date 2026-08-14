@@ -358,7 +358,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
         elif articulation_fix_root_link is not None:
             # topology-only path: no fragments to author, but the root link must still be fixed
             schemas.apply_articulation_root_properties(
-                props_expr(prim_path, "**"),
+                props_expr(prim_path, "(/.*)?"),
                 [],
                 fix_root_link=articulation_fix_root_link,
                 create_if_missing=cfg.articulation_props_create_if_missing,

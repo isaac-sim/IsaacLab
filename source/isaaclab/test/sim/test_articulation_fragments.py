@@ -142,7 +142,7 @@ def test_apply_articulation_root_properties_tunes_existing_child_root():
     UsdPhysics.ArticulationRootAPI.Apply(child)  # asset already carries its root on a child prim
 
     apply_articulation_root_properties(
-        "/World/Asset/**",
+        "/World/Asset(/.*)?",
         [PhysxArticulationCfg(solver_position_iteration_count=8)],
         stage,
     )
@@ -177,7 +177,7 @@ def test_apply_articulation_root_properties_processes_siblings_and_aggregates_re
         visited.append(path)
         return path != "/World/B"
 
-    result = apply_articulation_root_properties("/World/**", [PhysxArticulationCfg(func=record_result)], stage)
+    result = apply_articulation_root_properties("/World(/.*)?", [PhysxArticulationCfg(func=record_result)], stage)
 
     assert visited == ["/World/A", "/World/B"]
     assert result is False
@@ -202,7 +202,7 @@ def test_apply_articulation_root_properties_warns_on_nested_roots(caplog):
 
     with caplog.at_level("WARNING"):
         result = apply_articulation_root_properties(
-            "/World/Bot/**", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
+            "/World/Bot(/.*)?", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
         )
 
     assert result is True
@@ -227,7 +227,7 @@ def test_apply_articulation_root_properties_processes_sibling_roots_via_expressi
     UsdPhysics.ArticulationRootAPI.Apply(right)
 
     result = apply_articulation_root_properties(
-        "/World/Rig/**", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
+        "/World/Rig(/.*)?", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
     )
 
     assert result is True
@@ -255,7 +255,7 @@ def test_apply_articulation_root_properties_does_not_duplicate_instance_proxy_ro
 
     with caplog.at_level("WARNING"):
         result = apply_articulation_root_properties(
-            "/World/Asset/**", [PhysxArticulationCfg(solver_position_iteration_count=4)], stage
+            "/World/Asset(/.*)?", [PhysxArticulationCfg(solver_position_iteration_count=4)], stage
         )
 
     assert result is False
@@ -311,7 +311,7 @@ def test_apply_articulation_root_properties_enables_existing_joint_and_relocates
     joint.CreateBody1Rel().SetTargets([root.GetPath()])
     joint.CreateJointEnabledAttr(False)
 
-    apply_articulation_root_properties("/World/ExistingJointRobot/**", [], stage, fix_root_link=True)
+    apply_articulation_root_properties("/World/ExistingJointRobot(/.*)?", [], stage, fix_root_link=True)
 
     joints = [prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.FixedJoint)]
     assert joints == [joint.GetPrim()]
@@ -346,7 +346,7 @@ def test_apply_articulation_root_properties_creates_fixed_joint_and_reparents_ro
     assert not any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
 
     apply_articulation_root_properties(
-        "/World/Robot/**",
+        "/World/Robot(/.*)?",
         [PhysxArticulationCfg(articulation_enabled=True)],
         stage,
         fix_root_link=True,
@@ -424,7 +424,7 @@ def test_physx_and_newton_fragments_fix_root_link_keeps_single_root():
     UsdPhysics.ArticulationRootAPI.Apply(child)
 
     apply_articulation_root_properties(
-        "/World/Robot5/**",
+        "/World/Robot5(/.*)?",
         [
             PhysxArticulationCfg(solver_position_iteration_count=8),
             NewtonArticulationCfg(self_collision_enabled=True),
@@ -467,7 +467,7 @@ def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     # precondition: the composed schema makes the prim an articulation root without a direct anchor
     assert child.HasAPI(UsdPhysics.ArticulationRootAPI)
 
-    apply_articulation_root_properties("/World/UrdfBot/**", [], stage, fix_root_link=True)
+    apply_articulation_root_properties("/World/UrdfBot(/.*)?", [], stage, fix_root_link=True)
 
     parent = stage.GetPrimAtPath("/World/UrdfBot")
     # exactly one articulation root remains, and it is the (relocated) parent
@@ -502,7 +502,7 @@ def test_physx_fix_root_link_preserves_complete_authored_property_spec():
     source_attr.SetMetadata("documentation", "sampled sleep threshold")
     source_attr.AddConnection(driver_attr.GetPath())
 
-    apply_articulation_root_properties("/World/UsdBot/**", [], stage, fix_root_link=True)
+    apply_articulation_root_properties("/World/UsdBot(/.*)?", [], stage, fix_root_link=True)
 
     parent = stage.GetPrimAtPath("/World/UsdBot")
     assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
@@ -745,7 +745,7 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
     cfg = UsdFileCfg(
         usd_path=usd_path,
         articulation_props={
-            "**": [
+            "(/.*)?": [
                 PhysxArticulationCfg(solver_position_iteration_count=8),
                 NewtonArticulationCfg(self_collision_enabled=True),
             ],

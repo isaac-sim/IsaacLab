@@ -227,7 +227,7 @@ def test_mesh_collision_fragments_author_on_every_matched_collider():
     UsdPhysics.CollisionAPI.Apply(mesh_collider)
 
     result = apply_collision_properties(
-        "/World/Grp/**", [UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")], stage=stage
+        "/World/Grp(/.*)?", [UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")], stage=stage
     )
 
     assert result is True
@@ -326,7 +326,7 @@ def test_collision_fragments_create_on_every_matched_prim():
         UsdGeom.Xform.Define(stage, path)
 
     result = apply_collision_properties(
-        "/World/Grp/**", [PhysxCollisionCfg(contact_offset=0.02)], create_if_missing=True, stage=stage
+        "/World/Grp(/.*)?", [PhysxCollisionCfg(contact_offset=0.02)], create_if_missing=True, stage=stage
     )
 
     assert result is True

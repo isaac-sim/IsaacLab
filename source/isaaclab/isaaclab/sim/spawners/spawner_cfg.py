@@ -86,15 +86,16 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     """Mass properties.
 
     Accepts either a mapping from target pattern to a list of
-    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``{"**": [MassCfg(...)]}``) or a
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``{"(/.*)?": [MassCfg(...)]}``) or a
     single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg`. On the fragment path each
     fragment writes its own namespace.
 
-    Keys are target patterns relative to the prim the spawner anchors this family on (for USD
-    assets: the spawn prim; for shapes and meshes: the container prim). Each ``/``-separated token
-    is a regular expression matched per level, a trailing ``**`` token matches a prim and all its
-    descendants, and an empty string targets the anchor prim itself. Entries are applied in
-    insertion order, so on overlapping targets later entries override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on
+    (for USD assets: the spawn prim; for shapes and meshes: the container prim), so a key carries
+    its own leading ``/`` when it targets descendants: ``""`` is the anchor itself, ``"/[^/]+"``
+    its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the anchor together with its
+    descendants. Entries are applied in insertion order, so on overlapping targets later entries
+    override earlier ones per attribute.
     """
 
     mass_props_create_if_missing: bool = False
@@ -110,15 +111,16 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
-    (e.g. ``{"**": [UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]}``) or a single legacy cfg
+    (e.g. ``{"(/.*)?": [UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]}``) or a single legacy cfg
     (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`). On the fragment path each fragment
     writes its own namespace.
 
-    Keys are target patterns relative to the prim the spawner anchors this family on (for USD
-    assets: the spawn prim; for shapes and meshes: the container prim). Each ``/``-separated token
-    is a regular expression matched per level, a trailing ``**`` token matches a prim and all its
-    descendants, and an empty string targets the anchor prim itself. Entries are applied in
-    insertion order, so on overlapping targets later entries override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on
+    (for USD assets: the spawn prim; for shapes and meshes: the container prim), so a key carries
+    its own leading ``/`` when it targets descendants: ``""`` is the anchor itself, ``"/[^/]+"``
+    its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the anchor together with its
+    descendants. Entries are applied in insertion order, so on overlapping targets later entries
+    override earlier ones per attribute.
 
     For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
     (or :attr:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled`) as True. This will
@@ -130,16 +132,16 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
-    (e.g. ``{"**": [UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]}``) or a single legacy cfg
+    (e.g. ``{"(/.*)?": [UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]}``) or a single legacy cfg
     (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`). On the fragment path each fragment
     writes its own namespace.
 
-    Keys are target patterns relative to the prim the spawner anchors this family on (for USD
-    assets: the spawn prim; for shapes and meshes: the geometry prim the spawner authors). Each
-    ``/``-separated token is a regular expression matched per level, a trailing ``**`` token
-    matches a prim and all its descendants, and an empty string targets the anchor prim itself.
-    Entries are applied in insertion order, so on overlapping targets later entries override
-    earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on
+    (for USD assets: the spawn prim; for shapes and meshes: the geometry prim the spawner
+    authors), so a key carries its own leading ``/`` when it targets descendants: ``""`` is the
+    anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"``
+    the anchor together with its descendants. Entries are applied in insertion order, so on
+    overlapping targets later entries override earlier ones per attribute.
     """
 
     activate_contact_sensors: bool = False

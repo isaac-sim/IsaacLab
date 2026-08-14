@@ -150,7 +150,7 @@ def test_apply_mass_properties_creates_on_every_matched_prim():
     UsdPhysics.RigidBodyAPI.Apply(body)
     plain = UsdGeom.Xform.Define(stage, "/World/Bot/frame").GetPrim()
 
-    result = apply_mass_properties("/World/Bot/**", [MassCfg(mass=2.0)], create_if_missing=True, stage=stage)
+    result = apply_mass_properties("/World/Bot(/.*)?", [MassCfg(mass=2.0)], create_if_missing=True, stage=stage)
 
     assert result is True
     for prim in (root, body, plain):

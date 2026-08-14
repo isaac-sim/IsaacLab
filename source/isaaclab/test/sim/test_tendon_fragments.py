@@ -135,7 +135,7 @@ def test_apply_fixed_tendon_writes_all_instances():
 
 def test_apply_fixed_tendon_writer_descends_to_child_prims():
     # tendon schemas are authored on child joint prims, not the articulation root the spawner
-    # targets. Targeting is owned by the core writer: its trailing ``**`` token descends to
+    # targets. Targeting is owned by the core writer: its subtree expression descends to
     # every descendant carrying the schema, while the backend func is a per-prim tuner that
     # no-ops on a prim without the schema.
     from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
@@ -149,8 +149,8 @@ def test_apply_fixed_tendon_writer_descends_to_child_prims():
     child = _make_fixed_tendon_prim(stage, "/World/Robot/joint", instance="t0")  # child joint carries it
     # the backend func is per-prim: applied at the root it tunes nothing
     assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=8.0), "/World/Robot", stage) is False
-    # the core writer's ``**`` expression descends from the root to the joint
-    assert apply_fixed_tendon_properties("/World/Robot/**", [PhysxFixedTendonCfg(stiffness=8.0)], stage) is True
+    # the core writer's subtree expression descends from the root to the joint
+    assert apply_fixed_tendon_properties("/World/Robot(/.*)?", [PhysxFixedTendonCfg(stiffness=8.0)], stage) is True
     prefix = _tendon_attr_prefix(child, "PhysxTendonAxisRootAPI")
     assert abs(child.GetAttribute(f"{prefix}:stiffness").Get() - 8.0) < 1e-6
 
@@ -167,8 +167,8 @@ def test_apply_spatial_tendon_writer_descends_to_child_prims():
     child = _make_prim_with_schemas(stage, "/World/Robot2/joint", ["PhysxTendonAttachmentRootAPI:s0"])
     # the backend func is per-prim: applied at the root it tunes nothing
     assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=5.0), "/World/Robot2", stage) is False
-    # the core writer's ``**`` expression descends from the root to the joint
-    assert apply_spatial_tendon_properties("/World/Robot2/**", [PhysxSpatialTendonCfg(stiffness=5.0)], stage) is True
+    # the core writer's subtree expression descends from the root to the joint
+    assert apply_spatial_tendon_properties("/World/Robot2(/.*)?", [PhysxSpatialTendonCfg(stiffness=5.0)], stage) is True
     assert abs(child.GetAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness").Get() - 5.0) < 1e-6
 
 
@@ -339,7 +339,7 @@ def test_apply_fixed_tendon_properties_bare_parent_path_does_not_descend(caplog)
     UsdGeom.Xform.Define(stage, "/World/Parent")  # plain Xform: carries no tendon schema
     first = _make_fixed_tendon_prim(stage, "/World/Parent/J0", instance="t1")
     second = _make_fixed_tendon_prim(stage, "/World/Parent/J1", instance="t1")
-    # a bare parent path (no ``**``) matches only the parent, which is not a tendon target
+    # a bare parent path (no ``(/.*)?`` suffix) matches only the parent, which is not a tendon target
     with caplog.at_level("WARNING"):
         result = apply_fixed_tendon_properties("/World/Parent", [PhysxFixedTendonCfg(stiffness=50.0)], stage)
     assert result is False
@@ -443,7 +443,7 @@ def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
 
     # apply each path at the ROOT; both must descend to the child joints
     modify_fixed_tendon_properties("/World/legacy", PhysxFixedTendonPropertiesCfg(limit_stiffness=30.0, damping=0.1))
-    apply_fixed_tendon_properties("/World/fragment/**", [PhysxFixedTendonCfg(limit_stiffness=30.0, damping=0.1)])
+    apply_fixed_tendon_properties("/World/fragment(/.*)?", [PhysxFixedTendonCfg(limit_stiffness=30.0, damping=0.1)])
 
     def _collect(root):
         attrs = {}
@@ -478,6 +478,8 @@ def test_spawn_from_file_with_empty_tendon_lists_is_noop(tmp_path):
     del src
 
     _new_sim()
-    cfg = sim_utils.UsdFileCfg(usd_path=str(asset), fixed_tendons_props={"**": []}, spatial_tendons_props={"**": []})
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=str(asset), fixed_tendons_props={"(/.*)?": []}, spatial_tendons_props={"(/.*)?": []}
+    )
     cfg.func("/World/Asset", cfg)  # must not raise
     assert sim_utils.get_current_stage().GetPrimAtPath("/World/Asset").IsValid()
