@@ -18,14 +18,23 @@ import pytest
 import isaaclab_tasks  # noqa: F401
 
 # Local imports should be imported last
-from env_test_utils import _run_environments, setup_environment  # isort: skip
+from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_environment  # isort: skip
+
+
+_ENVIRONMENT_TASKS = setup_environment(multi_agent=False, physics_preset_name="ovphysx", tier="core")
 
 
 @pytest.mark.parametrize(
     "task_name",
-    setup_environment(multi_agent=False, physics_preset_name="ovphysx", tier="core"),
+    _ENVIRONMENT_TASKS,
 )
 @pytest.mark.parametrize("num_envs, device", [(2, "cuda")])
 @pytest.mark.isaacsim_ci
 def test_environments_ovphysx(task_name, num_envs, device):
     _run_environments(task_name, device, num_envs, physics_preset_name="ovphysx")
+
+
+@pytest.mark.parametrize("task_name", [task for task in _ENVIRONMENT_TASKS if task in SINGLE_ENVIRONMENT_TASKS])
+@pytest.mark.isaacsim_ci
+def test_single_environment_ovphysx(task_name):
+    _run_environments(task_name, "cuda", 1, physics_preset_name="ovphysx")

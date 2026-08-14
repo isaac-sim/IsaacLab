@@ -27,6 +27,13 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 # automatically pick up these marks via :class:`pytest.param`.
 XFAIL_TASKS: dict[str, str] = {}
 
+SINGLE_ENVIRONMENT_TASKS = (
+    "Isaac-Cartpole",
+    "Isaac-Reach-Franka",
+    "Isaac-Reorient-Cube-Shadow",
+    "Isaac-Velocity-Rough-AnymalD",
+)
+
 
 def _task_tier(task_spec) -> str | None:
     """Return ``"core"`` or ``"contrib"`` based on the task's env-config entry-point module.
