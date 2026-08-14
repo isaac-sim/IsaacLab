@@ -2068,6 +2068,8 @@ class Articulation(BaseArticulation):
         self,
         *,
         joint_friction_coeff: torch.Tensor | wp.array | float,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
@@ -2095,9 +2097,28 @@ class Articulation(BaseArticulation):
         Args:
             joint_friction_coeff: Joint friction force/torque [N or N·m, depending on joint type].
                 Shape is (len(env_ids), len(joint_ids)).
+            joint_dynamic_friction_coeff: Dynamic friction values. Newton has no dynamic joint
+                friction property; nonzero values are ignored with a warning.
+            joint_viscous_friction_coeff: Viscous friction values [N·s/m or N·m·s/rad, depending on
+                joint type] with the same shape. If None, the viscous component is not updated.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
+        if joint_dynamic_friction_coeff is not None:
+            dynamic = joint_dynamic_friction_coeff
+            if isinstance(dynamic, wp.array):
+                dynamic = wp.to_torch(dynamic)
+            has_dynamic = dynamic != 0.0 if isinstance(dynamic, (float, int)) else bool(torch.any(dynamic != 0.0))
+            if has_dynamic:
+                logger.warning(
+                    "Newton has no dynamic joint friction property; ignoring nonzero 'joint_dynamic_friction_coeff'."
+                )
+        if joint_viscous_friction_coeff is not None:
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+                joint_ids=joint_ids,
+                env_ids=env_ids,
+            )
         self._write_joint_float_property_to_sim_index(
             joint_friction_coeff,
             value_name="joint_friction_coeff",

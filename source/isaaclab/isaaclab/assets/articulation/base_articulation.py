@@ -1409,6 +1409,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
+        joint_dynamic_friction_coeff: torch.Tensor | float | wp.array | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | float | wp.array | None = None,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1428,6 +1430,11 @@ class BaseArticulation(AssetBase):
 
         Args:
             joint_friction_coeff: Backend-specific joint friction values. Shape is (len(env_ids), len(joint_ids)).
+            joint_dynamic_friction_coeff: Backend-specific dynamic friction values with the same shape.
+                If None, the dynamic component is not updated. Backends without a dynamic friction
+                property warn on nonzero values.
+            joint_viscous_friction_coeff: Backend-specific viscous friction values with the same shape.
+                If None, the viscous component is not updated.
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all instances).
         """

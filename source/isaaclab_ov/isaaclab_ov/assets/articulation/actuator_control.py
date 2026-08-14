@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
+from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
 
@@ -124,19 +124,6 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
     ) -> None:
         if self._host_actuator_runtime is not None:
             self._host_actuator_runtime.write_gain(attr, values, env_ids, joint_ids)
-
-    def _write_joint_friction_properties(
-        self,
-        properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | wp.array | slice,
-    ) -> None:
-        # OVPhysX writes all friction components through one packed binding.
-        self._articulation.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=properties.friction,
-            joint_dynamic_friction_coeff=properties.dynamic_friction,
-            joint_viscous_friction_coeff=properties.viscous_friction,
-            joint_ids=joint_ids,
-        )
 
     def stage_user_command(
         self,

@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
+from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.utils.queries import find_first_matching_prim
 
@@ -77,22 +77,6 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         # Legacy mask resolution accepted any nonzero-selectable mask; keep that.
         mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
         return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
-
-    def _write_joint_friction_properties(
-        self,
-        properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | wp.array | slice,
-    ) -> None:
-        articulation = self._articulation
-        super()._write_joint_friction_properties(properties, joint_ids)
-        articulation.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=properties.dynamic_friction,
-            joint_ids=joint_ids,
-        )
-        articulation.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=properties.viscous_friction,
-            joint_ids=joint_ids,
-        )
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation

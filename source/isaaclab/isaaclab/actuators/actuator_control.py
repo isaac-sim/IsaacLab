@@ -520,23 +520,18 @@ class ArticulationActuatorControl(ActuatorControl):
             joint_ids=joint_ids,
         )
         articulation.write_joint_armature_to_sim_index(armature=properties.armature, joint_ids=joint_ids)
-        self._write_joint_friction_properties(properties, joint_ids)
+        articulation.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff=properties.friction,
+            joint_dynamic_friction_coeff=properties.dynamic_friction,
+            joint_viscous_friction_coeff=properties.viscous_friction,
+            joint_ids=joint_ids,
+        )
         if implicit and not native_managed:
             articulation.write_joint_stiffness_to_sim_index(stiffness=properties.stiffness, joint_ids=joint_ids)
             articulation.write_joint_damping_to_sim_index(damping=properties.damping, joint_ids=joint_ids)
         else:
             articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=joint_ids)
             articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=joint_ids)
-
-    def _write_joint_friction_properties(
-        self,
-        properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | wp.array | slice,
-    ) -> None:
-        self._articulation.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=properties.friction,
-            joint_ids=joint_ids,
-        )
 
     def _joint_property_or_zeros(
         self,

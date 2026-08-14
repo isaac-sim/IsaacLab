@@ -17,7 +17,7 @@ import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from isaaclab.actuators.actuator_control import ActuatorJointProperties, ArticulationActuatorControl
+from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.assets.articulation import ordering_kernels
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -74,17 +74,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         SimulationManager.activate_newton_actuator_path()
 
         return native_group_names
-
-    def _write_joint_friction_properties(
-        self,
-        properties: ActuatorJointProperties,
-        joint_ids: torch.Tensor | wp.array | slice,
-    ) -> None:
-        super()._write_joint_friction_properties(properties, joint_ids)
-        self._articulation.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=properties.viscous_friction,
-            joint_ids=joint_ids,
-        )
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
         if not self._native_actuator_path_active:
