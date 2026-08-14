@@ -235,8 +235,9 @@ them by name):
 
 See :ref:`installation-optional-extras` for the available extras.
 
-Use ``uv run --extra <name> <command>`` for one invocation, or
-``uv sync --inexact --extra <name>`` to prepare the project environment for multiple commands.
+Pass ``--extra <name>`` to ``uv run`` when running a command that needs the extra.
+To install the extra in the project environment first, use
+``uv sync --inexact --extra <name>``.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
