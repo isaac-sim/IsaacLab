@@ -10,6 +10,7 @@ __all__ = [
     "add",
     "clone_plan_from_env_0",
     "disabled_fabric_change_notifies",
+    "expand_env_regex_ns",
     "filter_collisions",
     "grid_transforms",
     "make_clone_plan",
@@ -37,7 +38,7 @@ from .clone_plan import (
     make_valid_clone_combinations,
     num_spawn_variants,
 )
-from .cloner_cfg import CloneCfg, InclusionSet, add
+from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions
 from .replicate_session import (
