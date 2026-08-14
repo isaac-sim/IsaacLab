@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
 import math
 import sys
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ import warp as wp
 from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
+from newton.solvers import SolverVBD
 
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (
@@ -160,6 +162,26 @@ def test_newton_physics_context_is_replicate_context():
     from isaaclab_newton.cloner import PHYSICS_CONTEXT
 
     assert PHYSICS_CONTEXT is NewtonReplicateContext
+
+
+def test_vbd_cfg_forwards_rigid_contact_stability_controls():
+    """Forward VBD rigid-contact controls with Newton-compatible defaults."""
+    configured_values = {
+        "rigid_contact_hard": False,
+        "rigid_contact_history": True,
+        "rigid_avbd_contact_alpha": 0.0,
+        "rigid_avbd_beta": 100.0,
+        "rigid_body_contact_buffer_size": 256,
+    }
+    cfg = VBDSolverCfg(**configured_values)
+
+    solver_kwargs = NewtonVBDManager._filter_solver_kwargs(SolverVBD, cfg)
+
+    assert {name: solver_kwargs[name] for name in configured_values} == configured_values
+    solver_parameters = inspect.signature(SolverVBD.__init__).parameters
+    default_cfg = VBDSolverCfg()
+    for name in configured_values:
+        assert getattr(default_cfg, name) == solver_parameters[name].default
 
 
 def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
