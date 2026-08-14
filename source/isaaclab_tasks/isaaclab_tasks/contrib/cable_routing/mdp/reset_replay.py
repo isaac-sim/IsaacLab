@@ -142,11 +142,13 @@ class CableResetReplayCfg:
     """
 
     max_donor_fraction: float = 0.10
-    """Maximum fraction of a build batch that may reuse valid same-goal rows.
+    """Maximum fraction of the replay bank that may reuse valid same-goal rows.
 
     After exhausting physical generation attempts, a small rejection tail may
     copy already validated snapshots for the same route. The cap prevents a
     systemic reset-generation failure from being hidden by duplicated states.
+    It is evaluated over each completed bank prefix so a smaller final build
+    batch does not receive a disproportionately strict limit.
     """
 
     max_settle_linear_speed: float = 0.15

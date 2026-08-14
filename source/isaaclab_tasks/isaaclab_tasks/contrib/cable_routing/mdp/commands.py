@@ -1285,11 +1285,10 @@ class CableRoutingCommand(CommandTerm):
                     available_mask[failed_row_ids] = False
                     available_rows = available_mask.nonzero(as_tuple=False).squeeze(-1)
                     donor_rows: list[torch.Tensor] = []
-                    within_batch_limit = len(failed_rows) / count <= replay.cfg.max_donor_fraction
                     within_bank_limit = (replay.build_donor_count + len(failed_rows)) / (
                         bank_start + count
                     ) <= replay.cfg.max_donor_fraction
-                    if within_batch_limit and within_bank_limit:
+                    if within_bank_limit:
                         requested_progress = active_winding / self.cfg.completion_winding
                         for failed_row in failed_row_ids:
                             same_route = replay.route_id[available_rows] == route_ids[failed_row]
