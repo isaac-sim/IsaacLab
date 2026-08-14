@@ -200,17 +200,18 @@ jobs:
           image-tag: ${{ env.CI_IMAGE_TAG }}
           pytest-options: -m "not kitless"
 
-      - name: Resolve OV pins
-        # The kitless renderer ships as an optional wheel that is in neither the
-        # Isaac Sim nor the Isaac Lab image, so its stack needs it installed first.
+      - name: Resolve OV runtime pins from pyproject
+        # Same provisioning as the isaaclab_ov job: the ``ov`` extra is in
+        # MANUAL_EXTRA_FEATURES and the image does not carry it, so the pins are
+        # resolved and installed per run.
         if: always()
         id: ov_pins
         uses: ./.github/actions/resolve-ov-pins
 
       - name: Multi-GPU training smoke (kitless renderer)
-        # Same image and same tests as the step above, with ovrtx installed and the
-        # marker inverted. Split into its own step so a missing optional wheel cannot
-        # take down the Kit-renderer coverage, which is what the fix under test guards.
+        # Same image and tests as the step above with the marker inverted, plus ovrtx.
+        # Kept a separate step so a fault in the kitless renderer cannot take down the
+        # Kit-renderer coverage, which is what guards renderer device selection.
         if: always()
         uses: ./.github/actions/run-tests
         with:

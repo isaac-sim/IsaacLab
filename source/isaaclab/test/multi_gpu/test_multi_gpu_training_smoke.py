@@ -15,8 +15,8 @@ Tests:
 Unlike the rest of the suite these are not parametrized over ``device``: a
 multi-GPU run owns several devices at once, so the per-shard single-device
 parametrization the multi-GPU workflow applies elsewhere does not model it.
-They are driven by dedicated workflow steps instead: the ``kitless`` marker
-selects the stack whose renderer is an optional wheel the step installs first.
+They are driven by dedicated workflow steps instead, one per renderer, selected
+by the ``kitless`` marker.
 
 Cases are split by whether the visible devices are exposed in their natural
 order, because ``CUDA_VISIBLE_DEVICES`` renumbers devices for CUDA but not for
@@ -64,10 +64,9 @@ _CAMERA_RANKS = 4
 # graphics index, so no rank can be resolved by assuming the visible list is ordered.
 _UNORDERED_DEVICES = (3, 1, 2, 0)
 
-# (id, presets) for each physics/renderer stack worth covering, split by what the run needs
-# installed. Kit's RTX renderer ships in the image; ``ovrtx`` is an optional wheel that is in
-# neither the Isaac Sim nor the Isaac Lab image, so its stack runs in a separate step that
-# installs it first. The ``kitless`` marker is what selects between them.
+# (id, presets) for each physics/renderer stack worth covering, split by renderer so a fault in
+# one cannot mask the other: the Kit-renderer cases are what guard device selection. The
+# ``kitless`` marker selects between them.
 #
 # ``isaacsim_physx,ovrtx`` is absent by design: IsaacLab rejects it, since ovrtx
 # is a kitless renderer and cannot pair with Kit physics.
