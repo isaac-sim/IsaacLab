@@ -19,7 +19,6 @@ from ._compat import _effort_limits_equal, _resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
-    from .newton.adapter import NewtonParameterAccess
 
 
 class ActuatorBase(ABC):
@@ -181,80 +180,6 @@ class ActuatorBase(ABC):
             We do this to avoid unnecessary indexing of the joints for performance reasons.
         """
         return self._joint_indices
-
-    """
-    Newton actuator parameter access.
-    """
-
-    def _bind_newton_parameters(self, parameters: NewtonParameterAccess) -> None:
-        """Bind component-addressed Newton parameter access for this group."""
-        self._newton_parameters = parameters
-
-    def read_parameter(self, component: str, attr: str) -> torch.Tensor:
-        """Read one live Newton actuator parameter for this group's joints.
-
-        Args:
-            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-
-        Returns:
-            Live values in the group's joint order, shape ``(num_envs, num_joints)``.
-            Units follow the addressed parameter.
-
-        Raises:
-            AttributeError: If this group is not backed by Newton actuators.
-            ValueError: If the parameter is not exposed for every joint in the group.
-        """
-        parameters = self.__dict__.get("_newton_parameters")
-        if parameters is None:
-            raise AttributeError(
-                f"Actuator group of type {type(self).__name__} is not backed by Newton actuators; "
-                "no parameter access is bound."
-            )
-        values, covered = parameters.read(component, attr)
-        if not bool(torch.all(covered[self.joint_indices])):
-            raise ValueError(f"Parameter ('{component}', '{attr}') is not exposed for every joint in this group.")
-        return values[:, self.joint_indices]
-
-    def write_parameter(
-        self,
-        component: str,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        joint_ids: torch.Tensor | None = None,
-    ) -> None:
-        """Write one Newton actuator parameter over an env/joint selection.
-
-        This is the single write path for Newton actuator parameters; values reach
-        the controller-owned storage directly.
-
-        Args:
-            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-            values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
-                follow the addressed parameter.
-            env_ids: Environment indices to update. Defaults to all environments.
-            joint_ids: Articulation joint indices (public order) to update.
-                Defaults to all of this group's joints.
-
-        Raises:
-            AttributeError: If this group is not backed by Newton actuators.
-            ValueError: If no actuator exposes the parameter or the component name is unknown.
-        """
-        parameters = self.__dict__.get("_newton_parameters")
-        if parameters is None:
-            raise AttributeError(
-                f"Actuator group of type {type(self).__name__} is not backed by Newton actuators; "
-                "no parameter access is bound."
-            )
-        if env_ids is None:
-            env_ids = torch.arange(parameters.num_envs, device=parameters.device)
-        if joint_ids is None:
-            joint_ids = self.joint_indices
-            if isinstance(joint_ids, slice):
-                joint_ids = torch.arange(parameters.num_joints, device=parameters.device)
-        parameters.write(component, attr, values, env_ids, joint_ids)
 
     """
     Operations.

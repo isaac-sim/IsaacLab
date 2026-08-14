@@ -83,11 +83,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._joint_command = ActuatorJointCommand(self)
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
-        self._control.finalize_native_actuators(self)
-        newton_parameters = self._control.native_parameter_access()
-        if newton_parameters is not None:
+        self._newton_selection = self._control.finalize_native_actuators(self)
+        if self._newton_selection is not None:
             for actuator_name in self._native_group_names:
-                self._groups[actuator_name]._bind_newton_parameters(newton_parameters)
+                self._groups[actuator_name]._newton_managed = True
         self._validate_coverage()
         self._build_execution_batches()
         if self._debug_value_resolution:
@@ -211,6 +210,110 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
         self._control.submit_commands(self)
+
+    def read_actuator_parameter(self, name: str, component: str, attr: str) -> torch.Tensor:
+        """Read one live Newton actuator parameter for a native group.
+
+        Args:
+            name: Actuator group name.
+            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+
+        Returns:
+            Live values in the group's joint order, shape
+            ``(num_instances, group_num_joints)``, in the parameter's dtype.
+            Units follow the addressed parameter.
+
+        Raises:
+            ValueError: If the group is not executed by Newton actuators, the
+                component name is unknown, or no actuator exposes the parameter.
+        """
+        owners = self._newton_parameter_owners(name, component, attr)
+        view = self._newton_selection.view
+        values: torch.Tensor | None = None
+        for actuator, owner in owners:
+            # Non-driven DOFs read as zeros, and groups are disjoint, so overlaying is a sum.
+            projected = wp.to_torch(view.get_actuator_parameter(actuator, owner, attr))
+            values = projected if values is None else values + projected
+        return values[:, self._newton_group_columns(name)]
+
+    def write_actuator_parameter(
+        self,
+        name: str,
+        component: str,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        joint_ids: torch.Tensor | None = None,
+    ) -> None:
+        """Write one Newton actuator parameter for a native group.
+
+        The single write path for Newton actuator parameters; values reach the
+        controller-owned storage through Newton's selection API.
+
+        Args:
+            name: Actuator group name.
+            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+            values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
+                follow the addressed parameter.
+            env_ids: Environment indices to update. Defaults to all environments.
+            joint_ids: Group-local joint indices to update. Defaults to all of
+                the group's joints.
+
+        Raises:
+            ValueError: Same conditions as :meth:`read_actuator_parameter`.
+        """
+        owners = self._newton_parameter_owners(name, component, attr)
+        view = self._newton_selection.view
+        columns = self._newton_group_columns(name)
+        if joint_ids is not None:
+            columns = columns[joint_ids.to(self.device, dtype=torch.long)]
+        mask = None
+        env_rows: torch.Tensor | None = None
+        if env_ids is not None:
+            env_rows = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
+            mask_torch = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+            mask_torch[env_rows] = True
+            mask = wp.from_torch(mask_torch, dtype=wp.bool)
+        values = values.to(self.device)
+        for actuator, owner in owners:
+            current = view.get_actuator_parameter(actuator, owner, attr)
+            current_torch = wp.to_torch(current)
+            if env_rows is None:
+                current_torch[:, columns] = values.to(dtype=current_torch.dtype)
+            else:
+                current_torch[env_rows, columns.unsqueeze(0)] = values.to(dtype=current_torch.dtype)
+            view.set_actuator_parameter(actuator=actuator, component=owner, name=attr, values=current, mask=mask)
+
+    def _newton_parameter_owners(self, name: str, component: str, attr: str) -> list[tuple]:
+        """Resolve the component instances exposing ``attr`` for one native group."""
+        from .newton.adapter import resolve_actuator_component  # noqa: PLC0415
+
+        if name not in self._groups:
+            raise KeyError(name)
+        if self._newton_selection is None or name not in self._native_group_names:
+            raise ValueError(f"Actuator group '{name}' is not executed by Newton actuators.")
+        owners = [
+            (actuator, owner)
+            for actuator in self._newton_selection.actuators
+            if (owner := resolve_actuator_component(actuator, component, attr)) is not None
+        ]
+        if not owners:
+            raise ValueError(f"No Newton actuator exposes parameter ('{component}', '{attr}').")
+        return owners
+
+    def _newton_group_columns(self, name: str) -> torch.Tensor:
+        """Backend view columns of one group's joints, in group joint order."""
+        joint_ids = self._groups[name].joint_indices
+        if isinstance(joint_ids, slice):
+            columns = torch.arange(self.num_joints, device=self.device)
+        else:
+            columns = joint_ids.to(self.device, dtype=torch.long)
+        user_to_backend = self._newton_selection.joint_user_to_backend_indices
+        if user_to_backend is not None:
+            columns = torch.tensor(user_to_backend, dtype=torch.long, device=self.device)[columns]
+        return columns
 
     # Construction and property resolution.
 

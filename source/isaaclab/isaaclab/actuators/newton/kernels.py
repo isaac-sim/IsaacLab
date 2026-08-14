@@ -5,8 +5,6 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
-from typing import Any
-
 import torch
 import warp as wp
 
@@ -14,11 +12,8 @@ from isaaclab.actuators import ActuatorBase, ImplicitActuator
 
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
-# per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`),
-# and a partial scatter that overwrites only the cells in a
-# (env_ids × joint_ids) sub-grid of a Newton ``Actuator``'s component
-# parameter array. Shared by every backend through
-# ``NewtonParameterAccess.write`` in :mod:`.adapter`.
+# and per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`).
+# Parameter reads and writes go through Newton's selection API instead.
 # ---------------------------------------------------------------------------
 
 
@@ -56,74 +51,6 @@ def build_per_dof_env_mask_kernel(
     global_dof = int(indices[i]) - dof_offset
     env = global_dof // num_joints
     out_mask[i] = env_mask[env]
-
-
-@wp.kernel(enable_backward=False)
-def scatter_gain_kernel(
-    src: wp.array(dtype=Any),
-    dst: wp.array(dtype=Any),
-    indices: wp.array(dtype=wp.uint32),
-    dof_offset: int,
-    num_envs: int,
-    num_joints: int,
-    env_stride: int,
-):
-    """Scatter per-actuator ``src`` values into a flat per-env-per-DOF ``dst``.
-
-    A Newton actuator can span multiple articulations. Indices outside the
-    requested articulation range are ignored.
-
-    Args:
-        src: Per-actuator parameter values (e.g. ``controller.kp``).
-        dst: Flat ``(num_envs * num_joints)`` articulation-local snapshot buffer.
-        indices: Actuator's flat env-major global DOF indices.
-        dof_offset: Offset of this articulation's DOFs within each environment.
-        num_envs: Number of articulation environments.
-        num_joints: Articulation-local joint count (``dst``'s inner stride).
-        env_stride: Whole-model per-env DOF count (the stride used to build
-            ``indices``).
-    """
-    i = wp.tid()
-    global_dof = int(indices[i])
-    env = global_dof // env_stride
-    local_dof = global_dof - env * env_stride - dof_offset
-    if env < num_envs and local_dof >= 0 and local_dof < num_joints:
-        dst[env * num_joints + local_dof] = src[i]
-
-
-@wp.kernel(enable_backward=False)
-def patch_actuator_param_kernel(
-    indices: wp.array(dtype=wp.uint32),
-    env_id_pos: wp.array(dtype=wp.int32),
-    joint_id_pos: wp.array(dtype=wp.int32),
-    values: wp.array2d(dtype=Any),
-    dof_offset: int,
-    num_envs: int,
-    num_joints: int,
-    env_stride: int,
-    dst: wp.array(dtype=Any),
-):
-    """Per-actuator scatter for partial parameter updates.
-
-    For each slot ``i`` in the actuator's flat env-major ``indices``, derive
-    the (env, backend-local joint) pair and, when ``env_id_pos[env]`` and
-    ``joint_id_pos[joint]`` select a cell of ``values`` (entries are ``-1``
-    outside the ``(len(env_ids), len(joint_ids))`` selection), overwrite
-    ``dst[i]`` — the per-actuator component parameter — with it. Slots outside
-    this articulation's DOF range are left untouched. Placement arguments
-    (``dof_offset``, ``num_envs``, ``num_joints``, ``env_stride``) match
-    :func:`scatter_gain_kernel`.
-    """
-    i = wp.tid()
-    global_dof = int(indices[i])
-    env = global_dof // env_stride
-    local_dof = global_dof - env * env_stride - dof_offset
-    if env >= num_envs or local_dof < 0 or local_dof >= num_joints:
-        return
-    e_pos = env_id_pos[env]
-    j_pos = joint_id_pos[local_dof]
-    if e_pos >= 0 and j_pos >= 0:
-        dst[i] = values[e_pos, j_pos]
 
 
 # ---------------------------------------------------------------------------

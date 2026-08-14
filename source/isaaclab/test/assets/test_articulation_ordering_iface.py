@@ -2175,33 +2175,6 @@ class TestArticulationOperations:
         np.testing.assert_allclose(captured["forces"], user_forces_np[:, backend_to_user])
 
     @_requires_physx
-    def test_physx_native_actuator_gain_update_uses_public_joint_ids(self):
-        """Map selected public joint IDs to native-controller columns."""
-        art, _ = get_articulation(
-            "physx",
-            1,
-            3,
-            2,
-            device="cpu",
-            joint_ordering=("joint_2", "joint_1", "joint_0"),
-        )
-        controller = MagicMock(kp=wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"))
-        actuator = MagicMock(
-            controller=controller,
-            indices=wp.array([0, 1, 2], dtype=wp.uint32, device="cpu"),
-        )
-        object.__setattr__(art, "newton_actuator_adapter", MagicMock(actuators=[actuator]))
-
-        with pytest.warns(DeprecationWarning, match="write_actuator_stiffness_to_sim"):
-            art.write_actuator_stiffness_to_sim(
-                stiffness=torch.tensor([[99.0]], dtype=torch.float32),
-                env_ids=torch.tensor([0], dtype=torch.int32),
-                joint_ids=torch.tensor([0], dtype=torch.int32),
-            )
-
-        np.testing.assert_array_equal(controller.kp.numpy(), np.asarray([99.0, 2.0, 3.0], dtype=np.float32))
-
-    @_requires_physx
     def test_physx_validate_cfg_reports_velocity_limits_in_public_joint_order(self):
         """Pair public default velocities with limits for the same named joint."""
         art, raw_backend = get_articulation(

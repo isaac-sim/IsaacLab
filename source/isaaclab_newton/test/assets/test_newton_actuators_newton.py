@@ -25,11 +25,9 @@ simulation_app = AppLauncher(headless=True).app
 import json
 import os
 import tempfile
-import types
 import unittest
 
 import numpy as np
-import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
@@ -618,7 +616,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
     Drives ``randomize_actuator_gains`` and verifies that kp/kd values reach
     the controllers of the articulation's Newton actuators through
-    ``NewtonParameterAccess.write``; the assertions read the controllers
+    ``ActuatorCollection.write_actuator_parameter``; the assertions read the controllers
     back independently via ``ArticulationView.get_actuator_parameter``.
 
     With ``operation="abs"`` and ``distribution="uniform"`` over a
@@ -670,13 +668,13 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             adapter = SimulationManager._adapter
             self.assertIsNotNone(adapter, "Newton adapter should exist with use_newton_actuators=True")
-            legs = anymal.actuators["legs"]
-            self.assertNotIn("_stiffness", legs.__dict__)
-            self.assertNotIn("_damping", legs.__dict__)
+            read = anymal.actuators.read_actuator_parameter
+            with self.assertRaises(AttributeError):
+                _ = anymal.actuators["legs"].stiffness
             kp_before = self._gather_param(anymal, "kp").clone()
             kd_before = self._gather_param(anymal, "kd").clone()
-            legs_stiffness_before = legs.stiffness.clone()
-            legs_damping_before = legs.damping.clone()
+            legs_stiffness_before = read("legs", "controller", "kp").clone()
+            legs_damping_before = read("legs", "controller", "kd").clone()
 
             env = _MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
             term, asset_cfg = _build_dr_term(env, "robot")
@@ -698,14 +696,16 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             torch.testing.assert_close(kp_after[0], torch.full((n,), 100.0, device=anymal.device))
             torch.testing.assert_close(kd_after[0], torch.full((n,), 5.0, device=anymal.device))
             # Named native-group reads project the controller values immediately.
-            torch.testing.assert_close(legs.stiffness[0], torch.full((n,), 100.0, device=anymal.device))
-            torch.testing.assert_close(legs.damping[0], torch.full((n,), 5.0, device=anymal.device))
+            torch.testing.assert_close(
+                read("legs", "controller", "kp")[0], torch.full((n,), 100.0, device=anymal.device)
+            )
+            torch.testing.assert_close(read("legs", "controller", "kd")[0], torch.full((n,), 5.0, device=anymal.device))
             # Other envs untouched.
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(kp_after[env_idx], kp_before[env_idx])
                 torch.testing.assert_close(kd_after[env_idx], kd_before[env_idx])
-                torch.testing.assert_close(legs.stiffness[env_idx], legs_stiffness_before[env_idx])
-                torch.testing.assert_close(legs.damping[env_idx], legs_damping_before[env_idx])
+                torch.testing.assert_close(read("legs", "controller", "kp")[env_idx], legs_stiffness_before[env_idx])
+                torch.testing.assert_close(read("legs", "controller", "kd")[env_idx], legs_damping_before[env_idx])
 
     def test_two_articulations(self):
         from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
@@ -733,16 +733,16 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             self.assertIsNotNone(SimulationManager._adapter)
 
-            anymal_legs = anymal.actuators["legs"]
-            cartpole_joints = cartpole.actuators["all_joints"]
+            anymal_read = anymal.actuators.read_actuator_parameter
+            cartpole_read = cartpole.actuators.read_actuator_parameter
             anymal_kp_before = self._gather_param(anymal, "kp").clone()
             anymal_kd_before = self._gather_param(anymal, "kd").clone()
             cp_kp_before = self._gather_param(cartpole, "kp").clone()
             cp_kd_before = self._gather_param(cartpole, "kd").clone()
-            anymal_stiffness_before = anymal_legs.stiffness.clone()
-            anymal_damping_before = anymal_legs.damping.clone()
-            cartpole_stiffness_before = cartpole_joints.stiffness.clone()
-            cartpole_damping_before = cartpole_joints.damping.clone()
+            anymal_stiffness_before = anymal_read("legs", "controller", "kp").clone()
+            anymal_damping_before = anymal_read("legs", "controller", "kd").clone()
+            cartpole_stiffness_before = cartpole_read("all_joints", "controller", "kp").clone()
+            cartpole_damping_before = cartpole_read("all_joints", "controller", "kd").clone()
 
             env = _MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
             term, asset_cfg = _build_dr_term(env, "cartpole")
@@ -763,27 +763,35 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             n_cp = cartpole.num_joints
             torch.testing.assert_close(cp_kp_after[0], torch.full((n_cp,), 100.0, device=anymal.device))
             torch.testing.assert_close(cp_kd_after[0], torch.full((n_cp,), 5.0, device=anymal.device))
-            torch.testing.assert_close(cartpole_joints.stiffness[0], torch.full((n_cp,), 100.0, device=anymal.device))
-            torch.testing.assert_close(cartpole_joints.damping[0], torch.full((n_cp,), 5.0, device=anymal.device))
+            torch.testing.assert_close(
+                cartpole_read("all_joints", "controller", "kp")[0], torch.full((n_cp,), 100.0, device=anymal.device)
+            )
+            torch.testing.assert_close(
+                cartpole_read("all_joints", "controller", "kd")[0], torch.full((n_cp,), 5.0, device=anymal.device)
+            )
 
             # ANYmal is untouched (DR was scoped to cartpole).
             torch.testing.assert_close(self._gather_param(anymal, "kp"), anymal_kp_before)
             torch.testing.assert_close(self._gather_param(anymal, "kd"), anymal_kd_before)
-            torch.testing.assert_close(anymal_legs.stiffness, anymal_stiffness_before)
-            torch.testing.assert_close(anymal_legs.damping, anymal_damping_before)
+            torch.testing.assert_close(anymal_read("legs", "controller", "kp"), anymal_stiffness_before)
+            torch.testing.assert_close(anymal_read("legs", "controller", "kd"), anymal_damping_before)
 
             # Cartpole's other envs are also untouched (env_ids=[0] only).
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(cp_kp_after[env_idx], cp_kp_before[env_idx])
                 torch.testing.assert_close(cp_kd_after[env_idx], cp_kd_before[env_idx])
-                torch.testing.assert_close(cartpole_joints.stiffness[env_idx], cartpole_stiffness_before[env_idx])
-                torch.testing.assert_close(cartpole_joints.damping[env_idx], cartpole_damping_before[env_idx])
+                torch.testing.assert_close(
+                    cartpole_read("all_joints", "controller", "kp")[env_idx], cartpole_stiffness_before[env_idx]
+                )
+                torch.testing.assert_close(
+                    cartpole_read("all_joints", "controller", "kd")[env_idx], cartpole_damping_before[env_idx]
+                )
 
 
 class TestNewtonActuatorGainEnvStride(unittest.TestCase):
     """Regression: native gain reads must decode the env-major DOF stride for every env.
 
-    ``NewtonParameterAccess.read`` gathers each Newton actuator's
+    ``ArticulationView.get_actuator_parameter`` gathers each Newton actuator's
     ``controller.kp`` / ``controller.kd`` into a per-articulation
     ``(num_envs, num_joints)`` tensor — the projection behind
     ``actuators[...].stiffness`` on native groups. On a floating-base
@@ -823,8 +831,12 @@ class TestNewtonActuatorGainEnvStride(unittest.TestCase):
             n_j = anymal.num_joints
             expected_kp = torch.full((NUM_ENVS, n_j), 40.0, device=anymal.device)
             expected_kd = torch.full((NUM_ENVS, n_j), 5.0, device=anymal.device)
-            torch.testing.assert_close(anymal.actuators["legs"].stiffness, expected_kp)
-            torch.testing.assert_close(anymal.actuators["legs"].damping, expected_kd)
+            torch.testing.assert_close(
+                anymal.actuators.read_actuator_parameter("legs", "controller", "kp"), expected_kp
+            )
+            torch.testing.assert_close(
+                anymal.actuators.read_actuator_parameter("legs", "controller", "kd"), expected_kd
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1563,168 +1575,6 @@ def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> Non
 
     np.testing.assert_allclose(computed.numpy(), np.asarray([[10.0, 200.0, 30.0]], dtype=np.float32))
     np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
-
-
-def test_newton_actuator_parameter_read_follows_requested_public_joint_order() -> None:
-    """Project Newton actuator component parameters into public joint order."""
-    from isaaclab.actuators.newton.adapter import NewtonParameterAccess
-
-    controller = types.SimpleNamespace(
-        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
-        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
-    )
-    clamping = types.SimpleNamespace(max_effort=wp.array((7.0, 8.0, 7.1, 8.1), dtype=wp.float32, device="cpu"))
-    actuator = types.SimpleNamespace(
-        controller=controller,
-        delay=None,
-        clamping=[clamping],
-        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
-    )
-    access = NewtonParameterAccess(
-        [actuator],
-        num_envs=2,
-        num_joints=3,
-        dof_offset=0,
-        env_stride=3,
-        device="cpu",
-        joint_user_to_backend_indices=(2, 0, 1),
-    )
-
-    stiffness, covered = access.read("controller", "kp")
-    max_effort, _ = access.read("clamping", "max_effort")
-
-    torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
-    torch.testing.assert_close(max_effort, torch.tensor([[8.0, 7.0, 0.0], [8.1, 7.1, 0.0]]))
-    torch.testing.assert_close(covered, torch.tensor([True, True, False]))
-
-
-def test_newton_actuator_parameter_read_rejects_bad_selectors() -> None:
-    """Reject malformed ordering maps and unknown component names with actionable errors."""
-    from isaaclab.actuators.newton.adapter import NewtonParameterAccess
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"joint_user_to_backend_indices must contain each backend joint index exactly once; "
-            r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
-        ),
-    ):
-        NewtonParameterAccess(
-            [],
-            num_envs=1,
-            num_joints=3,
-            dof_offset=0,
-            env_stride=3,
-            device="cpu",
-            joint_user_to_backend_indices=(0, 0, 2),
-        ).read("controller", "kp")
-
-    controller = types.SimpleNamespace(kp=wp.array((1.0,), dtype=wp.float32, device="cpu"))
-    actuator = types.SimpleNamespace(
-        controller=controller,
-        delay=None,
-        clamping=[],
-        indices=wp.array((0,), dtype=wp.uint32, device="cpu"),
-    )
-    access = NewtonParameterAccess([actuator], num_envs=1, num_joints=1, dof_offset=0, env_stride=1, device="cpu")
-    with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
-        access.read("gains", "kp")
-
-
-def test_newton_actuator_parameter_write_follows_requested_public_joint_order() -> None:
-    """Patch an explicitly addressed component parameter through the public-order selection."""
-    from isaaclab.actuators.newton.adapter import NewtonParameterAccess
-
-    controller = types.SimpleNamespace(
-        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
-        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
-    )
-    clamping = types.SimpleNamespace(max_effort=wp.array((7.0, 8.0, 7.1, 8.1), dtype=wp.float32, device="cpu"))
-    actuator = types.SimpleNamespace(
-        controller=controller,
-        delay=None,
-        clamping=[clamping],
-        # env-major, env_stride=3, dof_offset=0: slots are (env0: dof0, dof2), (env1: dof0, dof2)
-        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
-    )
-    access = NewtonParameterAccess(
-        [actuator],
-        num_envs=2,
-        num_joints=3,
-        dof_offset=0,
-        env_stride=3,
-        device="cpu",
-        joint_user_to_backend_indices=(2, 0, 1),
-    )
-    # public order via permutation (2, 0, 1): public joint 1 -> backend 0.
-    # Write public joint 1 (backend dof 0) on env 1 only.
-    access.write(
-        "clamping",
-        "max_effort",
-        values=torch.tensor([[99.0]]),
-        env_ids=torch.tensor([1]),
-        joint_ids=torch.tensor([1]),
-    )
-
-    # Slot layout: indices (0, 2, 3, 5) -> (env0/dof0, env0/dof2, env1/dof0, env1/dof2).
-    # env 1 + backend dof 0 is slot index 2; everything else untouched.
-    torch.testing.assert_close(wp.to_torch(clamping.max_effort), torch.tensor([7.0, 8.0, 99.0, 8.1]))
-    torch.testing.assert_close(wp.to_torch(controller.kp), torch.tensor([10.0, 30.0, 11.0, 31.0]))
-
-
-def test_newton_actuator_parameter_write_handles_stride_and_integer_dtypes() -> None:
-    """Decode floating-base strides and round-trip an int32 delay parameter (generic kernels)."""
-    from isaaclab.actuators.newton.adapter import NewtonParameterAccess
-
-    # 2 envs, env_stride=5 (e.g. free root DOFs), articulation joints at dof_offset=1, num_joints=3.
-    delay = types.SimpleNamespace(delay_steps=wp.array((0, 1, 2, 3), dtype=wp.int32, device="cpu"))
-    actuator = types.SimpleNamespace(
-        controller=types.SimpleNamespace(),
-        delay=delay,
-        clamping=[],
-        # slots: (env0: local 0, local 2), (env1: local 0, local 2) with stride 5, offset 1
-        indices=wp.array((1, 3, 6, 8), dtype=wp.uint32, device="cpu"),
-    )
-    access = NewtonParameterAccess([actuator], num_envs=2, num_joints=3, dof_offset=1, env_stride=5, device="cpu")
-
-    access.write(
-        "delay",
-        "delay_steps",
-        values=torch.tensor([[50], [60]], dtype=torch.int64),
-        env_ids=torch.tensor([0, 1]),
-        joint_ids=torch.tensor([2]),
-    )
-
-    # Local joint 2 is slots 1 and 3; storage stays int32.
-    torch.testing.assert_close(wp.to_torch(delay.delay_steps), torch.tensor([0, 50, 2, 60], dtype=torch.int32))
-
-    steps, covered = access.read("delay", "delay_steps")
-    assert steps.dtype == torch.int32
-    torch.testing.assert_close(steps, torch.tensor([[0, 0, 50], [2, 0, 60]], dtype=torch.int32))
-    torch.testing.assert_close(covered, torch.tensor([True, False, True]))
-
-
-def test_newton_actuator_parameter_write_rejects_unknown_attr() -> None:
-    """Raise on parameters the addressed component does not expose instead of silently no-oping."""
-    from isaaclab.actuators.newton.adapter import NewtonParameterAccess
-
-    controller = types.SimpleNamespace(kp=wp.array((1.0,), dtype=wp.float32, device="cpu"))
-    actuator = types.SimpleNamespace(
-        controller=controller,
-        delay=None,
-        clamping=[],
-        indices=wp.array((0,), dtype=wp.uint32, device="cpu"),
-    )
-    access = NewtonParameterAccess([actuator], num_envs=1, num_joints=1, dof_offset=0, env_stride=1, device="cpu")
-
-    with pytest.raises(ValueError, match=r"No actuator exposes parameter \('controller', 'kq'\)"):
-        access.write(
-            "controller",
-            "kq",
-            values=torch.tensor([[1.0]]),
-            env_ids=torch.tensor([0]),
-            joint_ids=torch.tensor([0]),
-        )
 
 
 if __name__ == "__main__":

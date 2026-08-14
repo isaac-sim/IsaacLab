@@ -21,7 +21,7 @@ from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
-    from .newton.adapter import NewtonParameterAccess
+    from .newton.adapter import NewtonActuatorSelection
 
 
 @dataclass(frozen=True)
@@ -284,12 +284,19 @@ class ActuatorControl(ABC):
         """
         return set()
 
-    def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
+    def finalize_native_actuators(self, collection: ActuatorCollection) -> NewtonActuatorSelection | None:
         """Finalize backend-native state after group construction.
 
         Args:
             collection: Fully constructed actuator collection.
+
+        Returns:
+            The Newton actuator selection produced by the backend's execution
+            setup (view, actuators, and joint ordering), or ``None`` when no
+            Newton actuators are active. The collection's parameter door
+            consumes this; controls perform no parameter access themselves.
         """
+        return None
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         """Compute backend-native actuator outputs.
@@ -318,20 +325,6 @@ class ActuatorControl(ABC):
         Args:
             env_ids: Environments to reset.
         """
-
-    def native_parameter_access(self) -> NewtonParameterAccess | None:
-        """Return component-addressed access to the backend's Newton actuator parameters.
-
-        The collection binds the returned access onto every native actuator
-        group, backing the groups'
-        :meth:`~isaaclab.actuators.ActuatorBase.read_parameter` and
-        :meth:`~isaaclab.actuators.ActuatorBase.write_parameter`.
-
-        Returns:
-            Placement-bound parameter access, or ``None`` when no Newton
-            actuators are active on this backend.
-        """
-        return None
 
 
 class ArticulationActuatorControl(ActuatorControl):

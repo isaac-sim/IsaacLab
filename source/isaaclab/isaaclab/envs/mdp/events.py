@@ -1394,12 +1394,22 @@ class randomize_actuator_gains(ManagerTermBase):
             if isinstance(actuator, (ImplicitActuator, IdealPDActuator))
         }
         # Explicit PD gains are actuator-owned, so they replace the zeroed solver gains.
-        for actuator in self._gain_actuators.values():
-            if not isinstance(actuator, ImplicitActuator):
-                joint_ids = actuator.joint_indices
+        # Native groups read theirs live from the Newton controllers through the collection.
+        self._native_group_names = getattr(self.asset.actuators, "_native_group_names", set())
+        for name, actuator in self._gain_actuators.items():
+            if isinstance(actuator, ImplicitActuator):
+                continue
+            joint_ids = actuator.joint_indices
+            if name in self._native_group_names:
+                self.default_joint_stiffness[:, joint_ids] = self.asset.actuators.read_actuator_parameter(
+                    name, "controller", "kp"
+                )
+                self.default_joint_damping[:, joint_ids] = self.asset.actuators.read_actuator_parameter(
+                    name, "controller", "kd"
+                )
+            else:
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
                 self.default_joint_damping[:, joint_ids] = actuator.damping
-        self._native_group_names = getattr(self.asset.actuators, "_native_group_names", set())
         self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
         self.default_actuator_damping: dict[str, torch.Tensor] = {}
         for name, actuator in self._gain_actuators.items():
@@ -1472,45 +1482,57 @@ class randomize_actuator_gains(ManagerTermBase):
                 writer_joint_ids = torch.arange(self.asset.num_joints, device=self.asset.device, dtype=torch.long)
             else:
                 writer_joint_ids = global_indices.to(device=self.asset.device, dtype=torch.long)
+            is_native = actuator_name in self._native_group_names
+            # Native group writes are group-targeted: they take positions within the group's joints.
+            group_columns = None if isinstance(actuator_indices, slice) else actuator_indices
             # Randomize stiffness
             if stiffness_distribution_params is not None:
-                stiffness = actuator.stiffness[env_ids].clone()
-                stiffness[:, actuator_indices] = self.default_actuator_stiffness[actuator_name][env_ids][
-                    :, actuator_indices
-                ]
+                if is_native:
+                    # Native gains are controller-owned; randomization always starts from the defaults.
+                    stiffness = self.default_actuator_stiffness[actuator_name][env_ids].clone()
+                else:
+                    stiffness = actuator.stiffness[env_ids].clone()
+                    stiffness[:, actuator_indices] = self.default_actuator_stiffness[actuator_name][env_ids][
+                        :, actuator_indices
+                    ]
                 randomize(stiffness, stiffness_distribution_params)
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_stiffness_to_sim_index(
                         stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
-                elif actuator_name in self._native_group_names:
-                    actuator.write_parameter(
+                elif is_native:
+                    self.asset.actuators.write_actuator_parameter(
+                        actuator_name,
                         "controller",
                         "kp",
                         values=stiffness[:, actuator_indices],
                         env_ids=env_ids,
-                        joint_ids=writer_joint_ids,
+                        joint_ids=group_columns,
                     )
                 else:
                     actuator.stiffness[env_ids] = stiffness
             # Randomize damping
             if damping_distribution_params is not None:
-                damping = actuator.damping[env_ids].clone()
-                damping[:, actuator_indices] = self.default_actuator_damping[actuator_name][env_ids][
-                    :, actuator_indices
-                ]
+                if is_native:
+                    damping = self.default_actuator_damping[actuator_name][env_ids].clone()
+                else:
+                    damping = actuator.damping[env_ids].clone()
+                    damping[:, actuator_indices] = self.default_actuator_damping[actuator_name][env_ids][
+                        :, actuator_indices
+                    ]
                 randomize(damping, damping_distribution_params)
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
-                elif actuator_name in self._native_group_names:
-                    actuator.write_parameter(
+                elif is_native:
+                    self.asset.actuators.write_actuator_parameter(
+                        actuator_name,
                         "controller",
                         "kd",
                         values=damping[:, actuator_indices],
                         env_ids=env_ids,
-                        joint_ids=writer_joint_ids,
+                        joint_ids=group_columns,
                     )
                 else:
                     actuator.damping[env_ids] = damping

@@ -1687,10 +1687,25 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=3,
         )
-        access = self.actuators._control.native_parameter_access()
-        if access is None:
-            return
-        access.write("controller", gain_name, values, env_ids, joint_ids)
+        # Split the articulation-level joint selection into per-group columns.
+        joint_ids_long = joint_ids.to(self.device, dtype=torch.long)
+        for group_name in getattr(self.actuators, "_native_group_names", ()):
+            group_joints = self.actuators[group_name].joint_indices
+            if isinstance(group_joints, slice):
+                in_group = torch.ones_like(joint_ids_long, dtype=torch.bool)
+                group_columns = joint_ids_long
+            else:
+                column_of_joint = torch.full((self.num_joints,), -1, dtype=torch.long, device=self.device)
+                group_joints = group_joints.to(self.device, dtype=torch.long)
+                column_of_joint[group_joints] = torch.arange(group_joints.numel(), device=self.device)
+                columns = column_of_joint[joint_ids_long]
+                in_group = columns >= 0
+                group_columns = columns[in_group]
+            if not bool(in_group.any()):
+                continue
+            self.actuators.write_actuator_parameter(
+                group_name, "controller", gain_name, values[:, in_group], env_ids=env_ids, joint_ids=group_columns
+            )
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(

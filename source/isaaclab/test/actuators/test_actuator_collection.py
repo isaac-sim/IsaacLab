@@ -309,6 +309,16 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
 
+class _FakeNewtonActuator:
+    """Newton-actuator stand-in; a plain class so the view's mapping cache can hash it."""
+
+    def __init__(self, controller, indices):
+        self.controller = controller
+        self.delay = None
+        self.clamping = []
+        self.indices = indices
+
+
 class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
     """Native control backed by one Newton-shaped actuator with controller-owned storage."""
 
@@ -319,10 +329,8 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
             kp=wp.zeros(size, dtype=wp.float32, device=self.device),
             kd=wp.zeros(size, dtype=wp.float32, device=self.device),
         )
-        self.newton_actuator = SimpleNamespace(
+        self.newton_actuator = _FakeNewtonActuator(
             controller=controller,
-            delay=None,
-            clamping=[],
             indices=wp.array(list(range(size)), dtype=wp.uint32, device=self.device),
         )
 
@@ -337,16 +345,12 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
             if hasattr(controller, attr)
         }
 
-    def native_parameter_access(self):
-        from isaaclab.actuators.newton.adapter import NewtonParameterAccess
+    def finalize_native_actuators(self, collection):
+        from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 
-        return NewtonParameterAccess(
+        return NewtonActuatorSelection(
+            view=LightArticulationView(self.num_instances, self.num_joints, self.device),
             actuators=[self.newton_actuator],
-            num_envs=self.num_instances,
-            num_joints=self.num_joints,
-            dof_offset=0,
-            env_stride=self.num_joints,
-            device=self.device,
         )
 
 
@@ -758,8 +762,8 @@ def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeyp
     assert articulation.calls[-1][1]["damping"] == 0.0
 
 
-def test_native_group_gains_project_live_controller_values_without_local_mirrors():
-    """Read and write native group parameters through the controller-owned storage."""
+def test_native_group_parameters_route_through_the_collection_door():
+    """Read and write native group parameters through the collection's single parameter door."""
     control = NativeGainFakeActuatorControl()
     control.native_gains["kp"].copy_(torch.tensor([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]))
     control.native_gains["kd"].copy_(torch.tensor([[0.2, 0.3, 0.4], [0.5, 0.6, 0.7]]))
@@ -767,45 +771,57 @@ def test_native_group_gains_project_live_controller_values_without_local_mirrors
     collection = ActuatorCollection(
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
     )
-    group = collection["native"]
 
-    assert "_stiffness" not in group.__dict__
-    assert "_damping" not in group.__dict__
-    torch.testing.assert_close(group.stiffness, control.native_gains["kp"])
-    torch.testing.assert_close(group.damping, control.native_gains["kd"])
-
-    control.native_gains["kp"][1, 2] = 17.0
+    # Reads are live projections of the controller-owned storage.
+    torch.testing.assert_close(
+        collection.read_actuator_parameter("native", "controller", "kp"), control.native_gains["kp"]
+    )
     control.native_gains["kd"][1, 2] = 1.7
-    assert group.stiffness[1, 2] == 17.0
-    assert group.damping[1, 2] == 1.7
-    for attr, value in (("stiffness", torch.ones((2, 3))), ("damping", torch.ones((2, 3)))):
-        with pytest.raises(AttributeError, match=rf"{attr}.*write_parameter"):
-            setattr(group, attr, value)
-    assert "_stiffness" not in group.__dict__
-    assert "_damping" not in group.__dict__
+    assert collection.read_actuator_parameter("native", "controller", "kd")[1, 2] == 1.7
 
-    # The single write path patches the controller storage in place.
-    group.write_parameter(
+    # The group's gain properties direct to the collection door instead of returning stale mirrors.
+    group = collection["native"]
+    for attr in ("stiffness", "damping"):
+        with pytest.raises(AttributeError, match=rf"{attr}.*read_actuator_parameter"):
+            _ = getattr(group, attr)
+        with pytest.raises(AttributeError, match=rf"{attr}.*read_actuator_parameter"):
+            setattr(group, attr, torch.ones((2, 3)))
+
+    # The single write path patches the controller storage in place over an env/joint selection.
+    collection.write_actuator_parameter(
+        "native",
         "controller",
         "kp",
         values=torch.tensor([[42.0]]),
         env_ids=torch.tensor([0]),
         joint_ids=torch.tensor([1]),
     )
-    assert control.native_gains["kp"][0, 1] == 42.0
-    assert group.stiffness[0, 1] == 42.0
-    with pytest.raises(ValueError, match=r"No actuator exposes parameter \('controller', 'kq'\)"):
-        group.write_parameter("controller", "kq", values=torch.zeros((2, 3)))
+    torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))
+    collection.write_actuator_parameter("native", "controller", "kd", values=torch.full((2, 3), 0.9))
+    torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.9))
 
-    # A parameter the controller does not expose raises instead of falling back to stale values.
+    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kq'\)"):
+        collection.write_actuator_parameter("native", "controller", "kq", values=torch.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
+        collection.read_actuator_parameter("native", "gains", "kp")
+
+    # A parameter the controllers do not expose raises instead of falling back to stale values.
     unsupported_control = NativeGainFakeActuatorControl()
     del unsupported_control.newton_actuator.controller.kd
     unsupported = ActuatorCollection(
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, unsupported_control
-    )["native"]
-    torch.testing.assert_close(unsupported.stiffness, torch.zeros((2, 3)))
-    with pytest.raises(ValueError, match=r"\('controller', 'kd'\) is not exposed"):
-        _ = unsupported.damping
+    )
+    torch.testing.assert_close(unsupported.read_actuator_parameter("native", "controller", "kp"), torch.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kd'\)"):
+        unsupported.read_actuator_parameter("native", "controller", "kd")
+
+    # Groups that are not Newton-managed keep plain construction gains, and the door rejects them.
+    plain = ActuatorCollection(
+        {"plain": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, FakeActuatorControl()
+    )
+    torch.testing.assert_close(plain["plain"].stiffness, torch.full((2, 3), 11.0))
+    with pytest.raises(ValueError, match=r"'plain' is not executed by Newton actuators"):
+        plain.read_actuator_parameter("plain", "controller", "kp")
 
 
 def test_overlapping_groups_are_rejected():

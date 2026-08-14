@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
-from isaaclab.actuators.newton.adapter import NewtonParameterAccess
+from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
@@ -85,10 +85,18 @@ class PhysxActuatorControl(ArticulationActuatorControl):
 
         return native_group_names
 
-    def finalize_native_actuators(self, collection: ActuatorCollection) -> None:
+    def finalize_native_actuators(self, collection: ActuatorCollection) -> NewtonActuatorSelection | None:
         if not self._native_actuator_path_active or self._actuator_runtime is None:
-            return
+            return None
         self._actuator_runtime.finalize(collection)
+        adapter = self._actuator_runtime.adapter
+        if adapter is None:
+            return None
+        articulation = self._articulation
+        return NewtonActuatorSelection(
+            view=LightArticulationView(articulation.num_instances, articulation.num_joints, articulation.device),
+            actuators=adapter.actuators,
+        )
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         if not self._native_actuator_path_active or self._actuator_runtime is None:
@@ -150,18 +158,3 @@ class PhysxActuatorControl(ArticulationActuatorControl):
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and self._actuator_runtime is not None:
             self._actuator_runtime.reset(env_ids)
-
-    def native_parameter_access(self) -> NewtonParameterAccess | None:
-        """Build parameter access over the per-articulation adapter (identity placement)."""
-        articulation = self._articulation
-        adapter = getattr(articulation, "newton_actuator_adapter", None)
-        if adapter is None:
-            return None
-        return NewtonParameterAccess(
-            actuators=adapter.actuators,
-            num_envs=articulation.num_instances,
-            num_joints=articulation.num_joints,
-            dof_offset=0,
-            env_stride=articulation.num_joints,
-            device=articulation.device,
-        )

@@ -28,7 +28,6 @@ if TYPE_CHECKING:
         ImplicitActuatorCfg,
         RemotizedPDActuatorCfg,
     )
-    from .newton.adapter import NewtonParameterAccess
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -357,9 +356,7 @@ class IdealPDActuator(ActuatorBase):
     @property
     def stiffness(self) -> torch.Tensor:
         """Current actuator stiffness [N/m or N·m/rad, depending on joint type]."""
-        if "_newton_parameters" in self.__dict__:
-            return self.read_parameter("controller", "kp")
-        return self._stiffness
+        return self._actuator_gain_property("stiffness")
 
     @stiffness.setter
     def stiffness(self, value: torch.Tensor) -> None:
@@ -368,29 +365,31 @@ class IdealPDActuator(ActuatorBase):
     @property
     def damping(self) -> torch.Tensor:
         """Current actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
-        if "_newton_parameters" in self.__dict__:
-            return self.read_parameter("controller", "kd")
-        return self._damping
+        return self._actuator_gain_property("damping")
 
     @damping.setter
     def damping(self, value: torch.Tensor) -> None:
         self._set_actuator_gain_property("damping", value)
 
-    def _bind_newton_parameters(self, parameters: NewtonParameterAccess) -> None:
-        super()._bind_newton_parameters(parameters)
-        # Drop the construction tensors: the gains are controller-owned from here on.
-        self.__dict__.pop("_stiffness", None)
-        self.__dict__.pop("_damping", None)
+    def _actuator_gain_property(self, name: Literal["stiffness", "damping"]) -> torch.Tensor:
+        """Return a construction gain or reject access on Newton-managed groups."""
+        self._reject_newton_managed_gain_access(name)
+        return self.__dict__[f"_{name}"]
 
     def _set_actuator_gain_property(self, name: Literal["stiffness", "damping"], value: torch.Tensor) -> None:
-        """Store a construction gain or reject assignment after Newton binding."""
-        if "_newton_parameters" in self.__dict__:
+        """Store a construction gain or reject assignment on Newton-managed groups."""
+        self._reject_newton_managed_gain_access(name)
+        self.__dict__[f"_{name}"] = value
+
+    def _reject_newton_managed_gain_access(self, name: Literal["stiffness", "damping"]) -> None:
+        """Raise when the group's gains are owned by Newton actuator controllers."""
+        if self.__dict__.get("_newton_managed", False):
             attr = {"stiffness": "kp", "damping": "kd"}[name]
             raise AttributeError(
-                f"{type(self).__name__}.{name} is controller-owned after Newton binding. Use "
-                f"write_parameter('controller', '{attr}', ...) or randomize_actuator_gains() to update it."
+                f"{type(self).__name__}.{name} is owned by Newton actuators. Use "
+                f"articulation.actuators.read_actuator_parameter(<group>, 'controller', '{attr}') and "
+                "write_actuator_parameter(...) instead."
             )
-        self.__dict__[f"_{name}"] = value
 
     """
     Operations.
