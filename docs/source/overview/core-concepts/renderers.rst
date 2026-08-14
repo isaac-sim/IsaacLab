@@ -53,10 +53,25 @@ The Isaac RTX renderer enables per-environment scene partitioning by default. It
 matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy and its
 camera so tiled views render only that environment's geometry.
 
-Set ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` before launching Isaac Lab
-to disable Isaac RTX scene-partition authoring and Kit viewport-camera tagging. The
-variable accepts only ``0`` or ``1``; other values raise an error. It does not affect
-OVRTX, which always partitions multi-environment scenes.
+Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`:
+
+.. code-block:: python
+
+   from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+   renderer_cfg = IsaacRtxRendererCfg(enable_scene_partitioning=False)
+
+The legacy ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
+still supplies the construction default when set to ``0`` or ``1``. An explicit config
+value takes precedence. This setting does not affect OVRTX, which always partitions
+multi-environment scenes.
+
+By default, ``global_settings.show_partitions_in_background=True`` leaves the Kit
+spectator camera unpartitioned so it sees all environments while tiled cameras remain
+isolated. This mode requires environments to remain spatially separated; overlapping
+partition bounds can make content leak into another environment or disappear. Set the
+field to ``False`` to prioritize partition isolation and show only the selected
+environment in the Kit viewport.
 
 Prims outside the environment hierarchies remain in the shared background partition.
 Global :class:`~isaaclab.markers.VisualizationMarkers` groups can instead assign each

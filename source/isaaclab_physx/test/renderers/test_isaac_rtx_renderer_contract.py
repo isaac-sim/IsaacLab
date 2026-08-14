@@ -238,6 +238,24 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
     assert call_order == ["enable", "global_settings"]
 
 
+def test_init_enables_global_spectator_view_setting(monkeypatch):
+    """Isaac RTX should expose all partitions to unpartitioned spectator cameras by default."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension"),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+
+    assert call("/rtx/scenePartitioning/showPartitionsInBackground", True) in settings.set.call_args_list
+
+
 @pytest.mark.parametrize(
     ("stored", "expected_called"),
     [

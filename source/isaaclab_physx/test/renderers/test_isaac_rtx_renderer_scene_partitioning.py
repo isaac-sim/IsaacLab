@@ -72,24 +72,23 @@ def test_partitioning_enabled_by_default(monkeypatch):
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_can_be_disabled(monkeypatch):
-    """``primvars:omni:scenePartition`` must not be authored when partitioning is explicitly disabled."""
+@pytest.mark.parametrize(("cfg_enabled", "environment_value"), [(True, "0"), (False, "1")])
+def test_partitioning_cfg_overrides_legacy_environment_variable(monkeypatch, cfg_enabled: bool, environment_value: str):
+    """The renderer configuration should take precedence over the legacy environment variable."""
     from pxr import Usd
 
-    monkeypatch.setenv(_ENV_VAR, "0")
+    monkeypatch.setenv(_ENV_VAR, environment_value)
 
     stage = Usd.Stage.CreateInMemory()
     world = stage.DefinePrim("/World", "Xform")  # noqa: F841
     env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
 
     renderer = object.__new__(IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg()
+    renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
     renderer.prepare_stage(stage, num_envs=1)
 
     prim = stage.GetPrimAtPath("/World/envs/env_0")
-    assert not prim.HasAttribute("primvars:omni:scenePartition"), (
-        "primvars:omni:scenePartition must not be authored when partitioning is disabled."
-    )
+    assert prim.HasAttribute("primvars:omni:scenePartition") is cfg_enabled
 
 
 @pytest.mark.isaacsim_ci

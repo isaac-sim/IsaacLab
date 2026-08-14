@@ -5,10 +5,12 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
+from dataclasses import field
 from typing import Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 
 @configclass
@@ -86,6 +88,14 @@ class IsaacRtxRendererGlobalSettingsCfg:
     view_tile_limit: int | None = None
     """Maximum number of view tiles."""
 
+    show_partitions_in_background: bool = True
+    """Show partitioned content in cameras without a scene-partition token.
+
+    This provides an all-environment spectator view while partitioned cameras
+    remain isolated. Environments must be spatially separated to avoid content
+    leaking between partitions.
+    """
+
     carb_settings: dict[str, Any] | None = None
     """Raw carb settings applied after named fields."""
 
@@ -104,6 +114,15 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
+
+    enable_scene_partitioning: bool = field(default_factory=isaac_rtx_per_env_scene_partition_enabled)
+    """Enable per-environment scene-partition authoring.
+
+    Enabled by default. The legacy
+    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
+    supplies the construction default when set; assigning this field explicitly
+    overrides it.
+    """
 
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.

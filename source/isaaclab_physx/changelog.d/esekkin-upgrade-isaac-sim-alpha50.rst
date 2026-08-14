@@ -1,6 +1,14 @@
+Added
+^^^^^
+
+* Added ``IsaacRtxRendererCfg.enable_scene_partitioning`` and
+  ``IsaacRtxRendererGlobalSettingsCfg.show_partitions_in_background`` settings.
+  The latter enables an all-environment spectator view by default and requires
+  spatially separated environments.
+
 Changed
 ^^^^^^^
 
 * Changed :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage` to
-  author per-environment scene-partition attributes by default. Set
-  ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to disable them.
+  author per-environment scene-partition attributes according to
+  ``IsaacRtxRendererCfg.enable_scene_partitioning``, which defaults to enabled.

@@ -8,7 +8,8 @@ Added
 Changed
 ^^^^^^^
 
-* Changed per-environment Isaac RTX scene partitioning to be enabled by default. Set
-  ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to disable Isaac RTX
-  scene-partition authoring and Kit viewport-camera tagging. OVRTX remains always-on.
-  The environment variable now accepts only ``0`` or ``1``.
+* Changed per-environment Isaac RTX scene partitioning to be enabled by default
+  through ``IsaacRtxRendererCfg.enable_scene_partitioning``. The legacy
+  ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
+  still supplies the config construction default and now accepts only ``0`` or
+  ``1``. OVRTX remains always-on.

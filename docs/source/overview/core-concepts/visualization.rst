@@ -462,6 +462,11 @@ Omniverse Visualizer
         enable_live_plots=True,  # set to False to disable live plots
     )
 
+When Isaac RTX scene partitioning is enabled, the default spectator-view
+setting keeps the Omniverse viewport unpartitioned so it shows all spatially
+separated environments while tiled cameras remain isolated. See
+:ref:`overview_renderers` for configuration and content constraints.
+
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~
 
