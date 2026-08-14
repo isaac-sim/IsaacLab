@@ -120,7 +120,7 @@ def main():
 
     # Create a ray-caster sensor
     ray_caster_cfg = RayCasterCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         ray_alignment="yaw",
@@ -129,7 +129,7 @@ def main():
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
     balls_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         spawn=None,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )

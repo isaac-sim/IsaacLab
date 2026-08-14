@@ -116,6 +116,10 @@ _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 _ANNOUNCED_MIRRORS: set[str] = set()
 """URLs already announced, so an asset consulted repeatedly is logged once."""
 
+_MIRRORED_URLS: dict[str, str] = {}
+"""Source URL per locally cached copy, recorded as the copy is located rather than recovered
+from its path, so a cache path is never inferred from a directory that merely looks like one."""
+
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
 
@@ -218,7 +222,10 @@ def _is_git_remote_path(git_path: str) -> bool:
     Returns:
         True if :paramref:`git_path` is a URL or SSH git path.
     """
-    return bool(urlparse(git_path).scheme) or _GIT_SSH_RE.match(git_path) is not None
+    # ``urlparse`` reports a Windows drive letter as a scheme, so a local checkout such as
+    # ``C:\assets`` would otherwise be taken for a repository to clone. No URL scheme is a
+    # single character.
+    return len(urlparse(git_path).scheme) > 1 or _GIT_SSH_RE.match(git_path) is not None
 
 
 def _get_git_asset_repo_name(git_path: str) -> str:
@@ -302,7 +309,32 @@ def _mirror_path(url: str, download_dir: str) -> str:
         return ""
     # ':' (port separator) is not a valid path character on Windows
     netloc = parsed.netloc.replace(":", "_")
-    return os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
+    mirrored = os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
+    # a host is what distinguishes a remote URL from a Windows drive letter, which ``urlparse``
+    # also reports as a scheme
+    if parsed.netloc:
+        _MIRRORED_URLS[os.path.abspath(mirrored)] = url
+    return mirrored
+
+
+def unmirror_file_path(path: str) -> str:
+    """Maps a locally cached asset copy back to the URL it was downloaded from.
+
+    :func:`retrieve_file_path` hands callers a local copy of a remote asset, so a stage built
+    from one records a path that only resolves on the machine holding the cache. An export of
+    that stage can use this to name the source asset instead.
+
+    Only copies this process located are known, so a locally authored path is never mistaken
+    for a cached copy. A copy mirrored by an earlier run is still recognised, because retrieval
+    walks the whole dependency tree even when every file is already cached.
+
+    Args:
+        path: Local filesystem path, typically an asset path read from a USD layer.
+
+    Returns:
+        The URL the copy was cached from, or ``""`` when this process did not cache it.
+    """
+    return _MIRRORED_URLS.get(os.path.abspath(path), "")
 
 
 def _remote_fingerprint(url: str) -> dict | None:

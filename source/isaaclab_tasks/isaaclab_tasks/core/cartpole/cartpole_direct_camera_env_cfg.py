@@ -24,7 +24,7 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 class CartpoleTiledCameraCfg(PresetCfg):
     @configclass
     class BaseCartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "/World/envs/env_.*/Camera"
+        prim_path: str = "{ENV_REGEX_NS}/Camera"
         offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
         )

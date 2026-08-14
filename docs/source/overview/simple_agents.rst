@@ -58,20 +58,20 @@ useful to ensure that the environments are configured correctly.
 
             .. code:: bash
 
-               uv run isaaclab zero_agent --task Isaac-Cartpole --num_envs 32
+               uv run isaaclab zero_agent --task Isaac-Cartpole --num_envs 32 --viz kit
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code:: bash
 
-               ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 32
+               ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole --num_envs 32
+         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 -  Random-action agent on the Cart-pole example:
 
@@ -87,20 +87,20 @@ useful to ensure that the environments are configured correctly.
 
             .. code:: bash
 
-               uv run isaaclab random_agent --task Isaac-Cartpole --num_envs 32
+               uv run isaaclab random_agent --task Isaac-Cartpole --num_envs 32 --viz kit
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code:: bash
 
-               ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32
+               ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole --num_envs 32
+         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 
 State machine

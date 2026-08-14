@@ -22,6 +22,8 @@ from isaaclab.utils.images import make_camera_output_grid, normalize_camera_outp
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
+    from pxr import Sdf
+
     from isaaclab.sensors.camera import CameraData
 
 logger = logging.getLogger(__name__)
@@ -510,6 +512,20 @@ def _sanitize_golden_stage_text(text: str) -> str:
     return text.rstrip("\n") + "\n"
 
 
+def _restore_remote_asset_paths(layer: "Sdf.Layer") -> None:
+    """Point cached asset paths in ``layer`` back at the URLs they were downloaded from.
+
+    Remote USD assets are referenced through a local cache copy, so flattening resolves the
+    textures and materials they carry into absolute cache paths that exist only on the machine
+    that ran the test. Locally authored paths are left untouched.
+    """
+    from pxr import UsdUtils  # noqa: PLC0415
+
+    from isaaclab.utils.assets import unmirror_file_path  # noqa: PLC0415
+
+    UsdUtils.ModifyAssetPaths(layer, lambda asset_path: unmirror_file_path(asset_path) or asset_path)
+
+
 def maybe_save_stage(
     test_name: str,
     physics_backend: str,
@@ -551,6 +567,7 @@ def maybe_save_stage(
         flat_layer = opened_stage.Flatten()
         if flat_layer is None:
             pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
+        _restore_remote_asset_paths(flat_layer)
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
@@ -1477,7 +1494,7 @@ def rendering_test_cartpole(
     @configclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
         robot_cfg = CARTPOLE_CFG.replace(
-            prim_path="/World/envs/env_.*/Robot",
+            prim_path="{ENV_REGEX_NS}/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
 

@@ -205,9 +205,7 @@ backend-specific and AppLauncher arguments:
      - ``False``
      - Skip generating the pipeline graph PNG.
 
-The script also accepts ``--checkpoint`` and ``--use_pretrained_checkpoint`` for locating the
-trained model. Some backends expose additional checkpoint-selection options, such as
-``--load_run`` for RSL-RL and ``--use_last_checkpoint`` for RL-Games.
+The script accepts ``--checkpoint`` for locating the trained model.
 
 
 How It Works (High Level)

@@ -61,10 +61,6 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
     return outputs
 
 
-# Golden stages and images are backend-specific, so keep these checks pinned to
-# the backend that produced their references instead of following task defaults.
-_PINNED_PRESETS = ("isaacsim_physx", "isaacsim_rtx")
-
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank
 # rendering. The max different pixels percentage is set based on the screen space taken up by the
 # env. The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
@@ -100,10 +96,7 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
-        selected = set(_PINNED_PRESETS)
-        if presets:
-            selected.add(presets)
-        env_cfg = resolve_presets(env_cfg, selected)
+        env_cfg = resolve_presets(env_cfg, {presets} if presets else frozenset())
         env_cfg.sim.device = "cuda:0"
         env_cfg.scene.num_envs = 4
 
@@ -115,8 +108,8 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
 
         maybe_save_stage(
             f"registered_tasks_{task_id}",
-            _PINNED_PRESETS[0],
-            _PINNED_PRESETS[1],
+            "default_physics",
+            "default_renderer",
             "stage",
             compare_golden=(presets is None),
         )
@@ -129,8 +122,8 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
 
         validate_camera_outputs(
             f"registered_tasks/{task_id}",
-            _PINNED_PRESETS[0],
-            _PINNED_PRESETS[1],
+            "default_physics",
+            "default_renderer",
             camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name],
             comparison_scores=_COMPARISON_SCORES,

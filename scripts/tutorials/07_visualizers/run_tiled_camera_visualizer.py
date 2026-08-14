@@ -79,6 +79,8 @@ def _make_kit_visualizer_cfg(env_cfg):
         return visualizer_cfg
 
     visualizer_cfg.streaming_sensor_prim_path = None
+    visualizer_cfg.streaming_cam_eye = (3.0, 3.0, 3.0)
+    visualizer_cfg.streaming_cam_target_prim_path = "/World/envs/*/Robot/base"
     # Here is an alternative eye position for a top down view
     # visualizer_cfg.streaming_cam_eye = (0.0, 0.0, 5.0)
     return visualizer_cfg

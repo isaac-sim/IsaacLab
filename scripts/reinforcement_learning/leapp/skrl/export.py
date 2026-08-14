@@ -199,7 +199,7 @@ def export_skrl_agent(
     log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
-    if args_cli.use_pretrained_checkpoint:
+    if args_cli.checkpoint == "pretrained":
         resume_path = get_published_pretrained_checkpoint("skrl", checkpoint_task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
@@ -246,7 +246,7 @@ def export_skrl_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             save_path = os.path.join(".pretrained_checkpoints", "skrl", checkpoint_task_name)
         else:
             save_path = log_dir
