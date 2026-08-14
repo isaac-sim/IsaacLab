@@ -30,7 +30,7 @@ class PendulumEnvCfg(DirectMARLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
 
     # robot
-    robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
     pendulum_dof_name = "pole_to_pendulum"

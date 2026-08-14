@@ -25,8 +25,8 @@ use the Omniverse Kit to edit the asset and export it to other file formats. Isa
 these importers by default. They can also be enabled manually in Omniverse Kit.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
-Isaac Sim when the full runtime is installed. In kit-less environments, install
-the standalone importer wheel as described in
+Isaac Sim when the full runtime is installed. In kit-less environments they fall back
+to the standalone importers described in
 :ref:`installation-standalone-importers` below.
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
@@ -43,25 +43,17 @@ For more details on instanceable assets, please check the Isaac Sim `documentati
 Standalone URDF/MJCF importers
 ------------------------------
 
-The URDF and MJCF converter scripts can run without Isaac Sim when the standalone
-``isaacsim-asset-isolated`` wheel is installed in the active environment. The wheel is not
-published on PyPI, so replace ``PACKAGE_INDEX_URL`` with the package index that hosts it:
+The URDF and MJCF converter scripts run without Isaac Sim. The standalone
+``isaacsim-asset-isolated`` wheel is a base dependency, so no extra install step is needed.
+Optionally pass ``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a
+kit-less Isaac Lab visualizer:
 
 .. code-block:: bash
 
-   uv pip install "isaacsim-asset-isolated>=6.0,<6.1" \
-     --extra-index-url "PACKAGE_INDEX_URL"
-
-After installing the wheel, run conversion in the kit-less environment. Optionally pass
-``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a kit-less
-Isaac Lab visualizer:
-
-.. code-block:: bash
-
-   python scripts/tools/convert_urdf.py \
+   uv run python scripts/tools/convert_urdf.py \
      path/to/robot.urdf path/to/output_dir --merge_joints
 
-   python scripts/tools/convert_mjcf.py \
+   uv run python scripts/tools/convert_mjcf.py \
      path/to/model.xml path/to/output.usd --merge_mesh
 
 If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer

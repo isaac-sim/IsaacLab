@@ -12,6 +12,7 @@ import runpy
 import sys
 import types
 
+import gymnasium as gym
 import pytest
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
@@ -68,7 +69,25 @@ def test_train_request_maps_checkpoint_to_backend_argument(monkeypatch) -> None:
 
     received.clear()
     api.train(TrainingRequest(backend="rlinf", task="Isaac-Task", checkpoint="model"))
-    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--model_path", "model"]
+    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--checkpoint", "model"]
+
+
+def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
+    """RLinf accepts the public checkpoint and iteration option names."""
+    from isaaclab_rl.entrypoints.backends import train_rlinf
+
+    args = train_rlinf._parse_args(["--config_name", "ppo", "--checkpoint", "latest", "--max_iterations", "10"])
+
+    assert args.checkpoint == "latest"
+    assert args.max_iterations == 10
+
+
+def test_rlinf_rejects_pretrained_checkpoint() -> None:
+    """RLinf has no published pre-trained checkpoint."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
+
+    with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
+        _resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
@@ -88,7 +107,7 @@ def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
     assert sys.argv == original_argv
 
 
-def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:
+def test_play_request_uses_unified_checkpoint_argument(monkeypatch) -> None:
     """RLinf requests map shared fields to its focused backend arguments."""
     received: list[str] = []
 
@@ -105,7 +124,7 @@ def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:
         "rlinf",
         "--task",
         "Isaac-Task",
-        "--model_path",
+        "--checkpoint",
         "model",
         "--video",
     ]
@@ -128,6 +147,32 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     }
 
 
+def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
+    """A task registry default selects the backend when the CLI omits it."""
+    task_name = "Isaac-DefaultAgentDispatchTest"
+    gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    monkeypatch.setitem(sys.modules, "isaaclab_tasks", types.ModuleType("isaaclab_tasks"))
+    received: dict[str, object] = {}
+    monkeypatch.setattr(
+        dispatch,
+        "_run_backend",
+        lambda module_name, argv, *, run_as_script: received.update(
+            module_name=module_name, argv=argv, run_as_script=run_as_script
+        ),
+    )
+
+    try:
+        assert dispatch.run_train_cli(["--task", task_name]) == 0
+    finally:
+        gym.registry.pop(task_name, None)
+
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
+        "argv": ["--task", task_name],
+        "run_as_script": False,
+    }
+
+
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     """Space-separated option-like Kit arguments are fused before backend parsing."""
     received: dict[str, object] = {}
@@ -142,7 +187,7 @@ def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
 
 def test_dispatch_requires_a_backend() -> None:
     """Missing backend selection returns the conventional CLI error status."""
-    assert dispatch.run_train_cli(["--task", "Isaac-Cartpole"]) == 2
+    assert dispatch.run_train_cli([]) == 2
 
 
 def _torch_backend_state() -> tuple[bool, bool, bool, bool]:

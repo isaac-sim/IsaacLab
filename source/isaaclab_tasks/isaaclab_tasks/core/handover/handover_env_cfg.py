@@ -83,19 +83,19 @@ def _shadow_hand_cfg(
 
 # Per-hand presets shared by the Direct environment and the manager scene.
 RIGHT_HAND_CFG = _shadow_hand_cfg(
-    prim_path="/World/envs/env_.*/RightRobot",
+    prim_path="{ENV_REGEX_NS}/RightRobot",
     init_pos=(0.0, 0.0, 0.5),
     init_rot=(0.0, 0.0, 0.0, 1.0),
 )
 LEFT_HAND_CFG = _shadow_hand_cfg(
-    prim_path="/World/envs/env_.*/LeftRobot",
+    prim_path="{ENV_REGEX_NS}/LeftRobot",
     init_pos=(0.0, -1.0, 0.5),
     init_rot=(0.0, 0.0, 1.0, 0.0),
 )
 
 
 BALL_CFG = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/object",
+    prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.SphereCfg(
         radius=OBJECT_RADIUS,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),

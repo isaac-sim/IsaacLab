@@ -909,9 +909,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         # same as "no visualizer specified" for the purpose of picking a recorder source.
         active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
 
-        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
-        # expose a local frame-capture API and cannot serve as video recording sources.
-        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+        # Streaming visualizers do not expose a local frame-capture API.
+        _NO_CAPTURE = {"rerun", "viser"}
 
         if active_cli_visualizers:
             # Partition into capture-capable and no-capture lists.
@@ -923,15 +922,15 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 example_cfg = {
                     "rerun": "RerunVisualizerCfg",
                     "viser": "ViserVisualizerCfg",
-                    "newton_rtx": "NewtonRTXVisualizerCfg",
                 }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
                 raise ValueError(
                     f"--video is not supported with --viz {names}: {names} "
                     f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
                     "and do not expose a local frame-capture API.\n\n"
-                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "Supported recording backends (all support headless mode for zero UI overhead):\n"
                     "  --viz kit        Kit/Omniverse viewport\n"
-                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n"
+                    "  --viz newton_rtx Newton OVRTX path-traced viewport\n\n"
                     f"To run {names} alongside video recording, add a headless capture backend\n"
                     "to sim.visualizer_cfgs in your environment config, for example:\n\n"
                     f"  sim_cfg.visualizer_cfgs = [\n"
@@ -1092,6 +1091,7 @@ def resolve_checkpoint_selector(
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
+    recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using manifests from new training runs.
 
@@ -1108,6 +1108,7 @@ def resolve_checkpoint_selector(
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
         metadata: Additional manifest metadata required for compatibility.
+        recursive: Whether to search recursively below each matching run directory.
 
     Returns:
         Absolute path to the selected checkpoint.
@@ -1147,9 +1148,8 @@ def resolve_checkpoint_selector(
         checkpoint_dir = run_dir.joinpath(*(other_dirs or []))
         if not checkpoint_dir.is_dir():
             continue
-        checkpoints = [
-            path for path in checkpoint_dir.iterdir() if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)
-        ]
+        paths = checkpoint_dir.rglob("*") if recursive else checkpoint_dir.iterdir()
+        checkpoints = [path for path in paths if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)]
         if not checkpoints:
             continue
         if selector == "best" and preferred_checkpoint_pattern is not None:
@@ -1158,7 +1158,7 @@ def resolve_checkpoint_selector(
             ]
             if preferred:
                 checkpoints = preferred
-        checkpoints.sort(key=lambda path: _natural_sort_key(path.name))
+        checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 
     raise ValueError(

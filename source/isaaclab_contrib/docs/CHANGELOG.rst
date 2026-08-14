@@ -1,6 +1,43 @@
 Changelog
 ---------
 
+1.4.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled CUDA graph capture for coupled MPM entries that use
+  capacity-bounded sparse grids.
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed single-world coupled MPM reset handling.
+* Avoided per-step host synchronization in single-world coupled scenes without
+  MPM entries.
+* Surfaced asynchronous rebuild failures from nested MPM solvers after CUDA
+  graph replay.
+
+
+1.3.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Newton coupler configuration checks to support
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`.
+
+
 1.3.0 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~
 

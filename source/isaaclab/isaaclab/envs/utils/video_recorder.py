@@ -158,8 +158,6 @@ class VideoRecorder:
             # "newton" is a backward-compatible alias for the newton_gl visualizer type.
             # The canonical visualizer_type on NewtonGLVisualizerCfg is "newton_gl", but
             # source strings in tutorials and docs use the shorter "newton" form.
-            # Note: newton_rtx is intentionally excluded because render_rgb_array() returns
-            # None for that backend (ViewerRTX does not yet expose framebuffer readback).
             _newton_aliases = ("newton_gl",)
             if viz_type == "newton":
                 candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) in _newton_aliases]
@@ -180,7 +178,8 @@ class VideoRecorder:
                 raise RuntimeError(
                     "[VideoRecorder] source='visualizer' found no recording-capable visualizer "
                     f"(active: {active or ['none']}). "
-                    "Pass --viz kit or --viz newton, or use source='sensor:<name>' to record from a scene sensor."
+                    "Pass --viz kit, --viz newton_gl, or --viz newton_rtx, or use "
+                    "source='sensor:<name>' to record from a scene sensor."
                 )
 
         # Kit Replicator requires cubric to propagate Newton Fabric transforms to RTX's
@@ -229,8 +228,7 @@ class VideoRecorder:
             viz_type_name = getattr(getattr(viz, "cfg", None), "visualizer_type", "unknown")
             raise RuntimeError(
                 f"[VideoRecorder] render_rgb_array() returned None for '{viz_type_name}' visualizer. "
-                "Newton RTX does not yet support framebuffer readback. "
-                "Use source='visualizer:newton_gl' or source='visualizer:newton_gl:streaming_view' instead."
+                "Use a capture-capable visualizer or source='sensor:<name>' instead."
             )
         return frame
 

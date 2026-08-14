@@ -17,6 +17,7 @@ import collections
 import contextlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -450,10 +451,21 @@ def _render_grid_row(cells: list[list[str]], widths: list[int], indent: str) -> 
     return output
 
 
-def get_workflow(entry_point: str) -> str:
+def get_workflow(entry_point: str | Callable[..., object]) -> str:
     """Return the human-readable workflow label for a Gym entry point."""
-    if "ManagerBasedRLEnv" in entry_point:
+    if isinstance(entry_point, str) and "ManagerBasedRLEnv" in entry_point:
         return "Manager Based"
+
+    env_creator = entry_point
+    if isinstance(entry_point, str):
+        with contextlib.suppress(ImportError, AttributeError, ValueError):
+            env_creator = gym.envs.registration.load_env_creator(entry_point)
+
+    if isinstance(env_creator, type):
+        from isaaclab.envs import ManagerBasedRLEnv
+
+        if issubclass(env_creator, ManagerBasedRLEnv):
+            return "Manager Based"
     return "Direct"
 
 
@@ -501,10 +513,11 @@ def collect_environment_doc_rows(
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
 
+        workflow = get_workflow(spec.entry_point)
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
-                workflow=get_workflow(spec.entry_point),
+                workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
             )

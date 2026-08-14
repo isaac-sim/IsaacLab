@@ -46,12 +46,13 @@ COPY source/ source/
 COPY isaaclab.sh ./
 
 # Same entry point as Dockerfile.base. The selectors are explicit because a bare
-# --install excludes `ov` and `visualizer`; both take `[all]` here. The venv pins
+# --install excludes `ov` and `visualizer`; both take `[all]` here. `importers` carries
+# the standalone URDF/MJCF importers that replace the Isaac Sim ones. The venv pins
 # python3.12 to match the runtime stage's libpython3.12, and isaaclab.sh resolves
 # VIRTUAL_ENV first.
 RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
- && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all] \
+ && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all],importers \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
