@@ -141,6 +141,14 @@ class CableResetReplayCfg:
     16-attempt cap despite the other 4095 rows being viable.
     """
 
+    max_donor_fraction: float = 0.10
+    """Maximum fraction of a build batch that may reuse valid same-goal rows.
+
+    After exhausting physical generation attempts, a small rejection tail may
+    copy already validated snapshots for the same route. The cap prevents a
+    systemic reset-generation failure from being hidden by duplicated states.
+    """
+
     max_settle_linear_speed: float = 0.15
     """Maximum cable-segment linear speed [m/s] accepted after settling."""
 
@@ -215,6 +223,8 @@ class CableResetReplayCfg:
             raise ValueError("settle_steps must be positive.")
         if self.max_settle_attempts < 1:
             raise ValueError("max_settle_attempts must be positive.")
+        if not math.isfinite(self.max_donor_fraction) or not 0.0 <= self.max_donor_fraction < 1.0:
+            raise ValueError("max_donor_fraction must lie in [0, 1).")
         if not math.isfinite(self.max_settle_linear_speed) or self.max_settle_linear_speed <= 0.0:
             raise ValueError("max_settle_linear_speed must be finite and positive.")
         if not math.isfinite(self.max_settle_angular_speed) or self.max_settle_angular_speed <= 0.0:
@@ -380,6 +390,7 @@ class CableResetReplay:
         self._route_rows: dict[int, torch.Tensor] = {}
         self.build_candidate_count = 0
         self.build_rejection_count = 0
+        self.build_donor_count = 0
         self.build_max_attempts = 0
         self.build_duration_s = 0.0
         self.built = False
@@ -431,6 +442,7 @@ class CableResetReplay:
             "reset_replay/success_rate": self.monitor.get_mean_success_rate(),
             "reset_replay/measured_slot_fraction": float(measured.float().mean()),
             "reset_replay/build_rejection_rate": self.build_rejection_count / max(self.build_candidate_count, 1),
+            "reset_replay/build_donor_fraction": self.build_donor_count / self.cfg.buffer_size,
             "reset_replay/build_max_attempts": float(self.build_max_attempts),
             "reset_replay/build_duration_s": self.build_duration_s,
         }

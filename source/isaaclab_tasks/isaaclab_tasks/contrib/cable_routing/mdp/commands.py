@@ -1279,7 +1279,59 @@ class CableRoutingCommand(CommandTerm):
                     pending_local = pending_local[~valid]
 
                 if len(pending_local) > 0:
-                    failed_rows = (bank_start + pending_local).tolist()
+                    failed_row_ids = bank_start + pending_local
+                    failed_rows = failed_row_ids.tolist()
+                    available_mask = torch.ones(bank_start + count, device=self.device, dtype=torch.bool)
+                    available_mask[failed_row_ids] = False
+                    available_rows = available_mask.nonzero(as_tuple=False).squeeze(-1)
+                    donor_rows: list[torch.Tensor] = []
+                    within_batch_limit = len(failed_rows) / count <= replay.cfg.max_donor_fraction
+                    within_bank_limit = (replay.build_donor_count + len(failed_rows)) / (
+                        bank_start + count
+                    ) <= replay.cfg.max_donor_fraction
+                    if within_batch_limit and within_bank_limit:
+                        requested_progress = active_winding / self.cfg.completion_winding
+                        for failed_row in failed_row_ids:
+                            same_route = replay.route_id[available_rows] == route_ids[failed_row]
+                            same_step = replay.active_step[available_rows] == active_steps[failed_row]
+                            same_phase = replay.interaction_phase[available_rows] == interaction_phase[failed_row]
+                            candidates = available_rows[same_route & same_step & same_phase]
+                            if len(candidates) == 0:
+                                candidates = available_rows[same_route & same_step]
+                            if len(candidates) == 0:
+                                candidates = available_rows[same_route]
+                            if len(candidates) == 0:
+                                donor_rows = []
+                                break
+                            distance = (
+                                replay.requested_active_progress[candidates] - requested_progress[failed_row]
+                            ).abs()
+                            donor_rows.append(candidates[distance.argmin()])
+
+                    if len(donor_rows) == len(failed_rows):
+                        donors = torch.stack(donor_rows)
+                        donor_state = replay.state_buffer.gather(donors)
+                        donor_state_rows = torch.arange(len(donors), device=self.device, dtype=torch.long)
+                        replay.state_buffer.store_rows(failed_row_ids, donor_state, donor_state_rows)
+                        for metadata in (
+                            replay.route_id,
+                            replay.active_step,
+                            replay.interaction_phase,
+                            replay.requested_active_progress,
+                            replay.start_progress,
+                        ):
+                            metadata[failed_row_ids] = metadata[donors]
+                        replay.build_donor_count += len(failed_rows)
+                        _LOGGER.warning(
+                            "[cable-routing] reset replay reused %d validated same-goal rows after "
+                            "%d physical attempts (destinations=%s, donors=%s).",
+                            len(failed_rows),
+                            replay.cfg.max_settle_attempts,
+                            failed_rows,
+                            donors.tolist(),
+                        )
+                        continue
+
                     failure_details: list[str] = []
                     if terminal_failure_context is not None:
                         context_rows = terminal_failure_context["bank_rows"]
@@ -1350,6 +1402,7 @@ class CableRoutingCommand(CommandTerm):
             f"phase counts={phase_counts}, progress={float(replay.start_progress.min()):.3f}.."
             f"{float(replay.start_progress.max()):.3f}, "
             f"rejected={replay.build_rejection_count}/{replay.build_candidate_count}, "
+            f"donors={replay.build_donor_count}, "
             f"max attempts={replay.build_max_attempts}, duration={replay.build_duration_s:.2f}s"
         )
 

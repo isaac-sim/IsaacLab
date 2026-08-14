@@ -40,4 +40,5 @@ Fixed
   translation so distant environment clones cannot lose bend precision. Replay entries now survive
   a complete Newton reset/relative-restore round trip and are accepted from live route semantics,
   while stored progress remains diagnostic. YAM reset contacts also select reachable downstream
-  cable workspace instead of a fixed material offset.
+  cable workspace instead of a fixed material offset. Replay construction now bounds and fills
+  rare exhausted-row tails from already validated snapshots for the same route.
