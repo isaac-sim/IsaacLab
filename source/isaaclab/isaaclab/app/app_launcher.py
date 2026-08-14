@@ -721,7 +721,6 @@ class AppLauncher:
         "fast_shutdown": [bool],
         "limit_cpu_threads": [int],
         "experience": [str],
-        "extra_args": [list, type(None)],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
 
@@ -1124,18 +1123,10 @@ class AppLauncher:
             # pass command line variable to kit
             sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
-        # Set the rendering device. ``/physics/cudaDevice`` is resolved by CUDA, so the masked index is
-        # correct there. ``/renderer/activeGpu`` instead indexes the graphics device list, which
-        # ``CUDA_VISIBLE_DEVICES`` does not filter, so the same index selects the wrong GPU whenever the
-        # visible devices do not start at zero. ``/renderer/multiGpu/activeCudaGpus`` takes CUDA indices
-        # and the renderer translates them itself, so select the device through that instead and leave
-        # ``activeGpu`` unset -- the translation is only applied when no explicit graphics index is given.
+        # ``/physics/cudaDevice`` is resolved by CUDA, so the masked index is correct there.
+        # ``activeGpu`` is deliberately left unset; the renderer device is selected in
+        # :meth:`_resolve_kit_args` instead.
         launcher_args["physics_gpu"] = self.device_id
-        extra_args = list(launcher_args.get("extra_args") or [])
-        # Trailing comma: the setting is parsed as a comma-separated string, and a bare integer is
-        # silently ignored.
-        extra_args.append(f"--/renderer/multiGpu/activeCudaGpus={self.device_id},")
-        launcher_args["extra_args"] = extra_args
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
@@ -1275,6 +1266,22 @@ class AppLauncher:
         setting = argument.partition("=")[0]
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
+
+        # Select the renderer device by CUDA index, but only where this process is pinned to one
+        # GPU. ``/renderer/activeGpu`` indexes the graphics device list, which
+        # ``CUDA_VISIBLE_DEVICES`` does not filter, so the same index selects the wrong GPU whenever
+        # the visible devices do not start at zero. ``activeCudaGpus`` takes CUDA indices and the
+        # renderer translates them itself, but only while no explicit graphics index is given, so
+        # ``activeGpu`` is left unset. The trailing comma is required: ``=0`` is stored as an int
+        # and the setting is read with ``getString``, which then returns empty.
+        #
+        # Skipped when Kit renders across several GPUs in one process, since this setting also fills
+        # the renderer's active-device list and a one-element list caps the device count at one.
+        if launcher_args.get("multi_gpu") is False:
+            argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
 
         sys.argv += self._kit_args
 
