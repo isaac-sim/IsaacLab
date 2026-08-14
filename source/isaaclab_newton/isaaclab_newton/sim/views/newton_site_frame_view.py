@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import warp as wp
 
@@ -271,14 +272,15 @@ class NewtonSiteFrameView(BaseFrameView):
             matches = tuple(cloner.query.iter_sources(plan, path_expr)) if plan is not None else ()
             if matches:
                 for source_root, destination_template, source_path, env_ids in matches:
-                    source_prim = None
-                    if not any(token in source_path for token in "*[]()+?|\\"):
-                        source_prim = stage.GetPrimAtPath(source_path)
-                    if source_prim is None or not source_prim.IsValid():
-                        source_prim = sim_utils.find_first_matching_prim(source_path, stage)
-                    if source_prim is None or not source_prim.IsValid():
+                    source_pattern = re.compile(source_path)
+                    source_prims = sim_utils.get_all_matching_child_prims(
+                        source_root,
+                        lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
+                        stage=stage,
+                    )
+                    if not source_prims:
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{source_path}'.")
-                    specs.append(
+                    specs.extend(
                         self._resolve_source_prim(
                             source_prim,
                             validate_xform_ops,
@@ -288,14 +290,16 @@ class NewtonSiteFrameView(BaseFrameView):
                             use_clone_body_pattern,
                             stage,
                         )
+                        for source_prim in source_prims
                     )
                 continue
 
-            prim = sim_utils.find_first_matching_prim(path_expr, stage)
-            if prim is None or not prim.IsValid():
+            prims = sim_utils.find_matching_prims(path_expr, stage)
+            if not prims:
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
-            specs.append(
+            specs.extend(
                 self._resolve_source_prim(prim, validate_xform_ops, None, None, None, use_clone_body_pattern, stage)
+                for prim in prims
             )
 
         return specs

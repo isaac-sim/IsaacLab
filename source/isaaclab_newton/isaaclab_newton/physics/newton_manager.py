@@ -88,7 +88,7 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api
+from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -3269,8 +3269,8 @@ class NewtonManager(PhysicsManager):
             if expr is None:
                 return None
             if isinstance(expr, str):
-                return expr.replace(".*", "*")
-            return [p.replace(".*", "*") for p in expr]
+                return path_expr_to_glob(expr)
+            return [path_expr_to_glob(p) for p in expr]
 
         def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
             """Strip leading path components from *expr* when labels are bare names.

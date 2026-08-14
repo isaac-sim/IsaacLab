@@ -83,7 +83,7 @@ class ContactSensorCfg(SensorBaseCfg):
         Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
         is replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_.*/Object``.
+        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_[^/]+/Object``.
 
     .. attention::
         Filtered contact reporting only works when :attr:`SensorBaseCfg.prim_path` matches a
