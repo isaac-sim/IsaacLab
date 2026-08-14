@@ -160,6 +160,9 @@ rerun = [
 ]
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
+# Isaac Sim built from source (``isaaclab --isaacsim_source``). Source builds carry pre-release
+# local versions that sort below the published release, so the command pins this locally.
+isaacsim-local = ["isaacsim[all,extscache]>=6.0.1.0"]
 
 ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
 ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
