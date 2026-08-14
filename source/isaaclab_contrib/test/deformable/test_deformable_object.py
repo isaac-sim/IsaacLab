@@ -20,7 +20,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -31,8 +31,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-
-from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
 NEWTON_VBD_CFG = SimulationCfg(
     physics=NewtonCfg(

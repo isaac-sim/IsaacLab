@@ -140,7 +140,7 @@ The MJWarp + VBD deformable manager is a concrete example:
 
 * :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` stores a
   ``rigid_solver_cfg`` for :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, a
-  ``soft_solver_cfg`` for :class:`~isaaclab_contrib.deformable.VBDSolverCfg`,
+  ``soft_solver_cfg`` for :class:`~isaaclab_newton.physics.VBDSolverCfg`,
   and a ``coupling_mode``.
 * ``NewtonCoupledMJWarpVBDManager._build_solver()`` constructs
   ``SolverMuJoCo`` and ``SolverVBD`` from those sub-configs.
@@ -232,13 +232,15 @@ Tune the coupled contact behavior before training a policy:
 * Lower the arm actuator stiffness enough that the arm can respond to contact
   penalties. Prefer the arm being pushed back over the gripper clipping into the
   deformable.
-* Tune :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_ke`
+* Tune :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_ke`
   first. Increase it only as much as needed to prevent clipping, then adjust
-  :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_mu` so the
+  :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_mu` so the
   gripper can carry the object without requiring an obviously unphysical
   friction value. Use
-  :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_kd` for
+  :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_kd` for
   stabilization if contacts chatter.
+  Set this configuration on the outer
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg` field.
 * Tune the ``soft_contact_*`` values together with the rigid shape contact
   material, because the shape's ``ke``/``kd``/``mu`` also affect the effective
   contact. Set shape defaults via
@@ -254,7 +256,7 @@ Tune the coupled contact behavior before training a policy:
   increase ``particle_radius`` in the deformable material so contact is detected
   earlier from a larger distance.
 * If the rigid shapes still clip through the deformable, increase
-  :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.iterations`; more VBD
+  :attr:`~isaaclab_newton.physics.VBDSolverCfg.iterations`; more VBD
   iterations can improve contact convergence.
 
 
