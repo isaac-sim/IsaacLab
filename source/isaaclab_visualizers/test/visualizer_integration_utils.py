@@ -175,6 +175,20 @@ _TILED_CAMERA_MOTION_CHANNEL_DIFF_THRESHOLD = 5
 _TILED_CAMERA_MOTION_MIN_DIFFERING_PIXELS = 25
 """Minimum differing pixels for tiled camera motion checks."""
 
+# NVBUG 6570125 — Remove these overrides once it ships the fix and paused frames are stable again.
+_KIT_PAUSED_VIEWPORT_CHANNEL_DIFF_THRESHOLD = 80
+"""Per-channel threshold for paused Kit viewport comparisons (0–255 space)."""
+
+_KIT_PAUSED_TILED_CAMERA_NEWTON_CHANNEL_DIFF_THRESHOLD = 160
+"""Per-channel threshold for paused Kit tiled camera comparisons on Newton (0–255 space)."""
+
+_KIT_PAUSED_TILED_CAMERA_PHYSX_CHANNEL_DIFF_THRESHOLD = 80
+"""Per-channel threshold for paused Kit tiled camera comparisons on PhysX (0–255 space).
+
+Matches the viewport value but is kept separate: this cell measures 103 differing pixels at the
+default threshold, so it needs its own floor rather than tracking whatever the viewport uses.
+"""
+
 _FRAME_MIN_CHANNEL_RANGE = 10
 """Minimum per-frame channel range to reject all-one-color images."""
 
@@ -569,12 +583,14 @@ def _assert_frames_remain_stable(
     phase: str,
     debug_phase: str,
     max_differing_pixels: int = 100,
+    channel_diff_threshold: float = _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD,
 ) -> None:
     """Assert two viewport frames are effectively unchanged while simulation is paused."""
-    n_diff = _count_significantly_differing_pixels(frame_a, frame_b)
+    n_diff = _count_significantly_differing_pixels(frame_a, frame_b, channel_diff_threshold=channel_diff_threshold)
     assert n_diff <= max_differing_pixels, (
         f"{case_label} failed to pause during {phase}: {n_diff} pixels differed, expected at most "
-        f"{max_differing_pixels}. Frame shape={_frame_shape_for_message(frame_a)}. "
+        f"{max_differing_pixels} with per-channel threshold {channel_diff_threshold} in 0-255 space. "
+        f"Frame shape={_frame_shape_for_message(frame_a)}. "
         f"Debug frames: {_current_visualizer_debug_dir()}/*{debug_phase}*.png."
     )
 
@@ -1259,6 +1275,7 @@ def _run_kit_viewport_frame_motion_test(
                 case_label=case_label,
                 phase="pausing",
                 debug_phase="pausing",
+                channel_diff_threshold=_KIT_PAUSED_VIEWPORT_CHANNEL_DIFF_THRESHOLD,
             )
 
         try:
@@ -1400,16 +1417,13 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
 
     def _attempt_pause():
         _set_kit_simulation_paused(env, True)
-        # Read the sensor's last completed frame while paused. Forcing a new RTX
-        # render here introduces TAA edge jitter even though physics is frozen.
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(
-            visualizer, label="2a_pausing_frame_20", force_recompute=False
-        )
+        # Re-render both paused captures: comparing the sensor's cached frame with itself cannot
+        # detect a renderer that keeps changing the image after physics stops.  The denoiser residue
+        # that motivated caching is handled by the per-channel threshold below (NVBUG 6570125).
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20")
         for _ in range(PAUSE_VIZ_N_STEP):
-            env.sim.render(skip_app_pumping=isinstance(visualizer, KitVisualizer))
-        paused_end_frame = _capture_visualizer_tiled_camera_rgb(
-            visualizer, label="2b_pausing_frame_25", force_recompute=False
-        )
+            env.sim.render()
+        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25")
         _save_visualizer_debug_phase_images(
             paused_start_frame,
             paused_end_frame,
@@ -1425,6 +1439,13 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
             case_label=case_label,
             phase="pausing",
             debug_phase="pausing_tiled",
+            channel_diff_threshold=(
+                _KIT_PAUSED_TILED_CAMERA_NEWTON_CHANNEL_DIFF_THRESHOLD
+                if isinstance(visualizer, KitVisualizer) and physics_kind == "newton"
+                else _KIT_PAUSED_TILED_CAMERA_PHYSX_CHANNEL_DIFF_THRESHOLD
+                if isinstance(visualizer, KitVisualizer)
+                else _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD
+            ),
         )
 
     try:
