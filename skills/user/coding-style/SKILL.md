@@ -4,6 +4,10 @@ description: Applies Isaac Lab coding style, API design, docstring, type-hint, l
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <isaaclab@nvidia.com>
+audience: user
+status: stable
+owners:
+  - isaaclab-maintainers
 ---
 
 # Following Coding Style

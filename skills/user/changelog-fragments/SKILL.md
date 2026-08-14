@@ -4,6 +4,10 @@ description: Writes and validates Isaac Lab package changelog fragments using th
 license: BSD-3-Clause
 metadata:
   author: Isaac Lab Team <isaaclab@nvidia.com>
+audience: user
+status: stable
+owners:
+  - isaaclab-maintainers
 ---
 
 # Writing Changelog Fragments
