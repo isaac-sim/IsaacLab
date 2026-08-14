@@ -360,152 +360,6 @@ def _resolve_actuator_parameter(actuator: Actuator, component: str, attr: str) -
     return parameter
 
 
-def read_newton_actuator_parameter(
-    actuators: list[Actuator],
-    component: str,
-    attr: str,
-    num_envs: int,
-    num_joints: int,
-    dof_offset: int,
-    env_stride: int,
-    device: str,
-    joint_user_to_backend_indices: Sequence[int] | None = None,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Project one live Newton actuator parameter, addressed by component and name, into public joint order.
-
-    Args:
-        actuators: Newton actuators visible to the model.
-        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-        num_envs: Number of articulation environments.
-        num_joints: Articulation-local joint count.
-        dof_offset: Offset of this articulation's DOFs in the model buffer.
-        env_stride: Model DOFs per environment.
-        device: Torch and Warp device.
-        joint_user_to_backend_indices: Optional public-to-backend joint mapping.
-
-    Returns:
-        The live parameter values (in the parameter's dtype; zeros where
-        uncovered) and a public-order mask that identifies joints covered by
-        an actuator exposing the addressed parameter.
-
-    Raises:
-        ValueError: If the joint mapping is not a complete permutation, the
-            component name is unknown, or matching actuators store the
-            parameter with mixed dtypes.
-        TypeError: If a resolved parameter is not a ``wp.array``.
-    """
-    user_to_backend = _validated_user_to_backend(joint_user_to_backend_indices, num_joints)
-
-    covered = torch.zeros(num_joints, dtype=torch.bool, device=device)
-    wp_device = wp.get_device(device)
-    flat_values: wp.array | None = None
-    for actuator in actuators:
-        local_joint_ids = _actuator_local_joint_ids(actuator, dof_offset, num_joints, env_stride)
-        if not local_joint_ids:
-            continue
-        parameter = _resolve_actuator_parameter(actuator, component, attr)
-        if parameter is None:
-            continue
-        if flat_values is None:
-            flat_values = wp.zeros(num_envs * num_joints, dtype=parameter.dtype, device=wp_device)
-        elif parameter.dtype != flat_values.dtype:
-            raise ValueError(
-                f"Actuators expose ('{component}', '{attr}') with mixed dtypes; cannot project into one buffer."
-            )
-        covered[list(local_joint_ids)] = True
-        wp.launch(
-            scatter_gain_kernel,
-            dim=actuator.indices.shape[0],
-            inputs=[
-                parameter,
-                flat_values,
-                actuator.indices,
-                dof_offset,
-                num_envs,
-                num_joints,
-                env_stride,
-            ],
-            device=wp_device,
-        )
-
-    if flat_values is None:
-        flat_values = wp.zeros(num_envs * num_joints, dtype=wp.float32, device=wp_device)
-    values_out = wp.to_torch(flat_values.reshape((num_envs, num_joints)))
-    if user_to_backend is not None:
-        backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=device)
-        values_out = values_out.index_select(1, backend_column_indices)
-        covered = covered.index_select(0, backend_column_indices)
-    return values_out, covered
-
-
-def write_newton_actuator_parameter(
-    actuators: list[Actuator],
-    component: str,
-    attr: str,
-    values: torch.Tensor,
-    env_ids: torch.Tensor,
-    joint_ids: torch.Tensor,
-    num_envs: int,
-    num_joints: int,
-    dof_offset: int,
-    env_stride: int,
-    device: str,
-    joint_user_to_backend_indices: Sequence[int] | None = None,
-) -> None:
-    """Patch one Newton actuator parameter over an env/joint selection.
-
-    The in-place counterpart of :func:`read_newton_actuator_parameter`, sharing
-    its component addressing, placement arguments, and error semantics.
-    ``values`` (shape ``(len(env_ids), len(joint_ids))``) and ``joint_ids`` are
-    given in public joint order and scattered into the component array of every
-    actuator exposing the parameter; a write that matches no actuator raises
-    ``ValueError``.
-    """
-    user_to_backend = _validated_user_to_backend(joint_user_to_backend_indices, num_joints)
-
-    joint_ids_backend = joint_ids.to(device, dtype=torch.long)
-    if user_to_backend is not None:
-        mapping = torch.tensor(user_to_backend, dtype=torch.long, device=device)
-        joint_ids_backend = mapping[joint_ids_backend]
-
-    env_id_pos = torch.full((num_envs,), -1, dtype=torch.int32, device=device)
-    env_id_pos[env_ids.to(device, dtype=torch.long)] = torch.arange(env_ids.shape[0], dtype=torch.int32, device=device)
-    joint_id_pos = torch.full((num_joints,), -1, dtype=torch.int32, device=device)
-    joint_id_pos[joint_ids_backend] = torch.arange(joint_ids.shape[0], dtype=torch.int32, device=device)
-
-    resolved = [(_resolve_actuator_parameter(actuator, component, attr), actuator) for actuator in actuators]
-    parameters = [(parameter, actuator) for parameter, actuator in resolved if parameter is not None]
-    if not parameters:
-        raise ValueError(f"No actuator exposes parameter ('{component}', '{attr}').")
-    dtypes = {parameter.dtype for parameter, _ in parameters}
-    if len(dtypes) > 1:
-        raise ValueError(f"Actuators expose ('{component}', '{attr}') with mixed dtypes; cannot write one value set.")
-    parameter_dtype = parameters[0][0].dtype
-    values_torch = values.to(device, dtype=wp.dtype_to_torch(parameter_dtype)).contiguous()
-    values_wp = wp.from_torch(values_torch, dtype=parameter_dtype)
-    env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
-    joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
-
-    for parameter, actuator in parameters:
-        wp.launch(
-            patch_actuator_param_kernel,
-            dim=actuator.indices.shape[0],
-            inputs=[
-                actuator.indices,
-                env_id_pos_wp,
-                joint_id_pos_wp,
-                values_wp,
-                dof_offset,
-                num_envs,
-                num_joints,
-                env_stride,
-            ],
-            outputs=[parameter],
-            device=device,
-        )
-
-
 @dataclass(frozen=True)
 class NewtonParameterAccess:
     """Component-addressed access to one articulation's Newton actuator parameters.
@@ -526,18 +380,65 @@ class NewtonParameterAccess:
     joint_user_to_backend_indices: Sequence[int] | None = None
 
     def read(self, component: str, attr: str) -> tuple[torch.Tensor, torch.Tensor]:
-        """Project one live parameter into public joint order; see :func:`read_newton_actuator_parameter`."""
-        return read_newton_actuator_parameter(
-            self.actuators,
-            component,
-            attr,
-            self.num_envs,
-            self.num_joints,
-            self.dof_offset,
-            self.env_stride,
-            self.device,
-            self.joint_user_to_backend_indices,
-        )
+        """Project one live Newton actuator parameter, addressed by component and name, into public joint order.
+
+        Args:
+            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+
+        Returns:
+            The live parameter values (in the parameter's dtype; zeros where
+            uncovered) and a public-order mask that identifies joints covered by
+            an actuator exposing the addressed parameter.
+
+        Raises:
+            ValueError: If the joint mapping is not a complete permutation, the
+                component name is unknown, or matching actuators store the
+                parameter with mixed dtypes.
+            TypeError: If a resolved parameter is not a ``wp.array``.
+        """
+        user_to_backend = _validated_user_to_backend(self.joint_user_to_backend_indices, self.num_joints)
+
+        covered = torch.zeros(self.num_joints, dtype=torch.bool, device=self.device)
+        wp_device = wp.get_device(self.device)
+        flat_values: wp.array | None = None
+        for actuator in self.actuators:
+            local_joint_ids = _actuator_local_joint_ids(actuator, self.dof_offset, self.num_joints, self.env_stride)
+            if not local_joint_ids:
+                continue
+            parameter = _resolve_actuator_parameter(actuator, component, attr)
+            if parameter is None:
+                continue
+            if flat_values is None:
+                flat_values = wp.zeros(self.num_envs * self.num_joints, dtype=parameter.dtype, device=wp_device)
+            elif parameter.dtype != flat_values.dtype:
+                raise ValueError(
+                    f"Actuators expose ('{component}', '{attr}') with mixed dtypes; cannot project into one buffer."
+                )
+            covered[list(local_joint_ids)] = True
+            wp.launch(
+                scatter_gain_kernel,
+                dim=actuator.indices.shape[0],
+                inputs=[
+                    parameter,
+                    flat_values,
+                    actuator.indices,
+                    self.dof_offset,
+                    self.num_envs,
+                    self.num_joints,
+                    self.env_stride,
+                ],
+                device=wp_device,
+            )
+
+        if flat_values is None:
+            flat_values = wp.zeros(self.num_envs * self.num_joints, dtype=wp.float32, device=wp_device)
+        values_out = wp.to_torch(flat_values.reshape((self.num_envs, self.num_joints)))
+        if user_to_backend is not None:
+            backend_column_indices = torch.tensor(user_to_backend, dtype=torch.long, device=self.device)
+            values_out = values_out.index_select(1, backend_column_indices)
+            covered = covered.index_select(0, backend_column_indices)
+        return values_out, covered
 
     def write(
         self,
@@ -547,21 +448,61 @@ class NewtonParameterAccess:
         env_ids: torch.Tensor,
         joint_ids: torch.Tensor,
     ) -> None:
-        """Patch one parameter over an env/joint selection; see :func:`write_newton_actuator_parameter`."""
-        write_newton_actuator_parameter(
-            self.actuators,
-            component,
-            attr,
-            values,
-            env_ids,
-            joint_ids,
-            self.num_envs,
-            self.num_joints,
-            self.dof_offset,
-            self.env_stride,
-            self.device,
-            self.joint_user_to_backend_indices,
+        """Patch one Newton actuator parameter over an env/joint selection.
+
+        The in-place counterpart of :meth:`read`, sharing its component
+        addressing and error semantics. ``values`` (shape
+        ``(len(env_ids), len(joint_ids))``) and ``joint_ids`` are given in
+        public joint order and scattered into the component array of every
+        actuator exposing the parameter; a write that matches no actuator
+        raises ``ValueError``.
+        """
+        user_to_backend = _validated_user_to_backend(self.joint_user_to_backend_indices, self.num_joints)
+
+        joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
+        if user_to_backend is not None:
+            mapping = torch.tensor(user_to_backend, dtype=torch.long, device=self.device)
+            joint_ids_backend = mapping[joint_ids_backend]
+
+        env_id_pos = torch.full((self.num_envs,), -1, dtype=torch.int32, device=self.device)
+        env_id_pos[env_ids.to(self.device, dtype=torch.long)] = torch.arange(
+            env_ids.shape[0], dtype=torch.int32, device=self.device
         )
+        joint_id_pos = torch.full((self.num_joints,), -1, dtype=torch.int32, device=self.device)
+        joint_id_pos[joint_ids_backend] = torch.arange(joint_ids.shape[0], dtype=torch.int32, device=self.device)
+
+        resolved = [(_resolve_actuator_parameter(actuator, component, attr), actuator) for actuator in self.actuators]
+        parameters = [(parameter, actuator) for parameter, actuator in resolved if parameter is not None]
+        if not parameters:
+            raise ValueError(f"No actuator exposes parameter ('{component}', '{attr}').")
+        dtypes = {parameter.dtype for parameter, _ in parameters}
+        if len(dtypes) > 1:
+            raise ValueError(
+                f"Actuators expose ('{component}', '{attr}') with mixed dtypes; cannot write one value set."
+            )
+        parameter_dtype = parameters[0][0].dtype
+        values_torch = values.to(self.device, dtype=wp.dtype_to_torch(parameter_dtype)).contiguous()
+        values_wp = wp.from_torch(values_torch, dtype=parameter_dtype)
+        env_id_pos_wp = wp.from_torch(env_id_pos, dtype=wp.int32)
+        joint_id_pos_wp = wp.from_torch(joint_id_pos, dtype=wp.int32)
+
+        for parameter, actuator in parameters:
+            wp.launch(
+                patch_actuator_param_kernel,
+                dim=actuator.indices.shape[0],
+                inputs=[
+                    actuator.indices,
+                    env_id_pos_wp,
+                    joint_id_pos_wp,
+                    values_wp,
+                    self.dof_offset,
+                    self.num_envs,
+                    self.num_joints,
+                    self.env_stride,
+                ],
+                outputs=[parameter],
+                device=self.device,
+            )
 
 
 # ---------------------------------------------------------------------------

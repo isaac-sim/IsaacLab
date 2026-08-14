@@ -43,18 +43,15 @@ class MisleadingImplicitActuatorDCMotor(DCMotor):
 
 def test_live_gain_projection_follows_controller_values_in_public_order():
     """Read current controller gains with the articulation env stride and public ordering."""
-    from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter
+    from isaaclab.actuators.newton.adapter import NewtonParameterAccess
 
     controller = SimpleNamespace(kp=wp.array((10.0, 0.0, 11.0, 31.0), dtype=wp.float32, device="cpu"))
     actuator = SimpleNamespace(
         controller=controller,
         indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
     )
-
-    gains, covered = read_newton_actuator_parameter(
+    access = NewtonParameterAccess(
         actuators=[actuator],
-        component="controller",
-        attr="kp",
         num_envs=2,
         num_joints=3,
         dof_offset=0,
@@ -62,22 +59,14 @@ def test_live_gain_projection_follows_controller_values_in_public_order():
         device="cpu",
         joint_user_to_backend_indices=(2, 0, 1),
     )
+
+    gains, covered = access.read("controller", "kp")
 
     torch.testing.assert_close(gains, torch.tensor([[0.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
     assert torch.equal(covered, torch.tensor([True, True, False]))
 
     wp.to_torch(controller.kp)[3] = 71.0
-    updated, _ = read_newton_actuator_parameter(
-        actuators=[actuator],
-        component="controller",
-        attr="kp",
-        num_envs=2,
-        num_joints=3,
-        dof_offset=0,
-        env_stride=3,
-        device="cpu",
-        joint_user_to_backend_indices=(2, 0, 1),
-    )
+    updated, _ = access.read("controller", "kp")
     assert updated[1, 0] == 71.0
 
 

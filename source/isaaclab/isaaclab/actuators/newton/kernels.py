@@ -18,7 +18,7 @@ from isaaclab.actuators import ActuatorBase, ImplicitActuator
 # and a partial scatter that overwrites only the cells in a
 # (env_ids × joint_ids) sub-grid of a Newton ``Actuator``'s component
 # parameter array. Shared by every backend through
-# ``write_newton_actuator_parameter`` in :mod:`.adapter`.
+# ``NewtonParameterAccess.write`` in :mod:`.adapter`.
 # ---------------------------------------------------------------------------
 
 
