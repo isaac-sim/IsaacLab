@@ -9,6 +9,7 @@ import pytest
 
 from isaaclab_tasks.contrib.franka_pour import pour_env
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
+    FRANKA_POUR_RESET_DATASET_ASSET_ID,
     FrankaPourResetDatasetEnvCfg,
     _configure_mpm_capacities,
     _reset_dataset_task_contract,
@@ -56,6 +57,20 @@ def test_reset_dataset_path_is_repo_relative_and_missing_error_is_actionable(mon
     assert "uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0" in message
 
 
+def test_remote_reset_dataset_uses_standard_asset_cache(monkeypatch, tmp_path):
+    """Remote artifacts resolve through Isaac Lab's shared download and cache helper."""
+    downloaded_path = tmp_path / "reset_dataset.pt"
+    downloaded_path.touch()
+
+    def retrieve_file_path(path: str) -> str:
+        assert path == FRANKA_POUR_RESET_DATASET_ASSET_ID
+        return str(downloaded_path)
+
+    monkeypatch.setattr(pour_env, "retrieve_file_path", retrieve_file_path)
+
+    assert pour_env._resolve_reset_dataset_path(FRANKA_POUR_RESET_DATASET_ASSET_ID) == downloaded_path.resolve()
+
+
 def test_config_is_fully_authored_once_with_compact_reset_contract():
     """Scene assets exist immediately and expose only reset-state compatibility fields."""
     cfg = FrankaPourResetDatasetEnvCfg()
@@ -65,6 +80,7 @@ def test_config_is_fully_authored_once_with_compact_reset_contract():
     assert cfg.scene.target_cup is not None
     assert cfg.scene.media is not None
     assert cfg.reset_dataset_content_sha256 is None
+    assert cfg.reset_dataset_path == FRANKA_POUR_RESET_DATASET_ASSET_ID
     task_contract = _reset_dataset_task_contract(cfg)
     assert task_contract["particle_count"] == 245
     assert set(task_contract) == _RESET_CONTRACT_FIELDS
