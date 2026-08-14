@@ -7,7 +7,6 @@
 
 from isaaclab.app import AppLauncher
 
-# launch the simulator
 app_launcher = AppLauncher(headless=True, enable_cameras=True, limit_cpu_threads=1)
 simulation_app = app_launcher.app
 
@@ -22,16 +21,11 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize(
     "task_name",
-    setup_environment(
-        include_play=False,
-        multi_agent=False,
-        tier="core",
-    ),
+    setup_environment(multi_agent=False, physics_preset_name="isaacsim_physx", tier="core"),
 )
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.isaacsim_ci
-def test_environments(task_name, num_envs, device):
-    # run environments without stage in memory
-    _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
+def test_environments_isaacsim_physx(task_name, num_envs, device):
+    _run_environments(task_name, device, num_envs, physics_preset_name="isaacsim_physx")
