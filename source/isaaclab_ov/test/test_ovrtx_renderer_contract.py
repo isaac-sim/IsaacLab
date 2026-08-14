@@ -478,7 +478,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
-    renderer._env_root_xforms = object()
     renderer._renderer = Backend()
     renderer._ovstage_exit_stack = ExitStack()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
@@ -541,7 +540,6 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._camera_xform_query is None
     assert renderer._particle_paths_list is None
     assert renderer._object_newton_indices is None
-    assert renderer._env_root_xforms is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
     assert renderer._stage is None
