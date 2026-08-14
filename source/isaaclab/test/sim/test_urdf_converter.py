@@ -844,3 +844,52 @@ def test_ros_package_derived_from_urdf_location(tmp_path):
     loose = tmp_path / "loose.urdf"
     loose.write_text("<robot name='robot'/>")
     assert _find_ros_package(str(loose)) is None
+
+
+@pytest.mark.isaacsim_ci
+def test_package_url_meshes_survive_fixed_joint_merge(sim_config, tmp_path):
+    """A ``package://`` mesh survives fixed-joint merging without an explicit package mapping.
+
+    Merging rewrites the URDF into a scratch directory, so an unanchored ``package://`` URL
+    resolves against a copy holding no meshes and every mesh silently drops out.
+    """
+    _, config = sim_config
+
+    package = tmp_path / "test_mesh_description"
+    (package / "meshes").mkdir(parents=True)
+    (package / "package.xml").write_text("<package><name>test_mesh_description</name></package>")
+    (package / "meshes" / "tetra.obj").write_text(
+        "v 0 0 0\nv 0.1 0 0\nv 0 0.1 0\nv 0 0 0.1\nf 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n"
+    )
+    # the mesh is the only geometry, so any Mesh prim in the output proves the URL resolved
+    urdf = package / "robot.urdf"
+    urdf.write_text(
+        "<robot name='test_package_url'>"
+        "<link name='root_link'/>"
+        "<joint name='root_to_base' type='fixed'>"
+        "<parent link='root_link'/><child link='base_link'/></joint>"
+        "<link name='base_link'><visual><geometry>"
+        "<mesh filename='package://test_mesh_description/meshes/tetra.obj'/>"
+        "</geometry></visual><inertial><mass value='1'/>"
+        "<inertia ixx='1.0' ixy='0.0' ixz='0.0' iyy='1.0' iyz='0.0' izz='1.0'/></inertial></link>"
+        "<joint name='base_to_link1' type='continuous'>"
+        "<parent link='base_link'/><child link='link_1'/>"
+        "<axis xyz='0 0 1'/><origin xyz='0 0 0.2'/></joint>"
+        "<link name='link_1'><inertial><mass value='1'/>"
+        "<inertia ixx='1.0' ixy='0.0' ixz='0.0' iyy='1.0' iyz='0.0' izz='1.0'/></inertial></link>"
+        "</robot>"
+    )
+
+    output_dir = os.path.join(str(tmp_path), "urdf_package_url")
+    os.makedirs(output_dir, exist_ok=True)
+    config.asset_path = str(urdf)
+    config.merge_fixed_joints = True
+    config.force_usd_conversion = True
+    config.usd_dir = output_dir
+
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.Open(UrdfConverter(config).usd_path)
+    # the geometry is behind an instanceable reference, which a plain Traverse() does not descend into
+    meshes = [p for p in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()) if p.IsA(UsdGeom.Mesh)]
+    assert len(meshes) > 0, "the 'package://' visual mesh was dropped by the merged conversion"
