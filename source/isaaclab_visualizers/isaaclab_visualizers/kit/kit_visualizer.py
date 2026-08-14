@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 _DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
-_SHOW_PARTITIONS_IN_BACKGROUND_SETTING = "/rtx/scenePartitioning/showPartitionsInBackground"
+_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING = "/rtx/scenePartitioning/showAllPartitionsByDefault"
 
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
@@ -924,10 +924,9 @@ class KitVisualizer(BaseVisualizer):
             return
 
         attr = camera_prim.GetAttribute("omni:scenePartition")
-        if get_settings_manager().get(_SHOW_PARTITIONS_IN_BACKGROUND_SETTING, False):
-            if not attr.IsValid():
-                attr = camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
-            attr.Set("")
+        if get_settings_manager().get(_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False):
+            if attr.IsValid():
+                camera_prim.RemoveProperty("omni:scenePartition")
             logger.debug(
                 "[KitVisualizer] Leaving viewport camera '%s' unpartitioned for the all-environment spectator view.",
                 self._controlled_camera_path,

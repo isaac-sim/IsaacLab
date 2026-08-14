@@ -253,7 +253,7 @@ def test_init_enables_global_spectator_view_setting(monkeypatch):
     ):
         rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
 
-    assert call("/rtx/scenePartitioning/showPartitionsInBackground", True) in settings.set.call_args_list
+    assert call("/rtx/scenePartitioning/showAllPartitionsByDefault", True) in settings.set.call_args_list
 
 
 @pytest.mark.parametrize(

@@ -38,7 +38,7 @@ _RTX_FIELD_TO_SETTING = {
     "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
     "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
     "view_tile_limit": "/rtx/viewTile/limit",
-    "show_partitions_in_background": "/rtx/scenePartitioning/showPartitionsInBackground",
+    "show_partitions_in_background": "/rtx/scenePartitioning/showAllPartitionsByDefault",
     # RT2 path tracing settings
     "max_bounces": "/rtx/rtpt/maxBounces",
     "split_glass": "/rtx/rtpt/splitGlass",

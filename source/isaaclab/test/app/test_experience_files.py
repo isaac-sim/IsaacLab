@@ -71,4 +71,4 @@ def test_derived_experiences_inherit_native_storage(experience: str, base: str):
 def test_experiences_enable_scene_partition_spectator_view(experience: str):
     """Test spectator-view support is enabled before RTX initialization."""
     experience_text = (APPS_DIR / experience).read_text(encoding="utf-8")
-    assert "rtx.scenePartitioning.showPartitionsInBackground = true" in experience_text
+    assert "rtx.scenePartitioning.showAllPartitionsByDefault = true" in experience_text

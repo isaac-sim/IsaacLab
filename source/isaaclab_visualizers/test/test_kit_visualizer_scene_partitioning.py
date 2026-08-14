@@ -14,7 +14,7 @@ from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from pxr import Sdf, Usd, UsdGeom
 
 
-@pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, ""), (False, "env_2")])
+@pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])
 def test_viewport_camera_partition_follows_global_view_setting(
     monkeypatch: pytest.MonkeyPatch, show_global_view: bool, expected_partition: str | None
 ) -> None:
@@ -34,4 +34,8 @@ def test_viewport_camera_partition_follows_global_view_setting(
 
     visualizer._apply_viewport_camera_scene_partition(stage, num_envs=4)
 
-    assert camera.GetPrim().GetAttribute("omni:scenePartition").Get() == expected_partition
+    partition_attr = camera.GetPrim().GetAttribute("omni:scenePartition")
+    if expected_partition is None:
+        assert not partition_attr.IsValid()
+    else:
+        assert partition_attr.Get() == expected_partition
