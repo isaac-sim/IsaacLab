@@ -34,10 +34,6 @@ cameras_enabled = true
 [dependencies]
 "isaaclab.python.xr.openxr" = {}
 
-# Required for XR camera picture-in-picture (Kit SceneUI)
-"omni.kit.scene_view.xr" = {}
-"omni.kit.scene_view.xr_utils" = {}
-
 # NOTE: xr.profile.ar.enabled is intentionally NOT set here.
 # Setting it in the .kit file causes Kit's XR system to create the OpenXR
 # instance before the teleop bridge extension loads, so the BridgeComponent
