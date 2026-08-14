@@ -13,10 +13,13 @@ robots.
 .. figure:: ../_static/teleop/teleop_diagram.jpg
    :align: center
    :figwidth: 100%
-   :alt: Humanoid teleoperation via Apple Vision Pro and CloudXR: hand tracking is retargeted through Pink IK and dex-retargeting to drive a Unitree G1 with an Inspire hand.
+   :alt: Humanoid teleoperation via an XR headset and CloudXR: hand tracking is retargeted through Pink IK and dex-retargeting to drive a Unitree G1 with an Inspire hand.
 
    Hand tracking from an XR headset flows through the retargeting pipeline (IK for the arms,
-   ``dex-retargeting`` for the fingers) to drive a dexterous humanoid hand.
+   ``dex-retargeting`` for the fingers) to drive a dexterous humanoid hand. The primary supported
+   client is `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_
+   running in-browser on Meta Quest 3 and Pico 4 Ultra, which supports both hand tracking and
+   motion-controller input (trigger / button presses drive the fingers).
 
 Isaac Teleop replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac
 Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
@@ -27,10 +30,10 @@ Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
    Isaac Teleop supports **multiple, interchangeable input backends** through the same retargeting
    pipeline and environment API -- pick whichever matches your hardware:
 
-   * **XR headsets** (Meta Quest 3, Pico 4 Ultra, Apple Vision Pro) and **Manus gloves**, streamed
-     over `NVIDIA CloudXR`_ -- see :ref:`cloudxr-teleoperation`.
-   * **Haply Inverse3 + VerseGrip** haptic devices, for tasks that need force feedback -- see
-     :ref:`haply-teleoperation`.
+   * **CloudXR.js** (Meta Quest 3, Pico 4 Ultra) -- the primary supported client, a browser-based
+     WebXR app with both hand tracking and motion-controller input -- see :ref:`cloudxr-teleoperation`.
+   * **Apple Vision Pro**, via the native `Isaac XR Teleop Sample Client`_ app, and **Manus gloves**
+     for high-fidelity finger tracking -- also over `NVIDIA CloudXR`_, see :ref:`cloudxr-teleoperation`.
    * **Physical leader arms** (e.g. SO-101), streaming joint angles directly -- no headset or IK
      required -- see :ref:`isaac-teleop-standalone`.
    * **Keyboard, SpaceMouse, and gamepad**, for XR-free development and CI -- see
@@ -38,6 +41,12 @@ Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
 
    Every task lists which backends it supports in the :ref:`isaac-teleop-env-control-reference`
    table.
+
+   .. note::
+
+      Haply haptic devices (Inverse3 + VerseGrip) are also supported, but through a separate,
+      older device stack that has not yet been migrated onto Isaac Teleop. See
+      :doc:`isaac_teleop/setup_haply` if you have that hardware.
 
 
 Quick Start
@@ -103,31 +112,31 @@ input modes, which determine which retargeters and control schemes are available
      - Input Modes
      - Client / Connection
      - Notes
+   * - Meta Quest 3
+     - Motion controllers (triggers, thumbsticks, squeeze) **or** hand tracking
+     - `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_ WebXR client (browser) -- primary supported client
+     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
+   * - Pico 4 Ultra
+     - Motion controllers **or** hand tracking
+     - CloudXR.js WebXR client (browser) -- primary supported client
+     - Requires Pico OS 15.4.4U+; must use HTTPS mode
    * - Apple Vision Pro
      - Hand tracking (26 joints), spatial controllers
      - Native visionOS app (`Isaac XR Teleop Sample Client`_)
      - Build from source; see :ref:`build-apple-vision-pro`
-   * - Meta Quest 3
-     - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
-     - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
-   * - Pico 4 Ultra
-     - Motion controllers, hand tracking
-     - CloudXR.js WebXR client (browser)
-     - Requires Pico OS 15.4.4U+; must use HTTPS mode
    * - Manus Gloves
      - High-fidelity finger tracking (Manus SDK)
      - Isaac Teleop plugin (bundled)
      - Migrated from the now-deprecated ``isaac-teleop-device-plugins`` repo.
        Combine with an external wrist-tracking source for wrist positioning. See :ref:`manus-vive-handtracking`.
-   * - Haply Inverse3 + VerseGrip
-     - 3-DOF position tracking, orientation sensing, force feedback
-     - Haply SDK over WebSocket
-     - See :ref:`haply-teleoperation`.
    * - SO-101 leader arm
      - Joint-space streaming (no XR)
      - Isaac Teleop C++ plugin, built from source
      - See :ref:`isaac-teleop-so101-leader-example`.
+
+Haply Inverse3 + VerseGrip haptic devices are also supported for force-feedback teleoperation, but
+through a separate device stack that does not (yet) run on Isaac Teleop -- see
+:doc:`isaac_teleop/setup_haply`.
 
 
 .. _isaac-teleop-control-schemes:
@@ -186,17 +195,23 @@ the architecture when you need to customize a pipeline or add a new robot.
    :maxdepth: 1
 
    isaac_teleop/setup_cloudxr
-   isaac_teleop/setup_haply
    isaac_teleop/deep_dive
+
+.. toctree::
+   :hidden:
+
+   isaac_teleop/setup_haply
 
 .. admonition:: Next Steps
    :class: tip
 
    * **Set up CloudXR / an XR headset**: :ref:`cloudxr-teleoperation`
-   * **Set up Haply haptic devices**: :ref:`haply-teleoperation`
    * **Architecture, retargeting, and control states**: :ref:`isaac-teleop-deep-dive`
    * **Record demonstrations for imitation learning**: :ref:`isaac-teleop-imitation-learning`
    * **API reference**: :ref:`isaaclab_teleop-api`
+
+   Have Haply Inverse3 / VerseGrip hardware? See :doc:`isaac_teleop/setup_haply` (separate device
+   stack, not yet on Isaac Teleop).
 
 
 ..

@@ -5,6 +5,13 @@ Set Up Haply Teleoperation
 
 .. currentmodule:: isaaclab
 
+.. important::
+
+   This is a **separate, standalone device stack** (``isaaclab.devices.HaplyDevice``), not part of
+   Isaac Teleop. It has not yet been migrated onto the Isaac Teleop retargeting pipeline described
+   in :ref:`isaac-teleop-feature`, so it does not share Isaac Teleop's control-state, camera, or
+   haptics APIs. Support is limited to the single demo below.
+
 `Haply Devices`_ provides haptic devices that enable intuitive robot teleoperation with
 directional force feedback. The Haply Inverse3 paired with the VerseGrip creates an
 end-effector control system with force feedback capabilities.
@@ -14,11 +21,6 @@ control with haptic feedback. This enables operators to feel contact forces duri
 tasks, improving control quality and task performance.
 
 This guide explains how to set up and use Haply devices with Isaac Lab for robot teleoperation.
-
-.. tip::
-
-   New to Isaac Teleop? See the :ref:`isaac-teleop-feature` overview for the full list of
-   supported input devices and backends.
 
 .. _Haply Devices: https://haply.co/
 

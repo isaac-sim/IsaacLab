@@ -8,8 +8,7 @@ Isaac Teleop: Architecture Deep Dive
 This page covers Isaac Teleop's internals: the device/session architecture, the
 retargeting pipeline, environment configuration, XR camera feedback, haptics, and
 performance tuning. If you just want to get a session running, start with the
-:ref:`isaac-teleop-feature` overview and the :ref:`cloudxr-teleoperation` or
-:ref:`haply-teleoperation` setup guides.
+:ref:`isaac-teleop-feature` overview and the :ref:`cloudxr-teleoperation` setup guide.
 
 .. _isaac-teleop-architecture:
 
