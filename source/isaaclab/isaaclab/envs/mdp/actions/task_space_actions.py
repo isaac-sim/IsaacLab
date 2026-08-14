@@ -355,7 +355,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             if not rigid_matches:
                 raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
             _, root_rigidbody_path = rigid_matches[0]
-            task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
+            task_frame_transformer_path = f"{self._env.scene.env_regex_ns}/{self.cfg.task_frame_rel_path}"
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,
                 target_frames=[

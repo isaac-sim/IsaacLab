@@ -74,7 +74,7 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
 
-        view = FrameView("/World/envs/env_.*/WorldCamera", device=device)
+        view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)
 
         assert not stage.GetPrimAtPath("/World/envs/env_1/WorldCamera").IsValid()
         assert view.count == scene.num_envs
@@ -192,7 +192,7 @@ def view_factory():
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
         sim.reset()
-        view = OvPhysxFrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        view = OvPhysxFrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
         # Capture binding row order, populate _pose_buf once with the live spawn poses,
         # then detach the binding so subsequent reads do not overwrite the buffer.

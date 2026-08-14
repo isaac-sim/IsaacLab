@@ -597,7 +597,7 @@ SYNTHETIC_GAUSSIAN_CAMERA_NAME = "test_cam"
 """Camera prim name authored inside the synthesised asset USD."""
 
 SYNTHETIC_GAUSSIAN_CAMERA_REGEX = (
-    f"/World/envs/env_.*/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}/Cameras/{SYNTHETIC_GAUSSIAN_CAMERA_NAME}"
+    f"/World/envs/env_[^/]+/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}/Cameras/{SYNTHETIC_GAUSSIAN_CAMERA_NAME}"
 )
 """Regex camera prim path that resolves to one camera per env (single or tiled)."""
 

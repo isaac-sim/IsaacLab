@@ -415,7 +415,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
 
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
@@ -455,7 +455,7 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_g
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
-    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_[^/]*/Robot")
     if zero_actuator_pd:
         cfg.actuators["panda_shoulder"].stiffness = 0.0
         cfg.actuators["panda_shoulder"].damping = 0.0
@@ -682,7 +682,7 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
 ):
     """Resolve configured modes before finalization constructs MuJoCo actuators."""
     articulation_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         actuators={"joint": actuator_cfg},
     )
     articulation = Articulation(articulation_cfg)
@@ -704,7 +704,7 @@ def test_actuator_cfg_matches_explicit_descendant_articulation_root(sim, device,
     """Match target modes against an explicitly configured descendant articulation root."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/Env_.*/Robot",
+            prim_path="/World/Env_[^/]*/Robot",
             articulation_root_prim_path="/base",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
@@ -721,7 +721,7 @@ def test_actuator_cfg_matches_clone_plan_root_glob(sim, device, articulation_typ
     """Match builder labels when clone-plan root resolution returns a glob."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/envs/env_.*/Robot",
+            prim_path="{ENV_REGEX_NS}/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
     )
@@ -742,7 +742,7 @@ def test_actuator_cfg_leaves_excluded_joint_types_imported(sim, device, articula
     """Leave target modes for free and fixed joints unchanged."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/Env_.*/Robot",
+            prim_path="/World/Env_[^/]*/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
         )
     )
@@ -757,7 +757,7 @@ def test_actuator_cfg_leaves_excluded_joint_types_imported(sim, device, articula
 def test_actuator_cfg_keeps_imported_newton_target_mode_for_none_gain(sim, device, articulation_type):
     """Retain the imported stiffness when an implicit actuator config leaves it unset."""
     articulation_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
     )
     articulation = Articulation(articulation_cfg)
@@ -771,7 +771,7 @@ def test_actuator_cfg_keeps_imported_newton_target_mode_for_none_gain(sim, devic
 def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(sim, device, articulation_type):
     """Leave target modes for DOFs outside an actuator group unchanged."""
     subset_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         actuators={
             "shoulder": ImplicitActuatorCfg(joint_names_expr=["left_shoulder"], stiffness=10.0, damping=0.0),
         },
@@ -802,7 +802,7 @@ def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(
     """Resolve sparse stiffness and damping dictionaries independently by joint name."""
     articulation = Articulation(
         ArticulationCfg(
-            prim_path="/World/Env_.*/Robot",
+            prim_path="/World/Env_[^/]*/Robot",
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
     )
@@ -4053,8 +4053,8 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     # per-articulation shape gate without that pre-existing quirk.
     num_per_type = 1
 
-    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_.*/Robot")
-    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_.*/Robot")
+    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_[^/]*/Robot")
+    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_[^/]*/Robot")
 
     for i in range(num_per_type):
         sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))

@@ -16,7 +16,7 @@ from newton.selection import ArticulationView
 from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -135,7 +135,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         self._root_view = ArticulationView(
             model,
-            root_prim_path_expr.replace(".*", "*"),
+            path_expr_to_glob(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )

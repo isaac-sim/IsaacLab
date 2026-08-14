@@ -32,7 +32,7 @@ def _generate_single_joint_articulations(num_articulations: int, device: str) ->
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 2.5, 0.0, 0.0))
     articulation_cfg = ArticulationCfg(
-        prim_path="/World/Env_.*/Robot",
+        prim_path="/World/Env_[^/]*/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
             joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),

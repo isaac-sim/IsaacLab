@@ -80,12 +80,12 @@ def generate_robot_and_two_cubes(
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/env_.*/Robot")
+    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/env_[^/]+/Robot")
     robot = Articulation(robot_cfg)
 
     colliding_cube = DeformableObject(
         cfg=DeformableObjectCfg(
-            prim_path="/World/env_.*/cube_collide",
+            prim_path="/World/env_[^/]+/cube_collide",
             spawn=sim_utils.MeshCuboidCfg(
                 size=(0.05, 0.05, 0.05),
                 deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -103,7 +103,7 @@ def generate_robot_and_two_cubes(
 
     free_cube = DeformableObject(
         cfg=DeformableObjectCfg(
-            prim_path="/World/env_.*/cube_free",
+            prim_path="/World/env_[^/]+/cube_free",
             spawn=sim_utils.MeshCuboidCfg(
                 size=(0.05, 0.05, 0.05),
                 deformable_props=NewtonDeformableBodyPropertiesCfg(),
@@ -131,7 +131,7 @@ def generate_lateral_rigid_and_deformable_cubes(
 
     rigid_cube = RigidObject(
         cfg=RigidObjectCfg(
-            prim_path="/World/env_.*/rigid_cube",
+            prim_path="/World/env_[^/]+/rigid_cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(),
@@ -145,7 +145,7 @@ def generate_lateral_rigid_and_deformable_cubes(
 
     deformable_cube = DeformableObject(
         cfg=DeformableObjectCfg(
-            prim_path="/World/env_.*/deformable_cube",
+            prim_path="/World/env_[^/]+/deformable_cube",
             spawn=sim_utils.MeshCuboidCfg(
                 size=(0.08, 0.08, 0.08),
                 deformable_props=NewtonDeformableBodyPropertiesCfg(),

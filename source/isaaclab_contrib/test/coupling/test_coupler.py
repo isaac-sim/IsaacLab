@@ -197,7 +197,7 @@ def test_config_validation_requires_concrete_nested_factory():
 def test_string_selector_resolves_full_body_labels_and_descendants():
     assert NewtonCouplerManager._resolve_entities_to_body_ids(
         _FakeModel(),
-        ["/World/envs/env_.*/Robot"],
+        ["/World/envs/env_[^/]+/Robot"],
         "entry 'rigid'",
     ) == [0, 1]
 
@@ -215,7 +215,7 @@ def test_raw_body_label_selector_reports_no_matches():
     with pytest.raises(ValueError, match="matched no Newton bodies"):
         NewtonCouplerManager._resolve_entities_to_body_ids(
             _FakeModel(),
-            ["/World/envs/env_.*/Missing"],
+            ["/World/envs/env_[^/]+/Missing"],
             "entry 'missing'",
         )
 
@@ -234,7 +234,7 @@ def test_proxy_resolution_writes_body_ids_into_config_in_place():
     """Resolution replaces the proxy's selectors with body ids and is idempotent."""
     model = _FakeModel()
     proxy = CouplerProxyMappingCfg(
-        source="rigid", destination="soft", bodies=[r"/World/envs/env_.*/Robot"], particles=[1, 1]
+        source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"], particles=[1, 1]
     )
 
     resolved = NewtonCouplerManager._resolve_proxy(model, proxy)
@@ -253,12 +253,12 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
         CouplerEntryCfg(
             name="rigid",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Robot"],
+            bodies=[r"/World/envs/env_[^/]+/Robot"],
         ),
         CouplerEntryCfg(
             name="object",
             solver_cfg=XPBDSolverCfg(),
-            bodies=["/World/envs/env_.*/Object"],
+            bodies=["/World/envs/env_[^/]+/Object"],
             all_particles=True,
         ),
         CouplerEntryCfg(
@@ -280,8 +280,8 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
     assert resolved[2].bodies == []
     assert resolved[2].joints == []
     assert resolved[2].shapes == [3]
-    assert entries[0].bodies == [r"/World/envs/env_.*/Robot"]
-    assert entries[1].bodies == ["/World/envs/env_.*/Object"]
+    assert entries[0].bodies == [r"/World/envs/env_[^/]+/Robot"]
+    assert entries[1].bodies == ["/World/envs/env_[^/]+/Object"]
 
 
 def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
@@ -292,12 +292,12 @@ def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
         CouplerEntryCfg(
             name="robot",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Robot"],
+            bodies=[r"/World/envs/env_[^/]+/Robot"],
         ),
         CouplerEntryCfg(
             name="object",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Object"],
+            bodies=[r"/World/envs/env_[^/]+/Object"],
             all_particles=True,
             include_static_shapes=True,
         ),
@@ -352,7 +352,7 @@ def test_shape_label_patterns_and_static_shape_selection_are_additive():
         CouplerEntryCfg(
             name="special",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Robot/base"],
+            bodies=[r"/World/envs/env_[^/]+/Robot/base"],
             include_body_shapes=False,
             include_static_shapes=True,
             shape_label_patterns=[r".*/Object/object_collision"],
@@ -369,7 +369,7 @@ def test_proxy_resolution_keeps_only_collidable_selected_bodies():
     )
     proxy = NewtonCouplerManager._resolve_proxy(
         model,
-        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_.*/Robot"]),
+        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"]),
     )
     assert proxy.bodies == [0]
 
@@ -401,7 +401,7 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
             CouplerProxyMappingCfg(
                 source="rigid",
                 destination="soft",
-                bodies=["/World/envs/env_.*/Robot/base"],
+                bodies=["/World/envs/env_[^/]+/Robot/base"],
                 mode="staggered",
                 mass_scale=0.25,
                 collide_interval=4,
