@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -337,7 +337,7 @@ class ActuatorControl(ABC):
 
     def get_native_actuator_gain(
         self,
-        attr: Literal["kp", "kd"],
+        attr: str,
         joint_ids: torch.Tensor | slice,
     ) -> torch.Tensor | None:
         """Return controller-owned gains for one native actuator group.

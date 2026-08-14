@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -177,7 +177,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
     def get_native_actuator_gain(
         self,
-        attr: Literal["kp", "kd"],
+        attr: str,
         joint_ids: torch.Tensor | slice,
     ) -> torch.Tensor | None:
         """Return a complete native controller-gain projection in public joint order."""

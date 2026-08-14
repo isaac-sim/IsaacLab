@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -111,7 +111,7 @@ class _HostActuatorRuntime:
         if self.adapter is not None:
             self.adapter.reset(env_ids)
 
-    def get_gain(self, attr: Literal["kp", "kd"], joint_ids: torch.Tensor | slice) -> torch.Tensor | None:
+    def get_gain(self, attr: str, joint_ids: torch.Tensor | slice) -> torch.Tensor | None:
         """Project a native controller gain into public joint order."""
         if self.adapter is None:
             return None

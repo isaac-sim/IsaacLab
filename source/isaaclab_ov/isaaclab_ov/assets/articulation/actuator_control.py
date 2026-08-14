@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Literal
 
 import torch
 import warp as wp
@@ -94,7 +93,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def get_native_actuator_gain(
         self,
-        attr: Literal["kp", "kd"],
+        attr: str,
         joint_ids: torch.Tensor | slice,
     ) -> torch.Tensor | None:
         if self._host_actuator_runtime is None:

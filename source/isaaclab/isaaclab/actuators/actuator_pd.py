@@ -335,7 +335,7 @@ class IdealPDActuator(ActuatorBase):
             self._control = control
             self._joint_indices = joint_indices
 
-        def get(self, attr: Literal["kp", "kd"]) -> torch.Tensor | None:
+        def get(self, attr: str) -> torch.Tensor | None:
             """Read one controller gain in the group's public joint order."""
             return self._control.get_native_actuator_gain(attr, self._joint_indices)
 

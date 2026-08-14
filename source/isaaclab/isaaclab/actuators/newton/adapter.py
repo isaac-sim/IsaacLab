@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
 import torch
@@ -318,7 +318,7 @@ def _actuator_local_joint_ids(
 
 def read_newton_actuator_gain(
     actuators: list[Actuator],
-    attr: Literal["kp", "kd"],
+    attr: str,
     num_envs: int,
     num_joints: int,
     dof_offset: int,
