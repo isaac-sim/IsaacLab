@@ -118,7 +118,7 @@ for setting the GPU buffer dimensions.
 +--------------------------------------------------+---------------------------------------------------------------+
 
 Parameters such as ``add_ground_plane`` and ``add_distant_light`` are now part of the task logic when creating the scene.
-``enable_cameras`` is now a command line argument ``--enable_cameras`` that can be passed directly to the training script.
+Camera rendering is enabled automatically when a task uses camera sensors.
 
 
 Scene Config
@@ -981,18 +981,39 @@ Launching Training
 
 To launch a training in Isaac Lab, use the command:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
 
 Launching Inferencing
 ~~~~~~~~~~~~~~~~~~~~~
 
 To launch inferencing in Isaac Lab, use the command:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
 
 
 .. _`OmniIsaacGymEnvs`: https://github.com/isaac-sim/OmniIsaacGymEnvs

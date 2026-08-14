@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+)
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -15,6 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -23,20 +29,19 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.core.locomotion.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
+from isaaclab_assets.robots.ant import ANT_CFG
 
 
 @configclass
 class AntPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=38,
-            nconmax=15,
+            njmax=45,
+            nconmax=25,
             cone="pyramidal",
             integrator="implicitfast",
             impratio=1,
@@ -45,24 +50,7 @@ class AntPhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            use_collision_detector=False,
-            sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1e-4,
-            padmm_dual_tolerance=1e-4,
-            padmm_compl_tolerance=1e-4,
-            padmm_rho_0=0.05,
-            padmm_eta=1e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
-        ),
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
         debug_mode=False,
         use_cuda_graph=True,
     )
@@ -109,7 +97,9 @@ class AntSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5)
+    # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
+    # drive the solver to NaN
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5, clip={".*": (-7.5, 7.5)})
 
 
 @configclass
@@ -151,8 +141,9 @@ class ObservationsCfg:
 
 @configclass
 class AntObservationsCfg(PresetCfg):
-    default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
+    isaacsim_physx: ObservationsCfg = physx
+    default: ObservationsCfg = isaacsim_physx
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 
@@ -198,6 +189,10 @@ class RewardsCfg:
     joint_pos_limits = RewTerm(
         func=mdp.joint_pos_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": {".*": 15.0}}
     )
+    # (8) Penalty for falling over, applied once on the terminating step
+    terminating = RewTerm(func=mdp.terminated_penalty, weight=-2.0)
+    # (9) Survival rate metric (logged only, contributes no reward)
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass

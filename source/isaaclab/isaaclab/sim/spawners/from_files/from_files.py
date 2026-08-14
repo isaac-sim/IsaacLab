@@ -12,7 +12,6 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from filelock import FileLock
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners._utils import props_expr, resolve_deformable_slot
@@ -28,6 +27,7 @@ from isaaclab.sim.utils import (
     get_current_stage,
     get_first_matching_child_prim,
     has_deformable_body_api,
+    make_uninstanceable,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -392,7 +392,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
         elif articulation_fix_root_link is not None:
             # topology-only path: no fragments to author, but the root link must still be fixed
             schemas.apply_articulation_root_properties(
-                props_expr(prim_path, "**"),
+                props_expr(prim_path, "(/.*)?"),
                 [],
                 fix_root_link=articulation_fix_root_link,
                 create_if_missing=cfg.articulation_props_create_if_missing,
@@ -524,8 +524,12 @@ def _spawn_from_usd_file(
     if hasattr(cfg, "variants") and cfg.variants is not None:
         select_usd_variants(prim_path, cfg.variants)
 
+    # make instance proxies editable before any override tries to author properties on them
+    if getattr(cfg, "make_uninstanceable", False):
+        make_uninstanceable(prim_path, stage=stage)
+
     # author the deformable dict slot first so any collision_props keyed to the created sim mesh
-    # (e.g. {"sim_mesh": [...]}) can match it in _apply_body_schema_properties below
+    # (e.g. {"/sim_mesh": [...]}) can match it in _apply_body_schema_properties below
     _apply_deformable_schema_properties(prim_path, cfg, stage)
     # modify rigid body, collision, and mass properties
     _apply_body_schema_properties(prim_path, cfg)
@@ -565,10 +569,11 @@ def _spawn_from_usd_file(
 
     # apply physics material
     if cfg.physics_material is not None:
-        if not cfg.physics_material_path.startswith("/"):
-            material_path = f"{prim_path}/{cfg.physics_material_path}"
-        else:
-            material_path = cfg.physics_material_path
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{prim_path}/{cfg.physics_material_path}"
+        )
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
@@ -622,6 +627,8 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
+        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
+
         material_kwargs = {}
         if stiff is not None:
             material_kwargs["compliant_contact_stiffness"] = stiff

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the v1.0 Isaac Lab benchmark schema."""
+"""Tests for the v1.2 Isaac Lab benchmark schema."""
 
 import dataclasses
 import json
@@ -11,9 +11,10 @@ import os
 
 import pytest
 
-from isaaclab.test.benchmark.schema import (
+from isaaclab.benchmark.schema import (
     SCHEMA_VERSION,
     CProfileFunction,
+    EnvironmentStepTiming,
     GpuDeviceInfo,
     Hardware,
     Learning,
@@ -31,7 +32,7 @@ from isaaclab.test.benchmark.schema import (
     TrainingBundle,
     Versions,
 )
-from isaaclab.test.benchmark.serialize import write_bundle_file
+from isaaclab.benchmark.serialize import write_bundle_file
 
 pytestmark = pytest.mark.benchmark
 
@@ -91,6 +92,16 @@ def _runtime() -> Runtime:
         collection_fps=MeanStd(mean=1_142_000.0, std=9_500.0),
         total_fps=MeanStd(mean=1_071_780.0, std=11_200.0),
         iterations_per_s=MeanStd(mean=0.2618, std=0.0028),
+        environment_step_timing=EnvironmentStepTiming(
+            environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
+            environment_step_fps=MeanStd(mean=200_000.0, std=2_000.0, peak=205_000.0),
+            simulation_step_time_s=MeanStd(mean=0.05, std=0.01, peak=0.07),
+            outside_simulation_step_time_s=MeanStd(mean=0.03, std=0.005, peak=0.04),
+            outside_simulation_step_fraction=0.375,
+            environment_step_calls=12000,
+            simulation_step_calls=48000,
+            measurement_mode="serialized_synchronized",
+        ),
     )
 
 
@@ -114,6 +125,7 @@ def _minimal_training_bundle() -> TrainingBundle:
             ema_alpha=0.05,
             reward=LearningCurve(final_raw=1823.4, final_ema=1796.1, series_per_iter=[12.3, 34.5, 58.1]),
             ep_length=LearningCurve(final_raw=987.0, final_ema=962.3, series_per_iter=[4.1, 5.0, 7.2]),
+            success_rate=LearningCurve(final_raw=0.95, final_ema=0.91, series_per_iter=[0.1, 0.5, 0.95]),
         ),
         success_rate=0.91,
         checkpoint_path="logs/rsl_rl/ant/2026-04-22_13-15-00/model_499.pt",
@@ -137,13 +149,62 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["run"]["config"]["presets"] == []
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
+    timing = data["runtime"]["environment_step_timing"]
+    assert timing["warmup_steps"] == 0
+    assert timing["outside_simulation_step_fraction"] == pytest.approx(0.375)
+    assert timing["measurement_mode"] == "serialized_synchronized"
+    assert "overhead_step_time_s" not in timing
+    assert "overhead_fraction" not in timing
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)
+    assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.95)
+    assert data["learning"]["success_rate"]["series_per_iter"] == pytest.approx([0.1, 0.5, 0.95])
     assert data["success_rate"] == pytest.approx(0.91)
     assert data["checkpoint_path"].endswith("model_499.pt")
     assert data["video_path"] is None
     assert data["versions"]["sb3"] is None
+
+
+def test_environment_step_timing_rejects_incomplete_measurement_modes():
+    timing = _runtime().environment_step_timing
+    assert timing is not None
+
+    with pytest.raises(ValueError, match="host_return timing cannot contain"):
+        dataclasses.replace(timing, measurement_mode="host_return")
+    with pytest.raises(ValueError, match="requires a complete simulation breakdown"):
+        dataclasses.replace(timing, simulation_step_time_s=None)
+
+
+@pytest.mark.parametrize("field", ["environment_step_time_s", "environment_step_fps"])
+def test_environment_step_timing_rejects_non_positive_environment_metrics(field):
+    timing = EnvironmentStepTiming(
+        environment_step_time_s=MeanStd(mean=0.1, std=0.01),
+        environment_step_fps=MeanStd(mean=100.0, std=1.0),
+        simulation_step_time_s=None,
+        outside_simulation_step_time_s=None,
+        outside_simulation_step_fraction=None,
+        environment_step_calls=1,
+        simulation_step_calls=None,
+        measurement_mode="host_return",
+    )
+
+    with pytest.raises(ValueError, match="environment step time and FPS must be greater than zero"):
+        dataclasses.replace(timing, **{field: MeanStd(mean=-1.0, std=0.0)})
+
+
+def test_environment_step_timing_rejects_inconsistent_partition():
+    timing = _runtime().environment_step_timing
+    assert timing is not None
+
+    with pytest.raises(ValueError, match="must equal simulation plus outside-simulation time"):
+        dataclasses.replace(
+            timing,
+            outside_simulation_step_time_s=MeanStd(mean=0.02, std=0.005, peak=0.04),
+            outside_simulation_step_fraction=0.25,
+        )
+    with pytest.raises(ValueError, match="must match the aggregate timing ratio"):
+        dataclasses.replace(timing, outside_simulation_step_fraction=0.3)
 
 
 def test_runtime_bundle_round_trip(tmp_path):
@@ -172,6 +233,7 @@ def test_training_bundle_without_series(tmp_path):
             ema_alpha=0.05,
             reward=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
             ep_length=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
+            success_rate=LearningCurve(final_raw=0.8, final_ema=0.7, series_per_iter=None),
         ),
     )
     path = os.path.join(tmp_path, "training.json")
@@ -180,6 +242,8 @@ def test_training_bundle_without_series(tmp_path):
         data = json.load(f)
     assert data["learning"]["reward"]["series_per_iter"] is None
     assert data["learning"]["ep_length"]["series_per_iter"] is None
+    assert data["learning"]["success_rate"]["series_per_iter"] is None
+    assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.8)
 
 
 def test_startup_bundle_reuses_run_identity(tmp_path):
@@ -237,8 +301,8 @@ def test_run_identity_rejects_negative_duration():
 
 def test_package_reexports_match_schema_module():
     """Every schema symbol exported from the package is the same object as in schema.py."""
-    import isaaclab.test.benchmark as pkg
-    from isaaclab.test.benchmark import schema
+    import isaaclab.benchmark as pkg
+    from isaaclab.benchmark import schema
 
     schema_names = {n for n in dir(schema) if not n.startswith("_")}
     checked = [n for n in getattr(pkg, "__all__", []) if n in schema_names]
@@ -249,7 +313,7 @@ def test_package_reexports_match_schema_module():
 
 def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
     """A failure mid-serialise must not clobber an existing good file."""
-    import isaaclab.test.benchmark.serialize as serialize
+    import isaaclab.benchmark.serialize as serialize
 
     path = os.path.join(tmp_path, "training.json")
     write_bundle_file(_minimal_training_bundle(), path)

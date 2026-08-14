@@ -30,6 +30,7 @@ isaaclab_newton.sim.schemas
 
   .. autosummary::
 
+    MujocoCollisionCfg
     MujocoRigidBodyPropertiesCfg
     MujocoJointDrivePropertiesCfg
 
@@ -80,6 +81,11 @@ Joint Drive
 Collision
 ---------
 
+.. autoclass:: MujocoCollisionCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
 .. autoclass:: NewtonCollisionPropertiesCfg
     :members:
     :show-inheritance:
@@ -110,3 +116,43 @@ Articulation Root
     :members:
     :show-inheritance:
     :exclude-members: __init__
+
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_newton.sim.schemas` API.
+
+.. currentmodule:: isaaclab_newton.sim.schemas
+
+.. autosummary::
+   :nosignatures:
+
+   MujocoFixedTendonCfg
+   MujocoJointCfg
+   MujocoRigidBodyCfg
+   NewtonArticulationCfg
+   NewtonCollisionCfg
+   NewtonMeshCollisionCfg
+   NewtonSDFCollisionCfg
+
+.. autoclass:: MujocoFixedTendonCfg
+   :show-inheritance:
+
+.. autoclass:: MujocoJointCfg
+   :show-inheritance:
+
+.. autoclass:: MujocoRigidBodyCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonArticulationCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonCollisionCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonMeshCollisionCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonSDFCollisionCfg
+   :show-inheritance:

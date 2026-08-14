@@ -108,8 +108,8 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._device = device
     sensor._num_envs = 2
     sensor._view = rigid_view
-    sensor._dt = 0.5
     sensor._timestamp = wp.ones(2, dtype=wp.float32, device=device)
+    sensor._timestamp_last_update = wp.full(2, value=0.5, dtype=wp.float32, device=device)
     sensor._offset_pos_b = wp.zeros(2, dtype=wp.vec3f, device=device)
     sensor._offset_quat_b = wp.array(
         [wp.quatf(0.0, 0.0, 0.0, 1.0), wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device
@@ -121,7 +121,6 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._raw_coms = None
     sensor._update_cmd = None
     sensor._update_env_mask = None
-    sensor._update_inv_dt = None
     sensor._use_recorded_launch = use_recorded_launch
     sensor._initialize_handle = None
     sensor._invalidate_initialize_handle = None
@@ -158,7 +157,7 @@ def test_sensor_caches_physx_typed_views(sensor_type):
 
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
-    """Replay should observe refreshed buffers, a new mask, and a changed timestep."""
+    """Replay should observe refreshed buffers, a new mask, and a changed sample interval."""
     sensor, rigid_view, velocities_torch, env_mask = _make_sensor(sensor_type)
 
     sensor._update_buffers_impl(env_mask)
@@ -172,7 +171,8 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
     )
 
     velocities_torch[:, 0] = torch.tensor([3.0, 5.0], device=sensor.device)
-    sensor._dt = 0.25
+    wp.to_torch(sensor._timestamp_last_update).fill_(1.0)
+    wp.to_torch(sensor._timestamp).fill_(1.25)
     changed_env_mask = wp.array([False, True], dtype=wp.bool, device=sensor.device)
     sensor._update_buffers_impl(changed_env_mask)
     wp.synchronize_device(sensor.device)
@@ -219,7 +219,6 @@ def test_sensor_invalidation_drops_cached_launch_state(monkeypatch, sensor_type)
     sensor._raw_coms = object()
     sensor._update_cmd = object()
     sensor._update_env_mask = object()
-    sensor._update_inv_dt = 1.0
     base_cls = BaseImu if sensor_type == "imu" else BasePva
     monkeypatch.setattr(base_cls, "_invalidate_initialize_callback", lambda self, event: None)
 
@@ -231,4 +230,3 @@ def test_sensor_invalidation_drops_cached_launch_state(monkeypatch, sensor_type)
     assert sensor._raw_coms is None
     assert sensor._update_cmd is None
     assert sensor._update_env_mask is None
-    assert sensor._update_inv_dt is None

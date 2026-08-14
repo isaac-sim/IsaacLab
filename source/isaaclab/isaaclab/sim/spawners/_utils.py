@@ -9,12 +9,17 @@ from __future__ import annotations
 
 
 def props_expr(prim_path: str, pattern: str) -> str:
-    """Join an anchor prim path with a cfg-relative target pattern.
+    """Append a cfg-relative target pattern to an anchor prim path.
 
-    Implements the key convention of the fragment mapping spawner configuration
-    fields (e.g. :attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.rigid_props`):
-    an empty string selects the anchor prim itself, and any other pattern is
-    grafted under the anchor prim.
+    Implements the key convention of the fragment mapping spawner configuration fields
+    (e.g. :attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.rigid_props`): the key is a
+    regular-expression suffix appended to the anchor prim path, so it carries its own leading
+    ``/`` when it targets descendants. An empty key selects the anchor prim itself.
+
+    The result is a plain regular expression matched against whole prim paths by
+    :func:`~isaaclab.sim.utils.find_matching_prims`, so ``"/[^/]+"`` selects the anchor's direct
+    children, ``"/.*"`` selects all of its descendants, and ``"(/.*)?"`` selects the anchor
+    together with its descendants.
 
     Args:
         prim_path: The absolute path of the anchor prim.
@@ -23,9 +28,7 @@ def props_expr(prim_path: str, pattern: str) -> str:
     Returns:
         The absolute prim path expression to pass to a fragment family writer.
     """
-    if not pattern:
-        return prim_path
-    return f"{prim_path}/{pattern}"
+    return f"{prim_path}{pattern}"
 
 
 def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:

@@ -1,6 +1,5 @@
 
-Verifying the Isaac Sim installation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Verifying the Isaac Sim installation
 
 -  Make sure that your virtual environment is activated (if applicable)
 

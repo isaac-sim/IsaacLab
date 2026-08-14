@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterable
 import numpy as np
 import warp as wp
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import string_to_callable, to_camel_case
@@ -287,8 +287,9 @@ def apply_articulation_root_properties(
     """Apply a list of articulation-root fragments to the roots matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
     already carry ``UsdPhysics.ArticulationRootAPI`` are the targets: each fragment is
     dispatched to every target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     Sibling roots (independent articulations matched by one expression) are all processed.
@@ -413,6 +414,57 @@ def define_articulation_root_properties(
     modify_articulation_root_properties(prim_path, cfg, stage)
 
 
+def create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> None:
+    """Author a ``UsdPhysics.FixedJoint`` fixing an articulation root link to the world frame.
+
+    This is a pure-USD equivalent of
+    ``omni.physx.scripts.utils.createJoint(joint_type="Fixed", from_prim=None, to_prim=articulation_prim)``.
+    Authoring directly with USD keeps the fixed-root-link spawn path backend-agnostic:
+    it works identically under Kit/PhysX and on kitless backends (e.g. Newton) where
+    ``omni.physx`` is unavailable. Only the single-body (world-attached) case is handled,
+    matching the fixed-root-link spawn path.
+
+    Args:
+        articulation_prim: The articulation root link prim to fix to the world.
+        stage: The stage that owns the prim.
+    """
+    # ``MAX_FLOAT`` used by ``omni.physx.createJoint`` for an effectively unbreakable joint.
+    max_break = 3.40282347e38
+
+    to_path = articulation_prim.GetPath().pathString
+
+    # Instanceable/prototype/instance-proxy prims are not authorable; walk up to the first
+    # writable ancestor so the joint can be defined there (mirrors ``omni.physx.createJoint``).
+    base_prim = articulation_prim
+    pseudo_root = stage.GetPseudoRoot()
+    while base_prim != pseudo_root and (
+        base_prim.IsInPrototype() or base_prim.IsInstanceProxy() or base_prim.IsInstanceable()
+    ):
+        base_prim = base_prim.GetParent()
+    joint_base_path = str(base_prim.GetPrimPath())
+    if joint_base_path == "/":
+        joint_base_path = ""
+
+    # Find a unique joint name under the writable base (mirrors ``create_unused_path``).
+    joint_name = "FixedJoint"
+    if stage.GetPrimAtPath(f"{joint_base_path}/{joint_name}").IsValid():
+        uniquifier = 0
+        while stage.GetPrimAtPath(f"{joint_base_path}/{joint_name}{uniquifier}").IsValid():
+            uniquifier += 1
+        joint_name = f"{joint_name}{uniquifier}"
+    joint = UsdPhysics.FixedJoint.Define(stage, f"{joint_base_path}/{joint_name}")
+
+    # Anchor the joint at the root link's world pose (body0 = world, body1 = root link).
+    world_pose = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
+    joint.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+    joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_pose.ExtractTranslation()))
+    joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_pose.ExtractRotationQuat()))
+    joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+    joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+    joint.CreateBreakForceAttr().Set(max_break)
+    joint.CreateBreakTorqueAttr().Set(max_break)
+
+
 @apply_nested
 def modify_articulation_root_properties(
     prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
@@ -501,9 +553,7 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
-            from omni.physx.scripts import utils as physx_utils
-
-            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            create_world_fixed_joint(articulation_prim, stage)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.
@@ -554,8 +604,8 @@ def _match_fragment_targets(
 ) -> tuple[list[Usd.Prim], list[Usd.Prim], bool]:
     """Resolve fragment-writer targets from a prim path expression.
 
-    Matches ``prim_path_expr`` with :func:`~isaaclab.sim.utils.find_matching_prims` (a trailing
-    ``**`` token selects a prim and its whole subtree) and splits the matches: writable prims
+    Matches ``prim_path_expr`` with :func:`~isaaclab.sim.utils.find_matching_prims` (a plain
+    regular expression over whole prim paths) and splits the matches: writable prims
     passing ``is_target`` are targets, writable prims failing it are creation candidates, and
     instanced prims passing it are skipped with a warning since prototypes cannot be authored on.
 
@@ -602,8 +652,9 @@ def apply_rigid_body_properties(
     """Apply a list of rigid-body fragments to the rigid bodies matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
     already carry ``UsdPhysics.RigidBodyAPI`` are modified in place: each fragment is
     dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
@@ -739,8 +790,9 @@ def apply_volume_deformable_properties(
     """Apply deformable-body fragments to the volume deformables matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Body/.*`` selects every descendant at any depth while ``[^/]+``
+    confines a wildcard to one path segment). Matched prims that
     already carry a deformable-body anchor (per :func:`~isaaclab.sim.utils.has_deformable_body_api`)
     are modified in place: each fragment is dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
@@ -1019,8 +1071,9 @@ def apply_collision_properties(
     """Apply a list of collision fragments to the colliders matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
     already carry ``UsdPhysics.CollisionAPI`` are modified in place: each fragment is
     dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
@@ -1170,8 +1223,9 @@ def apply_mass_properties(
     """Apply a list of mass fragments to the mass-bearing prims matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. Matched prims that
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
     already carry ``UsdPhysics.MassAPI`` are modified in place: each fragment is dispatched to
     every such target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
     fragments carry backend-specific funcs, so core never imports a backend.
@@ -1481,13 +1535,14 @@ def apply_joint_drive_properties(
     """Apply a list of joint-drive fragments to the joint prims matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. The fragments are
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). The fragments are
     dispatched to every matched revolute/prismatic joint prim that is not excluded by a
     backend-registered skip predicate (see :func:`register_joint_drive_skip_predicate`, e.g.
-    PhysX tendon members). Non-joint matches are ignored silently -- a ``**`` expression matches
-    whole subtrees, so per-prim warnings would spam. Matched prims inside instances cannot be
-    authored on and are skipped with a warning.
+    PhysX tendon members). Non-joint matches are ignored silently -- a subtree expression
+    matches every descendant, so per-prim warnings would spam. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
 
     Unlike :func:`apply_rigid_body_properties`, the joint-drive family has no implicit anchor:
     ``UsdPhysics.DriveAPI`` is *presence-gated* and applied only by :func:`apply_drive` when a
@@ -1530,8 +1585,8 @@ def apply_joint_drive_properties(
     drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
 
     # match revolute/prismatic joints not excluded by a backend-registered skip predicate;
-    # non-joint matches (creation_candidates) are ignored silently since a ``**`` expression matches
-    # whole subtrees
+    # non-joint matches (creation_candidates) are ignored silently since a subtree expression
+    # matches every descendant
     targets, _, any_skipped = _match_fragment_targets(
         prim_path_expr,
         lambda p: (p.IsA(UsdPhysics.RevoluteJoint) or p.IsA(UsdPhysics.PrismaticJoint)) and not _skip_joint_drive(p),
@@ -1735,8 +1790,9 @@ def apply_fixed_tendon_properties(
     """Apply a list of fixed-tendon fragments to the tendon prims matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. A matched prim is a
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). A matched prim is a
     fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` multi-apply
     instance or is a ``MjcTendon`` prim.
 
@@ -1865,8 +1921,9 @@ def apply_spatial_tendon_properties(
     """Apply a list of spatial-tendon fragments to the tendon prims matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where each ``/``-separated token in ``prim_path_expr`` is a regular expression and a
-    trailing ``**`` token selects a prim together with its whole subtree. A matched prim is a
+    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
+    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
+    ``[^/]+`` confines a wildcard to one path segment). A matched prim is a
     spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` or
     ``PhysxTendonAttachmentLeafAPI`` multi-apply instance.
 
@@ -2116,6 +2173,33 @@ def _fix_tet_winding_kernel(
         tet_indices[i, 3] = v2
 
 
+def define_deformable_curve_properties(prim_path: str, stage: Usd.Stage | None = None) -> None:
+    """Apply the deformable curve simulation schema.
+
+    Args:
+        prim_path: The path of the ``UsdGeom.BasisCurves`` prim.
+        stage: The stage where the prim exists. Defaults to the current stage.
+
+    Raises:
+        ValueError: If the prim path is invalid or is not a ``UsdGeom.BasisCurves`` prim.
+        RuntimeError: If the schema cannot be applied.
+    """
+    if stage is None:
+        stage = get_current_stage()
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not prim.IsA(UsdGeom.BasisCurves):
+        raise ValueError(f"Prim path '{prim_path}' is not a UsdGeom.BasisCurves prim.")
+
+    schema_name = "PhysicsCurvesDeformableSimAPI"
+    if schema_name in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+        return
+    if not prim.AddAppliedSchema(schema_name):
+        raise RuntimeError(f"Failed to set deformable curve API on prim '{prim_path}'.")
+
+
 def _setup_deformable_meshes(
     root_prim: Usd.Prim,
     deformable_type: str,
@@ -2123,6 +2207,7 @@ def _setup_deformable_meshes(
     stage: Usd.Stage,
 ) -> tuple[Usd.Prim, Usd.Prim]:
     """Author the backend-neutral simulation and visual meshes for a deformable body.
+
 
     This resolves the visual surface mesh under the deformable root prim, creates the simulation
     mesh (a copy of the visual mesh for surface deformables, or a tetrahedralized volume for volume
@@ -2143,6 +2228,7 @@ def _setup_deformable_meshes(
         ValueError: When the deformable type is unsupported, no mesh or multiple meshes are found,
             or a resolved mesh prim is invalid.
         RuntimeError: When applying the collision API fails.
+
     """
     if deformable_type not in ("surface", "volume"):
         raise ValueError(
@@ -2231,11 +2317,16 @@ def _setup_deformable_meshes(
         if sim_mesh_prim is None:
             try:
                 from pytetwild import tetrahedralize
-            except ImportError as exc:
-                raise ImportError(
-                    "Automatic tetrahedralization of volume deformables requires the optional 'pytetwild' "
-                    "package. Install pytetwild or provide a pre-tetrahedralized UsdGeom.TetMesh under the "
-                    f"deformable prim '{prim_path}'."
+            except ModuleNotFoundError as exc:
+                if exc.name not in {"pytetwild", "pyvista", "vtk", "vtkmodules"}:
+                    raise
+                raise ModuleNotFoundError(
+                    "Automatic tetrahedralization of volume deformables requires the optional "
+                    "tetrahedralization dependencies. Install them with "
+                    "uv sync --inexact --extra tetrahedralization from a source checkout "
+                    "(or ./isaaclab.sh -i tetrahedralization with the legacy installer), or "
+                    'pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
+                    f"a pre-tetrahedralized UsdGeom.TetMesh under the deformable prim {prim_path}."
                 ) from exc
 
             tet_mesh_points, tet_mesh_indices = tetrahedralize(

@@ -33,8 +33,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.configclass import resolve_cfg_presets
 
-from .ui import ViewportCameraController
-
 logger = logging.getLogger(__name__)
 
 
@@ -189,13 +187,6 @@ class LeappDeploymentEnv:
             self.sim.reset()
         self.scene.update(dt=self.physics_dt)
         self.has_rtx_sensors = bool(self.sim.get_setting("/isaaclab/render/rtx_sensors"))
-
-        # Match the standard env initialization path for viewport camera setup.
-        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-        if self.sim.has_gui or has_visualizers:
-            self.viewport_camera_controller = ViewportCameraController(cast(Any, self), self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # ── EventManager (optional, for resets) ───────────────────
         self.event_manager: EventManager | None = None
@@ -364,7 +355,7 @@ class LeappDeploymentEnv:
         Returns:
             The initial input tensors (for logging / debugging).
         """
-        env_ids = [0]
+        env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         self.scene.reset(env_ids)
 
@@ -443,8 +434,6 @@ class LeappDeploymentEnv:
             if self.event_manager is not None:
                 del self.event_manager
             del self.scene
-            if self.viewport_camera_controller is not None:
-                del self.viewport_camera_controller
             self.sim.clear_instance()
             if self._window is not None:
                 self._window = None

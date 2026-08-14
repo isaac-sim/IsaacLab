@@ -83,7 +83,7 @@ def test_multi_tiled_camera_init(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -159,7 +159,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         "normals",
         "motion_vectors",
         "semantic_segmentation",
-        "instance_segmentation_fast",
+        "instance_segmentation",
         "instance_id_segmentation_fast",
     ]
 
@@ -174,7 +174,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
         camera_cfg.data_types = all_annotator_types
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -216,7 +216,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
                     "rgba",
                     "albedo",
                     "semantic_segmentation",
-                    "instance_segmentation_fast",
+                    "instance_segmentation",
                     "instance_id_segmentation_fast",
                 ]:
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 4)
@@ -244,10 +244,10 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert output["normals"].dtype == wp.float32
         assert output["motion_vectors"].dtype == wp.float32
         assert output["semantic_segmentation"].dtype == wp.uint8
-        assert output["instance_segmentation_fast"].dtype == wp.uint8
+        assert output["instance_segmentation"].dtype == wp.uint8
         assert output["instance_id_segmentation_fast"].dtype == wp.uint8
         assert isinstance(info["semantic_segmentation"], dict)
-        assert isinstance(info["instance_segmentation_fast"], dict)
+        assert isinstance(info["instance_segmentation"], dict)
         assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     for camera in tiled_cameras:
@@ -270,7 +270,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera_cfg.height, camera_cfg.width = resolutions[i]
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
@@ -336,7 +336,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -404,7 +404,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera_cfg.offset = TiledCameraCfg.OffsetCfg(pos=positions[i], rot=rotations[i], convention="ros")
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)

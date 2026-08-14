@@ -11,19 +11,19 @@ Example usage:
 .. code-block:: bash
 
     # Generate terrain with height color scheme
-    ./isaaclab.sh -p scripts/demos/procedural_terrain.py --color_scheme height
+    uv run python scripts/demos/procedural_terrain.py --color_scheme height
 
     # Generate terrain with random color scheme
-    ./isaaclab.sh -p scripts/demos/procedural_terrain.py --color_scheme random
+    uv run python scripts/demos/procedural_terrain.py --color_scheme random
 
     # Generate terrain with no color scheme
-    ./isaaclab.sh -p scripts/demos/procedural_terrain.py --color_scheme none
+    uv run python scripts/demos/procedural_terrain.py --color_scheme none
 
     # Generate terrain with curriculum
-    ./isaaclab.sh -p scripts/demos/procedural_terrain.py --use_curriculum
+    uv run python scripts/demos/procedural_terrain.py --use_curriculum
 
     # Generate terrain with curriculum along with flat patches
-    ./isaaclab.sh -p scripts/demos/procedural_terrain.py --use_curriculum --show_flat_patches
+    uv run python scripts/demos/procedural_terrain.py --use_curriculum --show_flat_patches
 
 """
 
@@ -60,7 +60,7 @@ parser.add_argument(
     default=False,
     help="Whether to show the flat patches computed during the terrain generation.",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()

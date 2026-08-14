@@ -54,7 +54,10 @@ def test_fabric_gpu_interop_env_adds_override(monkeypatch: pytest.MonkeyPatch, e
 
     kit_args, _ = _resolve_kit_args(monkeypatch, {})
 
-    assert kit_args == [f"--/physics/fabricUseGPUInterop={expected}"]
+    assert kit_args == [
+        f"--/physics/fabricUseGPUInterop={expected}",
+        "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false",
+    ]
 
 
 def test_fabric_gpu_interop_env_rejects_invalid_value(monkeypatch: pytest.MonkeyPatch):
@@ -70,13 +73,38 @@ def test_explicit_kit_setting_takes_precedence(monkeypatch: pytest.MonkeyPatch):
 
     kit_args, resolved_args = _resolve_kit_args(monkeypatch, {}, [explicit_arg])
 
-    assert kit_args == [explicit_arg]
-    assert resolved_args == []
+    assert kit_args == [
+        explicit_arg,
+        "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false",
+    ]
+    assert resolved_args == ["--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"]
 
 
 def test_explicit_kit_args_setting_takes_precedence(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv(app_launcher_module._FABRIC_GPU_INTEROP_ENV, "0")
     explicit_arg = "--/physics/fabricUseGPUInterop=true"
+
+    kit_args, resolved_args = _resolve_kit_args(monkeypatch, {"kit_args": explicit_arg})
+
+    assert kit_args == [
+        explicit_arg,
+        "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false",
+    ]
+    assert resolved_args == [
+        explicit_arg,
+        "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false",
+    ]
+
+
+def test_simulation_manager_default_callbacks_disabled(monkeypatch: pytest.MonkeyPatch):
+    kit_args, resolved_args = _resolve_kit_args(monkeypatch, {})
+
+    assert kit_args == ["--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"]
+    assert resolved_args == ["--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"]
+
+
+def test_explicit_simulation_manager_callback_setting_takes_precedence(monkeypatch: pytest.MonkeyPatch):
+    explicit_arg = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=true"
 
     kit_args, resolved_args = _resolve_kit_args(monkeypatch, {"kit_args": explicit_arg})
 

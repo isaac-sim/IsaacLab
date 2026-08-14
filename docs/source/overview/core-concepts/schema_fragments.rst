@@ -76,18 +76,18 @@ Targeting expressions
 ---------------------
 
 Target prims are resolved with :func:`~isaaclab.sim.utils.queries.find_matching_prims`.
-Each ``/``-separated token of the expression is a regular expression matched against
-prim names at the corresponding depth. A trailing ``**`` token selects the *anchor*
-prim (the prim matched by the preceding tokens) itself together with all its
-descendants at any depth; it is only valid as the final token. The recursive expansion
-traverses into instanceable prims (instance proxies are included) and includes inactive
-prims.
+The expression is a plain Python regular expression matched against the *whole* prim
+path. Standard regex semantics apply: ``.`` matches any character including ``/``, so
+``/World/Robot/.*`` selects every descendant at any depth, while ``[^/]+`` confines a
+wildcard to a single path segment and ``/World/Robot(/.*)?`` selects the prim together
+with its descendants. The traversal includes inactive and undefined prims as well as
+instance proxies.
 
 The matched set is then filtered to valid family targets (see the table above): API
 carriers for the rigid-body, collision, mass, and articulation families; revolute and
 prismatic joint prims for the joint-drive family; tendon-bearing prims for the tendon
 families. Non-joint matches of a joint-drive expression are ignored silently, since a
-``**`` expression legitimately sweeps whole subtrees.
+subtree expression legitimately sweeps whole subtrees.
 
 Edge cases behave as follows:
 
@@ -107,12 +107,14 @@ only fragment spelling), a single legacy dataclass cfg (e.g.
 :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` or a backend ``*PropertiesCfg``, routed
 to the legacy writers), or ``None``.
 
-Mapping keys are prim-path patterns *relative to the prim the spawner authors that
-family on*: the spawn prim for USD, URDF, and MJCF assets; for shape and mesh spawners,
-the geometry prim for the collision family and the container prim for the rigid-body
-and mass families. The empty string ``""`` selects the anchor prim itself. Entries
-apply in insertion order, so when two patterns match the same prim, fragments from
-later entries override attributes authored by earlier ones.
+Mapping keys are regular-expression suffixes appended to *the prim the spawner authors
+that family on*: the spawn prim for USD, URDF, and MJCF assets; for shape and mesh
+spawners, the geometry prim for the collision family and the container prim for the
+rigid-body and mass families. A key therefore carries its own leading ``/`` when it
+targets descendants: ``""`` selects the anchor prim itself, ``"/[^/]+"`` its direct
+children, ``"/.*"`` all of its descendants, and ``"(/.*)?"`` the anchor together with
+its descendants. Entries apply in insertion order, so when two patterns match the same
+prim, fragments from later entries override attributes authored by earlier ones.
 
 A robot spawned from USD, with a broad rule and a narrowing override:
 
@@ -128,16 +130,16 @@ A robot spawned from USD, with a broad rule and a narrowing override:
        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd",
        rigid_props={
            # every rigid body: universal + PhysX + MuJoCo attributes side by side
-           "**": [
+           "(/.*)?": [
                UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
                PhysxRigidBodyCfg(max_depenetration_velocity=5.0),
                MujocoRigidBodyCfg(gravcomp=1.0),
            ],
            # hand links (and their subtrees) get a tighter depenetration limit
-           ".*_hand/**": [PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
+           "/.*_hand(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
        },
        joint_drive_props={
-           "**": [UsdPhysicsDriveCfg(drive_type="force", stiffness=40.0, damping=4.0)],
+           "(/.*)?": [UsdPhysicsDriveCfg(drive_type="force", stiffness=40.0, damping=4.0)],
        },
    )
 
@@ -194,10 +196,10 @@ attributes, ``PhysxSurfaceDeformableBodyCfg`` narrowed to surface deformables) i
 
 At most one of the two slots may be set on a spawner: a mesh is spawned as either a volume
 deformable (tetrahedralized interior) or a surface deformable (cloth-like), never both. The
-slot's mapping keys are prim-path patterns relative to the *spawn* prim — unlike the other
-families, this holds for every spawner type, including shape and mesh spawners whose other
+slot's mapping keys are regular-expression suffixes appended to the *spawn* prim — unlike the
+other families, this holds for every spawner type, including shape and mesh spawners whose other
 families anchor at the geometry or container prim instead. The empty string ``""`` again
-selects the spawn prim itself and a trailing ``**`` selects it together with its subtree.
+selects the spawn prim itself, and ``"(/.*)?"`` selects it together with its subtree.
 
 Creating the deformable setup on a matched prim without the anchor happens in three steps:
 
@@ -222,7 +224,7 @@ Creating the deformable setup on a matched prim without the anchor happens in th
 
 Because the simulation mesh already carries ``UsdPhysics.CollisionAPI`` once created, its
 collision offsets ride the existing collision family rather than a deformable-specific one:
-key ``collision_props`` to the simulation-mesh child's name (``"sim_mesh"`` by default),
+key ``collision_props`` to the simulation-mesh child (``"/sim_mesh"`` by default),
 anchored the same way as the deformable slot itself, relative to the spawn prim.
 
 Physics materials widen the same way: ``physics_material`` accepts deformable material
@@ -250,7 +252,7 @@ the simulation mesh, and a mixed PhysX/Newton material:
            sim_utils.schemas.OmniPhysicsDeformableBodyCfg(mass=0.5),
            PhysxDeformableBodyCfg(solver_position_iteration_count=32),
        ]},
-       collision_props={"sim_mesh": [PhysxCollisionCfg(contact_offset=0.01)]},
+       collision_props={"/sim_mesh": [PhysxCollisionCfg(contact_offset=0.01)]},
        physics_material=[
            OmniPhysicsDeformableMaterialCfg(youngs_modulus=1.0e6, poissons_ratio=0.45),
            NewtonVolumeDeformableMaterialCfg(k_mu=1.0e5),

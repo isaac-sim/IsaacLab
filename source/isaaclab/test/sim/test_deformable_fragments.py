@@ -185,7 +185,7 @@ def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch, caplog)
         size=(0.1, 0.1, 0.1),
         surface_deformable_props={"": [OmniPhysicsDeformableBodyCfg(mass=0.2)]},
         physics_material=[OmniPhysicsSurfaceDeformableMaterialCfg(surface_thickness=0.01)],
-        collision_props={"sim_mesh": [UsdPhysicsCollisionCfg(collision_enabled=True)]},
+        collision_props={"/sim_mesh": [UsdPhysicsCollisionCfg(collision_enabled=True)]},
     )
     with caplog.at_level(logging.WARNING):
         cfg.func("/World/Cloth", cfg)

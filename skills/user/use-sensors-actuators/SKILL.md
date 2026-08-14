@@ -1,6 +1,6 @@
 ---
 name: isaaclab-using-sensors-actuators
-description: Adds and configures Isaac Lab sensors and actuators. Use when adding cameras, contact sensors, ray casters, IMUs, joint wrench sensors, tiled cameras, actuator models, or sensor observations to tasks.
+description: Adds and configures Isaac Lab sensors, actuators, and sensor-derived task terms in new or existing tasks. Use when adding cameras, contact sensors, foot or feet contacts, contact history, touchdown timing, air-time rewards, undesired contacts, sensor observations or terminations, ray casters, IMUs, joint wrench sensors, tiled cameras, or actuator models.
 audience: user
 status: experimental
 owners:
@@ -23,11 +23,12 @@ Do not use this skill as a complete sensor or actuator catalog. Point to the API
 4. Add sensor or actuator configs to the environment scene or asset config using existing task examples as templates.
 5. Register the sensor in the scene setup for direct workflows, or in the scene config for manager-based workflows.
 6. Add observation terms only after confirming the sensor data shape and device.
-7. For contact-heavy tasks, verify body name patterns and history length.
-8. For ray-cast terrain perception, verify mesh paths and terrain import setup.
-9. For camera-based RL, start with small environment counts and confirm renderer memory behavior.
-10. For multi-backend contact, ray, frame, IMU, PVA, or joint-wrench sensors, check whether the task needs backend-specific sensor cfgs from `isaaclab_physx.sensors` or `isaaclab_newton.sensors` wrapped in `PresetCfg`.
-11. For actuator changes, compare default joint names, limits, stiffness, damping, effort limits, and backend differences.
+7. For an existing task, inspect its scene config and existing MDP terms before adding code. Make the smallest task-local config change and create a shared MDP module only when the term is genuinely reusable.
+8. For contact-heavy tasks, verify body name patterns, history length, and whether `track_air_time=True` is required. Reuse maintained terms such as `mdp.feet_air_time` when they match the task.
+9. For ray-cast terrain perception, verify mesh paths and terrain import setup.
+10. For camera-based RL, start with small environment counts and confirm renderer memory behavior.
+11. For multi-backend contact, ray, frame, IMU, PVA, or joint-wrench sensors, use the common config from `isaaclab.sensors`; the active physics backend selects the implementation automatically. Use backend-specific fields or configs only when the current API or maintained source example requires them.
+12. For actuator changes, compare default joint names, limits, stiffness, damping, effort limits, and backend differences.
 
 ## Validation
 

@@ -21,10 +21,13 @@ from types import ModuleType
 import pytest
 import torch
 
+import omni.kit.app
+
 from isaaclab.controllers.utils import (
     change_revolute_to_fixed,
     change_revolute_to_fixed_regex,
     convert_usd_to_urdf,
+    resolve_rmpflow_path,
 )
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
@@ -134,23 +137,37 @@ def _mock_module(monkeypatch, name: str) -> ModuleType:
     return module
 
 
-def _mock_isaacsim_app(monkeypatch):
-    for module_name in (
-        "isaacsim",
-        "isaacsim.core",
-        "isaacsim.core.experimental",
-        "isaacsim.core.experimental.utils",
-    ):
-        _mock_module(monkeypatch, module_name).__path__ = []
+def _mock_kit_app(monkeypatch):
     enabled_extensions = []
-    app_module = _mock_module(monkeypatch, "isaacsim.core.experimental.utils.app")
-    app_module.enable_extension = enabled_extensions.append
+
+    class MockExtensionManager:
+        def is_extension_enabled(self, _name):
+            return _name in enabled_extensions
+
+        def set_extension_enabled_immediate(self, name, enabled):
+            if enabled:
+                enabled_extensions.append(name)
+            return True
+
+        def get_enabled_extension_id(self, name):
+            if name in enabled_extensions:
+                return name
+            return ""
+
+        def get_extension_path(self, extension_id):
+            return f"/extensions/{extension_id}"
+
+    class MockApp:
+        def get_extension_manager(self):
+            return MockExtensionManager()
+
+    monkeypatch.setattr(omni.kit.app, "get_app", MockApp)
     return enabled_extensions
 
 
 def test_convert_usd_to_urdf_uses_isaacsim_exporter(monkeypatch, tmp_path):
     """Test that USD-to-URDF conversion uses Isaac Sim's URDF exporter."""
-    enabled_extensions = _mock_isaacsim_app(monkeypatch)
+    enabled_extensions = _mock_kit_app(monkeypatch)
     for module_name in ("isaacsim.asset", "isaacsim.asset.exporter"):
         _mock_module(monkeypatch, module_name).__path__ = []
 
@@ -186,6 +203,34 @@ def test_convert_usd_to_urdf_uses_isaacsim_exporter(monkeypatch, tmp_path):
     assert limit.attrib["upper"] == "inf"
     assert limit.attrib["effort"] == "0."
     assert limit.attrib["velocity"] == "0."
+
+
+def test_resolve_rmpflow_path_uses_installed_motion_generation_extension(monkeypatch, tmp_path):
+    """Test that RMPFlow sentinel paths resolve from the installed extension directory."""
+    enabled_extensions = _mock_kit_app(monkeypatch)
+    ext_dir = tmp_path / "extsDeprecated" / "isaacsim.robot_motion.motion_generation"
+    config_dir = ext_dir / "motion_policy_configs" / "franka" / "rmpflow"
+    config_dir.mkdir(parents=True)
+    monkeypatch.setenv("ISAAC_PATH", str(tmp_path))
+
+    resolved_path = resolve_rmpflow_path("rmpflow_ext:motion_policy_configs/franka/rmpflow/config.yaml")
+
+    assert enabled_extensions == []
+    assert resolved_path == str(config_dir / "config.yaml")
+
+
+def test_franka_rmpflow_config_resolves_motion_generation_path():
+    """Test that the trimmed app resolves Franka RMPFlow config files from the disabled extension."""
+    from isaaclab.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG
+
+    extension_manager = omni.kit.app.get_app().get_extension_manager()
+    assert not extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")
+
+    resolved_path = resolve_rmpflow_path(FRANKA_RMPFLOW_CFG.config_file)
+
+    assert os.path.isabs(resolved_path)
+    assert os.path.exists(resolved_path)
+    assert not extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")
 
 
 # =============================================================================

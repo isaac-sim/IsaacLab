@@ -41,11 +41,11 @@ def _export_command(task_name: str, export_dir: str) -> list[str]:
         _THIS_SCRIPT,
         "--task",
         task_name,
-        "--use_pretrained_checkpoint",
+        "--checkpoint",
+        "pretrained",
         "--export_save_path",
         export_dir,
         "--disable_graph_visualization",
-        "--headless",
     ]
 
 

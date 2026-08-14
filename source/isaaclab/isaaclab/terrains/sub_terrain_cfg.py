@@ -89,6 +89,14 @@ class SubTerrainBaseCfg:
     :attr:`isaaclab.scene.TerrainImporterCfg.size` attribute.
     """
 
+    convert_to_heightfield: bool = False
+    """Whether the sub-terrain should be converted to a heightfield. Defaults to False.
+
+    Conversion only happens if this flag is set for ALL sub-terrains, and is currently only supported by
+    the Newton backend. It is lossy for mesh sub-terrains, which may contain vertical faces (e.g. stair
+    risers) that a heightfield cannot represent.
+    """
+
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None
     """Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,
     in which case no flat patch sampling is performed.

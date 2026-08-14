@@ -13,11 +13,16 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import ast
+import inspect
+import textwrap
+
 import pytest
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils import queries
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -90,11 +95,76 @@ def test_get_first_matching_ancestor_prim():
 
 
 def test_matches_path_expr_prefix():
-    path_expr = "/World/envs/env_.*/Robot"
+    path_expr = "/World/envs/env_[^/]+/Robot"
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot/base")
+    assert not sim_utils.matches_path_expr_prefix(
+        "/World/envs/env_[^/]+/Robot/cart|pole", "/World/envs/env_0/Robot/cartXX"
+    )
+
+
+def test_path_expression_helpers_preserve_supported_regex_text():
+    """Path adapters touch only the syntax they explicitly support."""
+    path_expr = r"/World/envs/env_[^/]+/Robot/link_[0-9]{2}"
+
+    assert sim_utils.split_path_expr(path_expr) == ["", "World", "envs", "env_[^/]+", "Robot", "link_[0-9]{2}"]
+    assert sim_utils.path_expr_to_glob(path_expr) == r"/World/envs/env_*/Robot/link_[0-9]{2}"
+    assert sim_utils.path_expr_to_glob(r"/World/Robot/[^/]{2}") == r"/World/Robot/[^/]{2}"
+
+
+def test_find_matching_prims_uses_unbounded_full_path_regex():
+    """Regex tokens retain their Python semantics across prim path separators."""
+    sim_utils.create_prim("/World/Robot/foo")
+    sim_utils.create_prim("/World/Robot/foo/bar")
+    sim_utils.create_prim("/World/Robot/Arm")
+    sim_utils.create_prim("/World/A/foo")
+    sim_utils.create_prim("/World/B/foo")
+
+    matches = sim_utils.find_matching_prims(r"/World/Robot/[^A]+")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/Robot/foo/bar"]
+    matches = sim_utils.find_matching_prims(r"/World/[^/]+/foo")
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/A/foo", "/World/B/foo"]
+
+
+def test_find_matching_prims_has_no_inferred_traversal_bounds():
+    """The query must not narrow or prune USD traversal from the user's regex."""
+    sources = (sim_utils.find_matching_prims, queries._iter_matching_prims_in_subtree)
+    tree = ast.parse("\n".join(textwrap.dedent(inspect.getsource(function)) for function in sources))
+    called_methods = {
+        node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    called_functions = {
+        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+    assert "GetPrimAtPath" not in called_methods
+    assert "PruneChildren" not in called_methods
+    assert "_bound_search" not in called_functions
+
+
+def test_find_matching_prims_fullmatches_top_level_alternation():
+    """Anchoring applies to the complete expression rather than individual alternatives."""
+    sim_utils.create_prim("/World/Robot/foo/bar")
+    sim_utils.create_prim("/World/Robot/foo/bar/baz")
+    sim_utils.create_prim("/World/Floor")
+
+    matches = sim_utils.find_matching_prims(r"/World/Robot/foo/bar|/World/Floor")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo/bar", "/World/Floor"]
+
+
+def test_find_matching_prims_includes_inactive_and_undefined_prims():
+    """An unscoped query exposes authored prims instead of silently filtering stage state."""
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/Inactive", "Xform").SetActive(False)
+    stage.OverridePrim("/World/Undefined")
+
+    matches = sim_utils.find_matching_prims(r"/World/(Inactive|Undefined)")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Inactive", "/World/Undefined"]
 
 
 def test_get_all_matching_child_prims():
@@ -175,46 +245,16 @@ def test_get_first_matching_child_prim():
     assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
 
 
-def test_find_matching_prims_recursive_token_matches_self_and_all_descendants():
-    """A trailing ``**`` matches the anchor prim itself and every descendant, any depth."""
-    stage = sim_utils.get_current_stage()
-    for path in ("/World/Robot", "/World/Robot/link1", "/World/Robot/link1/collider", "/World/Other"):
-        stage.DefinePrim(path, "Xform")
-    matched = sim_utils.find_matching_prims("/World/Robot/**")
-    matched_paths = sorted(p.GetPath().pathString for p in matched)
-    assert matched_paths == ["/World/Robot", "/World/Robot/link1", "/World/Robot/link1/collider"]
-
-
-def test_find_matching_prims_recursive_token_composes_with_regex_levels():
-    """``**`` composes with regex tokens before it."""
-    stage = sim_utils.get_current_stage()
-    for path in ("/World/env_0/Robot/link", "/World/env_1/Robot/link", "/World/env_1/Box"):
-        stage.DefinePrim(path, "Xform")
-    matched_paths = sorted(sim_utils.find_matching_prim_paths("/World/env_.*/Robot/**"))
-    assert matched_paths == [
-        "/World/env_0/Robot",
-        "/World/env_0/Robot/link",
-        "/World/env_1/Robot",
-        "/World/env_1/Robot/link",
-    ]
-
-
-def test_find_matching_prims_recursive_token_traverses_instance_proxies():
-    """``**`` descends into instanceable prims so callers can detect (and skip) proxy carriers."""
+def test_find_matching_prims_traverses_instance_proxies():
+    """Matching descends into instanceable prims so callers can detect (and skip) proxy carriers."""
     stage = sim_utils.get_current_stage()
     stage.DefinePrim("/World/Source", "Xform")
     stage.DefinePrim("/World/Source/body", "Xform")
     instance = stage.DefinePrim("/World/Asset", "Xform")
     instance.GetReferences().AddInternalReference("/World/Source")
     instance.SetInstanceable(True)
-    matched_paths = sim_utils.find_matching_prim_paths("/World/Asset/**")
+    matched_paths = sim_utils.find_matching_prim_paths("/World/Asset(/.*)?")
     assert "/World/Asset/body" in matched_paths
-
-
-def test_find_matching_prims_mid_pattern_recursive_token_raises():
-    """``**`` is only supported as the final token."""
-    with pytest.raises(ValueError, match="final token"):
-        sim_utils.find_matching_prims("/World/**/collider")
 
 
 def test_find_global_fixed_joint_prim():
@@ -241,15 +281,3 @@ def test_find_global_fixed_joint_prim():
     joint_prim.GetJointEnabledAttr().Set(False)
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True) is None
-
-
-def test_find_matching_prims_recursive_token_includes_inactive_prims():
-    """``**`` matches inactive prims, consistent with the per-level token traversal."""
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/Bot", "Xform")
-    child = stage.DefinePrim("/World/Bot/link", "Xform")
-    child.SetActive(False)
-    per_level = sim_utils.find_matching_prim_paths("/World/Bot/.*")
-    recursive = sim_utils.find_matching_prim_paths("/World/Bot/**")
-    assert "/World/Bot/link" in per_level
-    assert "/World/Bot/link" in recursive

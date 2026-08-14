@@ -70,7 +70,6 @@ def main(args: argparse.Namespace):
                 args.lib_name,
                 "--task",
                 env_name,
-                "--headless",
             ]
             + extra_args,
             check=False,  # do not raise an error if the script fails

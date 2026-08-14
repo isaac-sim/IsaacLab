@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/02_scene/create_scene.py --num_envs 32
+    uv run python scripts/tutorials/02_scene/create_scene.py --num_envs 32
 
 """
 

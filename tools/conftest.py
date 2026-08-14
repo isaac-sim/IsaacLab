@@ -6,7 +6,6 @@
 import contextlib
 import logging
 import os
-import re
 import select
 import signal
 import subprocess
@@ -22,6 +21,7 @@ from prettytable import PrettyTable
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
+import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
@@ -542,6 +542,8 @@ _RESULT_PRIORITY = {
     "TIMEOUT": 3,
     "FAILED": 2,
     "passed (shutdown hanged)": 1,
+    "passed (module skipped)": 0,
+    "passed (no tests selected)": 0,
     "passed": 0,
 }
 
@@ -566,6 +568,46 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
         if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
         else new["result"],
     }
+
+
+def _make_failed_pass_result(
+    prefix: str,
+    pass_file_label: str,
+    message: str,
+    report_file: str,
+    stdout_data: bytes,
+    stderr_data: bytes,
+    time_elapsed: float,
+    wall_time: float,
+    report: JUnitXml | None = None,
+    tests: int = 0,
+    skipped: int = 0,
+) -> tuple[JUnitXml, dict, bool]:
+    """Append and persist a synthetic failure without discarding existing results."""
+    details = message + "\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 5000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 5000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if report is None:
+        report = JUnitXml()
+    report += _create_error_report(prefix, pass_file_label, message, details)
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": 1,
+            "failures": 0,
+            "skipped": skipped,
+            "tests": tests + 1,
+            "result": "FAILED",
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        True,
+    )
 
 
 def _run_one_pass(
@@ -605,6 +647,7 @@ def _run_one_pass(
         sys.executable,
         "-m",
         "pytest",
+        # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
         "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
         "--no-header",
         "--show-capture=all",
@@ -628,8 +671,11 @@ def _run_one_pass(
     startup_hang_attempts = 0
     timeout_attempts = 0
     while True:
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(report_file)
+        # Clear the renderer log too: read after the subprocess dies, it is the only renderer output a
+        # crash, hang, or timeout reports, and a leftover would be attributed to the wrong run.
+        for stale_file in (report_file, ovrtx_log.LOG_PATH):
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(stale_file)
 
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
             cmd, ctx.timeout, ctx.env, startup_deadline=ctx.startup_deadline, report_file=report_file
@@ -681,6 +727,7 @@ def _run_one_pass(
         diag = _get_diagnostics(pre_kill_diag)
         logger.warning(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
         logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Startup hang after {ctx.startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -690,6 +737,7 @@ def _run_one_pass(
         if stdout_data:
             details += "=== STDOUT (last 2000 chars) ===\n"
             details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+        details += ovrtx_log_section
 
         error_report = _create_error_report("startup_hang", pass_file_label, msg, details)
         error_report.write(report_file)
@@ -711,6 +759,7 @@ def _run_one_pass(
         diag = _get_diagnostics(pre_kill_diag)
         logger.warning(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
         logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -720,6 +769,7 @@ def _run_one_pass(
         if stderr_data:
             details += "=== STDERR (last 5000 chars) ===\n"
             details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        details += ovrtx_log_section
 
         error_report = _create_error_report("timeout", pass_file_label, msg, details)
         error_report.write(report_file)
@@ -746,6 +796,7 @@ def _run_one_pass(
         diag = _get_diagnostics()
         logger.warning(f"⚠️  {ctx.test_file}{suffix}: {reason}")
         logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
         if stdout_data:
@@ -754,6 +805,7 @@ def _run_one_pass(
         if stderr_data:
             details += "=== STDERR (last 2000 chars) ===\n"
             details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+        details += ovrtx_log_section
 
         error_report = _create_error_report("crash", pass_file_label, reason, details)
         error_report.write(report_file)
@@ -795,6 +847,24 @@ def _run_one_pass(
             True,
         )
 
+    exact_node_selection = any("::" in target for target in ctx.pytest_targets)
+    if exact_node_selection and tests == 0:
+        msg = f"Configured test node IDs selected zero tests: {', '.join(ctx.pytest_targets)}"
+        logger.error(msg)
+        return _make_failed_pass_result(
+            "selection",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
     (
         report,
         errors,
@@ -832,6 +902,42 @@ def _run_one_pass(
     )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
+    expected_empty_selection = k_expr is not None or ctx.ci_marker or skipped > 0
+    if no_tests_collected and expected_empty_selection:
+        result = "passed (module skipped)" if skipped else "passed (no tests selected)"
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests collected — {result}")
+        return (
+            report,
+            {
+                "errors": errors,
+                "failures": failures,
+                "skipped": skipped,
+                "tests": tests,
+                "result": result,
+                "time_elapsed": time_elapsed,
+                "wall_time": wall_time,
+            },
+            False,
+        )
+
+    if returncode != 0 and not shutdown_hanged and not has_test_failures:
+        msg = f"pytest exited with code {returncode} without reporting a test failure"
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        return _make_failed_pass_result(
+            "pytest_exit",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
 
     if shutdown_hanged:
@@ -1103,6 +1209,34 @@ def _write_empty_report():
     logger.info(f"Wrote empty report to tests/{result_file}")
 
 
+def _format_test_file_results(test_files: list[str], test_status: dict[str, dict], run_device: str) -> str:
+    """Format all per-file test results as a table."""
+    summary = "\n\n=====================\n"
+    summary += "All Test File Results\n"
+    summary += "=====================\n"
+
+    table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    table.align["Test Path"] = "l"
+    table.align["Test (s)"] = "r"
+    table.align["Wall (s)"] = "r"
+    sorted_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)
+    for test_path in sorted_test_files:
+        status = test_status[test_path]
+        num_tests_passed = status["tests"] - status["failures"] - status["errors"] - status["skipped"]
+        table.add_row(
+            [
+                test_path,
+                run_device,
+                status["result"],
+                f"{status['time_elapsed']:0.2f}",
+                f"{status['wall_time']:0.2f}",
+                f"{num_tests_passed}/{status['tests']}",
+            ]
+        )
+
+    return summary + table.get_string()
+
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -1298,60 +1432,7 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n=======================\n"
-    summary_str += "Per File Result Summary\n"
-    summary_str += "=======================\n"
-
-    per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
-    per_file_result_table.align["Test Path"] = "l"
-    per_file_result_table.align["Test (s)"] = "r"
-    per_file_result_table.align["Wall (s)"] = "r"
-    for test_path in test_files:
-        num_tests_passed = (
-            test_status[test_path]["tests"]
-            - test_status[test_path]["failures"]
-            - test_status[test_path]["errors"]
-            - test_status[test_path]["skipped"]
-        )
-        per_file_result_table.add_row(
-            [
-                test_path,
-                run_device,
-                test_status[test_path]["result"],
-                f"{test_status[test_path]['time_elapsed']:0.2f}",
-                f"{test_status[test_path]['wall_time']:0.2f}",
-                f"{num_tests_passed}/{test_status[test_path]['tests']}",
-            ]
-        )
-
-    summary_str += per_file_result_table.get_string()
-
-    # Per-test run times, slowest first, from the merged JUnit report. The
-    # device is read from the test id params (e.g. ``...[size0-cuda:1]``),
-    # falling back to the run's boot device.
-    summary_str += "\n\n=================\n"
-    summary_str += "Per Test Run Time\n"
-    summary_str += "=================\n"
-
-    per_test_time_table = PrettyTable(field_names=["Test", "Device", "Time (s)"])
-    per_test_time_table.align["Test"] = "l"
-    per_test_time_table.align["Time (s)"] = "r"
-    test_times = []
-    for suite in full_report:
-        for case in suite:
-            full_name = f"{case.classname}::{case.name}" if case.classname else case.name
-            device = run_device
-            bracket = re.search(r"\[(.*)\]", full_name)
-            if bracket:
-                dev_match = re.search(r"cuda:\d+|\bcpu\b", bracket.group(1))
-                if dev_match:
-                    device = dev_match.group(0)
-            elapsed = float(case.time) if case.time is not None else 0.0
-            test_times.append((full_name, device, elapsed))
-    for full_name, device, elapsed in sorted(test_times, key=lambda row: row[2], reverse=True):
-        per_test_time_table.add_row([full_name, device, f"{elapsed:0.3f}"])
-
-    summary_str += per_test_time_table.get_string()
+    summary_str += _format_test_file_results(test_files, test_status, run_device)
 
     # Print summary to console and log file
     logger.info(summary_str)

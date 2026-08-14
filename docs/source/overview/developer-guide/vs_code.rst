@@ -24,7 +24,7 @@ Setting up Visual Studio Code
 
    The following instructions on setting up Visual Studio Code only work with
    :ref:`Isaac Sim Binaries Installation <isaaclab-binaries-installation>` and not with
-   :ref:`Pip Installation <isaaclab-pip-installation>`.
+   :ref:`Python Environment with Isaac Sim <installation-method-python-env>`.
 
 
 To setup the IDE, please follow these instructions:
@@ -66,9 +66,19 @@ To use it:
 1. Set your breakpoints.
 2. Run your code under debugpy like so:
 
-   .. code-block:: bash
+   .. tab-set::
 
-      ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
+      .. tab-item:: uv (Recommended)
+
+         .. code-block:: bash
+
+            uv run python -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+            ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
 
 3. In VS Code, select the ``Python: Debugger Attach`` configuration from the Run and Debug panel
    and press the green play button or ``F5``. VS Code will connect to the debugpy server

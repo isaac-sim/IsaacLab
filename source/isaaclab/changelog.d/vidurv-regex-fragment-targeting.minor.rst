@@ -1,9 +1,6 @@
 Added
 ^^^^^
 
-* Added a trailing ``**`` token to prim path expressions in
-  :func:`~isaaclab.sim.utils.find_matching_prims`, matching a prim and all of its
-  descendants at any depth (instance proxies included).
 * Added ``create_if_missing`` to the fragment schema writers and matching spawner
   configuration flags (``mass_props_create_if_missing``,
   ``articulation_props_create_if_missing``, ``joint_drive_props_create_if_missing``)
@@ -15,18 +12,20 @@ Changed
 * **Breaking:** Changed the fragment schema writers (e.g.
   :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`) to take a prim path
   expression instead of traversing the subtree of the input prim. A bare prim path now
-  matches only that prim; pass ``f"{prim_path}/**"`` to recover the previous
+  matches only that prim; pass ``f"{prim_path}(/.*)?"`` to recover the previous
   subtree-wide behavior. Zero matched targets now log a warning and return ``False``
   instead of raising ``ValueError`` on an invalid path.
 * **Breaking:** Changed the spawner configuration fragment fields
   (e.g. :attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.rigid_props`,
   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props`) to take a
   mapping from target pattern to fragment list instead of a bare fragment or fragment
-  list. Keys are per-level regular expressions relative to the spawn prim, a trailing
-  ``**`` token matches a prim and all of its descendants, and ``""`` targets the spawn
-  prim itself; entries apply in insertion order, so on overlapping targets later
-  entries override earlier ones per attribute. Pass ``{"**": [...]}`` to recover the
-  previous fragment-list behavior. Legacy single-cfg values are unaffected.
+  list. Keys are regular-expression suffixes appended to the spawn prim, so a key
+  carries its own leading ``/`` when it targets descendants: ``""`` is the spawn prim
+  itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"``
+  the spawn prim together with its descendants. Entries apply in insertion order, so on
+  overlapping targets later entries override earlier ones per attribute. Pass
+  ``{"(/.*)?": [...]}`` to recover the previous fragment-list behavior. Legacy
+  single-cfg values are unaffected.
 * **Breaking:** Changed the fragment schema writers to no longer apply their defining
   USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. For
   articulation roots, anchoring on the spawn prim now requires a ``{"": [...]}``
@@ -44,4 +43,4 @@ Fixed
   :func:`~isaaclab.sim.schemas.apply_mass_properties` only reaching the outermost
   schema-bearing prim on assets with nested rigid-body hierarchies (child links authored
   under their parent link prims, as produced by the URDF importer in Isaac Sim 6.0 and
-  later). A whole-subtree target pattern (``{"**": [...]}``) reaches every carrier.
+  later). A whole-subtree target pattern (``{"(/.*)?": [...]}``) reaches every carrier.
