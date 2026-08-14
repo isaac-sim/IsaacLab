@@ -60,9 +60,9 @@ class _FakeStage:
 def _make_surface_entry() -> DeformableRegistryEntry:
     half_sqrt = math.sqrt(0.5)
     return DeformableRegistryEntry(
-        prim_path="/World/envs/env_.*/cloth",
-        sim_mesh_prim_path="/World/envs/env_.*/cloth/mesh",
-        vis_mesh_prim_path="/World/envs/env_.*/cloth/mesh",
+        prim_path="{ENV_REGEX_NS}/cloth",
+        sim_mesh_prim_path="{ENV_REGEX_NS}/cloth/mesh",
+        vis_mesh_prim_path="{ENV_REGEX_NS}/cloth/mesh",
         vertices=[
             wp.vec3(0.0, 0.0, 0.0),
             wp.vec3(1.0, 0.0, 0.0),

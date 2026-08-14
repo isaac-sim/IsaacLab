@@ -313,7 +313,22 @@ class OvPhysxFrameView(BaseFrameView):
 
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._stage = stage
-        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+        sim = sim_utils.SimulationContext.instance()
+        plan = sim.get_clone_plan() if sim is not None else None
+        source_matches = tuple(cloner.query.iter_sources(plan, prim_path)) if plan is not None else ()
+        self._source_records = []
+        self._prims: list[Usd.Prim] = []
+        for source_root, destination_template, source_path, env_ids in source_matches:
+            source_pattern = re.compile(source_path)
+            source_prims = sim_utils.get_all_matching_child_prims(
+                source_root,
+                lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
+                stage=stage,
+            )
+            self._prims.extend(source_prims)
+            self._source_records.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
+        if not source_matches:
+            self._prims = sim_utils.find_matching_prims(prim_path, stage=stage)
         if not self._prims:
             raise ValueError(f"OvPhysxFrameView: pattern {prim_path!r} matched zero prims.")
 
@@ -351,17 +366,9 @@ class OvPhysxFrameView(BaseFrameView):
     def _initialize_impl(self, physx: Any) -> None:
         """Resolve prims to rigid-body ancestors and create a RIGID_BODY_POSE tensor binding.
 
-        Site discovery handles two scene-construction modes:
-
-        * **``clone_usd=True``** (Newton-style cloning): every env has its own
-          USD prims; ``find_matching_prims`` returns one prim per env, and the
-          binding row count matches.
-        * **``clone_usd=False``** (OVPhysX default): only ``env_0`` has authored
-          USD prims; ``env_1..N`` are physics-layer clones (no USD twin). The
-          RIGID_BODY_POSE binding still exposes one row per env. In that case
-          the binding is the source of truth for the site count, and per-env
-          site paths are synthesized from the env_0 template prim's path with
-          ``env_0`` replaced by the row's env_id.
+        With a ClonePlan, site discovery reads only its authored source prims, whether or not
+        destination USD prims exist. The RIGID_BODY_POSE binding is the source of truth for the
+        site count, and per-env site paths are synthesized from the source prim paths.
         """
         from isaaclab_ov import tensor_types as TT  # noqa: PLC0415
         from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
@@ -432,8 +439,7 @@ class OvPhysxFrameView(BaseFrameView):
             binding_paths = []
 
         world_sites = self._expand_world_sites_from_clone_plan(xform_cache) if not binding_paths else []
-        # 5. Detect clone_usd=False expansion: binding row count > number of matched USD prims.
-        #    Replace per-prim arrays with one entry per binding row, all derived from the env_0 template.
+        # 5. Expand source prim data to one entry per binding row.
         if binding_paths and len(binding_paths) > len(self._prims):
             template_ancestor = per_prim_ancestor[0]
             template_site_local = per_prim_site_local[0]
@@ -511,20 +517,11 @@ class OvPhysxFrameView(BaseFrameView):
         self, xform_cache: UsdGeom.XformCache
     ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
         """Return row-ordered source prims and projected poses for source-only world sites."""
-        sim = sim_utils.SimulationContext.instance()
-        plan = sim.get_clone_plan() if sim is not None else None
-        matches = tuple(cloner.query.iter_sources(plan, self._prim_path)) if plan is not None else ()
-        if sum(len(env_ids) for _, _, _, env_ids in matches) <= len(self._prims):
+        if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
             return []
 
         records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
-        for source_root, destination_template, source_path, env_ids in matches:
-            source_prim = self._stage.GetPrimAtPath(source_path)
-            if not source_prim.IsValid():
-                source_prim = sim_utils.find_first_matching_prim(source_path, self._stage)
-            if source_prim is None or not source_prim.IsValid():
-                raise RuntimeError(f"OvPhysxFrameView could not resolve source prim {source_path!r}.")
-
+        for source_root, destination_template, source_prim, env_ids in self._source_records:
             source_prim_path = source_prim.GetPath().pathString
             suffix = cloner.path.relative_to(source_prim_path, source_root)
             if suffix is None:

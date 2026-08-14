@@ -5,8 +5,9 @@
 
 """Tests for scoped Newton per-world builder hooks."""
 
+import newton
 import pytest
-from isaaclab_newton.cloner import newton_builder_world_hook
+from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonManager
 
 
@@ -41,3 +42,16 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
         with newton_builder_world_hook(existing):
             pass
     assert hooks == [existing, added_later]
+
+
+def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
+    """Finalizing a copied prototype must not mutate cloner-retained shape sources."""
+    source = newton.ModelBuilder()
+    body = source.add_body()
+    mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
+    source.add_shape_mesh(body, mesh=mesh)
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/Source": source})
+
+    copied = copy_newton_clone_source("/World/Source")
+
+    assert copied.shape_source[0] is not source.shape_source[0]

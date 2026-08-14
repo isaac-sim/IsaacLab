@@ -1,0 +1,3 @@
+Rendering test stage dumps rewrite cached asset paths back to their source URLs, so a stage saved
+through ``ISAAC_LAB_SAVE_STAGES`` no longer carries texture paths that only resolve on the machine
+that ran the test.

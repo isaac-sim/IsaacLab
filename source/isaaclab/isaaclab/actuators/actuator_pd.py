@@ -58,24 +58,9 @@ class ImplicitActuator(ActuatorBase):
     def __init__(self, cfg: ImplicitActuatorCfg, *args, **kwargs):
         # effort limits
         if cfg.effort_limit_sim is None and cfg.effort_limit is not None:
-            # throw a warning that we have a replacement for the deprecated parameter
-            logger.warning(
-                "The <ImplicitActuatorCfg> object has a value for 'effort_limit'."
-                " This parameter will be removed in the future."
-                " To set the effort limit, please use 'effort_limit_sim' instead."
-            )
             cfg.effort_limit_sim = cfg.effort_limit
         elif cfg.effort_limit_sim is not None and cfg.effort_limit is None:
-            # TODO: Eventually we want to get rid of 'effort_limit' for implicit actuators.
-            #   We should do this once all parameters have an "_sim" suffix.
             cfg.effort_limit = cfg.effort_limit_sim
-        elif cfg.effort_limit_sim is not None and cfg.effort_limit is not None:
-            if cfg.effort_limit_sim != cfg.effort_limit:
-                raise ValueError(
-                    "The <ImplicitActuatorCfg> object has set both 'effort_limit_sim' and 'effort_limit'"
-                    f" and they have different values {cfg.effort_limit_sim} != {cfg.effort_limit}."
-                    " Please only set 'effort_limit_sim' for implicit actuators."
-                )
 
         # velocity limits
         # 'velocity_limit' is the joint's peak velocity (the actuator's rated speed

@@ -23,7 +23,7 @@ import argparse
 from collections.abc import Callable
 from functools import partial
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
 from pxr import Gf, Usd, UsdGeom
 
@@ -87,11 +87,13 @@ def _spawn_colored_shape(
 
 def create_visualizer_cfgs():
     """Create the demo-specific Newton visualizer configuration."""
-    if not {"newton", "newton_gl"}.intersection(args_cli.visualizer or []):
+    requested = args_cli.visualizer or []
+    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
         return []
 
+    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
-        NewtonGLVisualizerCfg(
+        cfg_type(
             streaming_view=False,
             show_particles=True,
             particle_color=PARTICLE_COLOR,
@@ -223,6 +225,16 @@ def create_scene_cfg():
     @configclass
     class CoupledSceneCfg(InteractiveSceneCfg):
         """Scene containing a static bath, three rigid spheres, and MPM sand."""
+
+        ground = AssetBaseCfg(
+            prim_path="/World/Ground",
+            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
+        )
+        dome_light = AssetBaseCfg(
+            prim_path="/World/DomeLight",
+            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        )
 
         bath_floor = bath_collider(
             "/World/Bath/Floor",

@@ -22,6 +22,8 @@ from isaaclab.utils.images import make_camera_output_grid, normalize_camera_outp
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
+    from pxr import Sdf
+
     from isaaclab.sensors.camera import CameraData
 
 logger = logging.getLogger(__name__)
@@ -510,6 +512,20 @@ def _sanitize_golden_stage_text(text: str) -> str:
     return text.rstrip("\n") + "\n"
 
 
+def _restore_remote_asset_paths(layer: "Sdf.Layer") -> None:
+    """Point cached asset paths in ``layer`` back at the URLs they were downloaded from.
+
+    Remote USD assets are referenced through a local cache copy, so flattening resolves the
+    textures and materials they carry into absolute cache paths that exist only on the machine
+    that ran the test. Locally authored paths are left untouched.
+    """
+    from pxr import UsdUtils  # noqa: PLC0415
+
+    from isaaclab.utils.assets import unmirror_file_path  # noqa: PLC0415
+
+    UsdUtils.ModifyAssetPaths(layer, lambda asset_path: unmirror_file_path(asset_path) or asset_path)
+
+
 def maybe_save_stage(
     test_name: str,
     physics_backend: str,
@@ -551,6 +567,7 @@ def maybe_save_stage(
         flat_layer = opened_stage.Flatten()
         if flat_layer is None:
             pytest.fail(f"Could not flatten the saved stage at {stage_path}.")
+        _restore_remote_asset_paths(flat_layer)
 
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
@@ -1477,7 +1494,7 @@ def rendering_test_cartpole(
     @configclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
         robot_cfg = CARTPOLE_CFG.replace(
-            prim_path="/World/envs/env_.*/Robot",
+            prim_path="{ENV_REGEX_NS}/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
 
@@ -1741,7 +1758,6 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.env_spacing = 3.0
-    env_cfg.scene.replicate_physics = True
     env_cfg.scene.base_camera.data_types = [data_type]
     env_cfg.observations = TestFrankaCameraObservationsCfg()
     env_cfg.commands.deformable_pose.debug_vis = False
@@ -1758,6 +1774,8 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
