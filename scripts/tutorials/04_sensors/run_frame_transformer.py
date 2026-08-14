@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
+    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
 
 """
 
@@ -36,7 +36,7 @@ import math
 
 import torch
 
-from isaacsim.core.experimental.utils.app import enable_extension
+from isaaclab.sim.utils import enable_extension
 
 enable_extension("isaacsim.util.debug_draw")
 

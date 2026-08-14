@@ -25,7 +25,7 @@ Each demo includes a `changelog_before.rst` (initial state) and a
 ## Run the compiler against a demo
 
 ```bash
-./isaaclab.sh -p tools/changelog/cli.py compile --package isaaclab \
+uv run python tools/changelog/cli.py compile --package isaaclab \
     --fragments-dir tools/changelog/test/integration/02_minor_bump/fragments \
     --dry-run
 ```

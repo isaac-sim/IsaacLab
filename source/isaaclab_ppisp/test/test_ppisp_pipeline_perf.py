@@ -11,8 +11,8 @@ resolutions; the benchmark derives each per-environment image size from the
 same near-square layout used by tiled camera visualization. Run manually with:
 
 ```
-./isaaclab.sh -p -m pip install pytest
-ISAACLAB_PPISP_PERF=1 ./isaaclab.sh -p -m pytest \
+uv pip install pytest
+ISAACLAB_PPISP_PERF=1 uv run python -m pytest \
     source/isaaclab_ppisp/test/test_ppisp_pipeline_perf.py -s
 ```
 """

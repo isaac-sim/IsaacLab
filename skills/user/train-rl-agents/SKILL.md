@@ -13,7 +13,7 @@ owners:
 
 Use this skill when a user wants to train, resume, evaluate, or configure reinforcement learning for an Isaac Lab task.
 
-Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/create-environments/`) for environment construction first, and use `isaaclab-debugging-rl-training` when training behavior or reward metrics are already failing.
+Do not use this skill to design environment observations, rewards, or resets from scratch. Use `isaaclab-building-environments` (`skills/user/create-environments/`) for environment construction first, and use `isaaclab-debugging-rl-training` when training behavior or reward metrics are already failing. Use `isaaclab-training-multi-gpu` for multi-GPU or multi-node launches and for distributed runs that hang or fail inside NCCL.
 
 ## Workflow
 
@@ -47,13 +47,14 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/overview/reinforcement-learning/training_guide.rst`, `docs/source/setup/installation/uv_run.rst`, RL training tutorials under `docs/source/tutorials/03_envs/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
+Keep this skill synchronized with `docs/source/overview/reinforcement-learning/training_guide.rst`, `docs/source/setup/installation/index.rst`, RL training tutorials under `docs/source/tutorials/03_envs/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
 
 ## References
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
 - [Debug RL training skill](../debug-rl-training/SKILL.md)
+- [Multi-GPU training skill](../train-multi-gpu/SKILL.md)
 - [RL training guide](../../../docs/source/overview/reinforcement-learning/training_guide.rst)
 - [Configure RL training tutorial](../../../docs/source/tutorials/03_envs/configuring_rl_training.rst)
 - [Run RL training tutorial](../../../docs/source/tutorials/03_envs/run_rl_training.rst)

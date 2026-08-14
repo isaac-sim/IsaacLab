@@ -10,7 +10,7 @@ This script shows how to use the multi-mesh ray caster from the Isaac Lab framew
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py --headless
+    uv run python source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py
 
 """
 
@@ -156,11 +156,11 @@ def main():
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/object_[^/]*", track_mesh_transforms=True)
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         mesh_prim_paths=mesh_targets,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         ray_alignment="yaw",
@@ -169,7 +169,7 @@ def main():
     ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
     balls_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         spawn=None,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )

@@ -1,6 +1,203 @@
 Changelog
 ---------
 
+2.0.2 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX deformable render bindings leaving the environment slot unresolved, so they
+  bound against a path expression instead of the concrete per-environment mesh prims.
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+
+
+2.0.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` attaching its OVStage at an
+  unsealed write ordinal. ``ovstage.population.open_usd_from_string()`` only
+  completes population; it never commits the ordinal it wrote to. Newer
+  ``ovphysx`` releases fail the parse when attaching at an unsealed ordinal and
+  yield an empty scene, so every articulation, rigid body, and sensor binding
+  resolved to zero prims. The manager now calls ``advance_write_floor().wait()``
+  to seal the ordinal before ``attach_ovstage()``.
+
+
+2.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_ovphysx`` distribution into
+  ``isaaclab_ov``. Install ``isaaclab_ov`` and replace
+  ``isaaclab_ovphysx`` imports with ``isaaclab_ov``.
+
+
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
+0.10.2 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX missing-runtime errors to recommend supported uv-managed and
+  direct-wheel commands.
+
+
+0.10.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing OVRTX runtime error to recommend the uv-managed ``ovrtx`` extra.
+
+
+0.10.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an opt-in ovstage scene-ownership path to :class:`~isaaclab_ov.renderers.OVRTXRenderer`,
+  enabled by setting ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` with the ``ovstage`` wheel installed. Under
+  this split-ownership model ovstage owns the scene data and ovrtx owns only rendering, replacing
+  the renderer-owned scene APIs deprecated in ovrtx 0.4. The path is selected once per renderer and
+  covers stage population, environment cloning, scene partitions, and the camera, rigid-body,
+  deformable, and particle-cloud updates. It defaults to off, so existing deployments are
+  unaffected until the variable is set.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer`. When set, authors
+  ``omni:rtx:background:source:type = "color"`` and ``omni:rtx:background:source:color`` on the
+  USD render product instead of the default ``"domeLight"`` background.
+
+
+0.9.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated :class:`~isaaclab_ov.renderers.OVRTXRenderer` to use the renamed
+  ``"instance_segmentation"`` data type key (previously ``"instance_segmentation_fast"``).
+  Output buffer and ``camera.data.info`` dict keys now use the new name.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to return ``int32`` instance IDs (shape
+  ``(B, H, W, 1)``) when ``colorize_instance_segmentation=False``, matching the Isaac RTX renderer.
+  Previously the non-colorized path incorrectly declared ``uint32``.
+
+
+0.8.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``idToLabels`` (instance to USD prim path) and ``idToSemantics`` (instance to semantic label)
+  mappings to the OVRTX renderer's ``instance_segmentation_fast`` output, exposed through
+  ``camera.data.info["instance_segmentation_fast"]``. The mappings are decoded from the
+  ``StableIdSemanticIdMap``, ``StableIdMap``, and ``SemanticIdMap`` render vars and are keyed by the raw
+  ``(r, g, b, a)`` color tuple when ``colorize_instance_segmentation=True`` (matching Replicator's fast
+  instance-segmentation node) or by the raw instance ID otherwise.
+* Added OVRTX rendering to stream Newton MPM particle positions into registered
+  ``UsdGeom.Points`` prims, so kitless cameras can visualize MPM particle clouds.
+
+Changed
+^^^^^^^
+
+* Changed the colorized ``semantic_segmentation`` ``idToLabels`` keys produced by the OVRTX renderer from the
+  stringified ``"(r, g, b, a)"`` form to raw ``(r, g, b, a)`` tuples, matching Replicator's fast segmentation
+  nodes and the Isaac RTX renderer. Index ``camera.data.info["semantic_segmentation"]["idToLabels"]`` with an
+  ``(r, g, b, a)`` tuple instead of its string form.
+* Removed support for ``instance_id_segmentation_fast`` from the OVRTX renderer, as it has no
+  real-world sensor equivalent. Requesting this data type via
+  :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` will now raise an error at camera allocation
+  time. Use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+* Updated the optional OVRTX runtime dependency to ``ovrtx>=0.4.0,<0.5.0``. Reinstall the OVRTX
+  extra with ``./isaaclab.sh -i 'ov[ovrtx]'`` to use the supported 0.4 runtime.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer raising ``RuntimeError: Cannot convert Torch type torch.uint32`` when reading a
+  non-colorized ID segmentation output (``semantic_segmentation``, ``instance_segmentation_fast``, or
+  ``instance_id_segmentation_fast`` with the corresponding ``colorize_*`` flag set to ``False``) on Torch
+  builds that expose ``torch.uint32``.
+* Fixed the OVRTX renderer producing string keys (e.g. ``"0"``, ``"1"``, ``"2"``) instead of integer keys
+  in the non-colorized ``idToLabels`` and ``idToSemantics`` mappings for ``semantic_segmentation`` and
+  ``instance_segmentation_fast``. Index ``camera.data.info[...]["idToLabels"]`` and
+  ``camera.data.info[...]["idToSemantics"]`` with integer pixel/semantic IDs when
+  ``colorize_semantic_segmentation=False`` or ``colorize_instance_segmentation=False``.
+* Worked around OVRTX 0.4 tiled RenderProducts retaining only cameras present at stage load by
+  initially authoring only the resolvable source camera and rewriting the relationship after runtime cloning.
+
+
 0.7.1 (2026-07-15)
 ~~~~~~~~~~~~~~~~~~
 

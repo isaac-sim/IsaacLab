@@ -50,11 +50,11 @@ gym.register(
 # Policy Close-loop Evaluation Task for Galbot Left Arm Cube Stack Task (in Joint Space)
 ##
 gym.register(
-    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position-Play",
+    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": (
-            f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY"
+            f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg"
         ),
     },
     disable_env_checker=True,
@@ -64,10 +64,10 @@ gym.register(
 # Policy Close-loop Evaluation Task for Galbot Left Arm Cube Stack Task (in Task Space)
 ##
 gym.register(
-    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow-Play",
+    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg",
     },
     disable_env_checker=True,
 )

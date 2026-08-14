@@ -23,6 +23,10 @@ are still maturing, and the Isaac Lab integration ships a focused, validated set
 classic RL and flat-terrain locomotion environments. We have validated Newton
 simulation against PhysX by transferring learned policies in both directions and
 have successfully deployed a Newton-trained locomotion policy to a G1 robot.
+See :doc:`migrating-assets-from-physx-to-newton` to migrate an asset and physical
+model specifically from PhysX to Newton with MJWarp. Then use
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton` to train and
+evaluate policy checkpoints in both directions.
 
 Newton can support `multiple solvers
 <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for
@@ -31,14 +35,19 @@ the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
-* :doc:`using-vbd-solver` — experimental VBD solver for cloth and soft bodies,
-  available through :mod:`isaaclab_contrib.deformable` and the MJWarp + VBD or
-  Featherstone + VBD coupled managers.
+* :doc:`using-vbd-solver`: VBD solver for cloth and soft bodies. Standalone VBD
+  is available through :mod:`isaaclab_newton.physics`; MJWarp and VBD proxy and
+  ADMM coupling is available through :mod:`isaaclab_contrib.coupling`.
+* :doc:`using-mpm`: experimental implicit MPM for particle materials, including
+  rigid-MPM proxy coupling.
 
 Each solver is exposed as a small subclass of
 :class:`~isaaclab_newton.physics.NewtonManager`. See
 :doc:`newton-manager-abstraction` for the developer-facing guide to adding a
 new solver or a coupled solver.
+
+For authoring and simulating 1D cable / rod assets under the VBD solver, see
+:doc:`using-cables`.
 
 During the beta phase, breaking changes and incomplete documentation are still
 expected. Official support and debugging assistance will follow once the framework
@@ -47,6 +56,9 @@ reaches an official release.
 For an overview of how the multi-backend architecture works, including how to add a
 new backend, see :doc:`../../multi_backend_architecture`.
 
+For direct ``Model``/``State`` access and generic selections, see
+:doc:`../direct-api-access/newton`.
+
 
 .. toctree::
   :maxdepth: 2
@@ -54,9 +66,12 @@ new backend, see :doc:`../../multi_backend_architecture`.
 
   installation
   supported-features
+  migrating-assets-from-physx-to-newton
   mjwarp-solver
   kamino-solver
   using-vbd-solver
+  using-mpm
+  using-cables
   newton-manager-abstraction
   warp-environments
   warp-env-migration

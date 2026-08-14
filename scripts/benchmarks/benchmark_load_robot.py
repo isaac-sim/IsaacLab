@@ -7,9 +7,9 @@
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_load_robot.py --num_envs 2048 --robot g1
+    uv run python scripts/benchmarks/benchmark_load_robot.py --num_envs 2048 --robot g1
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_load_robot.py --physics newton_mjwarp --robot h1
+    uv run python scripts/benchmarks/benchmark_load_robot.py --physics newton_mjwarp --robot h1
 
 The simulation app is launched through :func:`isaaclab.app.launch_simulation`, which selects the requested
 physics backend while the benchmark uses the full ``isaaclab.python.kit`` experience for consistent services.
@@ -62,9 +62,9 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app import launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:

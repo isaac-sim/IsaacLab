@@ -99,6 +99,7 @@ def _convert_testcase(
     """Convert one JUnit testcase element into an omni-github test row."""
     failure_or_error = _first_child(testcase, {"error", "failure"})
     skipped = _first_child(testcase, {"skipped"})
+    is_xfail = skipped is not None and skipped.attrib.get("type") == "pytest.xfail"
     message = _short_message(failure_or_error)
     skip_reason = _short_message(skipped)
     row: dict[str, object] = {
@@ -111,10 +112,13 @@ def _convert_testcase(
     }
     if testcase.attrib.get("name"):
         row["test_name"] = testcase.attrib["name"]
-    if skipped is not None:
+    if is_xfail:
+        row["unreliable"] = True
+    elif skipped is not None:
         row["skipped"] = True
     if skip_reason is not None:
-        row["skip_reason"] = skip_reason
+        if not is_xfail:
+            row["skip_reason"] = skip_reason
         row.setdefault("message", skip_reason)
     if message is not None:
         row["message"] = message

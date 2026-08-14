@@ -15,6 +15,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import resolve_paths
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.ui.widgets.ui_visualizer_base import UiVisualizerBase
 from isaaclab.utils.version import has_kit
 
 if has_kit():
@@ -86,16 +87,19 @@ class BaseEnvWindow:
             # create main stack
             self.ui_window_elements["main_vstack"] = omni.ui.VStack(spacing=5, height=0)
             with self.ui_window_elements["main_vstack"]:
+                # Live Plots — manager data plots, shown first
+                self._build_debug_vis_frame()
+                with self.ui_window_elements["debug_frame"]:
+                    with self.ui_window_elements["debug_vstack"]:
+                        self._visualize_manager(title="Training Metrics", class_name="episode")
+                        self._visualize_manager(title="Actions", class_name="action_manager")
+                        self._visualize_manager(title="Observations", class_name="observation_manager")
+                # Visualization Markers — scene element debug overlays
+                self._build_vis_markers_frame()
                 # create collapsable frame for simulation
                 self._build_sim_frame()
                 # create collapsable frame for viewer
                 self._build_viewer_frame()
-                # create collapsable frame for debug visualization
-                self._build_debug_vis_frame()
-                with self.ui_window_elements["debug_frame"]:
-                    with self.ui_window_elements["debug_vstack"]:
-                        self._visualize_manager(title="Actions", class_name="action_manager")
-                        self._visualize_manager(title="Observations", class_name="observation_manager")
 
     def __del__(self):
         """Destructor for the window."""
@@ -144,6 +148,16 @@ class BaseEnvWindow:
                 self.ui_window_elements["record_animation"].enabled = not self.env.sim.get_setting(
                     "/isaaclab/fabric_enabled"
                 )
+
+                # create reset episode button
+                reset_cfg = {
+                    "label": "Reset Episode",
+                    "type": "button",
+                    "text": "RESET",
+                    "tooltip": "Force-reset all environments immediately.",
+                    "on_clicked_fn": lambda: self.env.sim.request_reset(),
+                }
+                self.ui_window_elements["reset_episode"] = isaacsim.gui.components.ui_utils.btn_builder(**reset_cfg)
 
     def _build_render_mode_dropdown(self):
         """Build rendering mode dropdown if a visualizer supports it."""
@@ -194,10 +208,11 @@ class BaseEnvWindow:
             with self.ui_window_elements["viewer_vstack"]:
                 # create a number slider to move to environment origin
                 # NOTE: slider is 1-indexed, whereas the env index is 0-indexed
+                _viz = self._get_kit_visualizer()
                 viewport_origin_cfg = {
                     "label": "Environment Index",
                     "type": "button",
-                    "default_val": self.env.cfg.viewer.env_index + 1,
+                    "default_val": (_viz.cfg.origin_env_index if _viz is not None else 0) + 1,
                     "min": 1,
                     "max": self.env.num_envs,
                     "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
@@ -225,29 +240,22 @@ class BaseEnvWindow:
                 self.ui_window_elements["viewer_eye"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Eye",
                     tooltip="Modify the XYZ location of the viewer eye.",
-                    default_val=self.env.cfg.viewer.eye,
+                    default_val=_viz.cfg.eye if _viz is not None else (4.0, -4.0, 3.0),
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
                 self.ui_window_elements["viewer_lookat"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Target",
                     tooltip="Modify the XYZ location of the viewer target.",
-                    default_val=self.env.cfg.viewer.lookat,
+                    default_val=_viz.cfg.lookat if _viz is not None else (0.0, 0.0, 0.0),
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
 
     def _build_debug_vis_frame(self):
-        """Builds the debug visualization frame for various scene elements.
-
-        This function inquires the scene for all elements that have a debug visualization
-        implemented and creates a checkbox to toggle the debug visualization for each element
-        that has it implemented. If the element does not have a debug visualization implemented,
-        a label is created instead.
-        """
-        # create collapsable frame for debug visualization
+        """Builds the Live Plots frame for manager data visualizers."""
         self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
-            title="Scene Debug Visualization",
+            title="Live Plots",
             width=omni.ui.Fraction(1),
             height=0,
             collapsed=False,
@@ -256,9 +264,26 @@ class BaseEnvWindow:
             vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
         )
         with self.ui_window_elements["debug_frame"]:
-            # create stack for debug visualization
             self.ui_window_elements["debug_vstack"] = omni.ui.VStack(spacing=5, height=0)
-            with self.ui_window_elements["debug_vstack"]:
+
+    def _build_vis_markers_frame(self):
+        """Builds the Visualization Markers frame for scene element debug overlays.
+
+        Creates a checkbox per scene element (terrain, rigid objects, articulations, sensors)
+        that has a debug visualization implemented.
+        """
+        self.ui_window_elements["vis_markers_frame"] = omni.ui.CollapsableFrame(
+            title="Visualization Markers",
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with self.ui_window_elements["vis_markers_frame"]:
+            vstack = omni.ui.VStack(spacing=5, height=0)
+            with vstack:
                 elements = [
                     self.env.scene.terrain,
                     *self.env.scene.rigid_objects.values(),
@@ -271,7 +296,6 @@ class BaseEnvWindow:
                     *self.env.scene.articulations.keys(),
                     *self.env.scene.sensors.keys(),
                 ]
-                # create one for the terrain
                 for elem, name in zip(elements, names):
                     if elem is not None:
                         self._create_debug_vis_ui_element(name, elem)
@@ -284,8 +308,10 @@ class BaseEnvWindow:
             class_name: The name of the manager to visualize.
         """
 
-        if hasattr(self.env, class_name) and class_name in self.env.manager_visualizers:
+        if hasattr(self.env, "manager_visualizers") and class_name in self.env.manager_visualizers:
             manager = self.env.manager_visualizers[class_name]
+            if hasattr(manager, "has_content") and not manager.has_content:
+                return
             if hasattr(manager, "has_debug_vis_implementation"):
                 self._create_debug_vis_ui_element(title, manager)
             else:
@@ -378,49 +404,72 @@ class BaseEnvWindow:
             # reset the log directory
             self.animation_log_dir = None
 
+    def _get_kit_visualizer(self):
+        """Return the first KitVisualizer active on the simulation, or None."""
+        try:
+            from isaaclab_visualizers.kit import KitVisualizer
+        except ImportError:
+            return None
+        for viz in self.env.sim._visualizers:
+            if isinstance(viz, KitVisualizer):
+                return viz
+        return None
+
     def _set_viewer_origin_type_fn(self, value: str):
         """Sets the origin of the viewport's camera. This is based on the drop-down menu in the UI."""
-        # Extract the viewport camera controller from environment
-        vcc = self.env.viewport_camera_controller
-        if vcc is None:
-            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
+        viz = self._get_kit_visualizer()
+        if viz is None:
+            return
 
-        # Based on origin type, update the camera view
         if value == "World":
-            vcc.update_view_to_world()
+            viz.cfg.origin_type = "world"
         elif value == "Env":
-            vcc.update_view_to_env()
+            viz.cfg.origin_type = "env"
         else:
-            # find which index the asset is
             fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
-            # store the desired env index
             viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
-            # update the camera view
-            vcc.update_view_to_asset_root(viewer_asset_name)
+            viz.cfg.origin_type = "asset"
+            viz.cfg.origin_track_path = viewer_asset_name
+
+        # Reposition the viewport camera immediately so the new origin is reflected
+        # without waiting for the next env.step() call.
+        viz.reapply_origin()
 
     def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
         """Sets the viewport camera location based on the UI."""
-        # access the viewport camera controller (for brevity)
-        vcc = self.env.viewport_camera_controller
-        if vcc is None:
-            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
-        # obtain the camera locations and set them in the viewpoint camera controller
+
+        viz = self._get_kit_visualizer()
+        if viz is None:
+            return
         eye = [self.ui_window_elements["viewer_eye"][i].get_value_as_float() for i in range(3)]
         lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
-        # update the camera view
-        vcc.update_view_location(eye, lookat)
+        viz.set_camera_view(eye, lookat)
+
+        # Persist the slider values back to cfg so that asset-tracking steps do not
+        # snap the camera back to the previously configured offsets.
+        origin = viz.viewer_origin
+        if origin is not None:
+            origin_np = origin.detach().cpu().numpy()
+            viz.cfg.eye = tuple(float(e - o) for e, o in zip(eye, origin_np))
+            viz.cfg.lookat = tuple(float(lk - o) for lk, o in zip(lookat, origin_np))
+        else:
+            viz.cfg.eye = tuple(float(v) for v in eye)
+            viz.cfg.lookat = tuple(float(v) for v in lookat)
 
     def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
         """Sets the environment index and updates the camera if in 'env' origin mode."""
-        # access the viewport camera controller (for brevity)
-        vcc = self.env.viewport_camera_controller
-        if vcc is None:
-            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
-        # store the desired env index, UI is 1-indexed
-        vcc.set_view_env_index(model.as_int - 1)
+        viz = self._get_kit_visualizer()
+        env_index = model.as_int - 1
+        if viz is not None:
+            viz.cfg.origin_env_index = env_index
+            # For "env" origin the camera must be repositioned immediately; for asset-tracking
+            # origins reapply_origin() defers the update to the next step() call (asset state
+            # is needed to compute the new position).
+            if viz.cfg.origin_type == "env":
+                viz.reapply_origin()
         # notify additional listeners
         for listener in self._ui_listeners:
-            listener.set_env_selection(model.as_int - 1)
+            listener.set_env_selection(env_index)
 
     """
     Helper functions - UI building.
@@ -457,15 +506,14 @@ class BaseEnvWindow:
             )
             isaacsim.gui.components.ui_utils.add_line_rect_flourish()
 
-        # Create a panel for the debug visualization
-        if isinstance(elem, ManagerLiveVisualizer):
-            self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
-            if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
-                print(f"Frame failed to set for ManagerLiveVisualizer: {name}")
-
-        # Add listener for environment selection changes
-        if isinstance(elem, ManagerLiveVisualizer):
-            self._ui_listeners.append(elem)
+        # Create a panel and listener for UiVisualizerBase subclasses (managers and scalar groups).
+        if isinstance(elem, UiVisualizerBase):
+            if elem.has_vis_frame_implementation:
+                self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
+                if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
+                    print(f"Frame failed to set for visualizer: {name}")
+            if elem.has_env_selection_implementation:
+                self._ui_listeners.append(elem)
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""

@@ -15,13 +15,13 @@ import warp as wp
 
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.kernels import (
-    add_forces_to_dual_buffers_index,
+    add_forces_to_dual_buffers_index_kernel,
     add_forces_to_dual_buffers_mask,
     add_raw_wrench_buffers,
     compose_wrench_to_body_frame,
-    reset_wrench_composer_index,
+    reset_wrench_composer_index_kernel,
     reset_wrench_composer_mask,
-    set_forces_to_dual_buffers_index,
+    set_forces_to_dual_buffers_index_kernel,
     set_forces_to_dual_buffers_mask,
 )
 
@@ -231,7 +231,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -267,7 +267,7 @@ class WrenchComposer:
         self._dirty = True
 
         wp.launch(
-            add_forces_to_dual_buffers_index,
+            add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -290,7 +290,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: wp.array | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -330,7 +330,7 @@ class WrenchComposer:
         self._dirty = True
 
         wp.launch(
-            set_forces_to_dual_buffers_index,
+            set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 env_ids,
@@ -593,11 +593,9 @@ class WrenchComposer:
                 env_ids = self._ALL_ENV_INDICES
             elif isinstance(env_ids, list):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
-            elif isinstance(env_ids, torch.Tensor):
-                env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
 
             wp.launch(
-                reset_wrench_composer_index,
+                reset_wrench_composer_index_kernel(env_ids),
                 dim=(env_ids.shape[0], self.num_bodies),
                 inputs=[
                     env_ids,
@@ -622,7 +620,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -643,7 +641,7 @@ class WrenchComposer:
         forces: wp.array | torch.Tensor | None = None,
         torques: wp.array | torch.Tensor | None = None,
         positions: wp.array | torch.Tensor | None = None,
-        body_ids: wp.array | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: wp.array | torch.Tensor | None = None,
         is_global: bool = False,
     ):
@@ -663,14 +661,14 @@ class WrenchComposer:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array:
-        """Resolve environment IDs to a warp int32 array.
+    def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array | torch.Tensor:
+        """Resolve environment IDs.
 
         Args:
             env_ids: Environment indices as any supported type, or None for all environments.
 
         Returns:
-            Warp array of int32 environment indices.
+            Environment indices.
 
         Raises:
             TypeError: If ``env_ids`` is an unsupported type.
@@ -679,9 +677,7 @@ class WrenchComposer:
             return self._ALL_ENV_INDICES
         # Check tensor types before slice comparison (tensor == slice crashes)
         if isinstance(env_ids, torch.Tensor):
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids.contiguous(), dtype=wp.int32)
+            return env_ids
         if isinstance(env_ids, wp.array):
             return env_ids
         if env_ids == slice(None):
@@ -692,32 +688,34 @@ class WrenchComposer:
             f"env_ids must be None, slice(None), list, torch.Tensor, or wp.array, got {type(env_ids).__name__}"
         )
 
-    def _resolve_body_ids(self, body_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array:
-        """Resolve body IDs to a warp int32 array.
+    def _resolve_body_ids(
+        self, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None
+    ) -> wp.array | torch.Tensor:
+        """Resolve body IDs.
 
         Args:
             body_ids: Body indices as any supported type, or None for all bodies.
 
         Returns:
-            Warp array of int32 body indices.
+            Body indices.
 
         Raises:
             TypeError: If ``body_ids`` is an unsupported type.
         """
         if body_ids is None:
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, ProxyArray):
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, torch.Tensor):
-            if body_ids.dtype == torch.int64:
-                body_ids = body_ids.to(torch.int32)
-            return wp.from_torch(body_ids.contiguous(), dtype=wp.int32)
+            return body_ids
         if isinstance(body_ids, wp.array):
             return body_ids
         if body_ids == slice(None):
             return self._ALL_BODY_INDICES
-        if isinstance(body_ids, list):
+        if isinstance(body_ids, Sequence):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         raise TypeError(
-            f"body_ids must be None, slice(None), list, torch.Tensor, or wp.array, got {type(body_ids).__name__}"
+            f"body_ids must be None, slice(None), a sequence, torch.Tensor, or wp.array, got {type(body_ids).__name__}"
         )
 
     def _ensure_composed(self):

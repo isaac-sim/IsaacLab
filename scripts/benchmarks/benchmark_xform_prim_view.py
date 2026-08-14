@@ -11,10 +11,10 @@ Compares batched transform operation performance across:
 - Isaac Lab FrameView (Newton backend)
 
 Usage:
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0 --headless
+    uv run python scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0
 
     # With profiling
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile --headless
+    uv run python scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile
 """
 
 from __future__ import annotations

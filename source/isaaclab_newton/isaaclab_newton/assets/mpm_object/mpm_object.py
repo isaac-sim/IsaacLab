@@ -18,9 +18,11 @@ from isaaclab.assets.deformable_object.base_deformable_object import BaseDeforma
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from isaaclab_newton.sim.spawners.mpm import create_mpm_particle_visualization, emit_mpm_particles
+from isaaclab_newton.sim.spawners.mpm import (
+    create_mpm_particle_visualization,
+    emit_mpm_particles,
+)
 
 from .kernels import (
     compute_particle_state_w,
@@ -97,11 +99,13 @@ class MPMObject(BaseDeformableObject):
     cfg: MPMObjectCfg
     __backend_name__: str = "newton"
 
-    _DTYPE_TO_TORCH_TRAILING_DIMS = {**BaseDeformableObject._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
+    _DTYPE_TO_TORCH_TRAILING_DIMS = {
+        **BaseDeformableObject._DTYPE_TO_TORCH_TRAILING_DIMS,
+        vec6f: (6,),
+    }
 
     def __init__(self, cfg: MPMObjectCfg):
         super().__init__(cfg)
-        queue_newton_physics_replication(cfg)
         self._registry_entry = MPMObjectRegistryEntry(self.cfg)
         SimulationManager._mpm_object_registry.append(self._registry_entry)
         if add_registered_mpm_objects_to_builder not in SimulationManager._per_world_builder_hooks:
@@ -346,7 +350,7 @@ class MPMObject(BaseDeformableObject):
         self._create_kit_points()
 
     def _create_kit_points(self) -> None:
-        """Create Kit-visible ``UsdGeom.Points`` prims for the particles when the Kit visualizer is active."""
+        """Create Kit-visible ``UsdGeom.Points`` prims when the Kit visualizer is active."""
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         sim = SimulationContext.instance()
@@ -365,6 +369,7 @@ class MPMObject(BaseDeformableObject):
             positions=self.data.particle_pos_w.warp.numpy(),
             widths=2.0 * radii,
             color=self.cfg.spawn.visual_color,
+            visual_material=self.cfg.spawn.visual_material,
         )
         for env_idx, prim_path in enumerate(prim_paths):
             SimulationManager.register_particle_visual_prim(

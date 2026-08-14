@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 
-import omni.kit.app
+from isaaclab.utils.version import has_kit
 
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
@@ -16,11 +16,13 @@ from .mjcf_converter_cfg import MjcfConverterCfg
 class MjcfConverter(AssetConverterBase):
     """Converter for a MJCF description file to a USD file.
 
-    This class wraps around the `isaacsim.asset.importer.mjcf`_ extension to provide a lazy
-    implementation for MJCF to USD conversion. All conversion logic (USD schema application,
-    fix-base, density, actuator gains, self-collision, mesh merging, asset transformer
-    profile) is performed by :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` — this class
-    only translates :class:`MjcfConverterCfg` into a flat
+    This class wraps around the `isaacsim.asset.importer.mjcf`_ API to provide a lazy
+    implementation for MJCF to USD conversion. When the full Isaac Sim runtime is available,
+    the Isaac Sim MJCF importer extension is enabled and used; otherwise, the API is loaded
+    from the standalone ``isaacsim-asset-isolated`` package. All conversion logic (USD schema
+    application, fix-base, density, actuator gains, self-collision, mesh merging, asset
+    transformer profile) is performed by :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` —
+    this class only translates :class:`MjcfConverterCfg` into a flat
     :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
 
     .. caution::
@@ -49,11 +51,6 @@ class MjcfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        # enable the MJCF importer extension
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.mjcf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.mjcf", True)
-
         # The MJCF importer outputs to: {usd_path}/{robot_name}/{robot_name}.usda
         # Pre-adjust `usd_file_name` to match this output structure so that lazy conversion works correctly.
         file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
@@ -66,7 +63,13 @@ class MjcfConverter(AssetConverterBase):
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig
+        # Inside Kit the importer ships as an extension and must be enabled before it can be
+        # imported; kitlessly the same module resolves from the standalone importer wheel.
+        if has_kit():
+            from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
+
+            enable_extension("isaacsim.asset.importer.mjcf")
+        from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig  # noqa: PLC0415
 
         import_config = MJCFImporterConfig(
             mjcf_path=cfg.asset_path,

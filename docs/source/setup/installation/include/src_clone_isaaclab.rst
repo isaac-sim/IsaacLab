@@ -1,5 +1,4 @@
-Cloning Isaac Lab
-~~~~~~~~~~~~~~~~~
+.. rubric:: Cloning Isaac Lab
 
 .. note::
 

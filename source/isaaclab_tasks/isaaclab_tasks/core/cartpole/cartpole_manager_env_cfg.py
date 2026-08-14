@@ -5,8 +5,12 @@
 
 import math
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+)
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -18,8 +22,10 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -34,8 +40,10 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 @configclass
 class CartpolePhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
-    physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
@@ -49,28 +57,10 @@ class CartpolePhysicsCfg(PresetCfg):
         use_cuda_graph=True,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            use_collision_detector=True,
-            sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1e-4,
-            padmm_dual_tolerance=1e-4,
-            padmm_compl_tolerance=1e-4,
-            padmm_rho_0=0.05,
-            padmm_eta=1e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
-        ),
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
         debug_mode=False,
         use_cuda_graph=True,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 ##
@@ -228,8 +218,8 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # viewer settings
-        self.viewer.eye = (8.0, 0.0, 5.0)
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

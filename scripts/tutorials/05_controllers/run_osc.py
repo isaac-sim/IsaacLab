@@ -12,7 +12,7 @@ mass matricescomputed by PhysX.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py
+    uv run python scripts/tutorials/05_controllers/run_osc.py
 
 """
 

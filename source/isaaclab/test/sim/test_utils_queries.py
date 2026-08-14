@@ -13,11 +13,16 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import ast
+import inspect
+import textwrap
+
 import pytest
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.utils import queries
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -90,11 +95,76 @@ def test_get_first_matching_ancestor_prim():
 
 
 def test_matches_path_expr_prefix():
-    path_expr = "/World/envs/env_.*/Robot"
+    path_expr = "/World/envs/env_[^/]+/Robot"
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")
     assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot/base")
+    assert not sim_utils.matches_path_expr_prefix(
+        "/World/envs/env_[^/]+/Robot/cart|pole", "/World/envs/env_0/Robot/cartXX"
+    )
+
+
+def test_path_expression_helpers_preserve_supported_regex_text():
+    """Path adapters touch only the syntax they explicitly support."""
+    path_expr = r"/World/envs/env_[^/]+/Robot/link_[0-9]{2}"
+
+    assert sim_utils.split_path_expr(path_expr) == ["", "World", "envs", "env_[^/]+", "Robot", "link_[0-9]{2}"]
+    assert sim_utils.path_expr_to_glob(path_expr) == r"/World/envs/env_*/Robot/link_[0-9]{2}"
+    assert sim_utils.path_expr_to_glob(r"/World/Robot/[^/]{2}") == r"/World/Robot/[^/]{2}"
+
+
+def test_find_matching_prims_uses_unbounded_full_path_regex():
+    """Regex tokens retain their Python semantics across prim path separators."""
+    sim_utils.create_prim("/World/Robot/foo")
+    sim_utils.create_prim("/World/Robot/foo/bar")
+    sim_utils.create_prim("/World/Robot/Arm")
+    sim_utils.create_prim("/World/A/foo")
+    sim_utils.create_prim("/World/B/foo")
+
+    matches = sim_utils.find_matching_prims(r"/World/Robot/[^A]+")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/Robot/foo/bar"]
+    matches = sim_utils.find_matching_prims(r"/World/[^/]+/foo")
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/A/foo", "/World/B/foo"]
+
+
+def test_find_matching_prims_has_no_inferred_traversal_bounds():
+    """The query must not narrow or prune USD traversal from the user's regex."""
+    sources = (sim_utils.find_matching_prims, queries._iter_matching_prims_in_subtree)
+    tree = ast.parse("\n".join(textwrap.dedent(inspect.getsource(function)) for function in sources))
+    called_methods = {
+        node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    called_functions = {
+        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+    assert "GetPrimAtPath" not in called_methods
+    assert "PruneChildren" not in called_methods
+    assert "_bound_search" not in called_functions
+
+
+def test_find_matching_prims_fullmatches_top_level_alternation():
+    """Anchoring applies to the complete expression rather than individual alternatives."""
+    sim_utils.create_prim("/World/Robot/foo/bar")
+    sim_utils.create_prim("/World/Robot/foo/bar/baz")
+    sim_utils.create_prim("/World/Floor")
+
+    matches = sim_utils.find_matching_prims(r"/World/Robot/foo/bar|/World/Floor")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo/bar", "/World/Floor"]
+
+
+def test_find_matching_prims_includes_inactive_and_undefined_prims():
+    """An unscoped query exposes authored prims instead of silently filtering stage state."""
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/Inactive", "Xform").SetActive(False)
+    stage.OverridePrim("/World/Undefined")
+
+    matches = sim_utils.find_matching_prims(r"/World/(Inactive|Undefined)")
+
+    assert [prim.GetPath().pathString for prim in matches] == ["/World/Inactive", "/World/Undefined"]
 
 
 def test_get_all_matching_child_prims():

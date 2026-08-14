@@ -133,9 +133,20 @@ The Code Execution
 
 Now that we have gone through the code, let's run the script and see the result:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/01_assets/run_rigid_object.py
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py
 
 
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from

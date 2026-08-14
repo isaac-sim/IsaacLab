@@ -14,10 +14,10 @@ through the auto-tune functionality.
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h --headless
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
 """
 
@@ -260,6 +260,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.scene.interactive_scene import InteractiveScene
 from isaaclab.sensors import (
     Camera,
@@ -268,7 +269,6 @@ from isaaclab.sensors import (
     RayCasterCameraCfg,
     patterns,
 )
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
@@ -952,7 +952,7 @@ def main():
 
     # Finalize benchmark
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 if __name__ == "__main__":

@@ -13,489 +13,13 @@ the base articulation class advertises. All articulation interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first (when available)."""
-
-import os
-import sys
-from unittest.mock import MagicMock
-
-# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
-# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
-# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
-# set (bare Python, no Kit at all).
-_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
-    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
-)
-
-if not _kitless:
-    from isaaclab.app import AppLauncher
-
-    simulation_app = AppLauncher(headless=True).app
-else:
-    simulation_app = None
-    # Stub out the Kit/Omniverse modules that are not present under
-    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
-    # ``omni`` is a real namespace package, so missing submodules also need
-    # to be installed as attributes on it -- ``sys.modules`` alone is not
-    # enough because attribute access on the real ``omni`` won't fall
-    # through to ``sys.modules``.
-    import omni as _omni
-
-    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
-        _stub = MagicMock()
-        sys.modules[f"omni.{_mod}"] = _stub
-        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
-        setattr(_omni, _mod.split(".", 1)[0], _stub)
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
-        sys.modules.setdefault(_mod, MagicMock())
-
 import numpy as np
 import pytest
 import torch
 import warp as wp
-
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
-
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity.
-# This is needed because the PhysX Data classes call
-# SimulationManager.get_physics_sim_view().get_gravity() but there's no actual
-# physics scene when running unit tests.
-_mock_physics_sim_view = MagicMock()
-_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-
-from isaaclab_physx.physics import PhysxManager as SimulationManager
+from _articulation_iface_test_utils import BACKENDS, get_articulation
 
 pytestmark = pytest.mark.integration
-
-SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
-
-"""
-Check which backends are available.
-"""
-
-BACKENDS = ["mock"]  # Mock backend is always available.
-
-try:
-    from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
-    from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
-    from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
-
-    BACKENDS.append("physx")
-except ImportError:
-    pass
-
-try:
-    from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
-    from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
-
-    BACKENDS.append("newton")
-except ImportError:
-    pass
-
-try:
-    from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
-    from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
-    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
-
-    BACKENDS.append("ovphysx")
-except ImportError:
-    pass
-
-
-def create_physx_articulation(
-    num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
-    num_fixed_tendons: int = 0,
-    num_spatial_tendons: int = 0,
-    device: str = "cuda:0",
-):
-    """Create a test Articulation instance with mocked dependencies."""
-    joint_names = [f"joint_{i}" for i in range(num_joints)]
-    body_names = [f"body_{i}" for i in range(num_bodies)]
-    fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
-    spatial_tendon_names = [f"spatial_tendon_{i}" for i in range(num_spatial_tendons)]
-
-    articulation = object.__new__(PhysXArticulation)
-
-    articulation.cfg = ArticulationCfg(
-        prim_path="/World/Robot",
-        soft_joint_pos_limit_factor=1.0,
-        actuators={},
-    )
-
-    # Create PhysX mock view
-    mock_view = PhysXMockArticulationViewWarp(
-        count=num_instances,
-        num_links=num_bodies,
-        num_dofs=num_joints,
-        device=device,
-        max_fixed_tendons=num_fixed_tendons,
-        max_spatial_tendons=num_spatial_tendons,
-    )
-    mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
-
-    # Set up the mock view's metatype for accessing names/counts
-    mock_metatype = MagicMock()
-    mock_metatype.fixed_base = False
-    mock_metatype.dof_count = num_joints
-    mock_metatype.link_count = num_bodies
-    mock_metatype.dof_names = joint_names
-    mock_metatype.link_names = body_names
-    object.__setattr__(mock_view, "_shared_metatype", mock_metatype)
-
-    object.__setattr__(articulation, "_root_view", mock_view)
-    object.__setattr__(articulation, "_device", device)
-
-    # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
-    # We need to set the _data attribute manually.
-
-    # Create ArticulationData instance (SimulationManager already mocked at module level)
-    data = PhysXArticulationData(mock_view, device)
-    object.__setattr__(articulation, "_data", data)
-
-    # Set tendon names on articulation and data
-    object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
-    object.__setattr__(articulation, "_spatial_tendon_names", spatial_tendon_names)
-    data.fixed_tendon_names = fixed_tendon_names
-    data.spatial_tendon_names = spatial_tendon_names
-
-    # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
-    object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
-
-    # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(articulation, "_initialize_handle", None)
-    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
-    object.__setattr__(articulation, "_prim_deletion_handle", None)
-    object.__setattr__(articulation, "_debug_vis_handle", None)
-
-    # Set up other required attributes
-    object.__setattr__(articulation, "actuators", {})
-    object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
-    object.__setattr__(
-        articulation, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
-    )
-    object.__setattr__(
-        articulation, "_ALL_JOINT_INDICES", wp.array(np.arange(num_joints, dtype=np.int32), device=device)
-    )
-
-    # Tendon index arrays
-    object.__setattr__(
-        articulation,
-        "_ALL_FIXED_TENDON_INDICES",
-        wp.array(np.arange(num_fixed_tendons, dtype=np.int32), device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_ALL_SPATIAL_TENDON_INDICES",
-        wp.array(np.arange(num_spatial_tendons, dtype=np.int32), device=device),
-    )
-
-    # Warp arrays for set_external_force_and_torque
-    object.__setattr__(
-        articulation, "_ALL_INDICES_WP", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
-    )
-    object.__setattr__(
-        articulation, "_ALL_BODY_INDICES_WP", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
-    )
-
-    # Initialize joint targets
-    object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
-
-    # Cached .view(wp.float32) wrappers
-    object.__setattr__(articulation, "_root_link_pose_w_f32", None)
-    object.__setattr__(articulation, "_root_com_vel_w_f32", None)
-    object.__setattr__(articulation, "_root_link_vel_w_f32", None)
-    object.__setattr__(articulation, "_inst_wrench_force_f32", None)
-    object.__setattr__(articulation, "_inst_wrench_torque_f32", None)
-    object.__setattr__(articulation, "_perm_wrench_force_f32", None)
-    object.__setattr__(articulation, "_perm_wrench_torque_f32", None)
-
-    # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
-    N, J, B = num_instances, num_joints, num_bodies
-    cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
-    object.__setattr__(articulation, "_cpu_env_ids_all", cpu_env_ids)
-    object.__setattr__(articulation, "_cpu_joint_stiffness", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_joint_damping", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_joint_pos_limits", wp.zeros((N, J, 2), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_joint_vel_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_joint_effort_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_joint_armature", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_joint_friction_props", wp.zeros((N, J, 3), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
-    object.__setattr__(articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
-
-    return articulation, mock_view
-
-
-def create_ovphysx_articulation(
-    num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
-    num_fixed_tendons: int = 0,
-    num_spatial_tendons: int = 0,
-    device: str = "cuda:0",
-):
-    """Create a test OvPhysX Articulation instance with mocked tensor bindings."""
-    joint_names = [f"joint_{i}" for i in range(num_joints)]
-    body_names = [f"body_{i}" for i in range(num_bodies)]
-
-    articulation = object.__new__(OvPhysxArticulation)
-
-    articulation.cfg = ArticulationCfg(
-        prim_path="/World/Robot",
-        soft_joint_pos_limit_factor=1.0,
-        actuators={},
-    )
-
-    # Create mock binding set
-    mock_bindings = MockOvPhysxBindingSet(
-        num_instances=num_instances,
-        num_joints=num_joints,
-        num_bodies=num_bodies,
-        is_fixed_base=False,
-        joint_names=joint_names,
-        body_names=body_names,
-        num_fixed_tendons=num_fixed_tendons,
-        num_spatial_tendons=num_spatial_tendons,
-    )
-    mock_bindings.set_random_data()
-
-    fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
-    spatial_tendon_names = [f"spatial_tendon_{i}" for i in range(num_spatial_tendons)]
-
-    object.__setattr__(articulation, "_device", device)
-    object.__setattr__(articulation, "_ovphysx", MagicMock())
-    object.__setattr__(articulation, "_bindings", mock_bindings.bindings)
-    object.__setattr__(articulation, "_num_instances", num_instances)
-    object.__setattr__(articulation, "_num_joints", num_joints)
-    object.__setattr__(articulation, "_num_bodies", num_bodies)
-    object.__setattr__(articulation, "_is_fixed_base", False)
-    object.__setattr__(articulation, "_joint_names", joint_names)
-    object.__setattr__(articulation, "_body_names", body_names)
-    object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
-    object.__setattr__(articulation, "_spatial_tendon_names", spatial_tendon_names)
-    object.__setattr__(articulation, "_num_fixed_tendons", num_fixed_tendons)
-    object.__setattr__(articulation, "_num_spatial_tendons", num_spatial_tendons)
-
-    # Create ArticulationData; counts come from the bindings, names are set after.
-    data = OvPhysxArticulationData(mock_bindings.bindings, device)
-    data.body_names = body_names
-    data.joint_names = joint_names
-    data.fixed_tendon_names = fixed_tendon_names
-    data.spatial_tendon_names = spatial_tendon_names
-    data._is_fixed_base = False
-    object.__setattr__(articulation, "_data", data)
-
-    # Allocate the articulation-side index/mask caches and wrench buffer that
-    # _initialize_impl would normally populate.  Wrench composers created here
-    # are immediately overwritten by the mocks below.
-    articulation._create_buffers()
-
-    # Wrench composers
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
-    object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
-
-    # Prevent __del__ / _clear_callbacks from raising
-    object.__setattr__(articulation, "_initialize_handle", None)
-    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
-    object.__setattr__(articulation, "_prim_deletion_handle", None)
-    object.__setattr__(articulation, "_debug_vis_handle", None)
-    object.__setattr__(articulation, "actuators", {})
-
-    return articulation, mock_bindings
-
-
-def create_newton_articulation(
-    num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
-    device: str = "cuda:0",
-):
-    """Create a test Newton Articulation instance with mocked dependencies."""
-    import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
-
-    joint_names = [f"joint_{i}" for i in range(num_joints)]
-    body_names = [f"body_{i}" for i in range(num_bodies)]
-
-    # Create Newton mock view
-    mock_view = NewtonMockArticulationView(
-        num_instances=num_instances,
-        num_bodies=num_bodies,
-        num_joints=num_joints,
-        device=device,
-        is_fixed_base=False,
-        joint_names=joint_names,
-        body_names=body_names,
-    )
-    mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
-
-    # Mock NewtonManager (aliased as SimulationManager in Newton modules)
-    mock_model = MagicMock()
-    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
-    # Sizes consumed by the task-space scratch buffers in NewtonArticulationData.__init__.
-    # Model-wide counts equal the per-articulation counts here because the mock contains a
-    # single homogeneous world.
-    mock_model.articulation_count = num_instances
-    mock_model.max_joints_per_articulation = num_bodies
-    mock_model.max_dofs_per_articulation = num_joints
-    mock_model.joint_dof_count = num_instances * num_joints
-    mock_model.body_count = num_instances * num_bodies
-    mock_state = MagicMock()
-    mock_control = MagicMock()
-
-    mock_manager = MagicMock()
-    mock_manager.get_model.return_value = mock_model
-    mock_manager.get_state_0.return_value = mock_state
-    mock_manager.get_state_1.return_value = mock_state
-    mock_manager.get_control.return_value = mock_control
-
-    # Patch SimulationManager in the Newton data module
-    original_sim_manager = newton_data_module.SimulationManager
-    newton_data_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonArticulationData(mock_view, device)
-    finally:
-        newton_data_module.SimulationManager = original_sim_manager
-
-    # Create Articulation shell (bypass __init__)
-    articulation = object.__new__(NewtonArticulation)
-
-    articulation.cfg = ArticulationCfg(
-        prim_path="/World/Robot",
-        soft_joint_pos_limit_factor=1.0,
-        actuators={},
-    )
-
-    object.__setattr__(articulation, "_root_view", mock_view)
-    object.__setattr__(articulation, "_device", device)
-    object.__setattr__(articulation, "_data", data)
-
-    # Tendon names (Newton doesn't support tendons)
-    object.__setattr__(articulation, "_fixed_tendon_names", [])
-    object.__setattr__(articulation, "_spatial_tendon_names", [])
-    data.fixed_tendon_names = []
-    data.spatial_tendon_names = []
-
-    # Mock wrench composers
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
-    object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
-    object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
-
-    # Prevent __del__ / _clear_callbacks from raising AttributeError
-    object.__setattr__(articulation, "_initialize_handle", None)
-    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
-    object.__setattr__(articulation, "_prim_deletion_handle", None)
-    object.__setattr__(articulation, "_debug_vis_handle", None)
-
-    # Other required attributes
-    object.__setattr__(articulation, "actuators", {})
-    object.__setattr__(articulation, "_has_implicit_actuators", False)
-
-    # Newton uses wp.array for indices (not torch)
-    object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
-    object.__setattr__(
-        articulation, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
-    )
-    object.__setattr__(
-        articulation, "_ALL_JOINT_INDICES", wp.array(np.arange(num_joints, dtype=np.int32), device=device)
-    )
-
-    # Newton uses wp.bool masks
-    object.__setattr__(articulation, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
-    object.__setattr__(articulation, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
-    object.__setattr__(articulation, "_ALL_JOINT_MASK", wp.ones((num_joints,), dtype=wp.bool, device=device))
-
-    # Tendon arrays (empty)
-    object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device))
-    object.__setattr__(articulation, "_ALL_FIXED_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
-    object.__setattr__(
-        articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device)
-    )
-    object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
-
-    # Joint targets (Newton uses warp, not torch)
-    object.__setattr__(
-        articulation,
-        "_joint_pos_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_vel_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-
-    return articulation, mock_view
-
-
-def create_mock_articulation(
-    num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
-    num_fixed_tendons: int = 0,
-    num_spatial_tendons: int = 0,
-    device: str = "cuda:0",
-):
-    from isaaclab.test.mock_interfaces.assets.mock_articulation import MockArticulation
-
-    art = MockArticulation(
-        num_instances=num_instances,
-        num_joints=num_joints,
-        num_bodies=num_bodies,
-        num_fixed_tendons=num_fixed_tendons,
-        num_spatial_tendons=num_spatial_tendons,
-        device=device,
-    )
-    return art, None  # No view for mock backend
-
-
-def get_articulation(
-    backend: str,
-    num_instances: int = 2,
-    num_joints: int = 6,
-    num_bodies: int = 7,
-    num_fixed_tendons: int = 0,
-    num_spatial_tendons: int = 0,
-    device: str = "cuda:0",
-):
-    if backend == "physx":
-        return create_physx_articulation(
-            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
-        )
-    elif backend == "ovphysx":
-        return create_ovphysx_articulation(
-            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
-        )
-    elif backend == "newton":
-        return create_newton_articulation(num_instances, num_joints, num_bodies, device)
-    elif backend.lower() == "mock":
-        return create_mock_articulation(
-            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
-        )
-    else:
-        raise ValueError(f"Invalid backend: {backend}")
 
 
 @pytest.fixture
@@ -534,7 +58,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorator for all interface tests
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-
 # We also need to provide the fixture params that articulation_iface reads:
 _default_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies",
@@ -544,6 +67,9 @@ _default_dims = pytest.mark.parametrize(
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+_production_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
 
@@ -708,12 +234,47 @@ class TestArticulationFinders:
         assert names == [first_joint]
 
 
+class TestArticulationFinderReturnModes:
+    """Test finder return modes on production articulation backends."""
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "finder_name",
+        ["find_bodies", "find_joints", "find_fixed_tendons", "find_spatial_tendons"],
+    )
+    def test_finder_returns_legacy_list_or_cached_proxy(self, backend, finder_name):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=2,
+            num_bodies=2,
+            num_fixed_tendons=2,
+            num_spatial_tendons=2,
+            device="cpu",
+        )
+        if backend == "newton" and finder_name == "find_spatial_tendons":
+            pytest.skip("Newton does not support spatial tendons.")
+        finder = getattr(art, finder_name)
+
+        indices, names = finder(".*")
+        proxy, proxy_names = finder(".*", as_proxy=True)
+
+        assert isinstance(indices, list)
+        assert indices == proxy.torch.tolist()
+        assert names == proxy_names
+        assert proxy is finder(".*", as_proxy=True)[0]
+        assert proxy.dtype == wp.int32
+        assert str(proxy.device) == art.device
+
+
 # ---------------------------------------------------------------------------
 # Tests: resolve_matching_names caching behavior
 # ---------------------------------------------------------------------------
 
 
-_non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "mock"], indirect=False)
+_non_mock_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in BACKENDS if backend.lower() != "mock"], indirect=False
+)
 
 
 class TestResolveMatchingNamesCache:
@@ -1226,6 +787,31 @@ class TestArticulationDataBodyState:
         for name, buffer in dependent_buffers:
             assert buffer.timestamp < art.data._sim_timestamp, name
 
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_identity_ordering_reuses_dynamics_proxy_array_across_refreshes(self):
+        """With identity ordering (the default), ``body_com_jacobian_w``, ``mass_matrix``, and
+        ``gravity_compensation_forces`` alias stable, pre-allocated PhysX buffers, so their
+        ``ProxyArray`` wrapper must be created once and reused on every subsequent refresh —
+        matching the pattern already used by, e.g., ``root_link_pose_w``. Rebuilding the wrapper
+        on every step forces a redundant ``.torch`` view rebuild even though the underlying
+        device pointer never changes.
+        """
+        art, _ = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+
+        art.data.update(dt=0.01)
+        jacobian_wrapper_a = art.data.body_com_jacobian_w
+        mass_matrix_wrapper_a = art.data.mass_matrix
+        gravity_wrapper_a = art.data.gravity_compensation_forces
+
+        art.data.update(dt=0.01)
+        jacobian_wrapper_b = art.data.body_com_jacobian_w
+        mass_matrix_wrapper_b = art.data.mass_matrix
+        gravity_wrapper_b = art.data.gravity_compensation_forces
+
+        assert jacobian_wrapper_a is jacobian_wrapper_b
+        assert mass_matrix_wrapper_a is mass_matrix_wrapper_b
+        assert gravity_wrapper_a is gravity_wrapper_b
+
     @_backends
     @_default_dims
     @_default_devices
@@ -1354,11 +940,6 @@ class TestArticulationDataBodyState:
             expected_dtype=wp.quatf,
             name="body_com_quat_b",
         )
-
-
-# ---------------------------------------------------------------------------
-# Tests: ArticulationData joint state and properties
-# ---------------------------------------------------------------------------
 
 
 class TestArticulationDataJointState:
@@ -1649,6 +1230,30 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
 
 
+def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
+    """Create backend-compatible center-of-mass test data."""
+    if backend == "newton":
+        return wp.zeros(shape, dtype=wp.vec3f, device=device)
+    return _make_data_warp(shape, device, wp.transformf)
+
+
+def _prime_timestamped_properties(data, property_buffer_pairs: list[tuple[str, str]]):
+    """Prime public lazy properties and return their concrete timestamped buffers."""
+    buffers = []
+    for property_name, buffer_name in property_buffer_pairs:
+        getattr(data, property_name)
+        buffer = getattr(data, buffer_name)
+        assert buffer is not None, buffer_name
+        buffer.timestamp = data._sim_timestamp
+        buffers.append((buffer_name, buffer))
+    return buffers
+
+
+def _assert_buffers_stale(data, buffers) -> None:
+    for name, buffer in buffers:
+        assert buffer.timestamp < data._sim_timestamp, name
+
+
 def _make_bad_data_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
     """Create torch data with wrong leading shape for negative testing.
 
@@ -1689,6 +1294,11 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 
 
 # ---------------------------------------------------------------------------
+# Tests: Articulation operations
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
 # Tests: Root writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------
 
@@ -1698,6 +1308,133 @@ _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
 class TestArticulationWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_pose_write_invalidates_pose_dependent_caches(self, backend, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            art.data,
+            [
+                ("root_link_vel_w", "_root_link_vel_w"),
+                ("body_link_vel_w", "_body_link_vel_w"),
+                *([("body_com_vel_w", "_body_com_vel_w")] if backend != "newton" else []),
+                ("projected_gravity_b", "_projected_gravity_b"),
+                ("heading_w", "_heading_w"),
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        if backend == "ovphysx" and art.data._body_com_vel_w_backend is not None:
+            buffers.append(("_body_com_vel_w_backend", art.data._body_com_vel_w_backend))
+        root_pose = _make_data_warp((art.num_instances,), "cpu", wp.transformf)
+        art.write_root_link_pose_to_sim_index(root_pose=root_pose)
+        _assert_buffers_stale(art.data, buffers)
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_velocity_write_invalidates_body_frame_caches(self, backend, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        buffers = _prime_timestamped_properties(
+            art.data,
+            [
+                ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+                ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+                ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+                ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+            ],
+        )
+        root_velocity = _make_data_warp((art.num_instances,), "cpu", wp.spatial_vectorf)
+        art.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
+        _assert_buffers_stale(art.data, buffers)
+
+    @_production_backends
+    @pytest.mark.parametrize("setter_kind", ["index", "mask"])
+    @pytest.mark.parametrize(
+        "body_ordering",
+        [None, ("body_0", "body_3", "body_2", "body_1")],
+    )
+    def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind, body_ordering):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=3,
+            num_bodies=4,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        art.data.update(dt=0.01)
+        common_pairs = [
+            ("root_com_pose_w", "_root_com_pose_w"),
+            ("root_link_vel_w", "_root_link_vel_w"),
+            ("body_com_pose_w", "_body_com_pose_w"),
+            ("body_link_vel_w", "_body_link_vel_w"),
+            ("root_link_lin_vel_b", "_root_link_lin_vel_b"),
+            ("root_link_ang_vel_b", "_root_link_ang_vel_b"),
+            ("root_com_lin_vel_b", "_root_com_lin_vel_b"),
+            ("root_com_ang_vel_b", "_root_com_ang_vel_b"),
+        ]
+        if backend != "newton":
+            common_pairs += [
+                ("root_com_vel_w", "_root_com_vel_w"),
+                ("body_com_vel_w", "_body_com_vel_w"),
+            ]
+        state_buffer_suffix = "_buf" if backend == "ovphysx" else ""
+        common_pairs += [
+            ("root_state_w", f"_root_state_w{state_buffer_suffix}"),
+            ("root_link_state_w", f"_root_link_state_w{state_buffer_suffix}"),
+            ("root_com_state_w", f"_root_com_state_w{state_buffer_suffix}"),
+            ("body_state_w", f"_body_state_w{state_buffer_suffix}"),
+            ("body_link_state_w", f"_body_link_state_w{state_buffer_suffix}"),
+            ("body_com_state_w", f"_body_com_state_w{state_buffer_suffix}"),
+        ]
+        # Prime public properties before resolving private buffers so Newton allocates lazy caches.
+        buffers = _prime_timestamped_properties(art.data, common_pairs)
+        if backend == "newton":
+            buffers += _prime_timestamped_properties(art.data, [("body_com_pose_b", "_body_com_pose_b")])
+        coms = _make_com_data(backend, (art.num_instances, art.num_bodies), "cpu")
+
+        def set_coms() -> None:
+            if setter_kind == "index":
+                kwargs = {} if backend != "physx" else {"full_data": True}
+                art.set_coms_index(coms=coms, **kwargs)
+            else:
+                art.set_coms_mask(coms=coms)
+
+        if backend == "newton":
+            from unittest.mock import patch
+
+            from isaaclab_newton.physics import NewtonManager
+
+            with patch.object(NewtonManager, "add_model_change"):
+                set_coms()
+        else:
+            set_coms()
+        _assert_buffers_stale(art.data, buffers)
 
     # -- index variants --
 
@@ -2946,6 +2683,7 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_index()
         # subset envs
         art.write_fixed_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
+        art.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=wp.array([0], dtype=wp.int64, device=device))
 
     @_tendon_backends
     @_tendon_dims
@@ -2969,6 +2707,7 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_fixed_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
+        art.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=_make_item_mask(num_fixed_tendons, [0], device))
 
     @_tendon_backends
     @_tendon_dims
@@ -2992,6 +2731,9 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_index()
         # subset envs
         art.write_spatial_tendon_properties_to_sim_index(env_ids=_make_env_ids(device, True))
+        art.write_spatial_tendon_properties_to_sim_index(
+            spatial_tendon_ids=wp.array([0], dtype=wp.int64, device=device)
+        )
 
     @_tendon_backends
     @_tendon_dims
@@ -3015,3 +2757,6 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_mask()
         # partial env mask
         art.write_spatial_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
+        art.write_spatial_tendon_properties_to_sim_mask(
+            spatial_tendon_mask=_make_item_mask(num_spatial_tendons, [0], device)
+        )

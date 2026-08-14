@@ -17,9 +17,19 @@ The list of environments available registered with OpenAI Gym can be found by ru
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/list_envs.py
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/list_envs.py
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/list_envs.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -42,16 +52,26 @@ useful to ensure that the environments are configured correctly.
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 32
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run isaaclab zero_agent --task Isaac-Cartpole --num_envs 32 --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole --num_envs 32
+         isaaclab.bat -p scripts\environments\zero_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 -  Random-action agent on the Cart-pole example:
 
@@ -61,16 +81,26 @@ useful to ensure that the environments are configured correctly.
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run isaaclab random_agent --task Isaac-Cartpole --num_envs 32 --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole --num_envs 32
+         isaaclab.bat -p scripts\environments\random_agent.py --task Isaac-Cartpole --num_envs 32 --viz kit
 
 
 State machine
@@ -89,9 +119,19 @@ allows efficient execution for large number of environments using CUDA kernels.
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32 --viz kit
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/state_machine/lift_cube_sm.py --num_envs 32 --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 32 --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -108,9 +148,19 @@ allows efficient execution for large number of environments using CUDA kernels.
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/environments/state_machine/lift_teddy_bear.py
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run python scripts/environments/state_machine/lift_teddy_bear.py
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh -p scripts/environments/state_machine/lift_teddy_bear.py
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
