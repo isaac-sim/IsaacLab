@@ -1105,7 +1105,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
             # ``create_tensor_binding`` expects fnmatch globs.
             pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
-            pattern = re.sub(r"\.\*", "*", pattern)
+            pattern = sim_utils.path_expr_to_glob(pattern)
             self._prim_paths.append(pattern)
             self._body_names_list.append(name)
 

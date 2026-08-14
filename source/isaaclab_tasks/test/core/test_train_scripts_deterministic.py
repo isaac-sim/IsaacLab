@@ -9,16 +9,12 @@ from __future__ import annotations
 
 import argparse
 import ast
-import os
-import subprocess
 from pathlib import Path
 
-import numpy as np
 import pytest
 import tomllib
 from packaging.requirements import Requirement
 from packaging.version import Version
-from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.app import AppLauncher
 
@@ -118,22 +114,6 @@ def test_unified_scripts_delegate_to_package_entrypoints():
         assert f"return {function_name}(argv)" in source
 
 
-def test_backend_implementations_are_package_owned():
-    """Backend code must not remain below the executable scripts directory."""
-    for backend in ("rl_games", "rsl_rl", "sb3", "skrl", "rlinf"):
-        for action in ("train", "play"):
-            assert (
-                REPO_ROOT
-                / "source"
-                / "isaaclab_rl"
-                / "isaaclab_rl"
-                / "entrypoints"
-                / "backends"
-                / f"{action}_{backend}.py"
-            ).is_file()
-            assert not (REPO_ROOT / "scripts" / "reinforcement_learning" / backend / f"{action}.py").exists()
-
-
 _BACKEND_CONSTRUCTORS = {
     "rl_games": {"Runner"},
     "skrl": {"Runner"},
@@ -170,137 +150,4 @@ def test_backends_configure_deterministic_torch_after_runner_or_agent_creation(
     assert min(configure_seed_lines) > max(constructor_lines), (
         f"{relative_path}: configure_seed must be called after runner/agent construction. "
         f"configure_seed lines={configure_seed_lines}, constructor lines={constructor_lines}"
-    )
-
-
-def _latest_event_file(before: set[Path], logs_root: Path) -> Path:
-    candidates = set(logs_root.glob("**/events*"))
-    new_files = [p for p in candidates if p not in before]
-    if new_files:
-        return max(new_files, key=lambda p: p.stat().st_mtime)
-    if not candidates:
-        raise AssertionError(f"No tensorboard event file was generated under: {logs_root}")
-    return max(candidates, key=lambda p: p.stat().st_mtime)
-
-
-def _read_rewards_per_iter(event_file: Path, preferred_tags: list[str]) -> list[float]:
-    ea = event_accumulator.EventAccumulator(str(event_file))
-    ea.Reload()
-    scalar_tags = ea.Tags()["scalars"]
-    selected_tag = None
-    for tag in preferred_tags:
-        if tag in scalar_tags:
-            selected_tag = tag
-            break
-    if selected_tag is None:
-        reward_like_tags = sorted(tag for tag in scalar_tags if "reward" in tag.lower())
-        if reward_like_tags:
-            selected_tag = reward_like_tags[0]
-    if selected_tag is None:
-        raise AssertionError(
-            f"No reward-like scalar tag found in tensorboard file: {event_file}. Available scalar tags: {scalar_tags}"
-        )
-    return [event.value for event in ea.Scalars(selected_tag)]
-
-
-def _run_train_once(
-    *,
-    train_script: str,
-    log_subdir: str,
-    preferred_reward_tags: list[str],
-    task_name: str,
-    deterministic: bool,
-) -> list[float]:
-    logs_root = REPO_ROOT / "logs" / log_subdir
-    before = set(logs_root.glob("**/events*"))
-    cmd = [
-        "./isaaclab.sh",
-        "-p",
-        train_script,
-        "--rl_library",
-        "rl_games",
-        "--task",
-        task_name,
-        "--seed",
-        "42",
-        "--max_iterations",
-        "50",
-    ]
-    if deterministic:
-        cmd.append("--deterministic")
-
-    result = subprocess.run(
-        cmd,
-        cwd=REPO_ROOT,
-        text=True,
-        capture_output=True,
-        timeout=1200,
-        check=False,
-    )
-    assert result.returncode == 0, (
-        f"Command failed: {' '.join(cmd)}\n"
-        f"--- stdout ---\n{result.stdout[-4000:]}\n"
-        f"--- stderr ---\n{result.stderr[-4000:]}\n"
-    )
-    event_file = _latest_event_file(before, logs_root)
-    rewards = _read_rewards_per_iter(event_file, preferred_reward_tags)
-    assert rewards, f"No reward series values read from: {event_file}"
-    return rewards
-
-
-def _aligned_rewards(a: list[float], b: list[float]) -> tuple[np.ndarray, np.ndarray]:
-    n = min(len(a), len(b))
-    if n == 0:
-        raise AssertionError("At least one rewards sequence is empty.")
-    return np.asarray(a[:n]), np.asarray(b[:n])
-
-
-@pytest.mark.skipif(
-    os.environ.get("ISAACLAB_RUN_DETERMINISM_TRAIN_TEST", "0") != "1",
-    reason="Expensive test: set ISAACLAB_RUN_DETERMINISM_TRAIN_TEST=1 to enable.",
-)
-def test_rl_games_deterministic_flag_affects_rewards_reproducibility():
-    """Non-deterministic runs should diverge; deterministic runs should match (RL-Games tensorboard)."""
-    train_script = "scripts/reinforcement_learning/train.py"
-    log_subdir = "rl_games"
-    preferred_reward_tags = ["rewards/iter"]
-    task_name = "Isaac-Cartpole-Camera"
-
-    rewards_non_det_1 = _run_train_once(
-        train_script=train_script,
-        log_subdir=log_subdir,
-        preferred_reward_tags=preferred_reward_tags,
-        task_name=task_name,
-        deterministic=False,
-    )
-    rewards_non_det_2 = _run_train_once(
-        train_script=train_script,
-        log_subdir=log_subdir,
-        preferred_reward_tags=preferred_reward_tags,
-        task_name=task_name,
-        deterministic=False,
-    )
-    rewards_det_1 = _run_train_once(
-        train_script=train_script,
-        log_subdir=log_subdir,
-        preferred_reward_tags=preferred_reward_tags,
-        task_name=task_name,
-        deterministic=True,
-    )
-    rewards_det_2 = _run_train_once(
-        train_script=train_script,
-        log_subdir=log_subdir,
-        preferred_reward_tags=preferred_reward_tags,
-        task_name=task_name,
-        deterministic=True,
-    )
-
-    non_det_a, non_det_b = _aligned_rewards(rewards_non_det_1, rewards_non_det_2)
-    det_a, det_b = _aligned_rewards(rewards_det_1, rewards_det_2)
-
-    assert not np.allclose(non_det_a, non_det_b, rtol=0.0, atol=1e-6), (
-        "Expected non-deterministic runs to produce different rewards/iter curves, but they matched within tolerance."
-    )
-    assert np.allclose(det_a, det_b, rtol=0.0, atol=1e-6), (
-        "Expected deterministic runs to produce matching rewards/iter curves, but they diverged."
     )

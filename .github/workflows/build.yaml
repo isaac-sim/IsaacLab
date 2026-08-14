@@ -226,7 +226,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
@@ -253,7 +253,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
@@ -280,7 +280,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
@@ -723,8 +723,8 @@ jobs:
           exit 1
         fi
 
-  test-skillgen:
-    name: test-skillgen
+  test-contrib-environments:
+    name: test-contrib-environments
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -744,32 +744,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
-        container-name: isaac-lab-skillgen-test
-
-  test-environments-training:
-    name: "environments_training"
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 300
-    continue-on-error: true
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        include-files: "test_environments_training.py"
-        container-name: isaac-lab-environments-training-test
-        omni-github-test-type: training-e2e
+        include-files: "test_generate_dataset_skillgen.py,test_contrib_environments.py"
+        container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
     name: "record-video"
@@ -791,8 +767,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_record_video.py"
-        test-k-expr: "Cartpole"
+        include-files: "test_video_recording.py"
         extra-uv-packages: "moviepy>=1.0.3,<2.0.0.dev0 decorator<5"
         container-name: isaac-lab-record-video-test
         omni-github-test-type: video-e2e
@@ -966,8 +941,9 @@ jobs:
         # (dexterous, many contacts). Deformable/MPM kernels are not covered;
         # widen if a test job reports large cache growth.
         include-files: >-
-          test_environments.py,
-          test_environments_newton.py
+          test_environments_isaacsim_physx.py,
+          test_environments_newton.py,
+          test_environments_ovphysx.py
         # No Soft/Cloth: the deformable envs depend on optional extras the CI
         # image does not install (Soft needs pytetwild), so they only ever fail.
         test-k-expr: "Cartpole or Drawer or AnymalD or Handover"

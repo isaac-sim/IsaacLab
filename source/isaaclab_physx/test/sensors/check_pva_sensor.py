@@ -93,7 +93,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
     balls = RigidObject(cfg)
@@ -130,7 +130,7 @@ def main():
 
     # Create a pva sensor
     pva_cfg = PvaCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         debug_vis=args_cli.visualize,
     )
     # increase scale of the arrows for better visualization

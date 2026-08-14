@@ -49,12 +49,12 @@ def main() -> None:
 
         balls = RigidObject(
             RigidObjectCfg(
-                prim_path="/World/env_*/ball",
+                prim_path="/World/env_[^/]+/ball",
                 spawn=None,
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
             )
         )
-        pva = Pva(PvaCfg(prim_path="/World/env_*/ball"))
+        pva = Pva(PvaCfg(prim_path="/World/env_[^/]+/ball"))
         sim.reset()
 
         dt = sim.get_physics_dt()
