@@ -72,7 +72,8 @@ Then click **Start XR** in the Isaac Sim viewport and connect your headset. The 
 :ref:`cloudxr-teleoperation`.
 
 No headset on hand? Try a keyboard-driven task instead -- no XR, CloudXR, or ``teleop`` extra
-required:
+required. ``--teleop_device`` selects Isaac Lab's **legacy** device path (keyboard, gamepad,
+SpaceMouse only, pending migration to Isaac Teleop):
 
 .. code-block:: bash
 
