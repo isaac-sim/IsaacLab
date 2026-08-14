@@ -1,0 +1,47 @@
+{
+  "skill_name": "isaaclab-debugging-rl-training",
+  "evals": [
+    {
+      "id": "isaaclab-debugging-rl-training-001",
+      "prompt": "My reward goes up, but the robot never completes the task.",
+      "expected_output": "Separates reward curves from task success metrics and audits per-term rewards before changing hyperparameters.",
+      "assertions": [
+        "The agent identified isaaclab-debugging-rl-training as the primary skill without being told its name",
+        "Separates reward curves from task success metrics",
+        "Audits per-term rewards against task phases",
+        "Recommends deterministic rollout or state traces before retuning PPO",
+        "Does not declare the run successful from reward alone",
+        "Does not change PPO hyperparameters before checking reward and observation semantics",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-debugging-rl-training",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-debugging-rl-training-002",
+      "prompt": "My old checkpoint no longer loads after I changed observations.",
+      "expected_output": "Compares current observation/action spaces with the checkpoint training config and treats shape mismatch as a contract issue.",
+      "assertions": [
+        "The agent identified isaaclab-debugging-rl-training as the primary skill without being told its name",
+        "Compares current observation and action spaces with the checkpoint training config",
+        "Treats shape mismatch as an environment-contract issue",
+        "Does not patch the runner to ignore shape mismatches",
+        "Does not assume the checkpoint is corrupt before checking environment dimensions",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-debugging-rl-training",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-debugging-rl-training-neg-001",
+      "prompt": "Add foot contact observations and air-time rewards to my quadruped task.",
+      "expected_output": "Routes to isaaclab-using-sensors-actuators for sensor configuration, not RL debugging.",
+      "assertions": [
+        "The agent did not use isaaclab-debugging-rl-training as the primary skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
