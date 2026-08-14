@@ -10,12 +10,12 @@ sub-directories can import the shared helpers (``env_test_utils``, ``rendering_t
 that live at the test-suite root.
 """
 
+import os
+import sys
+
 import warp as wp
 
 wp.config.enable_backward = False
-
-import os  # noqa: E402
-import sys  # noqa: E402
 
 import pytest  # noqa: E402
 
