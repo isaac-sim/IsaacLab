@@ -8,28 +8,31 @@ from __future__ import annotations
 from dataclasses import MISSING
 
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.string import string_to_callable
-
-
-def _resolve_actuator_class(class_type: type | str) -> type:
-    """Resolve and validate an actuator class reference."""
-    from .actuator_base import ActuatorBase  # noqa: PLC0415
-
-    if isinstance(class_type, str):
-        try:
-            class_type = string_to_callable(str(class_type))
-        except (AttributeError, ImportError, ValueError) as error:
-            raise ValueError(f"Unable to resolve actuator class '{class_type}'.") from error
-    if not isinstance(class_type, type) or not issubclass(class_type, ActuatorBase):
-        raise ValueError(f"Actuator class must derive from ActuatorBase, got {class_type!r}.")
-    return class_type
+from isaaclab.utils.string import resolve_matching_names_values
 
 
 def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
-    """Return whether an actuator configuration resolves to an implicit actuator class."""
-    from .actuator_pd import ImplicitActuator  # noqa: PLC0415
+    """Return whether an actuator configuration resolves to an implicit actuator class.
 
-    return issubclass(_resolve_actuator_class(cfg.class_type), ImplicitActuator)
+    Reads the :attr:`~isaaclab.actuators.ActuatorBase.is_implicit_model` class flag.
+    Lazily resolving string references participate through attribute forwarding.
+    """
+    return bool(getattr(cfg.class_type, "is_implicit_model", False))
+
+
+def _resolve_limit_values(value: dict[str, float | int] | float | int, joint_names: list[str]) -> tuple[float, ...]:
+    """Resolve a scalar or regex limit into group joint order.
+
+    Unmatched joints resolve to zero, matching how the actuator models resolve
+    partial regex dictionaries; invalid patterns raise :class:`ValueError`.
+    """
+    if isinstance(value, (float, int)):
+        return (float(value),) * len(joint_names)
+    joint_ids, _, values = resolve_matching_names_values(value, joint_names)
+    resolved_values = [0.0] * len(joint_names)
+    for joint_id, resolved_value in zip(joint_ids, values, strict=True):
+        resolved_values[joint_id] = float(resolved_value)
+    return tuple(resolved_values)
 
 
 @configclass

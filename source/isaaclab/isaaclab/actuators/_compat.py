@@ -17,23 +17,10 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.string import resolve_matching_names_values
-
-from .actuator_base_cfg import _is_implicit_actuator_cfg
+from .actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_limit_values
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
-
-
-def _resolve_limit_values(value: dict[str, float | int] | float | int, joint_names: list[str]) -> tuple[float, ...]:
-    """Resolve a scalar or regex limit into group joint order for alias comparison."""
-    if isinstance(value, (float, int)):
-        return (float(value),) * len(joint_names)
-    joint_ids, _, values = resolve_matching_names_values(value, joint_names)
-    resolved_values = [0.0] * len(joint_names)
-    for joint_id, resolved_value in zip(joint_ids, values, strict=True):
-        resolved_values[joint_id] = float(resolved_value)
-    return tuple(resolved_values)
 
 
 def _effort_limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:

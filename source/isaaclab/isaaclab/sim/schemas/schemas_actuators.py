@@ -26,8 +26,22 @@ from typing import Any
 from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.actuators._compat import _resolve_limit_aliases
-from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_actuator_class
-from isaaclab.utils.string import resolve_matching_names
+from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_limit_values
+from isaaclab.utils.string import resolve_matching_names, string_to_callable
+
+
+def _resolve_actuator_class(class_type: type | str) -> type:
+    """Resolve and validate an actuator class reference for authoring identity checks."""
+    from isaaclab.actuators import ActuatorBase  # noqa: PLC0415
+
+    if isinstance(class_type, str):
+        try:
+            class_type = string_to_callable(str(class_type))
+        except (AttributeError, ImportError, ValueError) as error:
+            raise ValueError(f"Unable to resolve actuator class '{class_type}'.") from error
+    if not isinstance(class_type, type) or not issubclass(class_type, ActuatorBase):
+        raise ValueError(f"Actuator class must derive from ActuatorBase, got {class_type!r}.")
+    return class_type
 
 
 def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
@@ -240,7 +254,7 @@ def _author_actuator_prims(
                     if authored_effort_limit is not None:
                         effort_map[joint_name] = authored_effort_limit
             else:
-                effort_map = resolve_per_dof(configured_effort_limit, joint_names)
+                effort_map = dict(zip(joint_names, _resolve_limit_values(configured_effort_limit, joint_names)))
 
         vel_limit_map = resolve_per_dof(getattr(cfg, "velocity_limit", None), joint_names) if is_dc_motor else {}
         sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
