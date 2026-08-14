@@ -25,17 +25,17 @@ Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
      for high-fidelity finger tracking -- also over `NVIDIA CloudXR`_, see :ref:`cloudxr-teleoperation`.
    * **Physical leader arms** (e.g. SO-101), streaming joint angles directly -- no headset or IK
      required -- see :ref:`isaac-teleop-standalone`.
-   * **Keyboard, SpaceMouse, and gamepad**, for XR-free development and CI -- see
-     :ref:`isaac-teleop-env-control-reference`.
 
-   Every task lists which backends it supports in the :ref:`isaac-teleop-env-control-reference`
-   table.
+   Every task lists which Isaac Teleop backends it supports in the
+   :ref:`isaac-teleop-env-control-reference` table.
 
    .. note::
 
-      Haply haptic devices (Inverse3 + VerseGrip) are also supported, but through a separate,
-      older device stack that has not yet been migrated onto Isaac Teleop. See
-      :doc:`isaac_teleop/setup_haply` if you have that hardware.
+      **Keyboard, SpaceMouse, gamepad, and Haply** haptic devices are also usable for
+      teleoperation, but through Isaac Lab's older ``isaaclab.devices`` stack, not Isaac Teleop --
+      none of these have been migrated onto the Isaac Teleop retargeting pipeline yet. See
+      :ref:`isaac-teleop-env-control-reference` for the keyboard / SpaceMouse / gamepad tasks and
+      :doc:`isaac_teleop/setup_haply` for Haply.
 
 
 Quick Start
