@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import warnings
 from collections.abc import Sequence
@@ -63,8 +64,6 @@ class ImplicitActuator(ActuatorBase):
 
     is_implicit_model: ClassVar[bool] = True
 
-    _EXECUTION_PARAMETER_NAMES: ClassVar[tuple[str, ...]] = ("velocity_limit",)
-
     stiffness: torch.Tensor
     """Live articulation joint stiffness [N/m or N·m/rad, depending on joint type]."""
 
@@ -89,6 +88,20 @@ class ImplicitActuator(ActuatorBase):
         @property
         def joint_effort_limit(self) -> torch.Tensor:
             return self._control.joint_effort_limits.torch[:, self._joint_indices]
+
+    @classmethod
+    def _build_execution_actuator(cls, actuators: Sequence[ImplicitActuator]) -> ImplicitActuator:
+        """Build one private executor for a shared implicit execution batch.
+
+        Retains the first group's config metadata; replaces the execution
+        tensors below without cloning the logical groups' tensor storage.
+        """
+        executor = copy.copy(actuators[0])
+        executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
+        executor.velocity_limit = torch.cat([actuator.velocity_limit for actuator in actuators], dim=1)
+        executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
+        executor.applied_effort = torch.zeros_like(executor.computed_effort)
+        return executor
 
     @property
     def stiffness(self) -> torch.Tensor:

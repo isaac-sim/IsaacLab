@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import copy
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -224,19 +223,6 @@ class ActuatorBase(ABC):
     """
     Helper functions.
     """
-
-    @classmethod
-    def _build_execution_actuator(cls, actuators: Sequence[ActuatorBase]) -> ActuatorBase:
-        """Build one private executor from resolved logical actuator groups."""
-        # Retain config metadata; replace every execution tensor below without
-        # cloning the logical groups' tensor storage.
-        executor = copy.copy(actuators[0])
-        executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
-        for name in cls.__dict__["_EXECUTION_PARAMETER_NAMES"]:
-            setattr(executor, name, torch.cat([getattr(actuator, name) for actuator in actuators], dim=1))
-        executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
-        executor.applied_effort = torch.zeros_like(executor.computed_effort)
-        return executor
 
     def _parse_joint_parameter(
         self, cfg_value: float | dict[str, float] | None, default_value: float | torch.Tensor | None
