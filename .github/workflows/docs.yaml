@@ -58,6 +58,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        lfs: true
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v6
@@ -89,6 +91,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        lfs: true
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v6
