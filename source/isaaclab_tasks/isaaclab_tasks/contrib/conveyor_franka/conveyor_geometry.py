@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from isaaclab.physics import ConveyorBeltSpec
+from .conveyor_belt import ConveyorBeltSpec
 
 BELT_COLOR = (0.09, 0.09, 0.09)
 """Dark-rubber color used by Newton's conveyor example."""

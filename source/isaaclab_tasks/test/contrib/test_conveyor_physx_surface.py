@@ -15,9 +15,8 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.physics import ConveyorBeltSpec
-
 import isaaclab_tasks.contrib.conveyor_franka.conveyor_physx_surface as surface_module
+from isaaclab_tasks.contrib.conveyor_franka.conveyor_belt import ConveyorBeltSpec
 
 
 class _FakeWriter:

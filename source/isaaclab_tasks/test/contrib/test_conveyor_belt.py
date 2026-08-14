@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the backend-neutral conveyor belt contract."""
+"""Tests for the conveyor-Franka task's shared belt contract."""
 
 from __future__ import annotations
 
 import pytest
 
-from isaaclab.physics import ConveyorBeltSpec
+from isaaclab_tasks.contrib.conveyor_franka.conveyor_belt import ConveyorBeltSpec
 
 
 def test_conveyor_belt_spec_preserves_authored_semantics() -> None:

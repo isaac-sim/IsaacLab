@@ -13,9 +13,10 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.physics import ConveyorBeltSpec, PhysicsEvent
+from isaaclab.physics import PhysicsEvent
 
 import isaaclab_tasks.contrib.conveyor_franka.conveyor_force_driver as driver_module
+from isaaclab_tasks.contrib.conveyor_franka.conveyor_belt import ConveyorBeltSpec
 
 
 def _belt_spec(name: str = "Belt") -> ConveyorBeltSpec:

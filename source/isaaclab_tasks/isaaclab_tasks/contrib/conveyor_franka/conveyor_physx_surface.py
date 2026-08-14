@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from isaaclab.physics import ConveyorBeltSpec
+from .conveyor_belt import ConveyorBeltSpec
 
 _ENV_REGEX_NS = "{ENV_REGEX_NS}"
 

@@ -20,7 +20,9 @@ import numpy as np
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 
-from isaaclab.physics import ConveyorBeltSpec, PhysicsEvent
+from isaaclab.physics import PhysicsEvent
+
+from .conveyor_belt import ConveyorBeltSpec
 
 _VELOCITY_FIELD_TYPE_CONSTANT = 0
 _VELOCITY_FIELD_TYPE_PIVOT = 1

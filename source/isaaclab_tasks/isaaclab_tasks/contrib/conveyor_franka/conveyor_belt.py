@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-neutral conveyor belt descriptions and control interface."""
+"""Task-local conveyor belt descriptions and shared control interface."""
 
 from __future__ import annotations
 
@@ -145,7 +145,7 @@ class ConveyorBeltSpec:
 
 @runtime_checkable
 class ConveyorBeltView(Protocol):
-    """Tensorized control contract implemented by conveyor physics backends."""
+    """Common tensorized control contract implemented by both task backends."""
 
     @property
     def prim_paths(self) -> tuple[str, ...]:
@@ -180,22 +180,6 @@ class ConveyorBeltView(Protocol):
 
     def get_enabled(self, indices: Any = None, clone: bool = True) -> Any:
         """Return integer enabled flags for selected belts."""
-        ...
-
-    def set_friction_coefficients(self, coefficients: Any, indices: Any = None) -> None:
-        """Set Coulomb traction coefficients for selected belts."""
-        ...
-
-    def get_friction_coefficients(self, indices: Any = None, clone: bool = True) -> Any:
-        """Return Coulomb traction coefficients for selected belts."""
-        ...
-
-    def set_contact_processing_thresholds(self, thresholds: Any, indices: Any = None) -> None:
-        """Set contact-normal alignment thresholds for selected belts."""
-        ...
-
-    def get_contact_processing_thresholds(self, indices: Any = None, clone: bool = True) -> Any:
-        """Return contact-normal alignment thresholds for selected belts."""
         ...
 
     def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> Any:

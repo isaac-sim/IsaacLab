@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.physics import ConveyorBeltView
 
+from .conveyor_belt import ConveyorBeltView
 from .conveyor_force_driver import ConveyorForceDriver
 from .conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from .conveyor_geometry import belt_collision_section_specs

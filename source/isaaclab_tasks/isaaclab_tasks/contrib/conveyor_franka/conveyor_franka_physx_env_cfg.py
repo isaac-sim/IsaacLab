@@ -16,11 +16,11 @@ from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.physics import ConveyorBeltSpec
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg
 from isaaclab.utils.configclass import configclass
 
+from .conveyor_belt import ConveyorBeltSpec
 from .conveyor_franka_env_cfg import (
     _CONTACT_GAP,
     _CUBE_CONTACT_MARGIN,
