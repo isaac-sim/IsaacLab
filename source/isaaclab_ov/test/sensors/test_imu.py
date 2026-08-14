@@ -104,8 +104,8 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
     Returns the :class:`RigidObject` whose binding pattern matches all spawned
     instances. The :class:`RigidObject` does the per-env spawning itself when
     ``spawn`` is set; we only have to create the env Xform containers first
-    (handled by :func:`_spawn_envs`). Note the ovphysx pattern uses an
-    fnmatch glob (``env_*``), not a regex.
+    (handled by :func:`_spawn_envs`). The prim path is a regex; the ovphysx
+    binding pattern underneath it is an fnmatch glob.
     """
     spawn_cfg = sim_utils.SphereCfg(
         radius=0.25,
@@ -115,7 +115,7 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/ball",
+        prim_path="/World/env_[^/]+/ball",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -132,7 +132,7 @@ def _spawn_cubes(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/cube",
+        prim_path="/World/env_[^/]+/cube",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, height)),
     )
@@ -147,7 +147,7 @@ def _spawn_anymal(num_envs: int) -> Articulation:
     The :class:`Articulation` performs the per-env spawn itself once the env
     Xform containers exist; :func:`_spawn_envs` must be called first.
     """
-    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_.*/robot")
+    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_[^/]+/robot")
     cfg.init_state.pos = (0.0, 2.0, 1.0)
     # bump solver iteration counts to match the PhysX test's scene cfg
     cfg.spawn.articulation_props.solver_position_iteration_count = 32
@@ -246,8 +246,8 @@ def test_constant_velocity(sim_ctx, device):
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
-    imu_cube = _make_imu("/World/env_*/cube")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
+    imu_cube = _make_imu("/World/env_[^/]+/cube")
     sim_ctx.reset()
 
     prev_lin_acc_ball = torch.zeros((NUM_ENVS, 3), dtype=torch.float32, device=device)
@@ -297,7 +297,7 @@ def test_constant_acceleration(sim_ctx, device):
     """Test the IMU sensor with a constant acceleration."""
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -353,9 +353,9 @@ def test_offset_calculation(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     robot = _spawn_anymal(NUM_ENVS)
-    imu_robot_imu_link = _make_imu("/World/env_*/robot/base/imu_link")
+    imu_robot_imu_link = _make_imu("/World/env_[^/]+/robot/base/imu_link")
     imu_robot_base = _make_imu(
-        "/World/env_*/robot/base",
+        "/World/env_[^/]+/robot/base",
         offset=ImuCfg.OffsetCfg(pos=POS_OFFSET, rot=ROT_OFFSET),
     )
     sim_ctx.reset()
@@ -397,7 +397,7 @@ def test_env_ids_propagation(sim_ctx, device):
     """Test that ``env_ids`` argument propagates through update and reset methods."""
     _spawn_envs(NUM_ENVS)
     robot = _spawn_anymal(NUM_ENVS)
-    imu_robot_imu_link = _make_imu("/World/env_*/robot/base/imu_link")
+    imu_robot_imu_link = _make_imu("/World/env_[^/]+/robot/base/imu_link")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -429,7 +429,7 @@ def test_sensor_initialization(sim_ctx, device):
     """Test that the OVPhysX IMU sensor initializes correctly."""
     _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     assert imu_ball.num_instances == NUM_ENVS
@@ -452,7 +452,7 @@ def test_gravity_at_rest(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -488,7 +488,7 @@ def test_freefall_acceleration(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS, height=5.0)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -520,7 +520,7 @@ def test_reset(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -596,8 +596,8 @@ def test_indirect_attachment_usd(sim_ctx, device):
     sub_rot = (0.5, 0.5, 0.5, 0.5)
     for i in range(NUM_ENVS):
         sim_utils.create_prim(f"/World/env_{i}/ball/imu_sub", "Xform", translation=sub_pos, orientation=sub_rot)
-    imu_indirect = _make_imu("/World/env_*/ball/imu_sub")
-    imu_direct = _make_imu("/World/env_*/ball", offset=ImuCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
+    imu_indirect = _make_imu("/World/env_[^/]+/ball/imu_sub")
+    imu_direct = _make_imu("/World/env_[^/]+/ball", offset=ImuCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
     sim_ctx.reset()
 
     torch.testing.assert_close(
@@ -665,14 +665,14 @@ def test_sensor_print(sim_ctx, device):
     """Test ``__str__`` is implemented and exposes the prim path and binding pattern."""
     _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     s = str(imu_ball)
     print(s)
-    assert "Imu sensor @ '/World/env_*/ball'" in s
+    assert "Imu sensor @ '/World/env_[^/]+/ball'" in s
     assert "binding pattern" in s
-    assert "/World/env_*/ball" in s
+    assert "/World/env_[^/]+/ball" in s
     assert "number of sensors : 2" in s
 
 

@@ -10,7 +10,6 @@ import logging
 import math
 import sys
 import warnings
-import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from dataclasses import MISSING
@@ -28,15 +27,11 @@ from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs, VecEnvStepReturn, _apply_deprecated_viewer_cfg
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
-
-if has_kit():
-    import omni.kit.app
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -655,15 +650,10 @@ class DirectRLEnv(gym.Env):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                self._debug_vis_handle = self.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
-                self._debug_vis_handle = None
+            self.sim.vis_marker_registry.clear_debug_vis_callback(self)
         # return success
         return True
 

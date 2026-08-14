@@ -84,7 +84,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 
 
 FRANKA_CAMERA_CFG = CameraCfg(
-    prim_path="/World/envs/env_.*/Camera",
+    prim_path="{ENV_REGEX_NS}/Camera",
     offset=CameraCfg.OffsetCfg(
         pos=(0.85, -0.55, 0.42),
         rot=(0.5080, 0.2114, 0.318, 0.7720),
@@ -155,7 +155,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"/World/envs/env_[^/]+/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -169,8 +169,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -205,12 +205,12 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
-        prim_path="/World/envs/env_.*/Robot/Geometry/panda_link0",
+        prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0",
         debug_vis=False,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
                 prim_path=(
-                    "/World/envs/env_.*/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/"
+                    "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/"
                     "panda_link4/panda_link5/panda_link6/panda_link7/panda_hand"
                 ),
                 name="end_effector",
