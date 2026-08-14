@@ -240,8 +240,7 @@ runs:
         python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache restored"
 
     # The cache action owns keys, restore, reporting and writeback; this file
-    # only decides when each phase runs. It cannot be a single step because a
-    # composite action cannot span the test run below.
+    # only decides when each phase runs.
     - name: Restore OVRTX shader cache
       if: inputs.ovrtx-shader-cache != ''
       id: ovrtx-cache
@@ -400,9 +399,8 @@ runs:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
         key: ${{ steps.warp-cache-key.outputs.key }}
 
-    # Consumers only report; the warmer reports and publishes. Splitting them
-    # this way keeps the growth summary to one line per job - 'save' already
-    # reports before it writes back.
+    # Consumers only report; the warmer reports and publishes. 'save' already
+    # reports before it writes back, so the two are mutually exclusive.
     - name: Report OVRTX shader cache growth
       if: always() && inputs.ovrtx-shader-cache != '' && inputs.ovrtx-shader-cache != 'save'
       uses: ./.github/actions/ovrtx-shader-cache
@@ -410,10 +408,10 @@ runs:
         mode: report
         isaacsim-version: ${{ inputs.isaacsim-version }}
 
-    # Not success(): the product is compiled PSO blobs, and those stay valid when
-    # a golden-image assertion fails. Gating on success() would let one failing
-    # render assertion discard a whole warm run. Cancellation still skips, so a
-    # tree the driver was mid-write on is never published.
+    # Not success(): compiled PSO blobs stay valid when a golden-image assertion
+    # fails, so one failing assertion should not discard a whole warm run.
+    # Cancellation still skips, so a tree the driver was mid-write on is never
+    # published.
     - name: Publish OVRTX shader cache
       if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'''
       uses: ./.github/actions/ovrtx-shader-cache

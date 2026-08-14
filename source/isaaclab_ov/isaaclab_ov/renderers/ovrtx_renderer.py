@@ -126,6 +126,7 @@ _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 # Runtime environment variable used to enable the ovstage code path for ovrtx.
 _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
 
+
 if _OVSTAGE_AVAILABLE:
     # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
     # as one 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
@@ -395,9 +396,9 @@ class OVRTXRenderer(BaseRenderer):
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
         )
-        # Built before the redirect, not after: the redirect can be what first
-        # loads the ovrtx library, and library initialization only happens once,
-        # so it has to see the same config the renderer below is built with.
+        # Takes the config because the redirect can be what first loads the ovrtx
+        # library, and initialization only happens once, so it has to see the
+        # same config the renderer below is built with.
         redirect_shader_cache(OVRTX_CONFIG)
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:

@@ -50,20 +50,12 @@ def test_apply_settings_redirects_both_driver_caches():
 
 
 @pytest.mark.parametrize("rejected", ["driverShaderCachePath", "driverAppShaderCachePath"])
-def test_apply_settings_raises_when_a_setting_is_rejected(rejected):
-    """A rejected setting must fail loudly rather than leave the cache at its default path."""
+def test_apply_settings_raises_when_a_setting_is_rejected(rejected, caplog):
+    """A rejected setting must fail loudly, and must not be reported as a working redirect."""
     applier = _RecordingApplier(reject=rejected)
 
-    with pytest.raises(RuntimeError, match=rejected):
-        apply_shader_cache_settings(applier, _CACHE_PATH)
-
-
-def test_apply_settings_does_not_report_success_before_every_setting_applied(caplog):
-    """The success log must not be emitted when a later setting is rejected."""
-    applier = _RecordingApplier(reject="driverAppShaderCachePath")
-
     with caplog.at_level("INFO", logger=ovrtx_shader_cache.__name__):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match=rejected):
             apply_shader_cache_settings(applier, _CACHE_PATH)
 
     assert "redirected" not in caplog.text
@@ -81,34 +73,26 @@ def test_redirect_is_skipped_when_env_var_is_unset(monkeypatch):
     redirect_shader_cache(_CONFIG)
 
 
-def test_redirect_applies_settings_when_env_var_is_set(monkeypatch):
-    """With the env var set the requested path must reach both settings."""
-    applier = _RecordingApplier()
-    monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
-    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda config: applier)
+def test_redirect_applies_settings_with_the_renderer_config(monkeypatch):
+    """The requested path must reach both settings, and the renderer's config the applier.
 
-    redirect_shader_cache(_CONFIG)
-
-    assert [setting.split("=", 1)[1] for setting in applier.applied] == [_CACHE_PATH, _CACHE_PATH]
-
-
-def test_redirect_forwards_the_renderer_config(monkeypatch):
-    """The renderer's config must reach the applier, which is what initializes the library.
-
-    Initialization runs once per process, so a config dropped here is a config the
-    renderer never gets - losing its log sink and level with no other symptom.
+    The applier factory is what initializes the ovrtx library, and initialization
+    runs once per process, so a config dropped here is a config the renderer never
+    gets - losing its log sink and level with no other symptom.
     """
+    applier = _RecordingApplier()
     seen = []
     monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
     monkeypatch.setattr(
         ovrtx_shader_cache,
         "_acquire_settings_applier",
-        lambda config: seen.append(config) or _RecordingApplier(),
+        lambda config: seen.append(config) or applier,
     )
 
     redirect_shader_cache(_CONFIG)
 
     assert seen == [_CONFIG]
+    assert [setting.split("=", 1)[1] for setting in applier.applied] == [_CACHE_PATH, _CACHE_PATH]
 
 
 def test_redirect_warns_when_settings_extension_is_unavailable(monkeypatch, caplog):
@@ -120,16 +104,3 @@ def test_redirect_warns_when_settings_extension_is_unavailable(monkeypatch, capl
         redirect_shader_cache(_CONFIG)
 
     assert SHADER_CACHE_PATH_ENV in caplog.text
-
-
-def test_redirect_propagates_when_a_setting_is_rejected(monkeypatch):
-    """An extension that rejects a setting must not be reported as a working redirect."""
-    monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
-    monkeypatch.setattr(
-        ovrtx_shader_cache,
-        "_acquire_settings_applier",
-        lambda config: _RecordingApplier(reject="driverShaderCachePath"),
-    )
-
-    with pytest.raises(RuntimeError, match="driverShaderCachePath"):
-        redirect_shader_cache(_CONFIG)

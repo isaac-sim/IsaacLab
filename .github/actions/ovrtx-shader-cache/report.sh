@@ -9,25 +9,21 @@
 # Usage: report.sh restore|growth
 #
 #   restore  prepares both trees, checks the mount is writable, prints the
-#            per-tree hit/miss and records the baseline the growth pass compares
-#            against
+#            per-tree hit/miss and records the baseline for the growth pass
 #   growth   prints how far the run compiled beyond what was restored, and
 #            emits the per-tree file counts the save gates read
 #
-# OVRTX_CACHE_HIT and OVRTX_CACHE_MB_BEFORE are how the restore pass hands the
-# baseline to the growth pass. They are written to $GITHUB_ENV because the two
-# passes are separate invocations of this action; they are internal to it and no
-# caller should read or set them.
+# The passes are separate invocations of this action, so the restore pass hands
+# its baseline to the growth pass through OVRTX_CACHE_HIT and
+# OVRTX_CACHE_MB_BEFORE in $GITHUB_ENV. Both are internal to this action.
 
 set -euo pipefail
 
 mode="${1:?usage: report.sh restore|growth}"
 : "${HOST_DIR:?HOST_DIR is required}"
 
-# Files, not bytes: an empty tree still measures ~1 MB, so only a per-tree count
-# separates a populated tree from one the tests never filled. tr strips wc's
-# padding - a stray space would make the '0' comparisons in the save gates miss
-# and publish an empty tree.
+# Files, not bytes: an empty tree still measures ~1 MB. tr strips wc's padding,
+# which would otherwise make the '0' comparisons in the save gates miss.
 count_files() {
   find "$1" -type f 2>/dev/null | wc -l | tr -d '[:space:]' || true
 }
@@ -40,8 +36,8 @@ case "$mode" in
       exit 1
     fi
 
-    # cache-matched-key is authoritative. Inferring a hit from directory size is
-    # not: an empty directory still measures as ~1 MB.
+    # cache-matched-key is authoritative; directory size is not, since an empty
+    # directory still measures as ~1 MB.
     if [ -z "${KIT_MATCHED_KEY:-}" ]; then
       echo "::warning::OVRTX kit shader cache miss - no entry in collection ${KIT_COLLECTION:-}"
     else

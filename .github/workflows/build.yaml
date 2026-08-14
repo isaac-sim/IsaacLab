@@ -987,18 +987,16 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # Kit-based cartpole rendering warms kit/nv_shadercache; kitless ovrtx
-        # cartpole rendering warms kitless/nv_shadercache. One combined job
-        # covers both sub-trees in a single container run.
+        # One combined job covers both sub-trees: Kit cartpole rendering warms
+        # kit/, kitless ovrtx cartpole rendering warms kitless/.
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_cartpole_kitless.py
-        # Only the two RTX paths compile PSO blobs: isaacsim_rtx ids come from
-        # the Kit file and fill kit/, ovrtx ids from the kitless file and fill
-        # kitless/. Selecting newton_warp instead would spend GPU time on the
-        # Warp rasterizer, which populates neither tree.
+        # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
+        # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
+        # which populates neither tree.
         test-k-expr: >-
           (isaacsim_rtx or ovrtx) and (rgb or depth)
         ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}

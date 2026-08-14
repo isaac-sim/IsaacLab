@@ -5,10 +5,9 @@
 
 """Driver shader-cache redirection for the OVRTX renderer.
 
-Kept apart from ``ovrtx_renderer`` so the redirect policy - which settings are
-applied, and what counts as a failure - imports without the ovrtx runtime and
-can be covered on any runner. The runtime is only touched inside
-:func:`_acquire_settings_applier`, where the bindings are imported lazily.
+Kept apart from ``ovrtx_renderer`` so the redirect policy imports without the
+ovrtx runtime and can be tested on any runner; the runtime is only touched
+inside :func:`_acquire_settings_applier`, which imports the bindings lazily.
 """
 
 from __future__ import annotations
@@ -40,19 +39,16 @@ SHADER_CACHE_SETTINGS = (
 def _acquire_settings_applier(config: RendererConfig) -> Callable[[str], bool] | None:
     """Return a callable that applies one ``--/setting=value`` string, or ``None``.
 
-    ``None`` means this runtime does not ship the settings extension, which it
-    reports through ``ovrtx_query_extension``. That is the only tolerated
-    failure: anything else - a missing private module, a changed vtable layout -
-    propagates, because degrading those to a warning hides a real regression
+    ``None`` means this runtime does not ship the settings extension. That is the
+    only tolerated failure; anything else propagates, since degrading a missing
+    module or a changed vtable layout to a warning would hide the regression
     behind rendering that merely got slower.
 
     Args:
-        config: The configuration the renderer is about to be built with.
-            Querying the extension forces the bindings to load, and loading them
-            is what runs ``ovrtx_initialize`` - once per process, on first call.
-            So the real config has to be supplied here; initializing with an
-            empty one would silently drop the log sink, log level and keep-alive
-            that :class:`~ovrtx.Renderer` would otherwise have applied.
+        config: The configuration the renderer is about to be built with. Querying
+            the extension loads the bindings, which runs ``ovrtx_initialize`` once
+            per process, so the real config has to be supplied here or the log
+            sink, log level and keep-alive are silently dropped.
     """
     import ctypes
 
@@ -119,9 +115,8 @@ def redirect_shader_cache(config: RendererConfig) -> None:
     call it unconditionally.
 
     Args:
-        config: The configuration the renderer will be constructed with. Passed
-            through so that library initialization, which this may trigger ahead
-            of the renderer, uses the same settings the renderer would have.
+        config: The configuration the renderer will be constructed with, forwarded
+            to :func:`_acquire_settings_applier`.
 
     Raises:
         RuntimeError: The variable is set but the redirect could not be applied.
