@@ -74,7 +74,7 @@ dependencies = [
     # Standalone URDF/MJCF importers, so conversion works without Isaac Sim. They install
     # alongside it without displacing it: Kit serves ``isaacsim.asset`` from its extension
     # roots when the runtime is present, and the standalone packages serve it otherwise.
-    "isaacsim-asset-isolated==6.1.0rc4+release.46376.bb3e8c0b.gl",
+    "isaacsim-asset-isolated==6.1.0rc5+release.46926.75ca3138.gl",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -159,7 +159,7 @@ rerun = [
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 
-isaacsim = ["isaacsim[all,extscache]==6.1.0rc4"]
+isaacsim = ["isaacsim[all,extscache]==6.1.0rc5+release.46926.75ca3138.gl"]
 
 ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364272", "ovstage==0.1.1.355824"]
 ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
@@ -172,7 +172,7 @@ mimic = [
 ]
 
 teleop = [
-    "isaacsim[all,extscache]==6.1.0rc4",
+    "isaacsim[all,extscache]==6.1.0rc5+release.46926.75ca3138.gl",
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -206,7 +206,7 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.1.0rc4"
+isaacsim = "6.1.0rc5+release.46926.75ca3138.gl"
 usd_exchange = "2.3.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
