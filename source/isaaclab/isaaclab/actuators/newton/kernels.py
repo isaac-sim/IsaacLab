@@ -106,26 +106,13 @@ def patch_actuator_param_kernel(
     """Per-actuator scatter for partial parameter updates.
 
     For each slot ``i`` in the actuator's flat env-major ``indices``, derive
-    the (env, backend-local joint) pair, look it up against the dense
-    position arrays, and — when both axes are in the selected sub-grid —
-    overwrite ``dst[i]`` (the component parameter) with ``values[e_pos, j_pos]``.
-    Cells outside the sub-grid or outside this articulation's DOF range are
-    left untouched.
-
-    Args:
-        indices: Actuator's flat env-major global DOF indices.
-        env_id_pos: ``env_id_pos[env]`` gives the row in ``values`` for envs
-            being updated, ``-1`` otherwise. Length ``num_envs``.
-        joint_id_pos: ``joint_id_pos[joint]`` gives the column in ``values``
-            for backend-local joints being updated, ``-1`` otherwise.
-            Length ``num_joints``.
-        values: New parameter values shaped ``(len(env_ids), len(joint_ids))``.
-        dof_offset: Offset of this articulation's DOFs within each environment.
-        num_envs: Number of articulation environments.
-        num_joints: Articulation-local joint count.
-        env_stride: Whole-model per-env DOF count (the stride used to build
-            ``indices``).
-        dst: Per-actuator component parameter array (e.g. ``controller.kp``).
+    the (env, backend-local joint) pair and, when ``env_id_pos[env]`` and
+    ``joint_id_pos[joint]`` select a cell of ``values`` (entries are ``-1``
+    outside the ``(len(env_ids), len(joint_ids))`` selection), overwrite
+    ``dst[i]`` — the per-actuator component parameter — with it. Slots outside
+    this articulation's DOF range are left untouched. Placement arguments
+    (``dof_offset``, ``num_envs``, ``num_joints``, ``env_stride``) match
+    :func:`scatter_gain_kernel`.
     """
     i = wp.tid()
     global_dof = int(indices[i])

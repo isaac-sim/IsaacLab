@@ -333,21 +333,12 @@ def _validated_user_to_backend(
 
 
 def _resolve_actuator_parameter(actuator: Actuator, component: str, attr: str) -> wp.array | None:
-    """Resolve one explicitly addressed component parameter array.
+    """Return the ``attr`` parameter array on the explicitly addressed component.
 
-    Args:
-        actuator: Newton actuator to inspect.
-        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-
-    Returns:
-        The parameter array, or ``None`` when the component is absent on this
-        actuator or does not expose :paramref:`attr`.
-
-    Raises:
-        ValueError: On unknown component names, or when more than one clamping
-            entry exposes :paramref:`attr`.
-        TypeError: If the resolved parameter is not a ``wp.array``.
+    Returns ``None`` when the component is absent on this actuator or does not
+    expose ``attr``. Raises ``ValueError`` on unknown component names or when
+    more than one clamping entry exposes ``attr``, and ``TypeError`` when the
+    match is not a ``wp.array``.
     """
     if component == "controller":
         owner = actuator.controller
@@ -464,29 +455,12 @@ def write_newton_actuator_parameter(
 ) -> None:
     """Patch one Newton actuator parameter over an env/joint selection.
 
-    The counterpart of :func:`read_newton_actuator_parameter`: values and joint
-    indices are given in public joint order and scattered in place into the
-    explicitly addressed component array of every actuator that exposes it.
-
-    Args:
-        actuators: Newton actuators visible to the model.
-        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-        values: New values, shape ``(len(env_ids), len(joint_ids))``.
-        env_ids: Environment indices to update.
-        joint_ids: Public joint indices to update.
-        num_envs: Number of articulation environments.
-        num_joints: Articulation-local joint count.
-        dof_offset: Offset of this articulation's DOFs in the model buffer.
-        env_stride: Model DOFs per environment.
-        device: Torch and Warp device.
-        joint_user_to_backend_indices: Optional public-to-backend joint mapping.
-
-    Raises:
-        ValueError: If the joint mapping is not a complete permutation, the
-            component name is unknown, no actuator exposes the parameter, or
-            matching actuators store it with mixed dtypes.
-        TypeError: If a resolved parameter is not a ``wp.array``.
+    The in-place counterpart of :func:`read_newton_actuator_parameter`, sharing
+    its component addressing, placement arguments, and error semantics.
+    ``values`` (shape ``(len(env_ids), len(joint_ids))``) and ``joint_ids`` are
+    given in public joint order and scattered into the component array of every
+    actuator exposing the parameter; a write that matches no actuator raises
+    ``ValueError``.
     """
     user_to_backend = _validated_user_to_backend(joint_user_to_backend_indices, num_joints)
 
