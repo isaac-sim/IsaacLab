@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rendering correctness tests for the Franka cable-pile camera setup."""
+"""Rendering correctness tests for the Franka cable camera setup."""
 
 # Launch Isaac Sim Simulator first for kit-based combinations.
 from isaaclab.app import AppLauncher
@@ -33,5 +33,5 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", PHYSICS_RENDERER_AOV_COMBINATIONS)
 def test_rendering_franka_cable(physics_backend, renderer, data_type):
-    """Test Franka cable-pile rendering correctness across AOVs."""
+    """Test Franka cable rendering correctness across AOVs."""
     rendering_test_franka_cable(physics_backend, renderer, data_type, _COMPARISON_SCORES)

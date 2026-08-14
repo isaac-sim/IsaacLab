@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kit-less rendering correctness tests for the Franka cable-pile camera setup."""
+"""Kit-less rendering correctness tests for the Franka cable camera setup."""
 
 from pathlib import Path
 
@@ -32,5 +32,5 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
     "ovstage_variant,physics_backend,renderer,data_type", _RENDERING_PARAMS, indirect=["ovstage_variant"]
 )
 def test_rendering_franka_cable_kitless(ovstage_variant, physics_backend, renderer, data_type):
-    """Camera output must match golden images for the Franka cable-pile test setup."""
+    """Camera output must match golden images for the Franka cable test setup."""
     rendering_test_franka_cable(physics_backend, renderer, data_type, _COMPARISON_SCORES)

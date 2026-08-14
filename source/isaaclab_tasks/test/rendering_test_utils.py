@@ -1960,6 +1960,11 @@ def rendering_test_franka_cable(
         "z": (0.0, 0.0),
     }
 
+    # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
+    # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
+    if env_cfg.curriculum is not None:
+        env_cfg.curriculum.gravity = None
+
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
