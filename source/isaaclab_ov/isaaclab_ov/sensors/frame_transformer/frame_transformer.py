@@ -18,7 +18,7 @@ from pxr import UsdPhysics
 
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 import isaaclab_ov.tensor_types as TT
@@ -611,7 +611,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         Args:
             prim_path: An env-0 prim path (e.g. ``"/World/envs/env_0/Robot/LF_FOOT"``) or an
-                IsaacLab regex form (e.g. ``"/World/envs/env_.*/Robot/LF_FOOT"`` or
+                IsaacLab regex form (e.g. ``"{ENV_REGEX_NS}/Robot/LF_FOOT"`` or
                 ``"{ENV_REGEX_NS}/Robot/LF_FOOT"``).
 
         Returns:
@@ -622,7 +622,7 @@ class FrameTransformer(BaseFrameTransformer):
             substitutions.
         """
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", prim_path)
-        pattern = re.sub(r"\.\*", "*", pattern)
+        pattern = path_expr_to_glob(pattern)
         pattern = re.sub(r"/envs/env_\d+(/|$)", r"/envs/env_*\1", pattern)
         return pattern
 
@@ -636,5 +636,7 @@ class FrameTransformer(BaseFrameTransformer):
         Returns:
             The prim path with that segment collapsed to ``/envs/``, so prim paths from any env compare equal.
         """
-        pattern = re.compile(r"/envs/env_[^/]+/")
+        # the env slot may be a concrete id or a segment wildcard; try the wildcard spellings
+        # first so a bare ``[^/]+`` alternative cannot consume half of a character class.
+        pattern = re.compile(r"/envs/env_(?:\[\^/\][*+]|\.\*|[^/]+)/")
         return pattern.sub("/envs/", prim_path)

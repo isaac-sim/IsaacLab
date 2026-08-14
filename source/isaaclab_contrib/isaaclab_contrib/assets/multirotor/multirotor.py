@@ -70,7 +70,7 @@ class Multirotor(Articulation):
 
             # Create multirotor configuration
             multirotor_cfg = MultirotorCfg(
-                prim_path="/World/envs/env_.*/Robot",
+                prim_path="{ENV_REGEX_NS}/Robot",
                 spawn=sim_utils.UsdFileCfg(usd_path="path/to/quadcopter.usd"),
                 actuators={"thrusters": thruster_cfg},
                 allocation_matrix=[  # 6x4 matrix for quadcopter (6 DOF, 4 thrusters)

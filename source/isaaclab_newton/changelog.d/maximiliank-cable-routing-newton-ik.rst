@@ -11,6 +11,8 @@ Fixed
 Added
 ^^^^^
 
+* Added configurable per-body rigid-contact capacity to
+  :class:`~isaaclab_newton.physics.VBDSolverCfg`.
 * Added an isolated-articulation model option to keep Newton IK solves compact in
   coupled scenes with unrelated articulated deformables.
 * Added optional CUDA-graph replay for fixed-shape Newton IK manager actions.

@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyCfg
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
@@ -30,7 +30,6 @@ from isaaclab.envs.mdp import (
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 
 from isaaclab_contrib.coupling import CouplerProxyCfg
-from isaaclab_contrib.deformable import VBDSolverCfg
 
 import isaaclab_tasks.contrib.cable_routing  # noqa: F401
 from isaaclab_tasks.contrib.cable_routing.agents.rsl_rl_ppo_cfg import CableRoutingPPORunnerCfg
@@ -683,7 +682,7 @@ def test_cable_routing_uses_disjoint_newton_collision_ownership() -> None:
         r"/World/envs/env_.*/(Table|Board)",
         r"/World/envs/env_.*/Peg(0|1)",
     ]
-    assert coupler.model_cfg is None
+    assert physics.soft_contact_cfg is None
 
     assert cfg.scene.yam_left.spawn.physics_material is None
     assert cfg.scene.yam_right.spawn.physics_material is None

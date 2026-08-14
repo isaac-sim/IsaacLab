@@ -11,7 +11,7 @@ import math
 import os
 from pathlib import Path
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyCfg
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
@@ -33,7 +33,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable import VBDSolverCfg
 
 from . import mdp
 

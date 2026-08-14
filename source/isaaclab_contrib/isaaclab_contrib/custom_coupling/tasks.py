@@ -5,10 +5,8 @@
 
 """Gym registration for the opt-in custom coupling example.
 
-Registration lives here rather than in the package ``__init__`` so that importing the
-example's library modules, including from the deprecated
-:class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`, does not register the
-task.
+Registration lives here rather than in the package ``__init__`` so importing the
+example's library modules does not register the task.
 """
 
 import gymnasium as gym
