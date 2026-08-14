@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.15.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled ``--video`` recording with ``--viz newton_rtx``.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Unified checkpoint loading on ``--checkpoint``. Removed RSL-RL ``--load_run`` and ``--resume``, and RLinf ``--rl_model_path``, ``--resume_dir``, and ``--max_epochs``.
+* **Breaking:** Changed the ``train`` and ``play`` CLI commands to use a task's
+  registered default RL library when ``--rl_library`` is omitted. Pass
+  ``--rl_library`` explicitly to select a different library.
+
+
 0.14.1 (2026-08-12)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -86,7 +86,7 @@ def view_factory():
         sim._app_control_on_stop_handle = None
         InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
         sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
-        view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
         sim.reset()
 
         return ViewBundle(
@@ -114,7 +114,7 @@ def test_reject_body_path(device):
     sim.reset()
 
     with pytest.raises(ValueError, match="physics body"):
-        FrameView("/World/envs/env_.*/Cube", device=device)
+        FrameView("/World/envs/env_[^/]+/Cube", device=device)
     ctx.__exit__(None, None, None)
 
 
@@ -150,7 +150,7 @@ def test_clone_plan_view_uses_source_child_without_destination_usd(device):
     assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
-    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
     sim.reset()
 
     assert view.count == num_envs
@@ -172,7 +172,7 @@ def test_view_can_resolve_from_body_labels_after_reset(device):
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
     sim.reset()
-    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
     pos = view.get_world_poses()[0].torch
     expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)

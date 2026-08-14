@@ -136,7 +136,7 @@ def design_scene():
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
         # spawn the object
-        obj_cfg.func(f"/World/Origin.*/Object{idx:02d}", obj_cfg, translation=origin)
+        obj_cfg.func(f"/World/Origin[^/]+/Object{idx:02d}", obj_cfg, translation=origin)
 
 
 def main():

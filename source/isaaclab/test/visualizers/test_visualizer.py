@@ -155,7 +155,7 @@ def test_prim_world_positions_prefers_scene_articulation_state():
         ]
     )
     articulation = SimpleNamespace(
-        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot"),
+        cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot"),
         body_names=["base", "foot"],
         data=SimpleNamespace(
             root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),

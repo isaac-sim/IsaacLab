@@ -14,6 +14,9 @@ import os
 import sys
 
 import pytest
+import warp as wp
+
+wp.config.enable_backward = False
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
