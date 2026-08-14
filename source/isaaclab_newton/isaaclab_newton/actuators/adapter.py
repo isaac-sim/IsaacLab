@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 import numpy as np
 import torch
@@ -386,6 +386,14 @@ def read_newton_actuator_gain(
         gains = gains.index_select(1, backend_column_indices)
         covered = covered.index_select(0, backend_column_indices)
     return gains, covered
+
+
+# ---------------------------------------------------------------------------
+# PhysX-only USD parsing
+# ---------------------------------------------------------------------------
+
+_ResolvedComponent: TypeAlias = tuple[type, dict[str, Any]]
+_ResolvedActuatorSpec: TypeAlias = tuple[int, type, dict[str, Any], list[_ResolvedComponent]]
 
 
 def _actuator_signature(

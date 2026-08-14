@@ -83,7 +83,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         adapter = SimulationManager._adapter
         if adapter is not None:
             arti_start = self._joint_dof_offset()
-            joint_ordering = articulation.data.joint_ordering
             binding = adapter.bind_articulation(
                 lab_actuators=dict(collection.items()),
                 dof_offset=arti_start,
