@@ -21,6 +21,7 @@ from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
     from .actuator_collection import ActuatorCollection
+    from .newton.adapter import NewtonParameterAccess
 
 
 @dataclass(frozen=True)
@@ -318,37 +319,17 @@ class ActuatorControl(ABC):
             env_ids: Environments to reset.
         """
 
-    def write_native_actuator_gain(
-        self,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write backend-native actuator gains.
+    def native_parameter_access(self) -> NewtonParameterAccess | None:
+        """Return component-addressed access to the backend's Newton actuator parameters.
 
-        Args:
-            attr: Native gain name, either ``"kp"`` or ``"kd"``.
-            values: Stiffness [N/m or N·m/rad] or damping [N·s/m or N·m·s/rad]
-                values, shape ``(len(env_ids), len(joint_ids))``.
-            env_ids: Environment indices to update.
-            joint_ids: Articulation joint indices to update.
-        """
-
-    def get_native_actuator_gain(
-        self,
-        attr: str,
-        joint_ids: torch.Tensor | slice,
-    ) -> torch.Tensor | None:
-        """Return controller-owned gains for one native actuator group.
-
-        Args:
-            attr: Controller gain name.
-            joint_ids: Articulation joint indices in public order.
+        The collection binds the returned access onto every native actuator
+        group, backing the groups'
+        :meth:`~isaaclab.actuators.ActuatorBase.read_parameter` and
+        :meth:`~isaaclab.actuators.ActuatorBase.write_parameter`.
 
         Returns:
-            Current controller gains, or ``None`` when the selected group is
-            not completely managed by a supported native controller.
+            Placement-bound parameter access, or ``None`` when no Newton
+            actuators are active on this backend.
         """
         return None
 

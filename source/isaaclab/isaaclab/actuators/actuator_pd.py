@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         ImplicitActuatorCfg,
         RemotizedPDActuatorCfg,
     )
+    from .newton.adapter import NewtonParameterAccess
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -328,17 +329,6 @@ class IdealPDActuator(ActuatorBase):
     damping: torch.Tensor
     """Actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
 
-    class _NativeActuatorGains:
-        """Live controller-owned gain projection for one native actuator group."""
-
-        def __init__(self, control: ActuatorControl, joint_indices: slice | torch.Tensor):
-            self._control = control
-            self._joint_indices = joint_indices
-
-        def get(self, attr: str) -> torch.Tensor | None:
-            """Read one controller gain in the group's public joint order."""
-            return self._control.get_native_actuator_gain(attr, self._joint_indices)
-
     def __init__(
         self,
         cfg: IdealPDActuatorCfg,
@@ -367,8 +357,9 @@ class IdealPDActuator(ActuatorBase):
     @property
     def stiffness(self) -> torch.Tensor:
         """Current actuator stiffness [N/m or N·m/rad, depending on joint type]."""
-        native_gains = self.__dict__.get("_native_actuator_gains")
-        return self._stiffness if native_gains is None else native_gains.get("kp")
+        if "_newton_parameters" in self.__dict__:
+            return self.read_parameter("controller", "kp")
+        return self._stiffness
 
     @stiffness.setter
     def stiffness(self, value: torch.Tensor) -> None:
@@ -377,28 +368,27 @@ class IdealPDActuator(ActuatorBase):
     @property
     def damping(self) -> torch.Tensor:
         """Current actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
-        native_gains = self.__dict__.get("_native_actuator_gains")
-        return self._damping if native_gains is None else native_gains.get("kd")
+        if "_newton_parameters" in self.__dict__:
+            return self.read_parameter("controller", "kd")
+        return self._damping
 
     @damping.setter
     def damping(self, value: torch.Tensor) -> None:
         self._set_actuator_gain_property("damping", value)
 
-    def _bind_native_actuator_gains(self, control: ActuatorControl) -> None:
-        """Bind native gain reads when controllers cover every joint in this group."""
-        native_gains = self._NativeActuatorGains(control, self.joint_indices)
-        if native_gains.get("kp") is None or native_gains.get("kd") is None:
-            return
-        self._native_actuator_gains = native_gains
+    def _bind_newton_parameters(self, parameters: NewtonParameterAccess) -> None:
+        super()._bind_newton_parameters(parameters)
+        # Drop the construction tensors: the gains are controller-owned from here on.
         self.__dict__.pop("_stiffness", None)
         self.__dict__.pop("_damping", None)
 
     def _set_actuator_gain_property(self, name: Literal["stiffness", "damping"], value: torch.Tensor) -> None:
-        """Store a construction gain or reject assignment after native binding."""
-        if "_native_actuator_gains" in self.__dict__:
+        """Store a construction gain or reject assignment after Newton binding."""
+        if "_newton_parameters" in self.__dict__:
+            attr = {"stiffness": "kp", "damping": "kd"}[name]
             raise AttributeError(
-                f"{type(self).__name__}.{name} is controller-owned after native binding. Use "
-                "randomize_actuator_gains() or the backend native gain API to update it."
+                f"{type(self).__name__}.{name} is controller-owned after Newton binding. Use "
+                f"write_parameter('controller', '{attr}', ...) or randomize_actuator_gains() to update it."
             )
         self.__dict__[f"_{name}"] = value
 

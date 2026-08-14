@@ -506,6 +506,64 @@ def write_newton_actuator_parameter(
         )
 
 
+@dataclass(frozen=True)
+class NewtonParameterAccess:
+    """Component-addressed access to one articulation's Newton actuator parameters.
+
+    Binds the placement of the articulation's DOFs inside the backend's actuator
+    buffers once, so callers read and write parameters without threading
+    placement arguments. Built by each backend's actuator control; consumed by
+    the actuator groups' :meth:`~isaaclab.actuators.ActuatorBase.read_parameter`
+    and :meth:`~isaaclab.actuators.ActuatorBase.write_parameter`.
+    """
+
+    actuators: list[Actuator]
+    num_envs: int
+    num_joints: int
+    dof_offset: int
+    env_stride: int
+    device: str
+    joint_user_to_backend_indices: Sequence[int] | None = None
+
+    def read(self, component: str, attr: str) -> tuple[torch.Tensor, torch.Tensor]:
+        """Project one live parameter into public joint order; see :func:`read_newton_actuator_parameter`."""
+        return read_newton_actuator_parameter(
+            self.actuators,
+            component,
+            attr,
+            self.num_envs,
+            self.num_joints,
+            self.dof_offset,
+            self.env_stride,
+            self.device,
+            self.joint_user_to_backend_indices,
+        )
+
+    def write(
+        self,
+        component: str,
+        attr: str,
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Patch one parameter over an env/joint selection; see :func:`write_newton_actuator_parameter`."""
+        write_newton_actuator_parameter(
+            self.actuators,
+            component,
+            attr,
+            values,
+            env_ids,
+            joint_ids,
+            self.num_envs,
+            self.num_joints,
+            self.dof_offset,
+            self.env_stride,
+            self.device,
+            self.joint_user_to_backend_indices,
+        )
+
+
 # ---------------------------------------------------------------------------
 # PhysX-only USD parsing
 # ---------------------------------------------------------------------------

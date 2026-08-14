@@ -12,6 +12,10 @@ Added
   ``joint_velocity_limit`` joint-property overrides.
 * Added ``isaaclab.actuators.newton`` hosting the Newton actuator adapter,
   host runtime, and kernels shared by every backend's native execution path.
+* Added :meth:`~isaaclab.actuators.ActuatorBase.read_parameter` and
+  :meth:`~isaaclab.actuators.ActuatorBase.write_parameter` as the single
+  component-addressed access to Newton actuator parameters on native actuator
+  groups (for example ``("controller", "kp")`` or ``("clamping", "max_effort")``).
 
 Deprecated
 ^^^^^^^^^^
@@ -33,7 +37,8 @@ Deprecated
   ``write_actuator_damping_to_sim``. These backend-specific writers remain
   available through 3.x; use
   :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed
-  randomization.
+  randomization or :meth:`~isaaclab.actuators.ActuatorBase.write_parameter`
+  for direct controller writes.
 
 Removed
 ^^^^^^^

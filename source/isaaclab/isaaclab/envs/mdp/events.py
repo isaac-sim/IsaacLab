@@ -24,7 +24,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.actuators import ActuatorCollection, IdealPDActuator, ImplicitActuator
+from isaaclab.actuators import IdealPDActuator, ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
@@ -1444,8 +1444,6 @@ class randomize_actuator_gains(ManagerTermBase):
                 data, params, dim_0_ids=None, dim_1_ids=actuator_indices, operation=operation, distribution=distribution
             )
 
-        actuator_collection = self.asset.actuators if isinstance(self.asset.actuators, ActuatorCollection) else None
-
         # Loop through actuators and randomize gains
         for actuator_name, actuator in self._gain_actuators.items():
             if isinstance(self.asset_cfg.joint_ids, slice):
@@ -1486,13 +1484,13 @@ class randomize_actuator_gains(ManagerTermBase):
                         stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
                 elif actuator_name in self._native_group_names:
-                    if actuator_collection is not None:
-                        actuator_collection._write_native_actuator_gain(
-                            "kp",
-                            values=stiffness[:, actuator_indices],
-                            env_ids=env_ids,
-                            joint_ids=writer_joint_ids,
-                        )
+                    actuator.write_parameter(
+                        "controller",
+                        "kp",
+                        values=stiffness[:, actuator_indices],
+                        env_ids=env_ids,
+                        joint_ids=writer_joint_ids,
+                    )
                 else:
                     actuator.stiffness[env_ids] = stiffness
             # Randomize damping
@@ -1507,13 +1505,13 @@ class randomize_actuator_gains(ManagerTermBase):
                         damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
                 elif actuator_name in self._native_group_names:
-                    if actuator_collection is not None:
-                        actuator_collection._write_native_actuator_gain(
-                            "kd",
-                            values=damping[:, actuator_indices],
-                            env_ids=env_ids,
-                            joint_ids=writer_joint_ids,
-                        )
+                    actuator.write_parameter(
+                        "controller",
+                        "kd",
+                        values=damping[:, actuator_indices],
+                        env_ids=env_ids,
+                        joint_ids=writer_joint_ids,
+                    )
                 else:
                     actuator.damping[env_ids] = damping
 

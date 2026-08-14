@@ -84,10 +84,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._control.finalize_native_actuators(self)
-        for actuator_name in self._native_group_names:
-            actuator = self._groups[actuator_name]
-            if isinstance(actuator, IdealPDActuator):
-                actuator._bind_native_actuator_gains(self._control)
+        newton_parameters = self._control.native_parameter_access()
+        if newton_parameters is not None:
+            for actuator_name in self._native_group_names:
+                self._groups[actuator_name]._bind_newton_parameters(newton_parameters)
         self._validate_coverage()
         self._build_execution_batches()
         if self._debug_value_resolution:
@@ -631,17 +631,6 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             outputs=outputs,
             device=self.device,
         )
-
-    def _write_native_actuator_gain(
-        self,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native-controller gains through the backend control bridge."""
-        values_snapshot = values.to(self.device, dtype=torch.float32).contiguous().clone()
-        self._control.write_native_actuator_gain(attr, values_snapshot, env_ids, joint_ids)
 
     # Diagnostics.
 

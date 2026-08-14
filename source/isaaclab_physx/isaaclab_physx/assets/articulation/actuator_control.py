@@ -11,11 +11,10 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.actuators.newton.adapter import NewtonParameterAccess
 from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
@@ -152,22 +151,17 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         if self._native_actuator_path_active and self._actuator_runtime is not None:
             self._actuator_runtime.reset(env_ids)
 
-    def get_native_actuator_gain(
-        self,
-        attr: str,
-        joint_ids: torch.Tensor | slice,
-    ) -> torch.Tensor | None:
-        """Return a complete native controller-gain projection in public joint order."""
-        if self._actuator_runtime is None:
+    def native_parameter_access(self) -> NewtonParameterAccess | None:
+        """Build parameter access over the per-articulation adapter (identity placement)."""
+        articulation = self._articulation
+        adapter = getattr(articulation, "newton_actuator_adapter", None)
+        if adapter is None:
             return None
-        return self._actuator_runtime.get_gain(attr, joint_ids)
-
-    def write_native_actuator_gain(
-        self,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        if self._actuator_runtime is not None:
-            self._actuator_runtime.write_gain(attr, values, env_ids, joint_ids)
+        return NewtonParameterAccess(
+            actuators=adapter.actuators,
+            num_envs=articulation.num_instances,
+            num_joints=articulation.num_joints,
+            dof_offset=0,
+            env_stride=articulation.num_joints,
+            device=articulation.device,
+        )

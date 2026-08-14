@@ -1682,12 +1682,15 @@ class BaseArticulation(AssetBase):
         """Warn and forward a legacy native-controller gain write."""
         warnings.warn(
             f"{writer_name} is deprecated in 3.x and will be removed in 4.0. Use "
-            "randomize_actuator_gains for managed randomization; direct controller-gain writes have no public "
-            "replacement.",
+            "randomize_actuator_gains for managed randomization or ActuatorBase.write_parameter for direct "
+            "controller writes.",
             DeprecationWarning,
             stacklevel=3,
         )
-        self.actuators._write_native_actuator_gain(gain_name, values, env_ids, joint_ids)
+        access = self.actuators._control.native_parameter_access()
+        if access is None:
+            return
+        access.write("controller", gain_name, values, env_ids, joint_ids)
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(

@@ -11,15 +11,9 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import torch
 import warp as wp
 
-from .adapter import (
-    NewtonActuatorAdapter,
-    build_implicit_dof_mask,
-    read_newton_actuator_parameter,
-    write_newton_actuator_parameter,
-)
+from .adapter import NewtonActuatorAdapter, build_implicit_dof_mask
 from .physx_wrapper import PhysxActuatorWrapper
 
 if TYPE_CHECKING:
@@ -123,50 +117,6 @@ class PhysxActuatorRuntime:
         """Reset selected native actuator state."""
         if self.adapter is not None:
             self.adapter.reset(env_ids)
-
-    def get_gain(self, attr: str, joint_ids: torch.Tensor | slice) -> torch.Tensor | None:
-        """Project a native controller gain into public joint order."""
-        if self.adapter is None:
-            return None
-        articulation = self._articulation
-        gains, covered = read_newton_actuator_parameter(
-            self.adapter.actuators,
-            "controller",
-            attr,
-            articulation.num_instances,
-            articulation.num_joints,
-            0,
-            articulation.num_joints,
-            articulation.device,
-        )
-        if not bool(torch.all(covered[joint_ids])):
-            return None
-        return gains[:, joint_ids]
-
-    def write_gain(
-        self,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Patch selected native controller parameters in place."""
-        if self.adapter is None:
-            return
-        articulation = self._articulation
-        write_newton_actuator_parameter(
-            self.adapter.actuators,
-            "controller",
-            attr,
-            values=values,
-            env_ids=env_ids,
-            joint_ids=joint_ids,
-            num_envs=articulation.num_instances,
-            num_joints=articulation.num_joints,
-            dof_offset=0,
-            env_stride=articulation.num_joints,
-            device=articulation.device,
-        )
 
     def _run_native_actuator_kernels(self, collection: ActuatorCollection, dt: float) -> None:
         from . import kernels as actuator_kernels  # noqa: PLC0415

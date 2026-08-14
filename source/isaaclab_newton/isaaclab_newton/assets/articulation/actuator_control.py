@@ -11,7 +11,6 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
@@ -19,7 +18,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import build_implicit_dof_mask
 from isaaclab.actuators.newton import kernels as actuator_kernels
-from isaaclab.actuators.newton.adapter import read_newton_actuator_parameter, write_newton_actuator_parameter
+from isaaclab.actuators.newton.adapter import NewtonParameterAccess
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
 
@@ -175,32 +174,24 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
 
-    def get_native_actuator_gain(
-        self,
-        attr: str,
-        joint_ids: torch.Tensor | slice,
-    ) -> torch.Tensor | None:
-        """Return a complete native controller-gain projection in public joint order."""
+    def native_parameter_access(self) -> NewtonParameterAccess | None:
+        """Build parameter access over the global adapter with this articulation's placement."""
         articulation = self._articulation
         adapter = articulation.newton_actuator_adapter
         if adapter is None:
             return None
-
         joint_ordering = articulation.data.joint_ordering
-        gains, covered = read_newton_actuator_parameter(
-            adapter.actuators,
-            "controller",
-            attr,
-            self.num_instances,
-            self.num_joints,
-            self._joint_dof_offset(),
-            adapter.num_joints,
-            self.device,
-            joint_ordering.user_to_backend_indices if joint_ordering is not None else None,
+        return NewtonParameterAccess(
+            actuators=adapter.actuators,
+            num_envs=self.num_instances,
+            num_joints=self.num_joints,
+            dof_offset=self._joint_dof_offset(),
+            env_stride=adapter.num_joints,
+            device=self.device,
+            joint_user_to_backend_indices=(
+                joint_ordering.user_to_backend_indices if joint_ordering is not None else None
+            ),
         )
-        if not bool(torch.all(covered[joint_ids])):
-            return None
-        return gains[:, joint_ids]
 
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""
@@ -214,32 +205,3 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         else:
             selection_offset = 0
         return dof_layout.offset + selection_offset
-
-    def write_native_actuator_gain(
-        self,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        articulation = self._articulation
-        adapter = articulation.newton_actuator_adapter
-        if adapter is None:
-            return
-        joint_ordering = articulation.data.joint_ordering
-        write_newton_actuator_parameter(
-            adapter.actuators,
-            "controller",
-            attr,
-            values=values,
-            env_ids=env_ids,
-            joint_ids=joint_ids,
-            num_envs=self.num_instances,
-            num_joints=self.num_joints,
-            dof_offset=self._joint_dof_offset(),
-            env_stride=adapter.num_joints,
-            device=self.device,
-            joint_user_to_backend_indices=(
-                joint_ordering.user_to_backend_indices if joint_ordering is not None else None
-            ),
-        )
