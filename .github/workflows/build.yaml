@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Docker builds and their dependent tests run only for non-draft PRs.
+# Docker builds and their dependent tests run only on an authorized label or
+# a manual workflow dispatch.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -47,7 +48,7 @@ name: Docker + Tests
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [labeled]
     branches:
       - main
       - develop
@@ -72,6 +73,9 @@ env:
 jobs:
   changes:
     name: Detect Changes
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'ci:run-docker' && github.actor == 'isaaclab-bot[bot]')
     runs-on: ubuntu-latest
     outputs:
       run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
@@ -176,6 +180,9 @@ jobs:
 
   config:
     name: Load Config
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'ci:run-docker' && github.actor == 'isaaclab-bot[bot]')
     runs-on: ubuntu-latest
     outputs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
@@ -200,9 +207,7 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: >-
-      needs.changes.outputs.run_docker_tests == 'true' &&
-      (github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false)
+    if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -223,9 +228,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: >-
-      needs.changes.outputs.run_docker_tests == 'true' &&
-      (github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false)
+    if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6

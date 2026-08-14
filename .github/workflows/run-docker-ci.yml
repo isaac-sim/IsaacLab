@@ -1,0 +1,73 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Run Docker CI Command
+run-name: Run Docker CI for PR #${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: run-docker-ci-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  request-docker-ci:
+    name: Request Docker CI
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/run-docker-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Authorize the request
+        env:
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          read -r pr_author pr_state < <(
+            gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state] | @tsv'
+          )
+          if [ "$pr_state" != "open" ]; then
+            echo "::error::PR #$PR_NUMBER is not open."
+            exit 1
+          fi
+          if [ "${COMMENT_AUTHOR,,}" != "${pr_author,,}" ]; then
+            echo "::error::Only PR author @$pr_author can request Docker CI."
+            exit 1
+          fi
+
+      - name: Create isaaclab-bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Trigger Docker CI
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          LABEL: ci:run-docker
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
+          gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
+          gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
+          gh api --method DELETE "$endpoint/$LABEL" --silent
+
+          echo "Requested Docker CI for PR #$PR_NUMBER." >> "$GITHUB_STEP_SUMMARY"
