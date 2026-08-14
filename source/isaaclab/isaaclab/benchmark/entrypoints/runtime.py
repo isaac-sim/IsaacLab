@@ -17,6 +17,9 @@ Usage example::
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 --num_steps 1000 --warmup_steps 50 \\
         presets=newton_mjwarp --visualizer none
+
+Use ``isaaclab benchmark runtime-multigpu`` to measure rank 0 while every GPU steps an
+independent workload; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     """
     from isaaclab.app import add_launcher_args
     from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.distributed import add_distributed_arg
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -79,6 +83,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
             " Example: 'schema,omniperf'."
         ),
     )
+    add_distributed_arg(parser)
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
@@ -86,11 +91,14 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     return args, remaining
 
 
-def run(argv: list[str]) -> BenchmarkResult:
+def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the runtime benchmark and write the selected formatter outputs.
 
     Args:
         argv: Command-line arguments excluding the script path.
+
+    Returns:
+        Completed runtime result, or ``None`` on a distributed rank other than global rank 0.
     """
     import time
 
@@ -109,6 +117,7 @@ def run(argv: list[str]) -> BenchmarkResult:
         console,
         stepping,
     )
+    from isaaclab.benchmark.distributed import DistributedContext
     from isaaclab.benchmark.schema import StartupTime
 
     # Importing the task packages registers their gym environments so the
@@ -121,6 +130,7 @@ def run(argv: list[str]) -> BenchmarkResult:
         import isaaclab_tasks_experimental  # noqa: F401
 
     args, remaining = _parse_args(argv)
+    distributed = DistributedContext.from_env(args.distributed, workflow="runtime")
     imports_t1 = time.perf_counter_ns()
 
     task_config_t0 = time.perf_counter_ns()
@@ -135,7 +145,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
         if args.num_envs is not None:
             env_cfg.scene.num_envs = args.num_envs
-        if args.device is not None:
+        # A distributed launch already pinned this rank to its own GPU; honoring --device here
+        # would move every rank onto the same one.
+        if args.device is not None and not distributed.enabled:
             env_cfg.sim.device = args.device
         if args.seed is not None:
             env_cfg.seed = args.seed
@@ -150,7 +162,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             output_path=args.output_path,
             use_recorders=True,
             frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
-            output_prefix=f"benchmark_runtime_{args.task}",
+            output_prefix=f"benchmark_runtime{'_multigpu' if distributed.enabled else ''}_{args.task}",
             workflow_metadata={
                 "metadata": [
                     {"name": "task", "data": args.task},
@@ -166,6 +178,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                         "data": "aggregate" if args.aggregate_throughput else "per_step_mean",
                     },
                     {"name": "presets", "data": ",".join(cfg.presets)},
+                    {"name": "world_size", "data": distributed.world_size},
                 ]
             },
         )
@@ -184,6 +197,11 @@ def run(argv: list[str]) -> BenchmarkResult:
                 step_times_s = stepping.run_runtime_loop(env, args.num_steps, reset=False)
 
             first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]
+
+            # Every rank steps its own independent workload so the ranks contend for host and
+            # device resources, but only rank 0 reports.
+            if not distributed.is_main:
+                return None
 
             benchmark.update_manual_recorders()
 
@@ -237,6 +255,11 @@ def run(argv: list[str]) -> BenchmarkResult:
                 hardware=hardware,
                 runtime=runtime,
                 resources=resources,
+                # Ranks step independently rather than in lockstep, so rank 0's throughput is
+                # reported as measured instead of being multiplied out to a global rate.
+                extra=distributed.bundle_metadata(workload_scope="rank0", num_envs_per_rank=num_envs)
+                if distributed.enabled
+                else None,
             )
 
             benchmark.attach_bundle(bundle)
