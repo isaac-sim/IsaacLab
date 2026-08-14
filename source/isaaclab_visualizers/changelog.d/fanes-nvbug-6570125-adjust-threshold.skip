@@ -1,0 +1,3 @@
+Test-only change: raises the per-channel difference threshold in the visualizer integration
+test helper for the Kit RTX pause checks, and restores fresh renders in the paused tiled
+capture (NVBUG 6570125 work-around). No user-facing behavior change.
