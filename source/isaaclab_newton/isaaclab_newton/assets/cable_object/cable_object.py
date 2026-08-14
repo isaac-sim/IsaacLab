@@ -257,9 +257,7 @@ class CableObject(BaseCableObject):
                     f" curve prim '{curve_path}' (env {env_idx})."
                 )
             if set(segments) != set(range(self.num_segments)):
-                raise RuntimeError(
-                    f"CableObject '{curve_path}' requires {self.num_segments} ordered segment shapes."
-                )
+                raise RuntimeError(f"CableObject '{curve_path}' requires {self.num_segments} ordered segment shapes.")
             instance_curve_paths.append(curve_path)
             instance_segment_shape_ids.append([segments[segment] for segment in range(self.num_segments)])
 

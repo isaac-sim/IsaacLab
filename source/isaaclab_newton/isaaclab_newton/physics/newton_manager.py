@@ -1685,9 +1685,7 @@ class NewtonManager(PhysicsManager):
             entry: Cable curve paths and Newton segment shape ids for every environment instance.
         """
         if entry.segments_per_cable < 1:
-            raise RuntimeError(
-                f"Cable registry entry '{entry.curve_prim_path}' requires at least one segment."
-            )
+            raise RuntimeError(f"Cable registry entry '{entry.curve_prim_path}' requires at least one segment.")
         if len(entry.instance_curve_paths) != len(entry.instance_segment_shape_ids):
             raise RuntimeError(
                 f"Cable registry entry '{entry.curve_prim_path}' has"
@@ -1704,8 +1702,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cable_registry = [
             existing
             for existing in cls._cable_registry
-            if existing.curve_prim_path != entry.curve_prim_path
-            and new_paths.isdisjoint(existing.instance_curve_paths)
+            if existing.curve_prim_path != entry.curve_prim_path and new_paths.isdisjoint(existing.instance_curve_paths)
         ]
         NewtonManager._cable_registry.append(entry)
         if cls._usdrt_stage is not None:
