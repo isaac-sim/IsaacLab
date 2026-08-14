@@ -23,12 +23,9 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from . import actuator_kernels
+from ._compat import _resolve_limit_aliases
 from .actuator_base import ActuatorBase
-from .actuator_base_cfg import (
-    ActuatorBaseCfg,
-    _is_implicit_actuator_cfg,
-    _resolve_limit_aliases,
-)
+from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from .actuator_control import ActuatorControl, ActuatorJointProperties
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 

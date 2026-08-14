@@ -25,10 +25,10 @@ from typing import Any
 
 from pxr import Sdf, Usd, UsdPhysics
 
+from isaaclab.actuators._compat import _resolve_limit_aliases
 from isaaclab.actuators.actuator_base_cfg import (
     _is_implicit_actuator_cfg,
     _resolve_actuator_class,
-    _resolve_limit_aliases,
     _resolve_limit_values,
 )
 from isaaclab.utils.string import resolve_matching_names

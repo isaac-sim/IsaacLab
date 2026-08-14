@@ -15,21 +15,10 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
-from .actuator_base_cfg import _resolve_limit_aliases
+from ._compat import _effort_limits_equal, _resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
-
-
-def _effort_limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:
-    """Return whether two constructor effort-limit arguments are equivalent."""
-    if isinstance(first, torch.Tensor):
-        if isinstance(second, torch.Tensor):
-            return first.shape == second.shape and torch.equal(first, second)
-        return bool(torch.all(first == float(second)).item())
-    if isinstance(second, torch.Tensor):
-        return bool(torch.all(second == float(first)).item())
-    return float(first) == float(second)
 
 
 class ActuatorBase(ABC):

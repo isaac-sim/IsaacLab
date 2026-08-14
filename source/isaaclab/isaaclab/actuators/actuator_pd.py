@@ -16,8 +16,8 @@ import torch
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
-from .actuator_base import ActuatorBase, _effort_limits_equal
-from .actuator_base_cfg import _resolve_limit_aliases
+from ._compat import _effort_limits_equal, _resolve_limit_aliases
+from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
