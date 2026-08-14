@@ -31,7 +31,7 @@ from .actuator_base_cfg import (
     _resolve_limit_values,
 )
 from .actuator_control import ActuatorControl, ActuatorJointProperties
-from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
+from .actuator_pd import IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
 
@@ -653,23 +653,13 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._applied_effort,
             self._soft_joint_vel_limits,
         ]
-        stable_launch = type(actuator) in (IdealPDActuator, DCMotor)
-        if stable_launch:
-            self._launch_cache.launch(
-                ("scatter_outputs", id(actuator)),
-                actuator_kernels.scatter_explicit_actuator_outputs,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=inputs,
-                outputs=outputs,
-            )
-        else:
-            wp.launch(
-                actuator_kernels.scatter_explicit_actuator_outputs,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=inputs,
-                outputs=outputs,
-                device=self.device,
-            )
+        wp.launch(
+            actuator_kernels.scatter_explicit_actuator_outputs,
+            dim=(self.num_instances, joint_indices.shape[0]),
+            inputs=inputs,
+            outputs=outputs,
+            device=self.device,
+        )
 
     def _write_native_actuator_gain(
         self,
