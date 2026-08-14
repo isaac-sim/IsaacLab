@@ -457,6 +457,9 @@ def _check_random_actions(
             # the scene config with the preset's default num_envs.
             if num_envs is not None:
                 env_cfg.scene.num_envs = num_envs
+        reset_event = getattr(env_cfg.events, "reset_strategies", None)
+        if reset_event is not None and "state_table_size" in reset_event.params:
+            reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:

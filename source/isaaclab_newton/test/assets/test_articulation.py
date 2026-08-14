@@ -2875,10 +2875,6 @@ def test_setting_effort_limit_implicit(
         device=device,
     )
     # Play sim
-    if effort_limit_sim is not None and effort_limit is not None:
-        with pytest.raises(ValueError):
-            sim.reset()
-        return
     sim.reset()
 
     # obtain the physx effort limits
@@ -2886,24 +2882,17 @@ def test_setting_effort_limit_implicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
 
-    # check that the two are equivalent
-    torch.testing.assert_close(
-        articulation.actuators["joint"].effort_limit_sim,
-        articulation.actuators["joint"].effort_limit,
-    )
+    # The solver clamp reaches the physics engine; the rated limit remains on the actuator.
     torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, newton_effort_limit)
 
-    # decide the limit based on what is set
-    if effort_limit_sim is None and effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
-    elif effort_limit_sim is not None and effort_limit is None:
-        limit = effort_limit_sim
-    elif effort_limit_sim is None and effort_limit is not None:
-        limit = effort_limit
-
-    # check that the max force is what we set
-    expected_effort_limit = torch.full_like(newton_effort_limit, limit)
-    torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
+    solver_limit = effort_limit_sim if effort_limit_sim is not None else effort_limit
+    if solver_limit is None:
+        solver_limit = articulation_cfg.spawn.joint_drive_props.max_force
+    rated_limit = effort_limit if effort_limit is not None else solver_limit
+    torch.testing.assert_close(newton_effort_limit, torch.full_like(newton_effort_limit, solver_limit))
+    torch.testing.assert_close(
+        articulation.actuators["joint"].effort_limit, torch.full_like(newton_effort_limit, rated_limit)
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
