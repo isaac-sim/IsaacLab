@@ -13,11 +13,10 @@ that live at the test-suite root.
 import os
 import sys
 
+import pytest
 import warp as wp
 
 wp.config.enable_backward = False
-
-import pytest  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
