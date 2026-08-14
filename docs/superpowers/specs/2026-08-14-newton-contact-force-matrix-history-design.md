@@ -62,7 +62,6 @@ Focused tests will verify:
 - reset clears current and historical values only for selected environments;
 - sensors without filtered counterparts continue to return `None`.
 
-The regression test will be run before the production change to demonstrate the
-current missing-history failure, then after the change to demonstrate the fix.
-The relevant Newton sensor tests and repository pre-commit hooks will provide
-final verification.
+Regression coverage will be added after the production change, following the
+task direction to avoid test-driven development. The relevant Newton sensor
+tests and repository pre-commit hooks will provide final verification.
