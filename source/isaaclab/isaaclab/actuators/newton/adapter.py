@@ -124,7 +124,7 @@ class NewtonActuatorAdapter:
             sim_control: The ``sim_control`` object that will be passed
                 to :meth:`step` for this adapter's lifetime. Newton's
                 ``Control`` on the Newton backend, an
-                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+                :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
         """
         sim_control.joint_computed_f = self._computed_effort
@@ -135,11 +135,11 @@ class NewtonActuatorAdapter:
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
                 Newton ``State`` on the Newton backend,
-                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+                :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
             sim_control: Object with ``joint_f``, ``joint_target_q``, etc.
                 Newton ``Control`` on the Newton backend,
-                :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+                :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
             dt: Physics timestep [s].
         """

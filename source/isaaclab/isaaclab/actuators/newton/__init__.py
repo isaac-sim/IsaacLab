@@ -7,15 +7,15 @@
 
 Public API surface:
 
-* :class:`~isaaclab_newton.actuators.adapter.NewtonActuatorAdapter` —
+* :class:`~isaaclab.actuators.newton.adapter.NewtonActuatorAdapter` —
   the actuator adapter used by Newton and the host adapters. Newton
   constructs it directly from ``model.actuators``; PhysX and OVPhysX use
   :meth:`~NewtonActuatorAdapter.from_usd` to build actuators from authored
   ``NewtonActuator`` USD prims.
-* :class:`~isaaclab_newton.actuators.physx_wrapper.PhysxActuatorWrapper`
+* :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
   — flat-array wrapper that satisfies the Newton actuator
   ``sim_state`` / ``sim_control`` protocol on PhysX and OVPhysX.
-* :func:`~isaaclab_newton.actuators.kernels.build_implicit_dof_mask` —
+* :func:`~isaaclab.actuators.newton.kernels.build_implicit_dof_mask` —
   builds the per-DOF implicit-actuator mask consumed by the in-graph
   post-actuator kernel.
 

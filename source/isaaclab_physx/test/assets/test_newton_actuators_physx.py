@@ -64,8 +64,9 @@ _ANYMAL_C_PHYSX_JOINT_NAMES = (
 
 def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
     """Leave solver gains untouched until collection construction resolves actuator defaults."""
-    from isaaclab_newton.actuators import NewtonActuatorAdapter, PhysxActuatorWrapper
     from isaaclab_physx.assets.articulation import actuator_control
+
+    from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrapper
 
     joint_buffer = SimpleNamespace(warp=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
     collection = SimpleNamespace(

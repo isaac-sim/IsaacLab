@@ -32,13 +32,13 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators.kernels import sync_torque_telemetry
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators.newton.kernels import sync_torque_telemetry
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
@@ -1566,7 +1566,7 @@ def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> Non
 
 def test_newton_actuator_gain_read_follows_requested_public_joint_order() -> None:
     """Project Newton actuator gains and coverage into public joint order."""
-    from isaaclab_newton.actuators.adapter import read_newton_actuator_gain
+    from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
 
     controller = types.SimpleNamespace(
         kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
@@ -1587,7 +1587,7 @@ def test_newton_actuator_gain_read_follows_requested_public_joint_order() -> Non
 
 def test_newton_actuator_gain_read_rejects_incomplete_joint_permutation() -> None:
     """Reject malformed gain-projection ordering maps with an actionable error."""
-    from isaaclab_newton.actuators.adapter import read_newton_actuator_gain
+    from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
 
     with pytest.raises(
         ValueError,

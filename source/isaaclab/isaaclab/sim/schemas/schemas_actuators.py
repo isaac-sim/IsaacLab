@@ -8,7 +8,7 @@
 :func:`define_actuator_properties` translates IsaacLab actuator configs
 into ``NewtonActuator`` USD prims. Both the Newton ``ModelBuilder.add_usd``
 path and the PhysX adapter's
-:meth:`~isaaclab_newton.actuators.adapter.NewtonActuatorAdapter.from_usd`
+:meth:`~isaaclab.actuators.newton.adapter.NewtonActuatorAdapter.from_usd`
 read the same authored prims, ensuring both backends construct
 :class:`~newton.actuators.Actuator` instances with matching parameters.
 

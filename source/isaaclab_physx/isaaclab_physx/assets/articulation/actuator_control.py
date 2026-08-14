@@ -58,18 +58,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         use_newton_actuators = getattr(articulation._sim_cfg, "use_newton_actuators", False)
         if not use_newton_actuators:
             return set()
-        try:
-            from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_newton", "isaaclab_newton.actuators"}:
-                raise
-            logger.warning(
-                "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available."
-                " Newton-native actuators will be disabled and the simulation will fall back to the"
-                " Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
-            )
-            return set()
-
+        from isaaclab.actuators.newton.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
         from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs  # noqa: PLC0415
 
         _validate_newton_native_actuator_cfgs(actuator_cfgs)

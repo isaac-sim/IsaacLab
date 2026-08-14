@@ -50,12 +50,12 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         if not use_newton_actuators:
             return set()
         try:
-            from isaaclab_newton.actuators.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
+            from isaaclab.actuators.newton.host_runtime import _HostActuatorRuntime  # noqa: PLC0415
         except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_newton", "isaaclab_newton.actuators"}:
+            if exc.name not in {"isaaclab_newton", "isaaclab.actuators.newton"}:
                 raise
             logger.warning(
-                "use_newton_actuators is enabled but 'isaaclab_newton.actuators' is not available. "
+                "use_newton_actuators is enabled but 'isaaclab.actuators.newton' is not available. "
                 "Newton-native actuators will be disabled and the simulation will fall back to the "
                 "Isaac Lab actuator path. Install the isaaclab_newton extension to enable the fast path."
             )

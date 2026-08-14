@@ -10,6 +10,8 @@ Added
 * Added ``actuator_effort_limit`` as the explicit actuator-model clipping
   limit, alongside the canonical ``joint_effort_limit`` and
   ``joint_velocity_limit`` joint-property overrides.
+* Added ``isaaclab.actuators.newton`` hosting the Newton actuator adapter,
+  host runtime, and kernels shared by every backend's native execution path.
 
 Deprecated
 ^^^^^^^^^^

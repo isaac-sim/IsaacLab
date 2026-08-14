@@ -11,12 +11,12 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators import NewtonActuatorAdapter
 from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, ControllerPD
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
 from isaaclab.utils.configclass import configclass
 
@@ -43,7 +43,7 @@ class MisleadingImplicitActuatorDCMotor(DCMotor):
 
 def test_live_gain_projection_follows_controller_values_in_public_order():
     """Read current controller gains with the articulation env stride and public ordering."""
-    from isaaclab_newton.actuators.adapter import read_newton_actuator_gain
+    from isaaclab.actuators.newton.adapter import read_newton_actuator_gain
 
     controller = SimpleNamespace(kp=wp.array((10.0, 0.0, 11.0, 31.0), dtype=wp.float32, device="cpu"))
     actuator = SimpleNamespace(
