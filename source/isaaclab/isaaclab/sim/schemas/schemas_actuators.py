@@ -26,11 +26,7 @@ from typing import Any
 from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.actuators._compat import _resolve_limit_aliases
-from isaaclab.actuators.actuator_base_cfg import (
-    _is_implicit_actuator_cfg,
-    _resolve_actuator_class,
-    _resolve_limit_values,
-)
+from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg, _resolve_actuator_class
 from isaaclab.utils.string import resolve_matching_names
 
 
@@ -244,7 +240,7 @@ def _author_actuator_prims(
                     if authored_effort_limit is not None:
                         effort_map[joint_name] = authored_effort_limit
             else:
-                effort_map = dict(zip(joint_names, _resolve_limit_values(configured_effort_limit, joint_names)))
+                effort_map = resolve_per_dof(configured_effort_limit, joint_names)
 
         vel_limit_map = resolve_per_dof(getattr(cfg, "velocity_limit", None), joint_names) if is_dc_motor else {}
         sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}

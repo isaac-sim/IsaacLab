@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.string import resolve_matching_names_values, string_to_callable
+from isaaclab.utils.string import string_to_callable
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
@@ -30,17 +30,6 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
     from .actuator_pd import ImplicitActuator  # noqa: PLC0415
 
     return issubclass(_resolve_actuator_class(cfg.class_type), ImplicitActuator)
-
-
-def _resolve_limit_values(value: dict[str, float | int] | float | int, joint_names: list[str]) -> tuple[float, ...]:
-    """Resolve a scalar or regex limit into group joint order."""
-    if isinstance(value, (float, int)):
-        return (float(value),) * len(joint_names)
-    joint_ids, _, values = resolve_matching_names_values(value, joint_names)
-    resolved_values = [0.0] * len(joint_names)
-    for joint_id, resolved_value in zip(joint_ids, values, strict=True):
-        resolved_values[joint_id] = float(resolved_value)
-    return tuple(resolved_values)
 
 
 @configclass
