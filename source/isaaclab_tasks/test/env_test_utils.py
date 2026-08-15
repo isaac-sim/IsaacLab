@@ -6,6 +6,7 @@
 """Shared test utilities for Isaac Lab environments."""
 
 import os
+from collections.abc import Collection
 
 import gymnasium as gym
 import pytest
@@ -49,6 +50,7 @@ def setup_environment(
     multi_agent: bool | None = None,
     physics_preset_name: str | None = None,
     tier: str | None = None,
+    exclude_task_names: Collection[str] = (),
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -63,6 +65,7 @@ def setup_environment(
             - "core": include only core environments (registered under ``isaaclab_tasks.core``).
             - "contrib": include only contributed environments (registered under ``isaaclab_tasks.contrib``).
             - None: include all environments regardless of tier.
+        exclude_task_names: Registered task IDs to omit from the result.
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -79,6 +82,9 @@ def setup_environment(
 
         # apply core/contrib tier filter
         if tier is not None and _task_tier(task_spec) != tier:
+            continue
+
+        if task_spec.id in exclude_task_names:
             continue
 
         # apply multi agent filter

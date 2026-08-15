@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+16.3.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Franka soft-body task configurations to use the core
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` and
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Changed the Ant, Humanoid, and Velocity task families to use
+  Newton MJWarp by default. Pass an explicit physics preset to retain Isaac Sim PhysX.
+* **Breaking:** Changed the Cabinet and Lift task families to use Newton MJWarp
+  by default. Pass an explicit physics preset to retain Isaac Sim PhysX.
+
+Fixed
+^^^^^
+
+* Fixed ``IsaacContrib-Factory-Franka`` startup with segment-safe environment prim-path expressions.
+
+
 16.2.0 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~~
 
