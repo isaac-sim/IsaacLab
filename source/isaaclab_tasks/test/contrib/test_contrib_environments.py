@@ -37,6 +37,9 @@ _SKIPPED_TASK_SUBSTRINGS = {
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
 }
+_COVERED_TASKS = [
+    "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
+]
 
 
 def _skip_reason(task_name: str) -> str | None:
@@ -49,7 +52,11 @@ def _skip_reason(task_name: str) -> str | None:
 def _contrib_environment_params() -> list:
     """Return each contributed environment with its documented test marks."""
     params = []
-    for task_param in setup_environment(multi_agent=False, tier="contrib"):
+    for task_param in setup_environment(
+        multi_agent=False,
+        tier="contrib",
+        exclude_task_names=_COVERED_TASKS,
+    ):
         task_name = getattr(task_param, "values", (task_param,))[0]
         marks = getattr(task_param, "marks", ())
         skip_reason = _skip_reason(task_name)

@@ -556,6 +556,12 @@ time. To record demonstrations from this task, run ``scripts/tools/record_demos.
 ``--task`` and the plugin running in its second terminal -- see `Data Collection in Sim`_ for the
 full recording workflow and runtime troubleshooting.
 
+.. note::
+
+   After stacking the cube, open the gripper **all the way** before ending the episode. The task's
+   success check requires the gripper to be fully open -- a partially open gripper holding position
+   on top of the stack will not register as success, even if the cube is correctly placed.
+
 
 .. _isaac-teleop-retargeting:
 
