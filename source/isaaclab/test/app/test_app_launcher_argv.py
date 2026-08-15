@@ -78,4 +78,4 @@ def test_devices_selected_by_cuda_index(launcher_args, expected_renderer_args, m
     renderer_args = [arg for arg in kit_args if arg.startswith("--/renderer/multiGpu/activeCudaGpus=")]
     assert renderer_args == expected_renderer_args
     assert args["physics_gpu"] == 1
-    assert args.get("active_gpu") is None
+    assert "active_gpu" not in args

@@ -699,7 +699,6 @@ class AppLauncher:
     _SIM_APP_CFG_TYPES: dict[str, list[type]] = {
         "headless": [bool],
         "hide_ui": [bool, type(None)],
-        "active_gpu": [int, type(None)],
         "physics_gpu": [int],
         "multi_gpu": [bool],
         "sync_loads": [bool],
