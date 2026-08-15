@@ -25,6 +25,8 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
+    NewtonVBDManager,
+    VBDSolverCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
@@ -40,8 +42,6 @@ from isaaclab_contrib.coupling import (
     NewtonCouplerManager,
     coupler,
 )
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
-from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 @dataclass
@@ -168,7 +168,6 @@ def test_config_validation_requires_newton_solver_config():
     ("solver_cfg", "entry_kwargs", "error_type", "match"),
     [
         (CouplerProxyCfg(), {}, ValueError, "nested CouplerCfg"),
-        (VBDSolverCfg(model_cfg=NewtonModelCfg()), {}, ValueError, "model parameters are global"),
         (KaminoPADMMSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
         (
             MPMSolverCfg(project_outside_colliders=True),
