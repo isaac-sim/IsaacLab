@@ -292,10 +292,40 @@ def _make_sensor_data_type_params(
     ]
 
 
+def _make_sensor_data_type_batch_param(
+    physics_backend: str,
+    renderer: str,
+    sensor_data_types: tuple[str, ...],
+    *,
+    flaky: bool = True,
+    renderer_label: str | None = None,
+) -> pytest.param:
+    """Create one rendering case that captures all compatible sensor outputs together."""
+    label = renderer_label or renderer
+    marks = _FLAKY_MARK if flaky else ()
+    return pytest.param(
+        physics_backend,
+        f"{renderer}_renderer",
+        sensor_data_types,
+        id=f"{physics_backend}-{label}-all",
+        marks=marks,
+    )
+
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
     *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
     *_make_sensor_data_type_params(
+        "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+    ),
+]
+
+PHYSICS_RENDERER_AOV_BATCHES = [
+    _make_sensor_data_type_batch_param("physx", "isaacsim_rtx", _DEFAULT_SENSOR_DATA_TYPES),
+    _make_sensor_data_type_batch_param(
+        "newton", "isaacsim_rtx", tuple(data_type for data_type in _DEFAULT_SENSOR_DATA_TYPES if data_type != "motion_vectors")
+    ),
+    _make_sensor_data_type_batch_param(
         "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
 ]
@@ -627,7 +657,7 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
-def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: str, data_type: str) -> None:
+def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: str, data_types: tuple[str, ...]) -> None:
     """Trade PhysX solver performance for determinism/accuracy when testing ``motion_vectors``.
 
     PhysX's default TGS solver settings produce noisy per-step velocities (see the "TGS solver ... may
@@ -643,7 +673,7 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
         physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
         data_type: The camera data type under test.
     """
-    if physics_backend not in ("physx", "ovphysx") or data_type != "motion_vectors":
+    if physics_backend not in ("physx", "ovphysx") or "motion_vectors" not in data_types:
         return
 
     env_cfg.sim.physics.enable_enhanced_determinism = True
@@ -1292,7 +1322,7 @@ def maybe_validate_instance_segmentation(
     )
 
 
-def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
+def maybe_step_env_for_motion(env: Any, data_types: tuple[str, ...], num_steps: int = 2, action_value: float = 0.0) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
     Motion vectors compare the current frame's transforms against the previous frame's; the first frame
@@ -1308,7 +1338,7 @@ def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, acti
             ``0.0`` (motion then comes only from physics already in flight, e.g. gravity/initial velocity).
             Pass a non-zero value to additionally induce actuated motion (e.g. cartpole cart translation).
     """
-    if data_type != "motion_vectors":
+    if "motion_vectors" not in data_types:
         return
 
     action = torch.full(env.action_space.shape, action_value, device=env.device)
@@ -1464,76 +1494,30 @@ def rendering_test_shadow_hand_yellow_bg(
 def rendering_test_cartpole(
     physics_backend: str,
     renderer: str,
-    data_type: str,
+    data_types: tuple[str, ...],
     comparison_scores: list[dict],
     *,
     compare_golden: bool = False,
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
-
-    from isaaclab.utils.configclass import configclass
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
     from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
-    @configclass
-    class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
-        distance_to_camera = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
-        distance_to_image_plane = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-            data_types=["distance_to_image_plane"]
-        )
-        normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
-        instance_segmentation = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["instance_segmentation"])
-        instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
-            data_types=["instance_id_segmentation_fast"]
-        )
-        motion_vectors = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
-
-    @configclass
-    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
-        robot_cfg = CARTPOLE_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
-        )
-
-    @configclass
-    class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
-        # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
-        # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
-        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-
-    env_cfg = _CartpoleCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(
-        env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
+        CartpoleCameraEnvCfg(), [f"presets={_physics_preset_name(physics_backend)},{renderer}"]
+    )
+    env_cfg.tiled_camera.data_types = list(data_types)
+    env_cfg.robot_cfg = CARTPOLE_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot", spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")])
     )
 
     env_cfg.scene.num_envs = 4
     if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
-    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_types)
 
     env = None
 
@@ -1541,7 +1525,7 @@ def rendering_test_cartpole(
         env = CartpoleCameraEnv(env_cfg)
         # Nudge the cart with a small constant force so motion vectors also capture cart translation,
         # not just pole dynamics already in flight from the randomized reset.
-        maybe_step_env_for_motion(env, data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, data_types, action_value=0.5)
         camera_outputs = env._tiled_camera.data.output
         if renderer == "ovrtx_renderer":
             # The first output access creates the selected OVRTX render-variable mapping. Give
@@ -1560,12 +1544,10 @@ def rendering_test_cartpole(
             "cartpole",
             physics_backend,
             renderer,
-            data_type,
-            compare_golden=compare_golden and data_type == "rgb",
+            "rgb",
+            compare_golden=compare_golden,
         )
         max_different_pixels_percentage = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"]
-        if renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
-            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
             physics_backend,
@@ -1579,7 +1561,7 @@ def rendering_test_cartpole(
         # and empty space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this
         # same idToLabels mapping in camera.data.info.
         maybe_validate_semantic_segmentation(
-            data_type,
+            "semantic_segmentation",
             env._tiled_camera.data.info,
             expected_id_to_labels={
                 (0, 0, 0, 0): {"class": "BACKGROUND"},
@@ -1593,7 +1575,7 @@ def rendering_test_cartpole(
         # Instance segmentation yields one instance per env's ``class:cartpole`` robot (num_envs=4). The colorized
         # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
         maybe_validate_instance_segmentation(
-            data_type,
+            "instance_segmentation",
             env._tiled_camera.data,
             expected_prim_paths={f"/World/envs/env_{i}/Robot" for i in range(4)},
             expected_semantics=[{"class": "cartpole"} for _ in range(4)],
