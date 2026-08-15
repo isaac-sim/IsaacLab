@@ -75,6 +75,13 @@ environments to remain spatially separated; overlapping partition bounds can mak
 content leak into another environment or disappear. Set the field to ``False`` to
 prioritize partition isolation and show only the selected environment in the Kit viewport.
 
+The RTX spectator view requires Isaac Sim 6.1 or newer. On older releases the renderer
+ignores ``rtx.scenePartitioning.showAllPartitionsByDefault``, and an unpartitioned
+spectator camera matches no partition and renders an empty viewport. Isaac Lab therefore
+skips scene-partition authoring altogether on those releases and logs a warning, leaving
+every environment visible. Set ``show_all_partitions_by_default=False`` to keep partition
+isolation there, with the Kit viewport bound to a single environment.
+
 Prims outside the environment hierarchies remain in the shared background partition.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
