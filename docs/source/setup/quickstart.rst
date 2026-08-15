@@ -25,9 +25,7 @@ Train Cartpole with the Newton MJWarp backend and open the Newton visualizer:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct --num_envs 16 --max_iterations 10 \
-      physics=newton_mjwarp --viz newton
+   uv run isaaclab train --task Isaac-Cartpole --num_envs 16 --max_iterations 10 --viz newton
 
 Training outputs, including checkpoints, are written under ``logs/``. Use
 ``--help`` after any command to see its arguments:
@@ -44,8 +42,7 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 
    .. code-block:: bash
 
-      uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
-         --task Isaac-Cartpole-Direct physics=ovphysx
+      uv run --extra ovphysx isaaclab train --task Isaac-Cartpole physics=ovphysx
 
    Extras install capabilities; task selectors choose how to use them. For example,
    ``--extra ovphysx`` makes the OV PhysX integration available, while
@@ -59,9 +56,10 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 Choose an RL library
 --------------------
 
-Pass ``--rl_library`` to ``train`` and ``play`` to choose the learning framework.
-Start with ``rsl_rl``: it is included in the default ``uv run`` environment and is
-a good choice for most GPU-based training.
+Pass ``--rl_library`` to ``train`` and ``play`` to choose the learning framework. When not specified,
+isaaclab will attempt to use the default specified in the task registry. Most core tasks in Isaac Lab support
+``rsl_rl`` by default. It is installed by default in the ``uv run`` environment and is a good choice for most
+GPU-based training.
 
 .. list-table::
    :widths: 18 35 47
@@ -91,7 +89,7 @@ The libraries support different algorithms, workflows, and tasks. See
 :doc:`/source/overview/reinforcement-learning/rl_frameworks` for the full comparison.
 
 
-The four commands to know
+The five commands to know
 -------------------------
 
 All task commands accept ``--task <task_name>``. Start by listing the tasks
@@ -110,16 +108,19 @@ available in your installation:
      - Example
    * - ``train``
      - Train a policy with an RL library.
-     - ``uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct``
+     - ``uv run isaaclab train --task Isaac-Cartpole``
    * - ``play``
      - Run a trained policy from a checkpoint.
-     - ``uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --checkpoint latest``
+     - ``uv run isaaclab play --task Isaac-Cartpole --checkpoint latest``
    * - ``zero_agent``
      - Check a task using zero actions; useful for confirming that it launches.
-     - ``uv run isaaclab zero_agent --task Isaac-Cartpole-Direct --viz newton``
+     - ``uv run isaaclab zero_agent --task Isaac-Cartpole --viz newton``
    * - ``random_agent``
      - Check a task using random actions; useful for a quick interaction smoke test.
-     - ``uv run isaaclab random_agent --task Isaac-Cartpole-Direct --viz newton``
+     - ``uv run isaaclab random_agent --task Isaac-Cartpole --viz newton``
+   * - ``benchmark``
+     - Benchmark a task.
+     - ``uv run isaaclab benchmark runtime --task Isaac-Cartpole``
 
 All supported RL libraries select a checkpoint with ``--checkpoint``. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 for the complete training and playback reference.
@@ -128,14 +129,13 @@ for the complete training and playback reference.
 Choose a backend
 ----------------
 
-Add ``physics=<backend>`` to a task command to select its physics backend. For
-camera tasks, you can also choose a renderer backend with
-``renderer=<backend>``. The backends available to a task depend on its
-configuration; use the task help to see the supported selectors:
+Isaac Lab supports multiple physics and rendering backends. Add ``physics=<backend>`` to a task command to select
+its physics backend. For camera tasks, you can also choose a renderer backend with ``renderer=<backend>``.
+The backends available to a task depend on its configuration; use the task help to see the supported selectors:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole-Direct --help
+   uv run isaaclab train --task Isaac-Cartpole --help
 
 .. list-table::
    :widths: 28 48 24
@@ -173,9 +173,7 @@ Add task-specific options with ``presets=<name>``; for example:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Camera-Direct \
-      physics=newton_mjwarp renderer=newton_renderer presets=rgb
+   uv run isaaclab train --task Isaac-Cartpole-Camera physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 See :doc:`/source/concepts/backends_and_presets` for backend and preset selection,
 and :doc:`/source/features/hydra` for arbitrary configuration overrides.
@@ -185,7 +183,7 @@ Visualize a task
 ----------------
 
 Use ``--viz`` (or ``--visualizer``) to select one or more visualizers during training or playback. Pass a
-comma-separated list without spaces, such as ``--viz newton,rerun``.
+comma-separated list without spaces, such as ``--viz newton,rerun``, for multiple visualizers.
 
 .. list-table::
    :widths: 18 58 24
@@ -201,7 +199,7 @@ comma-separated list without spaces, such as ``--viz newton,rerun``.
      - Stream the task to the Rerun visualizer.
      - ``rerun``
    * - ``--viz viser``
-     - Open the web-based Viser visualizer.
+     - Open the web-based Viser visualizer, useful for remote connections.
      - ``viser``
    * - ``--viz kit``
      - Open the Kit visualizer when it is available in your environment.
@@ -214,7 +212,7 @@ For example, view the same task in both the Newton and Rerun visualizers:
 
 .. code-block:: bash
 
-   uv run --extra rerun isaaclab random_agent --task Isaac-Cartpole-Direct \
+   uv run --extra rerun isaaclab random_agent --task Isaac-Cartpole \
       physics=newton_mjwarp --viz newton,rerun
 
 See :doc:`/source/overview/core-concepts/visualization` for visualizer setup and
@@ -228,17 +226,13 @@ Train Cartpole to create a checkpoint:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct --num_envs 16 --max_iterations 10 \
-      physics=newton_mjwarp
+   uv run isaaclab train --task Isaac-Cartpole
 
 Then replay the newest checkpoint in the Newton visualizer:
 
 .. code-block:: bash
 
-   uv run isaaclab play --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct physics=newton_mjwarp \
-      --checkpoint latest --viz newton
+   uv run isaaclab play --task Isaac-Cartpole --checkpoint latest --viz newton
 
 Choose a checkpoint with one of the following selectors:
 
@@ -254,6 +248,8 @@ Choose a checkpoint with one of the following selectors:
      - The library-specific best or final checkpoint. If none was saved separately, this resolves to ``latest``.
    * - ``--checkpoint latest``
      - The highest-step checkpoint from the newest compatible run.
+   * - ``--checkpoint pretrained``
+     - Download and load the pretrained checkpoint hosted by Isaac Lab. (only available for select tasks)
 
 
 Next steps
