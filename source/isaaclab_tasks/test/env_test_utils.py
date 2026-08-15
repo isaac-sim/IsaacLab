@@ -254,7 +254,7 @@ def _run_environments(
     """
 
     # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5 and create_stage_in_memory:
+    if create_stage_in_memory and get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
