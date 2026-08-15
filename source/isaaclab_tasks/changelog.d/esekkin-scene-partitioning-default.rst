@@ -1,5 +1,5 @@
 Fixed
 ^^^^^
 
-* Fixed reorientation and handover goal-marker instances appearing across
-  environment scene partitions.
+* Fixed reorientation, handover, and lift task-marker instances appearing
+  across environment scene partitions.

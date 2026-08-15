@@ -15,6 +15,9 @@ Changed
   ``1``. OVRTX remains always-on.
 * Changed the standard Kit experiences to initialize the all-environment
   spectator view before RTX startup.
+* Changed :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to reject
+  per-marker input arrays with differing first dimensions. Pass one entry per
+  marker in every supplied array.
 
 Fixed
 ^^^^^

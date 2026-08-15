@@ -24,6 +24,7 @@ from isaaclab.utils.version import has_kit
 
 logger = logging.getLogger(__name__)
 
+# PrimvarsAPI adds the ``primvars:`` namespace to the base name, so these resolve to the same USD attribute.
 _ENV_SCENE_PARTITION_ATTR = "primvars:omni:scenePartition"
 _INSTANCE_SCENE_PARTITION_PRIMVAR = "omni:scenePartition"
 
@@ -170,7 +171,8 @@ class KitVisualizationMarkers:
             return
 
         if not primvar:
-            # Vertex interpolation maps each token-array element to one PointInstancer instance.
+            # Vertex interpolation maps each token to one PointInstancer instance; RTX rendered the same
+            # token array with constant interpolation as unpartitioned.
             primvar = primvars_api.CreatePrimvar(
                 _INSTANCE_SCENE_PARTITION_PRIMVAR,
                 Sdf.ValueTypeNames.TokenArray,

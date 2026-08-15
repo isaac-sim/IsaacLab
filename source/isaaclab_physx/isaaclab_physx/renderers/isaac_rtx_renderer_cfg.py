@@ -93,7 +93,9 @@ class IsaacRtxRendererGlobalSettingsCfg:
 
     This provides an all-environment spectator view while partitioned cameras
     remain isolated. Environments must be spatially separated to avoid content
-    leaking between partitions.
+    leaking between partitions. Isaac Lab's standard Kit experiences initialize
+    this capability before RTX startup; custom experiences must likewise set
+    ``rtx.scenePartitioning.showAllPartitionsByDefault=true`` at launch.
     """
 
     carb_settings: dict[str, Any] | None = None

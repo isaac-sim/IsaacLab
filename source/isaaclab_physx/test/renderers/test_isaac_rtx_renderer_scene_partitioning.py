@@ -53,7 +53,10 @@ _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 
 
 def _isolation_renderer_cfg() -> IsaacRtxRendererCfg:
-    """Disable spectator world-space layout for intentionally overlapping test environments."""
+    """Disable spectator world-space layout for intentionally overlapping test environments.
+
+    The visualizer golden tests cover the default spectator configuration with spatially separated environments.
+    """
     return IsaacRtxRendererCfg(global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=False))
 
 
