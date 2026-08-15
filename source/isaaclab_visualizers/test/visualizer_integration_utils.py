@@ -1606,8 +1606,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = copy.deepcopy(AnymalDFlatEnvCfg())
-    preset_key = "newton_mjwarp" if backend_kind == "newton" else "default"
-    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
     env_cfg.scene.num_envs = (
         _ANYMAL_D_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _ANYMAL_D_INTEGRATION_NUM_ENVS
     )

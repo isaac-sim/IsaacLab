@@ -13,7 +13,8 @@ surface deformables (cloth), see the deformable demo at ``scripts/demos/deformab
 
 The deformable object API and schema define/modify functions are shared across backends, while deformable
 property and material configuration classes are backend-specific. PhysX simulates soft bodies using the Finite
-Element Method (FEM); the Newton experimental backend uses VBD-based deformable support from
+Element Method (FEM); the Newton experimental backend uses the core VBD solver from
+:mod:`isaaclab_newton.physics` with the deformable object integration from
 :mod:`isaaclab_contrib.deformable`.
 The volume deformable comprises of two tetrahedral meshes -- a simulation mesh and a collision mesh. The simulation
 mesh is used to simulate the deformations of the soft body, while the collision mesh is used to detect collisions
