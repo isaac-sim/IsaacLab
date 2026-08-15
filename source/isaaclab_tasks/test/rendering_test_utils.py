@@ -347,6 +347,30 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = make_xfail_rendering_params(
     },
 )
 
+KITLESS_PHYSICS_RENDERER_AOV_BATCHES = [
+    _make_sensor_data_type_batch_param("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
+    _make_sensor_data_type_batch_param(
+        "newton",
+        "ovrtx",
+        tuple(data_type for data_type in _OVRTX_DATA_TYPES if data_type not in (*_OVRTX_TEXTURE_READINESS_DATA_TYPES, "motion_vectors")),
+    ),
+    pytest.param(
+        "newton",
+        "ovrtx_renderer",
+        _OVRTX_TEXTURE_READINESS_DATA_TYPES,
+        id="newton-ovrtx-texture-aovs",
+        marks=pytest.mark.xfail(reason=_OVRTX_TEXTURE_READINESS_XFAIL_REASON, strict=False),
+    ),
+    _make_sensor_data_type_batch_param("ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"),
+    _make_sensor_data_type_batch_param(
+        "newton",
+        "newton",
+        tuple(data_type for data_type in _NEWTON_WARP_DATA_TYPES if data_type != "motion_vectors"),
+        flaky=False,
+        renderer_label="newton_warp",
+    ),
+]
+
 
 def make_kitless_rendering_params_lift(*, include_texture_readiness_xfail: bool = False) -> list[pytest.param]:
     """Create kitless Lift parameters with known failures isolated.
