@@ -49,7 +49,6 @@ class HumanoidPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default: PhysxCfg = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=80,
@@ -62,6 +61,7 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    default: NewtonCfg = newton_mjwarp
 
 
 ##
@@ -147,8 +147,8 @@ class ObservationsCfg:
 class HumanoidObservationsCfg(PresetCfg):
     physx: ObservationsCfg = ObservationsCfg()
     isaacsim_physx: ObservationsCfg = physx
-    default: ObservationsCfg = isaacsim_physx
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
+    default: ObservationsCfg = newton_mjwarp
 
 
 @configclass

@@ -5,24 +5,22 @@ VBD Solver
 
 Vertex Block Descent (VBD) is a Newton solver for cloth and soft-body
 simulation. In Isaac Lab, VBD is enabled by selecting a
-:class:`~isaaclab_newton.physics.NewtonCfg` whose ``solver_cfg`` is provided by
-:mod:`isaaclab_contrib.deformable`.
+:class:`~isaaclab_newton.physics.NewtonCfg` whose ``solver_cfg`` is a
+:class:`~isaaclab_newton.physics.VBDSolverCfg`.
 
-VBD support is experimental. The solver managers, configuration fields, and
-recommended tuning values may change while Newton deformable support is under
-active development. A task that works with PhysX or with Newton's MuJoCo-Warp
-solver may still need deformable assets, materials, contacts, and coupling tuned
-before it works well with VBD.
+A task that works with PhysX or with Newton's MuJoCo-Warp solver may still need
+deformable assets, materials, contacts, and coupling tuned before it works well
+with VBD.
 
 VBD is usually exposed through a task-specific physics preset rather than a
 general ``newton_vbd`` preset. Deformable-only scenes can use
-:class:`~isaaclab_contrib.deformable.VBDSolverCfg` directly. Robot or
-rigid-body scenes can use either:
+:class:`~isaaclab_newton.physics.VBDSolverCfg` directly. For robot or
+rigid-body scenes, the named-entry coupling options are:
 
 * :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
   used by the core Franka tasks.
-* :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` for the
-  opt-in shared-model example with custom substep ordering.
+* :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
+  coupling between named solver entries.
 
 Start from a Supported Deformable Task
 --------------------------------------
@@ -42,8 +40,7 @@ Start from a Supported Deformable Task
 
       ./isaaclab.sh -i tetrahedralization
 
-Before adding VBD to a new task, first run one of the experimental Franka
-deformable tasks:
+Before adding VBD to a new task, first run one of the Franka deformable tasks:
 
 .. tab-set::
 
@@ -86,9 +83,9 @@ Add a VBD Physics Preset
 
 Tasks that support multiple physics options usually store ``SimulationCfg.physics``
 as a :class:`~isaaclab_tasks.utils.hydra.PresetCfg`. For deformable Newton tasks,
-the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg` whose solver
-config carries :class:`~isaaclab_contrib.deformable.NewtonModelCfg` through its
-:class:`~isaaclab_contrib.deformable.NewtonModelSolverCfg` base class.
+the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg`. Standalone
+VBD and soft-contact configuration live in :mod:`isaaclab_newton.physics`, while
+proxy and ADMM coupling live in :mod:`isaaclab_contrib.coupling`.
 
 The Franka soft-body and cloth tasks define task-specific proxy presets.
 
@@ -102,8 +99,8 @@ The important pieces are:
 * Add :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` entries for the
   collidable rigid bodies exposed to VBD. Leave
   ``integrate_with_external_rigid_solver=False`` for proxy-coupled VBD entries.
-* Set the solver config's ``model_cfg`` to a
-  :class:`~isaaclab_contrib.deformable.NewtonModelCfg` when body-particle or
+* Set the outer :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg` to a
+  :class:`~isaaclab_newton.physics.NewtonSoftContactCfg` when body-particle or
   self-contact values need task-level tuning.
 * Keep the preset at the same config path used by the task's
   :class:`~isaaclab.sim.SimulationCfg`, for example ``env.sim.physics``.
@@ -164,8 +161,8 @@ task, validate the following before tuning solver parameters:
 * Proxy-coupled robot tasks should expose only the collidable bodies needed for
   deformable contact.
 * Contact-heavy scenes usually need task-specific ``num_substeps``,
-  :class:`~isaaclab_contrib.deformable.VBDSolverCfg`, and
-  :class:`~isaaclab_contrib.deformable.NewtonModelCfg` values. Start from the
+  :class:`~isaaclab_newton.physics.VBDSolverCfg`, and
+  :class:`~isaaclab_newton.physics.NewtonSoftContactCfg` values. Start from the
   Franka soft-body or cloth preset that most closely resembles the scene.
 * Use a small visual smoke test before training. Confirm that the deformable
   spawns, renders, deforms, and contacts rigid bodies as expected.
@@ -174,7 +171,7 @@ VBD Solver Parameters
 ---------------------
 
 The following fields are specific to
-:class:`~isaaclab_contrib.deformable.VBDSolverCfg`. They are grouped by the part
+:class:`~isaaclab_newton.physics.VBDSolverCfg`. They are grouped by the part
 of the solver they affect.
 
 Core Solve
@@ -258,8 +255,8 @@ coupling when deformable contact is localized to selected rigid bodies.
 
 .. _newton-vbd-proxy-coupling:
 
-Proxy-Coupled MJWarp + VBD
---------------------------
+Coupled MJWarp + VBD
+--------------------
 
 :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is the coupling used by
 the core Franka tasks. It partitions the model between named solver entries and
@@ -347,6 +344,11 @@ Key proxy-specific parameters:
 Body selectors must use full Newton body-label regexes, such as
 ``/World/envs/env_.*/Robot``. Proxy mappings also accept raw Newton body ids.
 
+:class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` provides linearized ADMM
+coupling between the same named solver entries. Set ``contact_pairs`` to select
+entry pairs explicitly, or leave it as ``None`` to detect every distinct pair.
+Use ``iterations`` and ``rho`` to tune the ADMM solve.
+
 Try the demo:
 
 .. tab-set::
@@ -378,8 +380,9 @@ Contact and Material Parameters
 Contact Model
 ^^^^^^^^^^^^^
 
-:class:`~isaaclab_contrib.deformable.NewtonModelCfg` applies contact parameters
-to the finalized Newton model:
+:class:`~isaaclab_newton.physics.NewtonSoftContactCfg` applies contact parameters
+to the finalized Newton model through
+:attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`:
 
 .. list-table::
     :header-rows: 1
@@ -390,7 +393,7 @@ to the finalized Newton model:
     * - ``soft_contact_ke``
       - Default: ``1.0e3`` [N/m]. Stiffness for body-particle and particle self-contact. Increase it to reduce clipping through rigid shapes or through other deformable particles. If it is too high, the object can stop visibly deforming or require more VBD iterations and substeps.
     * - ``soft_contact_kd``
-      - Default: ``1.0e-2`` [N*s/m]. Contact damping. Increase it to reduce chatter or bouncing. Too much damping can make contact response sticky or overdamped.
+      - Default: ``1.0e1`` [N*s/m]. Contact damping. Increase it to reduce chatter or bouncing. Too much damping can make contact response sticky or overdamped.
     * - ``soft_contact_mu``
       - Default: ``0.5``. Friction coefficient for body-particle and particle self-contact. Increase it when a gripper cannot carry the deformable object without slipping.
 
@@ -467,12 +470,12 @@ Use the following sequence when bringing up a new VBD task:
    the expected range without rigid contact.
 5. Increase ``num_substeps`` or decrease ``dt`` if the object is unstable before
    increasing stiffness further.
-6. Increase :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.iterations` when
+6. Increase :attr:`~isaaclab_newton.physics.VBDSolverCfg.iterations` when
    contacts or stiff materials do not converge within a substep.
-7. Tune :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_ke` to
+7. Tune :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_ke` to
    reduce rigid/deformable clipping, then tune
-   :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_mu` for grip
-   and :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_kd` for
+   :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_mu` for grip
+   and :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_kd` for
    chatter.
 8. Enable self-contact only after body-particle contact is stable, then tune
    ``particle_self_contact_radius`` for active self-contact thickness,

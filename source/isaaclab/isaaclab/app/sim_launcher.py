@@ -22,7 +22,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -74,15 +74,6 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
     if physics_cfg_str == "newton_vbd":
-        # lazy import: core depends on isaaclab_contrib only when VBD is requested
-        try:
-            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-        except ImportError as err:
-            raise ImportError(
-                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
-                " Install it with `./isaaclab.sh -i contrib`."
-            ) from err
-
         return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
