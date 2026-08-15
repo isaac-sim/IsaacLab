@@ -949,6 +949,7 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
     before the first reset initializes visualizers, so a stage-only visualizer must not clear the
     Newton model requirement someone else already asked for.
     """
+
     class _InitializableVisualizerCfg(_FakeVisualizerCfg):
         def create_visualizer(self):
             visualizer = _FakeVisualizer()
