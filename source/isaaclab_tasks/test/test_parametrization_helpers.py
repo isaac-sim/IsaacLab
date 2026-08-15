@@ -55,6 +55,25 @@ def test_group_rendering_params_preserves_isolated_data_types_and_marks() -> Non
     assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["flaky"], ["xfail"]]
 
 
+def test_group_rendering_params_respects_renderer_aov_capabilities() -> None:
+    """OVRTX AOVs should remain isolated while Newton Warp AOVs share one case."""
+    params = [
+        pytest.param("newton", "ovrtx_renderer", "albedo", id="newton-ovrtx-albedo"),
+        pytest.param("newton", "ovrtx_renderer", "normals", id="newton-ovrtx-normals"),
+        pytest.param("newton", "newton_renderer", "rgb", id="newton-warp-rgb"),
+        pytest.param("newton", "newton_renderer", "depth", id="newton-warp-depth"),
+        pytest.param("newton", "newton_renderer", "normals", id="newton-warp-normals"),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("newton", "ovrtx_renderer", ["albedo"]),
+        ("newton", "ovrtx_renderer", ["normals"]),
+        ("newton", "newton_renderer", ["rgb", "depth", "normals"]),
+    ]
+
+
 def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
     """OVStage variants should be emitted only for the OVRTX renderer."""
     params = [

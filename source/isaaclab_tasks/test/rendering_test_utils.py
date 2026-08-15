@@ -261,11 +261,12 @@ def make_kitless_rendering_params(params: list[pytest.param]) -> list[pytest.par
 def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
     """Group compatible camera data types that share the same rendering configuration.
 
-    RGB changes when auxiliary RTX AOVs are active, simple-shading modes select a renderer-global
-    setting, and motion vectors require stepping the environment. Depth-family outputs affect one
-    another's RTX result, while depth and instance segmentation also have task-specific skip
-    policies. Those data types remain isolated. Parameters with different pytest marks remain in
-    separate groups so skips, retries, and expected failures keep their scope.
+    OVRTX supports only one main AOV per render product, while Newton Warp supports all of its AOVs
+    together. For Isaac RTX, RGB changes when auxiliary AOVs are active, simple-shading modes select
+    a renderer-global setting, and motion vectors require stepping the environment. Depth-family
+    outputs affect one another's result, while depth and instance segmentation also have task-specific
+    skip policies. Those Isaac RTX data types remain isolated. Parameters with different pytest marks
+    remain in separate groups so skips, retries, and expected failures keep their scope.
 
     Args:
         params: Rendering parameters whose final value is the camera data type.
@@ -275,16 +276,24 @@ def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
     """
     grouped: dict[tuple[Any, ...], tuple[list[str], list[Any], str]] = {}
     for param in params:
+        renderer = param.values[-2]
         data_type = param.values[-1]
         marks_key = tuple((mark.name, tuple(mark.args), tuple(sorted(mark.kwargs.items()))) for mark in param.marks)
-        isolate = data_type in {
-            "rgb",
-            "depth",
-            "distance_to_camera",
-            "distance_to_image_plane",
-            "instance_segmentation",
-            "motion_vectors",
-        } or data_type.startswith("simple_shading_")
+        isolate = renderer == "ovrtx_renderer" or (
+            renderer == "isaacsim_rtx_renderer"
+            and (
+                data_type
+                in {
+                    "rgb",
+                    "depth",
+                    "distance_to_camera",
+                    "distance_to_image_plane",
+                    "instance_segmentation",
+                    "motion_vectors",
+                }
+                or data_type.startswith("simple_shading_")
+            )
+        )
         key = (*param.values[:-1], marks_key, data_type if isolate else None)
         if key not in grouped:
             grouped[key] = ([], list(param.marks), param.id)
