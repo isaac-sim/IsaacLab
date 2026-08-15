@@ -70,7 +70,7 @@ except ModuleNotFoundError as exc:
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
         "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
-        "'ovrtx>=0.4.0,<0.5.0')."
+        "'ovrtx>0.4.0,<0.4.1')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
