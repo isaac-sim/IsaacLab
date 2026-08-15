@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from pxr import Usd
 
+# Whether each visualizer and renderer type needs a USD stage or a Newton model, by type index.
+# fmt: off
+TYPES          = ["kit", "newton_gl", "newton", "newton_rtx", "rerun", "viser", "isaac_rtx", "newton_warp", "ovrtx"]
+REQUIRES_STAGE = [True,  False,       False,    False,        False,   False,   True,        False,         True   ]
+REQUIRES_MODEL = [False, True,        True,     True,         True,    True,    False,       True,          True   ]
+# fmt: on
+
 
 class SceneDataProvider:
     def __init__(self, backend: SceneDataBackend):

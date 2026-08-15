@@ -768,7 +768,8 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._pending_visualizer_cfgs = None
     ctx._scene_data_provider = _FakeProvider()
-    ctx._scene_data_requirements = None
+    ctx.requires_usd_stage = False
+    ctx.requires_newton_model = False
     ctx._clone_plan = None
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
@@ -941,7 +942,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         ctx.initialize_visualizers()
 
 
-def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPatch):
+def test_explicit_visualizer_create_failure_raises():
     """When cli_explicit, a failure in create_visualizer raises RuntimeError."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_create=True)
     settings = {
@@ -952,15 +953,11 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
-    import isaaclab.sim.simulation_context as sc_mod
-
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
-
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
 
 
-def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch):
+def test_explicit_visualizer_init_failure_raises():
     """When cli_explicit, a failure in visualizer.initialize raises RuntimeError."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_init=True)
     settings = {
@@ -970,10 +967,6 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
-
-    import isaaclab.sim.simulation_context as sc_mod
-
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
 
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
@@ -1025,7 +1018,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
     assert ctx._visualizers == []
 
 
-def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyPatch, caplog):
+def test_non_explicit_create_failure_silently_logged(caplog):
     """Without --visualizer flag, create_visualizer failures are logged, not raised."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_create=True)
     settings = {
@@ -1035,10 +1028,6 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
-
-    import isaaclab.sim.simulation_context as sc_mod
-
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
 
     with caplog.at_level("ERROR"):
         ctx.initialize_visualizers()
