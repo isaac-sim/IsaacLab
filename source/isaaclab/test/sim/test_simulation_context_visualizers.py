@@ -942,6 +942,34 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         ctx.initialize_visualizers()
 
 
+def test_visualizer_init_keeps_requirements_published_before_reset():
+    """Scene and renderer requirements survive visualizer initialization.
+
+    The scene and the renderers publish their requirements while the scene is built, which happens
+    before the first reset initializes visualizers, so a stage-only visualizer must not clear the
+    Newton model requirement someone else already asked for.
+    """
+    class _InitializableVisualizerCfg(_FakeVisualizerCfg):
+        def create_visualizer(self):
+            visualizer = _FakeVisualizer()
+            visualizer.initialize = lambda provider: None
+            return visualizer
+
+    settings = {
+        "/isaaclab/visualizer/types": "kit",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[_InitializableVisualizerCfg("kit")])
+    ctx.requires_newton_model = True
+
+    ctx.initialize_visualizers()
+
+    assert ctx.requires_newton_model
+    assert ctx.requires_usd_stage
+
+
 def test_explicit_visualizer_create_failure_raises():
     """When cli_explicit, a failure in create_visualizer raises RuntimeError."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_create=True)

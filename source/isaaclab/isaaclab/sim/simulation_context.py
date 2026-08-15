@@ -636,8 +636,8 @@ class SimulationContext:
         # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
         all_visualizer_cfgs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
         indices = [TYPES.index(cfg.visualizer_type) for cfg in all_visualizer_cfgs if cfg.visualizer_type is not None]
-        self.requires_usd_stage = any(REQUIRES_STAGE[i] for i in indices)
-        self.requires_newton_model = any(REQUIRES_MODEL[i] for i in indices)
+        self.requires_usd_stage |= any(REQUIRES_STAGE[i] for i in indices)
+        self.requires_newton_model |= any(REQUIRES_MODEL[i] for i in indices)
 
         pending_cfgs = []
         new_visualizers = []
