@@ -36,7 +36,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulation
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
         ),
@@ -46,7 +46,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # rigid object
     rigid_obj = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/RigidObj",
+        prim_path="{ENV_REGEX_NS}/RigidObj",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -105,6 +105,56 @@ def test_relative_flag(device, setup_scene):
     assert_state_different(prev_state, next_state)
     scene.reset_to(prev_state, is_relative=True)
     assert_state_equal(prev_state, scene.get_state(is_relative=True))
+
+
+def test_relative_deformable_state():
+    env_origins = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    nodal_position = torch.arange(60, dtype=torch.float32).reshape(4, 5, 3)
+    nodal_velocity = torch.zeros_like(nodal_position)
+    written_state = {}
+    deformable = SimpleNamespace(
+        data=SimpleNamespace(
+            nodal_pos_w=SimpleNamespace(torch=nodal_position),
+            nodal_vel_w=SimpleNamespace(torch=nodal_velocity),
+        ),
+        write_nodal_pos_to_sim=lambda value, env_ids: written_state.update(position=value, env_ids=env_ids),
+        write_nodal_velocity_to_sim=lambda value, env_ids: written_state.update(velocity=value),
+    )
+    scene = SimpleNamespace(
+        device="cpu",
+        env_origins=env_origins,
+        _articulations={},
+        _cable_objects={},
+        _deformable_objects={"object": deformable},
+        _rigid_objects={},
+        _surface_grippers={},
+        _rigid_object_collections={},
+        write_data_to_sim=lambda: None,
+    )
+
+    state = InteractiveScene.get_state(scene, is_relative=True)
+
+    torch.testing.assert_close(
+        state["deformable_object"]["object"]["nodal_position"], nodal_position - env_origins[:, None, :]
+    )
+
+    env_ids = torch.tensor([3, 1])
+    reset_nodal_position = torch.arange(30, dtype=torch.float32).reshape(2, 5, 3)
+    reset_nodal_velocity = torch.ones_like(reset_nodal_position)
+    reset_state = {
+        "deformable_object": {
+            "object": {
+                "nodal_position": reset_nodal_position,
+                "nodal_velocity": reset_nodal_velocity,
+            },
+        }
+    }
+
+    InteractiveScene.reset_to(scene, reset_state, env_ids=env_ids, is_relative=True)
+
+    torch.testing.assert_close(written_state["position"], reset_nodal_position + env_origins[env_ids, None, :])
+    torch.testing.assert_close(written_state["velocity"], reset_nodal_velocity)
+    torch.testing.assert_close(written_state["env_ids"], env_ids)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -227,11 +277,11 @@ def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.Monke
             InteractiveScene(scene_cfg)
             queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
             # the override rides the queued cfg; resolution happens at replicate()
-            assert queued_by_path["/World/envs/env_.*/RigidObj"].cloning_contexts == (
+            assert queued_by_path["/World/envs/env_[^/]+/RigidObj"].cloning_contexts == (
                 "isaaclab.cloner:UsdReplicateContext",
             )
             # untouched asset resolves to the backend default stack at replicate()
-            assert queued_by_path["/World/envs/env_.*/Robot"].cloning_contexts is None
+            assert queued_by_path["/World/envs/env_[^/]+/Robot"].cloning_contexts is None
         finally:
             REPLICATION_QUEUE.clear()
 
@@ -254,13 +304,12 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
         objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
     )
     scene.cloner_cfg = CloneCfg()
-    scene._env_regex_ns = scene.cloner_cfg.clone_regex
-    scene._env_ns = scene._env_regex_ns.rsplit("/", 1)[0]
+    scene._env_fmt = scene.cloner_cfg.clone_template
 
     cfgs = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
-    assert prim_paths == ["/World/envs/env_.*/Cube", "/World/envs/env_.*/Shape"]
+    assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
 
 
 def test_collect_asset_cfgs_orders_sensors_last():
@@ -272,7 +321,7 @@ def test_collect_asset_cfgs_orders_sensors_last():
     body = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot")
     scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor, body=body)
     scene.cloner_cfg = CloneCfg()
-    scene._env_ns = scene.cloner_cfg.clone_regex.rsplit("/", 1)[0]
+    scene._env_fmt = scene.cloner_cfg.clone_template
 
     cfgs = scene._collect_asset_cfgs()
 

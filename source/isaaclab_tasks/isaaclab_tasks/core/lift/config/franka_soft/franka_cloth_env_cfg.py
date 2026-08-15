@@ -7,28 +7,36 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonSoftContactCfg,
+    VBDSolverCfg,
+)
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 from ... import mdp
 from .franka_soft_env_cfg import (
     FRANKA_CAMERA_CFG,
-    TABLE_SPAWN_CFG,
     FrankaCameraObservationsCfg,
     FrankaSoftEnvCfg,
     _FrankaSoftSceneCfg,
@@ -57,7 +65,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Support(Neg|Pos)Y"],
+                    bodies=[r"/World/envs/env_[^/]+/Robot", r"/World/envs/env_[^/]+/Support(Neg|Pos)Y"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -71,9 +79,9 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
-                        r"/World/envs/env_.*/Support(Neg|Pos)Y",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
+                        r"/World/envs/env_[^/]+/Support(Neg|Pos)Y",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -82,10 +90,18 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_ke=8e3, soft_contact_mu=10.0),
+        ),
+        soft_contact_cfg=NewtonSoftContactCfg(
+            soft_contact_ke=8.0e3,
+            soft_contact_kd=1.0e-2,
+            soft_contact_mu=10.0,
         ),
         num_substeps=2,
     )
+
+    isaacsim_physx: PhysxCfg = PhysxCfg(gpu_found_lost_pairs_capacity=2**22)
+
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -95,14 +111,14 @@ SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
     rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
     collision_props=sim_utils.CollisionPropertiesCfg(),
-    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
+    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
 )
 
 
 @configclass
 class DeformableCfg(PresetCfg):
-    """Preset config for the deformable object, matching the Newton example."""
+    """Preset configurations for the cloth."""
 
     newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
@@ -113,7 +129,7 @@ class DeformableCfg(PresetCfg):
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
-                density=10.0,
+                density=1.0,
                 particle_radius=0.002,
                 tri_ke=5e2,
                 tri_ka=5e2,
@@ -124,6 +140,30 @@ class DeformableCfg(PresetCfg):
         ),
     )
 
+    physx: DeformableObjectCfg = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Deformable",
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
+        spawn=sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2),
+            resolution=(8, 8),
+            deformable_props=PhysxDeformableBodyPropertiesCfg(),
+            collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
+            physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
+                density=1000.0,
+                surface_thickness=0.001,
+                poissons_ratio=0.25,
+                youngs_modulus=1e6,
+                surface_bend_stiffness=1e6,
+                elasticity_damping=1e-1,
+                bend_damping=1e-1,
+                static_friction=10.0,
+                dynamic_friction=10.0,
+            ),
+        ),
+    )
+    isaacsim_physx = physx
+
     default = newton_mjwarp_vbd_proxy
 
 
@@ -132,17 +172,6 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
     """Scene for the Franka surface deformable environment."""
 
     deformable: DeformableCfg = DeformableCfg()
-
-    # Low-friction table so the cloth slides freely instead of sticking. Effective cloth-table
-    # friction is sqrt(soft_contact_mu * shape_mu); this sets shape_mu without touching the global
-    # soft_contact_mu that governs the gripper's hold on the cloth.
-    table: AssetBaseCfg = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
-        spawn=TABLE_SPAWN_CFG.replace(
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.1, dynamic_friction=0.1),
-        ),
-    )
 
     support_neg_y: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/SupportNegY",
@@ -164,6 +193,10 @@ class FrankaClothScenePresetCfg(PresetCfg):
         num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
+    # PhysX does not support replicating physics for deformable objects
+    physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    isaacsim_physx = physx
+
     default = newton_mjwarp_vbd_proxy
 
 
@@ -175,6 +208,18 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
 
 
 @configclass
+class FrankaClothCameraScenePresetCfg(PresetCfg):
+    """Scene presets for visual Franka cloth lifting."""
+
+    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
+        num_envs=128, env_spacing=2.5, replicate_physics=True
+    )
+    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    isaacsim_physx = physx
+    default = newton_mjwarp_vbd_proxy
+
+
+@configclass
 class FrankaClothEventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
 
@@ -183,7 +228,7 @@ class FrankaClothEventCfg(FrankaSoftEventCfg):
         mode="reset",
         params={
             "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "clear_gap_range": (0.008, 0.03),
+            "clear_gap_range": (0.01, 0.03),
             "asset_cfg": SceneEntityCfg("deformable"),
             "support_cfg": (SceneEntityCfg("support_neg_y"), SceneEntityCfg("support_pos_y")),
         },
@@ -224,13 +269,15 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # override the soft-beam physics with the cloth presets
         self.sim.physics = PhysicsCfg()
+        # Fully close the gripper on the thin cloth; the shared beam default only closes to 0.01 m.
+        self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
 
 
 @configclass
 class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
     """Visual Franka surface-deformable lifting environment."""
 
-    scene: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=True)
+    scene: FrankaClothCameraScenePresetCfg = FrankaClothCameraScenePresetCfg()
     observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
 
     def __post_init__(self) -> None:

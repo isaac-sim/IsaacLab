@@ -459,9 +459,19 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     events = []
 
+    class FakeWriteFloorOp:
+        def __init__(self, ordinal):
+            self._ordinal = ordinal
+
+        def wait(self):
+            events.append(("seal", self._ordinal))
+
     class FakeStage:
         def __init__(self, name):
             events.append(("stage", name))
+
+        def advance_write_floor(self, ordinal):
+            return FakeWriteFloorOp(ordinal)
 
         def destroy(self):
             events.append(("destroy",))
@@ -508,9 +518,12 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         OvPhysxManager._physx = previous_physx
         OvPhysxManager._ovstage = previous_ovstage
 
+    # The seal must land between population and attach: ovphysx reads sealed data
+    # only, so attaching at an unsealed ordinal silently yields an empty scene.
     assert events == [
         ("stage", "isaaclab"),
         ("populate", stage, "#usda 1.0", 1, "all"),
+        ("seal", 1),
         ("attach", stage, 1),
         ("close_views", physx),
         ("reset",),

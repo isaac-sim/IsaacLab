@@ -69,7 +69,7 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     still be selected via the ``presets`` CLI argument.
     """
 
-    prim_path: str = "/World/envs/env_.*/Camera"
+    prim_path: str = "{ENV_REGEX_NS}/Camera"
     offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
         pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
     )

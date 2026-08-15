@@ -1,6 +1,91 @@
 Changelog
 ---------
 
+16.2.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-Lift-Cable-Franka`` and ``Isaac-Lift-Cable-Franka-Camera`` tasks for lifting
+  a 12-segment cable by its middle segment with the Franka robot.
+
+* Added nearest-segment reaching and average-height lifting rewards for cable tasks.
+* Added Newton MPM Franka pouring and UR10 particle-pushing reinforcement
+  learning tasks with reset-safe particle randomization and rigid-particle
+  coupling. The pouring task uses compact current-state observations and an
+  outcome-aware reset curriculum.
+* Added bounded sparse MPM configurations with CUDA graph capture and
+  fixed-payload resets for both tasks.
+* Added a compact one-file generator for reproducible Franka pouring reset
+  artifacts.
+* Added randomized pile shape and table placement, paired collision-screened
+  robot starts, and a weighted reset mixture to the UR10
+  particle-pushing task. Every level keeps the same single-pile, single-sweep
+  objective.
+* Added an opt-in Newton GL visualization of the particle-pushing policy
+  heightmap.
+* Added the ``IsaacContrib-Keyboard-SO101`` task with procedural keyboards and PhysX and Newton support.
+* Added :func:`~isaaclab_tasks.core.lift.mdp.utils.env_instance_rows`, mapping each environment to the
+  instance rows of an asset that has several roots per environment.
+* Added the ``IsaacContrib-Factory-Franka`` contact-rich assembly task under
+  :mod:`isaaclab_tasks.contrib.nist`, covering 12 NIST taskboard variants for
+  nut threading, gear meshing, and round or rectangular insertion with a Franka Panda,
+  supporting ``isaacsim_physx``, automatic ``physx``, and ``newton_mjwarp`` physics presets.
+
+Changed
+^^^^^^^
+
+* Simplified Franka Pour artifacts and runtime validation around the one-file
+  generator. Regenerate legacy calibrated artifacts with
+  ``scripts/tools/generate_franka_pour_reset_dataset.py`` and pin the printed
+  digest when an exact artifact is required.
+* Loaded the Franka Pour robot and cups from the standard Isaac Lab Nucleus asset root,
+  while retaining their environment variables for local overrides.
+* Resolved the default Franka Pour reset artifact relative to the repository
+  root and included the generator command in missing-artifact errors.
+* Changed :func:`~isaaclab_tasks.core.lift.mdp.utils.get_reset_state` and
+  :func:`~isaaclab_tasks.core.lift.mdp.utils.set_reset_state` to cover every instance an asset has in an
+  environment instead of reading and writing the instance row that matches the environment id, which
+  addressed the wrong instances for assets partitioned into several roots per environment. Serialized
+  states are unchanged for assets with one instance per environment; for partitioned assets each slice
+  now repeats per instance, so states captured before this change cannot be restored with it.
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+* **Breaking:** Changed core tasks to use RSL-RL when ``--rl_library`` is omitted, except the multi-agent Pendulum task, which uses SKRL.
+  Pass ``--rl_library`` explicitly to select a different RL library.
+
+Fixed
+^^^^^
+
+* Checked every UR10 reset candidate for contact-buffer overflow and copied
+  mutable Newton prototype geometry before offline IK and collision screening.
+
+
+16.1.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaacsim_physx`` support to the Franka cloth lift tasks.
+
+Changed
+^^^^^^^
+
+* Updated validated Kamino task presets to use
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`. The Cartpole
+  ``newton_kamino`` preset now uses Newton's collision pipeline instead of
+  Kamino's internal collision detector.
+
+Fixed
+^^^^^
+
+* Fixed success table visualization markers appearing at the world origin
+  before the first environment step.
+
+
 16.0.0 (2026-08-12)
 ~~~~~~~~~~~~~~~~~~~
 

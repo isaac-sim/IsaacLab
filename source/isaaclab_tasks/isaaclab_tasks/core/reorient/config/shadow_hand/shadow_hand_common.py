@@ -172,7 +172,7 @@ class ShadowHandRobotCfg(PresetCfg):
         spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
     ovphysx = SHADOW_HAND_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
         spawn=SHADOW_HAND_CFG.spawn.replace(
             spawn_path="/World/envs/env_0/Robot",
@@ -188,7 +188,7 @@ class ShadowHandRobotCfg(PresetCfg):
 
 
 CUBE_CFG = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/object",
+    prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
         spawn_path="/World/envs/env_0/object",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",

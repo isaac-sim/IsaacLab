@@ -49,8 +49,10 @@ Training outputs, including checkpoints, are written under ``logs/``. Use
 
    Extras install capabilities; task selectors choose how to use them. For example,
    ``--extra ovphysx`` makes the OV PhysX integration available, while
-   ``physics=ovphysx`` selects it for the task. Extras can be combined freely, and
-   ``--extra all`` installs every backend, RL library, and visualizer at once. See
+   ``physics=ovphysx`` selects it for the task. Extras can be combined freely. The
+   ``--extra all`` shortcut installs a curated set of backends, RL libraries, and visualizers.
+   It does not include the specialized extras ``rlinf``, ``mimic``, ``teleop``,
+   ``tetrahedralization``, ``video``, and ``leapp``; request them by name. See
    :ref:`installation-optional-extras` for the complete list.
 
 
@@ -119,8 +121,7 @@ available in your installation:
      - Check a task using random actions; useful for a quick interaction smoke test.
      - ``uv run isaaclab random_agent --task Isaac-Cartpole-Direct --viz newton``
 
-The ``play`` command can also select a specific run with ``--load_run`` and a
-checkpoint with ``--checkpoint``. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
+All supported RL libraries select a checkpoint with ``--checkpoint``. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 for the complete training and playback reference.
 
 

@@ -9,6 +9,7 @@ import collections.abc
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sized
+from enum import Enum
 from typing import Any
 
 import torch
@@ -42,6 +43,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
     if isinstance(obj, ResolvableString):
         return str(obj)
+    # Enum members carry a ``__dict__`` of internals, so serialize the value they stand for.
+    if isinstance(obj, Enum):
+        return obj.value
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
@@ -113,6 +117,13 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             if isinstance(value, Iterable) and not isinstance(value, str):
                 # ---- 2a) flat iterable → replace wholesale ----------
                 if all(not isinstance(el, Mapping) for el in value):
+                    # class_to_dict serialized enum members as their values, so rebuild them
+                    # from the member type the existing container holds.
+                    if isinstance(obj_mem, Iterable) and not isinstance(obj_mem, str):
+                        enum_types = {type(el) for el in obj_mem if isinstance(el, Enum)}
+                        if len(enum_types) == 1:
+                            enum_type = enum_types.pop()
+                            value = [el if isinstance(el, Enum) else enum_type(el) for el in value]
                     out_val = tuple(value) if isinstance(obj_mem, tuple) else value
                     if isinstance(obj, dict):
                         obj[key] = out_val
@@ -157,6 +168,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                         f"[Config]: Incorrect type under namespace: {key_ns}."
                         f" Expected callable or callable-string, Received: {type(value)}."
                     )
+
+            # -- 3b) enum attribute → rebuild the member from its value ------------
+            elif isinstance(obj_mem, Enum) and value is not None:
+                # class_to_dict serializes members as their value, so restore the member here
+                value = type(obj_mem)(value)
 
             # -- 4) simple scalar / explicit None ---------------------
             elif value is None or isinstance(value, type(obj_mem)):

@@ -216,7 +216,7 @@ def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exist
     existing_camera = SimpleNamespace(
         _view=SimpleNamespace(count=4),
         cfg=SimpleNamespace(
-            prim_path="/World/envs/env_.*/Camera",
+            prim_path="/World/envs/env_[^/]+/Camera",
             renderer_cfg=SimpleNamespace(renderer_type="newton_warp"),
         ),
     )
@@ -748,11 +748,17 @@ def test_eye_lookat_to_pitch_yaw_degenerate_returns_zero():
     assert yaw == 0.0
 
 
-def test_newton_rtx_visualizer_render_rgb_array_returns_none():
+def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     frame = np.zeros((4, 6, 3), dtype=np.uint8)
-    viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
+    viewer = SimpleNamespace(get_frame=lambda: frame)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     visualizer._viewer = viewer
+
+    assert visualizer.render_rgb_array() is frame
+
+
+def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     assert visualizer.render_rgb_array() is None
 

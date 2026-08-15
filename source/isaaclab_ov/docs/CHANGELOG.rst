@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+2.0.2 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX deformable render bindings leaving the environment slot unresolved, so they
+  bound against a path expression instead of the concrete per-environment mesh prims.
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+
+
+2.0.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` attaching its OVStage at an
+  unsealed write ordinal. ``ovstage.population.open_usd_from_string()`` only
+  completes population; it never commits the ordinal it wrote to. Newer
+  ``ovphysx`` releases fail the parse when attaching at an unsealed ordinal and
+  yield an empty scene, so every articulation, rigid body, and sensor binding
+  resolved to zero prims. The manager now calls ``advance_write_floor().wait()``
+  to seal the ordinal before ``attach_ovstage()``.
+
+
 2.0.0 (2026-08-12)
 ~~~~~~~~~~~~~~~~~~
 
