@@ -133,7 +133,7 @@ Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
    packages are already part of the core install). Use ``ov[ovrtx]`` (or ``ov[all]``)
    to pull in the ``ovrtx`` dependency.
 
-Or install the ``ovrtx`` runtime wheel directly with pip (note the extra index URL):
+Or install the public ``ovrtx`` package directly from PyPI:
 
 .. isaaclab-ovrtx-install::
 
