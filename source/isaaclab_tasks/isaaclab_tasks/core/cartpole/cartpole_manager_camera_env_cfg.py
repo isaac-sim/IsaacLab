@@ -75,11 +75,12 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 ##
 
 
-def image_observations_cfg(data_type: str):
-    """Build a single-camera-image policy observation group.
+def image_observations_cfg(data_type: str | list[str]):
+    """Build a camera-image policy observation group.
 
     Args:
-        data_type: Camera data type to read from the tiled camera (e.g. ``"rgb"``, ``"depth"``).
+        data_type: Camera data type or types to read from the tiled camera. Multiple types are concatenated along
+            the channel dimension.
 
     Returns:
         An observations config with camera policy observations and privileged state critic observations.

@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
+
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
@@ -34,12 +36,6 @@ class CartpoleCameraEnv(CartpoleEnv):
             cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]
 
         super().__init__(cfg, render_mode, **kwargs)
-
-        if len(self.cfg.tiled_camera.data_types) != 1:
-            raise ValueError(
-                "The Cartpole camera environment only supports one image type at a time but the following were"
-                f" provided: {self.cfg.tiled_camera.data_types}"
-            )
 
         self._stack: CircularBuffer | None = None
         if frame_stack > 1:
@@ -70,6 +66,11 @@ class CartpoleCameraEnv(CartpoleEnv):
         light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _get_observations(self) -> dict:
+        if len(self.cfg.tiled_camera.data_types) > 1:
+            obs = self._get_batched_camera_observation()
+            critic_obs = super()._get_observations()["policy"]
+            return {"policy": obs, "critic": critic_obs}
+
         data_type = self.cfg.tiled_camera.data_types[0]
         camera_data = self._tiled_camera.data.output[data_type]
 
@@ -112,6 +113,28 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         critic_obs = super()._get_observations()["policy"]
         return {"policy": obs, "critic": critic_obs}
+
+    def _get_batched_camera_observation(self) -> torch.Tensor:
+        """Return channel-concatenated observations from all configured camera outputs."""
+        observations = []
+        for data_type in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type]
+            if data_type == "albedo":
+                camera_data = camera_data[..., :3]
+            if is_rgb_like(data_type):
+                camera_data = normalize_camera_image(camera_data, data_type)
+            elif data_type == "depth":
+                camera_data[camera_data == float("inf")] = 0
+            observations.append(camera_data.permute(0, 3, 1, 2).contiguous().float())
+
+            if self.cfg.write_image_to_file:
+                save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
+
+        observation = torch.cat(observations, dim=1)
+        if self._stack is not None:
+            self._stack.append(observation)
+            return self._stack.stacked.clone()
+        return observation
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)

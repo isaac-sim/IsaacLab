@@ -41,7 +41,13 @@ class CameraImageStack(ManagerTermBase):
         if self._stack is not None:
             self._stack.reset(env_ids)
 
-    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
+    def __call__(
+        self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_type: str | list[str]
+    ) -> torch.Tensor:
+        """Return the configured camera outputs concatenated along the channel dimension."""
+        if isinstance(data_type, list):
+            return self._get_batched_observation(env, sensor_cfg, data_type)
+
         camera: Camera = env.scene.sensors[sensor_cfg.name]
         camera_data = camera.data.output[data_type]
 
@@ -63,4 +69,26 @@ class CameraImageStack(ManagerTermBase):
             observation = normalize_camera_image(observation, data_type, channel_dim=1)
         elif self._stack is not None:
             observation = observation.clone()
+        return observation
+
+    def _get_batched_observation(
+        self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_types: list[str]
+    ) -> torch.Tensor:
+        """Return channel-concatenated observations for a multi-AOV camera configuration."""
+        camera: Camera = env.scene.sensors[sensor_cfg.name]
+        observations = []
+        for data_type in data_types:
+            camera_data = camera.data.output[data_type]
+            if data_type == "albedo":
+                camera_data = camera_data[..., :3]
+            if is_rgb_like(data_type):
+                camera_data = normalize_camera_image(camera_data, data_type)
+            elif data_type == "depth":
+                camera_data[camera_data == float("inf")] = 0
+            observations.append(camera_data.permute(0, 3, 1, 2).contiguous().float())
+
+        observation = torch.cat(observations, dim=1)
+        if self._stack is not None:
+            self._stack.append(observation)
+            return self._stack.stacked.clone()
         return observation
