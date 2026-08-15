@@ -7,6 +7,8 @@
 
 import sys
 
+import pytest
+
 from isaaclab.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
 
 
@@ -53,40 +55,27 @@ def _resolve_devices_and_kit_args(launcher_args: dict, monkeypatch) -> tuple[dic
     return launcher_args, launcher._kit_args
 
 
-def test_both_devices_selected_by_cuda_index(monkeypatch):
-    """Select both devices by CUDA index, the renderer through the setting that translates it.
+@pytest.mark.parametrize(
+    ("launcher_args", "expected_renderer_args"),
+    [
+        pytest.param(
+            {"device": "cuda:1", "multi_gpu": False},
+            ["--/renderer/multiGpu/activeCudaGpus=1,"],
+            id="single-gpu",
+        ),
+        pytest.param(
+            {"device": "cuda:1", "multi_gpu": False, "kit_args": "--/renderer/multiGpu/activeCudaGpus=3,"},
+            ["--/renderer/multiGpu/activeCudaGpus=3,"],
+            id="explicit-kit-arg",
+        ),
+        pytest.param({"device": "cuda:1"}, [], id="multi-gpu"),
+    ],
+)
+def test_devices_selected_by_cuda_index(launcher_args, expected_renderer_args, monkeypatch):
+    """Select physics and single-GPU rendering devices by CUDA index."""
+    args, kit_args = _resolve_devices_and_kit_args(launcher_args, monkeypatch)
 
-    The trailing comma is part of the contract: without it the value is stored as an int and the
-    renderer, which reads the setting as a string, sees nothing.
-    """
-    args, kit_args = _resolve_devices_and_kit_args({"device": "cuda:1", "multi_gpu": False}, monkeypatch)
-
-    assert "--/renderer/multiGpu/activeCudaGpus=1," in kit_args
+    renderer_args = [arg for arg in kit_args if arg.startswith("--/renderer/multiGpu/activeCudaGpus=")]
+    assert renderer_args == expected_renderer_args
     assert args["physics_gpu"] == 1
-
-
-def test_active_gpu_is_left_unset(monkeypatch):
-    """Leave ``activeGpu`` unset: the renderer only applies the CUDA translation without it."""
-    args, _ = _resolve_devices_and_kit_args({"device": "cuda:1", "multi_gpu": False}, monkeypatch)
-
     assert args.get("active_gpu") is None
-
-
-def test_user_supplied_device_setting_is_not_overridden(monkeypatch):
-    """Leave a caller-specified renderer device alone rather than adding a second setting."""
-    args, kit_args = _resolve_devices_and_kit_args(
-        {"device": "cuda:1", "multi_gpu": False, "kit_args": "--/renderer/multiGpu/activeCudaGpus=3,"}, monkeypatch
-    )
-
-    assert [arg for arg in kit_args if "activeCudaGpus" in arg] == ["--/renderer/multiGpu/activeCudaGpus=3,"]
-
-
-def test_renderer_device_is_not_pinned_for_multi_gpu_rendering(monkeypatch):
-    """Leave the device unset when Kit renders across several GPUs in one process.
-
-    The setting fills the renderer's active-device list, and a one-element list would cap the
-    device count at one.
-    """
-    _, kit_args = _resolve_devices_and_kit_args({"device": "cuda:1"}, monkeypatch)
-
-    assert not any("activeCudaGpus" in arg for arg in kit_args)

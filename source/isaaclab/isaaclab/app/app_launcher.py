@@ -1267,16 +1267,7 @@ class AppLauncher:
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
 
-        # Select the renderer device by CUDA index, but only where this process is pinned to one
-        # GPU. ``/renderer/activeGpu`` indexes the graphics device list, which
-        # ``CUDA_VISIBLE_DEVICES`` does not filter, so the same index selects the wrong GPU whenever
-        # the visible devices do not start at zero. ``activeCudaGpus`` takes CUDA indices and the
-        # renderer translates them itself, but only while no explicit graphics index is given, so
-        # ``activeGpu`` is left unset. The trailing comma is required: ``=0`` is stored as an int
-        # and the setting is read with ``getString``, which then returns empty.
-        #
-        # Skipped when Kit renders across several GPUs in one process, since this setting also fills
-        # the renderer's active-device list and a one-element list caps the device count at one.
+        # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
         if launcher_args.get("multi_gpu") is False:
             argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
             setting = argument.partition("=")[0]
