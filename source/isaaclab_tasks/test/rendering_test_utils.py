@@ -657,7 +657,14 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
-def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: str, data_types: tuple[str, ...]) -> None:
+def _as_data_types(data_types: str | tuple[str, ...]) -> tuple[str, ...]:
+    """Normalize a legacy single AOV selector to an immutable AOV batch."""
+    return (data_types,) if isinstance(data_types, str) else data_types
+
+
+def _maybe_enable_physx_determinism_for_motion(
+    env_cfg: Any, physics_backend: str, data_types: str | tuple[str, ...]
+) -> None:
     """Trade PhysX solver performance for determinism/accuracy when testing ``motion_vectors``.
 
     PhysX's default TGS solver settings produce noisy per-step velocities (see the "TGS solver ... may
@@ -673,7 +680,7 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
         physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
         data_type: The camera data type under test.
     """
-    if physics_backend not in ("physx", "ovphysx") or "motion_vectors" not in data_types:
+    if physics_backend not in ("physx", "ovphysx") or "motion_vectors" not in _as_data_types(data_types):
         return
 
     env_cfg.sim.physics.enable_enhanced_determinism = True
@@ -1322,7 +1329,9 @@ def maybe_validate_instance_segmentation(
     )
 
 
-def maybe_step_env_for_motion(env: Any, data_types: tuple[str, ...], num_steps: int = 2, action_value: float = 0.0) -> None:
+def maybe_step_env_for_motion(
+    env: Any, data_types: str | tuple[str, ...], num_steps: int = 2, action_value: float = 0.0
+) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
     Motion vectors compare the current frame's transforms against the previous frame's; the first frame
@@ -1338,7 +1347,7 @@ def maybe_step_env_for_motion(env: Any, data_types: tuple[str, ...], num_steps: 
             ``0.0`` (motion then comes only from physics already in flight, e.g. gravity/initial velocity).
             Pass a non-zero value to additionally induce actuated motion (e.g. cartpole cart translation).
     """
-    if "motion_vectors" not in data_types:
+    if "motion_vectors" not in _as_data_types(data_types):
         return
 
     action = torch.full(env.action_space.shape, action_value, device=env.device)
@@ -1349,10 +1358,10 @@ def maybe_step_env_for_motion(env: Any, data_types: tuple[str, ...], num_steps: 
 def rendering_test_shadow_hand(
     physics_backend: str,
     renderer: str,
-    data_type: str,
+    data_types: str | tuple[str, ...],
     comparison_scores: list[dict],
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
+    data_types = _as_data_types(data_types)
 
     from isaaclab.utils.configclass import configclass
 
@@ -1376,16 +1385,17 @@ def rendering_test_shadow_hand(
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
         tiled_camera = _ShadowHandTiledCameraTestCfg()
 
-    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer}"]
 
     env_cfg = _ShadowHandCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
+    env_cfg.tiled_camera.data_types = list(data_types)
 
     env_cfg.scene.num_envs = 4
 
-    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_types)
 
-    if data_type in {"depth", "distance_to_camera", "distance_to_image_plane", "motion_vectors"}:
+    if set(data_types) & {"depth", "distance_to_camera", "distance_to_image_plane", "motion_vectors"}:
         # Disable CNN forward pass as it cannot be meaningfully trained from depth/motion vectors alone
         # and will raise a ValueError.
         env_cfg.feature_extractor.enabled = False
@@ -1394,8 +1404,8 @@ def rendering_test_shadow_hand(
 
     try:
         env = ShadowHandCameraEnv(env_cfg)
-        maybe_step_env_for_motion(env, data_type)
-        maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
+        maybe_step_env_for_motion(env, data_types)
+        maybe_save_stage("shadow_hand", physics_backend, renderer, "all")
 
         validate_camera_outputs(
             "shadow_hand",
@@ -1410,7 +1420,7 @@ def rendering_test_shadow_hand(
         # space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this same
         # idToLabels mapping in camera.data.info.
         maybe_validate_semantic_segmentation(
-            data_type,
+            "semantic_segmentation" if "semantic_segmentation" in data_types else "",
             env._tiled_camera.data.info,
             expected_id_to_labels={
                 (0, 0, 0, 0): {"class": "BACKGROUND"},
@@ -1424,7 +1434,7 @@ def rendering_test_shadow_hand(
         # Instance segmentation yields one instance per env's ``class:cube`` object (num_envs=4). The colorized
         # keys are non-stable, so they are validated against the rendered image; only the values are hard-coded.
         maybe_validate_instance_segmentation(
-            data_type,
+            "instance_segmentation" if "instance_segmentation" in data_types else "",
             env._tiled_camera.data,
             expected_prim_paths={f"/World/envs/env_{i}/object" for i in range(4)},
             expected_semantics=[{"class": "cube"} for _ in range(4)],
@@ -1592,11 +1602,11 @@ def rendering_test_cartpole(
 def rendering_test_lift_kuka(
     physics_backend: str,
     renderer: str,
-    data_type: str,
+    data_types: str | tuple[str, ...],
     setup_homogeneous_envs: bool,
     comparison_scores: list[dict],
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
+    data_types = _as_data_types(data_types)
 
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
@@ -1659,7 +1669,7 @@ def rendering_test_lift_kuka(
         )
         default = single_camera
 
-    override_arg = f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera"
+    override_arg = f"presets={_physics_preset_name(physics_backend)},{renderer},single_camera"
 
     # The default setup uses heterogeneous environments with multiple asset spawner to place random objects.
     # For homogeneous environments, we use a fixed object config - cube.
@@ -1670,8 +1680,11 @@ def rendering_test_lift_kuka(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [override_arg])
 
     env_cfg.scene.num_envs = 4
+    env_cfg.scene.base_camera.data_types = list(data_types)
+    env_cfg.scene.base_camera.width = 64
+    env_cfg.scene.base_camera.height = 64
 
-    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_types)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
     # The underlying point sampling uses the global numpy/torch RNG, so marker positions shift
@@ -1694,8 +1707,8 @@ def rendering_test_lift_kuka(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        maybe_step_env_for_motion(env, data_type)
-        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+        maybe_step_env_for_motion(env, data_types)
+        maybe_save_stage(test_name, physics_backend, renderer, "all")
         validate_camera_outputs(
             test_name,
             physics_backend,
@@ -1713,7 +1726,7 @@ def rendering_test_lift_kuka(
             env = None
 
 
-def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
+def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_types: tuple[str, ...]) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
     from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -1729,7 +1742,7 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
                 func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_type, "permute": True},
+                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0], "permute": True},
             )
 
             def __post_init__(self) -> None:
@@ -1740,7 +1753,7 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.env_spacing = 3.0
-    env_cfg.scene.base_camera.data_types = [data_type]
+    env_cfg.scene.base_camera.data_types = list(data_types)
     env_cfg.observations = TestFrankaCameraObservationsCfg()
     env_cfg.commands.deformable_pose.debug_vis = False
     env_cfg.events.reset_deformable.params["position_range"] = {
@@ -1753,12 +1766,12 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
 def rendering_test_franka_cloth(
     physics_backend: str,
     renderer: str,
-    data_type: str,
+    data_types: str | tuple[str, ...],
     comparison_scores: list[dict],
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
+    data_types = _as_data_types(data_types)
 
-    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+    if renderer == "ovrtx_renderer" and data_types == ("instance_segmentation",):
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
 
     from isaaclab.envs import ManagerBasedRLEnv
@@ -1771,9 +1784,9 @@ def rendering_test_franka_cloth(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_type)
+    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
 
-    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_types)
 
     test_name = "franka_cloth"
     env = None
@@ -1781,7 +1794,7 @@ def rendering_test_franka_cloth(
     try:
         env = ManagerBasedRLEnv(env_cfg)
 
-        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+        maybe_save_stage(test_name, physics_backend, renderer, "all")
 
         # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
         # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
@@ -1809,20 +1822,20 @@ def rendering_test_franka_cloth(
 def rendering_test_franka_soft(
     physics_backend: str,
     renderer: str,
-    data_type: str,
+    data_types: str | tuple[str, ...],
     comparison_scores: list[dict],
 ) -> None:
     if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
         pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
 
-    if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
+    data_types = _as_data_types(data_types)
+    if renderer == "ovrtx_renderer" and data_types == ("instance_segmentation",):
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
 
     # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
-    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and data_type == "depth":
+    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and data_types == ("depth",):
         pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
 
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -1834,9 +1847,9 @@ def rendering_test_franka_soft(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_type)
+    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
 
-    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_types)
 
     test_name = "franka_soft"
     env = None
@@ -1844,7 +1857,7 @@ def rendering_test_franka_soft(
     try:
         env = ManagerBasedRLEnv(env_cfg)
 
-        if data_type == "motion_vectors":
+        if "motion_vectors" in data_types:
             # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
             arm_action = env.action_manager.get_term("arm_action")
             ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
@@ -1856,7 +1869,7 @@ def rendering_test_franka_soft(
 
             env.step(actions)
 
-        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+        maybe_save_stage(test_name, physics_backend, renderer, "all")
 
         validate_camera_outputs(
             test_name,
