@@ -323,7 +323,9 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 PHYSICS_RENDERER_AOV_BATCHES = [
     _make_sensor_data_type_batch_param("physx", "isaacsim_rtx", _DEFAULT_SENSOR_DATA_TYPES),
     _make_sensor_data_type_batch_param(
-        "newton", "isaacsim_rtx", tuple(data_type for data_type in _DEFAULT_SENSOR_DATA_TYPES if data_type != "motion_vectors")
+        "newton",
+        "isaacsim_rtx",
+        tuple(data_type for data_type in _DEFAULT_SENSOR_DATA_TYPES if data_type != "motion_vectors"),
     ),
     _make_sensor_data_type_batch_param(
         "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
@@ -352,7 +354,11 @@ KITLESS_PHYSICS_RENDERER_AOV_BATCHES = [
     _make_sensor_data_type_batch_param(
         "newton",
         "ovrtx",
-        tuple(data_type for data_type in _OVRTX_DATA_TYPES if data_type not in (*_OVRTX_TEXTURE_READINESS_DATA_TYPES, "motion_vectors")),
+        tuple(
+            data_type
+            for data_type in _OVRTX_DATA_TYPES
+            if data_type not in (*_OVRTX_TEXTURE_READINESS_DATA_TYPES, "motion_vectors")
+        ),
     ),
     pytest.param(
         "newton",
@@ -361,7 +367,9 @@ KITLESS_PHYSICS_RENDERER_AOV_BATCHES = [
         id="newton-ovrtx-texture-aovs",
         marks=pytest.mark.xfail(reason=_OVRTX_TEXTURE_READINESS_XFAIL_REASON, strict=False),
     ),
-    _make_sensor_data_type_batch_param("ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"),
+    _make_sensor_data_type_batch_param(
+        "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
+    ),
     _make_sensor_data_type_batch_param(
         "newton",
         "newton",
@@ -1533,7 +1541,6 @@ def rendering_test_cartpole(
     *,
     compare_golden: bool = False,
 ) -> None:
-
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
@@ -1859,7 +1866,6 @@ def rendering_test_franka_soft(
     # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
     if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and data_types == ("depth",):
         pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
-
 
     from isaaclab.envs import ManagerBasedRLEnv
 
