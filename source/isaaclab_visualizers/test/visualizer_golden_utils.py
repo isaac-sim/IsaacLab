@@ -54,6 +54,9 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # AnymalD: golden captured warm, first attempt runs cold; observed up to 9.61%.
     "anymal_d-kit-tiled": 12.0,
     "anymal_d-kit-viewport": 4.5,
+    # Newton GL tiled output differs by 0.64% between the L40S CI runner and the golden.
+    # Keep this narrow 1.0% tolerance paired with an SSIM guard for scene regressions.
+    "anymal_d-newton-tiled": 1.0,
     # RTX PRO 6000 Blackwell differs by up to 6.5% while preserving the expected pose.
     "shadow_hand-kit-tiled": 7.0,
     "shadow_hand-kit-viewport": 2.0,
@@ -78,6 +81,9 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # 0.910 lets attempt 1 pass with a large gap above wrong-pose regressions (~0.69).
     "anymal_d-kit-tiled": 0.910,
     "anymal_d-kit-viewport": 0.960,
+    # The L40S comparison reaches SSIM 0.9883; retain a structural threshold well above
+    # known pose regressions while accepting this cross-GPU rasterization variation.
+    "anymal_d-newton-tiled": 0.980,
     # Cross-GPU RTX variation; observed SSIM 0.941 on RTX PRO 6000 Blackwell vs L40S goldens.
     # Wrong-pose regressions drop SSIM below 0.90.
     "shadow_hand-kit-tiled": 0.935,
