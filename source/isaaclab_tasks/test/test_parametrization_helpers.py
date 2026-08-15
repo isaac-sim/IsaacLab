@@ -14,12 +14,45 @@ from rendering_test_utils import (
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     attach_comparison_properties,
     generate_html_report,
+    group_rendering_params,
     make_kitless_rendering_params,
     make_kitless_rendering_params_franka,
     make_kitless_rendering_params_lift,
     make_skip_rendering_params,
     make_xfail_rendering_params,
 )
+
+
+def test_group_rendering_params_preserves_isolated_data_types_and_marks() -> None:
+    """Compatible AOVs should share a case without broadening special-case marks."""
+    flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
+    params = [
+        pytest.param("physx", "isaacsim_rtx_renderer", "albedo", id="physx-rtx-albedo", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "normals", id="physx-rtx-normals", marks=flaky),
+        pytest.param(
+            "physx",
+            "isaacsim_rtx_renderer",
+            "simple_shading_full_mdl",
+            id="physx-rtx-simple_shading_full_mdl",
+            marks=flaky,
+        ),
+        pytest.param(
+            "physx",
+            "isaacsim_rtx_renderer",
+            "motion_vectors",
+            id="physx-rtx-motion_vectors",
+            marks=pytest.mark.xfail(reason="Known motion regression."),
+        ),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("physx", "isaacsim_rtx_renderer", ["albedo", "normals"]),
+        ("physx", "isaacsim_rtx_renderer", ["simple_shading_full_mdl"]),
+        ("physx", "isaacsim_rtx_renderer", ["motion_vectors"]),
+    ]
+    assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["flaky"], ["xfail"]]
 
 
 def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from rendering_test_utils import (
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    group_rendering_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
@@ -38,6 +39,7 @@ _RENDERING_PARAMS = make_xfail_rendering_params(
     _BASE_RENDERING_PARAMS,
     {("ovstage", "ovphysx", "ovrtx_renderer", "motion_vectors"): _OVSTAGE_OVPHYSX_MOTION_XFAIL_REASON},
 )
+_RENDERING_PARAMS = group_rendering_params(_RENDERING_PARAMS)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -47,8 +49,8 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_type", _RENDERING_PARAMS, indirect=["ovstage_variant"]
+    "ovstage_variant,physics_backend,renderer,data_types", _RENDERING_PARAMS, indirect=["ovstage_variant"]
 )
-def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_type):
+def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_types):
     """Camera output must match golden images (Cartpole camera presets env)."""
-    rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)
+    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES)
