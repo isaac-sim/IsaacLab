@@ -24,12 +24,10 @@ args_cli = parser.parse_args()
 import newton
 import newton.utils
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_contrib.deformable import VBDSolverCfg
 
 MECHANICAL_ADVANTAGE = 4
 LOAD_MASS = 5.0
