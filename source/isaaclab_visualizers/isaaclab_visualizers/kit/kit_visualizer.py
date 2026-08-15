@@ -131,7 +131,7 @@ class KitVisualizer(BaseVisualizer):
         # render_rgb_array() skips its own pump when the step already pumped the app.
         self._app_pumped_this_step: bool = False
         # Camera tracking state (replaces ViewportCameraController)
-        self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
+        self._interactive_scene = None  # set from the scene data provider in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
 
     # ---- Lifecycle ------------------------------------------------------------------------
@@ -1201,9 +1201,7 @@ class KitVisualizer(BaseVisualizer):
         camera is positioned immediately. For asset-tracking origins the first update is deferred
         to :meth:`step` because asset state is not yet available at initialization time.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
-        self._interactive_scene = getattr(SimulationContext.instance(), "_interactive_scene", None)
+        self._interactive_scene = self._scene_data_provider.get_interactive_scene()
 
         if self.cfg.origin_type == "world":
             self._viewer_origin = torch.zeros(3)

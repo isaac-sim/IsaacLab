@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from pxr import Usd
 
+    from isaaclab.sim import SimulationContext
+
 # Whether each visualizer and renderer type needs a USD stage or a Newton model, by type index.
 # fmt: off
 TYPES          = ["kit", "newton_gl", "newton", "newton_rtx", "rerun", "viser", "isaac_rtx", "newton_warp", "ovrtx"]
@@ -31,49 +33,38 @@ REQUIRES_MODEL = [False, True,        True,     True,         True,    True,    
 
 
 class SceneDataProvider:
-    def __init__(self, backend: SceneDataBackend):
+    def __init__(self, backend: SceneDataBackend, sim_context: SimulationContext | None = None):
         """Initialize the scene data provider.
 
         Args:
             backend: The simulation backend that supplies raw transform data.
+            sim_context: The simulation context that owns this provider, used to reach the stage
+                and the active scene. ``None`` outside a simulation, which limits the provider to
+                what the backend alone can answer.
         """
         self.backend = backend
+        self._sim = sim_context
         self._num_envs_cache: int | None = None
-        self._interactive_scene: Any | None = None
-
-    def set_interactive_scene(self, scene: Any) -> None:
-        """Attach the active interactive scene for scene-owned sensor discovery."""
-        self._interactive_scene = scene
 
     def get_interactive_scene(self) -> Any | None:
-        """Return the registered interactive scene, if available."""
-        return self._interactive_scene
+        """Return the scene registered with the simulation context, if any."""
+        return self._sim.get_interactive_scene() if self._sim is not None else None
 
     def get_camera_sensors(self) -> dict[str, Any]:
         """Return Isaac Lab camera sensors keyed by scene sensor name."""
-        if self._interactive_scene is None:
-            return {}
-        try:
-            from isaaclab.sensors.camera import Camera
-        except ImportError:
-            return {}
-        return {
-            name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, Camera)
-        }
+        from isaaclab.sensors.camera import Camera
+
+        scene = self.get_interactive_scene()
+        sensors = scene.sensors if scene is not None else {}
+        return {name: sensor for name, sensor in sensors.items() if isinstance(sensor, Camera)}
 
     def get_contact_sensors(self) -> dict[str, Any]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
-        if self._interactive_scene is None:
-            return {}
         from isaaclab.sensors.contact_sensor import BaseContactSensor
 
-        return {
-            name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, BaseContactSensor)
-        }
+        scene = self.get_interactive_scene()
+        sensors = scene.sensors if scene is not None else {}
+        return {name: sensor for name, sensor in sensors.items() if isinstance(sensor, BaseContactSensor)}
 
     @property
     def transform_count(self) -> int:
@@ -89,10 +80,7 @@ class SceneDataProvider:
         cached stage. Returns ``None`` on Newton-only headless runs without a USD
         stage.
         """
-        from isaaclab.sim import SimulationContext
-
-        sim = SimulationContext.instance()
-        stage = getattr(sim, "stage", None) if sim is not None else None
+        stage = self._sim.stage if self._sim is not None else None
         if stage is not None:
             return stage
         try:

@@ -183,8 +183,9 @@ class SimulationContext:
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
         self.physics_manager.initialize(self)
 
+        self._interactive_scene: Any | None = None
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
-        self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
+        self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend(), self)
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizer_cfgs: list[Any] | None = None
         self._reset_requested: bool = False
@@ -679,8 +680,10 @@ class SimulationContext:
     def register_interactive_scene(self, scene) -> None:
         """Register the active scene so scene data providers can expose scene-owned sensors."""
         self._interactive_scene = scene
-        if self._scene_data_provider is not None:
-            self._scene_data_provider.set_interactive_scene(scene)
+
+    def get_interactive_scene(self):
+        """Return the scene registered by :meth:`register_interactive_scene`, if any."""
+        return self._interactive_scene
 
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
