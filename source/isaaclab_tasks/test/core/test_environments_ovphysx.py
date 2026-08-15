@@ -21,7 +21,18 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_environment  # isort: skip
 
 
-_ENVIRONMENT_TASKS = setup_environment(multi_agent=False, physics_preset_name="ovphysx", tier="core")
+_COVERED_TASKS = [
+    "Isaac-Cartpole-Camera-Direct",  # Already covered by test_rendering_cartpole_kitless.py
+    "Isaac-Lift-KukaAllegro-Camera",  # Already covered by test_rendering_lift_kuka_homo_kitless.py
+    "Isaac-Reorient-Cube-Shadow-Camera-Direct",  # Already covered by test_rendering_shadow_hand_kitless.py
+]
+
+_ENVIRONMENT_TASKS = setup_environment(
+    multi_agent=False,
+    physics_preset_name="ovphysx",
+    tier="core",
+    exclude_task_names=_COVERED_TASKS,
+)
 
 
 @pytest.mark.parametrize(
