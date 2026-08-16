@@ -325,49 +325,6 @@ Choosing an API
      - Isaac Lab's tested path is the ``isaaclab.cloner`` API described here.
 
 
-Migrating From Template Cloning
--------------------------------
-
-The template-root discovery API has been removed. Replace
-``clone_from_template(...)`` calls with explicit source prims plus
-:func:`~isaaclab.cloner.make_clone_plan`, a backend physics replicate function, and
-:func:`~isaaclab.cloner.usd_replicate`. Replace ``TemplateCloneCfg`` with
-:class:`~isaaclab.cloner.CloneCfg` for execution settings such as clone strategy,
-Fabric cloning, and backend replication.
-
-
-Collision Filtering and Isolation
----------------------------------
-
-Some prims, such as terrain, are intentionally shared across environments and should collide
-with every environment. These are modeled as global collision paths. The workaround is only
-the per-environment filtering: when cloning is fully isolated per world, cloned environments
-should not collide with each other and no manual per-environment filter should be needed.
-Some PhysX cloning paths still rely on USD collision groups for that isolation fallback. In
-the scene workflow this is handled by ``InteractiveScene`` when ``filter_collisions=True``
-and the backend is PhysX.
-
-For direct PhysX usage, call :func:`~isaaclab.cloner.filter_collisions` after cloning if
-per-environment isolation is not already provided by the cloning backend:
-
-.. code-block:: python
-
-    from isaaclab.cloner import filter_collisions
-
-    filter_collisions(
-        stage=stage,
-        physicsscene_path="/physicsScene",
-        collision_root_path="/World/collisions",
-        prim_paths=[f"/World/envs/env_{i}" for i in range(num_envs)],
-        global_paths=["/World/ground"],
-    )
-
-.. note::
-
-    Collision filtering uses PhysX collision groups. Newton handles per-environment isolation
-    through its own world system.
-
-
 Backend and Option Notes
 ------------------------
 
