@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from types import ModuleType
 
@@ -70,6 +72,37 @@ def _write_module_skipped_junit_report(report_file: str) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def _write_failing_junit_report(report_file: str, name: str) -> None:
+    """Write a valid JUnit report containing one failing test case."""
+    path = Path(report_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        (
+            '<?xml version="1.0" encoding="utf-8"?><testsuites>'
+            f'<testsuite tests="1" failures="1"><testcase classname="test_sample" name="{name}">'
+            '<failure message="assert 0 == 1">assert 0 == 1</failure></testcase>'
+            "</testsuite></testsuites>"
+        ),
+        encoding="utf-8",
+    )
+
+
+def _append_journal(journal_file: str, records: list[dict]) -> None:
+    """Append crash-journal records the way the repo-root ``conftest.py`` does from the test process."""
+    with open(journal_file, "a", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record) + "\n")
+
+
+def _journaled_test(node_id: str, outcome: str) -> list[dict]:
+    """Return the journal records one test that ran to completion writes."""
+    return [
+        {"event": "start", "node_id": node_id},
+        {"event": "result", "node_id": node_id, "when": "call", "outcome": outcome},
+        {"event": "finish", "node_id": node_id},
+    ]
 
 
 def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -> None:
@@ -306,6 +339,125 @@ def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path
 
     assert status["result"] == "passed (shutdown hanged)"
     assert not was_failure
+
+
+def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
+    """The journal path handed to the test subprocess must not depend on the current directory.
+
+    The repo-root ``conftest.py`` reopens this path on every journal write, from inside the test
+    process. A relative path would resolve against whatever directory the test happens to be in,
+    so a test using ``monkeypatch.chdir`` would write its verdicts to a journal under the
+    temporary directory and, once teardown restored the cwd, resume writing to this one — leaving
+    a test that ran and passed looking like it was never reached.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    journal_paths: list[str] = []
+
+    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
+        journal_paths.append(env[orchestrator.JOURNAL_ENV_VAR])
+        _write_partial_junit_report(report_file)
+        return 0, b"", b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", str(tmp_path / "ovrtx_renderer.log"))
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert len(journal_paths) == 1
+    journal_path = Path(journal_paths[0])
+    assert journal_path.is_absolute()
+    # pytest only creates the report directory in ``pytest_sessionfinish``, which a crashed run
+    # never reaches, so the directory has to exist before the subprocess starts journaling.
+    assert journal_path.parent.is_dir()
+
+
+def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch, tmp_path: Path) -> None:
+    """A retry killed mid-test must be reported as a crash, blamed on the test it was running.
+
+    Files in ``PROCESS_FAILURE_RETRIES_BY_FILE`` get another subprocess after a test failure. That
+    retry can itself be SIGKILLed or segfault, and then it writes no JUnit report at all. Without a
+    journal of its own the run falls back to the first attempt's verdicts: reported ``FAILED`` with
+    no crash, and no record of which test took the process down.
+
+    The two attempts disagree on purpose — ``test_alpha`` fails first and passes on the retry,
+    which dies inside ``test_beta`` — so the rebuilt report can only come from the retry's journal.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_alpha():\n    pass\n\n\ndef test_beta():\n    pass\n", encoding="utf-8")
+    monkeypatch.setitem(orchestrator.PROCESS_FAILURE_RETRIES_BY_FILE, test_file.name, 1)
+    alpha, beta = f"{test_file}::test_alpha", f"{test_file}::test_beta"
+    journals_seen: list[str | None] = []
+    journal_was_stale: list[bool] = []
+    report_paths: list[Path] = []
+
+    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
+        journal_file = env.get(orchestrator.JOURNAL_ENV_VAR)
+        journals_seen.append(journal_file)
+        report_paths.append(Path(report_file))
+        if journal_file is None:
+            return -9, b"", b"", "", 0.2, ""
+        journal_was_stale.append(Path(journal_file).exists())
+        _append_journal(journal_file, [{"event": "collected", "node_ids": [alpha, beta]}])
+        if len(journals_seen) == 1:
+            _append_journal(journal_file, _journaled_test(alpha, "failed"))
+            _append_journal(journal_file, _journaled_test(beta, "passed"))
+            _write_failing_junit_report(report_file, "test_alpha")
+            return 1, b"1 failed", b"", "", 0.1, ""
+        # The retry gets through test_alpha, then dies inside test_beta — so pytest never reaches
+        # ``pytest_sessionfinish`` and writes no report.
+        _append_journal(journal_file, _journaled_test(alpha, "passed"))
+        _append_journal(journal_file, [{"event": "start", "node_id": beta}])
+        return -9, b"", b"", "", 0.2, ""
+
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", str(tmp_path / "ovrtx_renderer.log"))
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert len(journals_seen) == 2
+    assert all(journals_seen), "the fresh-process retry ran without a crash journal"
+    # A journal left over from the first attempt would fold its test_alpha failure into the report.
+    assert journal_was_stale == [False, False]
+    assert report is not None
+    assert status["result"] == "CRASHED"
+    assert status["errors"] == 1
+    assert status["failures"] == 0
+    assert status["tests"] == 2
+    assert was_failure
+
+    cases = {case.get("name"): case for case in ElementTree.parse(report_paths[1]).getroot().iter("testcase")}
+    assert sorted(cases) == ["test_alpha", "test_beta"]
+    assert list(cases["test_alpha"]) == [], "test_alpha passed on the retry and must be reported as passed"
+    errors = cases["test_beta"].findall("error")
+    assert len(errors) == 1, "the crash must be reported against the test that was running"
+    assert "SIGKILL" in errors[0].get("message")
 
 
 def test_result_summary_includes_fast_failure_after_thirty_slower_files():
