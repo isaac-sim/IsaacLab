@@ -1,4 +1,0 @@
-Test and CI tooling only. Reworks the pytest crash journal (``tools/_crash_journal.py``) so that a
-worker crash is attributed to the test that was running, including during retries, and so that each
-phase result is emitted as its own JUnit testcase. Adds the ``tools`` test suite to CI. No changes to
-the ``isaaclab`` package itself.
