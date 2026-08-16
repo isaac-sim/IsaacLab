@@ -1766,7 +1766,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "16.2.0"
+version = "16.2.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1786,7 +1786,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "1.4.0"
+version = "2.0.0"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2149,7 +2149,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2214,7 +2214,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "16.2.0"
+version = "16.3.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },

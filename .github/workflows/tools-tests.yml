@@ -1,0 +1,59 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Tools Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      # The repo-root conftest.py writes the crash journal these tests read back.
+      - "conftest.py"
+      # Top-level tools modules and their tests. Deliberately not "tools/**": the
+      # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
+      - "tools/*.py"
+      - ".github/workflows/tools-tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: tools-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tools-tests:
+    name: Tools tests
+    runs-on: ubuntu-latest
+    # The crash-journal tests spawn pytest subprocesses and kill them; cap the job so a
+    # subprocess that fails to die cannot hold a runner for the default six hours.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
+      # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
+      # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
+      # installed that test skips itself rather than failing, so keep it in this list.
+      - name: Install test dependencies
+        run: python3 -m pip install pytest junitparser flaky
+
+      - name: Run tools tests
+        env:
+          # The tests import the modules under test (crash_journal, _device_split) directly.
+          PYTHONPATH: tools
+        # Files are listed explicitly rather than collected from tools/: test_settings.py is a
+        # configuration module, not a test, and tools/test/ needs the full Isaac Lab install.
+        #
+        # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
+        # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
+        # suite, so loading it here would ignore the files named below.
+        run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v --noconftest
