@@ -129,7 +129,9 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         ValueError: When the input argument is not a callable object.
 
     Returns:
-        A string representation of the callable object.
+        A string representation of the callable object. Nested attributes use
+        their qualified name when it can be resolved safely. Local functions
+        and instance-bound methods retain the legacy simple-name format.
     """
     # check if callable
     if not callable(value):
@@ -142,9 +144,15 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
         return f"lambda {lambda_line}"
     else:
-        # get the module and function name
+        # Use qualified names for safely resolvable nested attributes. Preserve
+        # the legacy simple-name format for local functions and instance-bound
+        # methods, whose qualified names either contain ``<locals>`` or would
+        # resolve back to an unbound function and silently drop the instance.
         module_name = value.__module__
-        function_name = value.__name__
+        qualified_name = value.__qualname__
+        bound_instance = getattr(value, "__self__", None)
+        instance_bound_method = bound_instance is not None and not isinstance(bound_instance, type)
+        function_name = value.__name__ if "<locals>" in qualified_name or instance_bound_method else qualified_name
         # return the string
         return f"{module_name}{separator}{function_name}"
 
@@ -154,12 +162,13 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
 
     Args:
         name: The function name. The format should be 'module:attribute_name' or a
-            lambda expression of format: 'lambda x: x'.
+            lambda expression of format: 'lambda x: x'. Attribute names may contain
+            dots to resolve callables nested under classes or other module attributes.
         separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
         ValueError: When the resolved attribute is not a function.
-        ValueError: When the module cannot be found.
+        ValueError: When the module or attribute cannot be found.
 
     Returns:
         Callable: The function loaded from the module.
@@ -173,14 +182,15 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
             callable_object = eval(name, {"__builtins__": {}}, {})
         else:
             mod_name, attr_name = name.rsplit(separator, 1)
-            mod = importlib.import_module(mod_name)
-            callable_object = getattr(mod, attr_name)
+            callable_object = importlib.import_module(mod_name)
+            for attr in attr_name.split("."):
+                callable_object = getattr(callable_object, attr)
         # check if attribute is callable
         if callable(callable_object):
             return callable_object
         else:
             raise AttributeError(f"The imported object is not callable: '{name}'")
-    except (ValueError, ModuleNotFoundError) as e:
+    except (ValueError, ModuleNotFoundError, AttributeError) as e:
         msg = (
             f"Could not resolve the input string '{name}' into callable object."
             " The format of input should be 'module:attribute_name'.\n"
