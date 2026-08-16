@@ -127,8 +127,9 @@ and ``quaternions`` buffers. If ``positions`` is provided, it authors
 Clone Plans
 -----------
 
-For one source row, passing ``sources``, ``destinations``, and ``mask`` by hand is simple.
-For heterogeneous scenes, the mapping is easier to build with
+When every environment is cloned from a single source, such as using ``env_0`` to populate a
+4,096-environment scene, passing ``sources``, ``destinations``, and ``mask`` directly is
+straightforward. For heterogeneous scenes, the mapping is easier to build with
 :func:`~isaaclab.cloner.make_clone_plan`, which returns the raw flat components. Composing
 those components into a :class:`~isaaclab.cloner.ClonePlan` together with the per-environment
 pose buffer is the caller's responsibility — keeping pose authority on the side that owns the
