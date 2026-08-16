@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+16.4.0 (2026-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the Cartpole task family to use Newton MJWarp and the Newton renderer by default.
+  Pass explicit physics and renderer presets to retain an Isaac Sim PhysX configuration.
+
+
 16.3.0 (2026-08-15)
 ~~~~~~~~~~~~~~~~~~~
 
