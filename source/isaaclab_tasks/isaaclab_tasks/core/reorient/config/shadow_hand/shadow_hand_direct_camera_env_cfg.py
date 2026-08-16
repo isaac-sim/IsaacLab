@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -79,7 +81,7 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     width: int = 120
     height: int = 120
-    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
+    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(default=NewtonWarpRendererCfg())
 
 
 @configclass
@@ -140,8 +142,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
         benchmark task, which disables the feature extractor, to measure pure
         depth-rendering throughput, e.g.::
 
-            presets=depth          # depth rendering, default renderer
-            presets=depth,newton_renderer     # depth rendering with Newton renderer
+            presets=depth          # depth rendering with the default Newton renderer
             presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
@@ -165,7 +166,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
 
     def __post_init__(self):
-        # only the RTX tiled camera renders the default RGB/depth/semantic set
+        # The default RGB/depth/semantic set is supported by both default backends.
         super().__post_init__()
         for backend_cfg in (self.sim.physics, self.robot_cfg):
             backend_cfg.default = backend_cfg.isaacsim_physx

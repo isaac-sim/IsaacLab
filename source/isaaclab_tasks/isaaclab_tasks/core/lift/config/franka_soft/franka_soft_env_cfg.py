@@ -14,6 +14,7 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -91,7 +92,7 @@ FRANKA_CAMERA_CFG = CameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
     width=128,
     height=128,
-    renderer_cfg=MultiBackendRendererCfg(),
+    renderer_cfg=MultiBackendRendererCfg(default=NewtonWarpRendererCfg()),
 )
 
 

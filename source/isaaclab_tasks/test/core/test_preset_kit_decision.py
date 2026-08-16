@@ -20,7 +20,7 @@ from isaaclab.physics import PhysicsCfg, PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -74,6 +74,36 @@ def test_isaacsim_physx_is_physics_selector():
 
     assert preset_map is not None
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
+
+
+@pytest.mark.parametrize(
+    ("task_id", "presets", "camera_paths"),
+    [
+        ("Isaac-Cartpole-Camera-Direct", (), ("tiled_camera",)),
+        ("Isaac-Cartpole-Camera", (), ("scene.tiled_camera",)),
+        ("Isaac-Reorient-KukaAllegro-Camera", (), ("scene.base_camera",)),
+        ("Isaac-Reorient-KukaAllegro-Camera", ("duo_camera",), ("scene.base_camera", "scene.wrist_camera")),
+        ("Isaac-Lift-KukaAllegro-Camera", (), ("scene.base_camera",)),
+        ("Isaac-Lift-KukaAllegro-Camera", ("duo_camera",), ("scene.base_camera", "scene.wrist_camera")),
+        ("Isaac-Reorient-Cube-Shadow-Camera-Direct", (), ("tiled_camera",)),
+        ("Isaac-Reorient-Cube-Shadow-Camera", (), ("scene.tiled_camera",)),
+        ("Isaac-Lift-Soft-Franka-Camera", (), ("scene.base_camera",)),
+        ("Isaac-Lift-Cable-Franka-Camera", (), ("scene.base_camera",)),
+        ("Isaac-Lift-Cloth-Franka-Camera", (), ("scene.base_camera",)),
+    ],
+)
+def test_core_camera_tasks_default_to_newton_renderer(
+    task_id: str, presets: tuple[str, ...], camera_paths: tuple[str, ...]
+):
+    """Core camera tasks should resolve their default renderer to Newton."""
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    env_cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=presets)
+    for camera_path in camera_paths:
+        camera_cfg = env_cfg
+        for attr in camera_path.split("."):
+            camera_cfg = getattr(camera_cfg, attr)
+        assert isinstance(camera_cfg.renderer_cfg, NewtonWarpRendererCfg), f"{task_id}:{camera_path}"
 
 
 def test_registered_task_physx_presets_keep_auto_selection_explicit():
