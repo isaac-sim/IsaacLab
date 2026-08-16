@@ -7,18 +7,16 @@
 
 .. code-block:: bash
 
-    # Add --extra isaacsim when using Isaac Sim PhysX or the Kit visualizer.
-
-    # Isaac Sim PhysX with Kit visualizer.
+    # Usage with default PhysX physics and default kit visualizer.
     uv run --extra isaacsim python scripts/demos/multi_asset.py --num_envs 1024
 
-    # Isaac Sim PhysX with Newton visualizer.
+    # Usage with Newton visualizer and default PhysX physics.
     uv run --extra isaacsim python scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
 
-    # Newton (MJWarp) physics with Kit visualizer.
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
     uv run --extra isaacsim python scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
 
-    # Fully Kit-less: Newton (MJWarp) physics with Newton visualizer.
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
     uv run python scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
 
 """

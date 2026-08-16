@@ -122,8 +122,7 @@ see :doc:`cloning`.
 The Code Execution
 ------------------
 
-Add ``--extra isaacsim`` to any command that uses Isaac Sim PhysX or the Kit visualizer. The default command uses
-both, so execute the script with multiple environments and randomized assets as follows:
+To execute the script with multiple environments and randomized assets, use the following command:
 
 .. code-block:: bash
 
@@ -131,9 +130,3 @@ both, so execute the script with multiple environments and randomized assets as 
 
 This command runs the simulation with 2048 environments, each with randomly selected assets.
 To stop the simulation, you can close the window, or press ``Ctrl+C`` in the terminal.
-
-The fully Kit-less Newton configuration does not require the extra:
-
-.. code-block:: bash
-
-   uv run python scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 2048
