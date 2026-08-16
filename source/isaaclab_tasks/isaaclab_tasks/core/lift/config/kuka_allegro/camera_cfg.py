@@ -5,8 +5,6 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -35,7 +33,7 @@ BASE_CAMERA_CFG = CameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
-    renderer_cfg=MultiBackendRendererCfg(default=NewtonWarpRendererCfg()),
+    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 WRIST_CAMERA_CFG = CameraCfg(
@@ -49,7 +47,7 @@ WRIST_CAMERA_CFG = CameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
-    renderer_cfg=MultiBackendRendererCfg(default=NewtonWarpRendererCfg()),
+    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 RAY_PATTERN = patterns.PinholeCameraPatternCfg(focal_length=24.0, horizontal_aperture=20.955)

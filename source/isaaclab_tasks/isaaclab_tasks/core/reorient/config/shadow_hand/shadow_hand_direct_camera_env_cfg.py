@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -81,7 +79,7 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     width: int = 120
     height: int = 120
-    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(default=NewtonWarpRendererCfg())
+    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
 
 @configclass

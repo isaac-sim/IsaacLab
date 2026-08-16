@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import pytest
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -53,15 +54,14 @@ def test_g1_xr_camera_uses_calibration_and_viewer_start_panel():
 
 @pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, LocomanipulationG1EnvCfg])
 def test_xr_camera_reference_renderer_resolves_for_supported_backends(env_cfg_type):
-    """Reference cameras retain Isaac RTX defaults and OVRTX compatibility."""
+    """Reference cameras use Newton by default and retain backend overrides."""
     default = resolve_presets(env_cfg_type().scene.robot_pov_cam.renderer_cfg)
     isaacsim_rtx = resolve_presets(
         env_cfg_type().scene.robot_pov_cam.renderer_cfg,
         selected=("isaacsim_rtx",),
     )
     ovrtx = resolve_presets(env_cfg_type().scene.robot_pov_cam.renderer_cfg, selected=("ovrtx",))
-    expected_rtx = IsaacRtxRendererCfg()
 
-    assert default == expected_rtx
-    assert isaacsim_rtx == expected_rtx
+    assert isinstance(default, NewtonWarpRendererCfg)
+    assert isinstance(isaacsim_rtx, IsaacRtxRendererCfg)
     assert isinstance(ovrtx, OVRTXRendererCfg)
