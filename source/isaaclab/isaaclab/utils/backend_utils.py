@@ -79,7 +79,11 @@ class FactoryBase:
         # Import lazily to avoid import cycles at module load time.
         from isaaclab.sim.simulation_context import SimulationContext
 
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        sim_context = SimulationContext.instance()
+        if sim_context is None:
+            return "physx"
+
+        manager_name = sim_context.physics_manager.__name__.lower()
         if manager_name.startswith("newton"):
             return "newton"
         if manager_name.startswith("ovphysx"):
