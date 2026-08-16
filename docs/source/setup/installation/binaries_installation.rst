@@ -36,6 +36,13 @@ please refer to the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nv
 Verifying the Isaac Sim installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. note::
+
+   On Windows, the commands shown in the ``Windows`` tabs throughout this
+   guide use Command Prompt (``cmd.exe``) syntax. Please run them in a
+   Command Prompt window rather than PowerShell, otherwise commands such as
+   ``set`` and ``mklink`` may not behave as expected.
+
 To avoid the overhead of finding and locating the Isaac Sim installation
 directory every time, we recommend exporting the following environment
 variables to your terminal for the remaining of the installation instructions:
