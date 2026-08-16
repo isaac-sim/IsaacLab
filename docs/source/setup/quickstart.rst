@@ -282,7 +282,7 @@ Benchmark a task
      - Trained-policy rollout throughput. Requires ``--rl_library`` and
        ``--checkpoint``.
    * - ``-multigpu``
-     - Run the same workflow across multiple GPUs by adding the suffix ``-multigpu``. For example, ``runtime-multigpu``.
+     - Run ``startup``, ``runtime``, or ``training`` across multiple GPUs by adding the suffix ``-multigpu``. For example, ``runtime-multigpu``.
 
 See :ref:`testing_benchmarks` for warm-up, formatters, multi-GPU details, and
 how to read results.
