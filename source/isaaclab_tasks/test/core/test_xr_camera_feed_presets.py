@@ -60,7 +60,8 @@ def test_xr_camera_reference_renderer_resolves_for_supported_backends(env_cfg_ty
         selected=("isaacsim_rtx",),
     )
     ovrtx = resolve_presets(env_cfg_type().scene.robot_pov_cam.renderer_cfg, selected=("ovrtx",))
+    expected_rtx = IsaacRtxRendererCfg()
 
-    assert isinstance(default, IsaacRtxRendererCfg)
-    assert isinstance(isaacsim_rtx, IsaacRtxRendererCfg)
+    assert default == expected_rtx
+    assert isaacsim_rtx == expected_rtx
     assert isinstance(ovrtx, OVRTXRendererCfg)
