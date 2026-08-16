@@ -165,12 +165,6 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
 
-    def __post_init__(self):
-        # The default RGB/depth/semantic set is supported by both default backends.
-        super().__post_init__()
-        for backend_cfg in (self.sim.physics, self.robot_cfg):
-            backend_cfg.default = backend_cfg.isaacsim_physx
-
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
         validate_shadow_hand_camera_settings(self.tiled_camera, self.feature_extractor)
