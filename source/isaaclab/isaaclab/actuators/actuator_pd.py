@@ -5,18 +5,17 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import torch
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
-from ._compat import _effort_limits_equal, _resolve_limit_aliases
+from ._compat import _limits_equal, _resolve_limit_aliases
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
@@ -51,23 +50,6 @@ class ImplicitActuator(ActuatorBase):
 
     is_implicit_model: ClassVar[bool] = True
 
-    #@classmethod
-    #def _build_execution_actuator(
-    #    cls, actuators: Sequence[ImplicitActuator], joint_indices: torch.Tensor
-    #) -> ImplicitActuator:
-    #    """Build one private executor for a shared implicit execution batch.
-
-    #    Retains the first group's config metadata; replaces the execution
-    #    tensors below without cloning the logical groups' tensor storage.
-    #    """
-    #    executor = copy.copy(actuators[0])
-    #    executor._joint_names = [name for actuator in actuators for name in actuator.joint_names]
-    #    executor._joint_indices = joint_indices
-    #    executor.velocity_limit = torch.cat([actuator.velocity_limit for actuator in actuators], dim=1)
-    #    executor.computed_effort = torch.zeros(executor._num_envs, len(executor._joint_names), device=executor._device)
-    #    executor.applied_effort = torch.zeros_like(executor.computed_effort)
-    #    return executor
-
     def __init__(
         self,
         cfg: ImplicitActuatorCfg,
@@ -77,60 +59,147 @@ class ImplicitActuator(ActuatorBase):
         device: str,
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
-        actuator_effort_limit: torch.Tensor | float | None = None,
-        actuator_velocity_limit: torch.Tensor | float = torch.inf,
-        effort_limit: torch.Tensor | float | None = None, # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float = torch.inf, # TODO: Deprecated. Remove in 4.0.
+        joint_effort_limit: torch.Tensor | float | None = None,
+        actuator_velocity_limit: torch.Tensor | float | None = None,
+        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
+        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
-        # call the base class, sets both actuator level limits to infinity. Note the implict actuator gets its effort
-        # limit from the articulation joint effort limit.
-        super().__init__(cfg, joint_names, joint_ids, num_envs, device, torch.inf, torch.inf)
-        self.stiffness = self._parse_joint_parameter(cfg.stiffness, stiffness)
-        self.damping = self._parse_joint_parameter(cfg.damping, damping)
+        """Initialize the implicit actuator.
 
-        # Simulation-binded articulation joint parameters.
-        self._stiffness = None
-        self._damping = None
-        self._joint_effort_limit = None
+        Args:
+            cfg: The configuration of the actuator model.
+            joint_names: The joint names in the articulation.
+            joint_ids: The joint indices in the articulation. If :obj:`slice(None)`, then all
+                the joints in the articulation are part of the group.
+            num_envs: Number of articulations in the view.
+            device: Device used for processing.
+            stiffness: Default joint stiffness [N/m or N·m/rad, depending on joint type].
+            damping: Default joint damping [N·s/m or N·m·s/rad, depending on joint type].
+            joint_effort_limit: Default solver joint effort limit [N or N·m, depending on
+                joint type]. Defaults to infinity.
+            actuator_velocity_limit: Default actuator velocity limit [m/s or rad/s,
+                depending on joint type]. Defaults to infinity.
+            effort_limit: Deprecated alias for :paramref:`joint_effort_limit`.
+            velocity_limit: Deprecated alias for :paramref:`actuator_velocity_limit`.
+        """
+        # TODO: Deprecated. Remove in 4.0.
+        if effort_limit is not None:
+            warnings.warn(
+                "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
+                "effort_limit will be removed in 4.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if joint_effort_limit is not None and not _limits_equal(joint_effort_limit, effort_limit):
+                raise ValueError(
+                    "Received conflicting joint_effort_limit and deprecated effort_limit constructor arguments."
+                )
+            joint_effort_limit = effort_limit
+        # the base class resolves deprecated configuration aliases and skips the actuator effort
+        # limit, which implicit models expose as a live projection of the articulation limit.
+        super().__init__(
+            cfg, joint_names, joint_ids, num_envs, device, None, actuator_velocity_limit, None, velocity_limit
+        )
+        # construction values, used until the group is bound to articulation storage.
+        self._construction_stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
+        self._construction_damping = self._parse_joint_parameter(self.cfg.damping, damping)
+        self._construction_joint_effort_limit = self._parse_joint_parameter(
+            self.cfg.joint_effort_limit, joint_effort_limit if joint_effort_limit is not None else torch.inf
+        )
+        # full articulation-order joint property tensors, set by :meth:`_bind_actuator_parameters`.
+        self._stiffness: torch.Tensor | None = None
+        self._damping: torch.Tensor | None = None
+        self._joint_effort_limit: torch.Tensor | None = None
+
+    """
+    Properties.
+    """
 
     @property
     def stiffness(self) -> torch.Tensor:
+        """Current joint stiffness values [N/m or N·m/rad, depending on joint type]."""
+        if self._stiffness is None:
+            return self._construction_stiffness
         return self._stiffness[:, self.joint_indices]
 
     @stiffness.setter
-    def stiffness(self, value: Any | None) -> None:
-        warnings.warn(
-            "Setting the stiffness of a implicit actuator through this setter is not supported. Use the articulation's setter instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return None
+    def stiffness(self, value: torch.Tensor) -> None:
+        self._set_articulation_owned_property("stiffness", value)
 
     @property
     def damping(self) -> torch.Tensor:
+        """Current joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
+        if self._damping is None:
+            return self._construction_damping
         return self._damping[:, self.joint_indices]
 
     @damping.setter
-    def damping(self, value: Any | None) -> None:
-        warnings.warn(
-            "Setting the damping of a implicit actuator through this setter is not supported. Use the articulation's setter instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return None
+    def damping(self, value: torch.Tensor) -> None:
+        self._set_articulation_owned_property("damping", value)
+
+    @property
+    def joint_effort_limit(self) -> torch.Tensor:
+        """Current joint effort limits [N or N·m, depending on joint type]."""
+        if self._joint_effort_limit is None:
+            return self._construction_joint_effort_limit
+        return self._joint_effort_limit[:, self.joint_indices]
+
+    @joint_effort_limit.setter
+    def joint_effort_limit(self, value: torch.Tensor) -> None:
+        self._set_articulation_owned_property("joint_effort_limit", value)
 
     @property
     def actuator_effort_limit(self) -> torch.Tensor:
-        return self._joint_effort_limit[:, self.joint_indices]
-    
+        """Actuator effort limit [N or N·m, depending on joint type].
+
+        The implicit drive is applied by the solver, so the actuator effort limit is the
+        articulation joint effort limit (:attr:`joint_effort_limit`).
+        """
+        return self.joint_effort_limit
+
     @actuator_effort_limit.setter
-    def effort_limit(self, value: Any | None) -> None:
+    def actuator_effort_limit(self, value: torch.Tensor) -> None:
+        self._set_articulation_owned_property("joint_effort_limit", value)
+
+    @property
+    def effort_limit(self) -> torch.Tensor:
+        """Deprecated joint effort limit [N or N·m, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :attr:`joint_effort_limit` instead. This alias will be removed in 4.0.
+        """
         warnings.warn(
-            "Setting the actuator_effort_limit of a implicit actuator through this setter is not supported. Use the articulation's setter instead.",
+            "ImplicitActuator.effort_limit is deprecated. Use joint_effort_limit instead; "
+            "effort_limit will be removed in 4.0.",
             DeprecationWarning,
             stacklevel=2,
         )
-        return None
+        return self.joint_effort_limit
+
+    @effort_limit.setter
+    def effort_limit(self, value: torch.Tensor) -> None:
+        warnings.warn(
+            "ImplicitActuator.effort_limit is deprecated. Use joint_effort_limit instead; "
+            "effort_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.joint_effort_limit = value
+
+    def _set_articulation_owned_property(self, name: str, value: torch.Tensor) -> None:
+        """Store a construction value or reject assignment after articulation binding."""
+        construction_name = f"_construction_{name}"
+        if self.__dict__.get(f"_{name}") is not None:
+            writer_name = {
+                "stiffness": "write_joint_stiffness_to_sim_index",
+                "damping": "write_joint_damping_to_sim_index",
+                "joint_effort_limit": "write_joint_effort_limit_to_sim_index",
+            }[name]
+            raise AttributeError(
+                f"ImplicitActuator.{name} is articulation-owned after binding. Use "
+                f"Articulation.{writer_name}() or randomize_actuator_gains() to update it."
+            )
+        self.__dict__[construction_name] = value
 
     """
     Operations.
@@ -165,21 +234,24 @@ class ImplicitActuator(ActuatorBase):
         # store approximate torques for reward computation
         error_pos = control_action.joint_positions - joint_pos
         error_vel = control_action.joint_velocities - joint_vel
-        self.computed_effort = self._stiffness[:, self.joint_indices] * error_pos + self._damping[:, self.joint_indices] * error_vel + control_action.joint_efforts
+        self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)
         return control_action
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         """Clip telemetry using the articulation joint effort limit."""
-        return torch.clip(effort, min=-self._joint_effort_limit[:, self.joint_indices], max=self._joint_effort_limit[:, self.joint_indices])
+        joint_effort_limit = self.joint_effort_limit
+        return torch.clip(effort, min=-joint_effort_limit, max=joint_effort_limit)
 
     def _bind_actuator_parameters(self, control: ActuatorControl) -> None:
-        """Bind the actuator parameters to the control object. Stores references to the articulation parameters.
+        """Bind joint-property reads to live articulation-owned storage.
 
-        .. note:: We do not slice because if the indices are not contiguous, then the slicing will create a new tensor,
-        and we would lose the reference to the original tensor. By keeping the reference, we avoid synchronization
-        issues with the articulation parameters, and the batched executor parameters.
+        Stores references to the full articulation-order tensors instead of per-group
+        slices: with non-contiguous joint indices, slicing would materialize a copy and
+        the reference to the articulation storage would be lost. Property reads index
+        the full tensors on access, so they always observe the articulation's current
+        values.
         """
         self._stiffness = control.joint_stiffness.torch
         self._damping = control.joint_damping.torch
@@ -204,17 +276,15 @@ class IdealPDActuator(ActuatorBase):
     are the current joint positions and velocities, :math:`q_{des}`, :math:`\dot{q}_{des}` and :math:`\tau_{ff}`
     are the desired joint positions, velocities and torques commands.
 
-    The clipping model is based on the maximum torque applied by the motor. It is implemented as:
+    The model clips the resulting joint effort directly to
+    :attr:`actuator_effort_limit`:
 
     .. math::
 
-        \tau_{j, max} & = \gamma \times \tau_{motor, max} \\
-        \tau_{j, applied} & = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})
+        \tau_{j, applied} = clip(\tau_{j, computed}, -\tau_{max}, \tau_{max})
 
-    where the clipping function is defined as :math:`clip(x, x_{min}, x_{max}) = min(max(x, x_{min}), x_{max})`.
-    The parameters :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-    and :math:`\tau_{motor, max}` is the maximum motor effort possible. These parameters are read from
-    the configuration instance passed to the class.
+    where :math:`\tau_{max}` is the configured joint-side effort limit [N or
+    N·m, depending on joint type].
     """
 
     cfg: IdealPDActuatorCfg
@@ -226,12 +296,6 @@ class IdealPDActuator(ActuatorBase):
     Shape is (num_envs, num_joints).
     """
 
-    stiffness: torch.Tensor
-    """Actuator stiffness [N/m or N·m/rad, depending on joint type]."""
-
-    damping: torch.Tensor
-    """Actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
-
     def __init__(
         self,
         cfg: IdealPDActuatorCfg,
@@ -242,9 +306,9 @@ class IdealPDActuator(ActuatorBase):
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
         actuator_effort_limit: torch.Tensor | float | None = None,
-        actuator_velocity_limit: torch.Tensor | float = torch.inf,
-        effort_limit: torch.Tensor | float | None = None, # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float = torch.inf, # TODO: Deprecated. Remove in 4.0.
+        actuator_velocity_limit: torch.Tensor | float | None = None,
+        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
+        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         super().__init__(
             cfg,
@@ -254,11 +318,53 @@ class IdealPDActuator(ActuatorBase):
             device,
             actuator_effort_limit,
             actuator_velocity_limit,
-            effort_limit, # TODO: Deprecated. Remove in 4.0.
-            velocity_limit, # TODO: Deprecated. Remove in 4.0.
+            effort_limit,  # TODO: Deprecated. Remove in 4.0.
+            velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
-        self.stiffness = self._parse_joint_parameter(cfg.stiffness, stiffness)
-        self.damping = self._parse_joint_parameter(cfg.damping, damping)
+        self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
+        self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
+
+    """
+    Properties.
+    """
+
+    @property
+    def stiffness(self) -> torch.Tensor:
+        """Current actuator stiffness [N/m or N·m/rad, depending on joint type]."""
+        return self._actuator_gain_property("stiffness")
+
+    @stiffness.setter
+    def stiffness(self, value: torch.Tensor) -> None:
+        self._set_actuator_gain_property("stiffness", value)
+
+    @property
+    def damping(self) -> torch.Tensor:
+        """Current actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
+        return self._actuator_gain_property("damping")
+
+    @damping.setter
+    def damping(self, value: torch.Tensor) -> None:
+        self._set_actuator_gain_property("damping", value)
+
+    def _actuator_gain_property(self, name: Literal["stiffness", "damping"]) -> torch.Tensor:
+        """Return a construction gain or reject access on Newton-managed groups."""
+        self._reject_newton_managed_gain_access(name)
+        return self.__dict__[f"_{name}"]
+
+    def _set_actuator_gain_property(self, name: Literal["stiffness", "damping"], value: torch.Tensor) -> None:
+        """Store a construction gain or reject assignment on Newton-managed groups."""
+        self._reject_newton_managed_gain_access(name)
+        self.__dict__[f"_{name}"] = value
+
+    def _reject_newton_managed_gain_access(self, name: Literal["stiffness", "damping"]) -> None:
+        """Raise when the group's gains are owned by Newton actuator controllers."""
+        if self.__dict__.get("_newton_managed", False):
+            attr = {"stiffness": "kp", "damping": "kd"}[name]
+            raise AttributeError(
+                f"{type(self).__name__}.{name} is owned by Newton actuators. Use "
+                f"articulation.actuators.read_actuator_parameter(<group>, 'controller', '{attr}') and "
+                "write_actuator_parameter(...) instead."
+            )
 
     """
     Operations.
@@ -297,14 +403,18 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at
-      zero torque (:attr:`velocity_limit`).
+    * No-load speed (:math:`\dot{q}_{motor, max}`) [m/s or rad/s, depending on
+      joint type]: The maximum-rated speed of the motor at zero torque
+      (:attr:`actuator_velocity_limit`).
     * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at
-      zero speed (:attr:`saturation_effort`).
-    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period.
-      This is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage,
-      or enforced by electrical limitations (:attr:`effort_limit`).
-    * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.
+      zero speed [N or N·m, depending on joint type] (:attr:`saturation_effort`).
+    * Continuous torque (:math:`\tau_{motor, con}`) [N or N·m, depending on
+      joint type]: The maximum torque that can be outputted for a short period.
+      This is often enforced on the current drives for a DC motor to limit
+      overheating, prevent mechanical damage, or enforced by electrical
+      limitations (:attr:`actuator_effort_limit`).
+    * Corner velocity (:math:`V_{c}`) [m/s or rad/s, depending on joint type]:
+      The velocity where the torque-speed curve intersects with continuous torque.
 
     Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
     (where torque-speed curve intersects with continuous torque) are defined as follows:
@@ -351,15 +461,17 @@ class DCMotor(IdealPDActuator):
         if self.cfg.saturation_effort is None:
             raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
         self._saturation_effort = self.cfg.saturation_effort
+        # check that quantities are provided
+        if self.cfg.actuator_velocity_limit is None:
+            raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
         # Find the velocity where the torque-speed curve intersects actuator_effort_limit.
-        self._vel_at_effort_lim = self.velocity_limit * (1 + self.actuator_effort_limit / self._saturation_effort)
+        self._vel_at_effort_lim = self.actuator_velocity_limit * (
+            1 + self.actuator_effort_limit / self._saturation_effort
+        )
         # prepare joint vel buffer for max effort computation
         self._joint_vel = torch.zeros_like(self.computed_effort)
         # create buffer for zeros effort
         self._zeros_effort = torch.zeros_like(self.computed_effort)
-        # check that quantities are provided
-        if self.cfg.velocity_limit is None:
-            raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
 
     """
     Operations.
@@ -381,8 +493,8 @@ class DCMotor(IdealPDActuator):
         # save current joint vel
         self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
-        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
-        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
+        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.actuator_velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.actuator_velocity_limit)
         # -- max limit
         max_effort = torch.clip(torque_speed_top, max=self.actuator_effort_limit)
         # -- min limit
@@ -455,9 +567,12 @@ class DelayedPDActuator(IdealPDActuator):
 class RemotizedPDActuator(DelayedPDActuator):
     """Ideal PD actuator with angle-dependent torque limits.
 
-    This class extends the :class:`DelayedPDActuator` class by adding angle-dependent torque limits to the actuator.
-    The torque limits are applied by querying a lookup table describing the relationship between the joint angle
-    and the maximum output torque. The lookup table is provided in the configuration instance passed to the class.
+    This class extends :class:`DelayedPDActuator` with angle-dependent effort
+    limits [N or N·m, depending on joint type]. The limits are applied by
+    querying a lookup table describing the relationship between joint angle
+    [m or rad, depending on joint type] and maximum output effort [N or N·m,
+    depending on joint type]. The lookup table is provided in the configuration
+    instance passed to the class.
 
     The torque limits are interpolated based on the current joint positions and applied to the actuator commands.
     """
@@ -472,15 +587,21 @@ class RemotizedPDActuator(DelayedPDActuator):
         stiffness: torch.Tensor | float = 0.0,
         damping: torch.Tensor | float = 0.0,
         actuator_effort_limit: torch.Tensor | float | None = None,
-        actuator_velocity_limit: torch.Tensor | float = torch.inf,
-        velocity_limit: torch.Tensor | float = torch.inf, # TODO: Deprecated. Remove in 4.0.
-        effort_limit: torch.Tensor | float | None = None, # TODO: Deprecated. Remove in 4.0.
+        actuator_velocity_limit: torch.Tensor | float | None = None,
+        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
+        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
-        if cfg.effort_limit is not None or cfg.effort_limit_sim is not None or cfg.velocity_limit_sim is not None:
+        if (
+            cfg.effort_limit is not None
+            or cfg.effort_limit_sim is not None
+            or cfg.velocity_limit is not None
+            or cfg.velocity_limit_sim is not None
+        ):
             _resolve_limit_aliases(type(self).__name__, cfg, joint_names)
-        # remove effort and velocity box constraints from the base class
+        # remove effort and velocity box constraints from the base class; this model instead
+        # applies the angle-dependent limits from the joint parameter lookup table.
         cfg.actuator_effort_limit = torch.inf
-        cfg.velocity_limit = torch.inf
+        cfg.actuator_velocity_limit = torch.inf
         # Call the base method with unbounded model clipping and velocity limits.
         super().__init__(
             cfg,
@@ -492,8 +613,8 @@ class RemotizedPDActuator(DelayedPDActuator):
             damping,
             actuator_effort_limit,
             actuator_velocity_limit,
-            effort_limit, # TODO: Deprecated. Remove in 4.0.
-            velocity_limit, # TODO: Deprecated. Remove in 4.0.
+            effort_limit,  # TODO: Deprecated. Remove in 4.0.
+            velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit
@@ -505,14 +626,17 @@ class RemotizedPDActuator(DelayedPDActuator):
 
     @property
     def angle_samples(self) -> torch.Tensor:
+        """Lookup joint positions [m or rad, depending on joint type]."""
         return self._joint_parameter_lookup[:, 0]
 
     @property
     def transmission_ratio_samples(self) -> torch.Tensor:
+        """Dimensionless lookup transmission ratios."""
         return self._joint_parameter_lookup[:, 1]
 
     @property
     def max_torque_samples(self) -> torch.Tensor:
+        """Lookup effort limits [N or N·m, depending on joint type]."""
         return self._joint_parameter_lookup[:, 2]
 
     """

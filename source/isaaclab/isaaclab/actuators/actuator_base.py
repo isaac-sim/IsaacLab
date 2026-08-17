@@ -15,7 +15,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
-from ._compat import _effort_limits_equal, _resolve_limit_aliases
+from ._compat import _limits_equal, _resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -61,8 +61,8 @@ class ActuatorBase(ABC):
     actuator characteristics.
     """
 
-    velocity_limit: torch.Tensor
-    """The joint velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
+    actuator_velocity_limit: torch.Tensor
+    """The actuator velocity limit [m/s or rad/s, depending on joint type]. Shape is (num_envs, num_joints).
 
     The peak velocity of the actuated joint (the actuator's rated speed reflected at the joint,
     after any gearbox). Feeds the articulation data buffers (e.g. soft joint velocity limits) and
@@ -78,9 +78,9 @@ class ActuatorBase(ABC):
         num_envs: int,
         device: str,
         actuator_effort_limit: torch.Tensor | float | None = None,
-        actuator_velocity_limit: torch.Tensor | float = torch.inf,
-        effort_limit: torch.Tensor | float | None = None, # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float = torch.inf, # TODO: Deprecated. Remove in 4.0.
+        actuator_velocity_limit: torch.Tensor | float | None = None,
+        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
+        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         """Initialize the actuator.
 
@@ -97,6 +97,14 @@ class ActuatorBase(ABC):
                 the joints in the articulation are part of the group.
             num_envs: Number of articulations in the view.
             device: Device used for processing.
+            actuator_effort_limit: Default actuator-model effort clipping limit
+                [N or N·m, depending on joint type]. Defaults to infinity.
+                If a tensor, then the shape is (num_envs, num_joints).
+            actuator_velocity_limit: Default actuator velocity limit
+                [m/s or rad/s, depending on joint type]. Defaults to infinity.
+                If a tensor, then the shape is (num_envs, num_joints).
+            effort_limit: Deprecated alias for :paramref:`actuator_effort_limit`.
+            velocity_limit: Deprecated alias for :paramref:`actuator_velocity_limit`.
         """
         # save parameters
         self.cfg = cfg
@@ -109,36 +117,56 @@ class ActuatorBase(ABC):
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
         self.applied_effort = torch.zeros_like(self.computed_effort)
 
-        # Resolve the limits
+        # normalize deprecated configuration aliases for direct construction
         # TODO: Deprecated. Remove in 4.0.
-        if (effort_limit is not None):
+        if (
+            self.cfg.effort_limit is not None
+            or self.cfg.effort_limit_sim is not None
+            or self.cfg.velocity_limit is not None
+            or self.cfg.velocity_limit_sim is not None
+        ):
+            _resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
+
+        # normalize deprecated constructor aliases
+        # TODO: Deprecated. Remove in 4.0.
+        if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use actuator_effort_limit instead; "
                 "effort_limit will be removed in 4.0.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if actuator_effort_limit is not None and not _effort_limits_equal(actuator_effort_limit, effort_limit):
+            if actuator_effort_limit is not None and not _limits_equal(actuator_effort_limit, effort_limit):
                 raise ValueError(
                     "Received conflicting actuator_effort_limit and deprecated effort_limit constructor arguments."
                 )
             actuator_effort_limit = effort_limit
-        if (velocity_limit is not None):
+        if velocity_limit is not None:
             warnings.warn(
                 "The velocity_limit constructor argument is deprecated. Use actuator_velocity_limit instead; "
                 "velocity_limit will be removed in 4.0.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if actuator_velocity_limit is not None and not _effort_limits_equal(actuator_velocity_limit, velocity_limit):
+            if actuator_velocity_limit is not None and not _limits_equal(actuator_velocity_limit, velocity_limit):
                 raise ValueError(
                     "Received conflicting actuator_velocity_limit and deprecated velocity_limit constructor arguments."
                 )
             actuator_velocity_limit = velocity_limit
 
-        # Parse the limits
-        self.actuator_effort_limit = self._parse_joint_parameter(self.cfg.actuator_effort_limit, actuator_effort_limit)
-        self.actuator_velocity_limit = self._parse_joint_parameter(self.cfg.actuator_velocity_limit, actuator_velocity_limit)
+        # parse the actuator-model limits. Implicit models expose their effort limit as a live
+        # projection of the articulation joint effort limit instead of a local buffer.
+        if not self.is_implicit_model:
+            if actuator_effort_limit is None:
+                actuator_effort_limit = torch.inf
+            self.actuator_effort_limit = self._parse_joint_parameter(
+                self.cfg.actuator_effort_limit, actuator_effort_limit
+            )
+        if actuator_velocity_limit is None:
+            actuator_velocity_limit = torch.inf
+        self.actuator_velocity_limit = self._parse_joint_parameter(
+            self.cfg.actuator_velocity_limit, actuator_velocity_limit
+        )
 
     def __str__(self) -> str:
         """Returns: A string representation of the actuator group."""
@@ -311,8 +339,13 @@ class ActuatorBase(ABC):
 
     @property
     def velocity_limit(self) -> torch.Tensor:
+        """Deprecated actuator velocity limit [m/s or rad/s, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :attr:`actuator_velocity_limit` instead. This alias will be removed in 4.0.
+        """
         warnings.warn(
-            "The velocity_limit property is deprecated. Use actuator_velocity_limit instead; "
+            "ActuatorBase.velocity_limit is deprecated. Use actuator_velocity_limit instead; "
             "velocity_limit will be removed in 4.0.",
             DeprecationWarning,
             stacklevel=2,
@@ -322,7 +355,7 @@ class ActuatorBase(ABC):
     @velocity_limit.setter
     def velocity_limit(self, value: torch.Tensor) -> None:
         warnings.warn(
-            "The velocity_limit setter is deprecated. Use actuator_velocity_limit instead; "
+            "ActuatorBase.velocity_limit is deprecated. Use actuator_velocity_limit instead; "
             "velocity_limit will be removed in 4.0.",
             DeprecationWarning,
             stacklevel=2,

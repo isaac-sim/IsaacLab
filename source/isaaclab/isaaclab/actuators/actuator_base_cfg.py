@@ -166,5 +166,7 @@ class ActuatorBaseCfg:
     """Deprecated velocity limit [m/s or rad/s, depending on joint type].
 
     .. deprecated:: 3.0
-        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 4.0.
+        Use :attr:`actuator_velocity_limit` for the actuator-model limit or
+        :attr:`joint_velocity_limit` for the solver limit. This alias will be
+        removed in 4.0.
     """

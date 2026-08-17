@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
 
 
-def _effort_limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:
-    """Return whether two constructor effort-limit arguments are equivalent."""
+def _limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:
+    """Return whether two constructor limit arguments are equivalent."""
     if isinstance(first, torch.Tensor):
         if isinstance(second, torch.Tensor):
             return first.shape == second.shape and torch.equal(first, second)
@@ -54,10 +54,10 @@ def _resolve_limit_aliases(
             f"Implicit actuator group '{actuator_name}' cannot set 'actuator_effort_limit'. "
             "Use 'joint_effort_limit' for the solver limit."
         )
-    if implicit and cfg.velocity_limit is None and cfg.velocity_limit_sim is not None:
+    if implicit and cfg.actuator_velocity_limit is None and cfg.velocity_limit is None and cfg.velocity_limit_sim is not None:
         # Deprecated implicit behavior: the solver clamp doubles as the soft joint
         # velocity limit so the data buffers stay meaningful.
-        cfg.velocity_limit = cfg.velocity_limit_sim
+        cfg.actuator_velocity_limit = cfg.velocity_limit_sim
 
     for new_name, old_name in (
         ("joint_effort_limit", "effort_limit_sim"),

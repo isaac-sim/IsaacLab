@@ -1177,12 +1177,9 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     old_bindings = {name: getattr(data, name) for name in public_to_binding.values()}
     old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
     old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
-    actuator_state_inputs = [
-        batch.implicit_inputs
-        for batch in articulation.actuators._execution_batches
-        if batch.implicit_inputs is not None
-    ]
-    assert actuator_state_inputs
+    implicit_executor = articulation.actuators._implicit_executor
+    assert implicit_executor is not None
+    actuator_state_inputs = [implicit_executor.kernel_inputs]
     data.joint_pos_limits.torch.clone()
     assert data._joint_pos_limits_timestamp == data._sim_timestamp
     # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
