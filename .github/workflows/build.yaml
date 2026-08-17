@@ -896,9 +896,9 @@ jobs:
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
-  # no solver-heavy test job runs on push. Does not restore before saving:
-  # appending to the previous run grows the cache without bound, which is what
-  # exhausted the repository quota last time.
+  # no solver-heavy test job runs on push. Restores the newest compatible
+  # snapshot so coverage accumulates, but only publishes when its contents
+  # change to avoid filling the repository quota with duplicate snapshots.
   warm-warp-cache:
     name: "warp-cache-warm"
     runs-on: [self-hosted, gpu]
@@ -933,20 +933,16 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # MJWarp specializes kernels per model config (@cache_kernel in
-        # mujoco_warp/_src/warp_util.py keys on array sizes; ~250 wp.static uses
-        # feed Warp's module hash), so these span specialization axes rather than
-        # maximize task count: Cartpole (primitives, contact-free, + camera),
-        # Drawer (mesh collision), AnymalD (contact-rich locomotion), Handover
-        # (dexterous, many contacts). Deformable/MPM kernels are not covered;
-        # widen if a test job reports large cache growth.
+        # Warm every supported rigid core environment on Newton. MJWarp
+        # specializes kernels per model config, so a small representative task
+        # set leaves most of the cache to be compiled again by each PR test
+        # shard. The multi-agent suite supplies Handover.
         include-files: >-
-          test_environments_isaacsim_physx.py,
           test_environments_newton.py,
-          test_environments_ovphysx.py
-        # No Soft/Cloth: the deformable envs depend on optional extras the CI
-        # image does not install (Soft needs pytetwild), so they only ever fail.
-        test-k-expr: "Cartpole or Drawer or AnymalD or Handover"
+          test_multi_agent_environments.py
+        # Deformable tasks need optional dependencies that are not installed in
+        # this image.
+        test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
