@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-import warnings
 from collections.abc import Sequence
 
 import torch
@@ -22,63 +21,8 @@ from .route_metrics import benchmark_local_cable_spans, benchmark_winding_angle,
 __all__ = [
     "generate_route_conditioned_cable_poses",
     "planar_vertices_to_segment_poses",
-    "tangent_point_energy",
     "validate_route_conditioned_cable_poses",
 ]
-
-
-def tangent_point_energy(
-    vertices: torch.Tensor,
-    *,
-    alpha: float = 3.0,
-    beta: float = 6.0,
-    neighbor_exclusion: int = 1,
-) -> torch.Tensor:
-    r"""Evaluate the discrete tangent-point energy of planar open curves.
-
-    This is the dense polygonal quadrature from *Repulsive Curves*. Edge pairs
-    sharing nearby vertices are omitted. It remains available as a diagnostic
-    reference metric; reset-bank construction neither evaluates nor optimizes
-    this dense objective and instead repairs rejected seeds with fixed Warp
-    projection sweeps.
-
-    Args:
-        vertices: Planar curve vertices [m], shape ``(N, S + 1, 2)``.
-        alpha: Tangent-point numerator exponent.
-        beta: Tangent-point denominator exponent.
-        neighbor_exclusion: Edge-index separation omitted around the diagonal.
-
-    Returns:
-        Mean tangent-point energy per curve, shape ``(N,)``.
-    """
-    if vertices.ndim != 3 or vertices.shape[-1] != 2 or vertices.shape[1] < 3:
-        raise ValueError(f"vertices must have shape (N, S + 1, 2) with S >= 2; got {tuple(vertices.shape)}.")
-    if alpha <= 1.0 or beta < alpha + 2.0 or beta >= 2.0 * alpha + 1.0:
-        raise ValueError("Expected alpha > 1 and alpha + 2 <= beta < 2 * alpha + 1.")
-    if neighbor_exclusion < 0:
-        raise ValueError("neighbor_exclusion must be non-negative.")
-
-    edges = vertices[:, 1:] - vertices[:, :-1]
-    lengths = torch.linalg.vector_norm(edges, dim=-1).clamp_min(torch.finfo(vertices.dtype).eps)
-    tangents = edges / lengths[..., None]
-    edge_ids = torch.arange(edges.shape[1], device=vertices.device)
-    pair_mask = (edge_ids[:, None] - edge_ids[None, :]).abs() > neighbor_exclusion
-
-    # Repulsive Curves, Eq. 17--18: trapezoidal quadrature over the four
-    # endpoint pairs of every directed edge pair, using the source-edge
-    # tangent. Accumulating the four kernels avoids materializing a fifth
-    # segment-pair tensor and remains practical for the one-time bank build.
-    kernel = vertices.new_zeros((len(vertices), edges.shape[1], edges.shape[1]))
-    epsilon = torch.finfo(vertices.dtype).eps
-    for source in (vertices[:, :-1], vertices[:, 1:]):
-        for target in (vertices[:, :-1], vertices[:, 1:]):
-            displacement = source[:, :, None, :] - target[:, None, :, :]
-            distance = torch.linalg.vector_norm(displacement, dim=-1).clamp_min(epsilon)
-            cross = tangents[:, :, None, 0] * displacement[..., 1] - tangents[:, :, None, 1] * displacement[..., 0]
-            kernel = kernel + 0.25 * cross.abs().pow(alpha) / distance.pow(beta)
-    quadrature = kernel * lengths[:, :, None] * lengths[:, None, :]
-    pair_count = pair_mask.sum().clamp_min(1)
-    return torch.where(pair_mask[None], quadrature, 0.0).sum(dim=(1, 2)) / pair_count
 
 
 def _planar_bishop_quaternions(direction: torch.Tensor) -> torch.Tensor:
@@ -282,7 +226,7 @@ def _refine_projected_curve(
     waypoint_mask = torch.cat((torch.ones_like(waypoint_mask[:, :1]), waypoint_mask), dim=1)
 
     settling_reserve = 0.001
-    projected, _ = relax_open_cable_curve_xpbd(
+    projected = relax_open_cable_curve_xpbd(
         vertices,
         rest_length=rest_length,
         board_bounds=board_bounds,
@@ -674,7 +618,6 @@ def generate_route_conditioned_cable_poses(
     entry_angle_jitter: float = 0.65,
     start_position_jitter: float = 0.004,
     curve_projection_iterations: int = 50,
-    repulsive_iterations: int | None = None,
     max_rejection_attempts: int = 24,
     generator: torch.Generator | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -716,13 +659,6 @@ def generate_route_conditioned_cable_poses(
         raise ValueError("wrap_radius_range must be ordered.")
     if max_rejection_attempts < 1:
         raise ValueError("max_rejection_attempts must be positive.")
-    if repulsive_iterations is not None:
-        warnings.warn(
-            "repulsive_iterations is deprecated; use curve_projection_iterations.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        curve_projection_iterations = repulsive_iterations
     if isinstance(curve_projection_iterations, bool) or not isinstance(curve_projection_iterations, int):
         raise TypeError("curve_projection_iterations must be an integer.")
     if curve_projection_iterations < 0:

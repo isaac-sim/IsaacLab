@@ -37,7 +37,6 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 
 from . import mdp
 from .manipulator_cfg import CableRoutingManipulatorCfg, validate_bimanual_manipulators
-from .yam_frames import YAM_CONTACT_FRAME_OFFSET_POS, YAM_CONTACT_FRAME_OFFSET_QUAT
 
 YAM_SOURCE_USD_PATH = str(Path(__file__).resolve().parent / "assets" / "yam" / "i2rt_yam_default.usda")
 """Pinned, unmodified Robot Menagerie YAM source package."""
@@ -91,6 +90,8 @@ YAM_LATERAL_OFFSET = 0.5 * (BOARD_SIZE[1] + YAM_VISUAL_BASE_WIDTH)
 # the maximum joint target is open and zero is closed.
 YAM_GRIPPER_OPEN_POS = 0.0375
 YAM_GRIPPER_CLOSED_POS = 0.0
+YAM_CONTACT_FRAME_OFFSET_POS = (0.0, -0.044, 0.1297)
+YAM_CONTACT_FRAME_OFFSET_QUAT = (0.0, 0.0, -0.7071067812, 0.7071067812)
 
 BIMANUAL_YAM_MANIPULATORS = (
     CableRoutingManipulatorCfg(
@@ -351,11 +352,6 @@ class YamCableBoardSceneCfg(CableBoardSceneCfg):
     )
 
 
-# Backward-compatible scene names for existing imports.
-BimanualYamCableBoardSceneCfg = YamCableBoardSceneCfg
-CableRoutingSceneCfg = YamCableBoardSceneCfg
-
-
 @configclass
 class CableRoutingTaskActionsCfg:
     """Ordered bimanual action roles supplied by an embodiment."""
@@ -522,13 +518,6 @@ class CableRoutingTaskEventCfg:
             "asset_cfg": SceneEntityCfg("cable"),
             "translation_jitter": ((-0.002, 0.002), (-0.002, 0.002)),
             "yaw_jitter": (-0.02, 0.02),
-            "rest_length": CABLE_SEGMENT_LENGTH,
-            # Preserve the authored VBD rest angles. Continuous SE(2) jitter and
-            # independently randomized fixtures still provide heterogeneous resets.
-            "max_heading_offset": 0.0,
-            "num_shape_modes": 3,
-            "winding_radial_cutoff": 0.05,
-            "winding_axial_cutoff": ROUTE_AXIAL_CUTOFF,
             # The route command restores cable, fixtures, and robots atomically
             # when its training replay is enabled. Avoid generating a cable
             # curve here that the subsequent command reset would overwrite.
@@ -622,15 +611,6 @@ class CableRoutingTaskTerminationsCfg:
     time_out = DoneTerm(func=env_mdp.time_out, time_out=True)
 
 
-# Backward-compatible names for the original concrete YAM manager configurations.
-ActionsCfg = BimanualYamActionsCfg
-CommandsCfg = CableRoutingCommandsCfg
-ObservationsCfg = BimanualYamObservationsCfg
-EventCfg = BimanualYamEventCfg
-RewardsCfg = BimanualYamRewardsCfg
-TerminationsCfg = CableRoutingTaskTerminationsCfg
-
-
 @configclass
 class CableRoutingTaskEnvCfg(ManagerBasedRLEnvCfg):
     """Robot-neutral manager-based cable-routing task.
@@ -659,10 +639,10 @@ class CableRoutingTaskEnvCfg(ManagerBasedRLEnvCfg):
         manipulators = validate_bimanual_manipulators(self.manipulators)
         self.commands.route.manipulators = manipulators
 
-        end_effector_cfgs = tuple(
+        end_effector_cfgs = [
             SceneEntityCfg(manipulator.asset_name, body_names=[manipulator.end_effector_body_name])
             for manipulator in manipulators
-        )
+        ]
         contact_frame_offsets = tuple(manipulator.contact_frame_offset_pos for manipulator in manipulators)
         binary_action_names = tuple(manipulator.gripper_action_name for manipulator in manipulators)
         self.observations.policy.active_geometry.params["end_effector_cfgs"] = end_effector_cfgs

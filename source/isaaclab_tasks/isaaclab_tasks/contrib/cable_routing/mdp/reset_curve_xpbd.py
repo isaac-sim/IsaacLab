@@ -12,7 +12,7 @@ temporary buffers, while the launch sequence itself is deterministic and contain
 data-dependent host synchronization.  Main Jacobi sweeps use delayed Chebyshev
 extrapolation, followed by a shrink-resistant Taubin smoothing tail and low-gain
 unaccelerated cleanup.  CUDA work is enqueued on Torch's current stream so Torch writes,
-Warp kernels, and returned diagnostics stay ordered without a device-wide synchronize.
+Warp kernels, and the returned vertices stay ordered without a device-wide synchronize.
 
 Despite the conventional ``xpbd`` module name, this is the zero-compliance geometric
 limit of an XPBD-style solver: it does not accumulate constraint multipliers or model a
@@ -33,7 +33,6 @@ _TAUBIN_MU = -0.53
 
 __all__ = [
     "CableResetCurveXPBDCfg",
-    "CableResetCurveXPBDDiagnostics",
     "relax_open_cable_curve_xpbd",
 ]
 
@@ -124,31 +123,6 @@ class CableResetCurveXPBDCfg:
             raise ValueError(f"chebyshev_gamma must lie in (0, 1]; got {self.chebyshev_gamma!r}.")
         if self.cleanup_length_relaxation > 1.0:
             raise ValueError("cleanup_length_relaxation must not exceed 1.0.")
-
-
-@dataclass(frozen=True)
-class CableResetCurveXPBDDiagnostics:
-    """Per-row residuals measured on projected curve vertices.
-
-    These diagnostics are inexpensive vertex-level checks.  They do not replace the
-    task's continuous capsule-to-capsule and capsule-to-fixture validation.
-
-    Attributes:
-        maximum_edge_length_error: Maximum absolute edge-length error [m], shape ``(B,)``.
-        maximum_waypoint_error: Maximum active waypoint error [m], shape ``(B,)``.
-        maximum_peg_penetration: Maximum vertex penetration into an exclusion disk [m],
-            shape ``(B,)``.
-        maximum_bounds_penetration: Maximum vertex penetration through the inset board
-            bounds [m], shape ``(B,)``.
-        maximum_turning_angle: Maximum angle between consecutive edges [rad], shape
-            ``(B,)``.  This exposes high-frequency curvature left by the projection.
-    """
-
-    maximum_edge_length_error: torch.Tensor
-    maximum_waypoint_error: torch.Tensor
-    maximum_peg_penetration: torch.Tensor
-    maximum_bounds_penetration: torch.Tensor
-    maximum_turning_angle: torch.Tensor
 
 
 @wp.func
@@ -569,56 +543,6 @@ def _normalize_bounds(
     return lower.contiguous(), upper.contiguous()
 
 
-def _measure_diagnostics(
-    vertices: torch.Tensor,
-    rest_length: float,
-    waypoint_indices: torch.Tensor,
-    waypoint_positions: torch.Tensor,
-    waypoint_mask: torch.Tensor,
-    waypoint_count: int,
-    peg_centers: torch.Tensor,
-    peg_radii: torch.Tensor,
-    peg_count: int,
-    bounds_lower: torch.Tensor,
-    bounds_upper: torch.Tensor,
-) -> CableResetCurveXPBDDiagnostics:
-    """Measure inexpensive residuals without allocating dense self-pair tensors."""
-    edge_error = (torch.linalg.vector_norm(vertices[:, 1:] - vertices[:, :-1], dim=-1) - rest_length).abs()
-    maximum_edge_error = edge_error.amax(dim=1)
-    if vertices.shape[1] > 2:
-        edge_direction = torch.nn.functional.normalize(vertices[:, 1:] - vertices[:, :-1], dim=-1)
-        turning_cosine = (edge_direction[:, 1:] * edge_direction[:, :-1]).sum(dim=-1).clamp(-1.0, 1.0)
-        maximum_turning_angle = torch.acos(turning_cosine).amax(dim=1)
-    else:
-        maximum_turning_angle = vertices.new_zeros(vertices.shape[0])
-
-    if waypoint_count > 0:
-        selected = torch.gather(vertices, 1, waypoint_indices[..., None].expand(-1, -1, 2))
-        waypoint_error = torch.linalg.vector_norm(selected - waypoint_positions, dim=-1)
-        waypoint_error = torch.where(waypoint_mask.bool(), waypoint_error, 0.0)
-        maximum_waypoint_error = waypoint_error.amax(dim=1)
-    else:
-        maximum_waypoint_error = vertices.new_zeros(vertices.shape[0])
-
-    if peg_count > 0:
-        distance = torch.linalg.vector_norm(vertices[:, :, None] - peg_centers[:, None, :peg_count], dim=-1)
-        penetration = torch.nn.functional.relu(peg_radii[:, None, :peg_count] - distance)
-        maximum_peg_penetration = penetration.amax(dim=(1, 2))
-    else:
-        maximum_peg_penetration = vertices.new_zeros(vertices.shape[0])
-
-    lower_penetration = torch.nn.functional.relu(bounds_lower[:, None] - vertices)
-    upper_penetration = torch.nn.functional.relu(vertices - bounds_upper[:, None])
-    maximum_bounds_penetration = torch.maximum(lower_penetration, upper_penetration).amax(dim=(1, 2))
-    return CableResetCurveXPBDDiagnostics(
-        maximum_edge_length_error=maximum_edge_error,
-        maximum_waypoint_error=maximum_waypoint_error,
-        maximum_peg_penetration=maximum_peg_penetration,
-        maximum_bounds_penetration=maximum_bounds_penetration,
-        maximum_turning_angle=maximum_turning_angle,
-    )
-
-
 def relax_open_cable_curve_xpbd(
     vertices: torch.Tensor,
     *,
@@ -630,7 +554,7 @@ def relax_open_cable_curve_xpbd(
     waypoint_mask: torch.Tensor | None = None,
     peg_centers: torch.Tensor | None = None,
     peg_radii: torch.Tensor | float | None = None,
-) -> tuple[torch.Tensor, CableResetCurveXPBDDiagnostics]:
+) -> torch.Tensor:
     """Relax batched planar open-cable vertices with deterministic Warp sweeps.
 
     Active waypoints are hard positional constraints and take precedence over fixture
@@ -642,8 +566,8 @@ def relax_open_cable_curve_xpbd(
     claim exact inextensibility. The caller applies bend-limited exact-length heading
     reintegration with a 12 mm gate for the task's 10 mm edges, then revalidates because
     reintegration can reintroduce fixture or self penetration. Likewise, the returned
-    vertex diagnostics do not replace continuous capsule and replay-forward validation
-    before a curve enters the reset bank.
+    the caller performs continuous capsule and replay-forward validation before a curve
+    enters the reset bank.
 
     Args:
         vertices: Initial planar vertices [m], shape ``(B, V, 2)``, float32 on CPU or CUDA.
@@ -658,8 +582,7 @@ def relax_open_cable_curve_xpbd(
         peg_radii: Centerline exclusion radii [m], scalar or shape ``(P,)`` or ``(B, P)``.
 
     Returns:
-        A pair containing relaxed vertices with shape ``(B, V, 2)`` and per-row
-        residual diagnostics.  The output is detached from autograd.
+        Relaxed vertices with shape ``(B, V, 2)``, detached from autograd.
     """
     if not isinstance(vertices, torch.Tensor):
         raise TypeError(f"vertices must be a torch.Tensor; got {type(vertices).__name__}.")
@@ -703,8 +626,8 @@ def relax_open_cable_curve_xpbd(
     bounds_upper_wp = wp.from_torch(bounds_upper, dtype=wp.vec2f)
     warp_device = current.device
     # ``wp.from_torch`` shares storage without inserting a stream dependency.
-    # Launch on Torch's current stream so its input writes and the Torch
-    # diagnostics below are ordered without a full-device synchronization.
+    # Launch on Torch's current stream so preceding Torch writes are ordered
+    # without a full-device synchronization.
     launch_stream = wp.stream_from_torch(vertices.device) if vertices.device.type == "cuda" else None
     flat_dimension = batch_size * vertex_count
 
@@ -864,17 +787,4 @@ def relax_open_cable_curve_xpbd(
         stream=launch_stream,
     )
 
-    diagnostics = _measure_diagnostics(
-        current_tensor,
-        float(rest_length),
-        indices,
-        targets,
-        mask,
-        waypoint_count,
-        centers,
-        radii,
-        peg_count,
-        bounds_lower,
-        bounds_upper,
-    )
-    return current_tensor, diagnostics
+    return current_tensor

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 
 from isaaclab.managers import SceneEntityCfg
@@ -38,8 +40,8 @@ def active_goal_geometry(
     env,
     command_name: str,
     cable_cfg: SceneEntityCfg,
-    end_effector_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-    contact_frame_offset_positions: tuple[tuple[float, float, float], tuple[float, float, float]],
+    end_effector_cfgs: Sequence[SceneEntityCfg],
+    contact_frame_offset_positions: Sequence[tuple[float, float, float]],
 ) -> torch.Tensor:
     """Ground the active route token in bimanual contact and cable geometry [m]."""
     command = env.command_manager.get_term(command_name)

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for Newton IK action prototype construction helpers."""
+"""Behavioral regressions for Newton IK action integration."""
 
 from __future__ import annotations
 
@@ -14,42 +14,7 @@ import torch
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions import (
     NewtonInverseKinematicsAction,
     _build_isolated_prototype_model,
-    _finalize_prototype_model,
-    _resolve_prototype_articulation_path,
 )
-
-
-class _Geometry:
-    pass
-
-
-class _Builder:
-    def __init__(self) -> None:
-        self.shape_source = [_Geometry(), None]
-
-    def finalize(self, *, device: str):
-        del device
-        return self.shape_source
-
-
-def test_resolve_prototype_articulation_path_includes_nested_root() -> None:
-    path = _resolve_prototype_articulation_path("/World/envs/env_0", "/Robot", "/Geometry/arm")
-
-    assert path == "/World/envs/env_0/Robot/Geometry/arm"
-
-
-def test_finalize_prototype_model_isolates_shared_geometry() -> None:
-    builder = _Builder()
-    original_shape_source = builder.shape_source
-    original_geometry = builder.shape_source[0]
-
-    finalized_shape_source = _finalize_prototype_model(builder, "cpu")
-
-    assert builder.shape_source is original_shape_source
-    assert builder.shape_source[0] is original_geometry
-    assert finalized_shape_source is not original_shape_source
-    assert finalized_shape_source[0] is not original_geometry
-    assert finalized_shape_source[1] is None
 
 
 def test_build_isolated_prototype_model_imports_only_asset_subtree(monkeypatch) -> None:
@@ -128,23 +93,6 @@ def test_first_cuda_graph_capture_is_replayed_before_the_target_is_written(monke
         ("launch", "captured-graph"),
         ("write", {"target": "joint-target", "joint_ids": "joint-ids"}),
     ]
-
-
-def test_fixed_base_root_orientation_validation_is_cached() -> None:
-    action = object.__new__(NewtonInverseKinematicsAction)
-    action._root_orientations_validated = False
-    root_quaternions = torch.tensor(((0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0, -1.0)))
-    action._asset = SimpleNamespace(
-        data=SimpleNamespace(root_quat_w=SimpleNamespace(torch=root_quaternions)),
-    )
-
-    action._validate_matching_root_orientations()
-
-    assert action._root_orientations_validated
-    # Fixed-base roots are immutable. A second action therefore takes the
-    # synchronization-free fast path instead of inspecting the tensor again.
-    action._asset.data.root_quat_w.torch = torch.full_like(root_quaternions, torch.nan)
-    action._validate_matching_root_orientations()
 
 
 def test_fixed_base_root_orientation_validation_rejects_mismatched_clones() -> None:

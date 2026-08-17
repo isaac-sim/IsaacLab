@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 
 from isaaclab.managers import SceneEntityCfg
@@ -95,8 +97,8 @@ def cable_near_active_peg(env, command_name: str, cable_cfg: SceneEntityCfg, std
 def grippers_near_cable(
     env,
     cable_cfg: SceneEntityCfg,
-    end_effector_cfgs: tuple[SceneEntityCfg, SceneEntityCfg],
-    contact_frame_offset_positions: tuple[tuple[float, float, float], tuple[float, float, float]],
+    end_effector_cfgs: Sequence[SceneEntityCfg],
+    contact_frame_offset_positions: Sequence[tuple[float, float, float]],
     std: float,
 ) -> torch.Tensor:
     """Reward both configured contact frames for approaching the cable."""

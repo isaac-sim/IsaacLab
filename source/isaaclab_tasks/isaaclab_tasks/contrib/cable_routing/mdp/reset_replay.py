@@ -8,8 +8,6 @@
 from __future__ import annotations
 
 import math
-import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, TypeAlias
 
 import torch
@@ -30,44 +28,8 @@ __all__ = [
     "CableResetReplay",
     "CableResetReplayCfg",
     "SceneStateBuffer",
-    "active_step_progress_from_route_progress",
     "finite_scene_state_rows",
 ]
-
-
-def active_step_progress_from_route_progress(
-    route_progress: torch.Tensor,
-    route_ids: torch.Tensor,
-    active_steps: torch.Tensor,
-    route_lengths: Sequence[int] | torch.Tensor,
-) -> torch.Tensor:
-    """Recover within-step progress from normalized whole-route progress."""
-    if route_progress.ndim != 1:
-        raise ValueError(f"route_progress must be one-dimensional; got {tuple(route_progress.shape)}.")
-    if route_ids.shape != route_progress.shape or active_steps.shape != route_progress.shape:
-        raise ValueError("route_progress, route_ids, and active_steps must have identical shapes.")
-    if not route_progress.is_floating_point():
-        raise TypeError("route_progress must use a floating-point dtype.")
-    if route_ids.dtype == torch.bool or route_ids.is_floating_point():
-        raise TypeError("route_ids must use an integer dtype.")
-    if active_steps.dtype == torch.bool or active_steps.is_floating_point():
-        raise TypeError("active_steps must use an integer dtype.")
-    if route_ids.device != route_progress.device or active_steps.device != route_progress.device:
-        raise ValueError("Progress and route metadata must use the same device.")
-
-    lengths = torch.as_tensor(route_lengths, device=route_progress.device, dtype=torch.long)
-    if lengths.ndim != 1 or len(lengths) < 1 or bool((lengths < 1).any()):
-        raise ValueError("route_lengths must be a non-empty one-dimensional sequence of positive integers.")
-    route_ids = route_ids.to(dtype=torch.long)
-    active_steps = active_steps.to(dtype=torch.long)
-    if bool(((route_ids < 0) | (route_ids >= len(lengths))).any()):
-        raise IndexError("route_ids contains an out-of-range route index.")
-    selected_lengths = lengths[route_ids]
-    if bool(((active_steps < 0) | (active_steps >= selected_lengths)).any()):
-        raise IndexError("active_steps contains an out-of-range route step.")
-    return route_progress * selected_lengths.to(dtype=route_progress.dtype) - active_steps.to(
-        dtype=route_progress.dtype
-    )
 
 
 def finite_scene_state_rows(state: SceneState) -> torch.Tensor:
@@ -195,9 +157,6 @@ class CableResetReplayCfg:
     curve_projection_iterations: int = 50
     """Chebyshev-accelerated Warp sweeps before the Taubin and cleanup tail."""
 
-    repulsive_iterations: int | None = None
-    """Deprecated alias for :attr:`curve_projection_iterations`."""
-
     max_curve_attempts: int = 512
     """Maximum guide resamples for each candidate curve.
 
@@ -257,13 +216,6 @@ class CableResetReplayCfg:
             raise ValueError("wrap_radius_range must be positive and ordered.")
         if min(self.entry_angle_jitter, self.start_position_jitter, self.arm_joint_position_jitter) < 0.0:
             raise ValueError("Reset jitters must be non-negative.")
-        if self.repulsive_iterations is not None:
-            warnings.warn(
-                "repulsive_iterations is deprecated; use curve_projection_iterations.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.curve_projection_iterations = self.repulsive_iterations
         if (
             isinstance(self.curve_projection_iterations, bool)
             or not isinstance(self.curve_projection_iterations, int)
@@ -296,19 +248,6 @@ class SceneStateBuffer:
             }
             for asset_type, assets in example.items()
         }
-
-    @property
-    def state(self) -> SceneState:
-        """Return the backing state tensors."""
-        return self._state
-
-    def store(self, start: int, state: SceneState, env_ids: torch.Tensor) -> None:
-        """Copy selected live environments into consecutive bank rows."""
-        count = len(env_ids)
-        if start < 0 or start + count > self.capacity:
-            raise IndexError(f"Rows [{start}, {start + count}) exceed buffer capacity {self.capacity}.")
-        destination_rows = torch.arange(start, start + count, device=env_ids.device, dtype=torch.long)
-        self.store_rows(destination_rows, state, env_ids)
 
     def store_rows(self, destination_rows: torch.Tensor, state: SceneState, env_ids: torch.Tensor) -> None:
         """Copy selected live environments into arbitrary replay-bank rows.

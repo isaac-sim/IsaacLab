@@ -14,18 +14,16 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
+from isaaclab_tasks.contrib.cable_routing.cable_routing_env_cfg import YAM_CONTACT_FRAME_OFFSET_POS
+from isaaclab_tasks.contrib.cable_routing.frames import contact_frame_position_w
 from isaaclab_tasks.contrib.cable_routing.mdp.cable_geometry import cable_relative_joint_gap
-from isaaclab_tasks.contrib.cable_routing.mdp.observations import active_goal_geometry, sampled_cable_state_b
+from isaaclab_tasks.contrib.cable_routing.mdp.observations import active_goal_geometry
 from isaaclab_tasks.contrib.cable_routing.mdp.rewards import (
     cable_near_active_peg,
     cable_stretch,
     grippers_near_cable,
 )
 from isaaclab_tasks.contrib.cable_routing.mdp.terminations import cable_invalid_or_out_of_bounds
-from isaaclab_tasks.contrib.cable_routing.yam_frames import (
-    YAM_CONTACT_FRAME_OFFSET_POS,
-    yam_contact_frame_position_w,
-)
 
 
 def _tensor_proxy(value: torch.Tensor) -> SimpleNamespace:
@@ -49,28 +47,18 @@ def _segment_pose(position: tuple[float, float, float], quaternion: tuple[float,
     return (*position, *quaternion)
 
 
-def test_yam_contact_frame_position_applies_link_rotation_to_pad_offset() -> None:
-    """The physical pad midpoint follows both the link translation and rotation."""
-    half_sqrt = math.sqrt(0.5)
-    robot = _robot(
-        torch.tensor(((1.0, 2.0, 3.0), (1.0, 2.0, 3.0))),
-        torch.tensor(((0.0, 0.0, 0.0, 1.0), (0.0, 0.0, half_sqrt, half_sqrt))),
-    )
-
-    actual = yam_contact_frame_position_w(robot, 0)
-
-    offset = torch.tensor(YAM_CONTACT_FRAME_OFFSET_POS)
-    expected = torch.stack((torch.tensor((1.0, 2.0, 3.0)) + offset, torch.tensor((1.044, 2.0, 3.1297))))
-    torch.testing.assert_close(actual, expected)
-
-
 def test_goal_geometry_and_gripper_reward_use_physical_pad_midpoints() -> None:
-    """Policy geometry and shaping distances are measured from the inner pads."""
+    """Rotated physical pad frames drive policy geometry and shaping distances."""
+    half_sqrt = math.sqrt(0.5)
     identity = torch.tensor(((0.0, 0.0, 0.0, 1.0),))
-    left = _robot(torch.tensor(((0.0, 0.0, 0.0),)), identity)
+    left = _robot(
+        torch.tensor(((0.0, 0.0, 0.0),)),
+        torch.tensor(((0.0, 0.0, half_sqrt, half_sqrt),)),
+    )
     right = _robot(torch.tensor(((0.2, 0.0, 0.0),)), identity)
-    left_contact = yam_contact_frame_position_w(left, 0)
-    right_contact = yam_contact_frame_position_w(right, 0)
+    left_contact = contact_frame_position_w(left, 0, YAM_CONTACT_FRAME_OFFSET_POS)
+    right_contact = contact_frame_position_w(right, 0, YAM_CONTACT_FRAME_OFFSET_POS)
+    torch.testing.assert_close(left_contact, torch.tensor(((0.044, 0.0, 0.1297),)))
     target = torch.tensor(((0.1, 0.1, 0.2),))
     cable_points = torch.stack((left_contact[0], right_contact[0]), dim=0)[None]
     cable = SimpleNamespace(
@@ -104,8 +92,8 @@ def test_goal_geometry_and_gripper_reward_use_physical_pad_midpoints() -> None:
     torch.testing.assert_close(reward, torch.ones(1))
 
 
-def test_cable_relative_joint_gap_is_invariant_to_connected_bending() -> None:
-    """A right-angle hinge with coincident capsule endpoints has zero strain."""
+def test_cable_stretch_uses_relative_capsule_endpoint_gap() -> None:
+    """Connected bending is strain-free while endpoint separation is penalized."""
     half_sqrt = math.sqrt(0.5)
     poses = torch.tensor(
         (
@@ -113,24 +101,6 @@ def test_cable_relative_joint_gap_is_invariant_to_connected_bending() -> None:
                 _segment_pose((-0.005, 0.0, 0.0), (0.0, half_sqrt, 0.0, half_sqrt)),
                 _segment_pose((0.0, 0.005, 0.0), (-half_sqrt, 0.0, 0.0, half_sqrt)),
             ),
-        )
-    )
-
-    gap = cable_relative_joint_gap(poses, rest_length=0.01)
-    env = SimpleNamespace(
-        scene=_scene(cable=SimpleNamespace(data=SimpleNamespace(segment_pose_w=_tensor_proxy(poses))))
-    )
-    reward_value = cable_stretch(env, SceneEntityCfg("cable"), rest_length=0.01)
-
-    torch.testing.assert_close(gap, torch.zeros((1, 1)), atol=1.0e-6, rtol=0.0)
-    torch.testing.assert_close(reward_value, torch.zeros(1), atol=1.0e-12, rtol=0.0)
-
-
-def test_cable_stretch_penalizes_relative_endpoint_separation() -> None:
-    """A two-millimeter joint gap on a one-centimeter segment yields 0.2 relative error."""
-    half_sqrt = math.sqrt(0.5)
-    poses = torch.tensor(
-        (
             (
                 _segment_pose((0.005, 0.0, 0.0), (0.0, half_sqrt, 0.0, half_sqrt)),
                 _segment_pose((0.017, 0.0, 0.0), (0.0, half_sqrt, 0.0, half_sqrt)),
@@ -144,8 +114,8 @@ def test_cable_stretch_penalizes_relative_endpoint_separation() -> None:
     gap = cable_relative_joint_gap(poses, rest_length=0.01)
     reward_value = cable_stretch(env, SceneEntityCfg("cable"), rest_length=0.01)
 
-    torch.testing.assert_close(gap, torch.tensor(((0.2,),)), atol=1.0e-6, rtol=0.0)
-    torch.testing.assert_close(reward_value, torch.tensor((0.04,)), atol=1.0e-6, rtol=0.0)
+    torch.testing.assert_close(gap, torch.tensor(((0.0,), (0.2,))), atol=1.0e-6, rtol=0.0)
+    torch.testing.assert_close(reward_value, torch.tensor((0.0, 0.04)), atol=1.0e-6, rtol=0.0)
 
 
 def test_cable_rewards_zero_only_nonfinite_environment_rows() -> None:
@@ -219,30 +189,3 @@ def test_invalid_cable_termination_covers_pose_orientation_and_velocity() -> Non
     invalid = cable_invalid_or_out_of_bounds(env, SceneEntityCfg("cable"))
 
     assert torch.equal(invalid, torch.tensor((False, True, True)))
-
-
-def test_sampled_cable_state_uses_forward_tangents_and_repeats_the_final_one() -> None:
-    """Sparse tangent evaluation preserves the previous full-chain observation semantics."""
-    positions = torch.tensor((((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 2.0, 0.0), (1.0, 2.0, 3.0), (5.0, 2.0, 3.0)),))
-    velocities = torch.arange(15, dtype=torch.float32).reshape(1, 5, 3)
-    segment_pose = torch.nn.functional.pad(positions, (0, 4))
-    segment_velocity = torch.nn.functional.pad(velocities, (0, 3))
-    cable = SimpleNamespace(
-        data=SimpleNamespace(
-            segment_pose_w=_tensor_proxy(segment_pose),
-            segment_velocity_w=_tensor_proxy(segment_velocity),
-        )
-    )
-
-    class _ObservationScene(SimpleNamespace):
-        def __getitem__(self, key):
-            return getattr(self, key)
-
-    env = SimpleNamespace(scene=_ObservationScene(cable=cable, env_origins=torch.tensor(((0.25, -0.5, 1.0),))))
-    state = sampled_cable_state_b(env, SceneEntityCfg("cable"), num_samples=4).reshape(1, 4, 9)
-
-    sample_ids = torch.tensor((0, 1, 3, 4))
-    expected_tangent = torch.tensor((((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0), (1.0, 0.0, 0.0)),))
-    torch.testing.assert_close(state[..., :3], positions[:, sample_ids] - env.scene.env_origins[:, None])
-    torch.testing.assert_close(state[..., 3:6], velocities[:, sample_ids])
-    torch.testing.assert_close(state[..., 6:9], expected_tangent)

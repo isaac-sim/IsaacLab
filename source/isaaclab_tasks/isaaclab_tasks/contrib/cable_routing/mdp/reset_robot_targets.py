@@ -17,13 +17,10 @@ from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_unique
 __all__ = [
     "CableResetRobotTargetCfg",
     "build_top_down_contact_target_poses",
-    "build_top_down_yam_contact_target_poses",
     "finite_reset_target_rows",
-    "select_downstream_cable_segment_indices",
     "select_nearest_cable_segment_indices",
     "select_workspace_aware_cable_contact_indices",
     "valid_top_down_target_rows",
-    "valid_top_down_yam_target_rows",
 ]
 
 
@@ -182,82 +179,6 @@ def valid_top_down_target_rows(cable_segment_poses_w: torch.Tensor) -> torch.Ten
     tangent_xy = quat_apply(normalized_quaternion, local_tangent)[:, :2]
     tangent_norm = torch.linalg.vector_norm(tangent_xy, dim=-1)
     return finite & (quaternion_norm > eps) & (tangent_norm > 32.0 * eps)
-
-
-def select_downstream_cable_segment_indices(
-    cable_segment_poses_w: torch.Tensor,
-    peg_positions_w: torch.Tensor,
-    active_peg_indices: torch.Tensor,
-    *,
-    radial_cutoff: float,
-    downstream_segment_offset: int,
-) -> torch.Tensor:
-    """Select a cable segment downstream of each active peg.
-
-    The selected segment is offset from the highest ordered cable-segment index
-    whose center is within :paramref:`radial_cutoff` of the active peg. The
-    result is clamped to the cable's final segment, which makes selection safe
-    when a wrap lies near the downstream endpoint.
-
-    Args:
-        cable_segment_poses_w: Ordered cable-segment poses
-            ``(x, y, z, qx, qy, qz, qw)`` in world frame [m, quaternion], shape ``(N, S, 7)``.
-        peg_positions_w: Peg centers in world frame [m], shape ``(N, P, 3)``.
-        active_peg_indices: Active peg index for each row, shape ``(N,)``.
-        radial_cutoff: Maximum planar distance from a peg to a local segment [m].
-        downstream_segment_offset: Number of ordered segments to advance after the last local segment.
-
-    Returns:
-        Selected cable-segment indices, shape ``(N,)``.
-
-    Raises:
-        ValueError: If input shapes, values, or active peg indices are invalid,
-            or if a row has no cable segment inside the cutoff.
-    """
-    _validate_finite_floating_tensor("cable_segment_poses_w", cable_segment_poses_w)
-    _validate_finite_floating_tensor("peg_positions_w", peg_positions_w)
-    if cable_segment_poses_w.ndim != 3 or cable_segment_poses_w.shape[-1] != 7:
-        raise ValueError(f"cable_segment_poses_w must have shape (N, S, 7); got {tuple(cable_segment_poses_w.shape)}.")
-    if cable_segment_poses_w.shape[1] < 1:
-        raise ValueError("cable_segment_poses_w must contain at least one cable segment.")
-    if peg_positions_w.ndim != 3 or peg_positions_w.shape[-1] != 3:
-        raise ValueError(f"peg_positions_w must have shape (N, P, 3); got {tuple(peg_positions_w.shape)}.")
-    if peg_positions_w.shape[0] != cable_segment_poses_w.shape[0] or peg_positions_w.shape[1] < 1:
-        raise ValueError("Cable poses and non-empty peg positions must contain the same number of rows.")
-    if not isinstance(active_peg_indices, torch.Tensor):
-        raise TypeError("active_peg_indices must be a torch.Tensor.")
-    if active_peg_indices.shape != (cable_segment_poses_w.shape[0],):
-        raise ValueError(
-            f"active_peg_indices must have shape ({cable_segment_poses_w.shape[0]},); "
-            f"got {tuple(active_peg_indices.shape)}."
-        )
-    if active_peg_indices.dtype == torch.bool or active_peg_indices.is_floating_point():
-        raise TypeError("active_peg_indices must have an integer dtype.")
-    input_devices = {cable_segment_poses_w.device, peg_positions_w.device, active_peg_indices.device}
-    if len(input_devices) != 1:
-        raise ValueError("Cable poses, peg positions, and active peg indices must be on the same device.")
-    if not math.isfinite(radial_cutoff) or radial_cutoff <= 0.0:
-        raise ValueError("radial_cutoff must be finite and positive.")
-    if isinstance(downstream_segment_offset, bool) or not isinstance(downstream_segment_offset, int):
-        raise TypeError("downstream_segment_offset must be an integer.")
-    if downstream_segment_offset < 1:
-        raise ValueError("downstream_segment_offset must be at least one.")
-
-    active_peg_indices = active_peg_indices.to(dtype=torch.long)
-    if bool(((active_peg_indices < 0) | (active_peg_indices >= peg_positions_w.shape[1])).any()):
-        raise ValueError("active_peg_indices contains an out-of-range peg index.")
-
-    rows = torch.arange(len(cable_segment_poses_w), device=cable_segment_poses_w.device)
-    active_peg_xy = peg_positions_w[rows, active_peg_indices, :2]
-    radial_distance = torch.linalg.vector_norm(cable_segment_poses_w[..., :2] - active_peg_xy[:, None], dim=-1)
-    local = radial_distance <= radial_cutoff
-    segment_indices = torch.arange(cable_segment_poses_w.shape[1], device=cable_segment_poses_w.device)
-    last_local = torch.where(local, segment_indices[None], -1).amax(dim=1)
-    if bool((last_local < 0).any()):
-        invalid_rows = (last_local < 0).nonzero(as_tuple=False).squeeze(-1).tolist()
-        raise ValueError(f"No cable segment lies within radial_cutoff for rows {invalid_rows}.")
-
-    return (last_local + downstream_segment_offset).clamp(max=cable_segment_poses_w.shape[1] - 1)
 
 
 def select_workspace_aware_cable_contact_indices(
@@ -561,17 +482,3 @@ def build_top_down_contact_target_poses(
     if not bool(torch.isfinite(target_poses_w).all()):
         raise ValueError("Constructed contact target poses must be finite.")
     return target_poses_w
-
-
-def valid_top_down_yam_target_rows(cable_segment_poses_w: torch.Tensor) -> torch.Tensor:
-    """Compatibility alias for :func:`valid_top_down_target_rows`."""
-    return valid_top_down_target_rows(cable_segment_poses_w)
-
-
-def build_top_down_yam_contact_target_poses(
-    cable_segment_poses_w: torch.Tensor,
-    robot_base_xy_w: torch.Tensor,
-    height_offsets: torch.Tensor | float = 0.0,
-) -> torch.Tensor:
-    """Compatibility alias for :func:`build_top_down_contact_target_poses`."""
-    return build_top_down_contact_target_poses(cable_segment_poses_w, robot_base_xy_w, height_offsets)
