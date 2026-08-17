@@ -48,6 +48,18 @@ def _mock_kit_app(app: Mock) -> Iterator[None]:
         yield
 
 
+@contextmanager
+def _mock_replicator() -> Iterator[None]:
+    replicator_module = ModuleType("omni.replicator")
+    replicator_core_module = ModuleType("omni.replicator.core")
+    replicator_module.core = replicator_core_module
+    with patch.dict(
+        sys.modules,
+        {"omni.replicator": replicator_module, "omni.replicator.core": replicator_core_module},
+    ):
+        yield
+
+
 def test_step_prepares_physics_immediately_before_app_update():
     visualizer = _make_visualizer()
     events = []
@@ -85,24 +97,49 @@ def test_render_rgb_array_prepares_physics_for_on_demand_update():
     app.update.side_effect = lambda: events.append("update")
     settings = Mock()
     settings.get.return_value = True
-    replicator_module = ModuleType("omni.replicator")
-    replicator_core_module = ModuleType("omni.replicator.core")
-    replicator_module.core = replicator_core_module
 
     with (
         patch.object(SimulationContext, "instance", return_value=sim),
         patch.object(kit_visualizer_module, "get_settings_manager", return_value=settings),
         _mock_kit_app(app),
-        patch.dict(
-            sys.modules,
-            {"omni.replicator": replicator_module, "omni.replicator.core": replicator_core_module},
-        ),
+        _mock_replicator(),
     ):
         image = visualizer.render_rgb_array()
 
     assert events == ["prepare", "forward", "update"]
     assert image.shape == (1, 2, 3)
     settings.set_bool.assert_has_calls([call(_PLAY_SIMULATIONS_SETTING, False), call(_PLAY_SIMULATIONS_SETTING, True)])
+
+
+def test_render_rgb_array_repumps_after_post_step_pose_write():
+    visualizer = _make_visualizer()
+    visualizer._app_pumped_this_step = True
+    visualizer._rgb_annotator = Mock()
+    visualizer._rgb_annotator.get_data.return_value = np.full((1, 2, 4), 255, dtype=np.uint8)
+    events = []
+    sim = Mock()
+    sim.physics_manager.has_pending_kit_app_update.side_effect = [False, True]
+    sim.physics_manager.before_kit_app_update.side_effect = lambda: events.append("prepare") or True
+    sim.physics_manager.forward.side_effect = lambda: events.append("forward")
+    app = Mock()
+    app.update.side_effect = lambda: events.append("update")
+    settings = Mock()
+    settings.get.return_value = True
+
+    with (
+        patch.object(SimulationContext, "instance", return_value=sim),
+        patch.object(kit_visualizer_module, "get_settings_manager", return_value=settings),
+        _mock_kit_app(app),
+        _mock_replicator(),
+    ):
+        clean_image = visualizer.render_rgb_array()
+        assert events == []
+        dirty_image = visualizer.render_rgb_array()
+
+    assert clean_image.shape == (1, 2, 3)
+    assert dirty_image.shape == (1, 2, 3)
+    assert events == ["prepare", "forward", "update"]
+    assert sim.physics_manager.has_pending_kit_app_update.call_count == 2
 
 
 def test_kit_app_update_does_not_repeat_forward_after_clean_prepare():

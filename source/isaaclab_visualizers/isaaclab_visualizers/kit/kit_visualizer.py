@@ -288,7 +288,7 @@ class KitVisualizer(BaseVisualizer):
             with contextlib.suppress(Exception):
                 self._rgb_render_product.resume()
 
-        if not self._app_pumped_this_step:
+        if self._needs_kit_app_update():
             self._update_kit_app(omni.kit.app.get_app())
 
         raw = self._rgb_annotator.get_data()
@@ -865,6 +865,16 @@ class KitVisualizer(BaseVisualizer):
             image = np.concatenate((image, alpha), axis=2)
         image = np.ascontiguousarray(image)
         self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
+
+    def _needs_kit_app_update(self) -> bool:
+        """Return whether an RGB capture cannot reuse the Kit frame pumped by :meth:`step`."""
+        if not self._app_pumped_this_step:
+            return True
+
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        return sim is not None and sim.physics_manager.has_pending_kit_app_update()
 
     def _update_kit_app(self, app: Any) -> None:
         """Pump one Kit frame without letting Kit advance physics independently."""
