@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -17,7 +16,9 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
+from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner import queue_replication
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
@@ -227,17 +228,11 @@ class CableObject(BaseCableObject):
 
     def _resolve_curve_path_for_env(self, env_idx: int) -> str:
         """Resolve the per-env concrete BasisCurves path from the stored path expression."""
-        path = self._curve_path_expr
-        # Regex-style env wildcard (``env_.*``), matching deformable fabric registration.
-        resolved = re.sub(r"(?<=[Ee]nv_)\.\*", str(env_idx), path)
-        if resolved != path:
-            return resolved
-        # Glob-style env wildcard (``env_*``) returned by resolve_matching_prims_from_source.
-        resolved = re.sub(r"(?<=[Ee]nv_)\*", str(env_idx), path)
-        if resolved != path:
-            return resolved
+        matched = cloner_path.match(self._curve_path_expr, DEFAULT_ENV_TEMPLATE)
+        if matched is not None:
+            return DEFAULT_ENV_TEMPLATE.format(env_idx) + matched.suffix
         if self.num_instances == 1:
-            return path
+            return self._curve_path_expr
         raise RuntimeError(
             f"CableObject '{self.cfg.prim_path}' curve path '{self._curve_path_expr}' has no"
             f" env wildcard but num_instances={self.num_instances}."
