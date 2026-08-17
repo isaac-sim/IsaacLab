@@ -64,6 +64,7 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         help="Disable LEAPP graph visualization during compile_graph().",
     )
     AppLauncher.add_app_launcher_args(parser)
+    parser.add_argument("--limit_cpu_threads", type=int, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
 
 def finalize_export_args(

@@ -406,7 +406,7 @@ def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Us
     """Apply collision fragments to the simulation mesh of a deformable body.
 
     The collider is the simulation mesh authored under the body prim, so mapping keys anchor there
-    (e.g. ``{"/sim_mesh": [...]}``) while a bare fragment list sweeps the whole subtree to reach it.
+    (e.g. ``{"/sim_mesh": [...]}``) while a bare fragment list sweeps the subtree to reach it.
 
     Args:
         prim_path: The prim path of the deformable body.
@@ -419,7 +419,7 @@ def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Us
             schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments, stage=stage)
         return
     fragments = collision_props if isinstance(collision_props, (list, tuple)) else [collision_props]
-    schemas.apply_collision_properties(props_expr(prim_path, "(/.*)?"), fragments, stage=stage)
+    schemas.apply_collision_properties(props_expr(prim_path, "/.*"), fragments, stage=stage)
 
 
 def _spawn_mesh_geom_from_mesh(

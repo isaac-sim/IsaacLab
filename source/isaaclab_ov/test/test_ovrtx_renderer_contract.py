@@ -5,7 +5,10 @@
 
 """Tests for the OVRTX renderer output contract."""
 
+import contextlib
 import importlib.util
+import sys
+import types
 
 import pytest
 import torch
@@ -30,8 +33,10 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
         OVRTXRenderData,
         OVRTXRenderer,
+        _gpu_side_render_var_sync_enabled,
         ovrtx_use_ovstage_enabled,
     )
 else:
@@ -40,6 +45,8 @@ else:
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
     ovrtx_use_ovstage_enabled = None
+    _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
+    _gpu_side_render_var_sync_enabled = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -366,6 +373,90 @@ def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
         ovrtx_use_ovstage_enabled()
 
 
+@pytest.mark.parametrize("platform", ["win32", "darwin"])
+def test_ovrtx_render_var_sync_is_gpu_side_off_linux(monkeypatch, platform):
+    """Everywhere but Linux the mapping is ordered by a GPU-side wait on the Warp stream."""
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
+    assert _gpu_side_render_var_sync_enabled() is True
+
+
+def test_ovrtx_render_var_sync_waits_on_host_on_linux(monkeypatch):
+    """Linux blocks the calling thread instead, which measures faster there."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
+    assert _gpu_side_render_var_sync_enabled() is False
+
+
+def test_ovrtx_render_var_sync_is_gpu_side_on_linux_when_disabled(monkeypatch):
+    """Opting out of the host wait puts Linux on the same GPU-side wait as every other platform."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "1")
+    assert _gpu_side_render_var_sync_enabled() is True
+
+
+def test_ovrtx_render_var_sync_keeps_host_wait_when_explicitly_enabled(monkeypatch):
+    """``0`` is the default, so setting it explicitly must not change anything."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "0")
+    assert _gpu_side_render_var_sync_enabled() is False
+
+
+@pytest.mark.parametrize("value", ["", "true", "yes", "2"])
+def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
+    """Values other than 0/1 are a configuration error, not a silent fallback to the host wait."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, value)
+    with pytest.raises(ValueError, match="Expected 0 or 1"):
+        _gpu_side_render_var_sync_enabled()
+
+
+class _RecordingRenderVar:
+    """Stand-in for an OVRTX ``RenderVarOutput`` that records how the read was ordered.
+
+    Any of OVRTX's ordering mechanisms counts, so the test stays about *whether* the read is
+    ordered rather than which call carries it.
+    """
+
+    def __init__(self):
+        self.ordering: list[str] = []
+
+    def map(self, *, device, sync_stream):
+        if sync_stream:
+            self.ordering.append("gpu")
+        recorder = self
+
+        class _Mapping:
+            def wait(self):
+                recorder.ordering.append("host")
+
+            def wait_on(self, stream):
+                recorder.ordering.append("gpu")
+
+        return contextlib.nullcontext(_Mapping())
+
+
+@pytest.mark.parametrize(("gpu_side", "expected"), [(True, "gpu"), (False, "host")])
+def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypatch, gpu_side, expected):
+    """The read is ordered exactly once -- by a GPU-side barrier or a host block, never by neither.
+
+    Ordering by neither is a silent race on half-written render output rather than a failure, so
+    this asserts which mechanism ran and not which API call carries it.
+    """
+    sentinel = object()
+    render_var = _RecordingRenderVar()
+    monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cuda:0"
+    with renderer._map_render_var_to_dlpack(render_var) as array:
+        assert array is sentinel
+
+    assert render_var.ordering == [expected]
+
+
 def test_ovrtx_cleanup_releases_only_the_given_render_data():
     """``cleanup`` releases the render data's own buffers and leaves the renderer usable.
 
@@ -478,7 +569,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
-    renderer._env_root_xforms = object()
     renderer._renderer = Backend()
     renderer._ovstage_exit_stack = ExitStack()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
@@ -541,7 +631,6 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._camera_xform_query is None
     assert renderer._particle_paths_list is None
     assert renderer._object_newton_indices is None
-    assert renderer._env_root_xforms is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
     assert renderer._stage is None

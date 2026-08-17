@@ -57,8 +57,8 @@ def test_manipulation_env_determinism(task_name, device):
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_locomotion_env_determinism(task_name, device):
-    """Check deterministic environment creation for locomotion."""
-    _test_environment_determinism(task_name, device)
+    """Check deterministic Isaac Sim PhysX environment creation for locomotion."""
+    _test_environment_determinism(task_name, device, physics_preset_name="isaacsim_physx")
 
 
 @pytest.mark.parametrize(

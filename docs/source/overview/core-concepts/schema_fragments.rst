@@ -112,9 +112,12 @@ that family on*: the spawn prim for USD, URDF, and MJCF assets; for shape and me
 spawners, the geometry prim for the collision family and the container prim for the
 rigid-body and mass families. A key therefore carries its own leading ``/`` when it
 targets descendants: ``""`` selects the anchor prim itself, ``"/[^/]+"`` its direct
-children, ``"/.*"`` all of its descendants, and ``"(/.*)?"`` the anchor together with
-its descendants. Entries apply in insertion order, so when two patterns match the same
-prim, fragments from later entries override attributes authored by earlier ones.
+children, and ``"/.*"`` everything beneath it. Prefer ``"/.*"`` for a whole-subtree
+rule: the anchor is usually a plain ``Xform`` that carries no family API, so including
+it changes nothing — except under ``create_if_missing``, where ``"(/.*)?"`` would also
+apply the API to the anchor itself. Reach for ``"(/.*)?"`` only when the anchor is
+genuinely a target too. Entries apply in insertion order, so when two patterns match the
+same prim, fragments from later entries override attributes authored by earlier ones.
 
 A robot spawned from USD, with a broad rule and a narrowing override:
 
@@ -130,16 +133,16 @@ A robot spawned from USD, with a broad rule and a narrowing override:
        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd",
        rigid_props={
            # every rigid body: universal + PhysX + MuJoCo attributes side by side
-           "(/.*)?": [
+           "/.*": [
                UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
                PhysxRigidBodyCfg(max_depenetration_velocity=5.0),
                MujocoRigidBodyCfg(gravcomp=1.0),
            ],
            # hand links (and their subtrees) get a tighter depenetration limit
-           "/.*_hand(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
+           "/.*_hand/.*": [PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
        },
        joint_drive_props={
-           "(/.*)?": [UsdPhysicsDriveCfg(drive_type="force", stiffness=40.0, damping=4.0)],
+           "/.*": [UsdPhysicsDriveCfg(drive_type="force", stiffness=40.0, damping=4.0)],
        },
    )
 
