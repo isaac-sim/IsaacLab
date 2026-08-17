@@ -199,7 +199,7 @@ def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets, pre
 
 _RENDERER_PRESETS = [
     # preset_name, expected_class
-    ("default", IsaacRtxRendererCfg),
+    ("default", NewtonWarpRendererCfg),
     ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
 ]
