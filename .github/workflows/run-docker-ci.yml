@@ -44,8 +44,17 @@ jobs:
             exit 1
           fi
           if [ "${COMMENT_AUTHOR,,}" != "${pr_author,,}" ]; then
-            echo "::error::Only PR author @$pr_author can request Docker CI."
-            exit 1
+            commenter_permission="$(
+              gh api "repos/$REPOSITORY/collaborators/$COMMENT_AUTHOR/permission" \
+                --jq '.permission' 2>/dev/null || printf 'none'
+            )"
+            case "$commenter_permission" in
+              admin|write) ;;
+              *)
+                echo "::error::Only PR author @$pr_author or a user with write access can request Docker CI."
+                exit 1
+                ;;
+            esac
           fi
 
       - name: Create isaaclab-bot token
