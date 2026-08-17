@@ -78,43 +78,21 @@ Rough-terrain velocity tasks remain unsupported until
 Quick Start
 ~~~~~~~~~~~
 
-.. tab-set::
+.. code-block:: bash
 
-   .. tab-item:: uv (Recommended)
+    # Direct workflow: stable task, warp env implementation
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
+    uv run isaaclab play --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
+        --num_envs 32 --checkpoint latest --visualizer newton_gl
 
-      .. code-block:: bash
-
-          # Direct workflow: stable task, warp env implementation
-          uv run isaaclab train --rl_library rsl_rl \
-              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
-          uv run isaaclab play --rl_library rsl_rl \
-              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
-              --num_envs 32 --checkpoint latest --visualizer newton_gl
-
-          # Manager-based workflow: stable task on the warp runtime
-          uv run isaaclab train --rl_library rsl_rl \
-              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
-          uv run isaaclab play --rl_library rsl_rl \
-              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
-              --num_envs 32 --checkpoint latest --visualizer newton_gl
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          # Direct workflow: stable task, warp env implementation
-          ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp --num_envs 4096
-          ./isaaclab.sh play --rl_library rsl_rl \
-              --task Isaac-Cartpole-Direct --frontend warp presets=newton_mjwarp \
-              --num_envs 32 --checkpoint latest --visualizer newton_gl
-
-          # Manager-based workflow: stable task on the warp runtime
-          ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
-          ./isaaclab.sh play --rl_library rsl_rl \
-              --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
-              --num_envs 32 --checkpoint latest --visualizer newton_gl
+    # Manager-based workflow: stable task on the warp runtime
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp --num_envs 4096
+    uv run isaaclab play --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-AnymalD --frontend warp presets=newton_mjwarp \
+        --num_envs 32 --checkpoint latest --visualizer newton_gl
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
