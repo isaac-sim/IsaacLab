@@ -1308,12 +1308,6 @@ tasks also present their existing recorded ``robot_pov_cam``:
    produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
    by changing the robot pose, to keep the panel outside the camera's field of view.
 
-.. tip::
-
-   To hide PiP while keeping camera observations and recordings enabled, configure
-   ``IsaacTeleopCfg.xr_camera_feeds`` as an empty list or set ``enabled=False`` on every feed. To
-   disable both PiP and external camera rendering, pass ``--disable_external_cameras``.
-
 .. code-block:: bash
 
    uv run --extra teleop isaaclab teleop run \
