@@ -151,7 +151,15 @@ See :ref:`actuators-solver-limit-migration` for replacement data views and write
 Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
 delay, and motor curves. They do not store separate solver-limit or friction values. Because the
 backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
-live articulation properties. Native controllers keep their gains separate from solver gains.
+live articulation properties; assigning to these properties is ignored with a warning — use the
+articulation joint writers or the ``randomize_actuator_gains`` event instead.
+
+Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
+Newton ``Actuator`` object, whose controller keeps its parameters separate from solver gains.
+Read or modify its components (``controller``, ``delay``, ``clamping``) directly for raw access,
+or use :meth:`~isaaclab.actuators.ActuatorCollection.read_actuator_parameter` and
+:meth:`~isaaclab.actuators.ActuatorCollection.write_actuator_parameter` for group-scoped access in
+public joint order with environment selection.
 
 ``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
 ``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
@@ -485,13 +493,18 @@ Group access
 ^^^^^^^^^^^^
 
 :attr:`~isaaclab.assets.Articulation.actuators` is an
-:class:`~isaaclab.actuators.ActuatorCollection`, a read-only ``Mapping`` from group name to actuator
-model. Membership is fixed after construction, so you can look up and iterate groups but not add,
-replace, or delete them:
+:class:`~isaaclab.actuators.ActuatorCollection`, a read-only ``Mapping`` from group name to
+whoever owns the group. Isaac Lab-executed groups map to their
+:class:`~isaaclab.actuators.ActuatorBase` model instances. Newton-executed groups map to the
+Newton ``Actuator`` objects that drive their joints — no Isaac Lab model exists for them, so
+their controller parameters are read and modified on the owning object (see
+:ref:`actuators-native`). Membership is fixed after construction, so you can look up and iterate
+groups but not add, replace, or delete them:
 
 .. code-block:: python
 
-    legs = robot.actuators["legs"]          # the ActuatorBase for the "legs" group
+    legs = robot.actuators["legs"]          # the group's owner: an ActuatorBase, or a
+                                            # Newton Actuator under use_newton_actuators=True
     for name, actuator in robot.actuators.items():
         print(name, type(actuator).__name__)
 
@@ -510,10 +523,11 @@ Logical groups and execution batches
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Named groups such as ``hips`` and ``knees`` remain distinct when you configure or access them.
-Isaac Lab may batch disjoint implicit actuator groups internally without changing the tensors
-returned by ``robot.actuators["hips"]``. Each joint may belong to only one group; overlapping
-selections raise :class:`ValueError`. Explicit, stateful, neural, native, and subclassed groups
-are not batched and execute one group at a time. Batching is an internal optimization.
+A single internal executor computes all plain implicit groups in one fused kernel launch without
+changing the tensors returned by ``robot.actuators["hips"]``. Each joint may belong to only one
+group; overlapping selections raise :class:`ValueError`. Explicit, stateful, neural, and
+subclassed groups execute one group at a time on the Isaac Lab path, and Newton-executed groups
+run inside the solver or host adapter. Fused execution is an internal optimization.
 
 Commands, telemetry, and lifecycle
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -631,8 +645,27 @@ the solver still applies their PD gains. On CUDA, the host adapter captures actu
 execution, and telemetry publication when possible; otherwise it uses eager execution. Stateful
 native actuators cannot run in a caller-owned CUDA graph, so the host adapter manages them.
 
-Newton executes native actuators in its controller. Isaac Lab retains named groups for configuration
-and access, and stages commands and telemetry.
+Newton executes native actuators in its controller, and the collection exposes that ownership
+directly: ``robot.actuators[name]`` returns the Newton ``Actuator`` object driving the group's
+joints instead of an Isaac Lab model. Newton merges structurally identical joints into one
+actuator, so several groups can share an object (a group spanning several returns them as a
+tuple). Raw component access reads and writes the controller storage in Newton's layout; for
+group-scoped access in public joint order, use
+:meth:`~isaaclab.actuators.ActuatorCollection.read_actuator_parameter` and
+:meth:`~isaaclab.actuators.ActuatorCollection.write_actuator_parameter`:
+
+.. code-block:: python
+
+    # raw ownership: the Newton actuator object itself
+    legs = robot.actuators["legs"]
+    print(type(legs.controller).__name__)
+
+    # group-scoped, user-ordered parameter access
+    kp = robot.actuators.read_actuator_parameter("legs", "controller", "kp")
+    robot.actuators.write_actuator_parameter("legs", "controller", "kp", values=kp * 2.0)
+
+Isaac Lab retains named groups for configuration, joint bookkeeping, and command and telemetry
+staging.
 
 **Supported models.** Each supported config maps to USD schemas:
 
