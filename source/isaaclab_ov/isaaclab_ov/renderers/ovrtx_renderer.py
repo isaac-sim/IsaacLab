@@ -506,6 +506,8 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points_binding = None
         self._cable_segment_counts: list[int] = []
         self._cable_point_offsets: list[int] = []
+        # Max ``segment_count + 1`` across bound cables; point dim for the cable kernel launch.
+        self._cable_max_points: int = 0
         # Populated by _setup_cable_bindings_legacy; declared here so a renderer that never binds a
         # cable still has the attributes.
         self._cable_shape_ids = None
@@ -870,6 +872,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_offsets = wp.array(offsets, dtype=wp.int32, device=device)
         self._cable_counts = wp.array(counts, dtype=wp.int32, device=device)
         self._cable_segment_counts = counts
+        self._cable_max_points = max(counts) + 1 if counts else 0
         # One flat buffer of curve points; each curve owns counts[i] + 1 entries.
         self._cable_point_offsets = []
         total_points = 0
@@ -1050,7 +1053,7 @@ class OVRTXRenderer(BaseRenderer):
 
         wp.launch(
             compute_cable_points_world_kernel,
-            dim=len(self._cable_segment_counts),
+            dim=(len(self._cable_segment_counts), self._cable_max_points),
             inputs=[
                 self._cable_shape_ids,
                 self._cable_offsets,
@@ -1582,6 +1585,7 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_workaround_applied = False
         self._cable_segment_counts = []
         self._cable_point_offsets = []
+        self._cable_max_points = 0
         # Drop the slice views before the buffer they alias, so nothing outlives it.
         self._cable_point_slices = []
         self._cable_points = None
@@ -2118,6 +2122,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_offsets = wp.array(offsets, dtype=wp.int32, device=device)
         self._cable_counts = wp.array(counts, dtype=wp.int32, device=device)
         self._cable_segment_counts = counts
+        self._cable_max_points = max(counts) + 1 if counts else 0
         self._cable_point_offsets = []
         total_points = 0
         for count in counts:
@@ -2137,7 +2142,7 @@ class OVRTXRenderer(BaseRenderer):
 
         wp.launch(
             compute_cable_points_world_kernel,
-            dim=len(self._cable_segment_counts),
+            dim=(len(self._cable_segment_counts), self._cable_max_points),
             inputs=[
                 self._cable_shape_ids,
                 self._cable_offsets,
@@ -2454,6 +2459,7 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_visual_counts = []
         self._cable_segment_counts = []
         self._cable_point_offsets = []
+        self._cable_max_points = 0
         self._cable_points = None
         self._cable_shape_ids = None
         self._cable_offsets = None
