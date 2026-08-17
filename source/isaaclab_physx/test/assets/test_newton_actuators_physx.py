@@ -360,7 +360,7 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
 def _assert_newton_actuator_uses_current_joint_state(
     joint_ordering: tuple[str, ...] | None, *, num_steps: int = NUM_STEPS
 ) -> None:
-    """Check that ``applied_torque`` always matches the IdealPD formula on *this* step's true state.
+    """Check that ``applied_effort`` always matches the IdealPD formula on *this* step's true state.
 
     Ground truth is read every step via ``root_view.get_dof_positions()``/``get_dof_velocities()`` --
     the raw PhysX view, bypassing :class:`ArticulationData`'s cached ``joint_pos``/``joint_vel`` shadow
@@ -424,7 +424,7 @@ def _assert_newton_actuator_uses_current_joint_state(
             true_vel = to_user_order(articulation.root_view.get_dof_velocities()).clone()
 
             articulation.write_data_to_sim()
-            applied = wp.to_torch(articulation.data.applied_torque).clone()
+            applied = articulation.actuators.applied_effort.torch.clone()
 
             expected = torch.clamp(kp * (target_pos - true_pos) - kd * true_vel, -effort_limit, effort_limit)
             torch.testing.assert_close(
@@ -433,7 +433,7 @@ def _assert_newton_actuator_uses_current_joint_state(
                 atol=1e-3,
                 rtol=1e-3,
                 msg=(
-                    f"applied_torque at step {step} does not match the IdealPD formula evaluated on this"
+                    f"applied_effort at step {step} does not match the IdealPD formula evaluated on this"
                     " step's true PhysX joint state -- the Newton actuator likely used a stale"
                     " joint_pos/joint_vel shadow"
                 ),
@@ -444,7 +444,7 @@ def _assert_newton_actuator_uses_current_joint_state(
 
 
 def test_newton_actuator_identity_ordering_uses_current_joint_state() -> None:
-    """Sanity check: with identity joint ordering, ``applied_torque`` always reflects this step's state."""
+    """Sanity check: with identity joint ordering, ``applied_effort`` always reflects this step's state."""
     _assert_newton_actuator_uses_current_joint_state(None)
 
 
