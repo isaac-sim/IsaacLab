@@ -279,8 +279,26 @@ class FakeActuatorControl(ActuatorControl):
         self.submitted = True
 
 
+class _FakeNewtonActuator:
+    """Newton-actuator stand-in; a plain class so the view's mapping cache can hash it."""
+
+    def __init__(self, controller, indices):
+        self.controller = controller
+        self.delay = None
+        self.clamping = []
+        self.indices = indices
+
+
 class NativeFakeActuatorControl(FakeActuatorControl):
     """Control object that handles actuator execution natively."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        size = self.num_instances * self.num_joints
+        self.newton_actuator = _FakeNewtonActuator(
+            controller=SimpleNamespace(),
+            indices=wp.array(list(range(size)), dtype=wp.uint32, device=self.device),
+        )
 
     @property
     def native_actuator_path_active(self) -> bool:
@@ -293,15 +311,13 @@ class NativeFakeActuatorControl(FakeActuatorControl):
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         return True
 
+    def finalize_native_actuators(self, collection):
+        from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 
-class _FakeNewtonActuator:
-    """Newton-actuator stand-in; a plain class so the view's mapping cache can hash it."""
-
-    def __init__(self, controller, indices):
-        self.controller = controller
-        self.delay = None
-        self.clamping = []
-        self.indices = indices
+        return NewtonActuatorSelection(
+            view=LightArticulationView(self.num_instances, self.num_joints, self.device),
+            actuators=[self.newton_actuator],
+        )
 
 
 class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
@@ -310,13 +326,9 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         size = self.num_instances * self.num_joints
-        controller = SimpleNamespace(
+        self.newton_actuator.controller = SimpleNamespace(
             kp=wp.zeros(size, dtype=wp.float32, device=self.device),
             kd=wp.zeros(size, dtype=wp.float32, device=self.device),
-        )
-        self.newton_actuator = _FakeNewtonActuator(
-            controller=controller,
-            indices=wp.array(list(range(size)), dtype=wp.uint32, device=self.device),
         )
 
     @property
@@ -329,14 +341,6 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
             for attr in ("kp", "kd")
             if hasattr(controller, attr)
         }
-
-    def finalize_native_actuators(self, collection):
-        from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
-
-        return NewtonActuatorSelection(
-            view=LightArticulationView(self.num_instances, self.num_joints, self.device),
-            actuators=[self.newton_actuator],
-        )
 
 
 def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays():
@@ -364,8 +368,8 @@ def test_deprecated_joint_limit_aliases_warn_and_forward():
     assert control.prepared_actuator_cfgs["motor"] is not cfg
     assert control.prepared_actuator_cfgs["motor"].joint_effort_limit == 12.0
     assert control.prepared_actuator_cfgs["motor"].joint_velocity_limit == 34.0
-    assert collection["motor"].cfg.joint_effort_limit == 12.0
-    assert collection["motor"].cfg.joint_velocity_limit == 34.0
+    # Newton-executed groups map to the owning Newton actuator object.
+    assert collection["motor"] is control.newton_actuator
 
 
 @pytest.mark.parametrize(
@@ -383,7 +387,9 @@ def test_deprecated_effort_limit_forwards_by_actuator_type(
         if expected_model_limit
         else cfg_factory(effort_limit=12.0)
     )
-    control = NativeFakeActuatorControl() if expected_model_limit else FakeActuatorControl()
+    # Lab execution keeps the group as an inspectable Lab model instance; the explicit
+    # variant additionally warns about deprecated Lab execution, which pytest.warns tolerates.
+    control = FakeActuatorControl()
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         collection = ActuatorCollection({"motor": cfg}, control)
@@ -481,10 +487,13 @@ def test_equivalent_limit_aliases_prefer_canonical_values():
 
     for canonical_name, alias_name, canonical_value, alias_value, cfg_factory, control_factory in scenarios:
         cfg = cfg_factory(**{canonical_name: canonical_value, alias_name: alias_value})
+        control = control_factory()
         with pytest.warns(DeprecationWarning):
-            collection = ActuatorCollection({"motor": cfg}, control_factory())
+            collection = ActuatorCollection({"motor": cfg}, control)
 
-        assert getattr(collection["motor"].cfg, canonical_name) == canonical_value
+        prepared_cfgs = getattr(control, "prepared_actuator_cfgs", None)
+        resolved_cfg = prepared_cfgs["motor"] if prepared_cfgs is not None else collection["motor"].cfg
+        assert getattr(resolved_cfg, canonical_name) == canonical_value
         assert getattr(cfg, canonical_name) == canonical_value
         assert getattr(cfg, alias_name) == alias_value
 
@@ -687,13 +696,32 @@ def test_articulation_control_projects_warp_joint_property_selectors():
     torch.testing.assert_close(defaults["armature"], expected)
 
 
-def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeypatch):
-    """Keep authored gains in a native explicit group while zeroing its solver drives."""
+def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkeypatch):
+    """Zero the solver drives of a native explicit group and expose the Newton actuator."""
+    from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
+
     articulation = FakeArticulation()
     articulation.data.joint_stiffness.torch.fill_(17.0)
     articulation.data.joint_damping.torch.fill_(3.0)
     control = FakeArticulationActuatorControl(articulation)
+    newton_actuator = _FakeNewtonActuator(
+        controller=SimpleNamespace(),
+        indices=wp.array(
+            list(range(articulation.num_instances * articulation.num_joints)),
+            dtype=wp.uint32,
+            device=articulation.device,
+        ),
+    )
     monkeypatch.setattr(control, "prepare_native_actuators", lambda collection, cfgs: set(cfgs))
+    monkeypatch.setattr(control, "_native_actuator_path_active", True)
+    monkeypatch.setattr(
+        control,
+        "finalize_native_actuators",
+        lambda collection: NewtonActuatorSelection(
+            view=LightArticulationView(articulation.num_instances, articulation.num_joints, articulation.device),
+            actuators=[newton_actuator],
+        ),
+    )
 
     collection = ActuatorCollection(
         {
@@ -708,8 +736,8 @@ def test_native_unset_gains_capture_authored_defaults_before_solver_zero(monkeyp
         control,
     )
 
-    torch.testing.assert_close(collection["explicit"].stiffness, torch.full((2, 3), 17.0))
-    torch.testing.assert_close(collection["explicit"].damping, torch.full((2, 3), 3.0))
+    # No Lab model is built for the Newton-executed group: the owner is exposed directly.
+    assert collection["explicit"] is newton_actuator
     torch.testing.assert_close(articulation.data.joint_stiffness.torch, torch.zeros((2, 3)))
     torch.testing.assert_close(articulation.data.joint_damping.torch, torch.zeros((2, 3)))
     assert articulation.calls[-2][1]["stiffness"] == 0.0
@@ -733,13 +761,13 @@ def test_native_group_parameters_route_through_the_collection_door():
     control.native_gains["kd"][1, 2] = 1.7
     assert collection.read_actuator_parameter("native", "controller", "kd")[1, 2] == 1.7
 
-    # The group's gain properties direct to the collection door instead of returning stale mirrors.
+    # The group's mapping entry is the owning Newton actuator: no stale Lab mirrors exist,
+    # and direct modification of the controller storage is observed by the door reads.
     group = collection["native"]
-    for attr in ("stiffness", "damping"):
-        with pytest.raises(AttributeError, match=rf"{attr}.*read_actuator_parameter"):
-            _ = getattr(group, attr)
-        with pytest.raises(AttributeError, match=rf"{attr}.*read_actuator_parameter"):
-            setattr(group, attr, torch.ones((2, 3)))
+    assert group is control.newton_actuator
+    wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 21.0
+    assert collection.read_actuator_parameter("native", "controller", "kp")[0, 0] == 21.0
+    wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 2.0
 
     # The single write path patches the controller storage in place over an env/joint selection.
     collection.write_actuator_parameter(

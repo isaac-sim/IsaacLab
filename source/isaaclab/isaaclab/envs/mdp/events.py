@@ -1388,33 +1388,39 @@ class randomize_actuator_gains(ManagerTermBase):
         self.default_joint_stiffness = self.asset.data.joint_stiffness.torch.clone()
         self.default_joint_damping = self.asset.data.joint_damping.torch.clone()
 
+        # Ownership decides the gain source and write path per group: implicit groups are
+        # articulation-owned, Newton-executed groups are controller-owned (their mapping
+        # entries are the Newton actuator objects), and Lab explicit groups own their tensors.
+        collection = self.asset.actuators
+        self._native_group_names = getattr(collection, "_native_group_names", set())
         self._gain_actuators = {
             name: actuator
-            for name, actuator in self.asset.actuators.items()
-            if isinstance(actuator, (ImplicitActuator, IdealPDActuator))
+            for name, actuator in collection.items()
+            if name in self._native_group_names or isinstance(actuator, (ImplicitActuator, IdealPDActuator))
         }
-        # Explicit PD gains are actuator-owned, so they replace the zeroed solver gains.
-        # Native groups read theirs live from the Newton controllers through the collection.
-        self._native_group_names = getattr(self.asset.actuators, "_native_group_names", set())
+        group_joint_indices = getattr(collection, "_group_joint_indices", None)
+        self._group_joint_indices = {
+            name: (group_joint_indices[name] if group_joint_indices is not None else actuator.joint_indices)
+            for name, actuator in self._gain_actuators.items()
+        }
         for name, actuator in self._gain_actuators.items():
             if isinstance(actuator, ImplicitActuator):
                 continue
-            joint_ids = actuator.joint_indices
+            joint_ids = self._group_joint_indices[name]
             if name in self._native_group_names:
-                self.default_joint_stiffness[:, joint_ids] = self.asset.actuators.read_actuator_parameter(
+                self.default_joint_stiffness[:, joint_ids] = collection.read_actuator_parameter(
                     name, "controller", "kp"
                 )
-                self.default_joint_damping[:, joint_ids] = self.asset.actuators.read_actuator_parameter(
-                    name, "controller", "kd"
-                )
+                self.default_joint_damping[:, joint_ids] = collection.read_actuator_parameter(name, "controller", "kd")
             else:
+                # Explicit PD gains are actuator-owned, so they replace the zeroed solver gains.
                 self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
                 self.default_joint_damping[:, joint_ids] = actuator.damping
         self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
         self.default_actuator_damping: dict[str, torch.Tensor] = {}
         for name, actuator in self._gain_actuators.items():
             if name in self._native_group_names:
-                joint_ids = actuator.joint_indices
+                joint_ids = self._group_joint_indices[name]
                 self.default_actuator_stiffness[name] = self.default_joint_stiffness[:, joint_ids].clone()
                 self.default_actuator_damping[name] = self.default_joint_damping[:, joint_ids].clone()
             else:
@@ -1456,21 +1462,22 @@ class randomize_actuator_gains(ManagerTermBase):
 
         # Loop through actuators and randomize gains
         for actuator_name, actuator in self._gain_actuators.items():
+            group_joint_indices = self._group_joint_indices[actuator_name]
             if isinstance(self.asset_cfg.joint_ids, slice):
                 # we take all the joints of the actuator
                 actuator_indices = slice(None)
-                if isinstance(actuator.joint_indices, slice):
+                if isinstance(group_joint_indices, slice):
                     global_indices = slice(None)
-                elif isinstance(actuator.joint_indices, torch.Tensor):
-                    global_indices = actuator.joint_indices.to(self.asset.device)
+                elif isinstance(group_joint_indices, torch.Tensor):
+                    global_indices = group_joint_indices.to(self.asset.device)
                 else:
                     raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
-            elif isinstance(actuator.joint_indices, slice):
+            elif isinstance(group_joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = actuator_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
-                actuator_joint_indices = actuator.joint_indices
+                actuator_joint_indices = group_joint_indices
                 asset_joint_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)

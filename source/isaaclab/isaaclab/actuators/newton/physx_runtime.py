@@ -88,7 +88,7 @@ class PhysxActuatorRuntime:
         articulation = self._articulation
         if self.adapter is None:
             articulation._implicit_dof_mask, articulation._implicit_dof_mask_owner = build_implicit_dof_mask(
-                dict(collection.items()), articulation.num_joints, articulation.device
+                collection._implicit_group_joint_indices(), articulation.num_joints, articulation.device
             )
             articulation._data._sim_bind_joint_computed_effort = wp.zeros(
                 (articulation.num_instances, articulation.num_joints),
@@ -98,7 +98,7 @@ class PhysxActuatorRuntime:
             return
 
         self.binding = self.adapter.bind_articulation(
-            lab_actuators=dict(collection.items()),
+            implicit_joint_indices=collection._implicit_group_joint_indices(),
             dof_offset=0,
             num_joints=articulation.num_joints,
         )

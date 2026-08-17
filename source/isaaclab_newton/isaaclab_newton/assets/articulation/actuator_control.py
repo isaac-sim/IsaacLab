@@ -68,7 +68,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if adapter is not None:
             arti_start = self._joint_dof_offset()
             binding = adapter.bind_articulation(
-                lab_actuators=dict(collection.items()),
+                implicit_joint_indices=collection._implicit_group_joint_indices(),
                 dof_offset=arti_start,
                 num_joints=self.num_joints,
             )
@@ -78,7 +78,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             articulation._data._sim_bind_joint_computed_effort = binding.computed_effort_view
         else:
             articulation._implicit_dof_mask, articulation._implicit_dof_mask_owner = build_implicit_dof_mask(
-                dict(collection.items()),
+                collection._implicit_group_joint_indices(),
                 self.num_joints,
                 self.device,
             )

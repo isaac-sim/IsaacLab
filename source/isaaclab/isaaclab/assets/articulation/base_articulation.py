@@ -1690,7 +1690,7 @@ class BaseArticulation(AssetBase):
         # Split the articulation-level joint selection into per-group columns.
         joint_ids_long = joint_ids.to(self.device, dtype=torch.long)
         for group_name in getattr(self.actuators, "_native_group_names", ()):
-            group_joints = self.actuators[group_name].joint_indices
+            group_joints = self.actuators._group_joint_indices[group_name]
             if isinstance(group_joints, slice):
                 in_group = torch.ones_like(joint_ids_long, dtype=torch.bool)
                 group_columns = joint_ids_long

@@ -31,11 +31,19 @@ from .actuator_pd import IdealPDActuator, ImplicitActuator
 logger = logging.getLogger(__name__)
 
 
-class ActuatorCollection(Mapping[str, ActuatorBase]):
+class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     """Read-only runtime collection of actuator groups for one articulation.
 
-    Mapping entries retain their configured identity. The collection owns
-    articulation-wide commands, processed commands, telemetry, and lifecycle.
+    Mapping entries return whoever owns the group. Isaac Lab-executed groups map to
+    their :class:`~isaaclab.actuators.ActuatorBase` model instances. Newton-executed
+    groups map to the Newton :class:`~newton.actuators.Actuator` objects that drive
+    their joints, so users read and modify the owning controller directly. Newton
+    merges structurally identical joints into one actuator, so several groups can
+    map to the same object (or to a tuple when a group spans several); the
+    collection keeps each group's joint indices and uses them in
+    :meth:`read_actuator_parameter` / :meth:`write_actuator_parameter` for
+    group-scoped, user-ordered access.
+
     Configure membership through :attr:`isaaclab.assets.ArticulationCfg.actuators`
     before construction; assigning or deleting mapping entries raises
     :class:`TypeError`. Each joint can belong to at most one group; overlapping
@@ -43,7 +51,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     Plain :class:`~isaaclab.actuators.ImplicitActuator` groups are not executed one
     group at a time: a single internal executor computes all of their joints in one
-    fused kernel launch. All other groups, including subclasses of
+    fused kernel launch. All other Lab-executed groups, including subclasses of
     :class:`~isaaclab.actuators.ImplicitActuator`, execute per group.
     """
 
@@ -64,7 +72,10 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             debug_value_resolution: Whether to log actuator value resolution.
         """
         self._control = control
-        self._groups: dict[str, ActuatorBase] = {}
+        self._groups: dict[str, ActuatorBase | object] = {}
+        self._group_joint_names: dict[str, list[str]] = {}
+        self._group_joint_indices: dict[str, slice | torch.Tensor] = {}
+        self._implicit_group_names: set[str] = set()
         self._native_group_names: set[str] = set()
         self._debug_value_resolution = debug_value_resolution
         self._joint_property_resolution_rows: dict[str, dict[str, tuple[tuple[object, ...], ...]]] = {}
@@ -81,9 +92,14 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
-        if self._newton_selection is not None:
+        if self._native_group_names:
+            if self._newton_selection is None:
+                raise RuntimeError(
+                    "The backend declared Newton-executed actuator groups "
+                    f"{sorted(self._native_group_names)} but finalize_native_actuators returned no selection."
+                )
             for actuator_name in self._native_group_names:
-                self._groups[actuator_name]._newton_managed = True
+                self._groups[actuator_name] = self._resolve_newton_group_actuators(actuator_name)
         self._validate_coverage()
         self._build_execution_plan()
         if self._debug_value_resolution:
@@ -102,7 +118,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     # Public interface.
 
-    def __getitem__(self, name: str) -> ActuatorBase:
+    def __getitem__(self, name: str) -> ActuatorBase | object:
         return self._groups[name]
 
     def __iter__(self) -> Iterator[str]:
@@ -171,7 +187,9 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         """
         group_env_ids = self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
-            actuator.reset(group_env_ids)
+            # Newton-executed groups are reset through the backend below.
+            if isinstance(actuator, ActuatorBase):
+                actuator.reset(group_env_ids)
         self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
 
     def compute(self, dt: float = 0.0) -> None:
@@ -289,9 +307,12 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             raise KeyError(name)
         if self._newton_selection is None or name not in self._native_group_names:
             raise ValueError(f"Actuator group '{name}' is not executed by Newton actuators.")
+        group_actuators = self._groups[name]
+        if not isinstance(group_actuators, tuple):
+            group_actuators = (group_actuators,)
         owners = [
             (actuator, owner)
-            for actuator in self._newton_selection.actuators
+            for actuator in group_actuators
             if (owner := resolve_actuator_component(actuator, component, attr)) is not None
         ]
         if not owners:
@@ -300,7 +321,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def _newton_group_columns(self, name: str) -> torch.Tensor:
         """Backend view columns of one group's joints, in group joint order."""
-        joint_ids = self._groups[name].joint_indices
+        joint_ids = self._group_joint_indices[name]
         if isinstance(joint_ids, slice):
             columns = torch.arange(self.num_joints, device=self.device)
         else:
@@ -372,7 +393,13 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         actuator_cfgs: dict[str, ActuatorBaseCfg],
         resolved_group_joints: dict[str, tuple[list[int] | ProxyArray, list[str]]],
     ) -> None:
-        """Construct actuator groups and apply their resolved joint properties."""
+        """Construct actuator groups and apply their resolved joint properties.
+
+        Newton-executed groups never instantiate an Isaac Lab actuator model: the
+        Newton controllers own their parameters, so a Lab model would only hold
+        misleading construction-time snapshots. Their mapping entries are filled
+        with the owning Newton actuator objects after backend finalization.
+        """
         construction_records: list[tuple[dict[str, torch.Tensor], torch.Tensor | slice, bool, bool]] = []
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = resolved_group_joints[actuator_name]
@@ -382,35 +409,44 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 actuator_joint_ids = joint_ids.torch
             else:
                 actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
+            self._group_joint_names[actuator_name] = joint_names
+            self._group_joint_indices[actuator_name] = actuator_joint_ids
 
             joint_defaults = self._control.get_default_joint_properties(actuator_joint_ids)
             implicit = _is_implicit_actuator_cfg(actuator_cfg)
+            self._has_implicit_actuators = self._has_implicit_actuators or implicit
+            if implicit:
+                self._implicit_group_names.add(actuator_name)
+            native_managed = actuator_name in self._native_group_names
             properties, table_rows = self._resolve_joint_properties(
                 actuator_cfg,
                 joint_defaults,
                 joint_names,
                 actuator_joint_ids,
             )
-            actuator_kwargs = dict(
-                cfg=actuator_cfg,
-                joint_names=joint_names,
-                joint_ids=actuator_joint_ids,
-                num_envs=self.num_instances,
-                device=self.device,
-                stiffness=properties["stiffness"],
-                damping=properties["damping"],
-                actuator_velocity_limit=properties["joint_velocity_limit"],
-            )
-            if implicit:
-                # implicit groups read the solver limit live after binding; the resolved value
-                # seeds the pre-binding construction buffer.
-                actuator_kwargs["joint_effort_limit"] = properties["joint_effort_limit"]
+            if native_managed:
+                # placeholder keeps configuration order; replaced by the Newton actuator
+                # objects once the backend selection is finalized.
+                self._groups[actuator_name] = None
             else:
-                # explicit models default their clip limit to the authored joint effort limit.
-                actuator_kwargs["actuator_effort_limit"] = joint_defaults["joint_effort_limit"]
-            actuator: ActuatorBase = actuator_cfg.class_type(**actuator_kwargs)
-            self._groups[actuator_name] = actuator
-            self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
+                actuator_kwargs = dict(
+                    cfg=actuator_cfg,
+                    joint_names=joint_names,
+                    joint_ids=actuator_joint_ids,
+                    num_envs=self.num_instances,
+                    device=self.device,
+                    stiffness=properties["stiffness"],
+                    damping=properties["damping"],
+                    actuator_velocity_limit=properties["joint_velocity_limit"],
+                )
+                if implicit:
+                    # implicit groups read the solver limit live after binding; the resolved value
+                    # seeds the pre-binding construction buffer.
+                    actuator_kwargs["joint_effort_limit"] = properties["joint_effort_limit"]
+                else:
+                    # explicit models default their clip limit to the authored joint effort limit.
+                    actuator_kwargs["actuator_effort_limit"] = joint_defaults["joint_effort_limit"]
+                self._groups[actuator_name] = actuator_cfg.class_type(**actuator_kwargs)
             if self._debug_value_resolution:
                 self._joint_property_resolution_rows[actuator_name] = table_rows
             construction_records.append(
@@ -418,7 +454,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     properties,
                     actuator_joint_ids,
                     implicit,
-                    actuator_name in self._native_group_names,
+                    native_managed,
                 )
             )
 
@@ -432,6 +468,29 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         for actuator in self._groups.values():
             if isinstance(actuator, ImplicitActuator):
                 actuator._bind_actuator_parameters(self._control)
+
+    def _resolve_newton_group_actuators(self, name: str) -> object:
+        """Return the Newton actuator object(s) that drive one group's joints.
+
+        Newton merges structurally identical joints into one actuator, so the
+        returned object can be shared between groups. A single covering actuator
+        is returned directly; a group spanning several returns them as a tuple.
+        """
+        view = self._newton_selection.view
+        columns = self._newton_group_columns(name)
+        matched = []
+        for actuator in self._newton_selection.actuators:
+            mapping = wp.to_torch(view._get_actuator_dof_mapping(actuator))
+            env_columns = mapping.reshape(self.num_instances, -1)[0]
+            if bool((env_columns[columns] >= 0).any()):
+                matched.append(actuator)
+        if not matched:
+            raise RuntimeError(f"No Newton actuator drives any joint of group '{name}'.")
+        return matched[0] if len(matched) == 1 else tuple(matched)
+
+    def _implicit_group_joint_indices(self) -> list[slice | torch.Tensor]:
+        """Joint selectors of the implicit groups, consumed by backend implicit-DOF masks."""
+        return [self._group_joint_indices[name] for name in self._implicit_group_names]
 
     def _resolve_joint_properties(
         self,
@@ -556,6 +615,8 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             self._implicit_executor = None
             return
         for name, group in self._groups.items():
+            if name in self._native_group_names:
+                continue
             if type(group) is ImplicitActuator:
                 implicit_names.append(name)
                 implicit_groups.append(group)
@@ -615,7 +676,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         """Warn when actuator groups do not cover the expected movable joints."""
         if self.num_joints == 0:
             return
-        total_act_joints = sum(actuator.num_joints for actuator in self._groups.values())
+        total_act_joints = sum(len(joint_names) for joint_names in self._group_joint_names.values())
         expected_joints = self.num_joints - self._control.num_fixed_tendons
         if total_act_joints != expected_joints:
             logger.warning(

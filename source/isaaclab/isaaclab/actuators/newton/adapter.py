@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import Any, TypeAlias
 
 import numpy as np
 import torch
@@ -35,9 +35,6 @@ from .kernels import (
     set_mask_kernel,
     zero_at_indices_kernel,
 )
-
-if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorBase
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
@@ -212,7 +209,7 @@ class NewtonActuatorAdapter:
     def bind_articulation(
         self,
         *,
-        lab_actuators: dict[str, ActuatorBase],
+        implicit_joint_indices: Sequence[slice | torch.Tensor | None],
         dof_offset: int,
         num_joints: int,
     ) -> ArticulationBinding:
@@ -222,9 +219,9 @@ class NewtonActuatorAdapter:
         computed-effort buffer to the articulation's columns.
 
         Args:
-            lab_actuators: The articulation's Isaac Lab actuator groups in
-                public joint order. Only :class:`~isaaclab.actuators.ImplicitActuator`
-                groups contribute to :attr:`ArticulationBinding.implicit_dof_mask`.
+            implicit_joint_indices: Joint selectors of the articulation's implicit
+                actuator groups in public joint order; they define
+                :attr:`ArticulationBinding.implicit_dof_mask`.
             dof_offset: Offset of this articulation's DOFs in the adapter's
                 env-major global index space (``0`` on PhysX, view-dependent
                 on Newton).
@@ -235,7 +232,9 @@ class NewtonActuatorAdapter:
         Returns:
             The bundled :class:`ArticulationBinding` for this articulation.
         """
-        implicit_dof_mask, implicit_dof_mask_owner = build_implicit_dof_mask(lab_actuators, num_joints, self._device)
+        implicit_dof_mask, implicit_dof_mask_owner = build_implicit_dof_mask(
+            implicit_joint_indices, num_joints, self._device
+        )
         computed_effort_view = self.computed_effort_2d[:, dof_offset : dof_offset + num_joints]
         return self.ArticulationBinding(
             implicit_dof_mask=implicit_dof_mask,

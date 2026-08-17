@@ -5,10 +5,10 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
+from collections.abc import Sequence
+
 import torch
 import warp as wp
-
-from isaaclab.actuators import ActuatorBase, ImplicitActuator
 
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
@@ -109,14 +109,20 @@ def sync_torque_telemetry(
 
 
 def build_implicit_dof_mask(
-    actuators: dict[str, ActuatorBase],
+    implicit_joint_indices: Sequence[slice | torch.Tensor | None],
     num_joints: int,
     device: str,
 ) -> tuple[wp.array, torch.Tensor]:
     """Per-DOF mask consumed by :func:`sync_torque_telemetry`.
 
-    Entry is ``1`` for DOFs covered by an
-    :class:`~isaaclab.actuators.ImplicitActuator` group, ``0`` otherwise.
+    Entry is ``1`` for DOFs covered by an implicit actuator group, ``0`` otherwise.
+
+    Args:
+        implicit_joint_indices: Joint selectors of the implicit groups, e.g. from
+            :meth:`ActuatorCollection._implicit_group_joint_indices`. ``slice`` or
+            ``None`` selects all joints.
+        num_joints: Articulation joint count.
+        device: Torch/Warp device string.
 
     Returns:
         Tuple of ``(wp_mask, torch_owner)``. ``wp_mask`` is the Warp
@@ -129,10 +135,7 @@ def build_implicit_dof_mask(
         ``wp_mask``'s device pointer will read garbage at replay time.
     """
     modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
-    for actuator in actuators.values():
-        if not isinstance(actuator, ImplicitActuator):
-            continue
-        j_ids = actuator.joint_indices
+    for j_ids in implicit_joint_indices:
         if isinstance(j_ids, slice) or j_ids is None:
             modes[:] = 1
         else:

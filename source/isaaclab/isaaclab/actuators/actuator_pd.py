@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
@@ -323,48 +323,6 @@ class IdealPDActuator(ActuatorBase):
         )
         self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
         self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
-
-    """
-    Properties.
-    """
-
-    @property
-    def stiffness(self) -> torch.Tensor:
-        """Current actuator stiffness [N/m or N·m/rad, depending on joint type]."""
-        return self._actuator_gain_property("stiffness")
-
-    @stiffness.setter
-    def stiffness(self, value: torch.Tensor) -> None:
-        self._set_actuator_gain_property("stiffness", value)
-
-    @property
-    def damping(self) -> torch.Tensor:
-        """Current actuator damping [N·s/m or N·m·s/rad, depending on joint type]."""
-        return self._actuator_gain_property("damping")
-
-    @damping.setter
-    def damping(self, value: torch.Tensor) -> None:
-        self._set_actuator_gain_property("damping", value)
-
-    def _actuator_gain_property(self, name: Literal["stiffness", "damping"]) -> torch.Tensor:
-        """Return a construction gain or reject access on Newton-managed groups."""
-        self._reject_newton_managed_gain_access(name)
-        return self.__dict__[f"_{name}"]
-
-    def _set_actuator_gain_property(self, name: Literal["stiffness", "damping"], value: torch.Tensor) -> None:
-        """Store a construction gain or reject assignment on Newton-managed groups."""
-        self._reject_newton_managed_gain_access(name)
-        self.__dict__[f"_{name}"] = value
-
-    def _reject_newton_managed_gain_access(self, name: Literal["stiffness", "damping"]) -> None:
-        """Raise when the group's gains are owned by Newton actuator controllers."""
-        if self.__dict__.get("_newton_managed", False):
-            attr = {"stiffness": "kp", "damping": "kd"}[name]
-            raise AttributeError(
-                f"{type(self).__name__}.{name} is owned by Newton actuators. Use "
-                f"articulation.actuators.read_actuator_parameter(<group>, 'controller', '{attr}') and "
-                "write_actuator_parameter(...) instead."
-            )
 
     """
     Operations.
