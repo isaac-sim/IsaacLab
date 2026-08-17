@@ -850,16 +850,14 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-  # ovstage is post-merge only; it never ran on pull requests.
+# Validation branch: run OVStage on pull requests to exercise the combined OV runtime pins.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: >-
-      github.event_name != 'pull_request' &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
