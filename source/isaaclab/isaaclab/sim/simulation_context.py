@@ -22,7 +22,7 @@ from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene_data import REQUIRES_MODEL, REQUIRES_STAGE, TYPES, SceneDataProvider
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
@@ -633,11 +633,12 @@ class SimulationContext:
 
         cli_explicit = self._is_cli_visualizer_explicit()
 
-        # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
-        all_visualizer_cfgs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
-        indices = [TYPES.index(cfg.visualizer_type) for cfg in all_visualizer_cfgs if cfg.visualizer_type is not None]
-        self.requires_usd_stage |= any(REQUIRES_STAGE[i] for i in indices)
-        self.requires_newton_model |= any(REQUIRES_MODEL[i] for i in indices)
+        configs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
+        requirements = [
+            REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type] for cfg in configs if cfg.visualizer_type is not None
+        ]
+        self.requires_usd_stage |= any(requires_stage for requires_stage, _ in requirements)
+        self.requires_newton_model |= any(requires_model for _, requires_model in requirements)
 
         pending_cfgs = []
         new_visualizers = []

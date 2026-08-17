@@ -381,7 +381,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
-        from isaaclab.scene_data import REQUIRES_MODEL, REQUIRES_STAGE, TYPES
+        from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 
         self.cfg = cfg
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
@@ -391,9 +391,9 @@ class NewtonWarpRenderer(BaseRenderer):
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
         sim = SimulationContext.instance()
-        i = TYPES.index("newton_warp")
-        sim.requires_usd_stage |= REQUIRES_STAGE[i]
-        sim.requires_newton_model |= REQUIRES_MODEL[i]
+        requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
+        sim.requires_usd_stage |= requires_stage
+        sim.requires_newton_model |= requires_model
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""

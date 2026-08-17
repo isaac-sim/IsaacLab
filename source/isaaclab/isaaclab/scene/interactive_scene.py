@@ -34,7 +34,7 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.scene_data import REQUIRES_MODEL, REQUIRES_STAGE, TYPES
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -202,9 +202,9 @@ class InteractiveScene:
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
         cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
-        indices = [TYPES.index(type_name) for type_name in [*requested_viz_types, *cam_types]]
-        self.sim.requires_usd_stage |= any(REQUIRES_STAGE[i] for i in indices)
-        self.sim.requires_newton_model |= any(REQUIRES_MODEL[i] for i in indices)
+        requirements = [REQUIRES_STAGE_AND_MODEL[type_name] for type_name in [*requested_viz_types, *cam_types]]
+        self.sim.requires_usd_stage |= any(requires_stage for requires_stage, _ in requirements)
+        self.sim.requires_newton_model |= any(requires_model for _, requires_model in requirements)
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
