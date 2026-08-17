@@ -174,6 +174,98 @@ def test_ancestor_cache_prevents_redundant_get_labels_calls():
     assert not duplicates, f"Prims queried more than once (ancestor cache missed): {duplicates}"
 
 
+def _prototype_only_scene():
+    """A scene replicated by the physics backend only: USD prims exist for env_0 alone.
+
+    Mirrors a cfg that sets :attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path` to the prototype
+    env, so the clone plan spreads the asset to env_1 while the stage never gains env_1 prims.
+    Returns the stage, the per-shape prim-path list, and the matching clone plan.
+    """
+    import torch
+
+    from isaaclab.cloner import ClonePlan
+
+    stage = Usd.Stage.CreateInMemory()
+    # Only the prototype env is authored; env_1 exists in the Newton model alone.
+    for path in ("/World/envs/env_0/Robot/pole/geom", "/World/envs/env_0/Robot/cart/geom", "/World/ground/geom"):
+        stage.DefinePrim(path, "Mesh")
+    add_labels(stage.GetPrimAtPath("/World/envs/env_0/Robot"), labels=["cartpole"], instance_name="class")
+
+    # ``shape_label`` still names every env: Newton's replication renames the cloned shapes.
+    shape_paths = [
+        "/World/envs/env_0/Robot/pole/geom",
+        "/World/envs/env_0/Robot/cart/geom",
+        "/World/envs/env_1/Robot/pole/geom",
+        "/World/envs/env_1/Robot/cart/geom",
+        "/World/ground/geom",
+    ]
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.ones(1, 2, dtype=torch.bool),
+        env_ids=torch.tensor([0, 1]),
+    )
+    return stage, shape_paths, plan
+
+
+def _mapper_with_plan(shape_paths, stage, plan, **cfg_overrides):
+    """Build a mapper that sees ``plan``, standing in for a live :class:`SimulationContext`."""
+    from unittest.mock import patch
+
+    import isaaclab_newton.renderers.segmentation as _segmentation_mod
+
+    sim = SimpleNamespace(get_clone_plan=lambda: plan)
+    with patch.object(_segmentation_mod.SimulationContext, "instance", staticmethod(lambda: sim)):
+        return NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(**cfg_overrides))
+
+
+def test_semantic_labels_resolve_through_prototype_env():
+    """Backend-replicated shapes inherit the prototype env's class id instead of going UNLABELLED.
+
+    When only the prototype env is authored on the stage, env_1's shapes have no prim to walk, so
+    before the fix they all resolved to UNLABELLED and rendered as background.
+    """
+    stage, shape_paths, plan = _prototype_only_scene()
+    mapper = _mapper_with_plan(shape_paths, stage, plan)
+    mapper.build_mapping("semantic_segmentation", colorize=False)
+    mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
+
+    ids = mapping.shape_to_id.numpy().tolist()
+    # Every robot shape, prototype or clone, shares the one cartpole class id.
+    assert ids[0] == ids[1] == ids[2] == ids[3]
+    assert ids[0] >= 2
+    assert mapping.info["idToLabels"][ids[0]] == {"class": "cartpole"}
+    # The un-cloned ground plane is unaffected by the fallback.
+    assert ids[4] == UNLABELLED_ID
+
+
+def test_instance_ids_stay_distinct_per_env_through_prototype():
+    """The prototype fallback rebases the matched ancestor, so each env keeps its own instance id."""
+    stage, shape_paths, plan = _prototype_only_scene()
+    mapper = _mapper_with_plan(shape_paths, stage, plan)
+    mapper.build_mapping("instance_segmentation", colorize=False)
+    mapping = mapper.get_mapping("instance_segmentation", colorize=False)
+
+    ids = mapping.shape_to_id.numpy().tolist()
+    assert ids[0] == ids[1], "prototype pole and cart are one instance"
+    assert ids[2] == ids[3], "cloned pole and cart are one instance"
+    assert ids[2] != ids[0], "the clone must not collapse into the prototype's instance"
+    assert mapping.info["idToLabels"][ids[0]] == "/World/envs/env_0/Robot"
+    assert mapping.info["idToLabels"][ids[2]] == "/World/envs/env_1/Robot"
+    assert mapping.info["idToSemantics"][ids[2]] == {"class": "cartpole"}
+    assert ids[4] == UNLABELLED_ID
+
+
+def test_prototype_fallback_respects_semantic_filter():
+    """A clone is UNLABELLED when the prototype's labels are filtered out, not silently labelled."""
+    stage, shape_paths, plan = _prototype_only_scene()
+    mapper = _mapper_with_plan(shape_paths, stage, plan, semantic_filter=["shape"])
+    mapper.build_mapping("semantic_segmentation", colorize=False)
+    mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
+
+    assert mapping.shape_to_id.numpy().tolist() == [UNLABELLED_ID] * len(shape_paths)
+
+
 def test_semantic_segmentation_mapping_overrides_color():
     """``semantic_segmentation_mapping`` forces the class color and its info key."""
     stage, shape_paths = _scene()
