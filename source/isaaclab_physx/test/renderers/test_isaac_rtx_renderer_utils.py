@@ -225,6 +225,7 @@ class TestEnsureIsaacRtxRenderUpdate:
         sim.render_generation = 0
         sim.is_rendering = True
         sim.visualizers = []
+        sim.physics_manager.has_pending_kit_app_update.return_value = False
         return sim
 
     @pytest.fixture()
@@ -314,6 +315,29 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         mock_sim.physics_manager.before_kit_app_update.assert_called_once_with()
         mock_app.update.assert_not_called()
+
+    def test_pending_pose_write_bypasses_same_step_dedup(
+        self, mock_sim, mock_sim_context, pumping_visualizer, mock_omni_kit_app
+    ):
+        """A pose write after a frame must invalidate same-step frame deduplication."""
+        mock_app = MagicMock()
+        mock_omni_kit_app.get_app.return_value = mock_app
+        mock_sim_context.instance.return_value = mock_sim
+        mock_sim.physics_manager.before_kit_app_update.side_effect = [False, True]
+
+        with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
+            rtx_utils.ensure_isaac_rtx_render_update()
+            mock_app.update.reset_mock()
+            mock_sim.physics_manager.forward.reset_mock()
+
+            mock_sim.physics_manager.has_pending_kit_app_update.return_value = True
+            mock_sim.visualizers = [pumping_visualizer]
+            rtx_utils.ensure_isaac_rtx_render_update()
+
+        mock_sim.physics_manager.has_pending_kit_app_update.assert_called_once_with()
+        assert mock_sim.physics_manager.before_kit_app_update.call_count == 2
+        mock_sim.physics_manager.forward.assert_called_once_with()
+        mock_app.update.assert_called_once_with()
 
     def test_not_rendering_skips(self, mock_sim, mock_sim_context, mock_omni_kit_app):
         """No ``app.update()`` when rendering is disabled."""

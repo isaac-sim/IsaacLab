@@ -504,6 +504,15 @@ class PhysxManager(PhysicsManager):
             cls._pending_tensor_pose_write_step = sim.get_physics_step_count()
 
     @classmethod
+    def has_pending_kit_app_update(cls) -> bool:
+        """Return whether the current physics step has an unconsumed tensor pose write."""
+        pending_write_step = cls._pending_tensor_pose_write_step
+        if pending_write_step is None or not cls._view_created:
+            return False
+        sim = PhysicsManager._sim
+        return sim is not None and sim.get_physics_step_count() == pending_write_step
+
+    @classmethod
     def before_kit_app_update(cls) -> bool:
         """Forward pending PhysX tensor pose writes before a Kit/RTX frame."""
         pending_write_step = cls._pending_tensor_pose_write_step

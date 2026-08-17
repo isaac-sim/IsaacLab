@@ -409,6 +409,19 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def has_pending_kit_app_update(cls) -> bool:
+        """Return whether :meth:`before_kit_app_update` has pending work.
+
+        Frame owners use this predicate only when they would otherwise skip a redundant
+        Kit update. The default implementation is a no-op for backends that do not need
+        Kit-specific synchronization.
+
+        Returns:
+            True when the next frame-producing Kit update must consume pending work.
+        """
+        return False
+
+    @classmethod
     def before_kit_app_update(cls) -> bool:
         """Sync deferred backend state immediately before a frame-producing Kit update.
 

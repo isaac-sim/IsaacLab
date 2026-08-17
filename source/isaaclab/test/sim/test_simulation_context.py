@@ -963,6 +963,7 @@ def test_render_sync_only_runs_for_kit_rtx_frames():
         cube.write_root_pose_to_sim_index(root_pose=root_pose)
         root_pose[:, 0] += 0.1
         cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        assert sim.physics_manager.has_pending_kit_app_update()
 
         # Multiple writes coalesce, and an RTX sensor can be active while per-step
         # camera/Kit rendering is disabled.
@@ -971,12 +972,14 @@ def test_render_sync_only_runs_for_kit_rtx_frames():
 
         assert sim.get_physics_step_count() == 0
         assert callback_counts == {"pre": 0, "post": 0}
+        assert sim.physics_manager.has_pending_kit_app_update()
 
         # A render with no Kit/RTX consumer must also keep the pending sync intact.
         sim.set_setting("/isaaclab/render/rtx_sensors", False)
         sim.render()
 
         assert callback_counts == {"pre": 0, "post": 0}
+        assert sim.physics_manager.has_pending_kit_app_update()
 
         # The next real RTX render consumes the pending sync exactly once.
         sim.set_setting("/isaaclab/video/enabled", True)
@@ -984,6 +987,7 @@ def test_render_sync_only_runs_for_kit_rtx_frames():
 
         assert sim.get_physics_step_count() == 0
         assert callback_counts == {"pre": 1, "post": 1}
+        assert not sim.physics_manager.has_pending_kit_app_update()
 
         sim.render()
 
