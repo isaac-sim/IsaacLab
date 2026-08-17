@@ -406,11 +406,18 @@ def test_deprecated_effort_limit_forwards_by_actuator_type(
         torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 6.0))
     else:
         torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
-        with pytest.warns(DeprecationWarning, match="joint_effort_limit"):
+        # The base alias forwards to actuator_effort_limit, which implicit models expose
+        # as the live articulation joint effort limit.
+        with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
             torch.testing.assert_close(group.effort_limit, group.joint_effort_limit)
-        with pytest.warns(DeprecationWarning, match="joint_effort_limit"):
-            with pytest.raises(AttributeError, match="write_joint_effort_limit_to_sim_index"):
-                group.effort_limit = torch.full((2, 3), 6.0)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            group.effort_limit = torch.full((2, 3), 6.0)
+        messages = [str(warning.message) for warning in caught_warnings]
+        assert any("actuator_effort_limit" in message for message in messages)
+        assert any("write_joint_effort_limit_to_sim_index" in message for message in messages)
+        # the articulation-owned write is ignored.
+        torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
 
 
 def test_constructor_resolves_deprecated_velocity_limit_alias():
@@ -942,11 +949,13 @@ def test_disjoint_implicit_groups_share_one_execution_batch():
     assert torch.equal(group.damping, torch.tensor([[2.0, 3.0]]))
     assert torch.equal(group.joint_effort_limit, torch.tensor([[7.0, 9.0]]))
     assert torch.equal(group.actuator_velocity_limit, velocity_limit_snapshot)
-    with pytest.raises(
-        AttributeError,
+    stiffness_before = group.stiffness.clone()
+    with pytest.warns(
+        UserWarning,
         match=r"ImplicitActuator.stiffness.*write_joint_stiffness_to_sim_index.*randomize_actuator_gains",
     ):
         group.stiffness = torch.zeros_like(group.stiffness)
+    assert torch.equal(group.stiffness, stiffness_before)
 
 
 def test_lab_executed_explicit_groups_warn_once():

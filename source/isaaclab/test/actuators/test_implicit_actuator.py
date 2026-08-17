@@ -71,7 +71,7 @@ def test_implicit_actuator_init_minimum(sim, num_envs, num_joints, device, usd_d
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
 
     torch.testing.assert_close(actuator.joint_effort_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
-    with pytest.warns(DeprecationWarning, match="joint_effort_limit"):
+    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
         torch.testing.assert_close(actuator.effort_limit, actuator.joint_effort_limit)
     torch.testing.assert_close(
         actuator.actuator_velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device)

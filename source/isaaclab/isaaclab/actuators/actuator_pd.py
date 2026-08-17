@@ -15,7 +15,7 @@ import torch
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
-from ._compat import _limits_equal, _resolve_limit_aliases
+from ._compat import _limits_equal
 from .actuator_base import ActuatorBase
 
 if TYPE_CHECKING:
@@ -124,7 +124,7 @@ class ImplicitActuator(ActuatorBase):
 
     @stiffness.setter
     def stiffness(self, value: torch.Tensor) -> None:
-        self._set_articulation_owned_property("stiffness", value)
+        self._warn_articulation_owned_write("stiffness", "write_joint_stiffness_to_sim_index")
 
     @property
     def damping(self) -> torch.Tensor:
@@ -135,7 +135,7 @@ class ImplicitActuator(ActuatorBase):
 
     @damping.setter
     def damping(self, value: torch.Tensor) -> None:
-        self._set_articulation_owned_property("damping", value)
+        self._warn_articulation_owned_write("damping", "write_joint_damping_to_sim_index")
 
     @property
     def joint_effort_limit(self) -> torch.Tensor:
@@ -146,7 +146,7 @@ class ImplicitActuator(ActuatorBase):
 
     @joint_effort_limit.setter
     def joint_effort_limit(self, value: torch.Tensor) -> None:
-        self._set_articulation_owned_property("joint_effort_limit", value)
+        self._warn_articulation_owned_write("joint_effort_limit", "write_joint_effort_limit_to_sim_index")
 
     @property
     def actuator_effort_limit(self) -> torch.Tensor:
@@ -159,47 +159,16 @@ class ImplicitActuator(ActuatorBase):
 
     @actuator_effort_limit.setter
     def actuator_effort_limit(self, value: torch.Tensor) -> None:
-        self._set_articulation_owned_property("joint_effort_limit", value)
+        self._warn_articulation_owned_write("joint_effort_limit", "write_joint_effort_limit_to_sim_index")
 
-    @property
-    def effort_limit(self) -> torch.Tensor:
-        """Deprecated joint effort limit [N or N·m, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :attr:`joint_effort_limit` instead. This alias will be removed in 4.0.
-        """
+    def _warn_articulation_owned_write(self, name: str, writer_name: str) -> None:
+        """Warn that an articulation-owned joint property assignment is ignored."""
         warnings.warn(
-            "ImplicitActuator.effort_limit is deprecated. Use joint_effort_limit instead; "
-            "effort_limit will be removed in 4.0.",
-            DeprecationWarning,
-            stacklevel=2,
+            f"ImplicitActuator.{name} is articulation-owned and the assignment is ignored. Use "
+            f"Articulation.{writer_name}() or randomize_actuator_gains() to update it.",
+            UserWarning,
+            stacklevel=3,
         )
-        return self.joint_effort_limit
-
-    @effort_limit.setter
-    def effort_limit(self, value: torch.Tensor) -> None:
-        warnings.warn(
-            "ImplicitActuator.effort_limit is deprecated. Use joint_effort_limit instead; "
-            "effort_limit will be removed in 4.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.joint_effort_limit = value
-
-    def _set_articulation_owned_property(self, name: str, value: torch.Tensor) -> None:
-        """Store a construction value or reject assignment after articulation binding."""
-        construction_name = f"_construction_{name}"
-        if self.__dict__.get(f"_{name}") is not None:
-            writer_name = {
-                "stiffness": "write_joint_stiffness_to_sim_index",
-                "damping": "write_joint_damping_to_sim_index",
-                "joint_effort_limit": "write_joint_effort_limit_to_sim_index",
-            }[name]
-            raise AttributeError(
-                f"ImplicitActuator.{name} is articulation-owned after binding. Use "
-                f"Articulation.{writer_name}() or randomize_actuator_gains() to update it."
-            )
-        self.__dict__[construction_name] = value
 
     """
     Operations.
@@ -549,18 +518,6 @@ class RemotizedPDActuator(DelayedPDActuator):
         effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
         velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
-        if (
-            cfg.effort_limit is not None
-            or cfg.effort_limit_sim is not None
-            or cfg.velocity_limit is not None
-            or cfg.velocity_limit_sim is not None
-        ):
-            _resolve_limit_aliases(type(self).__name__, cfg, joint_names)
-        # remove effort and velocity box constraints from the base class; this model instead
-        # applies the angle-dependent limits from the joint parameter lookup table.
-        cfg.actuator_effort_limit = torch.inf
-        cfg.actuator_velocity_limit = torch.inf
-        # Call the base method with unbounded model clipping and velocity limits.
         super().__init__(
             cfg,
             joint_names,
@@ -574,6 +531,10 @@ class RemotizedPDActuator(DelayedPDActuator):
             effort_limit,  # TODO: Deprecated. Remove in 4.0.
             velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
+        # This model has no box constraints: the angle-dependent lookup table below governs
+        # effort clipping, so the parsed actuator limits are replaced with infinity.
+        self.actuator_effort_limit = torch.full_like(self.actuator_effort_limit, torch.inf)
+        self.actuator_velocity_limit = torch.full_like(self.actuator_velocity_limit, torch.inf)
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit
         self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
