@@ -40,27 +40,27 @@ Usage:
 .. code-block:: bash
     # **Ensure that sub-jobs are separated by the ``+`` delimiter.**
     # Generic Templates-----------------------------------
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py -h
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources -h
     # No resource isolation; no parallelization:
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources
     --sub_jobs <JOB0>+<JOB1>+<JOB2>
     # Automatic Resource Isolation; Example A: needed for parallelization
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources \
     --num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
     --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example B:  needed for parallelization
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker <CPU> \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources --num_cpu_per_worker <CPU> \
     --gpu_per_worker <GPU> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py --num_cpu_per_worker <CPU> \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources --num_cpu_per_worker <CPU> \
     --gpu_per_worker <GPU1> <GPU2> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # to see all arguments
-    uv run python scripts/reinforcement_learning/ray/wrap_resources.py -h
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources -h
 """
 
 import argparse
 
-import util
+from isaaclab_contrib.rl.ray import util
 
 
 def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:

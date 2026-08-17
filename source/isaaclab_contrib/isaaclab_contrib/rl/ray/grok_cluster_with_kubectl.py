@@ -21,7 +21,7 @@ Usage:
 
 .. code-block:: bash
 
-    python3 scripts/reinforcement_learning/ray/grok_cluster_with_kubectl.py
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.grok_cluster_with_kubectl
     # For options, supply -h arg
 """
 

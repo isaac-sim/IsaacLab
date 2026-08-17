@@ -11,13 +11,14 @@ import sys
 from time import sleep, time
 
 import ray
-import util
 from ray import air, tune
 from ray.tune import Callback
 from ray.tune.progress_reporter import ProgressReporter
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.search.repeater import Repeater
 from ray.tune.stopper import CombinedStopper
+
+from isaaclab_contrib.rl.ray import util
 
 """
 This script breaks down an aggregate tuning job, as defined by a hyperparameter sweep configuration,
@@ -42,20 +43,20 @@ Usage:
 
 .. code-block:: bash
 
-    uv run python scripts/reinforcement_learning/ray/tuner.py -h
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.tuner -h
 
     # Examples
     # Local
-    uv run python scripts/reinforcement_learning/ray/tuner.py --run_mode local \
-    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.tuner --run_mode local \
+    --cfg_file source/isaaclab_contrib/isaaclab_contrib/rl/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg
     # Local with a custom progress reporter
-    uv run python scripts/reinforcement_learning/ray/tuner.py \
-    --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.tuner \
+    --cfg_file source/isaaclab_contrib/isaaclab_contrib/rl/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --progress_reporter CustomCartpoleProgressReporter
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
-    uv run python scripts/reinforcement_learning/ray/submit_job.py \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job \
     --aggregate_jobs tuner.py \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>

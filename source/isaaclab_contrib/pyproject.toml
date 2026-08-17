@@ -37,3 +37,4 @@ include = ["isaaclab_contrib", "isaaclab_contrib.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_contrib.rl.ray" = ["cluster_configs/Dockerfile", "cluster_configs/google_cloud/*.jinja"]

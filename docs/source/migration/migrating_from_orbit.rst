@@ -8,10 +8,11 @@ From Orbit
 Since `Orbit`_ was used as basis for Isaac Lab, migrating from Orbit to Isaac Lab is straightforward.
 The following sections describe the changes that need to be made to your code to migrate from Orbit to Isaac Lab.
 
-.. note::
+.. important::
 
-  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
-  in the future releases.
+   This page covers the Orbit-to-Isaac-Lab rename and task-layout migration. After applying
+   these changes, follow :ref:`migrating-to-isaaclab-3-0` for the current multi-backend APIs,
+   ``ProxyArray`` data access, XYZW quaternions, visualizer selection, and unified training commands.
 
 
 Renaming of the launch script

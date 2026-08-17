@@ -37,21 +37,22 @@ Usage:
 .. code-block:: bash
 
     # Example; submitting a tuning job
-    python3 scripts/reinforcement_learning/ray/submit_job.py \
-    --aggregate_jobs /workspace/isaaclab/scripts/reinforcement_learning/ray/tuner.py \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job \
+    --aggregate_jobs /workspace/isaaclab/source/isaaclab_contrib/isaaclab_contrib/rl/ray/tuner.py \
         --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
         --cfg_class CartpoleTheiaJobCfg --mlflow_uri <ML_FLOW_URI>
 
     # Example: Submitting resource wrapped job
-    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job --aggregate_jobs wrap_resources.py --test
 
     # Example: submitting tasks with specific resources, and supporting pip packages and py_modules
     # You may use relative paths for task_cfg and py_modules, placing them in the
-    # "scripts/reinforcement_learning/ray" directory, which will be uploaded to the cluster.
-    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml
+    # "source/isaaclab_contrib/isaaclab_contrib/rl/ray" directory, which will be uploaded to the cluster.
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job \
+        --aggregate_jobs task_runner.py --task_cfg tasks.yaml
 
     # For all command line arguments
-    python3 scripts/reinforcement_learning/ray/submit_job.py -h
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job -h
 """
 
 import argparse

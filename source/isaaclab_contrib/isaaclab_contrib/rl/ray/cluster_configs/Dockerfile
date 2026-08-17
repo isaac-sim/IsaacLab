@@ -12,12 +12,12 @@ ENV LD_LIBRARY_PATH="/usr/local/nvidia/lib64"
 RUN ln -sf /usr/local/nvidia/bin/nvidia* /usr/bin
 
 # Install Ray and configure it
-RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install "ray[default, tune]"==2.31.0 && \
+RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install "ray[default,tune]>=2.47.0" && \
 sed -i "1i $(echo "#!/workspace/isaaclab/_isaac_sim/python.sh")" \
 /isaac-sim/kit/python/bin/ray && ln -s /isaac-sim/kit/python/bin/ray /usr/local/bin/ray
 
 # Install tuning dependencies
-RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install optuna bayesian-optimization
+RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install "optuna>=3.0.0,<5"
 
 # Install MLflow for logging
 RUN /workspace/isaaclab/_isaac_sim/python.sh -m pip install mlflow

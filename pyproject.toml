@@ -178,6 +178,14 @@ teleop = [
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
+ray = [
+    "ray[default,tune]>=2.47.0",
+    "optuna>=3.0.0,<5",
+    "sqlalchemy<2.1",
+    "kubernetes",
+    "jinja2",
+    "pyyaml",
+]
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -195,7 +203,7 @@ leapp = [
 ]
 # Every backend, RL library, and visualizer in one flag. No extra is forked in
 # [tool.uv].conflicts, so any combination resolves into a single environment. The
-# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp)
+# specialized extras (ray, rlinf, mimic, teleop, tetrahedralization, video, leapp)
 # and the developer ``test`` tooling stay opt-in by name.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",

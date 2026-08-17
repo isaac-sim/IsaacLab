@@ -91,7 +91,6 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
-   source/refs/reference_architecture/index
 
 
 .. toctree::
@@ -137,7 +136,6 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   source/features/ray
    source/features/reproducibility
 
 
@@ -146,6 +144,7 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
+   source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
 
@@ -192,10 +191,10 @@ Table of Contents
     :hidden:
     :caption: Project Links
 
+    NVIDIA Newton <https://github.com/newton-physics/newton>
     GitHub <https://github.com/isaac-sim/IsaacLab>
     NVIDIA Isaac Sim <https://docs.isaacsim.omniverse.nvidia.com/latest/index.html>
     NVIDIA PhysX <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html>
-    NVIDIA Newton <https://github.com/newton-physics/newton>
 
 Indices and tables
 ==================

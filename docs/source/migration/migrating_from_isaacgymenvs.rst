@@ -18,10 +18,14 @@ As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the f
 the key differences between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview
 Release and Isaac Sim.
 
-.. note::
+.. important::
 
-  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
-  in the future releases.
+   The detailed source-framework comparison below was originally written for Isaac Lab 1.0.
+   Use it to translate IsaacGymEnvs concepts, then apply the :ref:`migrating-to-isaaclab-3-0`
+   guide for the current multi-backend configuration, ``ProxyArray`` access, quaternion ordering,
+   preset selection, and indexed or masked write APIs. The maintained Cartpole implementation in
+   :isaaclab-source:`isaaclab_tasks/core/cartpole <source/isaaclab_tasks/isaaclab_tasks/core/cartpole>`
+   is the canonical current example.
 
 
 Task Config Setup
@@ -81,7 +85,7 @@ to each individual articulation and rigid body config.
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~isaaclab.sim.PhysxCfg` class provides access for
+and the number of actors in the environment. The :class:`~isaaclab_physx.physics.PhysxCfg` class provides access for
 setting the GPU buffer dimensions.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
@@ -96,7 +100,7 @@ setting the GPU buffer dimensions.
 |    up_axis: "z"                                              |    # up axis will always be Z in isaac sim                        |
 |    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    # use_gpu_pipeline is deduced from the device                  |
 |    gravity: [0.0, 0.0, -9.81]                                |    gravity=(0.0, 0.0, -9.81),                                     |
-|    physx:                                                    |    physx: PhysxCfg = PhysxCfg(                                    |
+|    physx:                                                    |    physics=PhysxCfg(                                               |
 |      num_threads: ${....num_threads}                         |        # num_threads is no longer needed                          |
 |      solver_type: ${....solver_type}                         |        solver_type=1,                                             |
 |      use_gpu: ${contains:"cuda",${....sim_device}}           |        # use_gpu is deduced from the device                       |

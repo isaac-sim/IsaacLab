@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import pathlib
-import sys
-
-# Allow for import of items from the ray workflow.
-UTIL_DIR = pathlib.Path(__file__).parent.parent.parent
-sys.path.append(str(UTIL_DIR))
-import tuner
-import util
 from ray import tune
+
+from isaaclab_contrib.rl.ray import tuner, util
 
 
 class CameraJobCfg(tuner.JobCfg):
