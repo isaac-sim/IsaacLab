@@ -35,7 +35,7 @@ ANYDRIVE_3_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
     saturation_effort=120.0,
     actuator_effort_limit=80.0,
-    velocity_limit=7.5,
+    actuator_velocity_limit=7.5,
     stiffness={".*": 40.0},
     damping={".*": 5.0},
 )
@@ -47,7 +47,7 @@ ANYDRIVE_3_LSTM_ACTUATOR_CFG = ActuatorNetLSTMCfg(
     network_file=f"{ISAACLAB_NUCLEUS_DIR}/ActuatorNets/ANYbotics/anydrive_3_lstm_jit.pt",
     saturation_effort=120.0,
     actuator_effort_limit=80.0,
-    velocity_limit=7.5,
+    actuator_velocity_limit=7.5,
 )
 """Configuration for ANYdrive 3.0 (used on ANYmal-C) with LSTM actuator model."""
 

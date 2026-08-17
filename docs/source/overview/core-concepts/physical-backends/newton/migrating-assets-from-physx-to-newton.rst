@@ -197,9 +197,9 @@ the complete tuning sequence.
 Velocity limits distinction
 ---------------------------
 
-``velocity_limit`` is the actuator's physical rated speed. Isaac Lab can use it in actuator or
-task logic, observations, rewards, and terminations, but MJWarp does not parse it into the solver
-model and does not enforce it during stepping.
+``actuator_velocity_limit`` is the actuator's physical rated speed. Isaac Lab can use it in
+actuator or task logic, observations, rewards, and terminations, but MJWarp does not parse it into
+the solver model and does not enforce it during stepping.
 
 ``joint_velocity_limit`` requests a solver-side hard clamp and has no direct hardware counterpart.
 Isaac Lab always writes the value to Newton's ``Model.joint_velocity_limit``. The MJWarp solver

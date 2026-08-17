@@ -41,7 +41,7 @@ def _generate_single_joint_articulations(num_articulations: int, device: str) ->
             "joint": IdealPDActuatorCfg(
                 joint_names_expr=[".*"],
                 actuator_effort_limit=400.0,
-                velocity_limit=100.0,
+                actuator_velocity_limit=100.0,
                 stiffness=0.0,
                 damping=10.0,
             ),

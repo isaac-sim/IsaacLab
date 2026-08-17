@@ -25,13 +25,13 @@ from ... import mdp
 FRANKA_PANDA_LIFT_CFG = FRANKA_PANDA_CFG.copy()
 FRANKA_PANDA_LIFT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_PANDA_LIFT_CFG.actuators = {
-    # Inspired by libfranka's joint_impedance_control.cpp. ``velocity_limit``
+    # Inspired by libfranka's joint_impedance_control.cpp. ``actuator_velocity_limit``
     # remains the soft task-limit snapshot; ``joint_velocity_limit`` is the
     # separate solver request.
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
         joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
-        velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+        actuator_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
         joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
         stiffness={
             "panda_joint[1-4]": 600.0,
@@ -54,7 +54,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
     "panda_hand": ImplicitActuatorCfg(
         joint_names_expr=["panda_finger_joint1"],
         joint_effort_limit=70.0,
-        velocity_limit=0.2,
+        actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
         stiffness=350.0,
         damping=175.0,
@@ -63,7 +63,7 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
     "panda_finger2_passive": ImplicitActuatorCfg(
         joint_names_expr=["panda_finger_joint2"],
         joint_effort_limit=1.0,
-        velocity_limit=0.2,
+        actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
         stiffness=0.0,
         damping=0.0,

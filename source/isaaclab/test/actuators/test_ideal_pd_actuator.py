@@ -57,7 +57,9 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
     )
     with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
         torch.testing.assert_close(actuator.effort_limit, actuator.actuator_effort_limit)
-    torch.testing.assert_close(actuator.velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device))
+    torch.testing.assert_close(
+        actuator.actuator_velocity_limit, torch.inf * torch.ones(num_envs, num_joints, device=device)
+    )
 
     if not usd_default:
         torch.testing.assert_close(actuator.stiffness, stiffness * torch.ones(num_envs, num_joints, device=device))
@@ -124,7 +126,7 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
         joint_names_expr=joint_names,
         stiffness=200,
         damping=10,
-        velocity_limit=velocity_lim,
+        actuator_velocity_limit=velocity_lim,
     )
 
     actuator = actuator_cfg.class_type(
@@ -135,12 +137,12 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
         device=device,
         stiffness=actuator_cfg.stiffness,
         damping=actuator_cfg.damping,
-        velocity_limit=velocity_limit_default,
+        actuator_velocity_limit=velocity_limit_default,
     )
     vel_lim_expected = velocity_lim if velocity_lim is not None else velocity_limit_default
 
     torch.testing.assert_close(
-        actuator.velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
+        actuator.actuator_velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 

@@ -271,7 +271,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint1"],
                 joint_effort_limit=70.0,
-                velocity_limit=0.2,
+                actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
                 stiffness=350.0,
                 damping=175.0,
@@ -280,7 +280,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
             "panda_finger2_passive": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint2"],
                 joint_effort_limit=1.0,
-                velocity_limit=0.2,
+                actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
                 stiffness=0.0,
                 damping=0.0,

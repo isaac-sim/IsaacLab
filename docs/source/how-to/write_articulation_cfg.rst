@@ -152,12 +152,15 @@ ownership model and runtime mutation paths.
     * - ``joint_velocity_limit``
       - Requests a solver velocity constraint.
       - Requests a solver velocity constraint.
+    * - ``actuator_velocity_limit``
+      - Creates the soft velocity-limit snapshot; it is not a solver request.
+      - Describes the actuator rated speed; speed-dependent models use it in their torque curve.
     * - ``effort_limit``
       - Deprecated alias for ``joint_effort_limit``.
       - Deprecated alias for ``actuator_effort_limit``.
     * - ``velocity_limit``
-      - Creates the soft velocity-limit snapshot; it is not a solver request.
-      - Describes the actuator rated speed; speed-dependent models use it in their torque curve.
+      - Deprecated alias for ``actuator_velocity_limit``.
+      - Deprecated alias for ``actuator_velocity_limit``.
 
 Solver velocity enforcement is backend-dependent. ``joint_velocity_limit`` records the requested
 joint state but is not a backend-independent safety clamp; see :ref:`newton-velocity-limits`.

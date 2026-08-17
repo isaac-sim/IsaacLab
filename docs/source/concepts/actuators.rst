@@ -148,20 +148,21 @@ from articulation data and use the corresponding joint writers. The deprecated
 ``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
 See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
 
-Explicit actuators store model state such as ``actuator_effort_limit``, rated ``velocity_limit``, gains,
+Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
 delay, and motor curves. They do not store separate solver-limit or friction values. Because the
 backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
 live articulation properties. Native controllers keep their gains separate from solver gains.
 
-``actuator_effort_limit`` and ``velocity_limit`` apply to the actuator model.
+``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
 ``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
 different values. Explicit models clip output to ``actuator_effort_limit``;
 ``joint_effort_limit`` limits the solver.
-``velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for implicit
-actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends enforce it
-differently, solver velocity limits are not portable clamps. ``effort_limit`` is a deprecated
-configuration and runtime group alias. It resolves to ``actuator_effort_limit`` for explicit
-actuators and to ``joint_effort_limit`` for implicit actuators.
+``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
+implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
+enforce it differently, solver velocity limits are not portable clamps. ``effort_limit`` and
+``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
+resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``
+for explicit actuators and to ``joint_effort_limit`` for implicit actuators.
 
 Choosing a model
 -----------------
@@ -192,7 +193,7 @@ simplest model that meets your requirements.
         (:class:`~isaaclab.actuators.DCMotorCfg`)
       - Same PD torque, clipped to a four-quadrant torque-speed envelope.
       - Model clips against a velocity-dependent limit.
-      - ``saturation_effort``, ``velocity_limit``
+      - ``saturation_effort``, ``actuator_velocity_limit``
     * - :class:`~isaaclab.actuators.DelayedPDActuator`
         (:class:`~isaaclab.actuators.DelayedPDActuatorCfg`)
       - Ideal PD applied to commands delayed by a circular buffer.
@@ -216,7 +217,7 @@ estimates effort telemetry from the current state when the backend does not expo
 torque limit at :math:`\pm\,\tau_{max}`.
 
 **DCMotor.** Adds a linear four-quadrant torque-speed curve. ``saturation_effort`` is the stall
-torque, and ``velocity_limit`` is the no-load speed.
+torque, and ``actuator_velocity_limit`` is the no-load speed.
 
 **DelayedPDActuator.** An ideal PD controller with delayed position, velocity, and effort commands.
 The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.
@@ -405,7 +406,7 @@ static demand prevents the controller from damping the joint effectively.
 Velocity limit
 ^^^^^^^^^^^^^^
 
-For a :class:`~isaaclab.actuators.DCMotor`, ``velocity_limit`` is the no-load speed [rad/s or m/s].
+For a :class:`~isaaclab.actuators.DCMotor`, ``actuator_velocity_limit`` is the no-load speed [rad/s or m/s].
 Torque decreases as the joint approaches this speed, forming the four-quadrant torque-speed
 envelope. Lower limits reduce the usable speed range and cause earlier clipping. For an implicit
 group, the value is exposed through the soft velocity-limit view. ``joint_velocity_limit`` instead

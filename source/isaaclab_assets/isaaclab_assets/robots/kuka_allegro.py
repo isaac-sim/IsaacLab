@@ -84,7 +84,7 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
                 "(index|middle|ring|thumb)_joint_(0|1|2|3)": 0.7,
             },
             # motor velocity limits for mdp checking — deliberately NOT joint_velocity_limit.
-            velocity_limit={
+            actuator_velocity_limit={
                 "iiwa7_joint_(1|2)": 1.7104,
                 "iiwa7_joint_3": 1.7453,
                 "iiwa7_joint_4": 2.2689,

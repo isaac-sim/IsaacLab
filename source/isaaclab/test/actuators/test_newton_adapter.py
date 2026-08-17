@@ -64,7 +64,7 @@ def _make_actuator_stage() -> Usd.Stage:
                 stiffness=33.0,
                 damping=3.5,
                 actuator_effort_limit=43.0,
-                velocity_limit=7.0,
+                actuator_velocity_limit=7.0,
                 saturation_effort=53.0,
             ),
             "dc_b": DCMotorCfg(
@@ -72,7 +72,7 @@ def _make_actuator_stage() -> Usd.Stage:
                 stiffness=44.0,
                 damping=4.5,
                 actuator_effort_limit=54.0,
-                velocity_limit=8.0,
+                actuator_velocity_limit=8.0,
                 saturation_effort=64.0,
             ),
             "remote_a": RemotizedPDActuatorCfg(
@@ -199,7 +199,7 @@ def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit
                 stiffness=0.0,
                 damping=0.0,
                 actuator_effort_limit=1.0,
-                velocity_limit=1.0,
+                actuator_velocity_limit=1.0,
                 saturation_effort=1.0,
             ),
         ),
@@ -211,7 +211,7 @@ def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit
                 stiffness=0.0,
                 damping=0.0,
                 actuator_effort_limit=1.0,
-                velocity_limit=1.0,
+                actuator_velocity_limit=1.0,
                 saturation_effort=1.0,
             ),
         ),
@@ -237,7 +237,7 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
         stiffness=1.0,
         damping=0.1,
         actuator_effort_limit=2.0,
-        velocity_limit=3.0,
+        actuator_velocity_limit=3.0,
         saturation_effort=4.0,
     )
 

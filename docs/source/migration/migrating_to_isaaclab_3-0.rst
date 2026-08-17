@@ -51,11 +51,12 @@ configurations to the canonical fields below. The former names remain accepted w
 
 ``actuator_effort_limit`` clips explicit actuator-model output. ``joint_effort_limit`` and
 ``joint_velocity_limit`` are construction-time joint-property overrides selected by an actuator
-group's joint expression. The deprecated aliases ``effort_limit``, ``effort_limit_sim``, and
-``velocity_limit_sim`` remain accepted through 3.x. ``effort_limit`` resolves by actuator type:
-use ``actuator_effort_limit`` for explicit groups and ``joint_effort_limit`` for implicit groups.
-The runtime ``effort_limit`` group property follows the same mapping and is also deprecated.
-``velocity_limit`` describes rated speed or an implicit soft-limit snapshot.
+group's joint expression. The deprecated aliases ``effort_limit``, ``velocity_limit``,
+``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted through 3.x. ``effort_limit``
+resolves by actuator type: use ``actuator_effort_limit`` for explicit groups and
+``joint_effort_limit`` for implicit groups. The runtime ``effort_limit`` and ``velocity_limit``
+group properties follow the same mapping and are also deprecated.
+``actuator_velocity_limit`` describes rated speed or an implicit soft-limit snapshot.
 ``joint_velocity_limit`` only requests solver enforcement, which is backend-dependent. See
 :ref:`actuators-joint-property-ownership` for the full ownership model.
 
