@@ -21,6 +21,71 @@ if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
 
 
+def resolve_joint_parameter(
+    cfg_value: float | dict[str, float] | None,
+    default_value: float | torch.Tensor | None,
+    joint_names: list[str],
+    num_envs: int,
+    device: str,
+) -> torch.Tensor:
+    """Resolve one group-shaped joint parameter from configuration and defaults.
+
+    The single source of joint-parameter resolution semantics, shared by the actuator
+    models and by :class:`~isaaclab.actuators.ActuatorCollection` when it resolves the
+    construction-time joint properties.
+
+    Args:
+        cfg_value: The parameter value from the configuration, a scalar or a
+            joint-name-pattern dictionary. If None, then the default value is used.
+        default_value: The default value, a scalar or a ``(num_envs, len(joint_names))``
+            tensor. If it is also None, then an error is raised.
+        joint_names: The group's joint names, defining the column order.
+        num_envs: Number of articulation instances.
+        device: Torch device string.
+
+    Returns:
+        The resolved parameter value, shape ``(num_envs, len(joint_names))``.
+
+    Raises:
+        TypeError: If the parameter or default value is not of the expected type.
+        ValueError: If both values are None, or the default tensor has the wrong shape.
+    """
+    num_joints = len(joint_names)
+    param = torch.zeros(num_envs, num_joints, device=device)
+    if cfg_value is not None:
+        if isinstance(cfg_value, (float, int, dict)):
+            dense_values = string_utils._resolve_matching_values_dense(cfg_value, joint_names)
+            param[:] = torch.tensor(dense_values, dtype=torch.float, device=device)
+        else:
+            raise TypeError(
+                f"Invalid type for parameter value: {type(cfg_value)} for "
+                + f"actuator on joints {joint_names}. Expected float or dict."
+            )
+    elif default_value is not None:
+        if isinstance(default_value, (float, int)):
+            # if float, then use the same value for all joints
+            param[:] = float(default_value)
+        elif isinstance(default_value, torch.Tensor):
+            # if tensor, then use the same tensor for all joints
+            if default_value.shape == (num_envs, num_joints):
+                param = default_value.float()
+            else:
+                raise ValueError(
+                    "Invalid default value tensor shape.\n"
+                    f"Got: {default_value.shape}\n"
+                    f"Expected: {(num_envs, num_joints)}"
+                )
+        else:
+            raise TypeError(
+                f"Invalid type for default value: {type(default_value)} for "
+                + f"actuator on joints {joint_names}. Expected float or Tensor."
+            )
+    else:
+        raise ValueError("The parameter value is None and no default value is provided.")
+
+    return param
+
+
 class ActuatorBase(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 
@@ -265,41 +330,7 @@ class ActuatorBase(ABC):
             ValueError: If the parameter value is None and no default value is provided.
             ValueError: If the default value tensor is the wrong shape.
         """
-        # create parameter buffer
-        param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
-        # parse the parameter
-        if cfg_value is not None:
-            if isinstance(cfg_value, (float, int, dict)):
-                dense_values = string_utils._resolve_matching_values_dense(cfg_value, self.joint_names)
-                param[:] = torch.tensor(dense_values, dtype=torch.float, device=self._device)
-            else:
-                raise TypeError(
-                    f"Invalid type for parameter value: {type(cfg_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or dict."
-                )
-        elif default_value is not None:
-            if isinstance(default_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(default_value)
-            elif isinstance(default_value, torch.Tensor):
-                # if tensor, then use the same tensor for all joints
-                if default_value.shape == (self._num_envs, self.num_joints):
-                    param = default_value.float()
-                else:
-                    raise ValueError(
-                        "Invalid default value tensor shape.\n"
-                        f"Got: {default_value.shape}\n"
-                        f"Expected: {(self._num_envs, self.num_joints)}"
-                    )
-            else:
-                raise TypeError(
-                    f"Invalid type for default value: {type(default_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or Tensor."
-                )
-        else:
-            raise ValueError("The parameter value is None and no default value is provided.")
-
-        return param
+        return resolve_joint_parameter(cfg_value, default_value, self.joint_names, self._num_envs, self._device)
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         """Clip the desired torques based on the motor limits.

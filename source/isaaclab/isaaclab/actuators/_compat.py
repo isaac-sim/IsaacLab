@@ -45,8 +45,10 @@ def _resolve_limit_aliases(
 ) -> None:
     """Normalize deprecated effort- and velocity-limit aliases on an actuator configuration.
 
-    The caller owns the configuration copy because this function writes canonical
-    values after validating equivalent scalar or regex configurations.
+    Writes the configuration in place: canonical fields absorb the alias values after
+    equivalence validation and the alias fields are cleared. The collection resolves on
+    its internal configuration copies; directly constructed actuators resolve on the
+    configuration object they were given.
     """
     implicit = _is_implicit_actuator_cfg(cfg)
     if implicit and cfg.actuator_effort_limit is not None:

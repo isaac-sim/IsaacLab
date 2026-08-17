@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import itertools
 import logging
 import warnings
 from collections.abc import Iterator, Mapping, Sequence
@@ -16,14 +17,13 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from . import actuator_kernels
 from ._compat import _resolve_limit_aliases
-from .actuator_base import ActuatorBase
+from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from .actuator_control import ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
@@ -227,6 +227,10 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def read_actuator_parameter(self, name: str, component: str, attr: str) -> torch.Tensor:
         """Read one live Newton actuator parameter for a native group.
 
+        Group-scoped, user-ordered reads of the controller-owned storage. For raw
+        component access, use the group's Newton actuator object (the collection
+        mapping entry) directly.
+
         Args:
             name: Actuator group name.
             component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
@@ -261,8 +265,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     ) -> None:
         """Write one Newton actuator parameter for a native group.
 
-        The single write path for Newton actuator parameters; values reach the
-        controller-owned storage through Newton's selection API.
+        Group-scoped, user-ordered writes that reach the controller-owned storage
+        through Newton's selection API. For raw component access, use the group's
+        Newton actuator object (the collection mapping entry) directly.
 
         Args:
             name: Actuator group name.
@@ -539,18 +544,8 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         default_value: torch.Tensor,
         joint_names: list[str],
     ) -> torch.Tensor:
-        """Resolve one fresh group-shaped joint property from config and authored defaults."""
-        if cfg_value is None:
-            return default_value.clone()
-        if isinstance(cfg_value, (float, int, dict)):
-            dense_values = string_utils._resolve_matching_values_dense(cfg_value, joint_names)
-            value = torch.zeros_like(default_value)
-            value[:] = torch.tensor(dense_values, dtype=torch.float32, device=self.device)
-            return value
-        raise TypeError(
-            f"Invalid type for parameter value: {type(cfg_value)} for actuator on joints {joint_names}. "
-            "Expected float or dict."
-        )
+        """Resolve one group-shaped joint property from config and authored defaults."""
+        return resolve_joint_parameter(cfg_value, default_value, joint_names, self.num_instances, self.device)
 
     def _joint_property_resolution_rows_for(
         self,
@@ -710,7 +705,11 @@ class _ImplicitExecutor:
     shadow's buffers, so per-group reads observe the fused results directly.
     """
 
+    _cache_key_counter = itertools.count()
+    """Monotonic launch-cache key source; ``id()`` keys could be reused after garbage collection."""
+
     def __init__(self, collection: ActuatorCollection, names: tuple[str, ...], groups: tuple[ImplicitActuator, ...]):
+        self._cache_key = ("implicit", next(_ImplicitExecutor._cache_key_counter))
         self.group_names = names
         if len(groups) == 1:
             self.actuator = groups[0]
@@ -784,7 +783,7 @@ class _ImplicitExecutor:
     def launch(self, collection: ActuatorCollection) -> None:
         """Compute all the executor's joints through the cached Warp launch."""
         collection._launch_cache.launch(
-            ("implicit", id(self)),
+            self._cache_key,
             actuator_kernels.compute_implicit_actuator_batch,
             dim=(collection.num_instances, self.joint_indices_wp.shape[0]),
             inputs=self.kernel_inputs,
@@ -794,7 +793,7 @@ class _ImplicitExecutor:
     def rebind(self, collection: ActuatorCollection) -> None:
         """Reassemble the kernel arguments after backend state storage is replaced."""
         self._assemble_kernel_arrays(collection)
-        collection._launch_cache.clear(("implicit", id(self)))
+        collection._launch_cache.clear(self._cache_key)
 
 
 class ActuatorCommand:

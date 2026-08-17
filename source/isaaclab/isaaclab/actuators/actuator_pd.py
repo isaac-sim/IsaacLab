@@ -174,7 +174,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, *args, **kwargs):
+    def reset(self, env_ids: Sequence[int] | None = None):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 

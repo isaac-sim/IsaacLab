@@ -1403,29 +1403,22 @@ class randomize_actuator_gains(ManagerTermBase):
             name: (group_joint_indices[name] if group_joint_indices is not None else actuator.joint_indices)
             for name, actuator in self._gain_actuators.items()
         }
-        for name, actuator in self._gain_actuators.items():
-            if isinstance(actuator, ImplicitActuator):
-                continue
-            joint_ids = self._group_joint_indices[name]
-            if name in self._native_group_names:
-                self.default_joint_stiffness[:, joint_ids] = collection.read_actuator_parameter(
-                    name, "controller", "kp"
-                )
-                self.default_joint_damping[:, joint_ids] = collection.read_actuator_parameter(name, "controller", "kd")
-            else:
-                # Explicit PD gains are actuator-owned, so they replace the zeroed solver gains.
-                self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
-                self.default_joint_damping[:, joint_ids] = actuator.damping
         self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
         self.default_actuator_damping: dict[str, torch.Tensor] = {}
         for name, actuator in self._gain_actuators.items():
+            joint_ids = self._group_joint_indices[name]
             if name in self._native_group_names:
-                joint_ids = self._group_joint_indices[name]
-                self.default_actuator_stiffness[name] = self.default_joint_stiffness[:, joint_ids].clone()
-                self.default_actuator_damping[name] = self.default_joint_damping[:, joint_ids].clone()
+                stiffness = collection.read_actuator_parameter(name, "controller", "kp")
+                damping = collection.read_actuator_parameter(name, "controller", "kd")
             else:
-                self.default_actuator_stiffness[name] = actuator.stiffness.clone()
-                self.default_actuator_damping[name] = actuator.damping.clone()
+                stiffness = actuator.stiffness
+                damping = actuator.damping
+            if not isinstance(actuator, ImplicitActuator):
+                # Explicit and Newton PD gains replace the zeroed solver gains in the defaults.
+                self.default_joint_stiffness[:, joint_ids] = stiffness
+                self.default_joint_damping[:, joint_ids] = damping
+            self.default_actuator_stiffness[name] = stiffness.clone()
+            self.default_actuator_damping[name] = damping.clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
