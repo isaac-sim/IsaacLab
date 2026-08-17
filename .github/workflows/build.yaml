@@ -850,7 +850,7 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-# Validation branch: run OVStage on pull requests to exercise the combined OV runtime pins.
+  # Validation branch: run OVStage on pull requests to exercise the combined OV runtime pins.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
