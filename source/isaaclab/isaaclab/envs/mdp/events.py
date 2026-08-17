@@ -1405,11 +1405,13 @@ class randomize_actuator_gains(ManagerTermBase):
         }
         self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
         self.default_actuator_damping: dict[str, torch.Tensor] = {}
+        from isaaclab.actuators.newton import read_group_parameter  # noqa: PLC0415
+
         for name, actuator in self._gain_actuators.items():
             joint_ids = self._group_joint_indices[name]
             if name in self._native_group_names:
-                stiffness = collection.read_actuator_parameter(name, "controller", "kp")
-                damping = collection.read_actuator_parameter(name, "controller", "kd")
+                stiffness = read_group_parameter(collection, name, "controller", "kp")
+                damping = read_group_parameter(collection, name, "controller", "kd")
             else:
                 stiffness = actuator.stiffness
                 damping = actuator.damping
@@ -1444,6 +1446,8 @@ class randomize_actuator_gains(ManagerTermBase):
         operation: Literal["add", "scale", "abs"] = "abs",
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ):
+        from isaaclab.actuators.newton import write_group_parameter  # noqa: PLC0415
+
         # Resolve environment ids
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
@@ -1501,7 +1505,8 @@ class randomize_actuator_gains(ManagerTermBase):
                         stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
                 elif is_native:
-                    self.asset.actuators.write_actuator_parameter(
+                    write_group_parameter(
+                        self.asset.actuators,
                         actuator_name,
                         "controller",
                         "kp",
@@ -1526,7 +1531,8 @@ class randomize_actuator_gains(ManagerTermBase):
                         damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
                 elif is_native:
-                    self.asset.actuators.write_actuator_parameter(
+                    write_group_parameter(
+                        self.asset.actuators,
                         actuator_name,
                         "controller",
                         "kd",

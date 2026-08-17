@@ -22,6 +22,7 @@ from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
 
+import functools
 import os
 import unittest
 
@@ -34,6 +35,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.actuators.newton import read_group_parameter
 from isaaclab.actuators.newton.kernels import sync_torque_telemetry
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.actuator_equivalence import (
@@ -433,8 +435,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
     Drives ``randomize_actuator_gains`` and verifies that kp/kd values reach
     the controllers of the articulation's Newton actuators through
-    ``ActuatorCollection.write_actuator_parameter``; the assertions read the
-    controllers back via the public ``ActuatorCollection.read_actuator_parameter``.
+    ``write_group_parameter``; the assertions read the
+    controllers back via the public ``read_group_parameter``.
 
     With ``operation="abs"`` and ``distribution="uniform"`` over a
     degenerate range ``(K, K)``, every randomized cell is set to exactly
@@ -461,7 +463,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             adapter = SimulationManager._adapter
             self.assertIsNotNone(adapter, "Newton adapter should exist with use_newton_actuators=True")
-            read = anymal.actuators.read_actuator_parameter
+            read = functools.partial(read_group_parameter, anymal.actuators)
             n = anymal.num_joints
             # Before DR, native gain reads must return the configured values for
             # *every* env. IDEAL_PD_ACTUATORS covers all 12 joints with constant
@@ -526,8 +528,8 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             self.assertIsNotNone(SimulationManager._adapter)
 
-            anymal_read = anymal.actuators.read_actuator_parameter
-            cartpole_read = cartpole.actuators.read_actuator_parameter
+            anymal_read = functools.partial(read_group_parameter, anymal.actuators)
+            cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
             anymal_stiffness_before = anymal_read("legs", "controller", "kp").clone()
             anymal_damping_before = anymal_read("legs", "controller", "kd").clone()
             cartpole_stiffness_before = cartpole_read("all_joints", "controller", "kp").clone()

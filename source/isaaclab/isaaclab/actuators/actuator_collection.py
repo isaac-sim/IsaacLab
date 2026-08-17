@@ -40,8 +40,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     their joints, so users read and modify the owning controller directly. Newton
     merges structurally identical joints into one actuator, so several groups can
     map to the same object (or to a tuple when a group spans several); the
-    collection keeps each group's joint indices and uses them in
-    :meth:`read_actuator_parameter` / :meth:`write_actuator_parameter` for
+    collection keeps each group's joint indices, which
+    :func:`~isaaclab.actuators.newton.read_group_parameter` and
+    :func:`~isaaclab.actuators.newton.write_group_parameter` use for
     group-scoped, user-ordered access.
 
     Configure membership through :attr:`isaaclab.assets.ArticulationCfg.actuators`
@@ -223,106 +224,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
         self._control.submit_commands(self)
-
-    def read_actuator_parameter(self, name: str, component: str, attr: str) -> torch.Tensor:
-        """Read one live Newton actuator parameter for a native group.
-
-        Group-scoped, user-ordered reads of the controller-owned storage. For raw
-        component access, use the group's Newton actuator object (the collection
-        mapping entry) directly.
-
-        Args:
-            name: Actuator group name.
-            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-
-        Returns:
-            Live values in the group's joint order, shape
-            ``(num_instances, group_num_joints)``, in the parameter's dtype.
-            Units follow the addressed parameter.
-
-        Raises:
-            ValueError: If the group is not executed by Newton actuators, the
-                component name is unknown, or no actuator exposes the parameter.
-        """
-        owners = self._newton_parameter_owners(name, component, attr)
-        view = self._newton_selection.view
-        values: torch.Tensor | None = None
-        for actuator, owner in owners:
-            # Non-driven DOFs read as zeros, and groups are disjoint, so overlaying is a sum.
-            projected = wp.to_torch(view.get_actuator_parameter(actuator, owner, attr))
-            values = projected if values is None else values + projected
-        return values[:, self._newton_group_columns(name)]
-
-    def write_actuator_parameter(
-        self,
-        name: str,
-        component: str,
-        attr: str,
-        values: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        joint_ids: torch.Tensor | None = None,
-    ) -> None:
-        """Write one Newton actuator parameter for a native group.
-
-        Group-scoped, user-ordered writes that reach the controller-owned storage
-        through Newton's selection API. For raw component access, use the group's
-        Newton actuator object (the collection mapping entry) directly.
-
-        Args:
-            name: Actuator group name.
-            component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
-            attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
-            values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
-                follow the addressed parameter.
-            env_ids: Environment indices to update. Defaults to all environments.
-            joint_ids: Group-local joint indices to update. Defaults to all of
-                the group's joints.
-
-        Raises:
-            ValueError: Same conditions as :meth:`read_actuator_parameter`.
-        """
-        owners = self._newton_parameter_owners(name, component, attr)
-        view = self._newton_selection.view
-        columns = self._newton_group_columns(name)
-        if joint_ids is not None:
-            columns = columns[joint_ids.to(self.device, dtype=torch.long)]
-        mask = None
-        env_rows: torch.Tensor | None = None
-        if env_ids is not None:
-            env_rows = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
-            mask_torch = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
-            mask_torch[env_rows] = True
-            mask = wp.from_torch(mask_torch, dtype=wp.bool)
-        values = values.to(self.device)
-        for actuator, owner in owners:
-            current = view.get_actuator_parameter(actuator, owner, attr)
-            current_torch = wp.to_torch(current)
-            if env_rows is None:
-                current_torch[:, columns] = values.to(dtype=current_torch.dtype)
-            else:
-                current_torch[env_rows, columns.unsqueeze(0)] = values.to(dtype=current_torch.dtype)
-            view.set_actuator_parameter(actuator=actuator, component=owner, name=attr, values=current, mask=mask)
-
-    def _newton_parameter_owners(self, name: str, component: str, attr: str) -> list[tuple]:
-        """Resolve the component instances exposing ``attr`` for one native group."""
-        from .newton.adapter import resolve_actuator_component  # noqa: PLC0415
-
-        if name not in self._groups:
-            raise KeyError(name)
-        if self._newton_selection is None or name not in self._native_group_names:
-            raise ValueError(f"Actuator group '{name}' is not executed by Newton actuators.")
-        group_actuators = self._groups[name]
-        if not isinstance(group_actuators, tuple):
-            group_actuators = (group_actuators,)
-        owners = [
-            (actuator, owner)
-            for actuator in group_actuators
-            if (owner := resolve_actuator_component(actuator, component, attr)) is not None
-        ]
-        if not owners:
-            raise ValueError(f"No Newton actuator exposes parameter ('{component}', '{attr}').")
-        return owners
 
     def _newton_group_columns(self, name: str) -> torch.Tensor:
         """Backend view columns of one group's joints, in group joint order."""

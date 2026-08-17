@@ -29,6 +29,7 @@ from isaaclab.actuators import (
     ImplicitActuatorCfg,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
+from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -727,21 +728,22 @@ def test_native_group_parameters_route_through_the_collection_door():
 
     # Reads are live projections of the controller-owned storage.
     torch.testing.assert_close(
-        collection.read_actuator_parameter("native", "controller", "kp"), control.native_gains["kp"]
+        read_group_parameter(collection, "native", "controller", "kp"), control.native_gains["kp"]
     )
     control.native_gains["kd"][1, 2] = 1.7
-    assert collection.read_actuator_parameter("native", "controller", "kd")[1, 2] == 1.7
+    assert read_group_parameter(collection, "native", "controller", "kd")[1, 2] == 1.7
 
     # The group's mapping entry is the owning Newton actuator: no stale Lab mirrors exist,
     # and direct modification of the controller storage is observed by the door reads.
     group = collection["native"]
     assert group is control.newton_actuator
     wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 21.0
-    assert collection.read_actuator_parameter("native", "controller", "kp")[0, 0] == 21.0
+    assert read_group_parameter(collection, "native", "controller", "kp")[0, 0] == 21.0
     wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 2.0
 
     # The single write path patches the controller storage in place over an env/joint selection.
-    collection.write_actuator_parameter(
+    write_group_parameter(
+        collection,
         "native",
         "controller",
         "kp",
@@ -750,13 +752,13 @@ def test_native_group_parameters_route_through_the_collection_door():
         joint_ids=torch.tensor([1]),
     )
     torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))
-    collection.write_actuator_parameter("native", "controller", "kd", values=torch.full((2, 3), 0.9))
+    write_group_parameter(collection, "native", "controller", "kd", values=torch.full((2, 3), 0.9))
     torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.9))
 
     with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kq'\)"):
-        collection.write_actuator_parameter("native", "controller", "kq", values=torch.zeros((2, 3)))
+        write_group_parameter(collection, "native", "controller", "kq", values=torch.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
-        collection.read_actuator_parameter("native", "gains", "kp")
+        read_group_parameter(collection, "native", "gains", "kp")
 
     # A parameter the controllers do not expose raises instead of falling back to stale values.
     unsupported_control = NativeGainFakeActuatorControl()
@@ -764,9 +766,9 @@ def test_native_group_parameters_route_through_the_collection_door():
     unsupported = ActuatorCollection(
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, unsupported_control
     )
-    torch.testing.assert_close(unsupported.read_actuator_parameter("native", "controller", "kp"), torch.zeros((2, 3)))
+    torch.testing.assert_close(read_group_parameter(unsupported, "native", "controller", "kp"), torch.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kd'\)"):
-        unsupported.read_actuator_parameter("native", "controller", "kd")
+        read_group_parameter(unsupported, "native", "controller", "kd")
 
     # Groups that are not Newton-managed keep plain construction gains, and the door rejects them.
     plain = ActuatorCollection(
@@ -774,7 +776,7 @@ def test_native_group_parameters_route_through_the_collection_door():
     )
     torch.testing.assert_close(plain["plain"].stiffness, torch.full((2, 3), 11.0))
     with pytest.raises(ValueError, match=r"'plain' is not executed by Newton actuators"):
-        plain.read_actuator_parameter("plain", "controller", "kp")
+        read_group_parameter(plain, "plain", "controller", "kp")
 
 
 def test_overlapping_groups_are_rejected():

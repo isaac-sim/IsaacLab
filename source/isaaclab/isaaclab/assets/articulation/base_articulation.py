@@ -1680,6 +1680,8 @@ class BaseArticulation(AssetBase):
         joint_ids: torch.Tensor,
     ) -> None:
         """Warn and forward a legacy native-controller gain write."""
+        from isaaclab.actuators.newton import write_group_parameter  # noqa: PLC0415
+
         warnings.warn(
             f"{writer_name} is deprecated in 3.x and will be removed in 4.0. Use "
             "randomize_actuator_gains for managed randomization or ActuatorBase.write_parameter for direct "
@@ -1703,8 +1705,14 @@ class BaseArticulation(AssetBase):
                 group_columns = columns[in_group]
             if not bool(in_group.any()):
                 continue
-            self.actuators.write_actuator_parameter(
-                group_name, "controller", gain_name, values[:, in_group], env_ids=env_ids, joint_ids=group_columns
+            write_group_parameter(
+                self.actuators,
+                group_name,
+                "controller",
+                gain_name,
+                values[:, in_group],
+                env_ids=env_ids,
+                joint_ids=group_columns,
             )
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)

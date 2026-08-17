@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import numpy as np
 import torch
@@ -35,6 +35,9 @@ from .kernels import (
     set_mask_kernel,
     zero_at_indices_kernel,
 )
+
+if TYPE_CHECKING:
+    from isaaclab.actuators import ActuatorCollection
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
@@ -306,6 +309,112 @@ class NewtonActuatorAdapter:
 # ---------------------------------------------------------------------------
 
 
+def read_group_parameter(collection: ActuatorCollection, name: str, component: str, attr: str) -> torch.Tensor:
+    """Read one live Newton actuator parameter for a native group.
+
+    Group-scoped, user-ordered reads of the controller-owned storage. For raw
+    component access, use the group's Newton actuator object (the collection
+    mapping entry) directly.
+
+    Args:
+        collection: The articulation's actuator collection.
+        name: Actuator group name.
+        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+
+    Returns:
+        Live values in the group's joint order, shape
+        ``(num_instances, group_num_joints)``, in the parameter's dtype.
+        Units follow the addressed parameter.
+
+    Raises:
+        ValueError: If the group is not executed by Newton actuators, the
+            component name is unknown, or no actuator exposes the parameter.
+    """
+    owners = _group_parameter_owners(collection, name, component, attr)
+    view = collection._newton_selection.view
+    values: torch.Tensor | None = None
+    for actuator, owner in owners:
+        # Non-driven DOFs read as zeros, and groups are disjoint, so overlaying is a sum.
+        projected = wp.to_torch(view.get_actuator_parameter(actuator, owner, attr))
+        values = projected if values is None else values + projected
+    return values[:, collection._newton_group_columns(name)]
+
+
+def write_group_parameter(
+    collection: ActuatorCollection,
+    name: str,
+    component: str,
+    attr: str,
+    values: torch.Tensor,
+    env_ids: torch.Tensor | None = None,
+    joint_ids: torch.Tensor | None = None,
+) -> None:
+    """Write one Newton actuator parameter for a native group.
+
+    Group-scoped, user-ordered writes that reach the controller-owned storage
+    through Newton's selection API. For raw component access, use the group's
+    Newton actuator object (the collection mapping entry) directly.
+
+    Args:
+        collection: The articulation's actuator collection.
+        name: Actuator group name.
+        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
+        values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
+            follow the addressed parameter.
+        env_ids: Environment indices to update. Defaults to all environments.
+        joint_ids: Group-local joint indices to update. Defaults to all of
+            the group's joints.
+
+    Raises:
+        ValueError: Same conditions as :func:`read_group_parameter`.
+    """
+    owners = _group_parameter_owners(collection, name, component, attr)
+    view = collection._newton_selection.view
+    device = collection.device
+    columns = collection._newton_group_columns(name)
+    if joint_ids is not None:
+        columns = columns[joint_ids.to(device, dtype=torch.long)]
+    mask = None
+    env_rows: torch.Tensor | None = None
+    if env_ids is not None:
+        env_rows = env_ids.to(device, dtype=torch.long).unsqueeze(1)
+        mask_torch = torch.zeros(collection.num_instances, dtype=torch.bool, device=device)
+        mask_torch[env_rows] = True
+        mask = wp.from_torch(mask_torch, dtype=wp.bool)
+    values = values.to(device)
+    for actuator, owner in owners:
+        current = view.get_actuator_parameter(actuator, owner, attr)
+        current_torch = wp.to_torch(current)
+        if env_rows is None:
+            current_torch[:, columns] = values.to(dtype=current_torch.dtype)
+        else:
+            current_torch[env_rows, columns.unsqueeze(0)] = values.to(dtype=current_torch.dtype)
+        view.set_actuator_parameter(actuator=actuator, component=owner, name=attr, values=current, mask=mask)
+
+
+def _group_parameter_owners(
+    collection: ActuatorCollection, name: str, component: str, attr: str
+) -> list[tuple[Actuator, Any]]:
+    """Resolve the component instances exposing ``attr`` for one native group."""
+    if name not in collection._groups:
+        raise KeyError(name)
+    if collection._newton_selection is None or name not in collection._native_group_names:
+        raise ValueError(f"Actuator group '{name}' is not executed by Newton actuators.")
+    group_actuators = collection._groups[name]
+    if not isinstance(group_actuators, tuple):
+        group_actuators = (group_actuators,)
+    owners = [
+        (actuator, owner)
+        for actuator in group_actuators
+        if (owner := resolve_actuator_component(actuator, component, attr)) is not None
+    ]
+    if not owners:
+        raise ValueError(f"No Newton actuator exposes parameter ('{component}', '{attr}').")
+    return owners
+
+
 def resolve_actuator_component(actuator: Actuator, component: str, attr: str) -> Any | None:
     """Return the component instance that exposes ``attr`` on the addressed component kind.
 
@@ -375,9 +484,9 @@ class NewtonActuatorSelection:
 
     Pure data returned by
     :meth:`~isaaclab.actuators.ActuatorControl.finalize_native_actuators` and
-    consumed by the collection's parameter door
-    (:meth:`~isaaclab.actuators.ActuatorCollection.read_actuator_parameter` /
-    :meth:`~isaaclab.actuators.ActuatorCollection.write_actuator_parameter`).
+    consumed by the group-scoped parameter access functions
+    (:func:`read_group_parameter` / :func:`write_group_parameter`) and by the
+    collection when it maps native groups to their Newton actuator objects.
     """
 
     view: Any

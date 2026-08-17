@@ -157,8 +157,8 @@ articulation joint writers or the ``randomize_actuator_gains`` event instead.
 Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
 Newton ``Actuator`` object, whose controller keeps its parameters separate from solver gains.
 Read or modify its components (``controller``, ``delay``, ``clamping``) directly for raw access,
-or use :meth:`~isaaclab.actuators.ActuatorCollection.read_actuator_parameter` and
-:meth:`~isaaclab.actuators.ActuatorCollection.write_actuator_parameter` for group-scoped access in
+or use :func:`~isaaclab.actuators.newton.read_group_parameter` and
+:func:`~isaaclab.actuators.newton.write_group_parameter` for group-scoped access in
 public joint order with environment selection.
 
 ``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
@@ -651,8 +651,8 @@ joints instead of an Isaac Lab model. Newton merges structurally identical joint
 actuator, so several groups can share an object (a group spanning several returns them as a
 tuple). Raw component access reads and writes the controller storage in Newton's layout; for
 group-scoped access in public joint order, use
-:meth:`~isaaclab.actuators.ActuatorCollection.read_actuator_parameter` and
-:meth:`~isaaclab.actuators.ActuatorCollection.write_actuator_parameter`:
+:func:`~isaaclab.actuators.newton.read_group_parameter` and
+:func:`~isaaclab.actuators.newton.write_group_parameter`:
 
 .. code-block:: python
 
@@ -661,8 +661,10 @@ group-scoped access in public joint order, use
     print(type(legs.controller).__name__)
 
     # group-scoped, user-ordered parameter access
-    kp = robot.actuators.read_actuator_parameter("legs", "controller", "kp")
-    robot.actuators.write_actuator_parameter("legs", "controller", "kp", values=kp * 2.0)
+    from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+
+    kp = read_group_parameter(robot.actuators, "legs", "controller", "kp")
+    write_group_parameter(robot.actuators, "legs", "controller", "kp", values=kp * 2.0)
 
 Isaac Lab retains named groups for configuration, joint bookkeeping, and command and telemetry
 staging.

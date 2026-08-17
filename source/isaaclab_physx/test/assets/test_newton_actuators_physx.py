@@ -18,6 +18,7 @@ from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
 
+import functools
 import os
 import unittest
 from types import SimpleNamespace
@@ -31,6 +32,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.actuators.newton import read_group_parameter
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.actuator_equivalence import (
     CARTPOLE_EXPLICIT_ACTUATORS,
@@ -590,7 +592,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
     actuators — exercising the full path: events → the actuator adapter →
     write_stiffness/damping → propagation to controllers. The assertions
     read the controllers back via the public
-    ``ActuatorCollection.read_actuator_parameter``.
+    ``read_group_parameter``.
 
     The native-controller tests use degenerate ranges for exact expected values.
     The implicit-storage regression instead seeds the generator and uses
@@ -663,7 +665,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
             adapter = anymal.newton_actuator_adapter
             self.assertIsNotNone(adapter, "PhysX per-articulation adapter should exist")
-            read = anymal.actuators.read_actuator_parameter
+            read = functools.partial(read_group_parameter, anymal.actuators)
             n = anymal.num_joints
             kp_before = read("legs", "controller", "kp").clone()
             kd_before = read("legs", "controller", "kd").clone()
@@ -723,8 +725,8 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             self.assertIsNotNone(cartpole_adapter)
             self.assertIsNot(anymal_adapter, cartpole_adapter)
 
-            anymal_read = anymal.actuators.read_actuator_parameter
-            cartpole_read = cartpole.actuators.read_actuator_parameter
+            anymal_read = functools.partial(read_group_parameter, anymal.actuators)
+            cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
             n_cp = cartpole.num_joints
             anymal_kp_before = anymal_read("legs", "controller", "kp").clone()
             anymal_kd_before = anymal_read("legs", "controller", "kd").clone()
