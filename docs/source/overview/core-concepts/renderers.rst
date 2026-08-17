@@ -116,8 +116,8 @@ Installing the OVRTX renderer
 
 The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
 source package ships with the core install, but the renderer's ``ovrtx`` runtime
-wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, hosted on
-``pypi.nvidia.com``) is **not** installed by default. You must request it
+wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, published
+on public PyPI) is **not** installed by default. You must request it
 explicitly — OVRTX does **not** require Isaac Sim.
 
 Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
