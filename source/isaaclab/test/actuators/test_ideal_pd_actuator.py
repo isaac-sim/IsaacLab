@@ -74,51 +74,19 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("effort_lim", [None, 300])
-def test_ideal_pd_actuator_init_effort_limits(num_envs, num_joints, device, effort_lim):
-    """Test initialization of ideal pd actuator with effort limits."""
-    # used as a standin for the usd default value read in by articulation.
-    # This value should not be propagated for ideal pd actuators
-    effort_lim_default = 5000
-
-    joint_names = [f"joint_{d}" for d in range(num_joints)]
-    joint_ids = [d for d in range(num_joints)]
-
-    actuator_cfg = IdealPDActuatorCfg(
-        joint_names_expr=joint_names,
-        stiffness=200,
-        damping=10,
-        actuator_effort_limit=effort_lim,
-    )
-
-    actuator = actuator_cfg.class_type(
-        actuator_cfg,
-        joint_names=joint_names,
-        joint_ids=joint_ids,
-        num_envs=num_envs,
-        device=device,
-        stiffness=actuator_cfg.stiffness,
-        damping=actuator_cfg.damping,
-        actuator_effort_limit=effort_lim_default,
-    )
-
-    effort_lim_expected = effort_lim if effort_lim is not None else effort_lim_default
-
-    torch.testing.assert_close(
-        actuator.actuator_effort_limit, effort_lim_expected * torch.ones(num_envs, num_joints, device=device)
-    )
-
-
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("velocity_lim", [None, 300])
-def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, velocity_lim):
-    """Test initialization of ideal pd actuator with velocity limits.
+@pytest.mark.parametrize("cfg_limit", [None, 300])
+@pytest.mark.parametrize(
+    "limit_name",
+    ["actuator_effort_limit", "actuator_velocity_limit"],
+)
+def test_ideal_pd_actuator_init_limits(num_envs, num_joints, device, cfg_limit, limit_name):
+    """Test that a cfg-provided limit wins over the constructor default for effort and velocity limits.
 
     Note Ideal PD actuator does not use velocity limits in computation, they are passed to physics via articulations.
     """
-    velocity_limit_default = 1000
+    # used as a standin for the usd default value read in by articulation.
+    limit_default = 5000
+
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
 
@@ -126,7 +94,7 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
         joint_names_expr=joint_names,
         stiffness=200,
         damping=10,
-        actuator_velocity_limit=velocity_lim,
+        **{limit_name: cfg_limit},
     )
 
     actuator = actuator_cfg.class_type(
@@ -137,12 +105,11 @@ def test_ideal_pd_actuator_init_velocity_limits(num_envs, num_joints, device, ve
         device=device,
         stiffness=actuator_cfg.stiffness,
         damping=actuator_cfg.damping,
-        actuator_velocity_limit=velocity_limit_default,
+        **{limit_name: limit_default},
     )
-    vel_lim_expected = velocity_lim if velocity_lim is not None else velocity_limit_default
-
+    limit_expected = cfg_limit if cfg_limit is not None else limit_default
     torch.testing.assert_close(
-        actuator.actuator_velocity_limit, vel_lim_expected * torch.ones(num_envs, num_joints, device=device)
+        getattr(actuator, limit_name), limit_expected * torch.ones(num_envs, num_joints, device=device)
     )
 
 

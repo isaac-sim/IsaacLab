@@ -1761,38 +1761,24 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
-@pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("add_ground_plane", [False])
-def test_setting_velocity_limit_implicit(
-    sim, num_articulations, device, joint_velocity_limit, vel_limit, add_ground_plane
-):
-    """Test setting of velocity limit for implicit actuators.
+def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_limit):
+    """Test that the resolved joint velocity limit reaches the PhysX solver.
 
-    This test verifies that:
-    1. The solver clamp ``joint_velocity_limit`` is applied to the simulation; when unset, the
-       USD-authored value is kept
-    2. The actuator velocity limit ``actuator_velocity_limit`` is never pushed to the solver and keeps its
-       configured value; when unset, it falls back to the solver clamp
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-        joint_velocity_limit: The velocity limit to set in simulation
-        vel_limit: The velocity limit to set in actuator
+    The full limit-resolution matrix (config override vs. USD default, implicit and explicit
+    actuators, actuator-limit soft fallback) is covered on the Newton backend and at unit
+    level. This smoke test only verifies the PhysX write path: the configured limit (or the
+    USD-authored default when unset) lands in the native solver buffers and matches
+    ``data.joint_vel_limits``.
     """
-    # create simulation
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
         joint_velocity_limit=joint_velocity_limit,
-        actuator_velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
-        num_articulations=num_articulations,
+        num_articulations=1,
         device=device,
     )
     # Play sim
@@ -1804,79 +1790,23 @@ def test_setting_velocity_limit_implicit(
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
-        sim_limit = joint_velocity_limit
-    expected_velocity_limit = torch.full_like(physx_vel_limit, sim_limit)
+        limit = joint_velocity_limit
+    expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
     torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
 
-    # the joint velocity limit keeps its configured value and is not pushed to the solver;
-    # when unset it falls back to the solver clamp
-    joint_limit = vel_limit if vel_limit is not None else sim_limit
-    expected_joint_limit = torch.full_like(physx_vel_limit, joint_limit)
-    torch.testing.assert_close(articulation.actuators["joint"].actuator_velocity_limit, expected_joint_limit)
 
-
-@pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
-@pytest.mark.parametrize("vel_limit", [1e2, None])
-def test_setting_velocity_limit_explicit(sim, num_articulations, device, joint_velocity_limit, vel_limit):
-    """Test setting of velocity limit for explicit actuators."""
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="single_joint_explicit",
-        joint_velocity_limit=joint_velocity_limit,
-        actuator_velocity_limit=vel_limit,
-    )
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg,
-        num_articulations=num_articulations,
-        device=device,
-    )
-    # Play sim
-    sim.reset()
-
-    # collect limit init values
-    physx_vel_limit = wp.to_torch(articulation.root_view.get_dof_max_velocities()).to(device)
-    actuator_vel_limit = articulation.actuators["joint"].actuator_velocity_limit
-
-    # check data buffer for joint_vel_limits
-    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
-
-    if vel_limit is not None:
-        expected_actuator_vel_limit = torch.full(
-            (articulation.num_instances, articulation.num_joints),
-            vel_limit,
-            device=articulation.device,
-        )
-        # check actuator is set
-        torch.testing.assert_close(actuator_vel_limit, expected_actuator_vel_limit)
-        # check physx is not actuator_velocity_limit
-        assert not torch.allclose(actuator_vel_limit, physx_vel_limit)
-    else:
-        # check actuator_velocity_limit is the same as the PhysX default
-        torch.testing.assert_close(actuator_vel_limit, physx_vel_limit)
-
-    # simulation velocity limit is set to USD value unless user overrides
-    if joint_velocity_limit is not None:
-        limit = joint_velocity_limit
-    else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
-    # check physx is set to expected value
-    expected_vel_limit = torch.full_like(physx_vel_limit, limit)
-    torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
-
-
-@pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_effort_limit):
-    """Test setting of effort limit for implicit actuators.
+def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
+    """Test that the resolved joint effort limit reaches the PhysX solver.
 
-    This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
-    - Case 1: If USD value == actuator config value: values match correctly
-    - Case 2: If USD value != actuator config value: actuator config value is used
-    - Case 3: If actuator config value is None: USD value is used as default
+    The full limit-resolution matrix (config override vs. USD default, implicit and explicit
+    actuators, actuator-limit soft fallback) is covered on the Newton backend and at unit
+    level. This smoke test only verifies the PhysX write path: the configured limit (or the
+    USD-authored default when unset) lands in the native solver buffers and matches
+    ``data.joint_effort_limits``.
     """
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
@@ -1884,7 +1814,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_eff
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
-        num_articulations=num_articulations,
+        num_articulations=1,
         device=device,
     )
     # Play sim
@@ -1892,73 +1822,14 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_eff
 
     # obtain the physx effort limits
     physx_effort_limit = wp.to_torch(articulation.root_view.get_dof_max_forces()).to(device=device)
-
+    # check data buffer
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
-    torch.testing.assert_close(articulation.actuators["joint"].joint_effort_limit, physx_effort_limit)
-
-    # decide the limit based on what is set
+    # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if joint_effort_limit is None:
         limit = articulation_cfg.spawn.joint_drive_props.max_force
     else:
         limit = joint_effort_limit
-
-    # check that the max force is what we set
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
-    torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
-
-
-@pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-@pytest.mark.parametrize("actuator_effort_limit", [80.0, 1e2, None])
-def test_setting_effort_limit_explicit(sim, num_articulations, device, joint_effort_limit, actuator_effort_limit):
-    """Test setting of effort limit for explicit actuators.
-
-    This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
-    - Case 1: If USD value == actuator config value: values match correctly
-    - Case 2: If USD value != actuator config value: actuator config value is used
-    - Case 3: If actuator config value is None: USD value is used as default
-
-    """
-
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="single_joint_explicit",
-        joint_effort_limit=joint_effort_limit,
-        actuator_effort_limit=actuator_effort_limit,
-    )
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg,
-        num_articulations=num_articulations,
-        device=device,
-    )
-    # Play sim
-    sim.reset()
-
-    # usd default effort limit is set to 80
-    usd_default_effort_limit = 80.0
-
-    # collect limit init values
-    physx_effort_limit = wp.to_torch(articulation.root_view.get_dof_max_forces()).to(device)
-    actuator_effort_limit_actual = articulation.actuators["joint"].actuator_effort_limit
-
-    if actuator_effort_limit is not None:
-        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit_actual, actuator_effort_limit)
-        # check actuator is set
-        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
-
-    else:
-        # When actuator_effort_limit is None, actuator should use USD default values
-        expected_actuator_effort_limit = torch.full_like(physx_effort_limit, usd_default_effort_limit)
-        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
-
-    # the solver keeps the authored limit unless the user overrides it explicitly
-    if joint_effort_limit is not None:
-        limit = joint_effort_limit
-    else:
-        limit = usd_default_effort_limit
-    # check physx internal value matches the expected sim value
-    expected_effort_limit = torch.full_like(physx_effort_limit, limit)
-    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, expected_effort_limit)
     torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
 
 

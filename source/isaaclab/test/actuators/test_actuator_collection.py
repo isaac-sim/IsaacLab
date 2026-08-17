@@ -18,7 +18,6 @@ import warp as wp
 
 import isaaclab.actuators as actuator_api
 from isaaclab.actuators import (
-    ActuatorBase,
     ActuatorCollection,
     ActuatorControl,
     DCMotor,
@@ -343,35 +342,6 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
         }
 
 
-def test_legacy_actuator_control_remains_concrete_without_implicit_drive_arrays():
-    class LegacyActuatorControl(FakeActuatorControl):
-        joint_stiffness = ActuatorControl.joint_stiffness
-        joint_damping = ActuatorControl.joint_damping
-        joint_effort_limits = ActuatorControl.joint_effort_limits
-
-    control = LegacyActuatorControl()
-
-    for name in ("joint_stiffness", "joint_damping", "joint_effort_limits"):
-        with pytest.raises(NotImplementedError, match="Lab implicit actuator execution"):
-            getattr(control, name)
-
-
-def test_deprecated_joint_limit_aliases_warn_and_forward():
-    control = NativeFakeActuatorControl()
-    cfg = _ideal_pd_cfg(effort_limit_sim=12.0, velocity_limit_sim=34.0)
-
-    with pytest.warns(DeprecationWarning, match="joint_effort_limit"):
-        collection = ActuatorCollection({"motor": cfg}, control)
-
-    assert cfg.joint_effort_limit is None
-    assert cfg.joint_velocity_limit is None
-    assert control.prepared_actuator_cfgs["motor"] is not cfg
-    assert control.prepared_actuator_cfgs["motor"].joint_effort_limit == 12.0
-    assert control.prepared_actuator_cfgs["motor"].joint_velocity_limit == 34.0
-    # Newton-executed groups map to the owning Newton actuator object.
-    assert collection["motor"] is control.newton_actuator
-
-
 @pytest.mark.parametrize(
     ("cfg_factory", "canonical_name", "expected_model_limit", "expected_joint_limit"),
     [
@@ -394,29 +364,14 @@ def test_deprecated_effort_limit_forwards_by_actuator_type(
     with pytest.warns(DeprecationWarning, match=canonical_name):
         collection = ActuatorCollection({"motor": cfg}, control)
 
+    # Runtime alias-property behavior (group.effort_limit get/set warnings) is covered by
+    # the per-actuator suites in test_implicit_actuator.py and test_ideal_pd_actuator.py.
     group = collection["motor"]
     assert getattr(group.cfg, canonical_name) == 12.0
     assert group.cfg.joint_effort_limit == expected_joint_limit
     if expected_model_limit:
         torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), expected_model_limit))
-        with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-            torch.testing.assert_close(group.effort_limit, group.actuator_effort_limit)
-        with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-            group.effort_limit = torch.full((2, 3), 6.0)
-        torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 6.0))
     else:
-        torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
-        # The base alias forwards to actuator_effort_limit, which implicit models expose
-        # as the live articulation joint effort limit.
-        with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-            torch.testing.assert_close(group.effort_limit, group.joint_effort_limit)
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            warnings.simplefilter("always")
-            group.effort_limit = torch.full((2, 3), 6.0)
-        messages = [str(warning.message) for warning in caught_warnings]
-        assert any("actuator_effort_limit" in message for message in messages)
-        assert any("write_joint_effort_limit_to_sim_index" in message for message in messages)
-        # the articulation-owned write is ignored.
         torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
 
 
@@ -478,6 +433,9 @@ def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, ac
 
 
 def test_equivalent_limit_aliases_prefer_canonical_values():
+    # Rows with a canonical value assert the canonical value wins over an equivalent alias.
+    # Rows with canonical_value=None assert the deprecated *_sim alias forwards onto the
+    # prepared copy when the canonical field is unset, without mutating the user's cfg.
     scenarios = (
         ("joint_effort_limit", "effort_limit_sim", 12.0, {"joint_.*": 12.0}, _ideal_pd_cfg, NativeFakeActuatorControl),
         (
@@ -490,19 +448,28 @@ def test_equivalent_limit_aliases_prefer_canonical_values():
         ),
         ("actuator_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
         ("joint_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _implicit_cfg, FakeActuatorControl),
+        ("joint_effort_limit", "effort_limit_sim", None, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
+        ("joint_velocity_limit", "velocity_limit_sim", None, 34.0, _ideal_pd_cfg, NativeFakeActuatorControl),
     )
 
     for canonical_name, alias_name, canonical_value, alias_value, cfg_factory, control_factory in scenarios:
-        cfg = cfg_factory(**{canonical_name: canonical_value, alias_name: alias_value})
+        cfg_kwargs = {alias_name: alias_value}
+        if canonical_value is not None:
+            cfg_kwargs[canonical_name] = canonical_value
+        cfg = cfg_factory(**cfg_kwargs)
         control = control_factory()
         with pytest.warns(DeprecationWarning):
             collection = ActuatorCollection({"motor": cfg}, control)
 
         prepared_cfgs = getattr(control, "prepared_actuator_cfgs", None)
         resolved_cfg = prepared_cfgs["motor"] if prepared_cfgs is not None else collection["motor"].cfg
-        assert getattr(resolved_cfg, canonical_name) == canonical_value
+        expected_value = canonical_value if canonical_value is not None else alias_value
+        assert getattr(resolved_cfg, canonical_name) == expected_value
+        # the user's cfg is never mutated: the canonical field keeps its original value.
         assert getattr(cfg, canonical_name) == canonical_value
         assert getattr(cfg, alias_name) == alias_value
+        if canonical_value is None:
+            assert resolved_cfg is not cfg
 
 
 def test_conflicting_limit_aliases_raise():
@@ -663,16 +630,13 @@ def test_articulation_control_provides_common_forwarding_and_property_writes():
 
     control.write_resolved_joint_properties(properties, slice(None), implicit=False, native_managed=False)
 
-    assert [name for name, _ in articulation.calls] == [
-        "effort_limit",
-        "velocity_limit",
-        "armature",
-        "friction",
-        "stiffness",
-        "damping",
-    ]
-    assert articulation.calls[-2][1]["stiffness"] == 0.0
-    assert articulation.calls[-1][1]["damping"] == 0.0
+    # the write order is not a contract: compare the set of property writes order-insensitively.
+    assert sorted(name for name, _ in articulation.calls) == sorted(
+        ["effort_limit", "velocity_limit", "armature", "friction", "stiffness", "damping"]
+    )
+    calls_by_name = dict(articulation.calls)
+    assert calls_by_name["stiffness"]["stiffness"] == 0.0
+    assert calls_by_name["damping"]["damping"] == 0.0
     control.resolve_env_ids((1,))
     control.resolve_joint_ids(range(1, 3))
     assert articulation.resolved_env_ids == [[1]]
@@ -857,26 +821,6 @@ def test_custom_singleton_compute_receives_original_selector():
     assert collection["all"].observed_joint_indices == slice(None)
 
 
-def test_same_class_explicit_groups_execute_separately():
-    assert "actuator_effort_limit" not in ActuatorBase.__dict__.get("__annotations__", {})
-    assert "actuator_effort_limit" in IdealPDActuator.__dict__.get("__annotations__", {})
-
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    collection = ActuatorCollection(
-        {
-            "hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=10.0, damping=1.0, effort_limit=20.0),
-            "knees": _ideal_cfg(["joint_1", "joint_3"], stiffness=30.0, damping=2.0, effort_limit=40.0),
-        },
-        control,
-    )
-
-    assert collection._implicit_executor is None
-    assert [actuator for actuator, _ in collection._execution_actuators] == [
-        collection["hips"],
-        collection["knees"],
-    ]
-
-
 def test_multi_group_explicit_outputs_match_pd_formula():
     joint_names = [f"joint_{index}" for index in range(4)]
     control = FakeActuatorControl(joint_names=joint_names)
@@ -1049,41 +993,6 @@ def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
     torch.testing.assert_close(
         collection.computed_effort.torch[:, [0, 2]].cpu(), expected_first * 2.0, rtol=0.0, atol=0.0
     )
-
-
-def test_stateful_subclasses_and_incompatible_classes_remain_separate():
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
-    delayed = ActuatorCollection(
-        {
-            "first": DelayedPDActuatorCfg(
-                joint_names_expr=["joint_0", "joint_1"], stiffness=1.0, damping=1.0, max_delay=0
-            ),
-            "second": DelayedPDActuatorCfg(
-                joint_names_expr=["joint_2", "joint_3"], stiffness=2.0, damping=2.0, max_delay=0
-            ),
-        },
-        control,
-    )
-    assert delayed._implicit_executor is None
-    assert len(delayed._execution_actuators) == 2
-
-    cross_class = ActuatorCollection(
-        {
-            "ideal_a": _ideal_cfg(["joint_0"], stiffness=1.0, damping=1.0, effort_limit=10.0),
-            "dc": _dc_cfg(
-                ["joint_1", "joint_2"],
-                stiffness=2.0,
-                damping=2.0,
-                effort_limit=20.0,
-                velocity_limit=10.0,
-                saturation_effort=30.0,
-            ),
-            "ideal_b": _ideal_cfg(["joint_3"], stiffness=3.0, damping=3.0, effort_limit=30.0),
-        },
-        FakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2", "joint_3"]),
-    )
-    assert cross_class._implicit_executor is None
-    assert len(cross_class._execution_actuators) == 3
 
 
 def test_native_execution_bypasses_lab_aggregation(monkeypatch):

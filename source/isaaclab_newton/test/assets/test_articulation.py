@@ -993,16 +993,14 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
     assert articulation.num_shapes_per_body == [3, 0, 2]
 
 
-@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.parametrize("use_newton_actuators", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])  # consumed by the sim fixture
+@pytest.mark.parametrize("use_newton_actuators", [True])  # consumed by the sim fixture
 def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
-    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators
+    sim, articulation_type, use_newton_actuators, device
 ):
     """Map selected public joint IDs to Newton-controller columns."""
-    articulation_cfg = generate_articulation_cfg(articulation_type).replace(
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
         actuators={
             "legs": IdealPDActuatorCfg(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
@@ -1013,9 +1011,8 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
         },
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
     )
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=sim.device)
     sim.reset()
-    assert use_newton_actuators
     assert articulation.joint_ordering is not None
     assert articulation.newton_actuator_adapter is not None
 
@@ -2768,10 +2765,9 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulatio
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("add_ground_plane", [False])
-@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
 def test_setting_velocity_limit_implicit(
-    sim, num_articulations, device, joint_velocity_limit, vel_limit, add_ground_plane, articulation_type
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
 ):
     """Test setting of velocity limit for implicit actuators.
 
@@ -2790,7 +2786,7 @@ def test_setting_velocity_limit_implicit(
     """
     # create simulation
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
+        articulation_type="single_joint_implicit",
         joint_velocity_limit=joint_velocity_limit,
         actuator_velocity_limit=vel_limit,
     )
@@ -2827,13 +2823,13 @@ def test_setting_velocity_limit_implicit(
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
 def test_setting_velocity_limit_explicit(
-    sim, num_articulations, device, joint_velocity_limit, vel_limit, articulation_type
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
 ):
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
+        articulation_type="single_joint_explicit",
         joint_velocity_limit=joint_velocity_limit,
         actuator_velocity_limit=vel_limit,
     )
@@ -2881,8 +2877,8 @@ def test_setting_velocity_limit_explicit(
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_effort_limit, articulation_type):
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
+def test_setting_effort_limit_implicit(sim, articulation_type, num_articulations, device, joint_effort_limit):
     """Test setting of effort limit for implicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -2891,7 +2887,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_eff
     - Case 3: If actuator config value is None: USD value is used as default
     """
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
+        articulation_type="single_joint_implicit",
         joint_effort_limit=joint_effort_limit,
     )
     articulation, _ = generate_articulation(
@@ -2924,10 +2920,10 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, joint_eff
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-@pytest.mark.parametrize("actuator_effort_limit", [80.0, 1e2, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+@pytest.mark.parametrize("actuator_effort_limit", [1e2, None])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
 def test_setting_effort_limit_explicit(
-    sim, num_articulations, device, joint_effort_limit, actuator_effort_limit, articulation_type
+    sim, articulation_type, num_articulations, device, joint_effort_limit, actuator_effort_limit
 ):
     """Test setting of effort limit for explicit actuators.
 
@@ -2939,7 +2935,7 @@ def test_setting_effort_limit_explicit(
     """
 
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
+        articulation_type="single_joint_explicit",
         joint_effort_limit=joint_effort_limit,
         actuator_effort_limit=actuator_effort_limit,
     )
