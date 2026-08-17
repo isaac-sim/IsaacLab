@@ -76,6 +76,16 @@ def test_multi_node_rendezvous_options_reach_torchrun():
     assert command[command.index("--rdzv_endpoint") + 1] == "host0:29400"
 
 
+def test_virtual_local_rank_is_opt_in_and_forwarded_without_a_value():
+    """``--virtual_local_rank`` reaches torchrun as a bare flag and never reaches the workers."""
+    enabled = _command("training", ["--num_gpus", "2", "--virtual_local_rank", "--task", "X"])
+
+    assert "--virtual_local_rank" in enabled[: enabled.index(multigpu.WORKER_SCRIPT)]
+    assert "True" not in enabled  # torchrun rejects the flag if it is given a value
+    assert "--virtual_local_rank" not in _worker_argv(enabled)
+    assert "--virtual_local_rank" not in _command("training", ["--num_gpus", "2", "--task", "X"])
+
+
 def test_dry_run_prints_a_shell_parsable_command(capsys: pytest.CaptureFixture[str]):
     """``--dry_run`` reports the exact command instead of launching workers."""
     status = multigpu.run_multigpu_benchmark_cli("startup", ["--dry_run", "--num_gpus", "2", "--task", "X"])

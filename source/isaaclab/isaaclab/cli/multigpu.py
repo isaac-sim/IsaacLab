@@ -157,6 +157,16 @@ def build_parser(cfg: MultiGpuLauncherCfg) -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--virtual_local_rank",
+        action="store_true",
+        help=(
+            "Give every worker a single GPU as ``cuda:0`` instead of exposing all of them. Works around "
+            "OVPhysX <= 0.5.10 selecting the wrong CUDA device when OVRTX shares the process, which hangs "
+            "``presets=ovphysx,ovrtx`` runs on more than one GPU (nvbug 6573426). Every worker reports "
+            "``LOCAL_RANK=0``, so use the global rank to name per-rank files."
+        ),
+    )
+    parser.add_argument(
         "--dry_run", action="store_true", help="Print the distributed launcher command without running it."
     )
     return parser
@@ -205,6 +215,9 @@ def build_launch_command(args_cli: argparse.Namespace, worker_args: list[str], c
     # torchrun names the failing rank and reports the traceback that ``record`` captures per rank.
     if not args_cli.log_all_ranks and args_cli.local_ranks_filter is None:
         command.extend(("--local_ranks_filter", "0"))
+
+    if args_cli.virtual_local_rank:
+        command.append("--virtual_local_rank")
 
     return command + _worker_argv(args_cli, worker_args, cfg)
 
