@@ -788,9 +788,8 @@ def apply_volume_deformable_properties(
     """Apply deformable-body fragments to the volume deformables matched by an expression.
 
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Body/.*`` selects every descendant at any depth while ``[^/]+``
-    confines a wildcard to one path segment). Matched prims that
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Body/.*`` every descendant of a prim. Matched prims that
     already carry a deformable-body anchor (per :func:`~isaaclab.sim.utils.has_deformable_body_api`)
     are modified in place: each fragment is dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.

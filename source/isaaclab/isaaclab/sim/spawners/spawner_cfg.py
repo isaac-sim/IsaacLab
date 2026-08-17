@@ -175,13 +175,11 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     """Volume (tetrahedral FEM) deformable-body properties as a mapping from target pattern to a
     list of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` fragments.
 
-    Keys are regular-expression suffixes appended to the spawn prim (the container prim for both
-    mesh and USD assets), so a key carries its own leading ``/`` when it targets descendants:
-    ``""`` is the spawn prim itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants,
-    and ``"(/.*)?"`` the spawn prim together with its descendants. Entries are applied in
-    insertion order, so on overlapping targets later entries override earlier ones per
-    attribute. The spawner always creates missing deformable setups on
-    matched prims (equivalent to ``create_if_missing=True``); the simulation mesh is created as a
+    Keys are regular-expression suffixes appended to the spawn prim (the container prim for both mesh and USD assets),
+    so a key carries its own leading ``/`` when it targets descendants (``""`` the spawn prim, ``"/[^/]+"`` its direct
+    children, ``"(/.*)?"`` the spawn prim and its whole subtree). Entries are applied in insertion order, so on
+    overlapping targets later entries override earlier ones per attribute. The spawner always creates missing
+    deformable setups on matched prims (equivalent to ``create_if_missing=True``); the simulation mesh is created as a
     ``sim_mesh`` child of each target.
 
     At most one of :attr:`volume_deformable_props`, :attr:`surface_deformable_props`, and the
