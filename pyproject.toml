@@ -161,9 +161,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0rc6"]
 
-ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364272", "ovstage==0.1.1.355824"]
+ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
-ovrtx = ["ovrtx==0.4.1.364272", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
@@ -212,7 +212,7 @@ torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.5.10"
-ovrtx = "0.4.1.364272"
+ovrtx = "0.4.1.364340"
 ovstage = "0.1.1.355824"
 newton = "release-1.5"
 warp = "1.16.0"
@@ -357,13 +357,6 @@ markers = [
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
 # Pip still needs "--extra-index-url https://pypi.nvidia.com".
 
-# Internal Omniverse PyPI (ct-omniverse-pypi-local). Hosts pre-release ovphysx/ovrtx
-# builds not yet on public PyPI / pypi.nvidia.com (e.g. ovphysx 0.5.10, ovrtx 0.4.1.*).
-[[tool.uv.index]]
-name = "ct-omniverse-pypi"
-url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
-explicit = true
-
 # Internal Isaac Sim PyPI (sw-isaacsim-pypi-local). Hosts the release-candidate builds
 # not yet on pypi.nvidia.com (e.g. 6.1.0rc3+release.45488.8127a152.gl). Left non-explicit
 # because the ``isaacsim[all,extscache]`` metapackage pins every ``isaacsim-*`` subpackage
@@ -372,8 +365,6 @@ explicit = true
 name = "sw-isaacsim-pypi"
 url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi-local/simple"
 explicit = false
-
-
 
 [[tool.uv.index]]
 url = "https://pypi.nvidia.com"
@@ -436,7 +427,6 @@ package = false
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
-ovrtx = { index = "ct-omniverse-pypi" }
 ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }

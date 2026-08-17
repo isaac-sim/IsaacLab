@@ -2048,8 +2048,8 @@ requires-dist = [
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.5.10", index = "https://pypi.org/simple" },
     { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.10", index = "https://pypi.org/simple" },
-    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.4.1.364272", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.4.1.364272", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
+    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.4.1.364340" },
+    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.4.1.364340" },
     { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
@@ -3980,12 +3980,12 @@ wheels = [
 
 [[package]]
 name = "ovrtx"
-version = "0.4.1.364272"
-source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" }
+version = "0.4.1.364340"
+source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovrtx/0.4.1.364272/ovrtx-0.4.1.364272-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:5eb0a3ee432519531b9475c7ace49d38a5e88f0d47122cf0d9f42e9f8d29907f" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovrtx/0.4.1.364272/ovrtx-0.4.1.364272-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:eb28f66863165b70d823d6f31f2343394b54e0b32ff8f025ad66887fad7fd36f" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovrtx/0.4.1.364272/ovrtx-0.4.1.364272-py3-none-win_amd64.whl", hash = "sha256:8faba56566fa1629ebeeab6ac8d40c01b254ee08e780623e7a8958dd84f505bf" },
+    { url = "https://pypi.nvidia.com/ovrtx/ovrtx-0.4.1.364340-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:38b33e5052b81572c11af317fd9f214b873a631ae727e448f6a6b990597c0320" },
+    { url = "https://pypi.nvidia.com/ovrtx/ovrtx-0.4.1.364340-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:597e09f34819f31a71fb919c9b0024c3b652588bdfa4d1858b2222f219d0ec09" },
+    { url = "https://pypi.nvidia.com/ovrtx/ovrtx-0.4.1.364340-py3-none-win_amd64.whl", hash = "sha256:f1a8e160912a503a5e536143f7bc1bca7048b3941a4c2756c5b661961bcb5752" },
 ]
 
 [[package]]
