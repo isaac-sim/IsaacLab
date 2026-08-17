@@ -81,6 +81,10 @@ for maintaining the documentation.
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
+For documentation media, only small ``.jpg`` files should be committed directly to the Isaac Lab repository.
+Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
+the externally hosted file from the documentation.
+
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
