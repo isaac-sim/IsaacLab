@@ -1764,7 +1764,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "16.2.0"
+version = "16.2.2"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1784,7 +1784,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "1.4.0"
+version = "2.0.0"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2046,8 +2046,8 @@ requires-dist = [
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.5.9", index = "https://pypi.org/simple" },
     { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.9", index = "https://pypi.org/simple" },
-    { name = "ovrtx", marker = "extra == 'ov'", specifier = ">=0.4.0,<0.5.0" },
-    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = ">=0.4.0,<0.5.0" },
+    { name = "ovrtx", marker = "extra == 'ov'", specifier = ">0.4.0,<0.4.1" },
+    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = ">0.4.0,<0.4.1" },
     { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.1.0.346039", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.1.0.346039", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.1.0.346039", index = "https://pypi.org/simple" },
@@ -2147,7 +2147,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2158,7 +2158,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "2.0.2"
+version = "2.0.3"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2212,7 +2212,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "16.2.0"
+version = "16.4.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
