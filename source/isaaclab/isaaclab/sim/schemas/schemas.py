@@ -286,10 +286,9 @@ def apply_articulation_root_properties(
 ) -> bool:
     """Apply a list of articulation-root fragments to the roots matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
     already carry ``UsdPhysics.ArticulationRootAPI`` are the targets: each fragment is
     dispatched to every target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     Sibling roots (independent articulations matched by one expression) are all processed.
@@ -651,10 +650,9 @@ def apply_rigid_body_properties(
 ) -> bool:
     """Apply a list of rigid-body fragments to the rigid bodies matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
     already carry ``UsdPhysics.RigidBodyAPI`` are modified in place: each fragment is
     dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
@@ -1070,10 +1068,9 @@ def apply_collision_properties(
 ) -> bool:
     """Apply a list of collision fragments to the colliders matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
     already carry ``UsdPhysics.CollisionAPI`` are modified in place: each fragment is
     dispatched to every such target via its
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
@@ -1222,10 +1219,9 @@ def apply_mass_properties(
 ) -> bool:
     """Apply a list of mass fragments to the mass-bearing prims matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). Matched prims that
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
     already carry ``UsdPhysics.MassAPI`` are modified in place: each fragment is dispatched to
     every such target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
     fragments carry backend-specific funcs, so core never imports a backend.
@@ -1534,10 +1530,9 @@ def apply_joint_drive_properties(
 ) -> bool:
     """Apply a list of joint-drive fragments to the joint prims matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). The fragments are
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. The fragments are
     dispatched to every matched revolute/prismatic joint prim that is not excluded by a
     backend-registered skip predicate (see :func:`register_joint_drive_skip_predicate`, e.g.
     PhysX tendon members). Non-joint matches are ignored silently -- a subtree expression
@@ -1789,10 +1784,9 @@ def apply_fixed_tendon_properties(
 ) -> bool:
     """Apply a list of fixed-tendon fragments to the tendon prims matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). A matched prim is a
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
     fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` multi-apply
     instance or is a ``MjcTendon`` prim.
 
@@ -1920,10 +1914,9 @@ def apply_spatial_tendon_properties(
 ) -> bool:
     """Apply a list of spatial-tendon fragments to the tendon prims matched by an expression.
 
-    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`,
-    where ``prim_path_expr`` is a regular expression matched against whole prim paths (``.``
-    matches ``/``, so ``/World/Robot/.*`` selects every descendant at any depth while
-    ``[^/]+`` confines a wildcard to one path segment). A matched prim is a
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
     spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` or
     ``PhysxTendonAttachmentLeafAPI`` multi-apply instance.
 
