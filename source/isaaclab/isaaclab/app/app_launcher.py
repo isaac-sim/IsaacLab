@@ -699,7 +699,6 @@ class AppLauncher:
     _SIM_APP_CFG_TYPES: dict[str, list[type]] = {
         "headless": [bool],
         "hide_ui": [bool, type(None)],
-        "active_gpu": [int, type(None)],
         "physics_gpu": [int],
         "multi_gpu": [bool],
         "sync_loads": [bool],
@@ -1123,10 +1122,10 @@ class AppLauncher:
             # pass command line variable to kit
             sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
-        # set rendering device. We do not need to set physics_gpu because it will automatically pick the same one
-        # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
+        # ``/physics/cudaDevice`` is resolved by CUDA, so the masked index is correct there.
+        # ``activeGpu`` is deliberately left unset; the renderer device is selected in
+        # :meth:`_resolve_kit_args` instead.
         launcher_args["physics_gpu"] = self.device_id
-        launcher_args["active_gpu"] = self.device_id
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
@@ -1266,6 +1265,13 @@ class AppLauncher:
         setting = argument.partition("=")[0]
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
+
+        # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
+        if launcher_args.get("multi_gpu") is False:
+            argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
 
         sys.argv += self._kit_args
 
