@@ -90,12 +90,10 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg`. On the fragment path each
     fragment writes its own namespace.
 
-    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on
-    (for USD assets: the spawn prim; for shapes and meshes: the container prim), so a key carries
-    its own leading ``/`` when it targets descendants: ``""`` is the anchor itself, ``"/[^/]+"``
-    its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the anchor together with its
-    descendants. Entries are applied in insertion order, so on overlapping targets later entries
-    override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on (for USD assets: the
+    spawn prim; for shapes and meshes: the container prim), so a key carries its own leading ``/`` when it targets
+    descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole subtree).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
     """
 
     mass_props_create_if_missing: bool = False
@@ -115,12 +113,10 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`). On the fragment path each fragment
     writes its own namespace.
 
-    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on
-    (for USD assets: the spawn prim; for shapes and meshes: the container prim), so a key carries
-    its own leading ``/`` when it targets descendants: ``""`` is the anchor itself, ``"/[^/]+"``
-    its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the anchor together with its
-    descendants. Entries are applied in insertion order, so on overlapping targets later entries
-    override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on (for USD assets: the
+    spawn prim; for shapes and meshes: the container prim), so a key carries its own leading ``/`` when it targets
+    descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole subtree).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
 
     For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
     (or :attr:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled`) as True. This will
@@ -136,12 +132,11 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`). On the fragment path each fragment
     writes its own namespace.
 
-    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on
-    (for USD assets: the spawn prim; for shapes and meshes: the geometry prim the spawner
-    authors), so a key carries its own leading ``/`` when it targets descendants: ``""`` is the
-    anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"``
-    the anchor together with its descendants. Entries are applied in insertion order, so on
-    overlapping targets later entries override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on (for USD assets: the
+    spawn prim; for shapes and meshes: the geometry prim the spawner authors), so a key carries its own leading ``/``
+    when it targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its
+    whole subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones
+    per attribute.
     """
 
     activate_contact_sensors: bool = False

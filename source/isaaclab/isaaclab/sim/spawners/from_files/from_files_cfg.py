@@ -45,11 +45,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`). On the fragment path each
     fragment writes its own namespace.
 
-    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own
-    leading ``/`` when it targets descendants: ``""`` is the spawn prim itself, ``"/[^/]+"`` its
-    direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the spawn prim together with its
-    descendants. Entries are applied in insertion order, so on overlapping targets later entries
-    override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
+    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
+    attribute.
     """
 
     articulation_props_create_if_missing: bool = False
@@ -88,11 +87,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :class:`~isaaclab.sim.schemas.FixedTendonFragment` fragments or the legacy
     :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
 
-    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own
-    leading ``/`` when it targets descendants: ``""`` is the spawn prim itself, ``"/[^/]+"`` its
-    direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the spawn prim together with its
-    descendants. Entries are applied in insertion order, so on overlapping targets later entries
-    override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
+    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
+    attribute.
     """
 
     spatial_tendons_props: (
@@ -104,11 +102,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :class:`~isaaclab.sim.schemas.SpatialTendonFragment` fragments or the legacy
     :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
 
-    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own
-    leading ``/`` when it targets descendants: ``""`` is the spawn prim itself, ``"/[^/]+"`` its
-    direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the spawn prim together with its
-    descendants. Entries are applied in insertion order, so on overlapping targets later entries
-    override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
+    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
+    attribute.
     """
 
     joint_drive_props: dict[str, list[schemas.JointDriveFragment]] | schemas.JointDriveBaseCfg | None = None
@@ -122,11 +119,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present, and each fragment writes
     its own namespace.
 
-    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own
-    leading ``/`` when it targets descendants: ``""`` is the spawn prim itself, ``"/[^/]+"`` its
-    direct children, ``"/.*"`` all descendants, and ``"(/.*)?"`` the spawn prim together with its
-    descendants. Entries are applied in insertion order, so on overlapping targets later entries
-    override earlier ones per attribute.
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
+    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
+    attribute.
 
     .. note::
         The joint drive properties set the USD attributes of all the joint drives in the asset.
