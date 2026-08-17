@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+5.0.1 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+* Fixed :class:`~isaaclab_physx.sensors.FrameTransformer` corrupting a prim path expression while
+  stripping the environment segment, which split a ``[^/]`` character class in half.
+
+
+5.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the Isaac RTX override of the unused temporal-camera-data capability method and the
+  empty ``isaaclab_physx.video_recording`` package.
+
+Fixed
+^^^^^
+
+* Fixed PhysX IMU and PVA acceleration for lazy reads and nonzero update periods.
+
+
 4.2.1 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~
 

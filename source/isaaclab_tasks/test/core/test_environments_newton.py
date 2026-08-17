@@ -22,17 +22,24 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+_COVERED_TASKS = [
+    "Isaac-Cartpole",  # Already covered by test_environment_determinism.py
+    "Isaac-Cartpole-Camera-Direct",  # Already covered by test_rendering_cartpole.py
+    "Isaac-Lift-KukaAllegro-Camera",  # Already covered by test_rendering_lift_kuka_homo_kitless.py
+    "Isaac-Reorient-Cube-Shadow-Camera-Direct",  # Already covered by test_rendering_shadow_hand_kitless.py
+]
+
+
 @pytest.mark.parametrize(
     "task_name",
     setup_environment(
-        include_play=False,
         multi_agent=False,
-        newton_mjwarp_envs=True,
+        physics_preset_name="newton_mjwarp",
         tier="core",
+        exclude_task_names=_COVERED_TASKS,
     ),
 )
-@pytest.mark.newton_ci
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
+@pytest.mark.isaacsim_ci
 def test_environments_newton(task_name, num_envs, device):
-    # run environments with MJWarp physics preset
-    _run_environments(task_name, device, num_envs, physics_preset_name="newton_mjwarp", create_stage_in_memory=False)
+    _run_environments(task_name, device, num_envs, physics_preset_name="newton_mjwarp")

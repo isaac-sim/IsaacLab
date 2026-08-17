@@ -30,7 +30,7 @@ in your environment:
 .. code-block:: bash
 
     # Default Newton VBD physics with the Kit visualizer.
-    uv run python scripts/demos/cables.py
+    uv run --extra isaacsim python scripts/demos/cables.py
 
     # Explicit Newton VBD physics with the Newton visualizer.
     uv run python scripts/demos/cables.py --physics newton_vbd --visualizer newton
@@ -132,13 +132,11 @@ Picking a Solver
 
 Cables can **only** be simulated under Newton's VBD solver, which is the only
 solver that steps ``JointType.CABLE`` joints. A cable-only scene uses a
-standalone :class:`~isaaclab_contrib.deformable.VBDSolverCfg`:
+standalone :class:`~isaaclab_newton.physics.VBDSolverCfg`:
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import NewtonCfg
-
-    from isaaclab_contrib.deformable import VBDSolverCfg
+    from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 
     sim_cfg = sim_utils.SimulationCfg(
         dt=0.01,

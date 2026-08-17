@@ -52,7 +52,7 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
     monkeypatch.setattr(SimulationContext, "instance", lambda: published)
 
     cfg = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="/World/envs/env_[^/]+/Robot",
         cloning_contexts=(FakeUsdContext,) if explicit_request else (),
         spawn=object(),
     )

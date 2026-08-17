@@ -140,14 +140,16 @@ conventions:
    * - Name
      - Meaning
    * - ``isaacsim_rtx``
-     - Concrete Isaac Sim RTX renderer and the established default for
-       multi-backend camera tasks.
+     - Concrete Isaac Sim RTX renderer configuration. This is the default for
+       tasks that use the multi-backend renderer preset.
    * - ``rtx``
-     - Automatic RTX-family selection based on the resolved runtime.
+     - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
+       visualization, livestreaming, or another runtime choice requires Kit;
+       otherwise OVRTX is used for a fully kit-less run.
    * - ``newton_renderer``
      - Newton Warp renderer.
    * - ``ovrtx``
-     - Concrete OVRTX renderer.
+     - Concrete OVRTX renderer configuration for supported kit-less workflows.
 
 Automatic selectors such as ``physics=physx`` and ``renderer=rtx`` are opt-in.
 Defaults are concrete so that running a task without selectors is predictable.
@@ -203,7 +205,7 @@ For a multi-backend task, the preset wrapper belongs in
    from isaaclab.sim import SimulationCfg
    from isaaclab.utils.configclass import configclass
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-   from isaaclab_ovphysx.physics import OvPhysxCfg
+   from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 

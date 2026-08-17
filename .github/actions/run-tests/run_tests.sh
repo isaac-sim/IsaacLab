@@ -321,10 +321,6 @@ run_tests() {
       mkdir -p tests
       rm _isaac_sim || true
       ln -s /isaac-sim _isaac_sim
-      # Allow OmniHub to start in the test container. Some base images
-      # set this detect-only flag, which makes cold asset downloads
-      # fall back to slow repeated retries.
-      unset HUB__ARGS__DETECT_ONLY
       ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky \"coverage>=7.6.1\"
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py

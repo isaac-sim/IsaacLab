@@ -55,7 +55,6 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     parser.add_argument(
         "--experiment_name", type=str, default=None, help="Name of the experiment folder used to locate checkpoints."
     )
-    parser.add_argument("--load_run", type=str, default=None, help="Name of the run folder to load from.")
     # setup_preset_cli attaches the preset-selection help group then parses;
     # remainder still carries typed selectors (physics=/renderer=/presets=)
     # verbatim for run_export_with_hydra to fold before invoking Hydra.
@@ -201,8 +200,6 @@ def _update_agent_cfg_from_export_args(agent_cfg, args_cli: argparse.Namespace):
         if args_cli.seed == -1:
             args_cli.seed = random.randint(0, 10000)
         agent_cfg.seed = args_cli.seed
-    if args_cli.load_run is not None:
-        agent_cfg.load_run = args_cli.load_run
     if args_cli.checkpoint is not None:
         agent_cfg.load_checkpoint = args_cli.checkpoint
     if args_cli.experiment_name is not None:
@@ -234,11 +231,15 @@ def export_rsl_rl_agent(
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
-    if args_cli.use_pretrained_checkpoint:
+    if args_cli.checkpoint == "pretrained":
         resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False
+    elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+        resume_path = get_checkpoint_path(
+            os.path.dirname(args_cli.checkpoint), os.path.basename(args_cli.checkpoint), agent_cfg.load_checkpoint
+        )
     elif args_cli.checkpoint:
         resume_path = retrieve_file_path(args_cli.checkpoint)
     else:
@@ -290,7 +291,7 @@ def export_rsl_rl_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             # Use a predictable path independent of the Nucleus mirror directory structure.
             save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", checkpoint_task_name)
         else:

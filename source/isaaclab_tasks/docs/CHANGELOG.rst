@@ -1,6 +1,227 @@
 Changelog
 ---------
 
+16.4.0 (2026-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the Cartpole task family to use Newton MJWarp and the Newton renderer by default.
+  Pass explicit physics and renderer presets to retain an Isaac Sim PhysX configuration.
+
+
+16.3.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Franka soft-body task configurations to use the core
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` and
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Changed the Ant, Humanoid, and Velocity task families to use
+  Newton MJWarp by default. Pass an explicit physics preset to retain Isaac Sim PhysX.
+* **Breaking:** Changed the Cabinet and Lift task families to use Newton MJWarp
+  by default. Pass an explicit physics preset to retain Isaac Sim PhysX.
+
+Fixed
+^^^^^
+
+* Fixed ``IsaacContrib-Factory-Franka`` startup with segment-safe environment prim-path expressions.
+
+
+16.2.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-Lift-Cable-Franka`` and ``Isaac-Lift-Cable-Franka-Camera`` tasks for lifting
+  a 12-segment cable by its middle segment with the Franka robot.
+
+* Added nearest-segment reaching and average-height lifting rewards for cable tasks.
+* Added Newton MPM Franka pouring and UR10 particle-pushing reinforcement
+  learning tasks with reset-safe particle randomization and rigid-particle
+  coupling. The pouring task uses compact current-state observations and an
+  outcome-aware reset curriculum.
+* Added bounded sparse MPM configurations with CUDA graph capture and
+  fixed-payload resets for both tasks.
+* Added a compact one-file generator for reproducible Franka pouring reset
+  artifacts.
+* Added randomized pile shape and table placement, paired collision-screened
+  robot starts, and a weighted reset mixture to the UR10
+  particle-pushing task. Every level keeps the same single-pile, single-sweep
+  objective.
+* Added an opt-in Newton GL visualization of the particle-pushing policy
+  heightmap.
+* Added the ``IsaacContrib-Keyboard-SO101`` task with procedural keyboards and PhysX and Newton support.
+* Added :func:`~isaaclab_tasks.core.lift.mdp.utils.env_instance_rows`, mapping each environment to the
+  instance rows of an asset that has several roots per environment.
+* Added the ``IsaacContrib-Factory-Franka`` contact-rich assembly task under
+  :mod:`isaaclab_tasks.contrib.nist`, covering 12 NIST taskboard variants for
+  nut threading, gear meshing, and round or rectangular insertion with a Franka Panda,
+  supporting ``isaacsim_physx``, automatic ``physx``, and ``newton_mjwarp`` physics presets.
+
+Changed
+^^^^^^^
+
+* Simplified Franka Pour artifacts and runtime validation around the one-file
+  generator. Regenerate legacy calibrated artifacts with
+  ``scripts/tools/generate_franka_pour_reset_dataset.py`` and pin the printed
+  digest when an exact artifact is required.
+* Loaded the Franka Pour robot and cups from the standard Isaac Lab Nucleus asset root,
+  while retaining their environment variables for local overrides.
+* Resolved the default Franka Pour reset artifact relative to the repository
+  root and included the generator command in missing-artifact errors.
+* Changed :func:`~isaaclab_tasks.core.lift.mdp.utils.get_reset_state` and
+  :func:`~isaaclab_tasks.core.lift.mdp.utils.set_reset_state` to cover every instance an asset has in an
+  environment instead of reading and writing the instance row that matches the environment id, which
+  addressed the wrong instances for assets partitioned into several roots per environment. Serialized
+  states are unchanged for assets with one instance per environment; for partitioned assets each slice
+  now repeats per instance, so states captured before this change cannot be restored with it.
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+* **Breaking:** Changed core tasks to use RSL-RL when ``--rl_library`` is omitted, except the multi-agent Pendulum task, which uses SKRL.
+  Pass ``--rl_library`` explicitly to select a different RL library.
+
+Fixed
+^^^^^
+
+* Checked every UR10 reset candidate for contact-buffer overflow and copied
+  mutable Newton prototype geometry before offline IK and collision screening.
+
+
+16.1.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaacsim_physx`` support to the Franka cloth lift tasks.
+
+Changed
+^^^^^^^
+
+* Updated validated Kamino task presets to use
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`. The Cartpole
+  ``newton_kamino`` preset now uses Newton's collision pipeline instead of
+  Kamino's internal collision detector.
+
+Fixed
+^^^^^
+
+* Fixed success table visualization markers appearing at the world origin
+  before the first environment step.
+
+
+16.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added manager-based counterparts for the Shadow Hand cube reorientation task,
+  ``Isaac-Reorient-Cube-Shadow`` and ``Isaac-Reorient-Cube-Shadow-Camera``, alongside the
+  existing ``Isaac-Reorient-Cube-Allegro``.
+* Added ``presets=asymmetric`` to ``Isaac-Reorient-Cube-Shadow``, which swaps the
+  full-state actor for a reduced actor paired with a privileged critic and selects the
+  matching ``rsl_rl`` observation groups.
+* Added ``presets=randomized`` to the Allegro and Shadow manager tasks, which adds the
+  domain-randomization events to the per-episode reset.
+* Added Newton and OvPhysX presets to the manager-based reorientation environments,
+  selectable with ``physics=``.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved the OpenAI Shadow Hand reorientation variants to the contributed
+  tasks. Replace ``Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct`` with
+  ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct`` and
+  ``Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct`` with
+  ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct``. The paper's
+  training regime -- 20 Hz control, action and observation noise, and an episode budget
+  spent per goal -- does not generalize, so it no longer ships in the core task.
+* **Breaking:** Moved the Shadow Hand camera benchmark task to the contributed tasks as
+  ``IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct``. The released
+  ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct`` identifier no longer resolves.
+* **Breaking:** Changed ``Metrics/success_rate`` on the Direct reorientation tasks to the
+  per-attempt success rate the manager-based tasks already report, ``goals reached /
+  goals presented``. The Direct tasks previously reported a per-episode success bit, so the
+  same metric name meant different things in the two workflows and their curves could not
+  be compared. Direct curves from earlier runs are not comparable. Removed the
+  ``success_count_threshold`` configuration field, which no longer has an effect.
+* **Breaking:** Changed domain randomization to be opt-in through ``presets=randomized``
+  on the Allegro and Shadow manager tasks, matching each task's Direct counterpart.
+* **Breaking:** Changed the manager-based Allegro environment to match the Direct
+  observation, action, reset and termination contracts, and to use the same agent
+  configurations. The observation space changes size, so existing manager checkpoints must
+  be retrained. ``rl_games_manager_ppo_cfg.yaml`` and ``skrl_manager_ppo_cfg.yaml`` are
+  gone; use ``rl_games_ppo_cfg.yaml`` and ``skrl_ppo_cfg.yaml``.
+* **Breaking:** Replaced the per-backend in-hand cube preset with one configuration per
+  hand. Newton spawned a 54 mm articulation at ``z=0.535``; both backends now share the
+  PhysX rigid body, a 60 mm cube at ``z=0.6``. Newton checkpoints must be retrained, and
+  code resolving the object through :class:`~isaaclab.assets.Articulation` must use
+  :class:`~isaaclab.assets.RigidObject`.
+* Renamed the reorientation ``rsl_rl`` runner configurations after the workflow they
+  serve: ``AllegroCubePPORunnerCfg`` becomes ``AllegroHandManagerPPORunnerCfg`` and the
+  former ``AllegroHandPPORunnerCfg`` becomes ``AllegroHandDirectPPORunnerCfg``.
+  ``ShadowHandPPORunnerCfg`` is unchanged and still serves the Direct task;
+  ``ShadowHandManagerPPORunnerCfg`` adds the ``presets=asymmetric`` selection.
+* Renamed the per-robot scene constants to name what they hold: ``ROBOT_CFG`` becomes
+  ``SHADOW_HAND_ROBOT_CFG`` or ``ALLEGRO_HAND_ROBOT_CFG``, and ``OBJECT_CFG`` becomes
+  ``CUBE_CFG``.
+* Renamed the manager-based Allegro configurations after the robot rather than the object,
+  matching the Shadow counterparts: ``AllegroCubeEnvCfg`` and ``AllegroCubeSceneCfg`` become
+  ``AllegroHandManagerEnvCfg`` and ``AllegroHandManagerSceneCfg``. The
+  ``Isaac-Reorient-Cube-Allegro`` task identifier is unchanged.
+
+Removed
+^^^^^^^
+
+* Removed per-robot ``play_mode()`` overrides from Cassie, G1, and H1 rough velocity
+  environment configs. The base :meth:`~isaaclab_tasks.core.velocity.LocomotionVelocityRoughEnvCfg.play_mode`
+  is now used directly without robot-specific command range overrides.
+* Removed ``ReorientObjectEnvCfg``. The Shadow and Allegro manager tasks now share
+  ``isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientManagerEnvBaseCfg``, which each hand
+  specializes with its fingertip bodies, actuated joints, scene and control rate.
+* Removed ``reorient_common``. Its constants are declared by the tasks that use them, and
+  the in-hand offset and goal-marker position are per-robot fields on the Direct
+  configurations.
+* Removed the handover ``EventCfg``, which was never wired into ``HandoverEnvCfg.events``.
+* Removed ``evaluate_reorient_success`` and ``reorient_reward`` from the reorientation
+  ``mdp`` namespace. Neither is a manager MDP term; import them from
+  ``isaaclab_tasks.core.reorient.mdp.rewards`` instead.
+* Removed ``random_xy_rotation``. The manager reset uses the framework's
+  :func:`~isaaclab.envs.mdp.reset_root_state_with_random_orientation`, leaving the helper
+  without callers; the Direct and hand-over tasks compose their rotations with
+  ``randomize_rotation`` directly.
+* Removed the ``clone_in_fabric`` settings from the reorientation scenes. The flag no
+  longer reaches the replicator, so the value had no effect.
+
+Fixed
+^^^^^
+
+* Fixed the manager-based reorientation tasks not reporting ``Metrics/success_rate``.
+* Fixed ``Isaac-Reach-Franka-OSC`` instability on Newton MJWarp by enforcing the
+  Franka asset's authored arm effort limits in the actuator model.
+
+
+15.0.1 (2026-08-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` environment not resetting after a
+  successful cube stack. The success termination used a 100 µrad gripper-open tolerance
+  (``atol=0.0001``) that the follower cannot reach when the leader arm's raw encoder angle does
+  not exactly match ``SO101_GRIPPER_OPEN`` due to calibration offsets or joint soft-limit ceilings.
+  The tolerance is now set to ``gripper_threshold`` (0.2 rad) in the joint-teleop env, consistent
+  with the threshold used elsewhere to classify the gripper as open vs. closed.
+
+
 15.0.0 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~~
 

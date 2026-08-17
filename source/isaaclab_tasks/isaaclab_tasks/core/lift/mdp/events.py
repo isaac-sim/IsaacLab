@@ -19,6 +19,8 @@ from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 
+from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
+
 from .utils import (
     collect_body_collision_meshes,
     collect_collision_meshes,
@@ -31,10 +33,10 @@ from .utils import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
-    from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
+    from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg
 
 
 def reset_joints_shared_offset(
@@ -67,6 +69,23 @@ def reset_joints_shared_offset(
     asset.write_joint_velocity_to_sim_index(
         velocity=torch.zeros_like(positions), joint_ids=asset_cfg.joint_ids, env_ids=env_ids
     )
+
+
+def reset_cable_state_uniform(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> None:
+    """Reset a cable to its default shape with a uniformly sampled translation [m]."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
+    segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
+    ranges = torch.tensor([position_range.get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=asset.device)
+    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device)
+    segment_pose[..., :3] += offset.unsqueeze(1)
+    asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+    asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
 
 
 def reset_to_target(
@@ -124,130 +143,6 @@ def reset_to_target(
 
     asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=picked)
     asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
-
-
-class SuccessMonitor:
-    """Per-slot success-rate table whose draws favor a target success rate.
-
-    Each monitored slot — for the reset bank, one banked state — keeps a ring buffer of its most
-    recent episode outcomes. Sampling weights peak at :attr:`SuccessMonitorCfg.target_success_rate`,
-    so with the default target of one half the draw concentrates on the states the policy solves
-    about half the time and spends little on the ones it always solves or never solves.
-
-    Slots are laid out as :paramref:`num_partitions` contiguous blocks of :paramref:`partition_size`
-    and every draw stays inside one partition. The reset bank needs this because a state harvested
-    in one asset-combination group cannot be replayed in another; callers with no such constraint
-    pass a single partition.
-    """
-
-    def __init__(self, cfg: SuccessMonitorCfg, num_partitions: int, partition_size: int, device: str):
-        """Allocate the outcome table.
-
-        Args:
-            cfg: Monitor configuration.
-            num_partitions: Number of independently sampled blocks of slots.
-            partition_size: Slots per partition.
-            device: Device holding the table; slot ids passed in must live on it too.
-        """
-        self.cfg = cfg
-        self.num_partitions = num_partitions
-        self.partition_size = partition_size
-        self.device = device
-
-        num_slots = num_partitions * partition_size
-        self.success_buf = torch.zeros((num_slots, cfg.monitored_history_len), device=device)
-        self.success_rate = torch.zeros(num_slots, device=device)
-        self.success_pointer = torch.zeros(num_slots, device=device, dtype=torch.long)
-        self.success_size = torch.zeros(num_slots, device=device, dtype=torch.long)
-
-    def get_success_rate(self) -> torch.Tensor:
-        """Return a copy of every slot's measured success rate, shape [num_slots]."""
-        return self.success_rate.clone()
-
-    def get_mean_success_rate(self) -> float:
-        """Return the success rate over the whole table, averaged across the slots that have episodes.
-
-        Slots with no episodes yet are left out rather than counted as failures, so the number
-        reports how well the policy does on the states it has actually been given and does not dip
-        just because the table is still filling.
-        """
-        measured = self.success_size > 0
-        if not bool(measured.any()):
-            return 0.0
-        return float(self.success_rate[measured].mean())
-
-    def success_update(self, slot_ids: torch.Tensor, success: torch.Tensor):
-        """Append episode outcomes to their slots' ring buffers and refresh the success rates.
-
-        Slots may repeat within one call, which happens whenever several environments replayed the
-        same banked state; the outcomes are appended in order and only the newest
-        :attr:`SuccessMonitorCfg.monitored_history_len` of them survive.
-
-        Args:
-            slot_ids: Slot each outcome belongs to, shape [num_outcomes].
-            success: Whether each episode succeeded, shape [num_outcomes].
-        """
-        if len(slot_ids) == 0:
-            return
-        history = self.cfg.monitored_history_len
-        # group the outcomes by slot, stably so the newest stay last within each slot
-        order = torch.argsort(slot_ids, stable=True)
-        ordered_slots = slot_ids[order]
-        unique_slots, counts = torch.unique_consecutive(ordered_slots, return_counts=True)
-
-        # position of each outcome within its slot's append run, with anything beyond the ring's
-        # capacity given a negative position and dropped
-        starts = counts.cumsum(0) - counts
-        offset = torch.arange(len(ordered_slots), device=self.device) - starts.repeat_interleave(counts)
-        offset = offset - (counts - history).clamp(min=0).repeat_interleave(counts)
-        kept = offset >= 0
-
-        slots = ordered_slots[kept]
-        positions = (self.success_pointer[slots] + offset[kept]) % history
-        self.success_buf[slots, positions] = success[order][kept].to(dtype=self.success_buf.dtype)
-
-        written = counts.clamp(max=history)
-        self.success_pointer[unique_slots] = (self.success_pointer[unique_slots] + written) % history
-        self.success_size[unique_slots] = (self.success_size[unique_slots] + written).clamp(max=history)
-        # unwritten ring entries are zero, so the row sum is the number of successes remembered
-        self.success_rate[:] = self.success_buf.sum(dim=1) / self.success_size.clamp(min=1)
-
-    def target_weights(self) -> torch.Tensor:
-        """Return each slot's sampling weight, peaking at the target success rate.
-
-        The weight is the Beta density shape ``p^(a-1) * (1-p)^(b-1)`` with ``a = 1 + kappa * target``
-        and ``b = 1 + kappa * (1 - target)``, which places the mode at the target and flattens as
-        ``kappa`` shrinks.
-
-        Returns:
-            Weights, shape [num_slots]. Unnormalized; :func:`torch.multinomial` normalizes them.
-        """
-        target = min(max(self.cfg.target_success_rate, 0.0), 1.0)
-        kappa = max(self.cfg.kappa, 0.0)
-        a = 1.0 + kappa * target
-        b = 1.0 + kappa * (1.0 - target)
-
-        # The offset avoids ``0 ** 0`` and, more importantly, floors the weight at the extremes:
-        # slots that always succeed, always fail, or have not been drawn at all stay in circulation
-        # instead of being starved for good, so their rates can still be revised.
-        eps = 1e-4
-        rate = self.success_rate
-        weights = ((rate + eps).pow(a - 1.0) * (1.0 - rate + eps).pow(b - 1.0)).clamp_min(eps)
-        # ``w ** (1/T)`` equals ``softmax(log(w) / T)`` up to the normalization the draw applies anyway
-        return weights.pow(1.0 / max(self.cfg.temperature, 1.0))
-
-    def sample_by_target_rate(self, partition_ids: torch.Tensor) -> torch.Tensor:
-        """Draw one slot per requested partition, preferring slots near the target success rate.
-
-        Args:
-            partition_ids: Partition to draw from for each sample, shape [num_samples].
-
-        Returns:
-            Slot ids, shape [num_samples].
-        """
-        weights = self.target_weights().view(self.num_partitions, self.partition_size)
-        slots = torch.multinomial(weights[partition_ids], 1).view(-1)
-        return partition_ids * self.partition_size + slots
 
 
 class conditional_reset(ManagerTermBase):

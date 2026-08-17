@@ -29,36 +29,30 @@ if TYPE_CHECKING:
 class LiveLinePlot(UIWidgetWrapper):
     """A 2D line plot widget to display live data.
 
-
     This widget is used to display live data in a 2D line plot. It can be used to display multiple series
     in the same plot.
 
-    It has the following Layout:
-    +-------------------------------------------------------+
-    |                  containing_frame                     |
-    |+-----------------------------------------------------+|
-    |                   main_plot_frame                     |
-    ||+---------------------------------------------------+||
-    |||         plot_frames + grid lines (Z_stacked)      |||
-    |||                                                   |||
-    |||                                                   |||
-    |||               (Live Plot Data)                    |||
-    |||                                                   |||
-    |||                                                   |||
-    |||+-------------------------------------------------+|||
-    |||                   legends_frame                   |||
-    |||                                                   |||
-    |||    [x][Series 1] [x][Series 2] [ ][Series 3]      |||
-    |||+-------------------------------------------------+|||
-    |||                   limits_frame                    |||
-    |||                                                   |||
-    |||        [Y-Limits] [min] [max] [Autoscale]         |||
-    |||+-------------------------------------------------+|||
-    |||                   filter_frame                    |||
-    |||                                                   |||
-    |||                                                   |||
-    |+-----------------------------------------------------+|
-    +-------------------------------------------------------+
+    The widget uses the following layout:
+
+    .. code-block:: text
+
+       +-------------------------------------------------------+
+       |                  containing_frame                     |
+       |+-----------------------------------------------------+|
+       |                   main_plot_frame                     |
+       ||+---------------------------------------------------+||
+       |||         plot_frames + grid lines (Z_stacked)      |||
+       |||               (Live Plot Data)                    |||
+       |||+-------------------------------------------------+|||
+       |||                   legends_frame                   |||
+       |||    [x][Series 1] [x][Series 2] [ ][Series 3]      |||
+       |||+-------------------------------------------------+|||
+       |||                   limits_frame                    |||
+       |||        [Y-Limits] [min] [max] [Autoscale]         |||
+       |||+-------------------------------------------------+|||
+       |||                   filter_frame                    |||
+       |+-----------------------------------------------------+|
+       +-------------------------------------------------------+
 
     """
 

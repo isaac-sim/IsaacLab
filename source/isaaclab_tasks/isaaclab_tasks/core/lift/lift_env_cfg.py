@@ -89,6 +89,7 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
     default = shapes
+    ovphysx = cube
 
 
 @configclass
@@ -509,7 +510,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 @configclass

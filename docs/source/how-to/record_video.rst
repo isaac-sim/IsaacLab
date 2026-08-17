@@ -5,11 +5,11 @@ Recording Video
 
 .. currentmodule:: isaaclab
 
-Isaac Lab can record video from a Kit or Newton GL visualizer, or directly from a scene camera
-sensor, by adding :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries to
-the environment config.  Each recorder captures from a configurable source and writes ``mp4``
-clips to disk independently.  Streaming visualizers (Rerun, Viser) and the Newton RTX backend
-do not support frame capture; see `Visualizer compatibility`_ below.
+Isaac Lab can record video from a Kit, Newton GL, or Newton RTX visualizer, or directly from a
+scene camera sensor, by adding :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
+entries to the environment config. Each recorder captures from a configurable source and writes
+``mp4`` clips to disk independently. Streaming visualizers (Rerun and Viser) do not support local
+frame capture; see `Visualizer compatibility`_ below.
 
 .. code-block:: python
 
@@ -134,6 +134,8 @@ The ``source`` string selects what to capture:
      - Kit streaming camera panel (requires ``streaming_view=True``)
    * - ``"visualizer:newton"``
      - Newton GL visualizer viewport
+   * - ``"visualizer:newton_rtx"``
+     - Newton OVRTX path-traced viewport
    * - ``"visualizer:newton:streaming_view"``
      - Newton GL streaming camera panel (requires ``streaming_view=True``)
    * - ``"sensor:<name>"``
@@ -147,9 +149,13 @@ The ``source`` string selects what to capture:
    * - ``"sensor:<name>:normals"``
      - Surface normals, colorized
 
-The camera angle, resolution, and other visualizer settings are configured on the
-corresponding :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` or
-:class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`, not on the recorder.
+The camera angle, resolution, and other visualizer settings are configured on the corresponding
+visualizer config, not on the recorder.
+
+.. note::
+
+   The Newton RTX viewer framebuffer can be recorded with ``"visualizer:newton_rtx"``, but
+   recording its streaming view is not supported.
 
 
 Clip control
@@ -228,8 +234,8 @@ without requiring a second interactive visualizer.
 Requirements
 ------------
 
-* `moviepy <https://pypi.org/project/moviepy/>`_ 1.x and ``ffmpeg`` must be installed
-  (both are already in Isaac Lab's dependencies).
+* Install the ``video`` extra to provide `moviepy <https://pypi.org/project/moviepy/>`_ 1.x
+  and its ``ffmpeg`` runtime. In a uv checkout, add ``--extra video`` to the command.
 
 * For ``source="visualizer:kit"`` or ``"visualizer:kit:streaming_view"``: the Kit app is
   launched automatically by :class:`~isaaclab.app.AppLauncher`.  In **headless mode**
@@ -244,6 +250,10 @@ Requirements
   ``env_cfg.sim.visualizer_cfgs``.  Newton GL uses pyglet's EGL backend and works headlessly
   without ``--enable_cameras``.
 
+* For ``source="visualizer:newton_rtx"``: the OVRTX runtime and an active
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` are required. Capturing the
+  path-traced LDR framebuffer performs a GPU-to-CPU readback.
+
 * For ``source="sensor:<name>"``: the named field must exist on the scene config and
   have ``"rgb"`` in its ``data_types``.
 
@@ -251,9 +261,7 @@ Requirements
 Visualizer compatibility
 ------------------------
 
-Only **kit** and **newton_gl** support frame capture for video recording.  Both can run
-headless (``headless=True`` on the cfg) so they add no UI window or interactive overhead
-when video is the only goal.
+**kit**, **newton_gl**, and **newton_rtx** support frame capture and can run headless.
 
 .. list-table::
    :widths: 25 15 60
@@ -269,8 +277,8 @@ when video is the only goal.
      - ✓
      - Newton OpenGL viewport; supports headless mode
    * - ``newton_rtx``
-     - ✗
-     - Framebuffer readback (``ViewerRTX.get_frame()``) not yet available from the Newton SDK
+     - ✓
+     - Newton OVRTX path-traced viewport; native-resolution LDR readback
    * - ``rerun``
      - ✗
      - Remote streaming tool; no local frame-capture API
@@ -278,11 +286,11 @@ when video is the only goal.
      - ✗
      - Browser streaming tool; no local frame-capture API
 
-Passing ``--video`` alongside ``--viz rerun``, ``--viz viser``, or ``--viz newton_rtx``
-raises an error when no other recording-capable visualizer is configured.
+Passing ``--video`` alongside ``--viz rerun`` or ``--viz viser`` raises an error when no other
+recording-capable visualizer is configured.
 
-To run a streaming or RTX visualizer *and* record video simultaneously, add a headless
-capture backend alongside it in ``sim.visualizer_cfgs``:
+To run a streaming visualizer and record video simultaneously, add a headless capture backend
+alongside it in ``sim.visualizer_cfgs``:
 
 .. code-block:: python
 

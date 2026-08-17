@@ -11,6 +11,8 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
+    NewtonSoftContactCfg,
+    VBDSolverCfg,
 )
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
@@ -47,10 +49,6 @@ from isaaclab_contrib.coupling import (
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
 )
-from isaaclab_contrib.deformable.newton_manager_cfg import (
-    NewtonModelCfg,
-    VBDSolverCfg,
-)
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -83,7 +81,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 
 
 FRANKA_CAMERA_CFG = CameraCfg(
-    prim_path="/World/envs/env_.*/Camera",
+    prim_path="{ENV_REGEX_NS}/Camera",
     offset=CameraCfg.OffsetCfg(
         pos=(0.85, -0.55, 0.42),
         rot=(0.5080, 0.2114, 0.318, 0.7720),
@@ -153,7 +151,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot"],
+                    bodies=[r"/World/envs/env_[^/]+/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -167,8 +165,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -177,15 +175,16 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_ke=8.0e3, soft_contact_mu=10.0),
+        ),
+        soft_contact_cfg=NewtonSoftContactCfg(
+            soft_contact_ke=8.0e3,
+            soft_contact_kd=1.0e-2,
+            soft_contact_mu=10.0,
         ),
         num_substeps=2,
     )
 
-    isaacsim_physx: PhysxCfg = PhysxCfg(
-        friction_offset_threshold=0.005,
-        friction_correlation_distance=0.01,
-    )
+    isaacsim_physx: PhysxCfg = PhysxCfg()
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
@@ -205,12 +204,12 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
-        prim_path="/World/envs/env_.*/Robot/Geometry/panda_link0",
+        prim_path="{ENV_REGEX_NS}/Robot/Geometry/panda_link0",
         debug_vis=False,
         target_frames=[
             FrameTransformerCfg.FrameCfg(
                 prim_path=(
-                    "/World/envs/env_.*/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/"
+                    "{ENV_REGEX_NS}/Robot/Geometry/panda_link0/panda_link1/panda_link2/panda_link3/"
                     "panda_link4/panda_link5/panda_link6/panda_link7/panda_hand"
                 ),
                 name="end_effector",
@@ -369,7 +368,7 @@ class _IkActionsCfg:
         asset_name="robot",
         joint_names=["panda_finger_joint1"],
         open_command_expr={"panda_finger_joint1": 0.04},
-        close_command_expr={"panda_finger_joint1": 0.015},
+        close_command_expr={"panda_finger_joint1": 0.01},
     )
 
 
