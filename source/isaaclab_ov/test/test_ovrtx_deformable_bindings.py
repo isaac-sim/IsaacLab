@@ -28,7 +28,6 @@ pytestmark = [
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
-    from isaaclab_newton.physics.newton_manager import CableRegistryEntry  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
     from ovrtx import BindingFlag, DataAccess  # noqa: E402
@@ -471,24 +470,15 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     assert len(backend.writes) == 0
 
 
-def _install_cable_registry(shapes: dict[str, list[int]], monkeypatch: pytest.MonkeyPatch) -> None:
-    """Install a NewtonManager cable registry covering ``shapes``."""
-    entries = [
-        CableRegistryEntry(
-            curve_prim_path=prim_path,
-            segments_per_cable=len(segment_shape_ids),
-            instance_curve_paths=[prim_path],
-            instance_segment_shape_ids=[list(segment_shape_ids)],
-        )
-        for prim_path, segment_shape_ids in shapes.items()
-    ]
-    monkeypatch.setattr(NewtonManager, "_cable_registry", entries)
+def _install_cable_shapes(shapes: dict[str, list[int]], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install a fake :meth:`NewtonManager.collect_cable_segment_shapes` result."""
+    monkeypatch.setattr(NewtonManager, "collect_cable_segment_shapes", classmethod(lambda cls: dict(shapes)))
 
 
 def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch):
     """Renderable cables create a ``points`` array binding over their curve prims."""
     renderer, backend = _make_renderer_without_backend()
-    _install_cable_registry({"/World/envs/env_0/Cable/geometry/mesh": [4, 5, 6]}, monkeypatch)
+    _install_cable_shapes({"/World/envs/env_0/Cable/geometry/mesh": [4, 5, 6]}, monkeypatch)
 
     renderer._setup_cable_bindings()
 
@@ -505,11 +495,11 @@ def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch
     assert [write["attribute_name"] for write in backend.writes] == ["omni:resetXformStack", "omni:xform"]
 
 
-def test_setup_cable_bindings_reads_registry_without_clone_plan(monkeypatch: pytest.MonkeyPatch):
-    """Cable bindings come from the registry; clone_plan is unused at bind time."""
+def test_setup_cable_bindings_reads_discovery_without_clone_plan(monkeypatch: pytest.MonkeyPatch):
+    """Cable bindings come from discovery; clone_plan is unused at bind time."""
     renderer, _ = _make_renderer_without_backend()
     renderer._clone_plan = object()
-    _install_cable_registry(
+    _install_cable_shapes(
         {
             "/World/envs/env_0/Cable/geometry/mesh": [0, 1],
             "/World/envs/env_1/Cable/geometry/mesh": [2, 3],
@@ -529,7 +519,7 @@ def test_setup_cable_bindings_offsets_span_every_curve(monkeypatch: pytest.Monke
     almost any indexing scheme, so the guard is several cables of *different* lengths.
     """
     renderer, _ = _make_renderer_without_backend()
-    _install_cable_registry(
+    _install_cable_shapes(
         {
             "/World/envs/env_0/Cable/geometry/mesh": [0, 1, 2],
             "/World/envs/env_1/Cable/geometry/mesh": [3, 4, 5, 6, 7],
@@ -549,7 +539,7 @@ def test_setup_cable_bindings_offsets_span_every_curve(monkeypatch: pytest.Monke
 def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatch):
     """A scene with no renderable cables binds nothing rather than failing."""
     renderer, backend = _make_renderer_without_backend()
-    monkeypatch.setattr(NewtonManager, "_cable_registry", [])
+    _install_cable_shapes({}, monkeypatch)
 
     renderer._setup_cable_bindings()
 
@@ -560,7 +550,7 @@ def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatc
 def test_write_cable_points_writes_one_slice_per_cable(monkeypatch: pytest.MonkeyPatch):
     """Every cable is handed exactly its own span of the shared point buffer."""
     renderer, _ = _make_renderer_without_backend()
-    _install_cable_registry(
+    _install_cable_shapes(
         {
             "/World/envs/env_0/Cable/geometry/mesh": [0, 1],
             "/World/envs/env_1/Cable/geometry/mesh": [2, 3, 4],

@@ -16,15 +16,12 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner import queue_replication
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from isaaclab_newton.physics.newton_manager import CableRegistryEntry
 
 from .cable_object_data import CableObjectData
 from .kernels import (
@@ -218,51 +215,10 @@ class CableObject(BaseCableObject):
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device)
-        self._curve_path_expr = curve_path_expr
-        self._register_cable_render_entry()
         self._physics_ready_handle = SimulationManager.register_callback(
             self._rebind,
             PhysicsEvent.PHYSICS_READY,
             name=f"cable_object_rebind_{self.cfg.prim_path}",
-        )
-
-    def _resolve_curve_path_for_env(self, env_idx: int) -> str:
-        """Resolve the per-env concrete BasisCurves path from the stored path expression."""
-        matched = cloner_path.match(self._curve_path_expr, DEFAULT_ENV_TEMPLATE)
-        if matched is not None:
-            return DEFAULT_ENV_TEMPLATE.format(env_idx) + matched.suffix
-        if self.num_instances == 1:
-            return self._curve_path_expr
-        raise RuntimeError(
-            f"CableObject '{self.cfg.prim_path}' curve path '{self._curve_path_expr}' has no"
-            f" env wildcard but num_instances={self.num_instances}."
-        )
-
-    def _register_cable_render_entry(self) -> None:
-        """Publish this cable's curve prims and Newton segment shape ids for Fabric/OVRTX."""
-        shape_groups = SimulationManager._cable_shape_groups_from_model()
-        instance_curve_paths: list[str] = []
-        instance_segment_shape_ids: list[list[int]] = []
-        for env_idx in range(self.num_instances):
-            curve_path = self._resolve_curve_path_for_env(env_idx)
-            segments = shape_groups.get(curve_path)
-            if segments is None:
-                raise RuntimeError(
-                    f"CableObject '{self.cfg.prim_path}' could not resolve Newton segment shapes for"
-                    f" curve prim '{curve_path}' (env {env_idx})."
-                )
-            if set(segments) != set(range(self.num_segments)):
-                raise RuntimeError(f"CableObject '{curve_path}' requires {self.num_segments} ordered segment shapes.")
-            instance_curve_paths.append(curve_path)
-            instance_segment_shape_ids.append([segments[segment] for segment in range(self.num_segments)])
-
-        SimulationManager.register_cable_entry(
-            CableRegistryEntry(
-                curve_prim_path=self._curve_path_expr,
-                segments_per_cable=self.num_segments,
-                instance_curve_paths=instance_curve_paths,
-                instance_segment_shape_ids=instance_segment_shape_ids,
-            )
         )
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None) -> wp.array(
@@ -315,7 +271,6 @@ class CableObject(BaseCableObject):
     def _rebind(self, _: object) -> None:
         """Rebind simulation arrays after a Newton model rebuild."""
         self._data._create_simulation_bindings()
-        self._register_cable_render_entry()
 
     def _clear_callbacks(self) -> None:
         """Clear all registered callbacks."""

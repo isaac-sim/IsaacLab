@@ -819,23 +819,20 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping cable point bindings")
             return
 
-        cable_registry = NewtonManager._cable_registry
-        if not cable_registry:
-            logger.debug("No renderable Newton cables registered, skipping cable point bindings")
+        cable_shapes = NewtonManager.collect_cable_segment_shapes()
+        if not cable_shapes:
+            logger.debug("No renderable Newton cables found, skipping cable point bindings")
             return
 
         cable_prim_paths: list[str] = []
         flat_shape_ids: list[int] = []
         offsets: list[int] = []
         counts: list[int] = []
-        for entry in cable_registry:
-            for prim_path, segment_shape_ids in zip(
-                entry.instance_curve_paths, entry.instance_segment_shape_ids, strict=True
-            ):
-                cable_prim_paths.append(prim_path)
-                offsets.append(len(flat_shape_ids))
-                counts.append(len(segment_shape_ids))
-                flat_shape_ids.extend(segment_shape_ids)
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            cable_prim_paths.append(prim_path)
+            offsets.append(len(flat_shape_ids))
+            counts.append(len(segment_shape_ids))
+            flat_shape_ids.extend(segment_shape_ids)
 
         prim_count = len(cable_prim_paths)
         # Points are written in world space, so neutralise the inherited env/asset transform the
@@ -2077,23 +2074,20 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping cable point bindings")
             return
 
-        cable_registry = NewtonManager._cable_registry
-        if not cable_registry:
-            logger.debug("No renderable Newton cables registered, skipping cable point bindings")
+        cable_shapes = NewtonManager.collect_cable_segment_shapes()
+        if not cable_shapes:
+            logger.debug("No renderable Newton cables found, skipping cable point bindings")
             return
 
         cable_prim_paths: list[str] = []
         flat_shape_ids: list[int] = []
         offsets: list[int] = []
         counts: list[int] = []
-        for entry in cable_registry:
-            for prim_path, segment_shape_ids in zip(
-                entry.instance_curve_paths, entry.instance_segment_shape_ids, strict=True
-            ):
-                cable_prim_paths.append(prim_path)
-                offsets.append(len(flat_shape_ids))
-                counts.append(len(segment_shape_ids))
-                flat_shape_ids.extend(segment_shape_ids)
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            cable_prim_paths.append(prim_path)
+            offsets.append(len(flat_shape_ids))
+            counts.append(len(segment_shape_ids))
+            flat_shape_ids.extend(segment_shape_ids)
 
         prim_count = len(cable_prim_paths)
         self._cable_paths_list = self._stage_paths.create_path_list_from_strings(cable_prim_paths)
