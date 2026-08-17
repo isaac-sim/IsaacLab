@@ -634,11 +634,11 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
 
         configs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
-        requirements = [
-            REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type] for cfg in configs if cfg.visualizer_type is not None
-        ]
-        self.requires_usd_stage |= any(requires_stage for requires_stage, _ in requirements)
-        self.requires_newton_model |= any(requires_model for _, requires_model in requirements)
+        for config in configs:
+            if config.visualizer_type is not None:
+                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[config.visualizer_type]
+                self.requires_usd_stage |= requires_stage
+                self.requires_newton_model |= requires_model
 
         pending_cfgs = []
         new_visualizers = []

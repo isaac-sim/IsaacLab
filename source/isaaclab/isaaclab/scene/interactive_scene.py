@@ -202,9 +202,10 @@ class InteractiveScene:
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
         cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
-        requirements = [REQUIRES_STAGE_AND_MODEL[type_name] for type_name in [*requested_viz_types, *cam_types]]
-        self.sim.requires_usd_stage |= any(requires_stage for requires_stage, _ in requirements)
-        self.sim.requires_newton_model |= any(requires_model for _, requires_model in requirements)
+        for type_name in requested_viz_types + cam_types:
+            requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
+            self.sim.requires_usd_stage |= requires_stage
+            self.sim.requires_newton_model |= requires_model
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
