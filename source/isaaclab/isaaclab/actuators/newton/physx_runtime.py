@@ -46,21 +46,23 @@ class PhysxActuatorRuntime:
         *,
         stage: Any,
         articulation_prim_path: str | None,
+        adapt_usd_actuators: bool = True,
     ) -> None:
-        """Create and bind the adapter and its pointer-stable host wrapper."""
+        """Create and bind the adapter and its pointer-stable host wrapper.
+
+        Args:
+            collection: Actuator collection under construction.
+            stage: USD stage holding the authored actuator prims.
+            articulation_prim_path: Prim path of the articulation root.
+            adapt_usd_actuators: Whether to adapt authored ``NewtonActuator`` prims.
+                Implicit-only articulations author none: the solver applies their
+                drives, and the wrapper alone backs the telemetry fast path.
+        """
         articulation = self._articulation
         self.wrapper = PhysxActuatorWrapper.create(
             num_envs=articulation.num_instances,
             num_joints=articulation.num_joints,
             device=articulation.device,
-        )
-        self.adapter = NewtonActuatorAdapter.from_usd(
-            stage=stage,
-            joint_names=articulation.joint_names,
-            num_envs=articulation.num_instances,
-            num_joints=articulation.num_joints,
-            device=articulation.device,
-            articulation_prim_path=articulation_prim_path,
         )
         self.wrapper.joint_q = articulation._data.joint_pos.warp.reshape(-1)
         self.wrapper.joint_qd = articulation._data.joint_vel.warp.reshape(-1)
@@ -69,6 +71,16 @@ class PhysxActuatorRuntime:
         self.wrapper.joint_target_pos = self.wrapper.joint_target_q
         self.wrapper.joint_target_vel = self.wrapper.joint_target_qd
         self.wrapper.joint_act = collection.command.effort.warp.reshape(-1)
+        if not adapt_usd_actuators:
+            return
+        self.adapter = NewtonActuatorAdapter.from_usd(
+            stage=stage,
+            joint_names=articulation.joint_names,
+            num_envs=articulation.num_instances,
+            num_joints=articulation.num_joints,
+            device=articulation.device,
+            articulation_prim_path=articulation_prim_path,
+        )
         self.adapter.finalize(self.wrapper)
 
     def finalize(self, collection: ActuatorCollection) -> None:

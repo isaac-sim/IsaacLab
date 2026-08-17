@@ -63,14 +63,13 @@ class PhysxActuatorControl(ArticulationActuatorControl):
 
         _validate_newton_native_actuator_cfgs(actuator_cfgs)
 
+        # Activate the runtime even without explicit native groups: implicit-only
+        # articulations still rely on it for the solver telemetry fast path.
+        self._native_actuator_path_active = True
+        articulation._has_newton_actuators = True
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
-        if not native_group_names:
-            return set()
-
-        self._native_actuator_path_active = True
-        articulation._has_newton_actuators = True
 
         first_prim = find_first_matching_prim(articulation.cfg.prim_path)
         art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
@@ -79,6 +78,7 @@ class PhysxActuatorControl(ArticulationActuatorControl):
             collection,
             stage=get_current_stage(),
             articulation_prim_path=art_prim_path,
+            adapt_usd_actuators=bool(native_group_names),
         )
         articulation._physx_actuator_wrapper = self._actuator_runtime.wrapper
         articulation.newton_actuator_adapter = self._actuator_runtime.adapter

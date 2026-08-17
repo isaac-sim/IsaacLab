@@ -51,17 +51,13 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return set()
 
         _validate_newton_native_actuator_cfgs(actuator_cfgs)
-        native_group_names = {
-            name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
-        }
-        if not native_group_names:
-            return set()
-
+        # Activate the Newton path even without explicit native groups: implicit-only
+        # articulations still rely on it for the solver telemetry fast path.
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
         SimulationManager.activate_newton_actuator_path()
 
-        return native_group_names
+        return {name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)}
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> NewtonActuatorSelection | None:
         if not self._native_actuator_path_active:
