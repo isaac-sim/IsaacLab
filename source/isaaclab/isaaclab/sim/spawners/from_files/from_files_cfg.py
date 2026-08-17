@@ -41,14 +41,13 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.ArticulationRootFragment` fragments
-    (e.g. ``{"(/.*)?": [PhysxArticulationCfg(...), NewtonArticulationCfg(...)]}``) or a single legacy
+    (e.g. ``{"/.*": [PhysxArticulationCfg(...), NewtonArticulationCfg(...)]}``) or a single legacy
     cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`). On the fragment path each
     fragment writes its own namespace.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
-    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
-    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
-    attribute.
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
     """
 
     articulation_props_create_if_missing: bool = False
@@ -88,9 +87,8 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
-    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
-    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
-    attribute.
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
     """
 
     spatial_tendons_props: (
@@ -103,9 +101,8 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
-    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
-    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
-    attribute.
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
     """
 
     joint_drive_props: dict[str, list[schemas.JointDriveFragment]] | schemas.JointDriveBaseCfg | None = None
@@ -113,16 +110,15 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Accepts either a mapping from target pattern to a list of
     :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments
-    (e.g. ``{"(/.*)?": [UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]}``) or a single legacy cfg
+    (e.g. ``{"/.*": [UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]}``) or a single legacy cfg
     (e.g. :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`). On the fragment path,
     ``UsdPhysics.DriveAPI`` is applied (presence-gated) only when a
     :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present, and each fragment writes
     its own namespace.
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
-    targets descendants (``""`` the anchor, ``"/[^/]+"`` its direct children, ``"(/.*)?"`` the anchor and its whole
-    subtree). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
-    attribute.
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
 
     .. note::
         The joint drive properties set the USD attributes of all the joint drives in the asset.

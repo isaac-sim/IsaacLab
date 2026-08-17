@@ -18,8 +18,8 @@ def props_expr(prim_path: str, pattern: str) -> str:
 
     The result is a plain regular expression matched against whole prim paths by
     :func:`~isaaclab.sim.utils.find_matching_prims`, so ``"/[^/]+"`` selects the anchor's direct
-    children, ``"/.*"`` selects all of its descendants, and ``"(/.*)?"`` selects the anchor
-    together with its descendants.
+    children and ``"/.*"`` everything beneath it. Use ``"(/.*)?"`` on the rare occasion the anchor
+    itself is also a valid family target.
 
     Args:
         prim_path: The absolute path of the anchor prim.
