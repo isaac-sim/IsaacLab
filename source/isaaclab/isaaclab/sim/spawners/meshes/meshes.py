@@ -354,6 +354,26 @@ Helper functions.
 """
 
 
+def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
+    """Apply collision fragments to the simulation mesh of a deformable body.
+
+    The collider is the simulation mesh authored under the body prim, so mapping keys anchor there
+    (e.g. ``{"/sim_mesh": [...]}``) while a bare fragment list sweeps the whole subtree to reach it.
+
+    Args:
+        prim_path: The prim path of the deformable body.
+        collision_props: A mapping from target pattern to collision fragments, or a fragment or
+            sequence of fragments.
+        stage: The stage where the prims live.
+    """
+    if isinstance(collision_props, dict):
+        for pattern, fragments in collision_props.items():
+            schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments, stage=stage)
+        return
+    fragments = collision_props if isinstance(collision_props, (list, tuple)) else [collision_props]
+    schemas.apply_collision_properties(props_expr(prim_path, "(/.*)?"), fragments, stage=stage)
+
+
 def _spawn_mesh_geom_from_mesh(
     prim_path: str,
     cfg: meshes_cfg.MeshCfg,
@@ -410,8 +430,11 @@ def _spawn_mesh_geom_from_mesh(
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
     if cfg.deformable_props is not None and cfg.collision_props is not None:
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
-        frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        if not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+        if isinstance(cfg.collision_props, dict):
+            frags = [frag for fragments in cfg.collision_props.values() for frag in fragments]
+        else:
+            frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if not frags or not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
@@ -455,10 +478,8 @@ def _spawn_mesh_geom_from_mesh(
         schemas.define_deformable_body_properties(
             prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
         )
-        # the collider is the simulation mesh, resolved from the body prim
         if cfg.collision_props is not None:
-            frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-            schemas.apply_collision_properties(prim_path, frags, stage=stage)
+            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
         if cfg.mass_props is not None:
             raise ValueError(
                 """MassPropertiesCfg are not supported for deformable bodies
