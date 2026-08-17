@@ -17,6 +17,7 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
@@ -381,8 +382,6 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
-        from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
-
         self.cfg = cfg
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
         # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
