@@ -258,7 +258,7 @@ def _author_actuator_prims(
                     zip(joint_names, _resolve_matching_values_dense(configured_effort_limit, joint_names))
                 )
 
-        vel_limit_map = resolve_per_dof(getattr(cfg, "velocity_limit", None), joint_names) if is_dc_motor else {}
+        vel_limit_map = resolve_per_dof(getattr(cfg, "actuator_velocity_limit", None), joint_names) if is_dc_motor else {}
         sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
 
         raw_delay = getattr(cfg, "max_delay", 0) if is_delayed else 0

@@ -59,29 +59,30 @@ def _resolve_limit_aliases(
         # velocity limit so the data buffers stay meaningful.
         cfg.velocity_limit = cfg.velocity_limit_sim
 
-    for canonical_name, alias_name in (
+    for new_name, old_name in (
         ("joint_effort_limit", "effort_limit_sim"),
         ("joint_effort_limit" if implicit else "actuator_effort_limit", "effort_limit"),
         ("joint_velocity_limit", "velocity_limit_sim"),
+        ("actuator_velocity_limit", "velocity_limit"),
     ):
-        alias_value = getattr(cfg, alias_name)
+        alias_value = getattr(cfg, old_name)
         if alias_value is None:
             continue
         if warn_deprecated:
             warnings.warn(
-                f"Actuator group '{actuator_name}' uses deprecated '{alias_name}'. Use "
-                f"'{canonical_name}' instead; '{alias_name}' will be removed in 4.0.",
+                f"Actuator group '{actuator_name}' uses deprecated '{old_name}'. Use "
+                f"'{new_name}' instead; '{old_name}' will be removed in 4.0.",
                 DeprecationWarning,
                 stacklevel=3,
             )
-        canonical_value = getattr(cfg, canonical_name)
-        if canonical_value is None:
-            setattr(cfg, canonical_name, alias_value)
-        elif _resolve_matching_values_dense(canonical_value, joint_names) != _resolve_matching_values_dense(
+        new_value = getattr(cfg, new_name)
+        if new_value is None:
+            setattr(cfg, new_name, alias_value)
+        elif _resolve_matching_values_dense(new_value, joint_names) != _resolve_matching_values_dense(
             alias_value, joint_names
         ):
             raise ValueError(
-                f"Actuator group '{actuator_name}' has conflicting '{canonical_name}' and "
-                f"deprecated '{alias_name}' values."
+                f"Actuator group '{actuator_name}' has conflicting '{new_name}' and "
+                f"deprecated '{old_name}' values."
             )
-        setattr(cfg, alias_name, None)
+        setattr(cfg, old_name, None)

@@ -36,15 +36,17 @@ class ActuatorBaseCfg:
         This can be a list of joint names or a list of regex expressions (e.g. ".*").
     """
 
-    effort_limit: dict[str, float] | float | None = None
-    """Deprecated effort limit [N or N·m, depending on joint type].
+    actuator_effort_limit: dict[str, float] | float | None = None
+    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
 
-    .. deprecated:: 3.0
-        For explicit actuators, use :attr:`actuator_effort_limit`. For implicit
-        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 4.0.
+    This limit is used by explicit actuator models to clip their computed effort. If
+    None, it defaults to the authored/USD joint effort limit. It is not a solver limit.
+
+    :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
+    angle-dependent limits in its ``joint_parameter_lookup``.
     """
 
-    velocity_limit: dict[str, float] | float | None = None
+    actuator_velocity_limit: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group. Defaults to None.
 
     This limit is used by the actuator model. If None, the limit is set to the value specified
@@ -52,8 +54,8 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        This attribute describes the joint's peak velocity, i.e. the actuator's rated speed
-        reflected at the joint (after any gearbox). It populates the articulation data
+        This attribute describes the actuator's peak velocity, i.e. the actuator's rated speed
+        reflected at the joint (after any gearbox). It populates the actuator data
         buffers (e.g. :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits`, read by
         velocity-limit terminations and rewards). Explicit models with speed-dependent limits,
         such as :class:`DCMotor`, also use it to clip effort. It is **not** pushed to the physics
@@ -152,12 +154,17 @@ class ActuatorBaseCfg:
     """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
 
-    actuator_effort_limit: dict[str, float] | float | None = None
-    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
+    effort_limit: dict[str, float] | float | None = None
+    """Deprecated effort limit [N or N·m, depending on joint type].
 
-    This limit is used by explicit actuator models to clip their computed effort. If
-    None, it defaults to the authored/USD joint effort limit. It is not a solver limit.
+    .. deprecated:: 3.0
+        For explicit actuators, use :attr:`actuator_effort_limit`. For implicit
+        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 4.0.
+    """
 
-    :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
-    angle-dependent limits in its ``joint_parameter_lookup``.
+    velocity_limit: dict[str, float] | float | None = None
+    """Deprecated velocity limit [m/s or rad/s, depending on joint type].
+
+    .. deprecated:: 3.0
+        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 4.0.
     """

@@ -75,12 +75,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
         resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
-        for name, cfg in resolved_cfgs.items():
-            _resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
-
         self._allocate_buffers()
         self._command = ActuatorCommand(self)
         self._joint_command = ActuatorJointCommand(self)
+        for name, cfg in resolved_cfgs.items():
+            _resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
@@ -320,19 +319,23 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
     def _allocate_buffers(self) -> None:
         """Allocate articulation-wide command and telemetry buffers."""
         shape = (self.num_instances, self.num_joints)
+        # Staging buffers for the actuators I/O
         self._joint_pos_target = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_vel_target = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_effort_target = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_pos_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_vel_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._joint_effort_target_sim = wp.zeros(shape, dtype=wp.float32, device=self.device)
+        # Telemetry buffers
         self._computed_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._applied_effort = wp.zeros(shape, dtype=wp.float32, device=self.device)
         self._soft_joint_vel_limits = wp.zeros(shape, dtype=wp.float32, device=self.device)
+        # All joint IDs and masks
         self._all_joint_ids = wp.array(list(range(self.num_joints)), dtype=wp.int32, device=self.device)
         self._all_true_env_mask = wp.ones(self.num_instances, dtype=wp.bool, device=self.device)
         self._all_true_joint_mask = wp.ones(self.num_joints, dtype=wp.bool, device=self.device)
 
+        # Proxy arrays for the buffers
         self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
         self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
         self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
@@ -344,10 +347,11 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
 
     def _resolve_group_joints(
         self, actuator_cfgs: dict[str, ActuatorBaseCfg]
-    ) -> dict[str, tuple[list[int] | ProxyArray, list[str]]]:
+    ) -> dict[str, tuple[ProxyArray, list[str]]]:
         """Resolve group selectors and reject joints assigned to multiple groups."""
-        resolved: dict[str, tuple[list[int] | ProxyArray, list[str]]] = {}
+        resolved: dict[str, tuple[ProxyArray, list[str]]] = {}
         joint_owners: dict[str, str] = {}
+        # Resolve exact joint names and indices
         for actuator_name, actuator_cfg in actuator_cfgs.items():
             joint_ids, joint_names = self._control.find_joints(actuator_cfg.joint_names_expr)
             if len(joint_names) == 0:
@@ -355,6 +359,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
+            # Check for duplicate joint names
             for joint_name in joint_names:
                 owner = joint_owners.get(joint_name)
                 if owner is not None and owner != actuator_name:
@@ -377,16 +382,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             joint_ids, joint_names = resolved_group_joints[actuator_name]
             if len(joint_names) == self.num_joints:
                 actuator_joint_ids: slice | torch.Tensor = slice(None)
-            elif isinstance(joint_ids, ProxyArray):
-                actuator_joint_ids = joint_ids.torch
+            #elif isinstance(joint_ids, ProxyArray):
+            #    actuator_joint_ids = joint_ids.torch
             else:
                 actuator_joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
 
-            defaults = self._control.get_default_joint_properties(actuator_joint_ids)
+            joint_defaults = self._control.get_default_joint_properties(actuator_joint_ids)
             implicit = _is_implicit_actuator_cfg(actuator_cfg)
-            properties, resolution_rows = self._resolve_joint_properties(
+            properties, table_rows = self._resolve_joint_properties(
                 actuator_cfg,
-                defaults,
+                joint_defaults,
                 joint_names,
                 actuator_joint_ids,
                 implicit=implicit,
@@ -397,33 +402,23 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 joint_ids=actuator_joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=properties.stiffness,
-                damping=properties.damping,
-                velocity_limit=properties.velocity_limit,
             )
-            if implicit:
-                effort_limit_name = "joint_effort_limit"
-                effort_limit_value = properties.joint_effort_limit
-            else:
-                effort_limit_name = "actuator_effort_limit"
-                effort_limit_value = defaults.joint_effort_limit
-            constructor_parameters = inspect.signature(actuator_cfg.class_type.__init__).parameters
-            if effort_limit_name not in constructor_parameters and "effort_limit" in constructor_parameters:
-                warnings.warn(
-                    f"The constructor for actuator class '{actuator_cfg.class_type.__name__}' uses the deprecated "
-                    f"'effort_limit' parameter. Rename it to '{effort_limit_name}'; 'effort_limit' support will be "
-                    "removed in 4.0.",
-                    DeprecationWarning,
-                    stacklevel=3,
-                )
-                effort_limit_name = "effort_limit"
-            actuator_kwargs[effort_limit_name] = effort_limit_value
+            # This makes no sense to me. Why are we doing this?
+            #if implicit:
+            #    effort_limit_name = "joint_effort_limit"
+            #    effort_limit_value = properties["joint_effort_limit"]
+            #else:
+            #    effort_limit_name = "actuator_effort_limit"
+            #    effort_limit_value = joint_defaults["joint_effort_limit"]
+
+            #    effort_limit_name = "effort_limit"
+            #actuator_kwargs[effort_limit_name] = effort_limit_value
             actuator: ActuatorBase = actuator_cfg.class_type(**actuator_kwargs)
             self._groups[actuator_name] = actuator
             self._groups_by_class.setdefault(type(actuator), []).append(actuator)
             self._has_implicit_actuators = self._has_implicit_actuators or isinstance(actuator, ImplicitActuator)
             if self._debug_value_resolution:
-                self._joint_property_resolution_rows[actuator_name] = resolution_rows
+                self._joint_property_resolution_rows[actuator_name] = table_rows
             construction_records.append(
                 (
                     properties,
@@ -442,37 +437,37 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             )
         for actuator in self._groups.values():
             if isinstance(actuator, ImplicitActuator):
-                actuator._bind_joint_drive(self._control)
+                actuator._bind_actuator_parameters(self._control)
 
     def _resolve_joint_properties(
         self,
         cfg: ActuatorBaseCfg,
-        defaults: ActuatorJointProperties,
+        defaults: dict[str, torch.Tensor],
         joint_names: list[str],
         joint_ids: torch.Tensor | slice,
         *,
         implicit: bool,
     ) -> tuple[ActuatorJointProperties, dict[str, tuple[tuple[object, ...], ...]]]:
         """Resolve fresh construction-only joint properties for one actuator group."""
-        effort_default = (
-            defaults.joint_effort_limit
-            if implicit
-            else torch.full_like(
-                defaults.joint_effort_limit,
+
+        # Legacy behavior for implicit actuators. I don't think we should keep doing this.
+        # TODO: Remove this if we agree.
+        if not implicit and defaults["joint_effort_limit"] is None:
+           effort_default = torch.full_like(
+                defaults["joint_effort_limit"],
                 _DEFAULT_JOINT_EFFORT_LIMIT,
             )
-        )
         values: dict[str, torch.Tensor] = {}
         resolution_rows: dict[str, tuple[tuple[object, ...], ...]] = {}
         for property_name, cfg_name, default_value in (
-            ("stiffness", "stiffness", defaults.stiffness),
-            ("damping", "damping", defaults.damping),
-            ("armature", "armature", defaults.armature),
-            ("friction", "friction", defaults.friction),
-            ("dynamic_friction", "dynamic_friction", defaults.dynamic_friction),
-            ("viscous_friction", "viscous_friction", defaults.viscous_friction),
+            ("stiffness", "stiffness", defaults["stiffness"]),
+            ("damping", "damping", defaults["damping"]),
+            ("armature", "armature", defaults["armature"]),
+            ("friction", "friction", defaults["friction"]),
+            ("dynamic_friction", "dynamic_friction", defaults["dynamic_friction"]),
+            ("viscous_friction", "viscous_friction", defaults["viscous_friction"]),
             ("effort_limit", "joint_effort_limit", effort_default),
-            ("velocity_limit", "joint_velocity_limit", defaults.velocity_limit),
+            ("velocity_limit", "joint_velocity_limit", defaults["velocity_limit"]),
         ):
             cfg_value = getattr(cfg, cfg_name)
             value = self._resolve_joint_property(cfg_value, default_value, joint_names)
@@ -489,16 +484,16 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                     resolution_rows[cfg_name] = rows
 
         return (
-            ActuatorJointProperties(
-                stiffness=values["stiffness"],
-                damping=values["damping"],
-                armature=values["armature"],
-                friction=values["friction"],
-                dynamic_friction=values["dynamic_friction"],
-                viscous_friction=values["viscous_friction"],
-                joint_effort_limit=values["effort_limit"],
-                velocity_limit=values["velocity_limit"],
-            ),
+            {
+                "stiffness": values["stiffness"],
+                "damping": values["damping"],
+                "armature": values["armature"],
+                "friction": values["friction"],
+                "dynamic_friction": values["dynamic_friction"],
+                "viscous_friction": values["viscous_friction"],
+                "joint_effort_limit": values["effort_limit"],
+                "velocity_limit": values["velocity_limit"],
+        },
             resolution_rows,
         )
 
@@ -529,7 +524,7 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
         joint_names: list[str],
         joint_ids: torch.Tensor | slice,
     ) -> tuple[tuple[object, ...], ...]:
-        """Format construction-time joint-property resolution rows without retaining tensors."""
+        """Formats joint property resolution rows for debugging. (Actuators property table output.)"""
         if cfg_value is not None and torch.allclose(value, default_value):
             return ()
         if isinstance(joint_ids, slice):
@@ -567,66 +562,69 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
             joint_indices = wp.to_torch(joint_indices)
         return joint_indices.to(self.device, dtype=torch.int32).contiguous()
 
-    def _make_group_batch(self, name: str, group: ActuatorBase) -> _ExecutionBatch:
-        """Create the execution batch for one logical actuator group."""
-        joint_indices = self._joint_indices_as_torch(group)
-        batch = _ExecutionBatch(
-            actuator=group,
-            group_names=(name,),
-            joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
-        )
-        if type(group) is ImplicitActuator:
-            self._bind_implicit_kernel_arrays(batch)
-        return batch
+    #def _make_group_batch(self, name: str, group: ActuatorBase) -> _ExecutionBatch:
+    #    """Create the execution batch for one logical actuator group."""
+    #    joint_indices = self._joint_indices_as_wp(group)
+    #    if type(group) is ImplicitActuator:
+    #        
+    #    else:
+    #        batch = _ExecutionBatch(
+    #            actuator=group,
+    #            group_names=(name,),
+    #            joint_indices_wp=joint_indices,
+    #        )
+    #    if type(group) is ImplicitActuator:
+    #        self._bind_implicit_kernel_arrays(batch)
+    #    return batch
 
-    def _make_implicit_batch(self, names: tuple[str, ...], groups: tuple[ActuatorBase, ...]) -> _ExecutionBatch:
-        """Create one shared execution batch for disjoint implicit actuator groups."""
-        joint_indices = torch.cat([self._joint_indices_as_torch(group) for group in groups])
-        executor = ImplicitActuator._build_execution_actuator(groups, joint_indices)
-        batch = _ExecutionBatch(
-            actuator=executor,
-            group_names=names,
-            joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
-        )
-        self._bind_implicit_kernel_arrays(batch)
-        self._bind_execution_batch_parameters(batch, groups)
-        return batch
+    #def _make_implicit_batch(self, names: tuple[str, ...], groups: tuple[ActuatorBase, ...]) -> _ExecutionBatch:
+    #    """Create one shared execution batch for disjoint implicit actuator groups."""
+    #    joint_indices = torch.cat([self._joint_indices_as_torch(group) for group in groups])
+    #    executor = ImplicitActuator._build_execution_actuator(groups, joint_indices)
+    #    batch = _ExecutionBatch(
+    #        actuator=executor,
+    #        group_names=names,
+    #        joint_indices_wp=wp.from_torch(joint_indices, dtype=wp.int32),
+    #    )
+    #    self._bind_implicit_kernel_arrays(batch)
+    #    self._bind_execution_batch_parameters(batch, groups)
+    #    return batch
 
-    def _bind_implicit_kernel_arrays(self, batch: _ExecutionBatch) -> None:
-        """Assemble the implicit kernel argument arrays for one execution batch.
+    #def _bind_implicit_kernel_arrays(self, batch: _ExecutionBatch) -> None:
+    #    """Assemble the implicit kernel argument arrays for one execution batch.
 
-        Existing argument lists are updated in place so holders of the list
-        objects observe rebound backend state.
-        """
-        executor = batch.actuator
-        inputs = [
-            self._joint_pos_target,
-            self._joint_vel_target,
-            self._joint_effort_target,
-            self._control.joint_pos.warp,
-            self._control.joint_vel.warp,
-            self._control.joint_stiffness.warp,
-            self._control.joint_damping.warp,
-            self._control.joint_effort_limits.warp,
-            wp.from_torch(executor.velocity_limit, dtype=wp.float32),
-            batch.joint_indices_wp,
-        ]
-        outputs = [
-            wp.from_torch(executor.computed_effort, dtype=wp.float32),
-            wp.from_torch(executor.applied_effort, dtype=wp.float32),
-            self._joint_pos_target_sim,
-            self._joint_vel_target_sim,
-            self._joint_effort_target_sim,
-            self._computed_effort,
-            self._applied_effort,
-            self._soft_joint_vel_limits,
-        ]
-        if batch.implicit_inputs is None:
-            batch.implicit_inputs = inputs
-            batch.implicit_outputs = outputs
-        else:
-            batch.implicit_inputs[:] = inputs
-            batch.implicit_outputs[:] = outputs
+    #    Existing argument lists are updated in place so holders of the list
+    #    objects observe rebound backend state.
+    #    """
+    #    executor = batch.actuator
+    #    inputs = [
+    #        self._joint_pos_target,
+    #        self._joint_vel_target,
+    #        self._joint_effort_target,
+    #        self._control.joint_pos.warp,
+    #        self._control.joint_vel.warp,
+    #        self._control.joint_stiffness.warp,
+    #        self._control.joint_damping.warp,
+    #        self._control.joint_effort_limits.warp,
+    #        wp.from_torch(executor.velocity_limit, dtype=wp.float32),
+    #        batch.joint_indices_wp,
+    #    ]
+    #    outputs = [
+    #        wp.from_torch(executor.computed_effort, dtype=wp.float32),
+    #        wp.from_torch(executor.applied_effort, dtype=wp.float32),
+    #        self._joint_pos_target_sim,
+    #        self._joint_vel_target_sim,
+    #        self._joint_effort_target_sim,
+    #        self._computed_effort,
+    #        self._applied_effort,
+    #        self._soft_joint_vel_limits,
+    #    ]
+    #    if batch.implicit_inputs is None:
+    #        batch.implicit_inputs = inputs
+    #        batch.implicit_outputs = outputs
+    #    else:
+    #        batch.implicit_inputs[:] = inputs
+    #        batch.implicit_outputs[:] = outputs
 
     def _build_execution_batches(self) -> None:
         """Build execution batches in actuator configuration order."""
@@ -654,27 +652,27 @@ class ActuatorCollection(Mapping[str, ActuatorBase]):
                 self._execution_batches.append(batch)
                 seen.add(id(batch))
 
-    def _bind_execution_batch_parameters(
-        self,
-        batch: _ExecutionBatch,
-        groups: Sequence[ActuatorBase],
-    ) -> None:
-        """Bind logical implicit group tensors to slices of their shared executor tensors."""
-        tensor_names = ("velocity_limit", "computed_effort", "applied_effort")
-        bindings: list[tuple[ActuatorBase, str, torch.Tensor]] = []
-        start = 0
-        for group in groups:
-            group_slice = slice(start, start + group.num_joints)
-            start += group.num_joints
-            for name in tensor_names:
-                original = getattr(group, name)
-                view = getattr(batch.actuator, name)[:, group_slice]
-                if view.shape != original.shape or view.dtype != original.dtype or view.device != original.device:
-                    raise ValueError(f"Execution batch view for '{name}' is incompatible with its logical group.")
-                bindings.append((group, name, view))
+    #def _bind_execution_batch_parameters(
+    #    self,
+    #    batch: _ExecutionBatch,
+    #    groups: Sequence[ActuatorBase],
+    #) -> None:
+    #    """Bind logical implicit group tensors to slices of their shared executor tensors."""
+    #    tensor_names = ("velocity_limit", "computed_effort", "applied_effort")
+    #    bindings: list[tuple[ActuatorBase, str, torch.Tensor]] = []
+    #    start = 0
+    #    for group in groups:
+    #        group_slice = slice(start, start + group.num_joints)
+    #        start += group.num_joints
+    #        for name in tensor_names:
+    #            original = getattr(group, name)
+    #            view = getattr(batch.actuator, name)[:, group_slice]
+    #            if view.shape != original.shape or view.dtype != original.dtype or view.device != original.device:
+    #                raise ValueError(f"Execution batch view for '{name}' is incompatible with its logical group.")
+    #            bindings.append((group, name, view))
 
-        for group, name, view in bindings:
-            setattr(group, name, view)
+    #    for group, name, view in bindings:
+    #        setattr(group, name, view)
 
     def _compute_implicit_batch(self, batch: _ExecutionBatch) -> None:
         """Run one implicit actuator batch through the cached Warp launch."""

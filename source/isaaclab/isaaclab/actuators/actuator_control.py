@@ -24,44 +24,44 @@ if TYPE_CHECKING:
     from .newton.adapter import NewtonActuatorSelection
 
 
-@dataclass(frozen=True)
-class ActuatorJointProperties:
-    """Resolved joint-property payload exchanged between the collection and backend control."""
-
-    stiffness: torch.Tensor
-    """Joint stiffness values [N/m or N·m/rad, depending on joint type]."""
-
-    damping: torch.Tensor
-    """Joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
-
-    armature: torch.Tensor
-    """Joint armature values [kg or kg·m², depending on joint type]."""
-
-    friction: torch.Tensor
-    """Backend-specific joint friction values.
-
-    The physical meaning and units depend on the concrete backend and solver. See
-    :attr:`isaaclab.assets.ArticulationData.joint_friction_coeff` for the active
-    backend's convention.
-    """
-
-    dynamic_friction: torch.Tensor
-    """Backend-specific dynamic friction values.
-
-    PhysX interprets these as dynamic friction efforts [N or N·m, depending on
-    joint type]. OVPhysX interprets them as dimensionless Coulomb friction
-    coefficients. Newton has no separate dynamic-friction property, so its
-    control adapter supplies zeros.
-    """
-
-    viscous_friction: torch.Tensor
-    """Passive joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
-
-    joint_effort_limit: torch.Tensor
-    """Joint effort limits [N or N·m, depending on joint type]."""
-
-    velocity_limit: torch.Tensor
-    """Joint velocity limits [m/s or rad/s, depending on joint type]."""
+#@dataclass(frozen=True)
+#class ActuatorJointProperties:
+#    """Resolved joint-property payload exchanged between the collection and backend control."""
+#
+#    stiffness: torch.Tensor
+#    """Joint stiffness values [N/m or N·m/rad, depending on joint type]."""
+#
+#    damping: torch.Tensor
+#    """Joint damping values [N·s/m or N·m·s/rad, depending on joint type]."""
+#
+#    armature: torch.Tensor
+#    """Joint armature values [kg or kg·m², depending on joint type]."""
+#
+#    friction: torch.Tensor
+#    """Backend-specific joint friction values.
+#
+#    The physical meaning and units depend on the concrete backend and solver. See
+#    :attr:`isaaclab.assets.ArticulationData.joint_friction_coeff` for the active
+#    backend's convention.
+#    """
+#
+#    dynamic_friction: torch.Tensor
+#    """Backend-specific dynamic friction values.
+#
+#    PhysX interprets these as dynamic friction efforts [N or N·m, depending on
+#    joint type]. OVPhysX interprets them as dimensionless Coulomb friction
+#    coefficients. Newton has no separate dynamic-friction property, so its
+#    control adapter supplies zeros.
+#    """
+#
+#    viscous_friction: torch.Tensor
+#    """Passive joint damping [N·s/m or N·m·s/rad, depending on joint type]."""
+#
+#    joint_effort_limit: torch.Tensor
+#    """Joint effort limits [N or N·m, depending on joint type]."""
+#
+#    joint_velocity_limit: torch.Tensor
+#    """Joint velocity limits [m/s or rad/s, depending on joint type]."""
 
 
 class ActuatorControl(ABC):
@@ -137,7 +137,7 @@ class ActuatorControl(ABC):
         )
 
     @abstractmethod
-    def find_joints(self, name_keys: str | Sequence[str]) -> tuple[list[int] | ProxyArray, list[str]]:
+    def find_joints(self, name_keys: str | Sequence[str]) -> tuple[ProxyArray, list[str]]:
         """Resolve joint name expressions to user-order joint indices and names.
 
         Args:
@@ -417,34 +417,49 @@ class ArticulationActuatorControl(ActuatorControl):
     ) -> None:
         self._articulation.assert_shape_and_dtype_mask(tensor, masks, dtype, name)
 
-    def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> ActuatorJointProperties:
-        joint_ids = self._as_torch_joint_ids(joint_ids)
+    def get_default_joint_properties(self, joint_ids: torch.Tensor | wp.array | slice) -> dict[str, torch.Tensor]:
+        #joint_ids = self._as_torch_joint_ids(joint_ids)
         data = self._articulation.data
         stiffness = data.joint_stiffness.torch[:, joint_ids]
-        return ActuatorJointProperties(
-            stiffness=stiffness.clone(),
-            damping=data.joint_damping.torch[:, joint_ids].clone(),
-            armature=data.joint_armature.torch[:, joint_ids].clone(),
-            friction=data.joint_friction_coeff.torch[:, joint_ids].clone(),
-            dynamic_friction=self._joint_property_or_zeros(
-                "joint_dynamic_friction_coeff", joint_ids, stiffness
-            ).clone(),
-            viscous_friction=self._joint_property_or_zeros(
+        joint_properties = {
+            "stiffness": data.joint_stiffness.torch[:, joint_ids].clone(),
+            "damping": data.joint_damping.torch[:, joint_ids].clone(),
+            "armature": data.joint_armature.torch[:, joint_ids].clone(),
+            "friction": data.joint_friction_coeff.torch[:, joint_ids].clone(),
+            "viscous_friction": self._joint_property_or_zeros(
                 "joint_viscous_friction_coeff", joint_ids, stiffness
             ).clone(),
-            joint_effort_limit=data.joint_effort_limits.torch[:, joint_ids].clone(),
-            velocity_limit=data.joint_vel_limits.torch[:, joint_ids].clone(),
-        )
+            "dynamic_friction": self._joint_property_or_zeros(
+                "joint_dynamic_friction_coeff", joint_ids, stiffness
+            ).clone(),
+            "joint_effort_limit": data.joint_effort_limits.torch[:, joint_ids].clone(),
+            "joint_velocity_limit": data.joint_vel_limits.torch[:, joint_ids].clone(),
+        }
+        return joint_properties
+        #return ActuatorJointProperties(
+        #    stiffness=stiffness.clone(),
+        #    damping=data.joint_damping.torch[:, joint_ids].clone(),
+        #    armature=data.joint_armature.torch[:, joint_ids].clone(),
+        #    friction=data.joint_friction_coeff.torch[:, joint_ids].clone(),
+        #    dynamic_friction=self._joint_property_or_zeros(
+        #        "joint_dynamic_friction_coeff", joint_ids, stiffness
+        #    ).clone(),
+        #    viscous_friction=self._joint_property_or_zeros(
+        #        "joint_viscous_friction_coeff", joint_ids, stiffness
+        #    ).clone(),
+        #    joint_effort_limit=data.joint_effort_limits.torch[:, joint_ids].clone(),
+        #    velocity_limit=data.joint_vel_limits.torch[:, joint_ids].clone(),
+        #)
 
-    def _as_torch_joint_ids(self, joint_ids: torch.Tensor | wp.array | slice) -> torch.Tensor | slice:
-        """Normalize an optional Warp joint selector for Torch property projections."""
-        if isinstance(joint_ids, wp.array):
-            return wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
-        return joint_ids
+    #def _as_torch_joint_ids(self, joint_ids: torch.Tensor | wp.array | slice) -> torch.Tensor | slice:
+    #    """Normalize an optional Warp joint selector for Torch property projections."""
+    #    if isinstance(joint_ids, wp.array):
+    #        return wp.to_torch(joint_ids).to(device=self.device, dtype=torch.long)
+    #    return joint_ids
 
     def write_resolved_joint_properties(
         self,
-        properties: ActuatorJointProperties,
+        properties: dict[str, torch.Tensor],
         joint_ids: torch.Tensor | wp.array | slice,
         *,
         implicit: bool,
@@ -452,23 +467,23 @@ class ArticulationActuatorControl(ActuatorControl):
     ) -> None:
         articulation = self._articulation
         articulation.write_joint_effort_limit_to_sim_index(
-            limits=properties.joint_effort_limit,
+            limits=properties["joint_effort_limit"],
             joint_ids=joint_ids,
         )
         articulation.write_joint_velocity_limit_to_sim_index(
-            limits=properties.velocity_limit,
+            limits=properties["joint_velocity_limit"],
             joint_ids=joint_ids,
         )
-        articulation.write_joint_armature_to_sim_index(armature=properties.armature, joint_ids=joint_ids)
+        articulation.write_joint_armature_to_sim_index(armature=properties["armature"], joint_ids=joint_ids)
         articulation.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=properties.friction,
-            joint_dynamic_friction_coeff=properties.dynamic_friction,
-            joint_viscous_friction_coeff=properties.viscous_friction,
+            joint_friction_coeff=properties["friction"],
+            joint_dynamic_friction_coeff=properties["dynamic_friction"],
+            joint_viscous_friction_coeff=properties["viscous_friction"],
             joint_ids=joint_ids,
         )
         if implicit and not native_managed:
-            articulation.write_joint_stiffness_to_sim_index(stiffness=properties.stiffness, joint_ids=joint_ids)
-            articulation.write_joint_damping_to_sim_index(damping=properties.damping, joint_ids=joint_ids)
+            articulation.write_joint_stiffness_to_sim_index(stiffness=properties["stiffness"], joint_ids=joint_ids)
+            articulation.write_joint_damping_to_sim_index(damping=properties["damping"], joint_ids=joint_ids)
         else:
             articulation.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=joint_ids)
             articulation.write_joint_damping_to_sim_index(damping=0.0, joint_ids=joint_ids)
