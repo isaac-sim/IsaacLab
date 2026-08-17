@@ -16,6 +16,7 @@ import argparse
 import sys
 
 import pytest
+from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -199,13 +200,15 @@ def test_newton_plus_ovrtx_is_valid():
     validate_runtime_compatibility(env_cfg)
 
 
-def test_default_isaacsim_physx_plus_ovrtx_raises():
-    """The concrete default Isaac Sim PhysX backend is incompatible with OVRTX."""
+def test_default_newton_plus_ovrtx_is_valid():
+    """The default Newton backend supports the default OVRTX renderer."""
     env_cfg = _resolve_with_presets("ovrtx")
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
-    with pytest.raises(ValueError, match="PhysxCfg"):
-        validate_runtime_compatibility(env_cfg)
+    assert isinstance(env_cfg.sim.physics, NewtonCfg)
+    config_scan = validate_runtime_compatibility(env_cfg)
+
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
 
 
 def test_explicit_auto_physx_plus_ovrtx_resolves_to_ovphysx():
@@ -270,19 +273,19 @@ def test_auto_physx_explicit_experience_resolves_to_isaac_sim_backends():
 
 
 def test_default_preset_is_valid():
-    """The default preset (PhysX + Isaac RTX) is supported."""
+    """The default preset (Newton + Newton renderer) is supported."""
     env_cfg = _resolve_with_presets("default")
     validate_runtime_compatibility(env_cfg)
 
 
-def test_rtx_with_default_physx_is_valid_and_resolves_to_isaac_sim_backends():
-    """The RTX selector follows the default concrete Isaac Sim PhysX backend."""
+def test_rtx_with_default_newton_is_valid_and_resolves_to_ovrtx():
+    """The RTX selector resolves to OVRTX with the default Newton backend."""
     env_cfg = _resolve_with_presets("rtx")
     config_scan = validate_runtime_compatibility(env_cfg)
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
-    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
+    assert isinstance(env_cfg.sim.physics, NewtonCfg)
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
 
 
 def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx():

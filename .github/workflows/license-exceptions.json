@@ -529,7 +529,10 @@
   {
     "package": "cuda-bindings",
     "license": "LicenseRef-NVIDIA-SOFTWARE-LICENSE",
-    "comment": "NVIDIA"
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "NVIDIA CUDA Python bindings, pulled in by torch and loaded into the Isaac Lab process"
   },
   {
     "package": "cuda-toolkit",
