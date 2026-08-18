@@ -74,10 +74,6 @@ def _max_different_pixels_percentage(env_name: str, renderer: str, data_type: st
     return threshold
 
 
-# Allow OVRTX Cartpole RGB/RGBA variation tracked by NVBUG#6152566; the SSIM gate remains enabled. The
-# deterministic Warp rasterizer and the Isaac RTX reference path keep the stricter env-wide threshold.
-_CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE = 2.0
-
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
 # materials, etc.), so it complements the per-pixel L2 gate by catching regressions that survive a loosened pixel
@@ -170,7 +166,6 @@ _NEWTON_WARP_DATA_TYPES = (
 _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "instance_id_segmentation_fast")
 
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
-_LIFT_RENDERER_CRASH_SKIP_REASON = "Lift kitless OVRTX MDL rendering can kill the test process (NVBUG#6524987)."
 
 
 def make_xfail_rendering_params(
@@ -320,19 +315,8 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
 
 
 def make_kitless_rendering_params_lift() -> list[pytest.param]:
-    """Create kitless Lift parameters with native-crash cases isolated."""
-    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-    # Both backends can SIGSEGV on the MDL AOVs, which loses the JUnit report for the whole file,
-    # so xfail cannot express these.
-    return make_skip_rendering_params(
-        params,
-        {
-            (variant, physics_backend, "ovrtx_renderer", data_type): _LIFT_RENDERER_CRASH_SKIP_REASON
-            for variant in _KITLESS_STAGE_VARIANTS
-            for physics_backend in ("newton", "ovphysx")
-            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl")
-        },
-    )
+    """Create kitless Lift rendering parameters."""
+    return make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 
 
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
@@ -1270,7 +1254,9 @@ def maybe_validate_instance_segmentation(
     )
 
 
-def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
+def maybe_step_env_for_motion(
+    env: Any, renderer: str, data_type: str, num_steps: int = 2, action_value: float = 0.0
+) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
     Motion vectors compare the current frame's transforms against the previous frame's; the first frame
@@ -1280,6 +1266,7 @@ def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, acti
     Args:
         env: The environment to step. Must expose ``action_space`` and ``step`` (``DirectRLEnv`` /
             ``ManagerBasedRLEnv``).
+        renderer: The renderer under test.
         data_type: The camera data type under test.
         num_steps: Number of steps to take before capturing camera output.
         action_value: Constant value applied to every action component on every step. Defaults to
@@ -1288,6 +1275,10 @@ def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, acti
     """
     if data_type != "motion_vectors":
         return
+
+    # Remove the extra step when NVBug 6565960 is fixed.
+    if renderer == "ovrtx_renderer":
+        num_steps += 1
 
     action = torch.full(env.action_space.shape, action_value, device=env.device)
     for _ in range(num_steps):
@@ -1342,7 +1333,7 @@ def rendering_test_shadow_hand(
 
     try:
         env = ShadowHandCameraEnv(env_cfg)
-        maybe_step_env_for_motion(env, data_type)
+        maybe_step_env_for_motion(env, renderer, data_type)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
 
         validate_camera_outputs(
@@ -1519,7 +1510,7 @@ def rendering_test_cartpole(
         env = CartpoleCameraEnv(env_cfg)
         # Nudge the cart with a small constant force so motion vectors also capture cart translation,
         # not just pole dynamics already in flight from the randomized reset.
-        maybe_step_env_for_motion(env, data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, renderer, data_type, action_value=0.5)
         camera_outputs = env._tiled_camera.data.output
         if renderer == "ovrtx_renderer":
             # The first output access creates the selected OVRTX render-variable mapping. Give
@@ -1541,15 +1532,12 @@ def rendering_test_cartpole(
             data_type,
             compare_golden=compare_golden and data_type == "rgb",
         )
-        max_different_pixels_percentage = _max_different_pixels_percentage("cartpole", renderer, data_type)
-        if renderer == "ovrtx_renderer" and data_type in ("rgb", "rgba"):
-            max_different_pixels_percentage = _CARTPOLE_OVRTX_RGB_MAX_DIFFERENT_PIXELS_PERCENTAGE
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
             camera_outputs,
-            max_different_pixels_percentage=max_different_pixels_percentage,
+            max_different_pixels_percentage=_max_different_pixels_percentage("cartpole", renderer, data_type),
             comparison_scores=comparison_scores,
         )
 
@@ -1690,7 +1678,7 @@ def rendering_test_lift_kuka(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        maybe_step_env_for_motion(env, data_type)
+        maybe_step_env_for_motion(env, renderer, data_type)
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
         validate_camera_outputs(
             test_name,

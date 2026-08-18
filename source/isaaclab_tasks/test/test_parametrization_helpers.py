@@ -38,6 +38,24 @@ def test_ovrtx_image_difference_threshold_is_capped(
     assert rendering_test_utils._max_different_pixels_percentage(env_name, renderer, data_type) == expected
 
 
+@pytest.mark.parametrize(
+    ("renderer", "expected_steps"),
+    [
+        ("ovrtx_renderer", 3),
+        ("isaacsim_rtx_renderer", 2),
+    ],
+)
+def test_motion_history_steps(renderer: str, expected_steps: int) -> None:
+    """OVRTX should receive one extra motion-history step."""
+    env = Mock()
+    env.action_space.shape = (1,)
+    env.device = "cpu"
+
+    rendering_test_utils.maybe_step_env_for_motion(env, renderer, "motion_vectors")
+
+    assert env.step.call_count == expected_steps
+
+
 def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
     """OVStage variants should be emitted only for the OVRTX renderer."""
     params = [
@@ -124,18 +142,17 @@ def test_kitless_matrix_has_no_ovrtx_041_xfails() -> None:
     assert "xfail" not in [mark.name for mark in expanded["ovstage-ovphysx-ovrtx-motion_vectors"].marks]
 
 
-def test_lift_factory_applies_shared_native_crash_policy() -> None:
-    """Both backends skip the crash-prone MDL AOVs, which xfail cannot contain."""
+def test_lift_factory_retains_retries_without_native_crash_skips() -> None:
+    """Lift OVRTX MDL cases should run with the shared retry policy."""
     params = {param.id: param for param in make_kitless_rendering_params_lift()}
 
     for variant in ("legacy", "ovstage"):
         for physics_backend in ("newton", "ovphysx"):
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
                 param = params[f"{variant}-{physics_backend}-ovrtx-{data_type}"]
-                assert [mark.name for mark in param.marks] == ["skip"]
-                assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
+                assert [mark.name for mark in param.marks] == ["flaky"]
 
-    # Lift OVPhysX albedo passes, so it must not inherit an exemption from the MDL policy.
+    # Lift OVPhysX albedo passes, so it must not inherit an unrelated exemption.
     assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
 
 
