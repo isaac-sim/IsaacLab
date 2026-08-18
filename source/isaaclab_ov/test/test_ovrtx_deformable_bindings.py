@@ -494,49 +494,6 @@ def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch
     assert [write["attribute_name"] for write in backend.writes] == ["omni:resetXformStack", "omni:xform"]
 
 
-def test_setup_cable_bindings_reads_discovery_without_clone_plan(monkeypatch: pytest.MonkeyPatch):
-    """Cable bindings come from discovery; clone_plan is unused at bind time."""
-    renderer, _ = _make_renderer_without_backend()
-    renderer._clone_plan = object()
-    _install_cable_shapes(
-        {
-            "/World/envs/env_0/Cable/geometry/mesh": [0, 1],
-            "/World/envs/env_1/Cable/geometry/mesh": [2, 3],
-        },
-        monkeypatch,
-    )
-
-    renderer._setup_cable_bindings()
-
-    assert renderer._cable_segment_counts == [2, 2]
-    assert renderer._cable_max_points == 3
-
-
-def test_setup_cable_bindings_offsets_span_every_curve(monkeypatch: pytest.MonkeyPatch):
-    """Each cable owns ``segments + 1`` points, laid end to end in one flat buffer.
-
-    This is the arithmetic that silently breaks under replication: a single cable is correct for
-    almost any indexing scheme, so the guard is several cables of *different* lengths.
-    """
-    renderer, _ = _make_renderer_without_backend()
-    _install_cable_shapes(
-        {
-            "/World/envs/env_0/Cable/geometry/mesh": [0, 1, 2],
-            "/World/envs/env_1/Cable/geometry/mesh": [3, 4, 5, 6, 7],
-            "/World/envs/env_2/Cable/geometry/mesh": [8, 9],
-        },
-        monkeypatch,
-    )
-
-    renderer._setup_cable_bindings()
-
-    assert renderer._cable_segment_counts == [3, 5, 2]
-    assert renderer._cable_max_points == 6
-    # The segment offset plus the curve index yields point starts 0, 4, and 10.
-    assert renderer._cable_offsets.numpy().tolist() == [0, 3, 8]
-    assert len(renderer._cable_points) == 13
-
-
 def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatch):
     """A scene with no renderable cables binds nothing rather than failing."""
     renderer, backend = _make_renderer_without_backend()
@@ -548,13 +505,14 @@ def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatc
     assert backend.calls == []
 
 
-def test_write_cable_points_writes_one_slice_per_cable(monkeypatch: pytest.MonkeyPatch):
-    """Every cable is handed exactly its own span of the shared point buffer."""
+def test_update_geometries_writes_one_slice_per_cable(monkeypatch: pytest.MonkeyPatch):
+    """Cable updates use disjoint point slices and GPU interop for unequal-length curves."""
     renderer, _ = _make_renderer_without_backend()
     _install_cable_shapes(
         {
-            "/World/envs/env_0/Cable/geometry/mesh": [0, 1],
-            "/World/envs/env_1/Cable/geometry/mesh": [2, 3, 4],
+            "/World/envs/env_0/Cable/geometry/mesh": [0, 1, 2],
+            "/World/envs/env_1/Cable/geometry/mesh": [3, 4, 5, 6, 7],
+            "/World/envs/env_2/Cable/geometry/mesh": [8, 9],
         },
         monkeypatch,
     )
@@ -574,14 +532,15 @@ def test_write_cable_points_writes_one_slice_per_cable(monkeypatch: pytest.Monke
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=1234))
 
-    renderer._write_cable_points_legacy()
+    renderer.update_geometries()
 
-    assert launch_kwargs["dim"] == (2, 4)
+    assert launch_kwargs["dim"] == (3, 6)
     written = renderer._cable_points_binding.written
     assert written is not None
-    assert [len(slice_) for slice_ in written] == [3, 4]
-    assert written[0].ptr == renderer._cable_points[0:3].ptr
-    assert written[1].ptr == renderer._cable_points[3:7].ptr
+    assert [len(slice_) for slice_ in written] == [4, 6, 3]
+    assert written[0].ptr == renderer._cable_points[0:4].ptr
+    assert written[1].ptr == renderer._cable_points[4:10].ptr
+    assert written[2].ptr == renderer._cable_points[10:13].ptr
     # Zero-copy: OVRTX is handed the Warp stream so it waits on the kernel instead of forcing a host
     # round-trip. Switching to SYNC would silently reintroduce a per-frame device copy, and is the
     # only guard against that -- the downgrade does not raise, it just renders from a stale copy.
