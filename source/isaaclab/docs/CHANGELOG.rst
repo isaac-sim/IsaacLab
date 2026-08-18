@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+16.2.3 (2026-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed RL benchmark playback to resolve pretrained checkpoints for the selected
+  physics and rendering backends.
+
+
 16.2.2 (2026-08-16)
 ~~~~~~~~~~~~~~~~~~~
 
