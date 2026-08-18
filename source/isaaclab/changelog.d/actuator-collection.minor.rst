@@ -78,6 +78,11 @@ Changed
 * **Breaking:** Rejected actuator configurations that assign a joint to more
   than one group. Use disjoint joint-name expressions so each joint belongs to
   at most one actuator group.
+* **Breaking:** Changed explicit actuator groups to keep the authored solver
+  effort limit instead of widening it to ``1.0e9``. Effort submitted by an
+  explicit model is now also clipped by the solver's ``joint_effort_limit``;
+  configure it at least as large as ``actuator_effort_limit`` when the model
+  should be the only clip.
 
 Fixed
 ^^^^^

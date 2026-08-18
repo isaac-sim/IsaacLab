@@ -60,6 +60,14 @@ group properties follow the same mapping and are also deprecated.
 ``joint_velocity_limit`` only requests solver enforcement, which is backend-dependent. See
 :ref:`actuators-joint-property-ownership` for the full ownership model.
 
+**Behavior change — explicit groups keep the solver effort limit.** Isaac Lab previously raised the
+solver effort limit to ``1.0e9`` on joints driven by an explicit actuator so that only the model
+clipped the effort. The solver now keeps the authored or configured ``joint_effort_limit``, so
+effort submitted by an explicit model is clipped a second time by the solver. If your asset authors
+a tight joint effort limit and your policy relies on the model limit alone, set
+``joint_effort_limit`` at least as large as ``actuator_effort_limit`` in the actuator
+configuration.
+
 The runtime group properties listed below were removed. Read their live values from articulation
 data and use the corresponding indexed articulation writer:
 
@@ -91,6 +99,13 @@ data and use the corresponding indexed articulation writer:
 
 The dynamic-friction view and writer are backend-specific; Newton has no corresponding joint
 property.
+
+The backend articulation methods ``write_actuator_stiffness_to_sim`` and
+``write_actuator_damping_to_sim`` are deprecated. Use
+:func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it
+updates actuator-owned gains, implicit solver drives, or native-controller parameters as
+appropriate. For direct writes to a Newton-executed group's controller, use
+:func:`~isaaclab.actuators.newton.write_group_parameter`.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and
 its canonical replacement are present in the same group, use only the canonical name; equivalent

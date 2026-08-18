@@ -55,7 +55,7 @@ of joints by regular expression and chooses a model:
         },
     )
 
-At runtime, send commands through :attr:`~isaaclab.actuators.ActuatorCollection.command`. Position
+At runtime, send commands through :attr:`~isaaclab.actuators.ActuatorCollection.target_command`. Position
 and velocity commands are expressed in joint-side coordinates, and every command buffer is indexed
 by articulation joint. The setters are keyword-only and default to all environments and all joints:
 
@@ -250,11 +250,12 @@ damping, and armature sweeps use the *implicit* path.
 
 .. important::
 
-    **Explicit solver effort default.** Explicit groups default
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit` to ``1.0e9`` so their model
-    output is not clipped by the solver a second time. See
-    :ref:`actuators-joint-property-ownership` for model-limit, joint-limit, and implicit-alias
-    semantics.
+    **Explicit groups keep the solver effort limit.** The solver retains the authored
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit` for explicit groups, so effort
+    submitted by an explicit model is clipped a second time by the solver. Configure
+    ``joint_effort_limit`` at least as large as ``actuator_effort_limit`` when the model should be
+    the only clip. See :ref:`actuators-joint-property-ownership` for model-limit, joint-limit, and
+    implicit-alias semantics.
 
 
 Stiffness
@@ -532,7 +533,7 @@ run inside the solver or host adapter. Fused execution is an internal optimizati
 Commands, telemetry, and lifecycle
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Setting actuator commands.** The mutable ``command`` view contains the desired position,
+**Setting actuator commands.** The mutable ``target_command`` view contains the desired position,
 velocity, and effort. Use index setters with environment or joint index lists and tensors. Use mask
 setters when you already have boolean Warp masks. All setters are keyword-only:
 
@@ -553,8 +554,9 @@ By default, ``value`` has shape ``(len(env_ids), len(joint_ids))``. Pass ``full_
 ``value`` already has shape ``(num_instances, num_joints)``. The setter then reads the selected
 values directly from the full buffer.
 
-**Reading commands and telemetry.** ``command`` contains the desired values staged for actuator
-processing. For Isaac Lab-managed models, ``joint_command`` contains the processed joint commands.
+**Reading commands and telemetry.** ``target_command`` contains the desired values staged for
+actuator processing. For Isaac Lab-managed models, ``output_command`` contains the processed joint
+commands.
 Native paths bypass this view, so it does not show submitted commands. Newton processes commands in
 the solver, while PhysX and OVPhysX process them through the shared host adapter during
 ``write_data_to_sim()``. Access the arrays through ``.torch`` or ``.warp``:

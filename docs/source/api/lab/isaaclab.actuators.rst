@@ -163,3 +163,19 @@ LSTM Network Actuator
   :inherited-members:
   :show-inheritance:
   :exclude-members: __init__, class_type
+
+Newton Actuator Access
+----------------------
+
+.. automodule:: isaaclab.actuators.newton
+
+  .. rubric:: Functions
+
+  .. autosummary::
+
+    read_group_parameter
+    write_group_parameter
+
+.. autofunction:: isaaclab.actuators.newton.read_group_parameter
+
+.. autofunction:: isaaclab.actuators.newton.write_group_parameter
