@@ -456,9 +456,9 @@ class NewtonWarpRenderer(BaseRenderer):
                 "Check the log for earlier Newton model build errors."
             )
 
-        from vulkan_renderer import RenderContext as VulkanRenderContext
+        from vulkan_renderer import NewtonAdapter
         # Textures are only sampled when ``enable_textures`` is set, so skip loading them otherwise.
-        self.render_context = VulkanRenderContext(self._newton_model)
+        self.render_context = NewtonAdapter(self._newton_model)
 
         # if self.cfg.create_default_light:
         #     self.render_context.create_default_light(enable_shadows=self.cfg.enable_shadows)
