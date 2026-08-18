@@ -202,7 +202,7 @@ class InteractiveScene:
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
         cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
-        for type_name in requested_viz_types + cam_types:
+        for type_name in requested_viz_types.union(cam_types):
             requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
             self.sim.requires_usd_stage |= requires_stage
             self.sim.requires_newton_model |= requires_model
