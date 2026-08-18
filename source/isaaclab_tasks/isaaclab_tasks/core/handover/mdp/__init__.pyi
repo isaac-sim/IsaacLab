@@ -4,9 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "HandoverCommand",
+    "HandoverCommandCfg",
+    "handover_goal_distance_reward",
     "handover_reward",
     "evaluate_handover_success",
 ]
 
-from .rewards import evaluate_handover_success, handover_reward
+from .commands import HandoverCommand, HandoverCommandCfg
+from .rewards import evaluate_handover_success, handover_goal_distance_reward, handover_reward
 from isaaclab.envs.mdp import *

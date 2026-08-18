@@ -27,6 +27,9 @@ _CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkp
 _SUBPROCESS_TIMEOUT = 600
 _CHECKPOINT_BATCH_TIMEOUT = 1200
 _OUTPUT_TAIL_CHARS = 5000
+# TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases
+# can corrupt the heap while parsing the Newton Franka payload concurrently.
+_LEAPP_TEST_CPU_THREAD_LIMIT = 1
 
 
 @dataclass(frozen=True)
@@ -207,6 +210,8 @@ def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Pat
         "--export_save_path",
         str(export_root),
         "--disable_graph_visualization",
+        "--limit_cpu_threads",
+        str(_LEAPP_TEST_CPU_THREAD_LIMIT),
     ]
     preset = _preset_for_task(task_name)
     if preset is not None:

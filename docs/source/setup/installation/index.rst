@@ -78,6 +78,8 @@ Choose an installation path
 
       Provision a remote GPU workstation on a supported cloud provider.
 
+.. _installation-system-requirements:
+
 System requirements
 -------------------
 
