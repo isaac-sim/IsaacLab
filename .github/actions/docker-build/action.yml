@@ -172,8 +172,100 @@ runs:
         trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
 
         echo "🔵 Building ${{ inputs.image-tag }}..."
-        docker buildx build --load "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
-        echo "was-built=true" >> "$GITHUB_OUTPUT"
+        set +e
+        docker buildx build --load "${BUILD_ARGS[@]}" "${{ inputs.context-path }}" \
+          2>&1 | tee "${RUNNER_TEMP}/docker-buildx.log"
+        build_status=${PIPESTATUS[0]}
+        set -e
+
+        if [ "${build_status}" -eq 0 ]; then
+          echo "was-built=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # uv retries transient requests, but its final error does not identify
+        # whether a 5xx response came from PyPI, a CDN edge, or runner egress.
+        # Probe the exact failed object from the host and builder network while
+        # preserving the original build failure.
+        failed_url=$(grep -Eo \
+          'https://files\.pythonhosted\.org/[A-Za-z0-9._~/%+-]+' \
+          "${RUNNER_TEMP}/docker-buildx.log" | tail -1 || true)
+
+        if [ -z "${failed_url}" ]; then
+          echo "No files.pythonhosted.org URL found; skipping network diagnostics."
+          exit "${build_status}"
+        fi
+
+        echo "::group::Pythonhosted network diagnostics"
+        echo "Failed URL: ${failed_url}"
+        echo "Runner: $(hostname)"
+        echo "UTC time: $(date -u --iso-8601=seconds)"
+        echo "Docker: $(docker version --format '{{.Client.Version}}' 2>/dev/null || echo unknown)"
+        echo "Buildx: $(docker buildx version 2>/dev/null || echo unknown)"
+        echo "DNS resolution:"
+        getent ahosts files.pythonhosted.org || true
+        echo "Default route:"
+        ip route show default 2>/dev/null || true
+
+        proxy_env_args=()
+        for proxy_var in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
+          if printenv "${proxy_var}" >/dev/null 2>&1; then
+            echo "${proxy_var}=set"
+            proxy_env_args+=(--env "${proxy_var}")
+          else
+            echo "${proxy_var}=unset"
+          fi
+        done
+
+        probe_url() {
+          local location=$1
+          local url=$2
+          local attempt
+          for attempt in 1 2 3; do
+            echo "[${location}] attempt=${attempt}"
+            curl --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 30 \
+              --output /dev/null \
+              --dump-header - \
+              --write-out \
+                'code=%{http_code} remote_ip=%{remote_ip} connect=%{time_connect}s total=%{time_total}s\n' \
+              "${url}" | tr -d '\r' | grep -Ei \
+                '^(HTTP/|server:|via:|x-served-by:|x-cache:|x-cache-hits:|x-timer:|code=)' || true
+          done
+        }
+
+        probe_url "runner-host" "${failed_url}"
+
+        builder_container=$(docker ps \
+          --filter "name=buildx_buildkit_${BUILDER_NAME}" \
+          --format '{{.ID}}' | head -1)
+        if [ -n "${builder_container}" ]; then
+          echo "BuildKit networks:"
+          docker inspect "${builder_container}" \
+            --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}' || true
+          for attempt in 1 2 3; do
+            echo "[builder-network] attempt=${attempt}"
+            docker run --rm \
+              --network "container:${builder_container}" \
+              "${proxy_env_args[@]}" \
+              curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6 \
+              --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 30 \
+              --output /dev/null \
+              --dump-header - \
+              --write-out \
+                'code=%{http_code} remote_ip=%{remote_ip} connect=%{time_connect}s total=%{time_total}s\n' \
+              "${failed_url}" | tr -d '\r' | grep -Ei \
+                '^(HTTP/|server:|via:|x-served-by:|x-cache:|x-cache-hits:|x-timer:|code=)' || true
+          done
+        else
+          echo "BuildKit container not found; skipping builder-network probe."
+        fi
+        echo "::endgroup::"
+
+        exit "${build_status}"
 
     ##### 6: Tag built image with local deps-tag #####
 
