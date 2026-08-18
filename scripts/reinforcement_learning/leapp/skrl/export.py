@@ -31,6 +31,7 @@ multi_agent_to_single_agent = None
 retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
+get_pretrained_checkpoint_backend_names = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
@@ -71,7 +72,8 @@ def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
     global DirectMARLEnvCfg, ManagerBasedRLEnv, Runner, SkrlVecEnvWrapper, annotate, get_checkpoint_path, gym, leapp
-    global ensure_env_spec_id, get_published_pretrained_checkpoint, hydra_task_config, multi_agent_to_single_agent
+    global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
+    global hydra_task_config, multi_agent_to_single_agent
     global patch_env_for_export, retrieve_file_path, skrl, torch, version
     global configure_seed, is_two_tensor_lstm_state, state_dict_from_sequence, state_sequence_from_registered
 
@@ -109,6 +111,9 @@ def _load_runtime_dependencies() -> None:
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper as SkrlVecEnvWrapperCls
     from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
+    )
+    from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
 
@@ -138,6 +143,7 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
+    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
@@ -200,7 +206,8 @@ def export_skrl_agent(
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
     if args_cli.checkpoint == "pretrained":
-        resume_path = get_published_pretrained_checkpoint("skrl", checkpoint_task_name)
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        resume_path = get_published_pretrained_checkpoint("skrl", checkpoint_task_name, *backend_names)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False

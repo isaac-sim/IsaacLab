@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+2.0.3 (2026-08-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Constrained the optional OVRTX runtime to ``ovrtx>0.4.0,<0.4.1`` to retain the validated
+  OVRTX 0.4.0 rendering outputs. Users with OVRTX 0.4.1 should downgrade until its output
+  changes are adopted with updated rendering baselines.
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to suppress the OVRTX deprecation warnings
+  emitted for the legacy stage API. Isaac Lab still drives that API until the ovstage path becomes
+  the default, so the warnings were noise no user of this renderer could act on. The option is set
+  only when the installed OVRTX build exposes it, so older wheels are unaffected.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX environment placement by authoring root translations from the clone plan after
+  cloning instead of capturing transforms from the USD stage.
+
+
 2.0.2 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

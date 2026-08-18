@@ -1606,8 +1606,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = copy.deepcopy(AnymalDFlatEnvCfg())
-    preset_key = "newton_mjwarp" if backend_kind == "newton" else "default"
-    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
     env_cfg.scene.num_envs = (
         _ANYMAL_D_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _ANYMAL_D_INTEGRATION_NUM_ENVS
     )
@@ -1861,6 +1860,7 @@ def _make_cartpole_camera_env(
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
+    env_cfg.tiled_camera.default.renderer_cfg = env_cfg.tiled_camera.default.renderer_cfg.isaacsim_rtx
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
     visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs

@@ -36,7 +36,8 @@ class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
         gpu_found_lost_pairs_capacity=2**26,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
+    newton_mjwarp = lift.PhysicsCfg().newton_mjwarp
+    default = newton_mjwarp
 
 
 @configclass
