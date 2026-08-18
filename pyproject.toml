@@ -162,7 +162,7 @@ rerun = [
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
 ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364340", "ovstage==0.1.0.346039"]
-ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.0.346039"]
+ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
 ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.0.346039"]
 
 mimic = [
