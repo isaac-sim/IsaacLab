@@ -100,6 +100,22 @@ data and use the corresponding indexed articulation writer:
 The dynamic-friction view and writer are backend-specific; Newton has no corresponding joint
 property.
 
+**Custom actuator models.** The protected helper ``ActuatorBase._parse_joint_parameter`` was
+removed together with the constructor rework. Custom actuator subclasses that parsed configuration
+fields with it should call :func:`~isaaclab.actuators.resolve_joint_parameter`, which applies the
+same resolution semantics as a standalone function:
+
+.. code-block:: python
+
+   from isaaclab.actuators import ActuatorBase, resolve_joint_parameter
+
+
+   class MyActuator(ActuatorBase):
+       def __init__(self, cfg, joint_names, joint_ids, num_envs, device, **kwargs):
+           super().__init__(cfg, joint_names, joint_ids, num_envs, device, **kwargs)
+           # before: self.my_gain = self._parse_joint_parameter(cfg.my_gain, 0.0)
+           self.my_gain = resolve_joint_parameter(cfg.my_gain, 0.0, joint_names, num_envs, device)
+
 The backend articulation methods ``write_actuator_stiffness_to_sim`` and
 ``write_actuator_damping_to_sim`` are deprecated. Use
 :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it

@@ -29,12 +29,20 @@
     ActuatorNetLSTM
     ActuatorNetLSTMCfg
 
+  .. rubric:: Functions
+
+  .. autosummary::
+
+    resolve_joint_parameter
+
 Actuator Base
 -------------
 
 .. autoclass:: ActuatorBase
   :members:
   :inherited-members:
+
+.. autofunction:: resolve_joint_parameter
 
 .. autoclass:: ActuatorBaseCfg
   :members:

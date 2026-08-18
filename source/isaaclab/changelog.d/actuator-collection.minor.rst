@@ -13,6 +13,9 @@ Added
   ``joint_velocity_limit`` joint-property overrides.
 * Added ``isaaclab.actuators.newton`` hosting the Newton actuator adapter,
   host runtime, and kernels shared by every backend's native execution path.
+* Added :func:`~isaaclab.actuators.resolve_joint_parameter` as the public
+  joint-parameter resolution function shared by actuator models and the
+  collection.
 * Added :func:`~isaaclab.actuators.newton.read_group_parameter`
   and :func:`~isaaclab.actuators.newton.write_group_parameter`
   as the single group-addressed access to Newton actuator parameters (for
@@ -51,6 +54,10 @@ Removed
   accessors. Read the corresponding :class:`~isaaclab.assets.ArticulationData`
   joint property and use the articulation's ``write_joint_*_to_sim_index``
   writer instead.
+* **Breaking:** Removed the protected helper ``ActuatorBase._parse_joint_parameter``.
+  Custom actuator subclasses should call
+  :func:`~isaaclab.actuators.resolve_joint_parameter` with the group's joint
+  names, environment count, and device instead.
 * **Breaking:** Removed ``ArticulationData.gear_ratio`` and its backing buffers.
   The property was legacy :class:`~isaaclab.actuators.DCMotor` telemetry that
   was no longer updated by any execution path and always read one. Gear ratios
