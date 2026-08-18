@@ -85,7 +85,7 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
 
     joint_buffer = SimpleNamespace(warp=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
     collection = SimpleNamespace(
-        command=SimpleNamespace(position=joint_buffer, velocity=joint_buffer, effort=joint_buffer)
+        target_command=SimpleNamespace(position=joint_buffer, velocity=joint_buffer, effort=joint_buffer)
     )
     gain_writes = []
     articulation = SimpleNamespace(

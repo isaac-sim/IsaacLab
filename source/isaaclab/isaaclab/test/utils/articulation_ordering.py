@@ -62,7 +62,6 @@ _ORDERING_TRACE_FIELDS = (
     "joint_vel",
     "computed_effort",
     "applied_effort",
-    "adapter_computed_effort",
     "adapter_applied_effort",
 )
 _ORDERING_TRACE_TOLERANCES = {
@@ -70,7 +69,6 @@ _ORDERING_TRACE_TOLERANCES = {
     "joint_vel": (1e-2, 1e-2),
     "computed_effort": (1e-3, 1e-3),
     "applied_effort": (1e-3, 1e-3),
-    "adapter_computed_effort": (1e-3, 1e-3),
     "adapter_applied_effort": (1e-3, 1e-3),
 }
 
