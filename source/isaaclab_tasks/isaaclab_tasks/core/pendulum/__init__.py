@@ -5,31 +5,13 @@
 
 """Multi-agent inverted double-pendulum balancing environment."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 import gymnasium as gym
+
+from isaaclab.utils.module import lazy_export
 
 from . import agents
 
-if TYPE_CHECKING:
-    from .pendulum_marl_env import PendulumMARLEnv
-    from .pendulum_marl_env_cfg import PendulumMARLEnvCfg
-
-__all__ = ["PendulumMARLEnv", "PendulumMARLEnvCfg"]
-
-
-def __getattr__(name: str):
-    if name == "PendulumMARLEnv":
-        from .pendulum_marl_env import PendulumMARLEnv
-
-        return PendulumMARLEnv
-    if name == "PendulumMARLEnvCfg":
-        from .pendulum_marl_env_cfg import PendulumMARLEnvCfg
-
-        return PendulumMARLEnvCfg
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+lazy_export()
 
 ##
 # Register Gym environments.
