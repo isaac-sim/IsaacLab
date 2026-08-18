@@ -1,6 +1,61 @@
 Changelog
 ---------
 
+16.5.0 (2026-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``physics=isaacsim_physx`` to ``Isaac-Cartpole`` and
+  ``Isaac-Cartpole-Camera`` to force the Isaac Sim PhysX backend;
+  ``physics=physx`` continues to select the PhysX-family backend automatically.
+* Added manager-based counterparts for the Shadow handover and Shadow camera
+  reorientation tasks, completing the manager coverage of the dexterous task
+  families.
+* Added a Direct-versus-manager value-parity check for the handover task,
+  alongside the reorientation one.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg` to use the Newton renderer
+  by default. Select ``renderer=isaacsim_rtx`` to continue using the Isaac RTX renderer.
+  Contributed teleoperation and Galbot Stack cameras retain their explicit Isaac RTX defaults.
+* Changed the manager-based Shadow camera task to run on the Kit PhysX backend by
+  default, since only the Isaac RTX tiled camera renders the default modalities.
+  Select Newton with ``physics=newton_mjwarp`` for the state-only observation
+  groups.
+* Changed the handover reward to a plain reward term, moving success and
+  goal-distance bookkeeping to
+  :class:`~isaaclab_tasks.core.handover.mdp.commands.HandoverCommand`.
+* Changed the reorientation action configuration to name its term through a
+  module path, so loading a task configuration no longer imports the USD
+  bindings.
+
+Removed
+^^^^^^^
+
+* Removed the ``Isaac-Reorient-Cube-Shadow-Camera-Play`` and
+  ``Isaac-Reorient-Cube-Shadow-Camera-Direct-Play`` tasks. Use the training task
+  with ``--play`` instead; playback settings now live in
+  :meth:`~isaaclab.envs.ManagerBasedRLEnvCfg.play_mode`.
+
+Fixed
+^^^^^
+
+* Fixed the Newton Shadow Hand handover configuration to avoid targeting
+  distal ``J0`` joints that are absent from the current Newton asset.
+* Fixed ``physics=isaacsim_physx`` for Shadow Hand handover to select the
+  PhysX hand and object assets together with the PhysX scene.
+* Fixed the G1 Newton agent preset to use its intended 5,000-iteration
+  training schedule.
+* Fixed Newton training instability for ``Isaac-Velocity-Rough-G1`` by
+  increasing the MJWarp constraint capacity.
+* Fixed the Shadow camera feature-extractor observation term ignoring its
+  declared ``feature_extractor_cfg`` parameter.
+
+
 16.4.0 (2026-08-16)
 ~~~~~~~~~~~~~~~~~~~
 
