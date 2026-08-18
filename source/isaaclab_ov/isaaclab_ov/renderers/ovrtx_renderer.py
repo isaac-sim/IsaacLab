@@ -64,6 +64,7 @@ try:
         Renderer,
         RendererConfig,
         Semantic,
+        TextureStreamingMode,
     )
 except ModuleNotFoundError as exc:
     if exc.name != "ovrtx":
@@ -71,8 +72,7 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
-        "'ovrtx>0.4.0,<0.4.1')."
+        "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
@@ -376,14 +376,9 @@ class OVRTXRenderer(BaseRenderer):
             log_level=self.cfg.log_level,
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
+            suppress_deprecation_warnings=True,
+            texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Isaac Lab still drives ovrtx's legacy stage API until the ovstage path is the default, so
-        # its deprecation warnings are noise no user of this renderer can act on. Set after
-        # construction because ``RendererConfig`` is a plain dataclass and wheels predating the
-        # option would reject it as an unexpected keyword argument.
-        # TODO: Remove this once the ovstage path is the default and the legacy stage API is removed.
-        if hasattr(OVRTX_CONFIG, "suppress_deprecation_warnings"):
-            OVRTX_CONFIG.suppress_deprecation_warnings = True
 
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
@@ -450,15 +445,14 @@ class OVRTXRenderer(BaseRenderer):
         """Initialize the legacy-path instance fields.
 
         Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles and the
-        ``UsdGeom.Points`` seeding flag. State shared by both paths (``_object_newton_indices``, the
-        particle offset/count lists) stays in :meth:`__init__`.
+        here: the four ``bind_attribute``/``bind_array_attribute`` handles. State shared by both
+        paths (``_object_newton_indices``, the particle offset/count lists) stays in
+        :meth:`__init__`.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
-        self._particle_workaround_applied = False
 
     def _initialize_from_spec_legacy(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
@@ -799,8 +793,6 @@ class OVRTXRenderer(BaseRenderer):
             flags=BindingFlag.OPTIMIZE,
         )
 
-        self._particle_workaround_applied = False
-
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
@@ -897,16 +889,12 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         if self._particle_points_binding is not None:
-            if not self._particle_workaround_applied:
-                self._apply_particle_workaround(particle_q)
-                self._particle_workaround_applied = True
-            else:
-                self._write_particle_q_slices(
-                    self._particle_points_binding,
-                    particle_q,
-                    self._particle_visual_offsets,
-                    self._particle_visual_counts,
-                )
+            self._write_particle_q_slices(
+                self._particle_points_binding,
+                particle_q,
+                self._particle_visual_offsets,
+                self._particle_visual_counts,
+            )
 
     def _write_particle_q_slices(
         self,
@@ -941,24 +929,6 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
-
-    def _apply_particle_workaround(self, particle_q: wp.array) -> None:
-        """Host-SYNC seed ``UsdGeom.Points`` so later GPU ASYNC writes can work correctly.
-
-        OVRTX does not initialize UsdGeom.Points prims from a GPU ASYNC ``points`` write as expected.
-        A host SYNC write + a renderer step call are needed to finish initialization; later frames
-        can then use zero-copy GPU ASYNC write with the same binding.
-
-        TODO: The workaround will be removed when OVRTX fixes the issue (OMPE-102610).
-        """
-        particle_q_host = particle_q.numpy()
-        host_slices = [
-            particle_q_host[particle_offset : particle_offset + particle_count]
-            for particle_offset, particle_count in zip(
-                self._particle_visual_offsets, self._particle_visual_counts, strict=True
-            )
-        ]
-        self._particle_points_binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
 
     def _update_camera_legacy(
         self,
@@ -1425,7 +1395,6 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
         self._particle_visual_counts = []
-        self._particle_workaround_applied = False
 
         if self._renderer:
             try:
@@ -1941,12 +1910,6 @@ class OVRTXRenderer(BaseRenderer):
 
         if self._particle_points_query is None:
             raise RuntimeError("Failed to create OVRTX particle point bindings")
-
-        # Note: no ``UsdGeom.Points`` seeding workaround is needed here. The legacy path's
-        # ``_apply_particle_workaround`` (OMPE-102610) exists because OVRTX fails to initialize
-        # Points prims from a zero-copy GPU ASYNC ``points`` write through ``bind_array_attribute``.
-        # The ovstage path instead writes host numpy DLTensors through ``Stage.write_attribute``,
-        # which populates the column synchronously, so the prims are valid from the first frame.
 
     def _update_transforms_ovstage(self) -> None:
         if self._object_xform_query is None or self._object_newton_indices is None:
