@@ -471,8 +471,8 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
 
 
 def _install_cable_shapes(shapes: dict[str, list[int]], monkeypatch: pytest.MonkeyPatch) -> None:
-    """Install a fake :meth:`NewtonManager.collect_cable_segment_shapes` result."""
-    monkeypatch.setattr(NewtonManager, "collect_cable_segment_shapes", classmethod(lambda cls: dict(shapes)))
+    """Install a fake :meth:`NewtonManager.collect_cable_segment_shape_ids` result."""
+    monkeypatch.setattr(NewtonManager, "collect_cable_segment_shape_ids", classmethod(lambda cls: dict(shapes)))
 
 
 def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch):

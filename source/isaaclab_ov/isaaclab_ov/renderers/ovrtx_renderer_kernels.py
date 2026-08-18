@@ -242,9 +242,10 @@ def compute_cable_points_world_kernel(
 ):
     """Write world-space cable curve points from Newton segment bodies.
 
-    Mirrors NewtonManager._sync_cable_points, but emits world space because the OVRTX cable
-    prims pin an identity omni:xform with the transform stack reset. Endpoints come from the
-    first and last capsule; interior points are the midpoint of the two adjacent capsule ends.
+    Same endpoint construction as NewtonManager Fabric cable sync, but emits world space because
+    the OVRTX cable prims pin an identity omni:xform with the transform stack reset. Endpoints
+    come from the first and last capsule; interior points are the midpoint of the two adjacent
+    capsule ends.
 
     Launch with ``dim=(num_curves, max_segment_count + 1)``. Each thread owns one
     ``(curve, point)``; threads with ``point > counts[curve]`` return immediately.

@@ -821,8 +821,8 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping cable point bindings")
             return
 
-        cable_shapes = NewtonManager.collect_cable_segment_shapes()
-        if not cable_shapes:
+        cable_segment_shape_ids = NewtonManager.collect_cable_segment_shape_ids()
+        if not cable_segment_shape_ids:
             logger.debug("No renderable Newton cables found, skipping cable point bindings")
             return
 
@@ -830,7 +830,7 @@ class OVRTXRenderer(BaseRenderer):
         flat_shape_ids: list[int] = []
         offsets: list[int] = []
         counts: list[int] = []
-        for prim_path, segment_shape_ids in cable_shapes.items():
+        for prim_path, segment_shape_ids in cable_segment_shape_ids.items():
             cable_prim_paths.append(prim_path)
             offsets.append(len(flat_shape_ids))
             counts.append(len(segment_shape_ids))
@@ -2078,8 +2078,8 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("NewtonManager not available, skipping cable point bindings")
             return
 
-        cable_shapes = NewtonManager.collect_cable_segment_shapes()
-        if not cable_shapes:
+        cable_segment_shape_ids = NewtonManager.collect_cable_segment_shape_ids()
+        if not cable_segment_shape_ids:
             logger.debug("No renderable Newton cables found, skipping cable point bindings")
             return
 
@@ -2087,7 +2087,7 @@ class OVRTXRenderer(BaseRenderer):
         flat_shape_ids: list[int] = []
         offsets: list[int] = []
         counts: list[int] = []
-        for prim_path, segment_shape_ids in cable_shapes.items():
+        for prim_path, segment_shape_ids in cable_segment_shape_ids.items():
             cable_prim_paths.append(prim_path)
             offsets.append(len(flat_shape_ids))
             counts.append(len(segment_shape_ids))

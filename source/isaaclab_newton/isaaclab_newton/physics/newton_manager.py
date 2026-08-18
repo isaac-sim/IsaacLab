@@ -440,8 +440,7 @@ class NewtonManager(PhysicsManager):
     _newton_cable_offset_attr = "newton:cableOffset"
     _newton_cable_count_attr = "newton:cableSegmentCount"
     _cable_shape_ids: wp.array | None = None
-    # Curve prims the cable init accepted, invalidated individually after each device-side write.
-    _cable_prim_paths: list[str] = []
+    _cable_sync_cpu_buffers: tuple[wp.array, ...] | None = None
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
     _particle_visual_prims: dict[str, _ParticleVisualPrim] = {}
@@ -726,67 +725,44 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_cables_to_usd(cls) -> None:
-        """Write Newton cable segment endpoints to Fabric curve points, on device.
-
-        Selecting the prims on the simulation device makes Fabric mirror ``points`` into GPU
-        storage, which is what makes the scene delegate advertise ``omni:rtx:isGPUBuffer`` and the
-        RTX Hydra delegate take its GPU-interop update path. The kernel reads Newton's own device
-        state, so a render frame costs one kernel launch and no host transfers.
-
-        Mirrors :meth:`sync_particles_to_usd`: this wrapper owns the dirty flag; the Fabric helper
-        performs selection and writes. Missing stage or empty ``SelectPrims`` leaves the flag set so
-        the next :meth:`pre_render` retries.
-        """
+        """Write Newton cable segment endpoints to Fabric curve points."""
         if not cls._cables_dirty:
             return
+        if cls._usdrt_stage is None or cls._cable_shape_ids is None:
+            NewtonManager._cables_dirty = False
+            return
         try:
-            if cls._sync_fabric_cable_points():
+            import usdrt  # noqa: PLC0415
+
+            selection = cls._usdrt_stage.SelectPrims(
+                require_attrs=[
+                    (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.ReadWrite),
+                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_offset_attr, usdrt.Usd.Access.Read),
+                    (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_count_attr, usdrt.Usd.Access.Read),
+                    (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
+                ],
+                device="cpu",
+            )
+            if selection.GetCount() == 0:
                 NewtonManager._cables_dirty = False
+                return
+            _, _, body_q, _, _ = cls._cable_sync_cpu_buffers
+            wp.copy(body_q, cls._state_0.body_q)
+            wp.launch(
+                _sync_cable_points,
+                dim=selection.GetCount(),
+                inputs=[
+                    wp.fabricarrayarray(data=selection, attrib="points", dtype=wp.vec3f),
+                    wp.fabricarray(data=selection, attrib="omni:fabric:worldMatrix"),
+                    wp.fabricarray(data=selection, attrib=cls._newton_cable_offset_attr),
+                    wp.fabricarray(data=selection, attrib=cls._newton_cable_count_attr),
+                    *cls._cable_sync_cpu_buffers,
+                ],
+                device="cpu",
+            )
+            NewtonManager._cables_dirty = False
         except Exception:
             logger.exception("[NewtonManager] sync_cables_to_usd FAILED")
-
-    @classmethod
-    def _sync_fabric_cable_points(cls) -> bool:
-        """Write cable curve points into Fabric; return True when the write completed."""
-        if cls._usdrt_stage is None or cls._cable_shape_ids is None:
-            return False
-        import usdrt  # noqa: PLC0415
-
-        selection = cls._usdrt_stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.ReadWrite),
-                (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_offset_attr, usdrt.Usd.Access.Read),
-                (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_cable_count_attr, usdrt.Usd.Access.Read),
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
-            ],
-            device=str(PhysicsManager._device),
-        )
-        if selection.GetCount() == 0:
-            return False
-        wp.launch(
-            _sync_cable_points,
-            dim=selection.GetCount(),
-            inputs=[
-                wp.fabricarrayarray(data=selection, attrib="points", dtype=wp.vec3f),
-                wp.fabricarray(data=selection, attrib="omni:fabric:worldMatrix"),
-                wp.fabricarray(data=selection, attrib=cls._newton_cable_offset_attr),
-                wp.fabricarray(data=selection, attrib=cls._newton_cable_count_attr),
-                cls._cable_shape_ids,
-                cls._model.shape_body,
-                cls._state_0.body_q,
-                cls._model.shape_transform,
-                cls._model.shape_scale,
-            ],
-            device=PhysicsManager._device,
-        )
-        # The points were written in place on the device. A render delegate caches its curve
-        # geometry and cannot notice that, so without an explicit invalidation it keeps drawing
-        # the points it last read and the cable renders frozen.
-        for cable_path in cls._cable_prim_paths:
-            points_attr = cls._usdrt_stage.GetPrimAtPath(cable_path).GetAttribute("points")
-            if points_attr:
-                points_attr.InvalidateGpuData()
-        return True
 
     @classmethod
     def sync_particles_to_usd(cls) -> None:
@@ -1127,7 +1103,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._particles_dirty = False
         NewtonManager._cables_dirty = False
         NewtonManager._cable_shape_ids = None
-        NewtonManager._cable_prim_paths = []
+        NewtonManager._cable_sync_cpu_buffers = None
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
         NewtonManager._deformable_registry = []
@@ -1600,16 +1576,8 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
-        # Setup USD/Fabric sync for Kit viewport rendering. ``get_current_stage`` is annotated
-        # ``-> Usd.Stage`` but returns None before the thread-local stage context is populated, so
-        # warn and skip rather than dereference it. Body/cable/particle Fabric syncs retry while
-        # dirty once ``_usdrt_stage`` is set.
-        if not cls._clone_physics_only and get_current_stage(fabric=True) is None:
-            logger.warning(
-                "[NewtonManager] Fabric stage unavailable at start_simulation; transform, cable,"
-                " and particle Fabric syncs will no-op until the shared stage handle is set."
-            )
-        elif not cls._clone_physics_only:
+        # Setup USD/Fabric sync for Kit viewport rendering
+        if not cls._clone_physics_only:
             import usdrt
 
             body_paths = list(cls._model.body_label)
@@ -1660,14 +1628,55 @@ class NewtonManager(PhysicsManager):
         fabric_hierarchy.update_world_xforms()
 
     @classmethod
-    def collect_cable_segment_shapes(cls) -> dict[str, list[int]]:
+    def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
+        """Initialize Fabric curve tags and packed Newton segment mappings."""
+        cable_shapes = cls.collect_cable_segment_shape_ids()
+
+        shape_ids: list[int] = []
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            segment_count = len(segment_shape_ids)
+            prim = stage.GetPrimAtPath(prim_path)
+            prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
+            usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
+            offset = len(shape_ids)
+            prim.CreateAttribute(cls._newton_cable_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(offset)
+            prim.CreateAttribute(cls._newton_cable_count_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(
+                segment_count
+            )
+            shape_ids.extend(segment_shape_ids)
+
+        if not shape_ids:
+            NewtonManager._cable_shape_ids = None
+            NewtonManager._cable_sync_cpu_buffers = None
+            return
+        NewtonManager._cable_shape_ids = wp.array(shape_ids, dtype=wp.int32, device=PhysicsManager._device)
+        # TODO: CPU mirror only needed because RTX Hydra ignores GPU Fabric BasisCurves points.
+        # Drop these buffers and sync on device once NVBug 6502662 is fixed.
+        NewtonManager._cable_sync_cpu_buffers = (
+            NewtonManager._cable_shape_ids.to("cpu"),
+            cls._model.shape_body.to("cpu"),
+            wp.empty_like(cls._state_0.body_q, device="cpu"),
+            cls._model.shape_transform.to("cpu"),
+            cls._model.shape_scale.to("cpu"),
+        )
+        fabric_hierarchy.update_world_xforms()
+
+    @classmethod
+    def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
         """Map each renderable cable prim path to its ordered Newton segment shape ids.
 
-        Shape ids and concrete destination paths come from the Newton model labels. When the
-        labeled prim exists on the host USD stage, topology is validated against that
+        Concrete destination paths and segment order come from Newton ``shape_label`` values
+        ``{curve}_edge_capsule_{N}``. Each returned id is the index of that capsule in Newton's
+        shape arrays after finalization (``shape_body``, ``shape_transform``, ``shape_scale``, …),
+        not the ``_edge_capsule_N`` suffix. Example:
+        ``{"/World/envs/env_0/Cable/geometry/mesh": [42, 43, 44]}`` means segments ``0..2`` came
+        from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
+        indices ``42..44`` after earlier scene shapes.
+
+        When the labeled prim exists on the host USD stage, topology is validated against that
         ``BasisCurves`` prim. Kit-less replicated destinations often exist only in the render
-        backend; for those paths the method still returns the labeled shape ids (optionally
-        validating topology against a source prototype via the active clone plan).
+        backend; for those paths topology is validated against a source prototype via the active
+        clone plan.
 
         Returns:
             Concrete cable prim paths mapped to ordered Newton segment shape ids.
@@ -1675,56 +1684,6 @@ class NewtonManager(PhysicsManager):
         if cls._model is None:
             return {}
 
-        usd_stage = get_current_stage()
-        shape_groups = cls._cable_shape_groups_from_model()
-        clone_plan = None
-        sim = SimulationContext.instance()
-        if sim is not None:
-            clone_plan = sim.get_clone_plan()
-
-        ordered: dict[str, list[int]] = {}
-        for prim_path, segments in shape_groups.items():
-            host_prim = usd_stage.GetPrimAtPath(prim_path)
-            host_missing = not host_prim.IsValid()
-            validation_prim = host_prim
-            if host_missing and clone_plan is not None:
-                from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
-
-                resolved = path_to_source(clone_plan, prim_path)
-                if resolved is not None:
-                    source_path, _, asset_suffix = resolved
-                    validation_prim = usd_stage.GetPrimAtPath(source_path + asset_suffix)
-
-            if (
-                validation_prim.IsValid()
-                and validation_prim.IsA(UsdGeom.BasisCurves)
-                and has_deformable_curve_api(validation_prim)
-            ):
-                curve = UsdGeom.BasisCurves(validation_prim)
-                counts = curve.GetCurveVertexCountsAttr().Get()
-                if (
-                    len(counts) != 1
-                    or int(counts[0]) < 2
-                    or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
-                    or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
-                ):
-                    continue
-                segment_count = int(counts[0]) - 1
-                if set(segments) != set(range(segment_count)):
-                    raise RuntimeError(
-                        f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
-                    )
-                ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
-            elif host_missing and set(segments) == set(range(len(segments))):
-                # Kit-less clone destination: trust contiguous Newton labels when no USD prim exists.
-                ordered[prim_path] = [segments[segment] for segment in range(len(segments))]
-        return ordered
-
-    @classmethod
-    def _cable_shape_groups_from_model(cls) -> dict[str, dict[int, int]]:
-        """Group Newton shape labels into curve prim path -> segment index -> shape id."""
-        if cls._model is None:
-            return {}
         cable_shapes: dict[str, dict[int, int]] = {}
         for shape_id, label in enumerate(cls._model.shape_label):
             if label is None:
@@ -1737,44 +1696,68 @@ class NewtonManager(PhysicsManager):
             if segment in segments:
                 raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
             segments[segment] = shape_id
-        return cable_shapes
 
-    @classmethod
-    def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
-        """Initialize Fabric curve tags and packed Newton segment mappings from cable discovery."""
-        cable_shapes = cls.collect_cable_segment_shapes()
+        stage = get_current_stage()
 
-        shape_ids: list[int] = []
-        accepted_prim_paths: list[str] = []
-        for prim_path, segment_shape_ids in cable_shapes.items():
+        sim = SimulationContext.instance()
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+
+        # Filter label groups into renderable ordered shape-id lists. Validate topology on the host
+        # destination when present; otherwise use the clone-plan source prototype. Skip unsupported
+        # topology (non-linear / periodic / bad counts); require segment labels to match the curve.
+        ordered: dict[str, list[int]] = {}
+        for prim_path, segments in cable_shapes.items():
             prim = stage.GetPrimAtPath(prim_path)
-            if not prim.IsValid():
-                # Kit-less hosts may only have clone destinations in the render backend.
-                continue
-            segment_count = len(segment_shape_ids)
-            prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
-            usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
-            offset = len(shape_ids)
-            prim.CreateAttribute(cls._newton_cable_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(offset)
-            prim.CreateAttribute(cls._newton_cable_count_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(
-                segment_count
-            )
-            shape_ids.extend(segment_shape_ids)
-            accepted_prim_paths.append(prim_path)
+            validation_prim = prim
 
-        if cable_shapes and not accepted_prim_paths:
-            # Discovery found cables but none exist on this Fabric stage (kit-less). Leave Fabric
-            # cable sync disabled; OVRTX consumes collect_cable_segment_shapes directly.
-            NewtonManager._cable_shape_ids = None
-            NewtonManager._cable_prim_paths = []
-            return
-        if not shape_ids:
-            NewtonManager._cable_shape_ids = None
-            NewtonManager._cable_prim_paths = []
-            return
-        NewtonManager._cable_shape_ids = wp.array(shape_ids, dtype=wp.int32, device=PhysicsManager._device)
-        NewtonManager._cable_prim_paths = accepted_prim_paths
-        fabric_hierarchy.update_world_xforms()
+            # If destination is missing on host USD: validate topology against the clone source prototype.
+            if not prim.IsValid() and clone_plan is not None:
+                from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
+
+                resolved = path_to_source(clone_plan, prim_path)
+                if resolved is not None:
+                    source_path, _, asset_suffix = resolved
+                    validation_prim = stage.GetPrimAtPath(source_path + asset_suffix)
+
+            if not (
+                validation_prim.IsValid()
+                and validation_prim.IsA(UsdGeom.BasisCurves)
+                and has_deformable_curve_api(validation_prim)
+            ):
+                logger.debug(
+                    "Skipping cable '%s': validation prim '%s' is missing, not BasisCurves, or lacks"
+                    " DeformableCurveAPI.",
+                    prim_path,
+                    validation_prim.GetPath().pathString if validation_prim.IsValid() else "<invalid>",
+                )
+                continue
+
+            curve = UsdGeom.BasisCurves(validation_prim)
+            counts = curve.GetCurveVertexCountsAttr().Get()
+            if (
+                len(counts) != 1
+                or int(counts[0]) < 2
+                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
+                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
+            ):
+                logger.debug(
+                    "Skipping cable '%s': unsupported BasisCurves topology"
+                    " (vertex_counts=%s, type=%s, wrap=%s).",
+                    prim_path,
+                    counts,
+                    curve.GetTypeAttr().Get(),
+                    curve.GetWrapAttr().Get(),
+                )
+                continue
+
+            segment_count = int(counts[0]) - 1
+            if set(segments) != set(range(segment_count)):
+                raise RuntimeError(
+                    f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
+                )
+            ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
+
+        return ordered
 
     @staticmethod
     def _initialize_fabric_particle_prims(stage, fabric_hierarchy, usdrt, prim_paths: Iterable[str]) -> None:
