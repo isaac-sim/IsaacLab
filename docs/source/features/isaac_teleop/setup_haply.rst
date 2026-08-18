@@ -1,143 +1,87 @@
 .. _haply-teleoperation:
 
 Set Up Haply Teleoperation
-============================
+==========================
 
 .. currentmodule:: isaaclab
 
+`Haply Devices`_ provide haptic input devices for robot teleoperation with directional force
+feedback. Isaac Lab supports the Haply Inverse3 with VerseGrip for precise end-effector control
+and force-feedback manipulation.
+
 .. important::
 
-   This is a **separate, standalone device stack** (``isaaclab.devices.HaplyDevice``), not part of
-   Isaac Teleop. It has not yet been migrated onto the Isaac Teleop retargeting pipeline described
-   in :ref:`isaac-teleop-feature`, so it does not share Isaac Teleop's control-state, camera, or
-   haptics APIs. Support is limited to the single demo below.
-
-`Haply Devices`_ provides haptic devices that enable intuitive robot teleoperation with
-directional force feedback. The Haply Inverse3 paired with the VerseGrip creates an
-end-effector control system with force feedback capabilities.
-
-Isaac Lab supports Haply devices for teleoperation workflows that require precise spatial
-control with haptic feedback. This enables operators to feel contact forces during manipulation
-tasks, improving control quality and task performance.
-
-This guide explains how to set up and use Haply devices with Isaac Lab for robot teleoperation.
+   Haply uses a **separate device stack** (``isaaclab.devices.HaplyDevice``) and is not part of
+   Isaac Teleop. It does not use the Isaac Teleop retargeting, control-state, camera, or haptics
+   APIs. Currently, Haply support is limited to the demo described on this page.
 
 .. _Haply Devices: https://haply.co/
 
 
-Overview
---------
-
-Using Haply with Isaac Lab involves the following components:
-
-* **Isaac Lab** simulates the robot environment and streams contact forces back to the operator
-
-* **Haply Inverse3** provides 3-DOF position tracking and force feedback in the operator's workspace
-
-* **Haply VerseGrip** adds orientation sensing and button inputs for gripper control
-
-* **Haply SDK** manages WebSocket communication between Isaac Lab and the Haply hardware
-
-This guide will walk you through:
-
-* :ref:`haply-system-requirements`
-* :ref:`haply-installation`
-* :ref:`haply-device-setup`
-* :ref:`haply-running-demo`
-* :ref:`haply-troubleshooting`
-
-
 .. _haply-system-requirements:
 
-System Requirements
--------------------
+Requirements
+------------
 
-Hardware Requirements
-~~~~~~~~~~~~~~~~~~~~~
+You need:
 
-* **Isaac Lab Workstation**
+* **Isaac Lab workstation**
 
-  * Ubuntu 22.04 or Ubuntu 24.04
-  * Hardware requirements for 200Hz physics simulation:
+  * Ubuntu 22.04 or 24.04
+  * 8-core Intel Core i7 / AMD Ryzen 7 or better
+  * 32 GB RAM minimum; 64 GB recommended
+  * RTX 3090 or better for the 200 Hz physics workload
+  * Network access to the Haply devices
 
-    * CPU: 8-Core Intel Core i7 or AMD Ryzen 7 (or higher)
-    * Memory: 32GB RAM (64GB recommended)
-    * GPU: RTX 3090 or higher
+* **Haply hardware**
 
-  * Network: Same local network as Haply devices for WebSocket communication
+  * Haply Inverse3 for 3-DoF position tracking and force feedback
+  * Haply VerseGrip for orientation sensing and button input
 
-* **Haply Devices**
+* **Software**
 
-  * Haply Inverse3 - Haptic device for position tracking and force feedback
-  * Haply VerseGrip - Wireless controller for orientation and button inputs
-  * Both devices must be powered on and connected to the Haply SDK
+  * Isaac Lab; see :ref:`isaaclab-installation-root`
+  * Haply SDK
+  * Python 3.12 or newer
 
-Software Requirements
-~~~~~~~~~~~~~~~~~~~~~
-
-* Isaac Lab (follow the :ref:`installation guide <isaaclab-installation-root>`)
-* Haply SDK (provided by Haply Robotics)
-* Python 3.12+
-* ``websockets`` Python package (automatically installed with Isaac Lab)
+The ``websockets`` Python dependency is included with Isaac Lab.
 
 
 .. _haply-installation:
 
-Installation
-------------
+Set Up the Devices
+------------------
 
-1. Install Isaac Lab
-~~~~~~~~~~~~~~~~~~~~
+#. Install Isaac Lab by following :ref:`isaaclab-installation-root`.
 
-Follow the Isaac Lab :ref:`installation guide <isaaclab-installation-root>` to set up your environment.
+#. Download and install the Haply SDK from the `Haply Devices`_ website.
 
-The ``websockets`` dependency is automatically included in Isaac Lab's requirements.
+#. Power on the Inverse3 and VerseGrip and verify that both appear as connected in the Haply
+   Device Manager.
 
-2. Install Haply SDK
-~~~~~~~~~~~~~~~~~~~~
+#. Place the Inverse3 on a stable surface, pair the VerseGrip, and keep the operating workspace
+   clear.
 
-Download the Haply SDK from the `Haply Devices`_ website.
-Install the SDK software and configure the devices.
+#. Start the Haply SDK.
 
-3. Verify Installation
-~~~~~~~~~~~~~~~~~~~~~~
-
-Test that your Haply devices are detected by the Haply Device Manager.
-You should see both Inverse3 and VerseGrip as connected.
+   By default, the SDK exposes device data over WebSocket at ``ws://localhost:10001`` and streams
+   at 200 Hz.
 
 
 .. _haply-device-setup:
 
-Device Setup
-------------
+Verify the Connection
+---------------------
 
-1. Physical Setup
-~~~~~~~~~~~~~~~~~
+You can verify the WebSocket connection before launching Isaac Lab:
 
-* Place the Haply Inverse3 on a stable surface
-* Ensure the VerseGrip is charged and paired
-* Position yourself comfortably to reach the Inverse3 workspace
-* Keep the workspace clear of obstacles
-
-2. Start Haply SDK
-~~~~~~~~~~~~~~~~~~
-
-Launch the Haply SDK according to Haply's documentation. The SDK typically:
-
-* Runs a WebSocket server on ``localhost:10001``
-* Streams device data at 200Hz
-* Displays connection status for both devices
-
-3. Test Communication
-~~~~~~~~~~~~~~~~~~~~~
-
-You can test the WebSocket connection using the following Python script:
-
-.. code:: python
+.. code-block:: python
 
    import asyncio
-   import websockets
    import json
+
+   import websockets
+
 
    async def test_haply():
        uri = "ws://localhost:10001"
@@ -147,18 +91,19 @@ You can test the WebSocket connection using the following Python script:
            print("Inverse3:", data.get("inverse3", []))
            print("VerseGrip:", data.get("wireless_verse_grip", []))
 
+
    asyncio.run(test_haply())
 
-You should see device data streaming from both Inverse3 and VerseGrip.
+You should see data streaming from both the Inverse3 and VerseGrip.
 
 
 .. _haply-running-demo:
 
-Running the Demo
-----------------
+Run the Demo
+------------
 
-The Haply teleoperation demo showcases robot manipulation with force feedback using
-a Franka Panda arm.
+The Haply demo teleoperates a Franka Panda arm and streams simulated contact forces back to the
+Inverse3.
 
 .. figure:: ../../_static/demos/haply_teleop_franka.jpg
    :align: center
@@ -167,68 +112,66 @@ a Franka Panda arm.
 
    Haply Inverse3 and VerseGrip teleoperating a Franka Panda arm in Isaac Lab.
 
-Basic Usage
-~~~~~~~~~~~
+Make sure the Haply SDK is running, then launch:
 
 .. code-block:: bash
 
-   # Ensure Haply SDK is running
-   uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+   uv run python scripts/demos/haply_teleoperation.py \
+       --websocket_uri ws://localhost:10001 \
+       --pos_sensitivity 1.65
 
-The demo will:
-
-1. Connect to the Haply devices via WebSocket
-2. Spawn a Franka Panda robot and a cube in simulation
-3. Map Haply position to robot end-effector position
-4. Stream contact forces back to the Inverse3 for haptic feedback
+The demo maps the Inverse3 position to the robot end-effector, uses inverse kinematics to control
+the Franka arm, and sends simulated contact forces back to the haptic device.
 
 Controls
 ~~~~~~~~
 
-* **Move Inverse3**: Controls the robot end-effector position
-* **VerseGrip Button A**: Open gripper
-* **VerseGrip Button B**: Close gripper
-* **VerseGrip Button C**: Rotate end-effector by 60°
+* **Move Inverse3:** Move the robot end-effector
+* **VerseGrip Button A:** Open the gripper
+* **VerseGrip Button B:** Close the gripper
+* **VerseGrip Button C:** Rotate the end-effector by 60 degrees
 
-Advanced Options
-~~~~~~~~~~~~~~~~
 
-Customize the demo with command-line arguments:
+Customize the Demo
+~~~~~~~~~~~~~~~~~~
+
+Use a different WebSocket endpoint:
 
 .. code-block:: bash
 
-   # Use custom WebSocket URI
-   uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://192.168.1.100:10001
+   uv run python scripts/demos/haply_teleoperation.py \
+       --websocket_uri ws://192.168.1.100:10001
 
-   # Adjust position sensitivity (default: 1.0)
-   uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
+Adjust position sensitivity:
+
+.. code-block:: bash
+
+   uv run python scripts/demos/haply_teleoperation.py \
+       --websocket_uri ws://localhost:10001 \
+       --pos_sensitivity 2.0
+
 
 .. _haply-physics-backends:
 
-Physics and Visualizer Backends
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Choose a Physics and Visualizer Backend
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The demo supports both of Isaac Lab's physics backends, selected with ``--physics``. Pair it with
-a matching ``--visualizer`` when you want the Newton debug viewer instead of the default Kit
-viewport:
+The demo supports both Isaac Lab physics backends. Use ``--physics`` to select the backend and
+``--visualizer`` when you want the Newton viewer instead of the default Kit viewport.
 
 .. code-block:: bash
 
-   # Default: PhysX physics, Kit viewer
+   # PhysX physics with the Kit viewer (default)
    uv run python scripts/demos/haply_teleoperation.py
 
-   # Newton (MJWarp) physics, Kit viewer
-   uv run python scripts/demos/haply_teleoperation.py --physics newton_mjwarp
+   # Newton (MJWarp) physics with the Kit viewer
+   uv run python scripts/demos/haply_teleoperation.py \
+       --physics newton_mjwarp
 
-   # Newton (MJWarp) physics, Newton viewer
-   uv run python scripts/demos/haply_teleoperation.py --physics newton_mjwarp --visualizer newton
-
-Demo Features
-~~~~~~~~~~~~~
-
-* **Workspace Mapping**: Haply workspace is mapped to robot reachable space with safety limits
-* **Inverse Kinematics**: Inverse Kinematics (IK) computes joint positions for desired end-effector pose
-* **Force Feedback**: Contact forces from end-effector sensors are sent to Inverse3 for haptic feedback
+   # Newton (MJWarp) physics with the Newton viewer
+   uv run python scripts/demos/haply_teleoperation.py \
+       --physics newton_mjwarp \
+       --visualizer newton
 
 
 .. _haply-troubleshooting:
@@ -236,22 +179,23 @@ Demo Features
 Troubleshooting
 ---------------
 
-No Haptic Feedback
+No haptic feedback
 ~~~~~~~~~~~~~~~~~~
 
-**Problem**: No haptic feedback felt on Inverse3
+If the Inverse3 is not producing force feedback:
 
-Solutions:
-
-* Verify Inverse3 is the active device in Haply SDK
-* Check contact forces are non-zero in simulation (try grasping the cube)
-* Ensure ``limit_force`` is not set too low (default: 2.0N)
+* Verify that the Inverse3 is active in the Haply SDK.
+* Confirm that the robot is generating contact forces in simulation, for example by grasping
+  the cube.
+* Check that ``limit_force`` is not set too low. The default is ``2.0`` N.
 
 
 Next Steps
 ----------
 
-* **Customize the demo**: Modify the workspace mapping or add custom button behaviors
-* **Implement your own controller**: Use :class:`~isaaclab.devices.HaplyDevice` in your own scripts
+To build on the demo:
 
-For more information on device APIs, see :class:`~isaaclab.devices.HaplyDevice` in the API documentation.
+* Use :class:`~isaaclab.devices.HaplyDevice` in your own teleoperation script.
+* Modify the workspace mapping, force limits, or VerseGrip button behavior.
+
+See :class:`~isaaclab.devices.HaplyDevice` in the API documentation for the device interface.
