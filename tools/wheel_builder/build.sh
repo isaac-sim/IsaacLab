@@ -94,7 +94,8 @@ cd "$BUILD_DIR"
 # for environments where --user is unsupported (e.g. Docker, ephemeral CI runners).
 bash "$SELF_DIR/../../.github/actions/_lib/retry-command.sh" bash -c \
     'python3 -m pip install --user build wheel 2>/dev/null || python3 -m pip install --break-system-packages build wheel'
-python3 -m build --wheel --outdir "$DIST_DIR/"
+bash "$SELF_DIR/../../.github/actions/_lib/retry-command.sh" \
+    python3 -m build --wheel --outdir "$DIST_DIR/"
 
 # 5. Retag the wheel to match official platform tags
 # cd "$DIST_DIR"
