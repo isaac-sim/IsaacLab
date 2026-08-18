@@ -11,10 +11,11 @@ Changed
 * Changed per-environment Isaac RTX scene partitioning to be enabled by default
   through ``IsaacRtxRendererCfg.enable_scene_partitioning``. The legacy
   ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
-  still supplies the config construction default and now accepts only ``0`` or
-  ``1``. OVRTX remains always-on.
-* Changed the standard Kit experiences to initialize the all-environment
-  spectator view before RTX startup.
+  still supplies the construction default and now accepts only ``0`` or ``1``.
+  OVRTX remains always-on.
+* Changed :class:`~isaaclab.app.AppLauncher` to initialize the all-environment
+  spectator view only for Kit visualization, recording, livestreaming, and XR.
+  Regular headless training and camera-sensor runs retain partition isolation.
 * Changed :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to reject
   per-marker input arrays with differing first dimensions. Pass one entry per
   marker in every supplied array.

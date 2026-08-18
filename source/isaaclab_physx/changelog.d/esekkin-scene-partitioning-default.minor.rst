@@ -3,8 +3,8 @@ Added
 
 * Added ``IsaacRtxRendererCfg.enable_scene_partitioning`` and
   ``IsaacRtxRendererGlobalSettingsCfg.show_all_partitions_by_default`` settings.
-  The latter enables an all-environment spectator view by default and requires
-  spatially separated environments.
+  The latter optionally overrides AppLauncher's visualization-scoped spectator
+  setting and requires spatially separated environments when enabled.
 
 Changed
 ^^^^^^^

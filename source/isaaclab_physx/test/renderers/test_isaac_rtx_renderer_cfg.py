@@ -15,6 +15,6 @@ def test_global_settings_cfg_is_publicly_exported():
     assert "IsaacRtxRendererGlobalSettingsCfg" in renderers.__all__
 
 
-def test_global_view_is_enabled_by_default():
-    """Unpartitioned spectator cameras should see partitioned content by default."""
-    assert IsaacRtxRendererCfg().global_settings.show_all_partitions_by_default
+def test_global_view_preserves_launch_setting_by_default():
+    """Renderer construction should preserve AppLauncher's spectator-view choice."""
+    assert IsaacRtxRendererCfg().global_settings.show_all_partitions_by_default is None

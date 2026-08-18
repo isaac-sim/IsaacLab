@@ -88,14 +88,13 @@ class IsaacRtxRendererGlobalSettingsCfg:
     view_tile_limit: int | None = None
     """Maximum number of view tiles."""
 
-    show_all_partitions_by_default: bool = True
-    """Show partitioned content in cameras without a scene-partition token.
+    show_all_partitions_by_default: bool | None = None
+    """Optionally show partitioned content in cameras without a partition token.
 
-    This provides an all-environment spectator view while partitioned cameras
-    remain isolated. Environments must be spatially separated to avoid content
-    leaking between partitions. Isaac Lab's standard Kit experiences initialize
-    this capability before RTX startup; custom experiences must likewise set
-    ``rtx.scenePartitioning.showAllPartitionsByDefault=true`` at launch.
+    ``None`` preserves the launch-time setting. :class:`~isaaclab.app.AppLauncher`
+    enables the all-environment spectator view before RTX startup only for Kit
+    visualization, recording, livestreaming, and XR. Environments must be
+    spatially separated when this setting is enabled.
     """
 
     carb_settings: dict[str, Any] | None = None
@@ -120,10 +119,9 @@ class IsaacRtxRendererCfg(RendererCfg):
     enable_scene_partitioning: bool = field(default_factory=isaac_rtx_per_env_scene_partition_enabled)
     """Enable per-environment scene-partition authoring.
 
-    Enabled by default. The legacy
-    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
-    supplies the construction default when set; assigning this field explicitly
-    overrides it.
+    Enabled by default. Assigning this field explicitly overrides the construction
+    default. The legacy ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION``
+    environment variable still supplies that default when set.
     """
 
     semantic_filter: str | list[str] = "*:*"

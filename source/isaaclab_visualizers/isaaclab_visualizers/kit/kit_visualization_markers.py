@@ -24,10 +24,6 @@ from isaaclab.utils.version import has_kit
 
 logger = logging.getLogger(__name__)
 
-# PrimvarsAPI adds the ``primvars:`` namespace to the base name, so these resolve to the same USD attribute.
-_ENV_SCENE_PARTITION_ATTR = "primvars:omni:scenePartition"
-_INSTANCE_SCENE_PARTITION_PRIMVAR = "omni:scenePartition"
-
 
 class KitVisualizationMarkers:
     """USD PointInstancer backend for visualization markers.
@@ -160,11 +156,17 @@ class KitVisualizationMarkers:
         self._sync_scene_partition_primvar()
 
     def _sync_scene_partition_primvar(self) -> None:
-        """Assign each marker instance to its environment's active scene partition."""
+        """Synchronize marker ownership with renderer scene partitions.
+
+        Point instancers live outside the environment hierarchies, so their instances
+        need explicit partition tokens. Any previously authored tokens are cleared when
+        the caller drops environment ownership or the renderer has no active partitions.
+        """
         from pxr import Sdf, UsdGeom, Vt  # noqa: PLC0415
 
         primvars_api = UsdGeom.PrimvarsAPI(self._instancer_manager.GetPrim())
-        primvar = primvars_api.GetPrimvar(_INSTANCE_SCENE_PARTITION_PRIMVAR)
+        # PrimvarsAPI adds the ``primvars:`` namespace, matching the env-root attribute.
+        primvar = primvars_api.GetPrimvar("omni:scenePartition")
         if self._environment_ids is None or not self._scene_partitioning_is_active():
             if primvar:
                 primvar.GetAttr().Clear()
@@ -174,7 +176,7 @@ class KitVisualizationMarkers:
             # Vertex interpolation maps each token to one PointInstancer instance; RTX rendered the same
             # token array with constant interpolation as unpartitioned.
             primvar = primvars_api.CreatePrimvar(
-                _INSTANCE_SCENE_PARTITION_PRIMVAR,
+                "omni:scenePartition",
                 Sdf.ValueTypeNames.TokenArray,
                 UsdGeom.Tokens.vertex,
             )
@@ -182,22 +184,19 @@ class KitVisualizationMarkers:
             raise RuntimeError(
                 f"Expected '{primvar.GetAttr().GetPath()}' to have type TokenArray. Received: {primvar.GetTypeName()}."
             )
-        primvar.SetInterpolation(UsdGeom.Tokens.vertex)
         primvar.Set(Vt.TokenArray([f"env_{env_id}" for env_id in self._environment_ids]))
 
     def _scene_partitioning_is_active(self) -> bool:
-        """Return whether renderer stage preparation authored environment partitions."""
-        candidate_env_ids = {0}
-        if self._environment_ids is not None:
-            candidate_env_ids.update(self._environment_ids)
-        for env_id in candidate_env_ids:
-            env_prim = self.stage.GetPrimAtPath(f"/World/envs/env_{env_id}")
-            if not env_prim.IsValid():
-                continue
-            attr = env_prim.GetAttribute(_ENV_SCENE_PARTITION_ATTR)
-            if attr.IsValid() and attr.Get() is not None:
-                return True
-        return False
+        """Return whether renderer stage preparation authored environment partitions.
+
+        Renderer preparation always starts with ``env_0``, so its root is the
+        canonical stage-level signal regardless of which environments own markers.
+        """
+        env_prim = self.stage.GetPrimAtPath("/World/envs/env_0")
+        if not env_prim.IsValid():
+            return False
+        attr = env_prim.GetAttribute("primvars:omni:scenePartition")
+        return attr.IsValid() and attr.Get() is not None
 
     def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]) -> None:
         """Add marker prototypes to the scene and register them with the point instancer."""

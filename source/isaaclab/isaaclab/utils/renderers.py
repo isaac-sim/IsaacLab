@@ -7,6 +7,9 @@
 
 import os
 
+ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING = "/rtx/scenePartitioning/showAllPartitionsByDefault"
+"""RTX setting that exposes partitioned content to cameras without a partition token."""
+
 _SCENE_PARTITION_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 
 

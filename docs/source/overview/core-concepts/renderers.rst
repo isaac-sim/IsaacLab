@@ -61,19 +61,21 @@ Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendere
 
    renderer_cfg = IsaacRtxRendererCfg(enable_scene_partitioning=False)
 
-The legacy ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
-still supplies the construction default when set to ``0`` or ``1``. An explicit config
-value takes precedence. This setting does not affect OVRTX, which always partitions
-multi-environment scenes.
+Scene partitioning and the all-environment spectator view are separate controls.
+:class:`~isaaclab.app.AppLauncher` enables spectator support before RTX startup only
+when Kit visualization, recording, livestreaming, or XR is requested. Regular headless
+training and camera-sensor runs keep it disabled so tiled cameras are not exposed to
+the spectator mode's world-space layout constraints.
 
-By default, ``global_settings.show_all_partitions_by_default=True`` leaves the Kit
-spectator camera unpartitioned so it sees all environments while tiled cameras remain
-isolated. Isaac Lab's standard Kit experiences enable this capability before RTX
-initialization. Custom experiences must likewise set
-``rtx.scenePartitioning.showAllPartitionsByDefault=true`` at launch. This mode requires
-environments to remain spatially separated; overlapping partition bounds can make
-content leak into another environment or disappear. Set the field to ``False`` to
-prioritize partition isolation and show only the selected environment in the Kit viewport.
+``global_settings.show_all_partitions_by_default`` maps to that same process-global RTX
+setting; it is not a separate feature. Its default value of ``None`` preserves the
+launch-time choice made by :class:`~isaaclab.app.AppLauncher`. An explicit value overrides
+that setting when the Isaac RTX renderer is constructed. When enabled, environments must
+remain spatially separated because overlapping partition bounds can make content leak into
+another environment or disappear. When disabled, the Kit viewport displays only the
+selected environment.
+
+This setting does not affect OVRTX, which always partitions multi-environment scenes.
 
 Prims outside the environment hierarchies remain in the shared background partition.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition

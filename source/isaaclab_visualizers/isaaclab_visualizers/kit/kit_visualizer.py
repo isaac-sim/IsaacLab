@@ -36,6 +36,7 @@ from isaaclab.envs.utils.camera_view import (
     resolve_streaming_envs,
 )
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -49,7 +50,6 @@ if TYPE_CHECKING:
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 _DEFAULT_VIEWPORT_CAMERA_PATH = "/OmniverseKit_Persp"
-_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING = "/rtx/scenePartitioning/showAllPartitionsByDefault"
 
 _BACKEND_DISPLAY_NAMES = {
     "physx": "PhysX",
@@ -924,7 +924,7 @@ class KitVisualizer(BaseVisualizer):
             return
 
         attr = camera_prim.GetAttribute("omni:scenePartition")
-        if get_settings_manager().get(_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False):
+        if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False):
             if attr.IsValid():
                 camera_prim.RemoveProperty("omni:scenePartition")
             logger.debug(
