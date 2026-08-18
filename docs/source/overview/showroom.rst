@@ -158,6 +158,9 @@ A few quick showroom scripts to run and checkout:
 
                   uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
 
+               For details on choosing between ``uv run --extra`` and ``uv sync --inexact --extra``,
+               see :ref:`uv extra synchronization <installation-uv-extra-sync>`.
+
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash

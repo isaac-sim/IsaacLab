@@ -201,6 +201,9 @@ outer simulation loop.
 
       uv sync --inexact --extra tetrahedralization
 
+   For details on choosing between ``uv run --extra`` and ``uv sync --inexact --extra``,
+   see :ref:`uv extra synchronization <installation-uv-extra-sync>`.
+
    With the legacy installer:
 
    .. code-block:: bash

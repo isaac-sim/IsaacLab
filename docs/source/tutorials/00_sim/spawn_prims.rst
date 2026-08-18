@@ -19,6 +19,9 @@ demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes f
 
       uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
 
+   For details on choosing between ``uv run --extra`` and ``uv sync --inexact --extra``,
+   see :ref:`uv extra synchronization <installation-uv-extra-sync>`.
+
    With the legacy installer, install the optional dependencies first:
 
    .. code-block:: bash
