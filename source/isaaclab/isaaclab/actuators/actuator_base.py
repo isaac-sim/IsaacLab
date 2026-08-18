@@ -224,13 +224,13 @@ class ActuatorBase(ABC):
         if not self.is_implicit_model:
             if actuator_effort_limit is None:
                 actuator_effort_limit = torch.inf
-            self.actuator_effort_limit = self._parse_joint_parameter(
-                self.cfg.actuator_effort_limit, actuator_effort_limit
+            self.actuator_effort_limit = resolve_joint_parameter(
+                self.cfg.actuator_effort_limit, actuator_effort_limit, joint_names, num_envs, device
             )
         if actuator_velocity_limit is None:
             actuator_velocity_limit = torch.inf
-        self.actuator_velocity_limit = self._parse_joint_parameter(
-            self.cfg.actuator_velocity_limit, actuator_velocity_limit
+        self.actuator_velocity_limit = resolve_joint_parameter(
+            self.cfg.actuator_velocity_limit, actuator_velocity_limit, joint_names, num_envs, device
         )
 
     def __str__(self) -> str:
@@ -310,27 +310,6 @@ class ActuatorBase(ABC):
     """
     Helper functions.
     """
-
-    def _parse_joint_parameter(
-        self, cfg_value: float | dict[str, float] | None, default_value: float | torch.Tensor | None
-    ) -> torch.Tensor:
-        """Parse the joint parameter from the configuration.
-
-        Args:
-            cfg_value: The parameter value from the configuration. If None, then use the default value.
-            default_value: The default value to use if the parameter is None. If it is also None,
-                then an error is raised.
-
-        Returns:
-            The parsed parameter value.
-
-        Raises:
-            TypeError: If the parameter value is not of the expected type.
-            TypeError: If the default value is not of the expected type.
-            ValueError: If the parameter value is None and no default value is provided.
-            ValueError: If the default value tensor is the wrong shape.
-        """
-        return resolve_joint_parameter(cfg_value, default_value, self.joint_names, self._num_envs, self._device)
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         """Clip the desired torques based on the motor limits.

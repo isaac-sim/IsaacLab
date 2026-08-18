@@ -16,7 +16,7 @@ from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
 
 from ._compat import _limits_equal
-from .actuator_base import ActuatorBase
+from .actuator_base import ActuatorBase, resolve_joint_parameter
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
@@ -101,10 +101,16 @@ class ImplicitActuator(ActuatorBase):
             cfg, joint_names, joint_ids, num_envs, device, None, actuator_velocity_limit, None, velocity_limit
         )
         # construction values, used until the group is bound to articulation storage.
-        self._construction_stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
-        self._construction_damping = self._parse_joint_parameter(self.cfg.damping, damping)
-        self._construction_joint_effort_limit = self._parse_joint_parameter(
-            self.cfg.joint_effort_limit, joint_effort_limit if joint_effort_limit is not None else torch.inf
+        self._construction_stiffness = resolve_joint_parameter(
+            self.cfg.stiffness, stiffness, joint_names, num_envs, device
+        )
+        self._construction_damping = resolve_joint_parameter(self.cfg.damping, damping, joint_names, num_envs, device)
+        self._construction_joint_effort_limit = resolve_joint_parameter(
+            self.cfg.joint_effort_limit,
+            joint_effort_limit if joint_effort_limit is not None else torch.inf,
+            joint_names,
+            num_envs,
+            device,
         )
         # full articulation-order joint property tensors, set by :meth:`_bind_actuator_parameters`.
         self._stiffness: torch.Tensor | None = None
@@ -290,8 +296,8 @@ class IdealPDActuator(ActuatorBase):
             effort_limit,  # TODO: Deprecated. Remove in 4.0.
             velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
-        self.stiffness = self._parse_joint_parameter(self.cfg.stiffness, stiffness)
-        self.damping = self._parse_joint_parameter(self.cfg.damping, damping)
+        self.stiffness = resolve_joint_parameter(self.cfg.stiffness, stiffness, joint_names, num_envs, device)
+        self.damping = resolve_joint_parameter(self.cfg.damping, damping, joint_names, num_envs, device)
 
     """
     Operations.
