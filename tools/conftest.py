@@ -21,6 +21,7 @@ from prettytable import PrettyTable
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
+import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
@@ -79,6 +80,129 @@ full hard timeout, we give the process a short grace period to exit, then
 kill it.  The test results are taken from the report file (pass/fail), not
 from the kill.
 """
+
+HANG_DUMP_PASSES = 2
+"""Number of stack dumps requested from a hung process before it is killed.
+
+One dump says where the process is; two taken seconds apart say whether it is
+moving.  Identical stacks are what distinguishes a wedged process from a slow
+one, which the runner cannot tell from wall clock alone.
+"""
+
+HANG_DUMP_GRACE = 3
+"""Seconds spent collecting each dump.
+
+``faulthandler`` writes its dump from inside the signal handler, so this only
+has to cover signal delivery and the write itself.  It is spent solely on runs
+that are already failing.
+"""
+
+HANG_DUMP_LIMIT_BYTES = 64 * 1024
+"""Maximum bytes of stack dump carried into the report.
+
+The dump lands in the job log and in the JUnit XML, and a Kit process has
+enough threads to make an unbounded dump a problem in both.
+"""
+
+
+def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1):
+    """Read whatever is readable on the child's pipes, echoing it as it arrives.
+
+    Args:
+        process: The child being read from.
+        stdout_fd: Read end of the child's stdout, already non-blocking.
+        stderr_fd: Read end of the child's stderr, already non-blocking.
+        timeout: Seconds to wait for either pipe to become readable.
+
+    Returns:
+        Tuple of ``(stdout_bytes, stderr_bytes)`` read in this pass.  Both are
+        echoed to this process's own streams before being returned, so output
+        reaches the job log while the test is still running.
+    """
+    stdout_chunk = b""
+    stderr_chunk = b""
+    try:
+        ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], timeout)
+
+        for fd in ready_fds:
+            with contextlib.suppress(OSError):
+                if fd == stdout_fd:
+                    chunk = process.stdout.read(1024)
+                    if chunk:
+                        stdout_chunk += chunk
+                        sys.stdout.buffer.write(chunk)
+                        sys.stdout.buffer.flush()
+                elif fd == stderr_fd:
+                    chunk = process.stderr.read(1024)
+                    if chunk:
+                        stderr_chunk += chunk
+                        sys.stderr.buffer.write(chunk)
+                        sys.stderr.buffer.flush()
+    except OSError:
+        time.sleep(timeout)
+    return stdout_chunk, stderr_chunk
+
+
+def _dump_hung_process_stacks(process, stdout_fd, stderr_fd):
+    """Ask a hung process for a stack of every thread, and collect what it writes.
+
+    Sends :data:`hang_dump.DUMP_SIGNAL`, which ``tools/hang_dump.py`` registers with ``faulthandler`` in the
+    test process.  See that module for why the dump cannot be triggered with ``SIGTERM``, ``SIGABRT``, or a
+    Python-level :mod:`signal` handler.
+
+    The signal goes to the test process itself rather than its group.  The handler is registered there, and
+    a standalone script the test launched as a grandchild has no handler -- ``SIGUSR1`` would simply kill it,
+    losing it from the process tree the caller has already recorded.
+
+    Args:
+        process: The hung child.
+        stdout_fd: Read end of the child's stdout, already non-blocking.
+        stderr_fd: Read end of the child's stderr, already non-blocking.
+
+    Returns:
+        Tuple of ``(dump_section, stdout_bytes, stderr_bytes)``.  *dump_section* is a report section, or
+        ``""`` when the process wrote nothing -- the case when it is wedged somewhere the signal cannot be
+        delivered, or died before it could answer.  The byte strings are whatever the child wrote while being
+        dumped, and belong in the captured streams either way.
+    """
+    stdout_data = b""
+    stderr_data = b""
+    dumps = []
+
+    if hang_dump.DUMP_SIGNAL is None:
+        return "", stdout_data, stderr_data
+
+    for _ in range(HANG_DUMP_PASSES):
+        try:
+            os.kill(process.pid, hang_dump.DUMP_SIGNAL)
+        except OSError:
+            break
+
+        # faulthandler writes the dump to the child's stderr, so that is the stream it arrives on.
+        dumped = b""
+        deadline = time.time() + HANG_DUMP_GRACE
+        while time.time() < deadline:
+            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
+            stdout_data += stdout_chunk
+            stderr_data += stderr_chunk
+            dumped += stderr_chunk
+        if dumped:
+            dumps.append(dumped)
+        # exit early if the process died
+        if process.poll() is not None:
+            break
+
+    if not dumps:
+        return "", stdout_data, stderr_data
+
+    body = "\n".join(
+        f"----- dump {index} of {len(dumps)} -----\n{dump.decode('utf-8', errors='replace')}"
+        for index, dump in enumerate(dumps, start=1)
+    )
+    section = f"=== HANG STACK DUMP (all threads) ===\n{body}"
+    if len(section) > HANG_DUMP_LIMIT_BYTES:
+        section = section[:HANG_DUMP_LIMIT_BYTES] + "\n... (truncated)"
+    return section, stdout_data, stderr_data
 
 
 def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
@@ -155,7 +279,17 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 kill_reason = "timeout"
 
             if kill_reason:
+                # Diagnostics first: they record the process tree while the hung process is still in it.
                 pre_kill_diag = _capture_system_diagnostics()
+
+                # Ask the process where it is stuck before killing it -- SIGKILL below cannot be caught,
+                # so this is the only chance to get a stack out of it.
+                hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(process, stdout_fd, stderr_fd)
+                stdout_data += dump_stdout
+                stderr_data += dump_stderr
+                if hang_stacks:
+                    # Ahead of the system tables, which _get_diagnostics truncates off the end.
+                    pre_kill_diag = f"{hang_stacks}\n\n{pre_kill_diag}"
 
                 # Kill the entire process group (test + any Kit children).
                 try:
@@ -171,26 +305,9 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 wall_time = time.time() - start_time
                 return -1, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag
 
-            try:
-                ready_fds, _, _ = select.select([stdout_fd, stderr_fd], [], [], 0.1)
-
-                for fd in ready_fds:
-                    with contextlib.suppress(OSError):
-                        if fd == stdout_fd:
-                            chunk = process.stdout.read(1024)
-                            if chunk:
-                                stdout_data += chunk
-                                sys.stdout.buffer.write(chunk)
-                                sys.stdout.buffer.flush()
-                        elif fd == stderr_fd:
-                            chunk = process.stderr.read(1024)
-                            if chunk:
-                                stderr_data += chunk
-                                sys.stderr.buffer.write(chunk)
-                                sys.stderr.buffer.flush()
-            except OSError:
-                time.sleep(0.1)
-                continue
+            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
+            stdout_data += stdout_chunk
+            stderr_data += stderr_chunk
 
         # Drain any output the process wrote before or just after exiting.
         try:
@@ -312,12 +429,16 @@ def _make_missing_report_result(
     stdout_data,
     stderr_data,
     wall_time,
+    pre_kill_diag="",
 ):
     """Build the ``CRASHED`` pass result for a run that exited without writing a JUnit report.
 
     Shared by the initial invocation and the fresh-process retries: a retry that dies before
     ``pytest_sessionfinish`` has no report of its own, and reusing the previous attempt's results
     would report the run as merely failed and lose the test that took the process down.
+
+    ``pre_kill_diag`` carries the hang stack dump when the process was killed rather than crashed,
+    which is the case for a fresh-process retry that hung instead of dying.
     """
     if kill_reason:
         reason = f"Process killed ({kill_reason}) before it produced a report"
@@ -325,7 +446,7 @@ def _make_missing_report_result(
         reason = _signal_description(-returncode)
     else:
         reason = f"Process exited with code {returncode} but produced no report"
-    diag = _get_diagnostics()
+    diag = _get_diagnostics(pre_kill_diag)
     logger.warning(f"⚠️  {log_label}: {reason}")
     logger.info(diag)
 
@@ -912,6 +1033,7 @@ def _run_one_pass(
             stdout_data=stdout_data,
             stderr_data=stderr_data,
             wall_time=wall_time,
+            pre_kill_diag=pre_kill_diag,
         )
 
     # -- Report file exists: parse actual test results -----------------
@@ -1008,6 +1130,7 @@ def _run_one_pass(
             stdout_data=stdout_data,
             stderr_data=stderr_data,
             wall_time=wall_time,
+            pre_kill_diag=pre_kill_diag,
         )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures

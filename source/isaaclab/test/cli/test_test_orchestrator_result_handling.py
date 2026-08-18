@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import signal
 import sys
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
@@ -16,10 +18,22 @@ from types import ModuleType
 
 import pytest
 
+TOOLS_DIR = Path(__file__).resolve().parents[4] / "tools"
+"""Repo ``tools/`` directory, holding the orchestrator and the stack-dump plugin it signals."""
+
+posix_only = pytest.mark.skipif(
+    not hasattr(signal, "SIGUSR1"),
+    reason="the orchestrator's process handling and the stack-dump signal are both POSIX-only",
+)
+"""Skip on platforms where ``capture_test_output_with_timeout`` cannot run.
+
+It needs ``select`` on pipes, ``os.killpg``, and ``start_new_session``, and the dump needs ``SIGUSR1``.
+"""
+
 
 def _load_orchestrator_module() -> ModuleType:
     """Load ``tools/conftest.py`` without registering it as a pytest plugin."""
-    module_path = Path(__file__).resolve().parents[4] / "tools" / "conftest.py"
+    module_path = TOOLS_DIR / "conftest.py"
     module_name = "isaaclab_test_orchestrator"
     tools_dir = str(module_path.parent)
     if tools_dir not in sys.path:
@@ -483,3 +497,91 @@ def test_result_summary_includes_fast_failure_after_thirty_slower_files():
     assert "Slowest 30 Test Files" not in summary
     assert "fast_failure.py" in summary
     assert all(test_path in summary for test_path in test_files)
+
+
+def _write_hanging_script(tmp_path: Path) -> Path:
+    """Write a script that registers the dump handler and then blocks forever."""
+    script = tmp_path / "hangs.py"
+    script.write_text(
+        "import sys, threading\n"
+        f"sys.path.insert(0, {str(TOOLS_DIR)!r})\n"
+        "import hang_dump\n"
+        "hang_dump.register()\n"
+        "print('collected 1 item', flush=True)\n"
+        "def wedged_call():\n"
+        "    threading.Event().wait()\n"
+        "wedged_call()\n",
+        encoding="utf-8",
+    )
+    return script
+
+
+@posix_only
+def test_hung_process_report_names_where_it_is_stuck(monkeypatch, tmp_path: Path) -> None:
+    """A hang must report the stack it is stuck in, not just that it stopped.
+
+    Without a dump the runner escalates straight to ``SIGKILL``, which cannot be caught, and the report
+    carries only system tables -- nothing that points at the hung code.
+    """
+    orchestrator = _load_orchestrator_module()
+    # The system tables are captured separately and are slow; this test is about the stack.
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    # raising=False so a build without the dump still reaches the assertion below, and fails on the
+    # missing stack rather than on the missing constant.
+    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
+
+    _returncode, _stdout, _stderr, kill_reason, _wall_time, pre_kill_diag = (
+        orchestrator.capture_test_output_with_timeout(
+            [sys.executable, str(_write_hanging_script(tmp_path))], timeout=2, env=os.environ.copy()
+        )
+    )
+
+    assert kill_reason == "timeout"
+    assert "HANG STACK DUMP" in pre_kill_diag
+    assert "wedged_call" in pre_kill_diag
+
+
+@posix_only
+def test_hung_process_is_dumped_more_than_once(monkeypatch, tmp_path: Path) -> None:
+    """Repeated dumps are what tell a wedged process apart from a slow one."""
+    orchestrator = _load_orchestrator_module()
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    # raising=False so a build without the dump still reaches the assertion below, and fails on the
+    # missing stack rather than on the missing constant.
+    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
+
+    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(
+        [sys.executable, str(_write_hanging_script(tmp_path))], timeout=2, env=os.environ.copy()
+    )
+
+    assert pre_kill_diag.count("----- dump ") > 1
+
+
+@posix_only
+def test_hang_dump_precedes_system_diagnostics(monkeypatch, tmp_path: Path) -> None:
+    """The stack must sit ahead of the system tables, which ``_get_diagnostics`` truncates off the end."""
+    orchestrator = _load_orchestrator_module()
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "=== SYSTEM DIAGNOSTICS BODY ===")
+    # raising=False so a build without the dump still reaches the assertion below, and fails on the
+    # missing stack rather than on the missing constant.
+    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
+
+    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(
+        [sys.executable, str(_write_hanging_script(tmp_path))], timeout=2, env=os.environ.copy()
+    )
+
+    assert "HANG STACK DUMP" in pre_kill_diag
+    assert pre_kill_diag.index("HANG STACK DUMP") < pre_kill_diag.index("SYSTEM DIAGNOSTICS BODY")
+
+
+def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
+    """The plugin loads on every platform, so it must no-op where the signal does not exist."""
+    if str(TOOLS_DIR) not in sys.path:
+        sys.path.insert(0, str(TOOLS_DIR))
+    import hang_dump
+
+    monkeypatch.setattr(hang_dump, "DUMP_SIGNAL", None)
+
+    assert hang_dump.is_supported() is False
+    assert hang_dump.register() is False
+    hang_dump.pytest_configure(config=None)  # must not raise
