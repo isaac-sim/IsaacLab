@@ -277,7 +277,10 @@ rendered shape always matches the simulation. Use the default
 ``--visualizer kit`` flag, as in the demo.
 
 .. note::
-    Periodic curves are skipped by the sync.
+    Curve points are synchronized through **CPU** Fabric because the RTX Hydra
+    delegate does not read GPU-backed Fabric arrays for ``BasisCurves``
+    (NVBug 6502662). The on-device sync path can be restored once that bug is
+    fixed. Periodic curves are skipped by the sync.
 
 
 Loading Cables from USD
@@ -333,7 +336,7 @@ Limitations
   counterparts are not.
 * **Uniform point spacing assumed.** One stiffness pair is derived from the mean segment
   length, so uneven spacing mistunes the outlier segments.
-* Periodic curves are not synced.
+* **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
 
 .. note::
     Topologies the runtime object rejects still simulate: the Newton model is
