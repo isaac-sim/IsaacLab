@@ -141,6 +141,35 @@ class RenderContext:
 
         self._last_scene_state_step = physics_step_count
 
+    def update_scene_attribute(
+        self,
+        prim_paths: list[str],
+        attribute_name: str,
+        values: Any,
+        *,
+        is_asset_path: bool = False,
+    ) -> None:
+        """Synchronize one scalar scene attribute to every registered renderer.
+
+        Environment code should author the same values on the live USD stage before calling this
+        method. Renderers that consume live USD need no additional work, while renderers that own
+        a private stage receive the targeted update through :class:`BaseRenderer`.
+
+        Args:
+            prim_paths: Target prim paths. Each path corresponds to one element in ``values``.
+            attribute_name: USD attribute name shared by the target prims.
+            values: Per-prim scalar values as a NumPy array, tensor, or list.
+            is_asset_path: Whether string values carry the USD ``asset`` semantic rather than the
+                default numeric or token-string semantic.
+        """
+        for _cfg, renderer in self._renderer_entries:
+            renderer.update_scene_attribute(
+                prim_paths,
+                attribute_name,
+                values,
+                is_asset_path=is_asset_path,
+            )
+
     def render_into_camera(
         self,
         renderer: BaseRenderer,
