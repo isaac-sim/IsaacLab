@@ -107,6 +107,30 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def update_scene_attribute(
+        self,
+        prim_paths: list[str],
+        attribute_name: str,
+        values: Any,
+        *,
+        is_asset_path: bool = False,
+    ) -> None:
+        """Update one scalar scene attribute across a set of prims.
+
+        This hook is for authored scene state that is neither a transform nor mutable geometry,
+        such as light parameters and material inputs. Backends that render directly from the live
+        USD stage may keep the default no-op implementation. Backends with a private scene
+        representation override it to synchronize the values.
+
+        Args:
+            prim_paths: Target prim paths. Each path corresponds to one element in ``values``.
+            attribute_name: USD attribute name shared by the target prims.
+            values: Per-prim scalar values as a NumPy array, tensor, or list.
+            is_asset_path: Whether string values carry the USD ``asset`` semantic rather than the
+                default numeric or token-string semantic.
+        """
+        return
+
     @abstractmethod
     def update_camera(
         self,

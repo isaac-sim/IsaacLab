@@ -36,6 +36,7 @@ class _FakeBackend(BaseRenderer):
         "_prepare_hits",
         "_update_transforms_hits",
         "_update_geometries_hits",
+        "_scene_attribute_updates",
         "_event_log",
         "_close_hits",
         "_close_raises",
@@ -47,6 +48,7 @@ class _FakeBackend(BaseRenderer):
         prepare_hits: list[int] | None = None,
         update_transforms_hits: list[int] | None = None,
         update_geometries_hits: list[int] | None = None,
+        scene_attribute_updates: list[tuple[list[str], str, Any, bool]] | None = None,
         event_log: list[str] | None = None,
         close_hits: list[Any] | None = None,
         close_raises: bool = False,
@@ -55,6 +57,7 @@ class _FakeBackend(BaseRenderer):
         self._prepare_hits = prepare_hits
         self._update_transforms_hits = update_transforms_hits
         self._update_geometries_hits = update_geometries_hits
+        self._scene_attribute_updates = scene_attribute_updates
         self._event_log = event_log
         self._close_hits = close_hits
         self._close_raises = close_raises
@@ -83,6 +86,17 @@ class _FakeBackend(BaseRenderer):
             self._update_geometries_hits.append(1)
         if self._event_log is not None:
             self._event_log.append("geo")
+
+    def update_scene_attribute(
+        self,
+        prim_paths: list[str],
+        attribute_name: str,
+        values: Any,
+        *,
+        is_asset_path: bool = False,
+    ) -> None:
+        if self._scene_attribute_updates is not None:
+            self._scene_attribute_updates.append((prim_paths, attribute_name, values, is_asset_path))
 
     def update_camera(self, render_data: Any, positions: Any, orientations: Any, intrinsics: Any) -> None:
         pass
@@ -183,6 +197,37 @@ def test_update_scene_state_dedupes_per_physics_step():
     ctx.update_scene_state(2)
     assert len(transform_hits) == 2
     assert len(geometry_hits) == 2
+
+
+def test_update_scene_attribute_dispatches_to_every_backend():
+    """Targeted scene updates reach all registered renderers without backend inspection."""
+    ctx = RenderContext()
+    updates: list[tuple[list[str], str, Any, bool]] = []
+    first = _FakeBackend(scene_attribute_updates=updates)
+    second = _FakeBackend(scene_attribute_updates=updates)
+    _set_entries(ctx, (IsaacRtxRendererCfg(), first), (NewtonWarpRendererCfg(), second))
+
+    paths = ["/World/envs/env_0/Light", "/World/envs/env_1/Light"]
+    values = [1000.0, 1200.0]
+    ctx.update_scene_attribute(paths, "intensity", values)
+
+    assert updates == [
+        (paths, "intensity", values, False),
+        (paths, "intensity", values, False),
+    ]
+
+
+def test_update_scene_attribute_marks_asset_path_values():
+    """The USD asset-path semantic is forwarded explicitly to renderer backends."""
+    ctx = RenderContext()
+    updates: list[tuple[list[str], str, Any, bool]] = []
+    _set_entries(ctx, (IsaacRtxRendererCfg(), _FakeBackend(scene_attribute_updates=updates)))
+
+    paths = ["/World/envs/env_0/Light"]
+    values = ["/textures/studio.hdr"]
+    ctx.update_scene_attribute(paths, "texture:file", values, is_asset_path=True)
+
+    assert updates == [(paths, "texture:file", values, True)]
 
 
 def test_render_into_camera_calls_update_render_read_order():

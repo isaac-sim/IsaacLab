@@ -10,6 +10,7 @@ import importlib.util
 import sys
 import types
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -80,7 +81,194 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer._pending_scene_attribute_updates = []
     return renderer
+
+
+def test_ovrtx_scene_attribute_update_waits_for_scene_initialization():
+    """Pre-initialization updates are copied and retained until OVRTX has a stage."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = False
+    values = np.array([1000.0, 1200.0], dtype=np.float32)
+
+    renderer.update_scene_attribute(
+        ["/World/envs/env_0/Light", "/World/envs/env_1/Light"],
+        "intensity",
+        values,
+    )
+    values[:] = 0.0
+
+    pending = renderer._pending_scene_attribute_updates
+    assert len(pending) == 1
+    assert pending[0][0] == ["/World/envs/env_0/Light", "/World/envs/env_1/Light"]
+    assert pending[0][1] == "intensity"
+    np.testing.assert_array_equal(pending[0][2], [1000.0, 1200.0])
+    assert pending[0][3] is False
+
+
+def test_ovrtx_scene_attribute_update_uses_legacy_renderer():
+    """Initialized legacy OVRTX stages receive targeted attribute writes immediately."""
+
+    class Backend:
+        def __init__(self):
+            self.calls = []
+
+        def write_attribute(self, **kwargs):
+            self.calls.append(kwargs)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._use_ovstage = False
+    renderer._renderer = Backend()
+    values = np.array([1000.0, 1200.0], dtype=np.float32)
+
+    renderer.update_scene_attribute(
+        ["/World/envs/env_0/Light", "/World/envs/env_1/Light"],
+        "intensity",
+        values,
+    )
+
+    assert len(renderer._renderer.calls) == 1
+    call = renderer._renderer.calls[0]
+    assert call["prim_paths"] == ["/World/envs/env_0/Light", "/World/envs/env_1/Light"]
+    assert call["attribute_name"] == "intensity"
+    assert call["tensor"] is values
+
+
+def test_ovrtx_scene_attribute_update_uses_ovstage_asset_semantics():
+    """ovstage receives authored/resolved asset token pairs matching imported USD."""
+    events = []
+
+    class Completion:
+        def wait(self):
+            events.append("wait")
+
+    class Query:
+        def __enter__(self):
+            events.append("query_enter")
+            return "query"
+
+        def __exit__(self, *_args):
+            events.append("query_exit")
+
+    class Stage:
+        def query_from_path_list(self, path_list):
+            events.append(("query", path_list))
+            return Query()
+
+        def write_attribute(self, query, attribute_name, **kwargs):
+            events.append(("write", query, attribute_name, kwargs))
+            return Completion()
+
+    class StagePaths:
+        def create_path_list_from_strings(self, paths):
+            events.append(("create", paths))
+            return "paths"
+
+        def intern_token(self, value):
+            return {"/textures/studio.hdr": 31, "/textures/atrium.hdr": 47}[value]
+
+        def destroy_path_list(self, path_list):
+            events.append(("destroy", path_list))
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._use_ovstage = True
+    renderer._stage = Stage()
+    renderer._stage_paths = StagePaths()
+    renderer._current_ordinal = 7
+
+    renderer.update_scene_attribute(
+        ["/World/envs/env_0/Light", "/World/envs/env_1/Light"],
+        "texture:file",
+        ["/textures/studio.hdr", "/textures/atrium.hdr"],
+        is_asset_path=True,
+    )
+
+    write = next(event for event in events if event[0] == "write")
+    assert write[1:3] == ("query", "texture:file")
+    kwargs = write[3]
+    assert kwargs["ordinal"] == 7
+    assert kwargs["is_array"] is False
+    assert "semantic" not in kwargs
+    tensor = kwargs["tensors"]
+    assert tensor.dtype.code == ovrtx_renderer_module.ovstage.DLDataTypeCode.kDLUInt
+    assert tensor.dtype.bits == 64
+    assert tensor.dtype.lanes == 2
+    assert tensor.shape_tuple == (2,)
+    assert tensor._array.tolist() == [31, 31, 47, 47]
+    assert events[-1] == ("destroy", "paths")
+
+
+def test_ovrtx_scene_attribute_update_interns_ovstage_token_strings():
+    """ovstage string values use token IDs instead of unsupported object arrays."""
+    calls = []
+
+    class Completion:
+        def wait(self):
+            return
+
+    class Query:
+        def __enter__(self):
+            return "query"
+
+        def __exit__(self, *_args):
+            return
+
+    class Stage:
+        def query_from_path_list(self, _path_list):
+            return Query()
+
+        def write_attribute(self, query, attribute_name, **kwargs):
+            calls.append((query, attribute_name, kwargs))
+            return Completion()
+
+    class StagePaths:
+        def create_path_list_from_strings(self, _paths):
+            return "paths"
+
+        def intern_token(self, value):
+            return {"Oak": 41, "Concrete": 73}[value]
+
+        def destroy_path_list(self, _path_list):
+            return
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._use_ovstage = True
+    renderer._stage = Stage()
+    renderer._stage_paths = StagePaths()
+    renderer._current_ordinal = 9
+
+    renderer.update_scene_attribute(
+        ["/World/envs/env_0/Looks/Table", "/World/envs/env_1/Looks/Table"],
+        "info:mdl:sourceAsset:subIdentifier",
+        ["Oak", "Concrete"],
+    )
+
+    query, attribute_name, kwargs = calls[0]
+    assert query == "query"
+    assert attribute_name == "info:mdl:sourceAsset:subIdentifier"
+    np.testing.assert_array_equal(kwargs["tensors"], np.array([41, 73], dtype=np.uint64))
+    assert kwargs["is_array"] is False
+    assert kwargs["semantic"] == ovrtx_renderer_module.ovstage.AttributeSemantic.TOKEN_ID
+
+
+def test_ovrtx_flushes_pending_scene_attribute_updates_in_order():
+    """Initialization drains queued updates in submission order without dropping failures."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._pending_scene_attribute_updates = [
+        (["/World/Light"], "intensity", np.array([1000.0]), False),
+        (["/World/Light"], "colorTemperature", np.array([5000.0]), False),
+    ]
+    applied = []
+    renderer._write_scene_attribute = lambda *args: applied.append(args)
+
+    renderer._flush_pending_scene_attribute_updates()
+
+    assert [item[1] for item in applied] == ["intensity", "colorTemperature"]
+    assert renderer._pending_scene_attribute_updates == []
 
 
 def test_ovrtx_supported_output_types_key_set():
