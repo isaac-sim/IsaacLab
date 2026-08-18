@@ -76,15 +76,15 @@ class BaseArticulationData(ABC):
     def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
         """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
         self._actuator_collection = actuators
-        self._joint_pos_target = actuators.command.position.warp
-        self._joint_vel_target = actuators.command.velocity.warp
-        self._joint_effort_target = actuators.command.effort.warp
+        self._joint_pos_target = actuators.target_command.position.warp
+        self._joint_vel_target = actuators.target_command.velocity.warp
+        self._joint_effort_target = actuators.target_command.effort.warp
         self._computed_torque = actuators.computed_effort.warp
         self._applied_torque = actuators.applied_effort.warp
         self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
-        self._joint_pos_target_ta = actuators.command.position
-        self._joint_vel_target_ta = actuators.command.velocity
-        self._joint_effort_target_ta = actuators.command.effort
+        self._joint_pos_target_ta = actuators.target_command.position
+        self._joint_vel_target_ta = actuators.target_command.velocity
+        self._joint_effort_target_ta = actuators.target_command.effort
         self._computed_torque_ta = actuators.computed_effort
         self._applied_torque_ta = actuators.applied_effort
         self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
@@ -108,7 +108,7 @@ class BaseArticulationData(ABC):
                 stacklevel=2,
             )
             return (
-                getattr(collection.command, command_field)
+                getattr(collection.target_command, command_field)
                 if command_field is not None
                 else getattr(collection, collection_field)
             )
@@ -366,7 +366,7 @@ class BaseArticulationData(ABC):
         """Joint position targets commanded by the user [m or rad, depending on joint type].
 
         .. deprecated:: 3.0.0
-            Use ``articulation.actuators.command.position`` instead.
+            Use ``articulation.actuators.target_command.position`` instead.
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
@@ -378,7 +378,7 @@ class BaseArticulationData(ABC):
         """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
 
         .. deprecated:: 3.0.0
-            Use ``articulation.actuators.command.velocity`` instead.
+            Use ``articulation.actuators.target_command.velocity`` instead.
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
@@ -390,7 +390,7 @@ class BaseArticulationData(ABC):
         """Joint effort targets commanded by the user [N or N·m, depending on joint type].
 
         .. deprecated:: 3.0.0
-            Use ``articulation.actuators.command.effort`` instead.
+            Use ``articulation.actuators.target_command.effort`` instead.
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """

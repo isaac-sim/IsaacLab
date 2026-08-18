@@ -124,7 +124,7 @@ class BaseArticulation(AssetBase):
     This read-only mapping exposes configured groups and owns articulation-wide
     actuator commands and telemetry. Configure membership through
     :attr:`ArticulationCfg.actuators` before construction; set runtime commands
-    through ``articulation.actuators.command``.
+    through ``articulation.actuators.target_command``.
     """
 
     def __init__(self, cfg: ArticulationCfg):
@@ -1663,11 +1663,11 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_position_target_index is deprecated. Use "
-            "articulation.actuators.command.set_position_index instead.",
+            "articulation.actuators.target_command.set_position_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_position_index(
+        self.actuators.target_command.set_position_index(
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
@@ -1743,11 +1743,11 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_position_target_mask is deprecated. Use "
-            "articulation.actuators.command.set_position_mask instead.",
+            "articulation.actuators.target_command.set_position_mask instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_position_mask(
+        self.actuators.target_command.set_position_mask(
             value=target,
             joint_mask=_as_bool_mask(joint_mask),
             env_mask=_as_bool_mask(env_mask),
@@ -1784,11 +1784,11 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_velocity_target_index is deprecated. Use "
-            "articulation.actuators.command.set_velocity_index instead.",
+            "articulation.actuators.target_command.set_velocity_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_velocity_index(
+        self.actuators.target_command.set_velocity_index(
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
@@ -1820,11 +1820,11 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_velocity_target_mask is deprecated. Use "
-            "articulation.actuators.command.set_velocity_mask instead.",
+            "articulation.actuators.target_command.set_velocity_mask instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_velocity_mask(
+        self.actuators.target_command.set_velocity_mask(
             value=target,
             joint_mask=_as_bool_mask(joint_mask),
             env_mask=_as_bool_mask(env_mask),
@@ -1861,11 +1861,13 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_effort_target_index is deprecated. Use "
-            "articulation.actuators.command.set_effort_index instead.",
+            "articulation.actuators.target_command.set_effort_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data)
+        self.actuators.target_command.set_effort_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_mask(
@@ -1895,11 +1897,11 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_effort_target_mask is deprecated. Use "
-            "articulation.actuators.command.set_effort_mask instead.",
+            "articulation.actuators.target_command.set_effort_mask instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.actuators.command.set_effort_mask(
+        self.actuators.target_command.set_effort_mask(
             value=target,
             joint_mask=_as_bool_mask(joint_mask),
             env_mask=_as_bool_mask(env_mask),
@@ -3177,13 +3179,13 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_position_target is deprecated. Use "
-            "articulation.actuators.command.set_position_index instead.",
+            "articulation.actuators.target_command.set_position_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         if isinstance(joint_ids, slice):
             joint_ids = range(self.num_joints)[joint_ids]
-        self.actuators.command.set_position_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
+        self.actuators.target_command.set_position_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_velocity_target(
         self,
@@ -3196,13 +3198,13 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_velocity_target is deprecated. Use "
-            "articulation.actuators.command.set_velocity_index instead.",
+            "articulation.actuators.target_command.set_velocity_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         if isinstance(joint_ids, slice):
             joint_ids = range(self.num_joints)[joint_ids]
-        self.actuators.command.set_velocity_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
+        self.actuators.target_command.set_velocity_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_effort_target(
         self,
@@ -3215,13 +3217,13 @@ class BaseArticulation(AssetBase):
         """
         warnings.warn(
             "Articulation.set_joint_effort_target is deprecated. Use "
-            "articulation.actuators.command.set_effort_index instead.",
+            "articulation.actuators.target_command.set_effort_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         if isinstance(joint_ids, slice):
             joint_ids = range(self.num_joints)[joint_ids]
-        self.actuators.command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
+        self.actuators.target_command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_fixed_tendon_stiffness(
         self,

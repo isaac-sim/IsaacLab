@@ -423,7 +423,7 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
 
         initial_pos = articulation.data.joint_pos.torch.clone()
         target = initial_pos + 0.5
-        articulation.actuators.command.set_position_index(value=target)
+        articulation.actuators.target_command.set_position_index(value=target)
         articulation.write_data_to_sim()
 
         assert articulation._actuator_control.native_actuator_path_active
@@ -492,7 +492,7 @@ def test_newton_native_ovphysx_effort_binding_excludes_implicit_pd(device):
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
 
-        articulation.actuators.command.set_position_index(
+        articulation.actuators.target_command.set_position_index(
             value=articulation.data.joint_pos.torch + torch.tensor([[0.25, 0.5]], device=device)
         )
         articulation.write_data_to_sim()

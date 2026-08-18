@@ -1983,7 +1983,7 @@ class TestArticulationOperations:
 
         expected = torch.zeros((2, 4), dtype=torch.float32)
         expected[:, 1:3] = target
-        torch.testing.assert_close(art.actuators.command.position.torch, expected)
+        torch.testing.assert_close(art.actuators.target_command.position.torch, expected)
 
     @_non_mock_backends
     @pytest.mark.parametrize("ordering_mode", ["none", "reversed", "cyclic"])

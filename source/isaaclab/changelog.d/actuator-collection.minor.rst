@@ -2,8 +2,9 @@ Added
 ^^^^^
 
 * Added :class:`~isaaclab.actuators.ActuatorCollection` as the runtime
-  actuator API, with separate command, processed joint-command, and telemetry
-  views.
+  actuator API, with separate target-command, output-command, and telemetry
+  views (:attr:`~isaaclab.actuators.ActuatorCollection.target_command` and
+  :attr:`~isaaclab.actuators.ActuatorCollection.output_command`).
 * Added execution aggregation for disjoint implicit actuator groups while
   preserving named group configuration and access. Explicit actuator groups
   execute one group at a time.
@@ -22,8 +23,8 @@ Deprecated
 ^^^^^^^^^^
 
 * Deprecated articulation-level actuator command setters and command and
-  torque-telemetry properties on articulation data. Use the command view and
-  ``computed_effort`` or ``applied_effort`` views on
+  torque-telemetry properties on articulation data. Use the ``target_command``
+  view and ``computed_effort`` or ``applied_effort`` views on
   :attr:`~isaaclab.assets.Articulation.actuators` instead.
 * Deprecated Isaac Lab execution of explicit actuator models. Enable
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these

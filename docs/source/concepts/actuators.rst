@@ -65,7 +65,7 @@ by articulation joint. The setters are keyword-only and default to all environme
 
     # desired position for every joint of every environment
     values = torch.full((robot.num_instances, robot.num_joints), 0.5, device=robot.device)
-    robot.actuators.command.set_position_index(value=values)
+    robot.actuators.target_command.set_position_index(value=values)
 
 The articulation stages and submits actuator commands inside
 :meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Isaac Lab-managed models and the shared
@@ -81,7 +81,7 @@ The actuator pipeline
 Setting an actuator command does not write directly to the solver. Commands first enter the
 collection. Each group then follows one of three execution paths:
 
-#. **Command view** -- ``actuators.command.set_*_index`` and ``_mask`` write desired position,
+#. **Command view** -- ``actuators.target_command.set_*_index`` and ``_mask`` write desired position,
    velocity, and effort into joint-indexed buffers.
 #. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
    commands, and telemetry. Actuator models retain their own gains and temporary state.
@@ -89,7 +89,7 @@ collection. Each group then follows one of three execution paths:
    applies targets with solver-side PD gains, or a native actuator runs through Newton or the shared
    host adapter.
 
-For Isaac Lab-managed models, ``actuators.joint_command`` contains the processed position,
+For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
 velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
 submitted-command telemetry for them. PhysX and OVPhysX process commands during
 ``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
@@ -543,7 +543,7 @@ setters when you already have boolean Warp masks. All setters are keyword-only:
     ids = torch.tensor([0, 1], device=robot.device)          # first two joints
     env_ids = torch.arange(robot.num_instances, device=robot.device)
     sub = torch.zeros((env_ids.numel(), ids.numel()), device=robot.device)
-    robot.actuators.command.set_position_index(value=sub, joint_ids=ids, env_ids=env_ids)
+    robot.actuators.target_command.set_position_index(value=sub, joint_ids=ids, env_ids=env_ids)
 
 ``env_ids`` and ``joint_ids`` must not contain duplicates. Duplicate indices write to the same
 destination concurrently, so the result is undefined. Remove duplicates or use a boolean mask,
@@ -561,8 +561,8 @@ the solver, while PhysX and OVPhysX process them through the shared host adapter
 
 .. code-block:: python
 
-    desired_position = robot.actuators.command.position.torch
-    processed_effort = robot.actuators.joint_command.effort.torch  # Isaac Lab-managed path
+    desired_position = robot.actuators.target_command.position.torch
+    processed_effort = robot.actuators.output_command.effort.torch  # Isaac Lab-managed path
     applied = robot.actuators.applied_effort.torch      # after clipping [N·m or N]
     computed = robot.actuators.computed_effort.torch   # before clipping [N·m or N]
 
@@ -595,14 +595,14 @@ and emit a :class:`DeprecationWarning`:
     robot.set_joint_position_target(target, joint_ids=ids)
 
     # After
-    robot.actuators.command.set_position_index(value=target, joint_ids=ids)
+    robot.actuators.target_command.set_position_index(value=target, joint_ids=ids)
 
 LEAPP-exported action terms must keep using the annotated articulation ``*_index`` or ``*_mask``
 setters until the exporter supports collection setters. Other runtime code should migrate to the
 collection API.
 
 The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
-``robot.actuators.command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
+``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
 ``robot.actuators.computed_effort`` / ``robot.actuators.applied_effort``. See the
 :doc:`Isaac Lab 3.0 migration guide <../migration/migrating_to_isaaclab_3-0>` for the full table.
 

@@ -1520,9 +1520,9 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
         # Identity ordering binds the user-order source directly.
         assert target_gather not in launched_kernels
         expected_source = (
-            articulation.actuators.command.position.warp
+            articulation.actuators.target_command.position.warp
             if on_newton_path
-            else articulation.actuators.joint_command.position.warp
+            else articulation.actuators.output_command.position.warp
         )
         np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
 

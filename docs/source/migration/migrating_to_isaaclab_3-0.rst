@@ -1176,13 +1176,13 @@ The old methods are deprecated and will be removed in a future release:
 +---------------------------------------------------------------+-------------------------------------------------+
 | Deprecated                                                    | New                                             |
 +===============================================================+=================================================+
-| ``set_joint_position_target``                                 | ``actuators.command.set_position_index``        |
+| ``set_joint_position_target``                                 | ``actuators.target_command.set_position_index``        |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_velocity_target``                                 | ``actuators.command.set_velocity_index``        |
+| ``set_joint_velocity_target``                                 | ``actuators.target_command.set_velocity_index``        |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_effort_target``                                   | ``actuators.command.set_effort_index``          |
+| ``set_joint_effort_target``                                   | ``actuators.target_command.set_effort_index``          |
 +---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_{position,velocity,effort}_target_index/_mask``   | ``actuators.command.set_{position,velocity,``   |
+| ``set_joint_{position,velocity,effort}_target_index/_mask``   | ``actuators.target_command.set_{position,velocity,``   |
 |                                                               | ``effort}_index/_mask``                         |
 +---------------------------------------------------------------+-------------------------------------------------+
 
@@ -1196,11 +1196,11 @@ future release:
 +------------------------------------------+------------------------------------------+
 | Deprecated                               | New                                      |
 +==========================================+==========================================+
-| ``data.joint_pos_target``                | ``actuators.command.position``           |
+| ``data.joint_pos_target``                | ``actuators.target_command.position``           |
 +------------------------------------------+------------------------------------------+
-| ``data.joint_vel_target``                | ``actuators.command.velocity``           |
+| ``data.joint_vel_target``                | ``actuators.target_command.velocity``           |
 +------------------------------------------+------------------------------------------+
-| ``data.joint_effort_target``             | ``actuators.command.effort``             |
+| ``data.joint_effort_target``             | ``actuators.target_command.effort``             |
 +------------------------------------------+------------------------------------------+
 | ``data.computed_torque``                 | ``actuators.computed_effort``            |
 +------------------------------------------+------------------------------------------+
@@ -1264,11 +1264,11 @@ Here's a complete example showing how to update your code:
 
    # Sending actuator commands expressed in joint-side coordinates (keyword-only)
    robot = scene["robot"]
-   robot.actuators.command.set_effort_index(value=efforts, joint_ids=joint_ids)
+   robot.actuators.target_command.set_effort_index(value=efforts, joint_ids=joint_ids)
 
    # Reading actuator telemetry from the collection
    applied = robot.actuators.applied_effort.torch
-   position_command = robot.actuators.command.position.torch
+   position_command = robot.actuators.target_command.position.torch
 
 For the full runtime API of the actuator collection -- command setters and telemetry buffers --
 see :ref:`actuators-runtime-api`.

@@ -66,11 +66,11 @@ class PhysxActuatorRuntime:
         )
         self.wrapper.joint_q = articulation._data.joint_pos.warp.reshape(-1)
         self.wrapper.joint_qd = articulation._data.joint_vel.warp.reshape(-1)
-        self.wrapper.joint_target_q = collection.command.position.warp.reshape(-1)
-        self.wrapper.joint_target_qd = collection.command.velocity.warp.reshape(-1)
+        self.wrapper.joint_target_q = collection.target_command.position.warp.reshape(-1)
+        self.wrapper.joint_target_qd = collection.target_command.velocity.warp.reshape(-1)
         self.wrapper.joint_target_pos = self.wrapper.joint_target_q
         self.wrapper.joint_target_vel = self.wrapper.joint_target_qd
-        self.wrapper.joint_act = collection.command.effort.warp.reshape(-1)
+        self.wrapper.joint_act = collection.target_command.effort.warp.reshape(-1)
         if not adapt_usd_actuators:
             return
         self.adapter = NewtonActuatorAdapter.from_usd(

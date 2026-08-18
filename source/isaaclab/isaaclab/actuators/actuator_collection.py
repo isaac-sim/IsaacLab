@@ -86,8 +86,8 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         self._allocate_buffers()
-        self._command = ActuatorCommand(self)
-        self._joint_command = ActuatorJointCommand(self)
+        self._target_command = ActuatorTargetCommand(self)
+        self._output_command = ActuatorOutputCommand(self)
         for name, cfg in resolved_cfgs.items():
             _resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
@@ -135,18 +135,18 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         raise TypeError("ActuatorCollection membership is fixed after initialization.")
 
     @property
-    def command(self) -> ActuatorCommand:
+    def target_command(self) -> ActuatorTargetCommand:
         """Commands received by the actuator models."""
-        return self._command
+        return self._target_command
 
     @property
-    def joint_command(self) -> ActuatorJointCommand:
+    def output_command(self) -> ActuatorOutputCommand:
         """Processed commands produced for the simulated joints.
 
         This view is not submitted-command telemetry for native controllers, which
         bypass the processed-command arrays.
         """
-        return self._joint_command
+        return self._output_command
 
     @property
     def num_instances(self) -> int:
@@ -209,9 +209,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         for actuator, joint_indices_wp in self._execution_actuators:
             joint_indices = actuator.joint_indices
             control_action = ArticulationActions(
-                joint_positions=self.command.position.torch[:, joint_indices],
-                joint_velocities=self.command.velocity.torch[:, joint_indices],
-                joint_efforts=self.command.effort.torch[:, joint_indices],
+                joint_positions=self.target_command.position.torch[:, joint_indices],
+                joint_velocities=self.target_command.velocity.torch[:, joint_indices],
+                joint_efforts=self.target_command.effort.torch[:, joint_indices],
                 joint_indices=joint_indices,
             )
             control_action = actuator.compute(
@@ -697,7 +697,7 @@ class _ImplicitExecutor:
         collection._launch_cache.clear(self._cache_key)
 
 
-class ActuatorCommand:
+class ActuatorTargetCommand:
     """Commands received by the actuator models.
 
     Position and velocity commands use joint-side coordinates. All command
@@ -955,7 +955,7 @@ class ActuatorCommand:
         collection._control.stage_user_command(command_name, collection, None, None, env_mask, joint_mask)
 
 
-class ActuatorJointCommand:
+class ActuatorOutputCommand:
     """Processed commands produced for the simulated joints.
 
     These arrays contain submitted-command telemetry for Isaac Lab-managed

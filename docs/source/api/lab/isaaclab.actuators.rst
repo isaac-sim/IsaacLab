@@ -9,10 +9,10 @@
 
     ActuatorBase
     ActuatorBaseCfg
-    ActuatorCommand
+    ActuatorTargetCommand
     ActuatorCollection
     ActuatorControl
-    ActuatorJointCommand
+    ActuatorOutputCommand
     ActuatorJointProperties
     ImplicitActuator
     ImplicitActuatorCfg
@@ -48,10 +48,10 @@ Actuator Collection
   :members:
   :inherited-members:
 
-.. autoclass:: ActuatorCommand
+.. autoclass:: ActuatorTargetCommand
   :members:
 
-.. autoclass:: ActuatorJointCommand
+.. autoclass:: ActuatorOutputCommand
   :members:
 
 Actuator Control

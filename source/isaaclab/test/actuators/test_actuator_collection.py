@@ -99,7 +99,7 @@ def _assign_deterministic_inputs(collection: ActuatorCollection, control: FakeAc
             dtype=torch.float32,
         )
     )
-    collection.command.position.torch.copy_(
+    collection.target_command.position.torch.copy_(
         torch.tensor(
             [
                 [1.40, -0.20, -0.75, 2.20],
@@ -108,7 +108,7 @@ def _assign_deterministic_inputs(collection: ActuatorCollection, control: FakeAc
             dtype=torch.float32,
         )
     )
-    collection.command.velocity.torch.copy_(
+    collection.target_command.velocity.torch.copy_(
         torch.tensor(
             [
                 [-3.5, 4.25, 5.75, -6.5],
@@ -117,7 +117,7 @@ def _assign_deterministic_inputs(collection: ActuatorCollection, control: FakeAc
             dtype=torch.float32,
         )
     )
-    collection.command.effort.torch.copy_(
+    collection.target_command.effort.torch.copy_(
         torch.tensor(
             [
                 [2.25, -3.50, 4.75, -5.25],
@@ -794,13 +794,13 @@ def test_overlapping_groups_are_rejected():
 
 
 def test_collection_is_mapping_like_and_read_only():
-    assert hasattr(actuator_api, "ActuatorCommand")
-    assert hasattr(actuator_api, "ActuatorJointCommand")
+    assert hasattr(actuator_api, "ActuatorTargetCommand")
+    assert hasattr(actuator_api, "ActuatorOutputCommand")
 
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    assert isinstance(collection.command, actuator_api.ActuatorCommand)
-    assert isinstance(collection.joint_command, actuator_api.ActuatorJointCommand)
+    assert isinstance(collection.target_command, actuator_api.ActuatorTargetCommand)
+    assert isinstance(collection.output_command, actuator_api.ActuatorOutputCommand)
 
     assert list(collection.keys()) == ["all"]
     assert collection["all"] is next(iter(collection.values()))
@@ -841,9 +841,9 @@ def test_multi_group_explicit_outputs_match_pd_formula():
     damping = torch.tensor([[1.5, 2.25, 1.5, 2.25]])
     limit = torch.tensor([[18.0, 31.0, 18.0, 31.0]])
     expected_computed = (
-        stiffness * (collection.command.position.torch - control.joint_pos.torch)
-        + damping * (collection.command.velocity.torch - control.joint_vel.torch)
-        + collection.command.effort.torch
+        stiffness * (collection.target_command.position.torch - control.joint_pos.torch)
+        + damping * (collection.target_command.velocity.torch - control.joint_vel.torch)
+        + collection.target_command.effort.torch
     )
     expected_applied = expected_computed.clamp(-limit, limit)
     torch.testing.assert_close(collection.computed_effort.torch, expected_computed, rtol=0.0, atol=0.0)
@@ -882,8 +882,8 @@ def test_disjoint_implicit_groups_share_one_execution_batch():
     control.joint_stiffness.torch[:, [0, 2]] = torch.tensor([[11.0, 13.0]])
     control.joint_damping.torch[:, [0, 2]] = torch.tensor([[2.0, 3.0]])
     control.joint_effort_limits.torch[:, [0, 2]] = torch.tensor([[7.0, 9.0]])
-    collection.command.position.torch[:, [0, 2]] = torch.tensor([[1.0, 2.0]])
-    collection.command.velocity.torch[:, [0, 2]] = torch.tensor([[2.0, 3.0]])
+    collection.target_command.position.torch[:, [0, 2]] = torch.tensor([[1.0, 2.0]])
+    collection.target_command.velocity.torch[:, [0, 2]] = torch.tensor([[2.0, 3.0]])
 
     collection.compute()
 
@@ -945,13 +945,13 @@ def test_actuator_batch_rebinds_cuda_state_provider_on_request(
 ):
     control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"], device="cuda:0")
     collection = ActuatorCollection({"all": actuator_cfg}, control)
-    collection.command.position.torch.fill_(3.0)
+    collection.target_command.position.torch.fill_(3.0)
 
     collection.compute()
     control._joint_pos = ProxyArray(wp.full((1, 1), 2.0, dtype=wp.float32, device=control.device))
     if isinstance(actuator_cfg, ImplicitActuatorCfg):
-        collection.command.velocity.torch.fill_(4.0)
-        collection.command.effort.torch.fill_(5.0)
+        collection.target_command.velocity.torch.fill_(4.0)
+        collection.target_command.effort.torch.fill_(5.0)
         control._joint_vel = ProxyArray(wp.full((1, 1), 1.0, dtype=wp.float32, device=control.device))
         control._joint_stiffness = ProxyArray(wp.full((1, 1), 7.0, dtype=wp.float32, device=control.device))
         control._joint_damping = ProxyArray(wp.full((1, 1), 11.0, dtype=wp.float32, device=control.device))
@@ -982,14 +982,14 @@ def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
         {"hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=10.0, damping=0.0, effort_limit=1000.0)},
         control,
     )
-    collection.command.position.torch[:, [0, 2]] = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    collection.target_command.position.torch[:, [0, 2]] = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
 
     collection.compute()
 
     expected_first = torch.tensor([[10.0, 20.0], [30.0, 40.0]])
     torch.testing.assert_close(collection.computed_effort.torch[:, [0, 2]].cpu(), expected_first, rtol=0.0, atol=0.0)
 
-    collection.command.position.torch.mul_(2.0)
+    collection.target_command.position.torch.mul_(2.0)
     collection.compute()
 
     torch.testing.assert_close(
@@ -1046,8 +1046,8 @@ def test_collection_accepts_cached_proxy_joint_indices():
 def test_write_command_index_supports_selectors_and_submission(command_name):
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
-    setter = getattr(collection.command, f"set_{command_name}_index")
-    command_buffer = getattr(collection.command, command_name)
+    setter = getattr(collection.target_command, f"set_{command_name}_index")
+    command_buffer = getattr(collection.target_command, command_name)
     value = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
 
     setter(value=value, env_ids=[1], joint_ids=[0, 2])
@@ -1073,7 +1073,7 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
     collection.compute()
     collection.submit_commands()
 
-    torch.testing.assert_close(getattr(collection.joint_command, command_name).torch.cpu(), expected)
+    torch.testing.assert_close(getattr(collection.output_command, command_name).torch.cpu(), expected)
     assert control.submitted
 
 
@@ -1085,14 +1085,16 @@ def test_write_command_mask_uses_full_sized_value(command_name):
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     joint_mask = wp.array([False, True, True], dtype=wp.bool, device="cpu")
 
-    getattr(collection.command, f"set_{command_name}_mask")(value=value, env_mask=env_mask, joint_mask=joint_mask)
+    getattr(collection.target_command, f"set_{command_name}_mask")(
+        value=value, env_mask=env_mask, joint_mask=joint_mask
+    )
 
     expected = torch.zeros(2, 3)
     expected[0, 1:] = value[0, 1:]
-    torch.testing.assert_close(getattr(collection.command, command_name).torch.cpu(), expected)
+    torch.testing.assert_close(getattr(collection.target_command, command_name).torch.cpu(), expected)
     assert control.staged_commands == [command_name]
 
     with pytest.raises(TypeError, match="wp.bool"):
-        getattr(collection.command, f"set_{command_name}_mask")(
+        getattr(collection.target_command, f"set_{command_name}_mask")(
             value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask
         )
