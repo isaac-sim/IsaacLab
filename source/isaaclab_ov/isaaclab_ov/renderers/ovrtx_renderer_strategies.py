@@ -129,7 +129,9 @@ class _RenderStrategy(ABC):
 
         ``buffer`` is the caller's persistent staging array; a strategy that owns its own buffers may
         yield one of those instead. The yielded buffer is published to ``binding`` when the context
-        exits without error.
+        exits without error. The caller must enqueue its fill work on the device's current Warp stream
+        (the default for ``wp.launch``/``wp.copy``): publication orders OVRTX's read of the buffer
+        against that stream, so the fill needs no explicit stream handoff of its own.
         """
 
     @abstractmethod
@@ -137,7 +139,8 @@ class _RenderStrategy(ABC):
         """Yield ``(quats, transforms)`` staging buffers for ``num_rows`` cameras.
 
         ``quats`` is a ``quatf`` scratch buffer and ``transforms`` is the ``mat44d`` destination; the
-        latter is published to ``binding`` when the context exits without error.
+        latter is published to ``binding`` when the context exits without error. The same
+        current-Warp-stream contract as :meth:`stage_object_transforms` applies.
         """
 
     @abstractmethod
@@ -212,10 +215,12 @@ class _AsyncRenderSlot:
     def record_write(self, binding: Any, data: wp.array, cuda_stream: int) -> None:
         """Issue an async binding write and record its op so it can be drained before reuse.
 
-        ``cuda_stream`` is the Warp stream the staging kernel that filled ``data`` ran on. Handing it to
-        OVRTX lets OVRTX insert a GPU-side wait before its ``DataAccess.ASYNC`` read, so the subsequent
-        ``step_async`` never observes a partially written transform buffer. Without it OVRTX performs no
-        cross-stream sync against the fill kernel and the read races the write.
+        ``cuda_stream`` is the Warp stream the staging kernel that filled ``data`` ran on. OVRTX
+        synchronizes with it before reading ``data`` (today a host-side wait on its operation
+        thread, off this Python thread), so the ``DataAccess.ASYNC`` read never observes a partially
+        written transform buffer. Its API contract requires this handoff for GPU data; without it,
+        ordering would rest on OVRTX committing via the legacy default CUDA stream, an
+        implementation detail that happens to serialize with Warp's blocking streams today.
         """
         self.write_ops.append(binding.write_async(data, data_access=DataAccess.ASYNC, cuda_stream=cuda_stream))
 
