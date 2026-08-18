@@ -46,27 +46,28 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
-# Entries are ``[synchronous, asynchronous]``: pipelined rendering captures a slightly different render
-# state, so it carries its own tolerance. Read via :func:`max_different_pixels_percentage_for`.
+# An entry is a single tolerance, or a ``[synchronous, asynchronous]`` pair for envs that also run
+# the pipelined lane, which captures a slightly different render state. Read via
+# :func:`max_different_pixels_percentage_for`.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
     "cartpole": [1.5, 2.5],
     # Aliasing artifacts of shadow on the table.
-    "franka_cloth": [8.0, 8.0],
-    "franka_soft": [8.0, 8.0],
-    "franka_cable": [8.0, 8.0],
+    "franka_cloth": 8.0,
+    "franka_soft": 8.0,
+    "franka_cable": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
-    "shadow_hand": [5.0, 5.0],
+    "shadow_hand": 5.0,
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "lift_kuka_homo": [8.0, 8.0],
-    "lift_kuka_hetero": [8.0, 8.0],
-    "kuka_visual_material_randomization": [4.0, 4.0],
+    "lift_kuka_homo": 8.0,
+    "lift_kuka_hetero": 8.0,
+    "kuka_visual_material_randomization": 4.0,
     # Starting allowance carried over from the other deformable scenes rather than a measured
     # need: repeat runs on one machine reproduce these goldens exactly. Tighten it if the
     # cross-machine spread turns out to be smaller than a dense point cloud suggests.
-    "mpm_particles": [8.0, 8.0],
+    "mpm_particles": 8.0,
 }
 
 # OVRTX 0.4.1 rendering fixes allow a tighter tolerance for data types that
@@ -103,9 +104,13 @@ def max_different_pixels_percentage_for(env_name: str) -> float:
         env_name: Key into :data:`MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME`.
 
     Returns:
-        The synchronous or asynchronous tolerance, per :func:`_async_rendering_enabled`.
+        The entry itself when it is a single tolerance, else its synchronous or asynchronous
+        element, per :func:`_async_rendering_enabled`.
     """
-    synchronous, asynchronous = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+    tolerance = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+    if not isinstance(tolerance, list):
+        return tolerance
+    synchronous, asynchronous = tolerance
     return asynchronous if _async_rendering_enabled() else synchronous
 
 
