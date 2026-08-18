@@ -92,6 +92,7 @@ def test_devices_selected_by_cuda_index(launcher_args, expected_renderer_args, m
             True,
             id="cli-kit-visualizer",
         ),
+        pytest.param({"_render_viewport": True}, True, id="viewport"),
         pytest.param(
             {
                 "_cfg_has_kit_visualizer": True,
@@ -113,6 +114,7 @@ def test_spectator_view_follows_visual_output_intent(launcher_state, expected_en
     launcher._cli_visualizer_explicit = False
     launcher._cli_visualizer_types = []
     launcher._cfg_has_kit_visualizer = False
+    launcher._render_viewport = False
     launcher._video_enabled = False
     launcher._livestream = 0
     launcher._xr = False

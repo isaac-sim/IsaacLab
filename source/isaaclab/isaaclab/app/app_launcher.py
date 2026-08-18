@@ -1254,6 +1254,7 @@ class AppLauncher:
             has_kit_visualizer = bool(getattr(self, "_cfg_has_kit_visualizer", False))
         return (
             has_kit_visualizer
+            or bool(getattr(self, "_render_viewport", False))
             or bool(getattr(self, "_video_enabled", False))
             or int(getattr(self, "_livestream", 0)) > 0
             or bool(getattr(self, "_xr", False))

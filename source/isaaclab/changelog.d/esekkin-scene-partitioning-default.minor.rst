@@ -14,8 +14,9 @@ Changed
   still supplies the construction default and now accepts only ``0`` or ``1``.
   OVRTX remains always-on.
 * Changed :class:`~isaaclab.app.AppLauncher` to initialize the all-environment
-  spectator view only for Kit visualization, recording, livestreaming, and XR.
-  Regular headless training and camera-sensor runs retain partition isolation.
+  spectator view when the Kit viewport is enabled or Kit visualization, recording,
+  livestreaming, or XR is requested. Regular headless training and camera-sensor
+  runs retain partition isolation.
 * Changed :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to reject
   per-marker input arrays with differing first dimensions. Pass one entry per
   marker in every supplied array.

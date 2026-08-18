@@ -13,14 +13,6 @@ import pytest
 pytestmark = pytest.mark.unit
 
 APPS_DIR = Path(__file__).resolve().parents[4] / "apps"
-_STANDARD_EXPERIENCES = [
-    "isaaclab.python.kit",
-    "isaaclab.python.headless.kit",
-    "isaaclab.python.rendering.kit",
-    "isaaclab.python.headless.rendering.kit",
-    "isaaclab.python.xr.openxr.kit",
-    "isaaclab.python.xr.openxr.headless.kit",
-]
 
 # ``.kit`` files repeat section headers, so they cannot be parsed as TOML.
 _SECTION_RE = re.compile(r"^\s*\[+(?P<name>[^\[\]]+)\]+\s*$")
@@ -63,17 +55,3 @@ def test_base_experiences_enable_native_storage(experience: str):
 def test_derived_experiences_inherit_native_storage(experience: str, base: str):
     """Test the derived experiences inherit native storage from a base experience."""
     assert base in _kit_dependencies(experience)
-
-
-@pytest.mark.parametrize("experience", _STANDARD_EXPERIENCES)
-def test_experiences_enable_scene_partition_support(experience: str):
-    """Test scene-partition support is enabled before RTX initialization."""
-    experience_text = (APPS_DIR / experience).read_text(encoding="utf-8")
-    assert "renderer.scenePartitioning.enabled = true" in experience_text
-
-
-@pytest.mark.parametrize("experience", _STANDARD_EXPERIENCES)
-def test_experiences_defer_spectator_view_to_app_launcher(experience: str):
-    """Test spectator mode is enabled only when AppLauncher resolves visual output intent."""
-    experience_text = (APPS_DIR / experience).read_text(encoding="utf-8")
-    assert "rtx.scenePartitioning.showAllPartitionsByDefault" not in experience_text

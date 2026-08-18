@@ -63,9 +63,9 @@ Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendere
 
 Scene partitioning and the all-environment spectator view are separate controls.
 :class:`~isaaclab.app.AppLauncher` enables spectator support before RTX startup only
-when Kit visualization, recording, livestreaming, or XR is requested. Regular headless
-training and camera-sensor runs keep it disabled so tiled cameras are not exposed to
-the spectator mode's world-space layout constraints.
+when the Kit viewport is enabled or Kit visualization, recording, livestreaming, or XR
+is requested. Regular headless training and camera-sensor runs keep it disabled so
+tiled cameras are not exposed to the spectator mode's world-space layout constraints.
 
 ``global_settings.show_all_partitions_by_default`` maps to that same process-global RTX
 setting; it is not a separate feature. Its default value of ``None`` preserves the

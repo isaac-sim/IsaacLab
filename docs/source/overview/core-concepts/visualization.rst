@@ -463,9 +463,10 @@ Omniverse Visualizer
     )
 
 When Isaac RTX scene partitioning is enabled, :class:`~isaaclab.app.AppLauncher`
-turns on the all-environment spectator view only for Kit visualization, recording,
-livestreaming, and XR. Regular headless camera-sensor runs retain partition
-isolation. See :ref:`overview_renderers` for configuration and content constraints.
+turns on the all-environment spectator view when the Kit viewport is enabled or
+Kit visualization, recording, livestreaming, or XR is requested. Regular headless
+camera-sensor runs retain partition isolation. See :ref:`overview_renderers` for
+configuration and content constraints.
 
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~

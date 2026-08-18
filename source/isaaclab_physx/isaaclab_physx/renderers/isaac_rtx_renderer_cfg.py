@@ -92,9 +92,9 @@ class IsaacRtxRendererGlobalSettingsCfg:
     """Optionally show partitioned content in cameras without a partition token.
 
     ``None`` preserves the launch-time setting. :class:`~isaaclab.app.AppLauncher`
-    enables the all-environment spectator view before RTX startup only for Kit
-    visualization, recording, livestreaming, and XR. Environments must be
-    spatially separated when this setting is enabled.
+    enables the all-environment spectator view before RTX startup when the Kit
+    viewport is enabled or Kit visualization, recording, livestreaming, or XR is
+    requested. Environments must be spatially separated when this setting is enabled.
     """
 
     carb_settings: dict[str, Any] | None = None
