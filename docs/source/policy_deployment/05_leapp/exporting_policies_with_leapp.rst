@@ -39,9 +39,6 @@ integration available; ``physics=...`` selects it for the task:
 See :ref:`uv-run-training` and :ref:`installation-optional-extras` for the full
 extras model used by training and play.
 
-Ensure you have a trained checkpoint for the selected RL library before proceeding. The standard
-Isaac Lab training workflow stores checkpoints under ``logs/<rl_library>/``.
-
 
 Why Export with LEAPP
 ---------------------
@@ -67,6 +64,16 @@ For a detailed description of LEAPP's generated artifacts and APIs, refer to the
 
 Exporting a Policy
 ------------------
+
+.. note::
+
+   Export requires a trained checkpoint. Normally you train a policy first — follow
+   :ref:`uv-run-training` and
+   :doc:`/source/overview/reinforcement-learning/rl_existing_scripts` — and the export
+   script then discovers the newest matching local run automatically. To get started
+   without training, RSL-RL can pass ``--checkpoint pretrained`` to download a published
+   policy for a supported core task and backend combination (availability is limited;
+   see :ref:`pretrained-checkpoints`).
 
 Use the export script for the RL library that produced the checkpoint. The available script
 directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``. Export runs headless by default.

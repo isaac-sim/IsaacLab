@@ -124,9 +124,11 @@ For example, on Isaac Sim PhysX:
 
 The ``--task`` argument is the registered task name, such as
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument
-points to the trained RSL-RL checkpoint to export. The optional
-``--export_save_path`` argument selects the output directory for the exported
-artifacts. If you omit it, the export is written next to the checkpoint.
+points to the trained RSL-RL checkpoint to export. Train with
+``uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>`` (see
+:ref:`uv-run-training`); do not use the removed per-backend ``train.py`` scripts.
+The optional ``--export_save_path`` argument selects the output directory for the
+exported artifacts. If you omit it, the export is written next to the checkpoint.
 
 .. note::
 
