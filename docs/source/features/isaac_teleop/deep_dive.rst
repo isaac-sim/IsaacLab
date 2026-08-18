@@ -1185,8 +1185,10 @@ For keyboard, SpaceMouse, and gamepad mappings, see the corresponding device doc
 
 .. note::
 
-   RMPFlow is preferred for humanoid arms such as Galbot and Agibot because it respects joint
-   limits. An arm may stop moving when the requested target is unreachable; this is expected.
+   For these legacy environments, RMPFlow is preferred over differential IK for humanoid arms
+   like Galbot and Agibot, since it enforces joint limits while differential IK does not; the arm
+   may stop when a target is unreachable, which is expected. This does not apply to the Pink
+   IK-based GR1T2 environments above, which enforce joint limits independently.
 
 Leader-Arm Environments
 ~~~~~~~~~~~~~~~~~~~~~~~

@@ -24,11 +24,15 @@ Isaac Teleop replaces Isaac Lab's previous native XR teleoperation stack
 
    * **CloudXR.js** for Meta Quest 3 and Pico 4 Ultra. This is the primary supported XR client and
      supports both hand tracking and motion controllers. See :ref:`cloudxr-teleoperation`.
-   * **Apple Vision Pro** through the native `Isaac XR Teleop Sample Client`_ app, and
-     **Manus gloves** for high-fidelity finger tracking. Both use `NVIDIA CloudXR`_. See
+   * **Apple Vision Pro** through the native `Isaac XR Teleop Sample Client`_ app, using
+     `NVIDIA CloudXR`_. See :ref:`cloudxr-teleoperation`.
+   * **Manus gloves** for high-fidelity finger tracking, paired with any supported headset. See
      :ref:`cloudxr-teleoperation`.
    * **Physical leader arms**, such as SO-101, which stream joint positions directly and do not
      require a headset or inverse kinematics. See :ref:`isaac-teleop-standalone`.
+
+   This list covers the devices validated today; Isaac Teleop's backend interface is designed to
+   accommodate additional devices over time.
 
    To see which backends are supported by each task, refer to
    :ref:`isaac-teleop-env-control-reference`.
