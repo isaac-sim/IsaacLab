@@ -34,6 +34,7 @@ workflow:
       args: ["/tmp/run.sh"]
       environment:
         ACCEPT_EULA: Y
+        OMNI_KIT_ACCEPT_EULA: "YES"
         NCCL_DEBUG: WARN
         NCCL_ASYNC_ERROR_HANDLING: "1"
         TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"

@@ -88,7 +88,7 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api
+from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -1542,6 +1542,11 @@ class NewtonManager(PhysicsManager):
         cls._prepare_builder_for_finalize(cls._builder)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
             NewtonManager._model = cls._builder.finalize(device=device)
+            cfg = PhysicsManager._cfg
+            if isinstance(cfg, NewtonCfg) and cfg.soft_contact_cfg is not None:
+                cls._model.soft_contact_ke = float(cfg.soft_contact_cfg.soft_contact_ke)
+                cls._model.soft_contact_kd = float(cfg.soft_contact_cfg.soft_contact_kd)
+                cls._model.soft_contact_mu = float(cfg.soft_contact_cfg.soft_contact_mu)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
@@ -1760,6 +1765,11 @@ class NewtonManager(PhysicsManager):
         return ignore_paths
 
     @classmethod
+    def _get_usd_import_ignore_paths(cls) -> list[str]:
+        """Return solver-specific prim paths excluded from USD import."""
+        return []
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -1801,10 +1811,13 @@ class NewtonManager(PhysicsManager):
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
         hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
+        solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:
             # No env Xforms — flat loading
-            import_result = builder.add_usd(stage, ignore_paths=hf_ignore_paths, schema_resolvers=schema_resolvers)
+            import_result = builder.add_usd(
+                stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
+            )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
@@ -1813,7 +1826,7 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
-            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths
+            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
@@ -1821,7 +1834,10 @@ class NewtonManager(PhysicsManager):
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
             import_result = source_builders[proto_path].add_usd(
-                stage, root_path=proto_path, schema_resolvers=schema_resolvers
+                stage,
+                root_path=proto_path,
+                ignore_paths=solver_ignore_paths,
+                schema_resolvers=schema_resolvers,
             )
             _restore_visible_colliders_without_visual_shapes(
                 source_builders[proto_path], stage, import_result["path_shape_map"]
@@ -3269,8 +3285,8 @@ class NewtonManager(PhysicsManager):
             if expr is None:
                 return None
             if isinstance(expr, str):
-                return expr.replace(".*", "*")
-            return [p.replace(".*", "*") for p in expr]
+                return path_expr_to_glob(expr)
+            return [path_expr_to_glob(p) for p in expr]
 
         def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
             """Strip leading path components from *expr* when labels are bare names.

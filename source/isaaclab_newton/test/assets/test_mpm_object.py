@@ -37,7 +37,7 @@ def test_mpm_particle_material_emits_custom_attributes():
 
 def test_mpm_object_cfg_resolves_asset_class():
     cfg = MPMObjectCfg(
-        prim_path="/World/envs/env_.*/Sand",
+        prim_path="{ENV_REGEX_NS}/Sand",
         spawn=MPMGridCfg(lower=(0.0, 0.0, 0.0), upper=(0.1, 0.1, 0.1), voxel_size=0.1),
     )
 
@@ -49,7 +49,7 @@ def test_mpm_grid_emission_records_constant_offsets_per_env():
     NewtonMPMManager._register_builder_attributes(builder)
 
     cfg = MPMObjectCfg(
-        prim_path="/World/envs/env_.*/Sand",
+        prim_path="{ENV_REGEX_NS}/Sand",
         spawn=MPMGridCfg(
             lower=(0.0, 0.0, 0.0),
             upper=(0.1, 0.1, 0.1),
@@ -74,7 +74,7 @@ def test_mpm_points_emission_records_constant_offsets_per_env():
     NewtonMPMManager._register_builder_attributes(builder)
 
     cfg = MPMObjectCfg(
-        prim_path="/World/envs/env_.*/Fluid",
+        prim_path="{ENV_REGEX_NS}/Fluid",
         spawn=MPMPointsCfg(
             positions=((0.0, 0.0, 0.0), (0.0, 0.0, 0.1), (0.0, 0.1, 0.0)),
             velocities=((0.0, 0.0, 0.0), (0.0, 0.0, 0.1), (0.0, 0.1, 0.0)),

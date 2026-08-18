@@ -36,10 +36,10 @@ class _FakePhysx:
 
 class _DummyRayCaster(ray_caster_module._OvPhysxRayCasterMixin):
     def __init__(self):
-        self.cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot/base/ray")
+        self.cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot/base/ray")
         self._device = "cpu"
         self._resolved = (
-            "/World/envs/env_.*/Robot/base",
+            "/World/envs/env_[^/]+/Robot/base",
             (0.1, 0.2, 0.3),
             (0.0, 0.0, 0.0, 1.0),
         )
