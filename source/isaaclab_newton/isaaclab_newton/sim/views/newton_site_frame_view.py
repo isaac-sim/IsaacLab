@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 
+import newton
 import warp as wp
 
 from pxr import UsdPhysics
@@ -37,6 +38,19 @@ _REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
 def _has_regex_tokens(pattern: str) -> bool:
     """Return whether ``pattern`` contains regex metacharacters (i.e. is not a literal path)."""
     return any(token in _REGEX_TOKENS for token in pattern)
+
+
+def _collision_shape_labels(model) -> list[str]:
+    """Return the labels of ``model``'s collision shapes, excluding sites.
+
+    Newton stores sites as shapes flagged with :attr:`newton.ShapeFlags.SITE`, so ``model.shape_label``
+    also lists non-colliding markers: the sites Isaac Lab injects for frames and sensors, and the ones
+    Newton's USD importer adds for every ``UsdGeom.Camera`` prim. Those are valid ``FrameView`` sources
+    and must not be mistaken for collision geometry.
+    """
+    site_flag = int(newton.ShapeFlags.SITE)
+    shape_flags = model.shape_flags.numpy()
+    return [label for label, flags in zip(model.shape_label, shape_flags) if not int(flags) & site_flag]
 
 
 @wp.kernel
@@ -252,7 +266,7 @@ class NewtonSiteFrameView(BaseFrameView):
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
-        shape_labels = list(model.shape_label) if model is not None else ()
+        shape_labels = _collision_shape_labels(model) if model is not None else ()
         use_clone_body_pattern = model is None
         specs: list[
             tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]

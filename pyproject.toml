@@ -110,6 +110,7 @@ dependencies = [
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
     "typing-extensions>=4.15.0",
+    "vulkan-renderer @ git+https://github.com/NVIDIA-dev/dhasenbring-vulkan-render.git",
 ]
 
 [project.optional-dependencies]
@@ -214,7 +215,10 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.9"
 ovrtx = "0.4.1.364340"
 ovstage = "0.1.0.346039"
-newton = "release-1.5"
+# Temporarily points at the ``dev/camera-sensor`` branch on the daniela-hase fork, which
+# introduces ``newton.sensors.SensorCamera`` used by the Newton Warp renderer. Restore a
+# newton-physics ref (and update the override-dependency fork below) once it lands upstream.
+newton = "dev/camera-sensor"
 warp = "1.16.0"
 
 [tool.ruff]
@@ -397,7 +401,8 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.5",
+    # Fork branch — see the [tool.isaaclab.versions] newton note; restore newton-physics upstream once merged.
+    "newton[sim] @ git+https://github.com/daniela-hase/newton.git@dev/camera-sensor",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",

@@ -136,6 +136,30 @@ def test_reject_shape_path(device):
     ctx.__exit__(None, None, None)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_accept_camera_site_path(device):
+    """FrameView accepts a camera prim, which Newton imports as a (non-colliding) site shape."""
+    num_envs = 2
+    ctx = _sim_context(device, num_envs=num_envs)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    scene = InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
+    sim_utils.create_prim("/World/envs/env_0/Camera", prim_type="Camera", translation=CHILD_OFFSET)
+    sim.reset()
+
+    # Newton's USD importer registers every ``UsdGeom.Camera`` prim as a site, and sites are stored
+    # as shapes -- so the camera paths show up in ``shape_label`` alongside the collision geometry.
+    assert "/World/envs/env_0/Camera" in list(NewtonManager.get_model().shape_label)
+
+    view = FrameView("/World/envs/env_.*/Camera", device=device)
+
+    assert view.count == num_envs
+    pos = view.get_world_poses()[0].torch
+    expected = scene.env_origins + torch.tensor(CHILD_OFFSET, device=device)
+    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
+    ctx.__exit__(None, None, None)
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_clone_plan_view_uses_source_child_without_destination_usd(device):
     """FrameView expands a registered body-local site through the ClonePlan."""
