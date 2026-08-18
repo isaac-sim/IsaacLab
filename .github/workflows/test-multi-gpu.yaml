@@ -90,7 +90,7 @@ jobs:
 
       - name: Install Isaac Lab
         run: |
-          ./isaaclab.sh --install
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/retry-command.sh" ./isaaclab.sh --install
 
       - name: Verify multi-GPU availability
         run: |
