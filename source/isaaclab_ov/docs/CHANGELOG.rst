@@ -1,6 +1,149 @@
 Changelog
 ---------
 
+2.0.4 (2026-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved OVRTX camera-output throughput on Linux. A render var has to be read in an order that
+  respects render completion, and on Linux blocking the calling thread on the render-completion
+  event measures faster than a GPU-side wait. Camera outputs are now read that way on Linux, worth
+  15-70% more end-to-end throughput depending on task and environment count. Other platforms order
+  the read on the consuming Warp stream, which Linux can also be switched to by setting
+  ``ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC=1``. Camera outputs themselves are unchanged.
+
+
+2.0.3 (2026-08-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Constrained the optional OVRTX runtime to ``ovrtx>0.4.0,<0.4.1`` to retain the validated
+  OVRTX 0.4.0 rendering outputs. Users with OVRTX 0.4.1 should downgrade until its output
+  changes are adopted with updated rendering baselines.
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to suppress the OVRTX deprecation warnings
+  emitted for the legacy stage API. Isaac Lab still drives that API until the ovstage path becomes
+  the default, so the warnings were noise no user of this renderer could act on. The option is set
+  only when the installed OVRTX build exposes it, so older wheels are unaffected.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX environment placement by authoring root translations from the clone plan after
+  cloning instead of capturing transforms from the USD stage.
+
+
+2.0.2 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX deformable render bindings leaving the environment slot unresolved, so they
+  bound against a path expression instead of the concrete per-environment mesh prims.
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+
+
+2.0.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` attaching its OVStage at an
+  unsealed write ordinal. ``ovstage.population.open_usd_from_string()`` only
+  completes population; it never commits the ordinal it wrote to. Newer
+  ``ovphysx`` releases fail the parse when attaching at an unsealed ordinal and
+  yield an empty scene, so every articulation, rigid body, and sensor binding
+  resolved to zero prims. The manager now calls ``advance_write_floor().wait()``
+  to seal the ordinal before ``attach_ovstage()``.
+
+
+2.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_ovphysx`` distribution into
+  ``isaaclab_ov``. Install ``isaaclab_ov`` and replace
+  ``isaaclab_ovphysx`` imports with ``isaaclab_ov``.
+
+
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
+0.10.2 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX missing-runtime errors to recommend supported uv-managed and
+  direct-wheel commands.
+
+
+0.10.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing OVRTX runtime error to recommend the uv-managed ``ovrtx`` extra.
+
+
 0.10.0 (2026-07-28)
 ~~~~~~~~~~~~~~~~~~~
 

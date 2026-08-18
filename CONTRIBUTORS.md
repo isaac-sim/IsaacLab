@@ -97,6 +97,7 @@ Guidelines for modifications:
 * Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
+* Henry Hu
 * HoJin Jeon
 * Hongwei Xiong
 * Hongyu Li
@@ -127,6 +128,7 @@ Guidelines for modifications:
 * Krishna Lakhi
 * Lin He
 * Lionel Gulich
+* Lior Ben Horin
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay

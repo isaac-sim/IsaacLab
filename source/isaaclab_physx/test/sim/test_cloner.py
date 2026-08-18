@@ -235,7 +235,7 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim, device)
 def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
     """physx_replicate handles heterogeneous sources excluding self from world lists.
 
-    This is the Dexsuite scenario: multiple object types, each with a designated proto-env.
+    This is the Lift scenario: multiple object types, each with a designated proto-env.
     With ``exclude_self_replication=True`` (default), self is removed from the world list
     only when the source also maps to other environments.  Self-only sources keep self so
     that ``rep.replicate()`` still fires and the source prim gets its physics body (since
@@ -633,7 +633,7 @@ def test_disabled_fabric_change_notifies_speedup_regression():
 
     def _body(i: int) -> RigidObjectCfg:
         return RigidObjectCfg(
-            prim_path=f"/World/envs/env_.*/Body_{i}",
+            prim_path=f"/World/envs/env_[^/]+/Body_{i}",
             spawn=sim_utils.SphereCfg(radius=0.1, rigid_props=sim_utils.RigidBodyPropertiesCfg()),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3 * (i % 4), 0.3 * (i // 4), 0.5)),
         )

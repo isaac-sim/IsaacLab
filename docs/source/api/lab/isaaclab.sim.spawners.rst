@@ -50,6 +50,7 @@ Shapes
   .. autosummary::
 
     ShapeCfg
+    CableCfg
     CapsuleCfg
     ConeCfg
     CuboidCfg
@@ -57,6 +58,12 @@ Shapes
     SphereCfg
 
 .. autoclass:: ShapeCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_cable
+
+.. autoclass:: CableCfg
     :members:
     :exclude-members: __init__, func
 
@@ -211,6 +218,9 @@ Sensors
 
     PinholeCameraCfg
     FisheyeCameraCfg
+    OpenCvDistortionCfg
+    OpenCvPinholeDistortionCfg
+    OpenCvFisheyeDistortionCfg
 
 .. autofunction:: spawn_camera
 
@@ -219,6 +229,18 @@ Sensors
     :exclude-members: __init__, func
 
 .. autoclass:: FisheyeCameraCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvPinholeDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvFisheyeDistortionCfg
     :members:
     :exclude-members: __init__, func
 
@@ -267,6 +289,7 @@ Materials
     MdlFileCfg
     GlassMdlCfg
     PhysicsMaterialCfg
+    CableMaterialCfg
     RigidBodyMaterialBaseCfg
     RigidBodyMaterialFragment
     UsdPhysicsRigidBodyMaterialCfg
@@ -303,6 +326,10 @@ Physical Materials
 ~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: PhysicsMaterialCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: CableMaterialCfg
     :members:
     :exclude-members: __init__, func
 

@@ -2,7 +2,10 @@
 
 We use [Sphinx](https://www.sphinx-doc.org/en/master/) with the [Book Theme](https://sphinx-book-theme.readthedocs.io/en/stable/) for maintaining and generating our documentation.
 
-> **Note:** To avoid dependency conflicts, we strongly recommend using a Python virtual environment to isolate the required dependencies from your system's global Python environment.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) before continuing.
+Run all commands below from the repository root. The `--isolated` option creates
+a temporary environment for the `test` extra, which combines test and
+documentation requirements, leaving the repository's `.venv` unchanged.
 
 ## Current-Version Documentation
 
@@ -12,30 +15,22 @@ This section describes how to build the documentation for the current version of
 <summary><strong>Linux</strong></summary>
 
 ```bash
-# 1. Navigate to the docs directory and install dependencies
-cd docs
-pip install -r requirements.txt
+# 1. Build the current documentation
+uv run --isolated --extra test -- make -C docs current-docs
 
-# 2. Build the current documentation
-make current-docs
-
-# 3. Open the current docs
-xdg-open _build/current/index.html
+# 2. Open the current docs
+xdg-open docs/_build/current/index.html
 ```
 </details>
 
 <details> <summary><strong>Windows</strong></summary>
 
 ```batch
-:: 1. Navigate to the docs directory and install dependencies
-cd docs
-pip install -r requirements.txt
+:: 1. Build the current documentation
+uv run --isolated --extra test -- cmd /c docs\make.bat current-docs
 
-:: 2. Build the current documentation
-make current-docs
-
-:: 3. Open the current docs
-start _build\current\index.html
+:: 2. Open the current docs
+start docs\_build\current\index.html
 ```
 </details>
 
@@ -47,29 +42,21 @@ This section describes how to build the multi-version documentation, which inclu
 <details open> <summary><strong>Linux</strong></summary>
 
 ```bash
-# 1. Navigate to the docs directory and install dependencies
-cd docs
-pip install -r requirements.txt
+# 1. Build the multi-version documentation
+uv run --isolated --extra test -- make -C docs multi-docs
 
-# 2. Build the multi-version documentation
-make multi-docs
-
-# 3. Open the multi-version docs
-xdg-open _build/index.html
+# 2. Open the multi-version docs
+xdg-open docs/_build/index.html
 ```
 </details>
 
 <details> <summary><strong>Windows</strong></summary>
 
 ```batch
-:: 1. Navigate to the docs directory and install dependencies
-cd docs
-pip install -r requirements.txt
+:: 1. Build the multi-version documentation
+uv run --isolated --extra test -- cmd /c docs\make.bat multi-docs
 
-:: 2. Build the multi-version documentation
-make multi-docs
-
-:: 3. Open the multi-version docs
-start _build\index.html
+:: 2. Open the multi-version docs
+start docs\_build\index.html
 ```
 </details>

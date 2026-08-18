@@ -102,7 +102,6 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._particle_points_binding = None
     renderer._particle_visual_offsets = []
     renderer._particle_visual_counts = []
-    renderer._particle_workaround_applied = False
     renderer._use_ovstage = False
     return renderer, renderer._renderer
 
@@ -118,8 +117,8 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
     """Surface deformable registry entries create OVRTX ``points`` array bindings."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[7],
         particles_per_body=3,
@@ -149,8 +148,8 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
     """Volume deformable registry entries create OVRTX ``points`` bindings."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="volume",
         particle_offsets=[7],
         particles_per_body=3,
@@ -171,15 +170,15 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
     """Surface and volume deformable registry entries bind together with distinct offsets."""
     renderer, backend = _make_renderer_without_backend()
     surface_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/DeformableSurface",
-        vis_mesh_prim_path="/World/envs/env_.*/DeformableSurface/mesh",
+        prim_path="/World/envs/env_[^/]+/DeformableSurface",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableSurface/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3],
         particles_per_body=3,
     )
     volume_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/DeformableVolume",
-        vis_mesh_prim_path="/World/envs/env_.*/DeformableVolume/mesh",
+        prim_path="/World/envs/env_[^/]+/DeformableVolume",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableVolume/mesh",
         deformable_type="volume",
         particle_offsets=[6, 9],
         particles_per_body=3,
@@ -203,8 +202,8 @@ def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.Monke
     """Deformable bindings are created from registry metadata without a USD stage."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0],
         particles_per_body=3,
@@ -224,8 +223,8 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
     """Surface deformable registry entries bind every cloned visual mesh instance."""
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3, 6, 9],
         particles_per_body=3,
@@ -284,15 +283,15 @@ def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: py
     """Registry entries must provide one particle offset per environment, listing every bad entry."""
     renderer, _backend = _make_renderer_without_backend()
     bad_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Deformable",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        prim_path="/World/envs/env_[^/]+/Deformable",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0],
         particles_per_body=3,
     )
     other_bad_entry = SimpleNamespace(
-        prim_path="/World/envs/env_.*/DeformableOther",
-        vis_mesh_prim_path="/World/envs/env_.*/DeformableOther/mesh",
+        prim_path="/World/envs/env_[^/]+/DeformableOther",
+        vis_mesh_prim_path="/World/envs/env_[^/]+/DeformableOther/mesh",
         deformable_type="surface",
         particle_offsets=[0, 3, 6],
         particles_per_body=3,
@@ -345,7 +344,6 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
     assert backend.calls[0]["attribute_name"] == "points"
     assert backend.calls[0]["flags"] is BindingFlag.OPTIMIZE
     assert renderer._particle_points_binding is backend.bindings["points"]
-    assert renderer._particle_workaround_applied is False
     assert renderer._particle_visual_offsets == [10, 15]
     assert renderer._particle_visual_counts == [5, 5]
     assert len(backend.writes) == 2
@@ -378,13 +376,12 @@ def test_setup_particle_points_bindings_binds_multiple_mpm_assets(monkeypatch: p
     assert renderer._particle_visual_counts == [5, 5, 3, 3]
 
 
-def test_update_particle_points_primes_with_host_sync_then_gpu_async(monkeypatch: pytest.MonkeyPatch):
-    """First MPM ``points`` update host-SYNC primes via binding; later frames use GPU ASYNC."""
+def test_update_particle_points_writes_world_particle_positions(monkeypatch: pytest.MonkeyPatch):
+    """The first MPM ``points`` update writes world-space positions through GPU ASYNC."""
     renderer, backend = _make_renderer_without_backend()
     renderer._particle_points_binding = _FakePointsBinding("points")
     renderer._particle_visual_offsets = [2]
     renderer._particle_visual_counts = [2]
-    renderer._particle_workaround_applied = False
     particle_q = wp.array(
         [
             wp.vec3f(0.0, 0.0, 0.0),
@@ -404,32 +401,22 @@ def test_update_particle_points_primes_with_host_sync_then_gpu_async(monkeypatch
 
     renderer.update_geometries()
 
-    assert renderer._particle_workaround_applied is True
     assert len(backend.writes) == 0
-    written = renderer._particle_points_binding.written
-    assert written is not None
-    assert len(written) == 1
-    assert isinstance(written[0], np.ndarray)
-    assert written[0].tolist() == [
-        [2.0, 3.0, 4.0],
-        [5.0, 6.0, 7.0],
-    ]
-    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
-    assert "cuda_stream" not in renderer._particle_points_binding.write_kwargs
-
-    renderer.update_geometries()
-
     written = renderer._particle_points_binding.written
     assert written is not None
     assert len(written) == 1
     assert written[0].ptr == particle_q[2:4].ptr
+    assert written[0].numpy().tolist() == [
+        [2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0],
+    ]
+    assert renderer._particle_points_binding.write_kwargs is not None
     assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert renderer._particle_points_binding.write_kwargs["cuda_stream"] == 42
-    assert len(backend.writes) == 0
 
 
 def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytest.MonkeyPatch):
-    """Deformable mesh stays GPU ASYNC; MPM primes once with host SYNC then switches to ASYNC."""
+    """Deformable and MPM points use GPU ASYNC writes from the first update."""
     renderer, backend = _make_renderer_without_backend()
     renderer._deformable_points_binding = _FakePointsBinding("deformable_points")
     renderer._deformable_particle_offsets = [0]
@@ -437,7 +424,6 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     renderer._particle_points_binding = _FakePointsBinding("points")
     renderer._particle_visual_offsets = [2]
     renderer._particle_visual_counts = [2]
-    renderer._particle_workaround_applied = False
     particle_q = wp.array(
         [
             wp.vec3f(0.0, 0.0, 0.0),
@@ -461,21 +447,15 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     assert deformable_written is not None
     assert len(deformable_written) == 1
     assert deformable_written[0].ptr == particle_q[0:2].ptr
+    assert renderer._deformable_points_binding.write_kwargs is not None
     assert renderer._deformable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._deformable_points_binding.write_kwargs["cuda_stream"] == 42
 
-    assert renderer._particle_workaround_applied is True
     assert len(backend.writes) == 0
-    mpm_written = renderer._particle_points_binding.written
-    assert mpm_written is not None
-    assert isinstance(mpm_written[0], np.ndarray)
-    assert mpm_written[0].tolist() == [[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]
-    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
-
-    renderer.update_geometries()
-
     mpm_written = renderer._particle_points_binding.written
     assert mpm_written is not None
     assert len(mpm_written) == 1
     assert mpm_written[0].ptr == particle_q[2:4].ptr
+    assert renderer._particle_points_binding.write_kwargs is not None
     assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
-    assert len(backend.writes) == 0
+    assert renderer._particle_points_binding.write_kwargs["cuda_stream"] == 42

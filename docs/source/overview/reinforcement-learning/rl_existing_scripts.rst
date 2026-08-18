@@ -9,7 +9,8 @@ Preset Selectors
 
 All training and play commands accept ``physics=NAME``, ``renderer=NAME``, and
 ``presets=NAME[,NAME,...]`` tokens appended directly to the command (no leading dashes).
-See :doc:`/source/features/hydra` for all available names and how the selectors work.
+See :doc:`/source/concepts/backends_and_presets` for preset discovery, common backend
+names, and how the selectors work.
 
 .. tab-set::
 
@@ -155,6 +156,81 @@ The contributed Cartpole showcase tasks likewise pair each non-default
 configs, such as RSL-RL symmetry or recurrent policies and skrl's AMP/IPPO/MAPPO
 algorithms, are algorithm choices rather than preset requirements.
 
+.. note::
+
+   RSL-RL is included in the default uv environment. RL-Games, SKRL, and
+   Stable-Baselines3 are optional, so their uv commands below select the
+   corresponding extra. RLinf commands assume the dedicated installation in
+   :ref:`rlinf-post-training` has been completed.
+
+
+.. _pretrained-checkpoints:
+
+Pretrained checkpoints
+----------------------
+
+Published pretrained checkpoints are available only for supported core tasks,
+and availability may vary by RL library and backend combination. Other
+registered tasks, including contributed tasks, are not covered by the
+published checkpoint set.
+
+Pass ``--checkpoint pretrained`` to load the published policy matching the
+resolved task configuration. The selector does not guarantee that an artifact
+exists for every registered task: if the matching artifact has not been
+published, the command reports that it is unavailable and exits. In that case,
+train the task locally and omit ``--checkpoint`` to use automatic local
+discovery, or pass an explicit checkpoint path.
+
+Published checkpoints are grouped by RL library and use the following filename:
+
+.. code-block:: text
+
+   <task_name>_<physics_backend>_<render_backend>_<rl_library>.<extension>
+
+The physics token is ``physx`` for Isaac Sim PhysX and ``newtonmjwarp`` for
+Newton using the MJWarp solver. For example,
+``Isaac-Cartpole_newtonmjwarp_none_rsl_rl.pt`` is the RSL-RL policy for state-based
+Cartpole on Newton MJWarp, while
+``Isaac-Cartpole-Camera_newtonmjwarp_rtx_rsl_rl.pt`` is the RSL-RL camera policy
+using Newton MJWarp physics and RTX rendering. State-only tasks use ``none`` for
+the render backend.
+Pass the same physics, renderer, and domain selectors used during training so
+the checkpoint and policy network agree:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl \
+       --task Isaac-Cartpole-Camera \
+       --checkpoint pretrained \
+       physics=newton_mjwarp renderer=isaacsim_rtx
+
+Maintainers can generate the preferred core-task checkpoint matrix with
+``scripts/tools/train_and_publish_checkpoints.py``. The script selects RSL-RL
+when available, falls back to RL-Games, and uses SKRL MAPPO for multi-agent
+tasks. It preserves each task's default domain preset and trains only backend
+combinations declared by that task. Newton Kamino presets are excluded from
+this matrix; tasks whose only Newton preset is Kamino are skipped for Newton.
+Use ``--list --all --core`` to list the tasks and backend combinations targeted
+for publication by the current source tree. This matrix is not a live check of
+the remote asset store; a listed combination becomes usable with
+``--checkpoint pretrained`` only after its checkpoint has been uploaded.
+
+.. code-block:: bash
+
+   # Inspect and smoke-test the supported matrix.
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --list --all --core
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --smoke --all --core
+
+   # Run each agent config's full schedule and collect the last/best checkpoint.
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --train --all --core
+
+Collected files are written under ``logs/pretrained_checkpoints/<rl_library>/``
+by default. Re-running the command skips completed jobs, so interrupted matrices
+can be resumed.
+
 
 RL-Games
 --------
@@ -180,30 +256,28 @@ RL-Games
 
                .. code:: bash
 
-                  # install python module (for rl-games)
-                  ./isaaclab.sh -i rl_games
                   # run command for training
-                  uv run isaaclab train --rl_library rl_games --task Isaac-Ant
+                  uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Ant
                   # run command for training with Newton backend
-                  uv run isaaclab train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
+                  uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library rl_games --task Isaac-Ant --video --video_length 200
+                  uv run --extra rl-games isaaclab play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
+                  # run command for recording video of a trained agent
+                  uv run --extra rl-games --extra video isaaclab play --rl_library rl_games --task Isaac-Ant --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
 
                   # install python module (for rl-games)
-                  ./isaaclab.sh -i rl_games
+                  ./isaaclab.sh -i 'rl[rl-games]'
                   # run command for training
                   ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant
                   # run command for training with Newton backend
                   ./isaaclab.sh train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library rl_games --task Isaac-Ant --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -212,14 +286,14 @@ RL-Games
          .. code:: batch
 
             :: install python module (for rl-games)
-            isaaclab.bat -i rl_games
+            isaaclab.bat -i "rl[rl-games]"
             :: run command for training
             isaaclab.bat train --rl_library rl_games --task Isaac-Ant
             :: run command for training with Newton backend
             isaaclab.bat train --rl_library rl_games --task Isaac-Ant physics=newton_mjwarp
             :: run command for playing with 32 environments
             isaaclab.bat play --rl_library rl_games --task Isaac-Ant --num_envs 32 --checkpoint /PATH/TO/model.pth
-            :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+            :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library rl_games --task Isaac-Ant --video --video_length 200
 
 RSL-RL
@@ -240,30 +314,28 @@ RSL-RL
 
                .. code:: bash
 
-                  # install python module (for rsl-rl)
-                  ./isaaclab.sh -i rsl_rl
                   # run command for training
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka
                   # run command for training with Newton backend
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
+                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
+                  # run command for recording video of a trained agent
+                  uv run --extra video isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
 
                   # install python module (for rsl-rl)
-                  ./isaaclab.sh -i rsl_rl
+                  ./isaaclab.sh -i 'rl[rsl-rl]'
                   # run command for training
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka
                   # run command for training with Newton backend
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -272,14 +344,14 @@ RSL-RL
          .. code:: batch
 
             :: install python module (for rsl-rl)
-            isaaclab.bat -i rsl_rl
+            isaaclab.bat -i "rl[rsl-rl]"
             :: run command for training
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka
             :: run command for training with Newton backend
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
-            :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
+            :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
 -  Training and distilling an agent with
@@ -297,14 +369,12 @@ RSL-RL
 
                .. code:: bash
 
-                  # install python module (for rsl-rl)
-                  ./isaaclab.sh -i rsl_rl
                   # run command for rl training of the teacher agent
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
                   # run command for rl training of the teacher agent with Newton backend
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
                   # run command for playing the student with 64 environments
                   uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -313,13 +383,13 @@ RSL-RL
                .. code:: bash
 
                   # install python module (for rsl-rl)
-                  ./isaaclab.sh -i rsl_rl
+                  ./isaaclab.sh -i 'rl[rsl-rl]'
                   # run command for rl training of the teacher agent
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
                   # run command for rl training of the teacher agent with Newton backend
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
                   # run command for playing the student with 64 environments
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -329,18 +399,27 @@ RSL-RL
          .. code:: batch
 
             :: install python module (for rsl-rl)
-            isaaclab.bat -i rsl_rl
+            isaaclab.bat -i "rl[rsl-rl]"
             :: run command for rl training of the teacher agent
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD
             :: run command for rl training of the teacher agent with Newton backend
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
             :: run command for distilling the teacher agent into a student agent
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
             :: run command for playing the student with 64 environments
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
 SKRL
 ----
+
+The SKRL integration is optional. Add ``--extra skrl`` to every ``uv run``
+command that selects ``--rl_library skrl``. Combine it with other extras in a
+comma-separated list when needed. For example:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim,skrl isaaclab train --rl_library skrl \
+      --task Isaac-Cartpole-Camera-Direct renderer=rtx physics=newton_mjwarp
 
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka``:
@@ -361,30 +440,28 @@ SKRL
 
                         .. code:: bash
 
-                           # install python module (for skrl)
-                           ./isaaclab.sh -i skrl
                            # run command for training
-                           uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka
+                           uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka
                            # run command for training with Newton backend
-                           uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
+                           uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                            # run command for playing with 32 environments
-                           uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
-                           # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                           uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
+                           uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
+                           # run command for recording video of a trained agent
+                           uv run --extra video,skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
                      .. tab-item:: isaaclab.sh / isaaclab.bat
 
                         .. code:: bash
 
                            # install python module (for skrl)
-                           ./isaaclab.sh -i skrl
+                           ./isaaclab.sh -i 'rl[skrl]'
                            # run command for training
                            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka
                            # run command for training with Newton backend
                            ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                            # run command for playing with 32 environments
                            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
-                           # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                           # run command for recording video of a trained agent (requires MoviePy)
                            ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
                .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -393,14 +470,14 @@ SKRL
                   .. code:: batch
 
                      :: install python module (for skrl)
-                     isaaclab.bat -i skrl
+                     isaaclab.bat -i "rl[skrl]"
                      :: run command for training
                      isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka
                      :: run command for training with Newton backend
                      isaaclab.bat train --rl_library skrl --task Isaac-Reach-Franka physics=newton_mjwarp
                      :: run command for playing with 32 environments
                      isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
-                     :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+                     :: run command for recording video of a trained agent (requires MoviePy)
                      isaaclab.bat play --rl_library skrl --task Isaac-Reach-Franka --video --video_length 200
 
       .. tab-item:: JAX
@@ -432,7 +509,7 @@ SKRL
                      .. code:: bash
 
                         # install python module (for skrl)
-                        ./isaaclab.sh -i skrl
+                        uv run --extra skrl python -c "import skrl"
                         # install JAX for CUDA 12
                         uv pip install -U "jax[cuda12]"
                         # install skrl dependencies for JAX
@@ -443,7 +520,7 @@ SKRL
                      .. code:: bash
 
                         # install python module (for skrl)
-                        ./isaaclab.sh -i skrl
+                        ./isaaclab.sh -i 'rl[skrl]'
                         # install JAX for CUDA 12
                         ./isaaclab.sh -p -m pip install -U "jax[cuda12]"
                         # install skrl dependencies for JAX
@@ -459,7 +536,7 @@ SKRL
                      .. code:: bash
 
                         # install python module (for skrl)
-                        ./isaaclab.sh -i skrl
+                        uv run --extra skrl python -c "import skrl"
                         # install JAX for CUDA 13
                         uv pip install -U "jax[cuda13]"
                         # install skrl dependencies for JAX
@@ -470,7 +547,7 @@ SKRL
                      .. code:: bash
 
                         # install python module (for skrl)
-                        ./isaaclab.sh -i skrl
+                        ./isaaclab.sh -i 'rl[skrl]'
                         # install JAX for CUDA 13
                         ./isaaclab.sh -p -m pip install -U "jax[cuda13]"
                         # install skrl dependencies for JAX
@@ -483,13 +560,13 @@ SKRL
                .. code:: bash
 
                   # run command for training
-                  uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax
+                  uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax
                   # run command for training with Newton backend
-                  uv run isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
+                  uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
+                  uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+                  # run command for recording video of a trained agent
+                  uv run --extra video,skrl isaaclab play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -501,7 +578,7 @@ SKRL
                   ./isaaclab.sh train --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax presets=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library skrl --task Isaac-Reach-Franka --ml_framework jax --video --video_length 200
 
    - Training the multi-agent environment ``Isaac-Shadow-Handover-Direct`` with skrl:
@@ -518,19 +595,17 @@ SKRL
 
                .. code:: bash
 
-                  # install python module (for skrl)
-                  ./isaaclab.sh -i skrl
                   # run command for training with the MAPPO algorithm (IPPO is also supported)
-                  uv run isaaclab train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO
+                  uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO
                   # run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-                  uv run isaaclab play --rl_library skrl --task Isaac-Shadow-Handover-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+                  uv run --extra skrl isaaclab play --rl_library skrl --task Isaac-Shadow-Handover-Direct --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
 
                   # install python module (for skrl)
-                  ./isaaclab.sh -i skrl
+                  ./isaaclab.sh -i 'rl[skrl]'
                   # run command for training with the MAPPO algorithm (IPPO is also supported)
                   ./isaaclab.sh train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO
                   # run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
@@ -542,7 +617,7 @@ SKRL
          .. code:: batch
 
             :: install python module (for skrl)
-            isaaclab.bat -i skrl
+            isaaclab.bat -i "rl[skrl]"
             :: run command for training with the MAPPO algorithm (IPPO is also supported)
             isaaclab.bat train --rl_library skrl --task Isaac-Shadow-Handover-Direct --algorithm MAPPO
             :: run command for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
@@ -567,30 +642,28 @@ Stable-Baselines3
 
                .. code:: bash
 
-                  # install python module (for stable-baselines3)
-                  ./isaaclab.sh -i sb3
                   # run command for training
-                  uv run isaaclab train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1
+                  uv run --extra sb3 isaaclab train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1
                   # run command for training with Newton backend
-                  uv run isaaclab train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
+                  uv run --extra sb3 isaaclab train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
-                  uv run isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
+                  uv run --extra sb3 isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
+                  # run command for recording video of a trained agent
+                  uv run --extra sb3 --extra video isaaclab play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
             .. tab-item:: isaaclab.sh / isaaclab.bat
 
                .. code:: bash
 
                   # install python module (for stable-baselines3)
-                  ./isaaclab.sh -i sb3
+                  ./isaaclab.sh -i 'rl[sb3]'
                   # run command for training
                   ./isaaclab.sh train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1
                   # run command for training with Newton backend
                   ./isaaclab.sh train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
                   # run command for playing with 32 environments
                   ./isaaclab.sh play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
-                  # run command for recording video of a trained agent (requires installing `ffmpeg`)
+                  # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -599,14 +672,14 @@ Stable-Baselines3
          .. code:: batch
 
             :: install python module (for stable-baselines3)
-            isaaclab.bat -i sb3
+            isaaclab.bat -i "rl[sb3]"
             :: run command for training
             isaaclab.bat train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1
             :: run command for training with Newton backend
             isaaclab.bat train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
             :: run command for playing with 32 environments
             isaaclab.bat play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
-            :: run command for recording video of a trained agent (requires installing `ffmpeg`)
+            :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
 RLinf
@@ -630,7 +703,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             uv run isaaclab train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -639,7 +712,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             ./isaaclab.sh train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
 -  Evaluating a trained VLA agent:
 
@@ -650,9 +723,9 @@ For installation instructions, see :ref:`rlinf-post-training`.
          .. code:: bash
 
             # Evaluate with video recording
-            uv run isaaclab play --rl_library rlinf \
+            uv run --extra video isaaclab play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -662,7 +735,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             ./isaaclab.sh play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
 All the commands above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
@@ -689,8 +762,9 @@ New training runs also store a ``run.json`` manifest in their run directory. Thi
          ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest
 
 Pass ``--checkpoint best`` to prefer the library-specific best or final checkpoint. For libraries without a
-distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported
-by RL-Games, RSL-RL, skrl, and Stable-Baselines3. RSL-RL training resume continues to require ``--resume``.
+distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported by RL-Games, RSL-RL, skrl, Stable-Baselines3, and RLinf.
+RLinf uses ``--model_path`` for its base VLA model and ``--checkpoint`` for the
+RL-finetuned weights.
 
 To view the logs, run:
 

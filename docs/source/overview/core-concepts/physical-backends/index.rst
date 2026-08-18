@@ -17,8 +17,14 @@ backend-specific configuration, installation, and limitations.
     physx/index
     newton/index
     ovphysx/index
+    direct-api-access/index
     solver-comparison
+    joint_and_body_ordering
 
+
+For backend-specific access to native engine data and views, see
+:doc:`direct-api-access/index`. That guide explains the different ownership and
+synchronization models rather than presenting a false common low-level API.
 
 Choosing a Backend
 ------------------
@@ -31,7 +37,7 @@ Choosing a Backend
   solver. Selected via :class:`~isaaclab_newton.physics.NewtonCfg`.
 * **OvPhysX** — a **highly experimental** kit-less PhysX backend that reads
   scene-level parameters from the USD ``PhysicsScene`` prim. Selected via
-  :class:`~isaaclab_ovphysx.physics.OvPhysxCfg`. Not recommended for general use yet.
+  :class:`~isaaclab_ov.physics.OvPhysxCfg`. Not recommended for general use yet.
 
 The active backend is selected at simulation construction time and applies to every
 asset, sensor, and renderer instantiated thereafter:
@@ -95,6 +101,10 @@ per-task support, see each backend's own ``limitations`` page.
       - Yes
       - Yes (experimental VBD)
       - Experimental (CUDA only)
+    * - Cable Object API
+      - No
+      - VBD
+      - No
     * - Contact Sensor
       - Yes
       - Yes
@@ -118,7 +128,7 @@ per-task support, see each backend's own ``limitations`` page.
     * - Solver configuration source
       - :class:`~isaaclab_physx.physics.PhysxCfg`
       - :class:`~isaaclab_newton.physics.NewtonCfg` + solver config
-      - USD ``PhysicsScene`` + :class:`~isaaclab_ovphysx.physics.OvPhysxCfg`
+      - USD ``PhysicsScene`` + :class:`~isaaclab_ov.physics.OvPhysxCfg`
 
 
 Selecting Backends per Task
@@ -130,17 +140,23 @@ declares all three backends side by side:
 
 .. code-block:: python
 
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
 
     @configclass
     class CartpolePhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
-        physx: PhysxCfg = PhysxCfg()
-        newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+        isaacsim_physx: PhysxCfg = PhysxCfg()
         ovphysx: OvPhysxCfg = OvPhysxCfg()
+        physx: PhysxAutoCfg = PhysxAutoCfg(
+            isaacsim_physx=isaacsim_physx,
+            ovphysx=ovphysx,
+        )
+        default: PhysxCfg = isaacsim_physx
+        newton_mjwarp: NewtonCfg = NewtonCfg(solver_cfg=MJWarpSolverCfg())
 
-Users then select the backend at the command line via ``presets=<name>`` or by
-overriding the physics field directly. See :ref:`hydra-backend-solver-presets` for
-the full Hydra interaction.
+With no selector, the task uses concrete Isaac Sim PhysX. Users can select a
+backend with ``physics=<name>``; ``physics=physx`` explicitly opts into automatic
+selection between the configured PhysX-family implementations. See
+:ref:`hydra-backend-solver-presets` for the full Hydra interaction.

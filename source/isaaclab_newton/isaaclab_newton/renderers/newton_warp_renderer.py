@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 
@@ -379,11 +379,6 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
-    @classmethod
-    def provides_temporal_camera_data(cls, data_type: str) -> bool:
-        # Pure rasterizer: no temporal accumulation on any output.
-        return False
-
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
         from isaaclab.physics.scene_data_requirements import (
@@ -475,6 +470,18 @@ class NewtonWarpRenderer(BaseRenderer):
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
         """
         self._stage = stage
+        # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
+        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
+        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
+        # the intended extension point.
+        spawn = getattr(spec.cfg, "spawn", None)
+        if getattr(spawn, "distortion", None) is not None:
+            logger.warning(
+                "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
+                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
+                " the principal point, and a non-square fx are ignored and the camera renders as a"
+                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
+            )
         if spec.cfg.isp_cfg is None:
             return
         try:

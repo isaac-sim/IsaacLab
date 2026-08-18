@@ -36,6 +36,7 @@ from isaaclab.cloner import (
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
+from isaaclab.sim.utils import queries
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -251,10 +252,10 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     [
         (
             ["/World/rig_0_alpha", "/World/rig_0_beta", "/World/rig_0_gamma"],
-            "/World/rig_0_.*/Sensor",
+            "/World/rig_0_[^/]*/Sensor",
             ["/World/rig_0_alpha/Sensor", "/World/rig_0_beta/Sensor", "/World/rig_0_gamma/Sensor"],
             "/World/rig_00/Sensor",
-            "/World/rig_0_.*",
+            "/World/rig_0_[^/]*",
         ),
         (
             [
@@ -263,7 +264,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
                 "/World/group_b/slot_0",
                 "/World/group_b/slot_1",
             ],
-            "/World/group_.*/slot_.*/Sensor",
+            "/World/group_[^/]*/slot_[^/]*/Sensor",
             [
                 "/World/group_a/slot_0/Sensor",
                 "/World/group_a/slot_1/Sensor",
@@ -271,7 +272,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
                 "/World/group_b/slot_1/Sensor",
             ],
             "/World/group_0/slot_0/Sensor",
-            "/World/group_.*/slot_.*",
+            "/World/group_[^/]*/slot_[^/]*",
         ),
         (
             ["/World/template/Object"],
@@ -313,8 +314,8 @@ def test_clone_decorator_wildcard_patterns(
 
 def test_queue_replication_only_appends(sim):
     """queue_replication must only append the cfg-directed contexts — no other side effects."""
-    cfg_a = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
-    cfg_b = SimpleNamespace(prim_path="/World/envs/env_.*/Object")
+    cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
+    cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
 
     queue_replication(cfg_a)
     queue_replication(cfg_b)
@@ -325,7 +326,7 @@ def test_queue_replication_only_appends(sim):
 def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     """Homogeneous (single-variant) cfgs produce one source row at the env root."""
     cube = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
     )
 
@@ -346,10 +347,55 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
+def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monkeypatch):
+    """Clone-aware regex discovery traverses its plan source, never cloned destinations."""
+    stage = sim_utils.get_current_stage()
+    for path in (
+        "/World/envs/env_0/Robot/foo",
+        "/World/envs/env_0/Robot/foo/bar",
+        "/World/envs/env_1/Robot/clone_only",
+    ):
+        stage.DefinePrim(path, "Xform")
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
+        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
+        positions=torch.zeros((2, 3), device=sim.cfg.device),
+    )
+    sim.set_clone_plan(plan)
+
+    traversed_roots = []
+    source_matcher = queries._iter_matching_prims_in_subtree
+
+    def record_source_root(path_expr, root_prim):
+        traversed_roots.append(root_prim.GetPath().pathString)
+        return source_matcher(path_expr, root_prim)
+
+    monkeypatch.setattr(queries, "_iter_matching_prims_in_subtree", record_source_root)
+    monkeypatch.setattr(
+        queries,
+        "find_matching_prims",
+        lambda *args, **kwargs: pytest.fail("clone-aware resolution called the unscoped stage matcher"),
+    )
+
+    matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
+
+    assert traversed_roots == ["/World/envs/env_0/Robot"]
+    assert [prim.GetPath().pathString for prim, _ in matches] == [
+        "/World/envs/env_0/Robot/foo",
+        "/World/envs/env_0/Robot/foo/bar",
+    ]
+    assert [path_expr for _, path_expr in matches] == [
+        "/World/envs/env_[^/]+/Robot/foo",
+        "/World/envs/env_[^/]+/Robot/foo/bar",
+    ]
+
+
 def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
     """Multi-variant spawners get per-variant spawn_paths and contribute multiple plan rows."""
     multi_cfg = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Object",
+        prim_path="/World/envs/env_[^/]+/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
                 sim_utils.ConeCfg(radius=0.1, height=0.2),
@@ -358,7 +404,7 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         ),
     )
     plain_cfg = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
     )
 
@@ -403,8 +449,8 @@ def test_make_clone_plan_skips_global_cfgs(sim):
 
 def test_clone_plan_from_env_0_populates_cfg_rows(sim):
     """clone_plan_from_env_0 auto-maps queued env-scoped cfgs to row 0 and excludes global ones."""
-    env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
-    env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_.*/Object")
+    env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
+    env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
     global_cfg = SimpleNamespace(prim_path="/World/global/Light")
 
     for cfg in (env_cfg_a, env_cfg_b, global_cfg):
@@ -444,7 +490,9 @@ def test_replicate_physics_false_keeps_usd_only(sim):
 
     stage = sim_utils.get_current_stage()
     stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
-    cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot", cloning_contexts=(UsdReplicateContext, FakePhysicsCtx))
+    cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot", cloning_contexts=(UsdReplicateContext, FakePhysicsCtx)
+    )
     REPLICATION_QUEUE.append(cfg)
 
     plan = ClonePlan(
@@ -480,8 +528,8 @@ def test_replicate_drains_queue_dispatches_and_publishes(sim):
         def replicate(self):
             self.replicate_calls += 1
 
-    cfg_a = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
-    cfg_b = SimpleNamespace(prim_path="/World/envs/env_.*/Object")
+    cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
+    cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
     cfg_a.cloning_contexts = (FakeCtx,)
     cfg_b.cloning_contexts = (FakeCtx,)
     REPLICATION_QUEUE.append(cfg_a)
@@ -535,7 +583,7 @@ def test_replicate_dedupes_shared_rows_across_cfgs(sim):
         def replicate(self):
             self.replicate_calls += 1
 
-    cfgs = [SimpleNamespace(prim_path=f"/World/envs/env_.*/asset_{i}") for i in range(5)]
+    cfgs = [SimpleNamespace(prim_path=f"/World/envs/env_[^/]+/asset_{i}") for i in range(5)]
     for cfg in cfgs:
         cfg.cloning_contexts = (FakeCtx,)
         REPLICATION_QUEUE.append(cfg)
@@ -589,7 +637,7 @@ def test_replicate_runs_lower_priority_backends_first(sim):
         def replicate(self):
             call_order.append("high")
 
-    cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
     cfg.cloning_contexts = (HighPriority, LowPriority)
     REPLICATION_QUEUE.append(cfg)
 
@@ -645,7 +693,7 @@ def test_replicate_clears_queue_on_backend_failure(sim):
         def replicate(self):
             raise RuntimeError("backend boom")
 
-    cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
     cfg.cloning_contexts = (ExplodingCtx,)
     REPLICATION_QUEUE.append(cfg)
 
@@ -668,7 +716,7 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
     """ReplicateSession.__exit__ drops queued cfgs if the asset constructor body raises."""
     from isaaclab.cloner import ReplicateSession
 
-    leaked_cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+    leaked_cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
 
     sentinel = MagicMock()
     sentinel_cls = MagicMock(return_value=sentinel)

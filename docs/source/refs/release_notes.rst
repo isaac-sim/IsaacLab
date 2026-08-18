@@ -1658,7 +1658,7 @@ New Features
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
 * Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11
 * Adds results for the benchmarks in the documentation
-  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html>`__
+  :ref:`here <testing_benchmarks>`
   for different types of hardware by @kellyguo11
 * Adds the direct workflow Allegro hand environment by @kellyguo11
 * Adds video recording to the play scripts in RL workflows by @j3soon

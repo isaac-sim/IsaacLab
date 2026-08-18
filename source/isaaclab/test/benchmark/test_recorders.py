@@ -603,7 +603,7 @@ class TestVersionInfoRecorder:
         assert "isaaclab" in versions
 
     def test_captures_renderer_runtime_versions(self, monkeypatch):
-        versions_by_distribution = {"ovrtx": "0.3.1", "isaaclab_ovphysx": "3.0.5"}
+        versions_by_distribution = {"ovrtx": "0.3.1", "ovphysx": "0.5.9"}
         monkeypatch.setattr(
             VersionInfoRecorder,
             "_get_pkg_version",
@@ -612,7 +612,7 @@ class TestVersionInfoRecorder:
 
         versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
         assert versions["ovrtx"] == "0.3.1"
-        assert versions["ovphysx"] == "3.0.5"
+        assert versions["ovphysx"] == "0.5.9"
 
     def test_captures_active_kit_versions(self, monkeypatch, tmp_path):
         """Test that versions are captured from an active Kit runtime."""

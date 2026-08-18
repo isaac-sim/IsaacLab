@@ -8,8 +8,12 @@
 from __future__ import annotations
 
 import importlib
+import runpy
 import sys
 import types
+
+import gymnasium as gym
+import pytest
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 
@@ -65,7 +69,25 @@ def test_train_request_maps_checkpoint_to_backend_argument(monkeypatch) -> None:
 
     received.clear()
     api.train(TrainingRequest(backend="rlinf", task="Isaac-Task", checkpoint="model"))
-    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--model_path", "model"]
+    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--checkpoint", "model"]
+
+
+def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
+    """RLinf accepts the public checkpoint and iteration option names."""
+    from isaaclab_rl.entrypoints.backends import train_rlinf
+
+    args = train_rlinf._parse_args(["--config_name", "ppo", "--checkpoint", "latest", "--max_iterations", "10"])
+
+    assert args.checkpoint == "latest"
+    assert args.max_iterations == 10
+
+
+def test_rlinf_rejects_pretrained_checkpoint() -> None:
+    """RLinf has no published pre-trained checkpoint."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
+
+    with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
+        _resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
@@ -85,7 +107,7 @@ def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
     assert sys.argv == original_argv
 
 
-def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:
+def test_play_request_uses_unified_checkpoint_argument(monkeypatch) -> None:
     """RLinf requests map shared fields to its focused backend arguments."""
     received: list[str] = []
 
@@ -102,7 +124,7 @@ def test_play_request_uses_rlinf_argument_names(monkeypatch) -> None:
         "rlinf",
         "--task",
         "Isaac-Task",
-        "--model_path",
+        "--checkpoint",
         "model",
         "--video",
     ]
@@ -125,6 +147,32 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     }
 
 
+def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
+    """A task registry default selects the backend when the CLI omits it."""
+    task_name = "Isaac-DefaultAgentDispatchTest"
+    gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    monkeypatch.setitem(sys.modules, "isaaclab_tasks", types.ModuleType("isaaclab_tasks"))
+    received: dict[str, object] = {}
+    monkeypatch.setattr(
+        dispatch,
+        "_run_backend",
+        lambda module_name, argv, *, run_as_script: received.update(
+            module_name=module_name, argv=argv, run_as_script=run_as_script
+        ),
+    )
+
+    try:
+        assert dispatch.run_train_cli(["--task", task_name]) == 0
+    finally:
+        gym.registry.pop(task_name, None)
+
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
+        "argv": ["--task", task_name],
+        "run_as_script": False,
+    }
+
+
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     """Space-separated option-like Kit arguments are fused before backend parsing."""
     received: dict[str, object] = {}
@@ -139,4 +187,130 @@ def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
 
 def test_dispatch_requires_a_backend() -> None:
     """Missing backend selection returns the conventional CLI error status."""
-    assert dispatch.run_train_cli(["--task", "Isaac-Cartpole"]) == 2
+    assert dispatch.run_train_cli([]) == 2
+
+
+def _torch_backend_state() -> tuple[bool, bool, bool, bool]:
+    import torch
+
+    return (
+        torch.backends.cuda.matmul.allow_tf32,
+        torch.backends.cudnn.allow_tf32,
+        torch.backends.cudnn.deterministic,
+        torch.backends.cudnn.benchmark,
+    )
+
+
+def test_scoped_backend_state_restores_values_after_exception() -> None:
+    """Backend-global settings are restored when a scoped operation fails."""
+    from isaaclab_rl.entrypoints.common import preserve_attribute, scoped_torch_backend_flags
+
+    original = _torch_backend_state()
+    holder = types.SimpleNamespace(value="original")
+
+    with pytest.raises(RuntimeError, match="failed"):
+        with (
+            scoped_torch_backend_flags(
+                cuda_matmul_allow_tf32=False,
+                cudnn_allow_tf32=True,
+                cudnn_deterministic=True,
+                cudnn_benchmark=False,
+            ),
+            preserve_attribute(holder, "value"),
+        ):
+            holder.value = "temporary"
+            assert _torch_backend_state() == (False, True, True, False)
+            raise RuntimeError("failed")
+
+    assert _torch_backend_state() == original
+    assert holder.value == "original"
+
+
+def test_rejected_rsl_training_preserves_torch_backend_state(monkeypatch) -> None:
+    """A rejected in-process RSL-RL request does not mutate its caller."""
+    import torch
+
+    caller_state = (False, False, True, True)
+    settings = (
+        (torch.backends.cuda.matmul, "allow_tf32"),
+        (torch.backends.cudnn, "allow_tf32"),
+        (torch.backends.cudnn, "deterministic"),
+        (torch.backends.cudnn, "benchmark"),
+    )
+    for (target, name), value in zip(settings, caller_state):
+        monkeypatch.setattr(target, name, value)
+
+    with pytest.raises(SystemExit):
+        dispatch._run_backend("isaaclab_rl.entrypoints.backends.train_rsl_rl", ["--help"], run_as_script=False)
+
+    assert _torch_backend_state() == caller_state
+
+
+def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
+    """RSL-RL training restores its caller's Torch settings after a failure."""
+    import torch
+
+    from isaaclab_rl.entrypoints.backends import train_rsl_rl
+
+    caller_state = (False, False, True, True)
+    settings = (
+        (torch.backends.cuda.matmul, "allow_tf32"),
+        (torch.backends.cudnn, "allow_tf32"),
+        (torch.backends.cudnn, "deterministic"),
+        (torch.backends.cudnn, "benchmark"),
+    )
+    for (target, name), value in zip(settings, caller_state):
+        monkeypatch.setattr(target, name, value)
+
+    monkeypatch.setattr(train_rsl_rl, "_parse_args", lambda argv: types.SimpleNamespace())
+
+    def fail_after_mutation(_args_cli) -> None:
+        assert _torch_backend_state() == (True, True, False, False)
+        raise RuntimeError("failed")
+
+    monkeypatch.setattr(train_rsl_rl, "_run", fail_after_mutation)
+    with pytest.raises(RuntimeError, match="failed"):
+        train_rsl_rl.run([])
+
+    assert _torch_backend_state() == caller_state
+
+
+def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
+    """SKRL training removes the JAX backend setting it created after an exception."""
+    skrl = pytest.importorskip("skrl")
+
+    from isaaclab_rl.entrypoints.backends import train_skrl
+
+    monkeypatch.delattr(skrl.config.jax, "backend", raising=False)
+    monkeypatch.setattr(train_skrl, "_parse_args", lambda argv: types.SimpleNamespace(ml_framework="jax"))
+
+    def fail_after_mutation(_args_cli) -> None:
+        assert skrl.config.jax.backend == "jax"
+        skrl.config.jax.backend = "mutated"
+        raise RuntimeError("failed")
+
+    monkeypatch.setattr(train_skrl, "_run", fail_after_mutation)
+    with pytest.raises(RuntimeError, match="failed"):
+        train_skrl.run([])
+
+    assert not hasattr(skrl.config.jax, "backend")
+
+
+def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
+    """Direct SKRL play calls remove the JAX backend setting they created."""
+    pytest.importorskip("skrl")
+    monkeypatch.setattr(sys, "argv", ["play_skrl.py"])
+    namespace = runpy.run_module("isaaclab_rl.entrypoints.backends.play_skrl", run_name="test_play_skrl")
+    skrl = namespace["skrl"]
+    namespace["args_cli"].ml_framework = "jax"
+    monkeypatch.delattr(skrl.config.jax, "backend", raising=False)
+
+    def fail_after_mutation() -> None:
+        skrl.config.jax.backend = "mutated"
+        raise RuntimeError("failed")
+
+    namespace["main"].__globals__["_main"] = fail_after_mutation
+    with pytest.raises(RuntimeError, match="failed"):
+        namespace["main"]()
+
+    assert not hasattr(skrl.config.jax, "backend")

@@ -172,10 +172,11 @@ not authored. ``impratio`` and ``cone`` are global MJWarp solver options; ``impr
      - Set the MuJoCo geometry group used for visualization and inertia-inference selection. This
        is not an Isaac Lab collision-filter group.
 
-Use :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` for contact margin and gap and
-:class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` for the convex-hull vertex limit
-instead of duplicating their raw ``mjc:*`` importer attributes. Author explicit mass and inertia
-rather than relying on ``mjc:shellinertia`` during migration.
+Use :attr:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg.contact_margin` and
+:attr:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg.contact_gap` for contact spacing, and use
+:attr:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg.max_hull_vertices` for the convex-hull
+vertex limit instead of duplicating their raw ``mjc:*`` importer attributes. Author explicit mass
+and inertia rather than relying on ``mjc:shellinertia`` during migration.
 
 Assign ``object_spawn_cfg`` to the asset's ``spawn`` field and use ``newton_mjwarp_cfg`` as the
 ``newton_mjwarp`` physics preset. A file spawner applies ``collision_props`` recursively, so do not
@@ -199,8 +200,8 @@ task logic, observations, rewards, and terminations, but MJWarp does not parse i
 model and does not enforce it during stepping.
 
 ``velocity_limit_sim`` requests a solver-side hard clamp and has no direct hardware counterpart.
-Newton's importer can store the authored value in ``Model.joint_velocity_limit``, but the
-MJWarp solver drops that field instead of consuming it. Consequently, neither
+Isaac Lab always writes the value to Newton's ``Model.joint_velocity_limit``. The MJWarp solver
+drops that field instead of consuming it, while the Kamino solver honors it. Consequently, neither
 ``velocity_limit`` nor ``velocity_limit_sim`` prevents a joint from exceeding the requested speed
 under ``physics=newton_mjwarp``.
 
@@ -255,7 +256,7 @@ the grasped rigid body itself exposes an armature parameter.
 
 Apply that remedy according to the representation:
 
-* For a robot or an object represented as an articulation, set joint or free-joint armature to the
+* For a robot or an object represented as an articulation, set joint armature to the
   smallest value supported by reflected rotor inertia, identified response, or controlled impulse
   tests.
 * A plain :class:`~isaaclab.assets.RigidObject` has no actuator armature. Give it correct body mass
@@ -306,36 +307,76 @@ per-environment ``njmax`` or ``nconmax`` budgets. Start from the nearest profile
 :ref:`mjwarp-solver-tuning`, then validate the task's worst-case randomized state.
 
 For a new articulation with light contact, the common starting point is
-``integrator="implicitfast"``, ``njmax=50``, ``nconmax=20``, a pyramidal cone,
-``impratio=1``, and one substep. Maintained locomotion tasks commonly need constraint/contact
-budgets near ``100``/``40``. Dexterous hand tasks commonly start near ``200``/``70`` with two
-substeps, an elliptic cone, and ``impratio=10``. Dense manipulation can require ``300``/``200``.
-These are capacity and formulation profiles, not fidelity guarantees.
+``MJWarpSolverCfg(integrator="implicitfast", njmax=50, nconmax=20, cone="pyramidal", impratio=1)``
+with ``NewtonCfg.num_substeps=1``. These values override the :class:`~isaaclab_newton.physics.MJWarpSolverCfg`
+defaults of ``integrator="euler"``, ``njmax=300``, and ``nconmax=None``. Maintained locomotion tasks
+commonly need constraint/contact budgets near ``100``/``40``. Dexterous hand tasks commonly start
+near ``200``/``70`` with ``NewtonCfg.num_substeps=2``, an elliptic cone, and ``impratio=10``. Dense
+manipulation can require ``300``/``200``. These are capacity and formulation profiles, not fidelity
+guarantees.
 
 Keep ``iterations=100``, ``ls_iterations=50``, and ``tolerance=1e-6`` for the first explicit
-baseline. Enable ``debug_mode`` and change convergence work only after capacity is sufficient and
-the iteration report or a recorded task metric identifies a convergence problem. Some dense
+baseline. Enable ``NewtonCfg.debug_mode`` and change convergence work only after capacity is sufficient
+and the iteration report or a recorded task metric identifies a convergence problem. Some dense
 manipulation tasks reduce ``ls_iterations`` to ``15`` for measured performance; do not copy that
 optimization before validating the larger default.
 
 Use MuJoCo contacts by default. Switch to ``use_mujoco_contacts=False`` only when the task needs
 Newton's collision pipeline, such as the rough-terrain, SDF or hydroelastic, and some
-dense-manipulation patterns. Only then configure ``collision_cfg``, shape margins,
-``max_triangle_pairs``, or ``rigid_contact_max``. See :doc:`mjwarp-solver` for the complete PhysX
-mapping table, starting profiles, parameter semantics, and tuning sequence.
+dense-manipulation patterns. Only then assign a
+:class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to ``NewtonCfg.collision_cfg`` and set
+``max_triangle_pairs`` or ``rigid_contact_max`` on that pipeline config; tune per-shape margins on
+the corresponding shape config. See :doc:`mjwarp-solver` for the complete PhysX mapping table,
+starting profiles, parameter semantics, and tuning sequence.
 
 Run task-level smoke tests to compare behavior between PhysX and MJWarp:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   uv run python scripts/environments/zero_agent.py \
-       --task TASK --num_envs 4 --headless physics=physx
-   uv run python scripts/environments/zero_agent.py \
-       --task TASK --num_envs 4 --headless physics=newton_mjwarp
-   uv run python scripts/environments/random_agent.py \
-       --task TASK --num_envs 4 --headless physics=physx
-   uv run python scripts/environments/random_agent.py \
-       --task TASK --num_envs 4 --headless physics=newton_mjwarp
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run --extra isaacsim python scripts\environments\zero_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts\environments\zero_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+         uv run --extra isaacsim python scripts\environments\random_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=physx
+         uv run --extra isaacsim python scripts\environments\random_agent.py ^
+             --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+
+   .. tab-item:: DGX / multi-GPU
+
+      .. code-block:: bash
+
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/zero_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=newton_mjwarp
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=physx
+         uv run --extra isaacsim python scripts/environments/random_agent.py \
+             --task TASK --num_envs 4 --device cuda:N --viz none physics=newton_mjwarp
+
+      Replace ``N`` with the GPU index assigned to the process. MJWarp's ``njmax`` and ``nconmax``
+      capacities are allocated per environment, so device-memory use grows with ``num_envs``.
 
 Let each continuous agent run through multiple resets, then interrupt it. Check for non-finite
 state, first-step impulses, unexpected joint saturation, excessive angular velocity, contact loss,
@@ -369,7 +410,7 @@ behavior, or insufficient solver capacity that PhysX tolerated.
 #. For failures that appear only with dense scenes or many environments, compare the busiest
    environment against the per-environment contact and constraint capacities.
 
-Enable ``debug_mode`` to inspect iteration-cap usage. Increase capacity when contacts or
+Enable ``NewtonCfg.debug_mode`` to inspect iteration-cap usage. Increase capacity when contacts or
 constraints overflow; sweep iterations, line-search work, or tolerance only after the asset,
 reset, controller, contact model, and capacities are valid. Keep the smallest fixed-state
 reproduction and record the first non-finite quantity so later changes can be compared one at a

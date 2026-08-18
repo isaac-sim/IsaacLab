@@ -1,6 +1,147 @@
 Changelog
 ---------
 
+2.0.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved the standalone VBD solver from
+  ``isaaclab_contrib.deformable`` to :mod:`isaaclab_newton.physics`. Import
+  :class:`~isaaclab_newton.physics.NewtonVBDManager` and
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` from their new location, and
+  move ``NewtonModelCfg`` and ``NewtonModelSolverCfg`` soft-contact settings to
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Removed the
+  ``isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`` compatibility
+  alias. Import
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` instead.
+
+
+1.4.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled CUDA graph capture for coupled MPM entries that use
+  capacity-bounded sparse grids.
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed single-world coupled MPM reset handling.
+* Avoided per-step host synchronization in single-world coupled scenes without
+  MPM entries.
+* Surfaced asynchronous rebuild failures from nested MPM solvers after CUDA
+  graph replay.
+
+
+1.3.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Newton coupler configuration checks to support
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`.
+
+
+1.3.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.rigid_body_particle_contact_buffer_size`
+  to size each body's particle, edge, and face soft-contact list. Contacts past the buffer are
+  dropped from the body's reaction list, which can inject energy.
+
+
+1.2.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton visualizer rigid-body dragging support to VBD and
+  :class:`~isaaclab_contrib.coupling.NewtonCouplerManager`.
+
+Fixed
+^^^^^
+
+* Fixed single-world coupled MPM resets by promoting the only local world to a full-grid reset.
+
+
+1.1.0 (2026-08-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added VBD cable support.
+
+
+1.0.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the opt-in :mod:`isaaclab_contrib.custom_coupling` example. Import
+  :mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`. Use
+  :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for MJWarp and VBD
+  coupling, or :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg`
+  to stay on the manual coupler.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Moved ``NewtonCoupledMJWarpVBDManager`` and its reaction kernel out
+  of :mod:`isaaclab_contrib.deformable` and into the opt-in
+  :mod:`isaaclab_contrib.custom_coupling` example, and removed the
+  ``isaaclab_contrib.deformable.coupled_mjwarp_vbd_manager`` module. Import the
+  manager from :mod:`isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager`
+  instead. Configurations that reference the manager through
+  :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` keep working and
+  now resolve to the moved class.
+
+* **Breaking:** Removed ``CoupledFeatherstoneVBDSolverCfg`` and
+  ``NewtonCoupledFeatherstoneVBDManager`` from
+  :mod:`isaaclab_contrib.deformable`. Switch the rigid solver to MJWarp and use
+  :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` or the opt-in
+  :mod:`isaaclab_contrib.custom_coupling` example.
+
+
+0.5.2 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Lee controller base to read body masses and inertias from the
+  public-order :attr:`~isaaclab.assets.ArticulationData.body_mass` and
+  :attr:`~isaaclab.assets.ArticulationData.body_inertia` buffers instead of the
+  backend-order tensor view, so per-body terms pair correctly with the
+  public-order center-of-mass buffers under a non-identity
+  :attr:`~isaaclab.assets.ArticulationCfg.body_ordering`.
+
+
 0.5.1 (2026-07-26)
 ~~~~~~~~~~~~~~~~~~
 

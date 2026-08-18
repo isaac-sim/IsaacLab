@@ -852,7 +852,7 @@ def test_camera_multi_regex_init(setup_camera_device, device):
         sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -907,7 +907,7 @@ def test_camera_all_annotators(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -970,7 +970,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation", "instance_id_segmentation_fast"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
@@ -1000,7 +1000,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["normals"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -1249,6 +1249,17 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
             f"Far depth ({mean_far:.2f}) should be > 1.5× close depth ({mean_close:.2f}). "
             "Camera pose change may not be reaching the renderer."
         )
+    finally:
+        del camera
+
+
+def test_camera_invalidate_before_initialize(setup_sim_camera):
+    """Invalidation on a camera that never initialized does not raise."""
+    _, camera_cfg, _ = setup_sim_camera
+    camera = Camera(camera_cfg.replace(prim_path="/World/NeverInitialized", spawn=None))
+    try:
+        assert camera._view is None
+        camera._invalidate_initialize_callback(None)
     finally:
         del camera
 

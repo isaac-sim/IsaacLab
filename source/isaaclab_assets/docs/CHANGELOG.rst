@@ -1,6 +1,57 @@
 Changelog
 ---------
 
+0.6.4 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
+0.6.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the Menagerie Franka configuration to use its corrected USD-authored arm drive gains.
+
+
+0.6.2 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the DR Legs feet colliding as bounding boxes by setting an explicit ``convexHull`` mesh
+  approximation on :data:`~isaaclab_assets.robots.dr_legs.DR_LEGS_IMPLICIT_PD_CFG`.
+
+
+0.6.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :data:`~isaaclab_assets.sensors.GELSIGHT_MINI_CFG` to use the available GelSight render data.
+
+
+0.6.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_assets.robots.franka.FRANKA_PANDA_MENAGERIE_CFG` for the
+  MuJoCo Menagerie-derived Franka asset with cross-backend actuator overrides.
+* Added ``SHADOW_HAND_NEWTON_CFG``, the Newton (MJWarp) Shadow Hand configuration,
+  shared by the reorientation and handover tasks.
+
+
 0.5.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

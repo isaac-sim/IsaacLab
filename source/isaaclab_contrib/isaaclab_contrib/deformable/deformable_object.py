@@ -181,12 +181,6 @@ def add_registered_deformables_to_builder(
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
 
 
-def color_registered_deformables(builder) -> None:
-    """Color the Newton builder when deformables were registered."""
-    if SimulationManager._deformable_registry:
-        builder.color()
-
-
 def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
     """Bind registered deformable visual meshes to their Newton particle slices in Fabric."""
     if manager_cls._clone_physics_only or not manager_cls._deformable_registry:
@@ -209,8 +203,9 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
     synced_any = False
     for entry in manager_cls._deformable_registry:
         for inst_idx, offset in enumerate(entry.particle_offsets):
-            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-            resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
+            resolved_vis = re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(inst_idx), entry.vis_mesh_prim_path)
+            # any wildcard left over stands for the instance too, in whichever way it is spelled
+            resolved_vis = re.sub(r"\[\^/\][*+]|\.\*", str(inst_idx), resolved_vis)
             vis_prim = stage.GetPrimAtPath(resolved_vis)
 
             if not vis_prim or not vis_prim.IsValid():
@@ -248,12 +243,8 @@ def install_deformable_builder_hooks() -> None:
     SimulationManager._deformable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
-    if not hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
-        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
 
 
 def clear_deformable_builder_hooks() -> None:
@@ -264,10 +255,6 @@ def clear_deformable_builder_hooks() -> None:
             hook
             for hook in SimulationManager._per_world_builder_hooks
             if hook is not add_registered_deformables_to_builder
-        ]
-    if hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = [
-            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_registered_deformables
         ]
 
 

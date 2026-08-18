@@ -32,12 +32,65 @@ Visualizers are lightweight viewer apps for monitoring, debugging, and recording
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
 
-- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
+- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
+  ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
 - If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
 - ``--viz none`` explicitly disables all visualizers, including config-defined ones.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
+
+**Breaking change — ``--headless`` no longer suppresses visualizers.**
+
+In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
+In Isaac Lab 3.0, ``--headless`` and ``--viz`` are independent:
+
+- ``--headless`` controls the simulation rendering pipeline (Kit app mode, GPU context).
+- ``--viz <type>`` controls which visualizer backends to launch.
+
+Passing ``--viz kit --headless`` now launches a Kit visualizer in headless mode using the
+Replicator offscreen renderer (no display window required).  Passing ``--viz newton_gl --headless``
+launches a Newton GL visualizer using pyglet's EGL headless backend.  To disable all visualizers
+explicitly, use ``--viz none``.
+
+.. list-table:: Headless visualizer requirements
+   :header-rows: 1
+   :widths: 20 25 55
+
+   * - Visualizer
+     - Headless mechanism
+     - Extra requirement
+   * - ``kit``
+     - Replicator offscreen renderer (no display)
+     - Must also pass ``--enable_cameras``; without it, ``render_rgb_array()`` returns
+       black frames. ``--video`` sets this automatically.
+   * - ``newton_gl``
+     - pyglet EGL backend (no display)
+     - None — ``NewtonGLVisualizer`` auto-detects a missing ``$DISPLAY`` and selects EGL.
+   * - ``newton_rtx``
+     - Not supported headlessly
+     - ``render_rgb_array()`` returns ``None``; frame capture requires a display.
+
+**Headless video recording (``--video`` without ``--viz``).**
+
+In Isaac Lab 2.x, ``--video`` alone would use the Kit Replicator pipeline implicitly.
+In Isaac Lab 3.0, the equivalent is:
+
+.. code-block:: bash
+
+   # Record from Kit viewport headlessly (equivalent to 2.x --video behaviour)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+       --viz kit --enable_cameras --headless --video
+
+As a convenience, passing ``--video`` without ``--viz`` still works: Isaac Lab
+auto-creates a headless Kit visualizer (falling back to Newton GL if Kit is unavailable)
+and sets ``source="visualizer:kit"`` on the default recorder, printing:
+
+.. code-block:: text
+
+   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
+   for video recording. Pass --viz <type> to choose a different visualizer, or
+   set video_recorders in your env config to record from a scene sensor instead.
 
 
 Reinforcement Learning CLI Entrypoints
@@ -93,6 +146,49 @@ script path and pass ``--rl_library`` to it:
       --rl_library rsl_rl --task Isaac-Cartpole --distributed
 
 
+Unified Checkpoint and Iteration Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+RL entrypoints now use ``--checkpoint`` consistently to select a checkpoint
+for training, resuming, or play. Update scripts that use the removed arguments
+as follows:
+
+.. list-table:: RL command migration
+   :header-rows: 1
+   :widths: 28 32 40
+
+   * - Previous command
+     - Isaac Lab 3.0 command
+     - Notes
+   * - RSL-RL ``--resume --load_run <run>``
+     - ``--checkpoint <path>``, ``--checkpoint latest``, or ``--checkpoint best``
+     - Pass a checkpoint path or select one from a compatible recorded run.
+   * - ``--use_pretrained_checkpoint``
+     - ``--checkpoint pretrained``
+     - Use this for play with RL-Games, RSL-RL, skrl, or Stable-Baselines3.
+   * - RLinf ``--rl_model_path <checkpoint-dir>`` or ``--resume_dir <checkpoint-dir>``
+     - ``--checkpoint <checkpoint-dir>``
+     - The directory must contain the RLinf ``full_weights.pt`` checkpoint.
+   * - RLinf ``--max_epochs <N>``
+     - ``--max_iterations <N>``
+     - This is the common training-iteration argument used by the unified API.
+
+For RLinf, ``--model_path`` now identifies the pretrained base VLA model, not
+the RL-finetuned weights. Supply both arguments when evaluating a finetuned
+policy:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rlinf \
+      --config_name isaaclab_ppo_gr00t_assemble_trocar \
+      --model_path /path/to/base_model \
+      --checkpoint /path/to/rlinf_checkpoint
+
+``latest`` and ``best`` select checkpoints from the newest compatible run for
+RL-Games, RSL-RL, skrl, Stable-Baselines3, and RLinf. ``pretrained`` selects a
+published policy where one is available; RLinf does not support this selector.
+
+
 Multi-Backend Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -111,8 +207,8 @@ When you instantiate an asset class from the ``isaaclab`` package (e.g., ``Artic
    robot = Articulation(cfg=ArticulationCfg(...))
 
 The factory works by convention: for a class defined in ``isaaclab.assets.articulation``, it
-imports the matching class from ``isaaclab_{backend}.assets.articulation``. This means the
-``isaaclab_physx`` and ``isaaclab_newton`` packages mirror the ``isaaclab`` module structure.
+imports the matching class from the active backend package. The ``isaaclab_physx``,
+``isaaclab_newton``, and ``isaaclab_ov`` packages mirror the ``isaaclab`` module structure.
 
 .. note::
 
@@ -652,28 +748,35 @@ when no CLI override is given. Other fields are named presets selectable with
 
 .. code-block:: python
 
-   from isaaclab_tasks.utils import PresetCfg
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab.utils.configclass import configclass
+   from isaaclab_ov.physics import OvPhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class MyPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       isaacsim_physx: PhysxCfg = PhysxCfg(...)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+       default: PhysxCfg = isaacsim_physx  # used when no override is given
        newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
-The legacy ``presets=NAME`` form still works for the same values.
+Pass ``physics=newton_mjwarp`` on the CLI to swap the entire config section.
+Use ``physics=physx`` to opt into automatic PhysX-family selection. The legacy
+``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct physics=newton_mjwarp
 
-   # Run with default (PhysX) backend
-   python train.py task=Isaac-Franka-Cabinet-v0
+   # Run with default (concrete Isaac Sim PhysX) backend
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+       --task Isaac-Open-Drawer-Franka-Direct
 
 Adding Multi-Backend Support to an Environment
 -----------------------------------------------
@@ -691,18 +794,30 @@ subclass that carries both a PhysX and a Newton variant.
        self.sim.dt = 1 / 60
        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
+.. important::
+
+   The ``After`` example below mirrors the current Reach task, which intentionally
+   uses Newton/MJWarp as its default. The ``Before`` snippet only illustrates the
+   older single-backend form, so the default differs between the two snippets.
+   When migrating a task that should retain PhysX by default, use
+   ``default: PhysxCfg = isaacsim_physx`` instead. Adding backend variants should
+   not silently change a task's established default.
+
 *After:*
 
 .. code-block:: python
 
+   from isaaclab.physics import PhysxAutoCfg
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
    @configclass
    class ReachPhysicsCfg(PresetCfg):
-       default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
@@ -712,6 +827,7 @@ subclass that carries both a PhysX and a Newton variant.
            num_substeps=1,
            debug_mode=False,
        )
+       default: NewtonCfg = newton_mjwarp
 
    # In the env cfg __post_init__:
    def __post_init__(self):
@@ -932,7 +1048,7 @@ Here's a complete example showing how to update your code:
 
    # Using deprecated root_physx_view
    robot = scene["robot"]
-   masses = robot.root_physx_view.get_masses()
+   material_properties = robot.root_physx_view.get_material_properties()
 
    # Using deprecated object_* API
    collection = scene["object_collection"]
@@ -947,14 +1063,21 @@ Here's a complete example showing how to update your code:
    from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
    from isaaclab.assets import RigidObjectCollection  # unchanged
 
-   # Using new root_view property
+   # Using the new backend-specific root_view property (PhysX shown)
    robot = scene["robot"]
-   masses = robot.root_view.get_masses()
+   material_properties = robot.root_view.get_material_properties()
 
    # Using new body_* API
    collection = scene["object_collection"]
    poses = collection.data.body_pose_w
    collection.write_body_state_to_sim(state, env_ids=env_ids, body_ids=object_ids)
+
+The concrete ``root_view`` type is backend-specific. The
+``get_material_properties()`` call above reads each rigid shape's static friction,
+dynamic friction, and restitution through the PhysX Tensor API; Newton selections
+and OvPhysX bindings use different access methods. See
+:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+before using ``root_view`` in backend-portable code.
 
 
 Quaternion Format
@@ -2496,6 +2619,185 @@ updated:
 The class identities are unchanged — only the module path moved. Type hints
 referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
 should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
+
+
+Viewport Camera Configuration (``ViewerCfg`` deprecated)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``viewer`` field (type :class:`~isaaclab.envs.common.ViewerCfg`) is deprecated on
+:class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.ManagerBasedEnvCfg`, and
+:class:`~isaaclab.envs.DirectMARLEnvCfg`.  A backward-compatibility shim re-routes
+``viewer.*`` assignments for one release, but the field will be removed in a future version.
+Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+on the sim config instead.
+
+Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
+remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
+construction.  Camera tracking is now handled directly by
+:class:`~isaaclab_visualizers.kit.KitVisualizer` via ``origin_type`` and
+``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.eye = (4.5, 0.0, 6.0)
+   env_cfg.viewer.lookat = (0.0, 0.0, 2.0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.visualizers import VisualizerCfg
+   env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
+
+For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
+:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
+``origin_track_path``:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.origin_type = "asset_root"
+   env_cfg.viewer.asset_name = "robot"
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.kit import KitVisualizerCfg
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+
+The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
+tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+
+Streaming Camera View (``tiled_cam_*`` fields removed)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
+``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
+``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
+shim forwards each removed field to its ``streaming_*`` equivalent and emits
+:class:`DeprecationWarning`; the shim will be removed in the next major release.
+
+.. list-table:: Field rename reference
+   :header-rows: 1
+   :widths: 40 40 20
+
+   * - Old field (removed)
+     - New field
+     - Notes
+   * - ``tiled_cam_view``
+     - ``streaming_view``
+     - Default is now ``False`` (opt-in)
+   * - ``tiled_cam_num``
+     - ``streaming_envs``
+     - Accepts ``int`` or ``list[int]``
+   * - ``tiled_cam_prim_path``
+     - ``streaming_sensor_prim_path``
+     - Existing sensor path; takes priority over auto-created camera
+   * - ``tiled_cam_eye``
+     - ``streaming_cam_eye``
+     -
+   * - ``tiled_cam_renderer``
+     - ``streaming_cam_renderer``
+     - Accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or ``None``
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   cfg = NewtonVisualizerCfg(
+       tiled_cam_view=True,
+       tiled_cam_num=16,
+       tiled_cam_prim_path="/World/envs/env_.*/Camera",
+   )
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   cfg = NewtonGLVisualizerCfg(
+       streaming_view=True,
+       streaming_envs=16,
+       streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+   )
+
+.. note::
+   :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` is deprecated in this release.
+   Use :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (OpenGL rasterizer) or
+   :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (OVRTX path tracer) instead.
+
+
+Newton Visualizer Type Split (``newton`` → ``newton_gl`` / ``newton_rtx``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The single ``NewtonVisualizerCfg`` (``visualizer_type="newton"``) has been split into two
+dedicated configs with separate type identifiers:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (removed / deprecated)
+     - New
+     - Notes
+   * - ``NewtonVisualizerCfg`` (``visualizer_type="newton"``)
+     - :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (``visualizer_type="newton_gl"``)
+     - OpenGL rasterizer; default Newton visualizer
+   * - —
+     - :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``visualizer_type="newton_rtx"``)
+     - OVRTX path tracer (experimental)
+
+The ``--viz newton`` CLI argument remains as a **deprecated alias** for ``--viz newton_gl``.
+Update scripts and config files to use the explicit form:
+
+.. code-block:: bash
+
+   # Before (Isaac Lab 2.x)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+   # After (Isaac Lab 3.x)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
+
+Similarly, when importing the config class directly:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   cfg = NewtonVisualizerCfg()
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
+   cfg = NewtonGLVisualizerCfg()
+
+The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
+continues to work as a backward-compatible alias for ``"visualizer:newton_gl"``, but
+``"visualizer:newton_gl"`` and ``"visualizer:newton_rtx"`` are now the canonical source strings.
+
+
+Video Recording (``gym.wrappers.RecordVideo`` replaced)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``gym.wrappers.RecordVideo`` pattern is no longer supported.  Video recording is now driven
+internally by :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries on the
+environment config, sourcing frames from the active visualizer or a scene sensor.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env = gym.make(task, cfg=env_cfg, render_mode="rgb_array")
+   env = gym.wrappers.RecordVideo(env, video_folder="videos/", step_trigger=lambda s: s == 0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+   env_cfg.video_recorders = [
+       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+   ]
+   env = gym.make(task, cfg=env_cfg)
+
+Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton_gl"``,
+``"visualizer:newton_rtx"``, ``"visualizer:newton_gl:tiled"``, ``"sensor:<name>"``.
+``"visualizer:newton"`` and ``"visualizer:newton:tiled"`` remain as deprecated backward-compatible
+aliases for ``"visualizer:newton_gl"`` and ``"visualizer:newton_gl:tiled"`` respectively.
+The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
+camera via ``sim.default_visualizer_cfg`` instead.
+
+The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
+hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
 
 
 Need Help?

@@ -8,10 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    uv run python scripts/demos/deformables.py
+    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
 
     # Usage with Newton VBD backend and default kit visualizer.
-    uv run python scripts/demos/deformables.py --physics newton_vbd
+    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py --physics newton_vbd
+
+    # Install the optional dependencies for the legacy launcher.
+    ./isaaclab.sh -i tetrahedralization
+
+    # Usage with OvPhysX backend without a visualizer.
+    ./isaaclab.sh -p scripts/demos/deformables.py --physics ovphysx
 
 """
 
@@ -29,10 +35,14 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument(
-    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_vbd"], help="Physics backend."
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx", "newton_vbd", "ovphysx"],
+    help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+backend_args, _ = parser.parse_known_args()
+parser.set_defaults(visualizer=None if backend_args.physics == "ovphysx" else ["kit"])
 args_cli = parser.parse_args()
 
 if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
@@ -60,7 +70,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
 
 if args_cli.physics == "newton_vbd":
-    from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg  # isort:skip
+    from isaaclab_newton.physics import NewtonSoftContactCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
@@ -260,7 +270,7 @@ def main():
             physics_cfg.solver_cfg.particle_self_contact_radius = 0.0001
             physics_cfg.solver_cfg.particle_self_contact_margin = 0.1
             physics_cfg.num_substeps = 4
-            physics_cfg.model_cfg = NewtonModelCfg(
+            physics_cfg.soft_contact_cfg = NewtonSoftContactCfg(
                 soft_contact_ke=1.0e5,
                 soft_contact_kd=1.0e0,
                 soft_contact_mu=0.01,

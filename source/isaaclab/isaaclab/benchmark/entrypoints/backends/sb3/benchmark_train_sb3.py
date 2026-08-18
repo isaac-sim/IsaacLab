@@ -189,7 +189,15 @@ def run(argv: list[str]) -> BenchmarkResult:
     from stable_baselines3.common.vec_env import VecNormalize
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import (
+        BaseIsaacLabBenchmark,
+        BenchmarkMonitor,
+        BenchmarkResult,
+        builders,
+        capture,
+        console,
+        stepping,
+    )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -270,6 +278,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             log_dir = os.path.join(log_root_path, run_info)
             _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             env_cfg.log_dir = log_dir
+            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
@@ -278,7 +287,6 @@ def run(argv: list[str]) -> BenchmarkResult:
             env_t0 = time.perf_counter_ns()
             env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
-            env = _common.wrap_record_video(env, log_dir, args_cli)
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)
             success_context = SuccessRateTrackerWrapper(
@@ -367,21 +375,22 @@ def run(argv: list[str]) -> BenchmarkResult:
                 total_fps=total_fps,
                 steps_per_iteration=steps_per_iteration,
                 frames_per_environment_step=env.unwrapped.num_envs,
+                environment_step_warmup_steps=args_cli.warmup_steps,
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
-            learning = builders.build_learning(
-                reward_series=reward_series,
-                ep_length_series=ep_len_series,
-                ema_alpha=args_cli.ema_alpha,
-                keep_series=not args_cli.no_series,
-            )
-
             desc = RL_LIBRARY_DESCRIPTORS["sb3"]
             log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
             success_tracker = get_success_tracker(args_cli, success_context.tracker, log_data)
+            learning = builders.build_learning(
+                reward_series=reward_series,
+                ep_length_series=ep_len_series,
+                success_rate_series=success_tracker.history if success_tracker is not None else None,
+                ema_alpha=args_cli.ema_alpha,
+                keep_series=not args_cli.no_series,
+            )
             success_rate = (
                 round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
             )
@@ -426,6 +435,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_training_report(bundle, output_paths)
 
     return result
 

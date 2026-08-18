@@ -256,7 +256,9 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
     assert len(calls) == 1
     assert calls[0][0] == "Isaac-Test"
     assert calls[0][1]["cfg"] is env_cfg
-    assert calls[0][1]["render_mode"] is None
+    # render_mode is no longer passed — recording is configured via env_cfg.video_recorders
+    # before env creation (apply_video_recording), not via the gym render-mode mechanism.
+    assert "render_mode" not in calls[0][1]
 
 
 def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -277,7 +279,8 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
 
     assert env is expected_env
-    assert calls == [(env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
+    # render_mode is no longer forwarded — recording is driven by env_cfg.video_recorders.
+    assert calls == [(env_cfg, "Isaac-Test", {})]
 
 
 def test_dispatch_library_entrypoint_shows_help_without_library(
@@ -333,3 +336,75 @@ def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
     assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
     assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
     assert resolve_play_task_name(None) is None
+
+
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        ([], "none"),
+        (["presets=cube"], "cube"),
+        (["presets=newton_mjwarp,cube,tiled"], "cube, tiled"),
+        (["physics=newton_mjwarp", "presets=cube"], "cube"),
+        (["renderer=rtx"], "none"),
+        # duplicates collapse, and non-preset overrides are ignored
+        (["presets=cube", "physics=cube", "env.scene.num_envs=64"], "cube"),
+    ],
+)
+def test_additional_preset_names_lists_presets_without_a_row_of_their_own(
+    argv: list[str], expected: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The presets row names the chosen presets that physics and renderer do not already report."""
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"] + argv)
+    assert _rl_common._additional_preset_names({"newton_mjwarp", "rtx"}) == expected
+
+
+class _RecordingScreen:
+    """Loading screen stand-in that keeps the summary fields instead of drawing them."""
+
+    def __init__(self) -> None:
+        self.fields: dict[str, str] = {}
+
+    def summary(self, title: str, fields: dict[str, str]) -> None:
+        self.fields = fields
+
+
+@pytest.mark.parametrize(
+    "selectors, expected_physics, expected_renderer, expected_presets",
+    [
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)", "none"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)", "none"),
+        # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
+        (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)", "none"),
+        # a run that names no backend reports the ones the task pinned as defaults
+        ([], "default (newton_mjwarp)", "default (newton_renderer)", "none"),
+        # a domain preset has no row of its own
+        (["physics=physx", "presets=depth"], "physx (ovphysx)", "default (newton_renderer)", "depth"),
+    ],
+)
+def test_run_summary_reports_the_backends_the_run_resolves_to(
+    selectors: list[str],
+    expected_physics: str,
+    expected_renderer: str,
+    expected_presets: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``physics=physx`` and ``renderer=rtx`` name a family; the summary names what will run.
+
+    A row reached through such a selector names the resolved backend on its own, since
+    the run never asked for a different one; the selector is listed under presets. Only
+    a backend the task pinned and the run never named is marked a default.
+    """
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Cartpole-Camera-Direct"
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", *selectors])
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    screen = _RecordingScreen()
+    args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
+
+    _rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+
+    assert screen.fields["Physics"] == expected_physics
+    assert screen.fields["Renderer"] == expected_renderer
+    assert screen.fields["Presets"] == expected_presets
