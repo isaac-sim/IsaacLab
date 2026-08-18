@@ -20,6 +20,8 @@ ENV LANG=C.UTF-8
 ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
 ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
 ENV UV_NO_CACHE=1
+ENV PIP_RETRIES=12
+ENV UV_HTTP_RETRIES=12
 
 # Native build tools remain confined to this stage.
 RUN apt-get update \

@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Retried transient package download failures during ``isaaclab install``.
+* Increased pip and uv HTTP retry budgets during ``isaaclab install``.

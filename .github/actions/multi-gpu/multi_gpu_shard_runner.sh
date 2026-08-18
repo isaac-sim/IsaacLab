@@ -49,7 +49,7 @@ mkdir -p /tmp/mgpu-base-home /tmp/mgpu-pyuserbase
 
 # Pytest deps (same as run-tests action). junitparser is imported at
 # tools/conftest.py load time, so it must be present first.
-bash .github/actions/_lib/retry-command.sh \
+bash .github/actions/_lib/with-python-package-retries.sh \
   ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky "coverage>=7.6.1"
 
 # Shard count from nvidia-smi -L (truth; torch under-counts MIG).
