@@ -22,8 +22,9 @@ def _load_module(name: str, path: Path):
     return module
 
 
-# Collect every Dockerfile.* from the entire repository tree.
-DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
+# All shipped Dockerfiles live under docker/. Keep generated wheel staging trees
+# out of this inventory so a prior local wheel build cannot affect collection.
+DOCKERFILES = sorted(DOCKER_DIR.glob("Dockerfile.*"))
 
 ROOT_USERS = {"root", "0"}
 
@@ -34,7 +35,6 @@ ROOT_USERS = {"root", "0"}
 DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.base": "isaaclab",
     "Dockerfile.curobo": "isaaclab",
-    "Dockerfile.installci": "isaaclab",
     "Dockerfile.kitless": "isaaclab",
     "Dockerfile.ros2": "isaaclab",
 }
@@ -44,7 +44,6 @@ DOCKERFILE_RUNTIME_USERS = {
 DOCKERFILES_CREATING_RUNTIME_USER = {
     "Dockerfile.base",
     "Dockerfile.curobo",
-    "Dockerfile.installci",
     "Dockerfile.kitless",
 }
 
@@ -129,6 +128,33 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
     assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
     assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
+
+
+@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo", "Dockerfile.kitless"])
+def test_dockerfiles_install_with_pinned_uv_and_cached_downloads(dockerfile_name: str):
+    """Every Python dependency build uses the pinned uv binary and a BuildKit cache."""
+    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+
+    assert (
+        "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
+        in dockerfile_text
+    )
+    assert "/.cache/uv" in dockerfile_text
+    assert "UV_LINK_MODE=copy" in dockerfile_text
+
+
+@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
+def test_isaac_sim_dockerfiles_use_uv_for_bundled_python(dockerfile_name: str):
+    """Isaac Sim images opt their bundled non-virtual interpreter into uv pip."""
+    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+
+    assert "ENV UV_SYSTEM_PYTHON=1" in dockerfile_text
+    assert "ENV UV_PYTHON=${ISAACLAB_PATH}/_isaac_sim/python.sh" in dockerfile_text
+    assert "type=cache,target=${DOCKER_USER_HOME}/.cache/pip" not in dockerfile_text
+    assert "-m pip install" not in dockerfile_text
+    assert "-m pip uninstall" not in dockerfile_text
+    assert "alias pip='uv pip'" in dockerfile_text
+    assert "alias pip3='uv pip'" in dockerfile_text
 
 
 # --------------------------------------------------------------------------- #

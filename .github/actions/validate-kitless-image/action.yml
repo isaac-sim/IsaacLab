@@ -63,7 +63,7 @@ runs:
       set -euo pipefail
       uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
       python -m pytest \
-        source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
+        source/isaaclab/test/benchmark/cartpole_training_smoke.py::test_train_cartpole_state_completes \
         source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics.py \
         source/isaaclab/test/sim/test_urdf_converter.py \
         source/isaaclab/test/sim/test_mjcf_converter.py \

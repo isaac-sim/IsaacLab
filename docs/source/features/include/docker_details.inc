@@ -55,6 +55,11 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
 * **container.py**: A utility script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
+The Isaac Lab Dockerfiles use a pinned ``uv`` binary for Python dependency installation. BuildKit cache mounts
+retain downloaded packages between builds without adding the uv cache to the resulting image. The Isaac Sim images
+still install through ``isaaclab.sh --install`` so its architecture selection and bundled-package compatibility
+checks remain active; the script routes those package operations to ``uv pip`` inside the container.
+
 .. rubric:: Running the Container
 
 .. note::

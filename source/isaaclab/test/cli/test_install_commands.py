@@ -207,6 +207,34 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
             pip_cmd + ["install", "--upgrade-package", "isaacteleop", isaacteleop_req],
         ]
 
+    def test_uv_batches_editable_submodules_into_one_install(self, tmp_path):
+        """uv resolves all editable source packages in one transaction."""
+        source_dir = tmp_path / "source"
+        extension_dirs = [source_dir / "isaaclab", source_dir / "isaaclab_assets"]
+        for extension_dir in extension_dirs:
+            extension_dir.mkdir(parents=True)
+            (extension_dir / "pyproject.toml").write_text("[project]\nname = 'test'\nversion = '0.0.0'\n")
+
+        pip_cmd = ["uv", "pip"]
+        with (
+            mock.patch("isaaclab.cli.commands.install.ISAACLAB_ROOT", tmp_path),
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_isaaclab_submodules(["isaaclab", "isaaclab_assets"])
+
+        mock_run.assert_called_once_with(
+            pip_cmd
+            + [
+                "install",
+                "--editable",
+                str(extension_dirs[0]),
+                "--editable",
+                str(extension_dirs[1]),
+            ]
+        )
+
     def test_upgrades_all_matching_metadata_requirements(self, tmp_path):
         """Duplicate metadata entries are preserved instead of collapsing to one requirement."""
         python_exe = str(tmp_path / "python")
@@ -408,6 +436,39 @@ class TestMaybeUninstallTorch:
         ) as mock_probe:
             _maybe_uninstall_prebundled_torch(py, [py, "-m", "pip"], using_uv=False, probe_env=probe_env)
         mock_probe.assert_called_once_with(py, env=probe_env)
+
+
+# ---------------------------------------------------------------------------
+# _ensure_pink_ik_dependencies_installed
+# ---------------------------------------------------------------------------
+
+
+class TestEnsurePinkIkDependencies:
+    """Tests for installer-specific reinstall flags used by the Pink IK repair."""
+
+    @pytest.mark.parametrize(
+        ("pip_cmd", "reinstall_flag"),
+        [
+            (["uv", "pip"], "--reinstall"),
+            (["python", "-m", "pip"], "--force-reinstall"),
+        ],
+    )
+    def test_uses_backend_compatible_reinstall_flag(self, pip_cmd, reinstall_flag):
+        """The fallback repair uses the reinstall flag supported by its backend."""
+        stack = ("pin", "pin-pink==3.3.0", "daqp==0.8.5")
+        with (
+            mock.patch("platform.system", return_value="Linux"),
+            mock.patch("platform.machine", return_value="x86_64"),
+            mock.patch("isaaclab.cli.commands.install._pink_ik_stack", return_value=stack),
+            mock.patch(
+                "isaaclab.cli.commands.install.run_command",
+                side_effect=[_cp(1), _cp(0)],
+            ) as mock_run,
+        ):
+            install_cmd._ensure_pink_ik_dependencies_installed("python", pip_cmd, probe_env={})
+
+        issued = mock_run.call_args_list[-1].args[0]
+        assert issued == pip_cmd + ["install", "--upgrade", reinstall_flag, *stack]
 
 
 # ---------------------------------------------------------------------------

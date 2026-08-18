@@ -94,6 +94,46 @@ class TestGetPipCommand:
             result = get_pip_command(python_exe=fake_python)
             assert result == [fake_python, "-m", "pip"]
 
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE"])
+    def test_returns_uv_pip_for_system_python_when_opted_in(self, tmp_path, value):
+        """UV_SYSTEM_PYTHON opts a non-virtual interpreter into uv pip."""
+        fake_python = str(tmp_path / "python.sh")
+
+        with (
+            mock.patch.dict(os.environ, {"UV_SYSTEM_PYTHON": value}, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
+        ):
+            result = get_pip_command(python_exe=fake_python)
+            selected_python = os.environ["UV_PYTHON"]
+
+        assert result == ["uv", "pip"]
+        assert selected_python == fake_python
+
+    def test_returns_python_pip_for_system_python_without_opt_in(self, tmp_path):
+        """A non-virtual interpreter keeps using its own pip by default."""
+        fake_python = str(tmp_path / "python.sh")
+
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
+            mock.patch("isaaclab.cli.utils.sys.prefix", sys.base_prefix),
+        ):
+            result = get_pip_command(python_exe=fake_python)
+
+        assert result == [fake_python, "-m", "pip"]
+
+    def test_system_python_opt_in_falls_back_when_uv_is_unavailable(self, tmp_path):
+        """The system opt-in does not make uv a mandatory host dependency."""
+        fake_python = str(tmp_path / "python.sh")
+
+        with (
+            mock.patch.dict(os.environ, {"UV_SYSTEM_PYTHON": "1"}, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
+        ):
+            result = get_pip_command(python_exe=fake_python)
+
+        assert result == [fake_python, "-m", "pip"]
+
 
 # ---------------------------------------------------------------------------
 # extract_python_exe

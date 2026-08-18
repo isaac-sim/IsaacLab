@@ -7,9 +7,13 @@
 # Please check the NGC container page for license information.
 
 # Base image
-ARG ISAACSIM_BASE_IMAGE_ARG
-ARG ISAACSIM_VERSION_ARG
+ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
+ARG ISAACSIM_VERSION_ARG=6.0.0
+
+FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv
+
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
+ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
@@ -21,19 +25,27 @@ LABEL description="Dockerfile for building and running the Isaac Lab framework i
 
 # Arguments
 # Path to Isaac Sim root folder
-ARG ISAACSIM_ROOT_PATH_ARG
+ARG ISAACSIM_ROOT_PATH_ARG=/isaac-sim
 ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
 # Path to the Isaac Lab directory
-ARG ISAACLAB_PATH_ARG
+ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 # Home dir of the runtime docker user, typically '/root'
-ARG DOCKER_USER_HOME_ARG
+ARG DOCKER_USER_HOME_ARG=/root
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}
 
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+# Install into Isaac Sim's bundled interpreter without requiring its pip. Copy
+# packages out of the BuildKit cache because cache mounts do not persist in the
+# image layer.
+ENV UV_SYSTEM_PYTHON=1
+ENV UV_PYTHON=${ISAACLAB_PATH}/_isaac_sim/python.sh
+ENV UV_LINK_MODE=copy
+
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.
@@ -117,7 +129,8 @@ RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
 # Install toml (used by tools/install_deps.py) and pytest (needed to run
 # in-container tests; moved to optional [test] extra in pyproject.toml)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml pytest
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/uv \
+    UV_PYTHON=${ISAACLAB_PATH}/_isaac_sim/python.sh uv pip install toml pytest
 
 # Install apt dependencies for extensions that declare them in their extension.toml,
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
@@ -149,34 +162,26 @@ RUN touch /bin/nvidia-smi && \
 # rather than skipping because it detects the pre-bundled version.
 RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch*
 
-# HACK: Reinstall pip properly after removing prebundled packages
-# The removal of torch* corrupts pip's vendor packages (_structures.py is deleted).
-# We must completely remove pip first, then do a clean install.
-RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* && \
-    wget -q https://bootstrap.pypa.io/get-pip.py && \
-    ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
-    rm get-pip.py
-
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install
-
-# HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/uv \
+    ${ISAACLAB_PATH}/isaaclab.sh --install && \
+    uv pip uninstall quadprog
 
 # Install cuRobo from source (pinned commit); needs CUDA env and Torch
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/uv \
+    uv pip install --no-build-isolation \
     "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8"
 
 # Install isaaclab_teleop (needed by Pink IK tests and related env configs)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --editable ${ISAACLAB_PATH}/source/isaaclab_teleop
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/uv \
+    uv pip install --editable ${ISAACLAB_PATH}/source/isaaclab_teleop
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip3='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \

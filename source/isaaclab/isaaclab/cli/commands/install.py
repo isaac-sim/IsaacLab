@@ -262,8 +262,9 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     pink_ik_stack = _pink_ik_stack()
+    reinstall_flag = "--reinstall" if pip_cmd[0] == "uv" else "--force-reinstall"
     install_result = run_command(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
+        pip_cmd + ["install", "--upgrade", reinstall_flag, *pink_ik_stack],
         check=False,
     )
     if install_result.returncode != 0:
@@ -737,13 +738,23 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
         return
 
     pip_cmd = get_pip_command(python_exe)
+    installable_items: list[tuple[str, Path]] = []
     for pkg_name in isaaclab_submodules:
         item = source_dir / pkg_name
         if not item.is_dir() or not ((item / "pyproject.toml").exists() or (item / "setup.py").exists()):
             print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
-        print_info(f"Installing submodule: {pkg_name}")
-        run_command(pip_cmd + ["install", "--editable", str(item)])
+        installable_items.append((pkg_name, item))
+
+    if pip_cmd[0] == "uv" and installable_items:
+        print_info("Installing Isaac Lab submodules in one uv transaction...")
+        editable_args = [argument for _, item in installable_items for argument in ("--editable", str(item))]
+        run_command(pip_cmd + ["install", *editable_args])
+
+    for pkg_name, item in installable_items:
+        if pip_cmd[0] != "uv":
+            print_info(f"Installing submodule: {pkg_name}")
+            run_command(pip_cmd + ["install", "--editable", str(item)])
         _upgrade_extension_pip_dependencies(
             python_exe,
             pip_cmd,

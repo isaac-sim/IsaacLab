@@ -204,7 +204,7 @@ jobs:
     - name: Run shared Cartpole smoke
       uses: ./.github/actions/run-tests
       with:
-        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
+        test-path: source/isaaclab/test/benchmark/cartpole_training_smoke.py
         result-file: arm-ci-cartpole-smoke-report.xml
         container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64

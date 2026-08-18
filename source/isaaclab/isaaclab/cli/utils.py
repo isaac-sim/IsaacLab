@@ -262,12 +262,11 @@ def _is_virtualenv_python(python_exe: str | Path) -> bool:
 def get_pip_command(python_exe: str | None = None) -> list[str]:
     """Return the base pip command tokens for the current environment.
 
-    When ``uv`` is available and a virtual environment is active, returns
-    ``["uv", "pip"]``.  When the target Python belongs to a virtual
-    environment, ``UV_PYTHON`` is set so ``uv pip`` installs into that
-    environment even if the process itself is not activated.  Otherwise returns
-    ``[python_exe, "-m", "pip"]`` so that the target interpreter's own pip is
-    used (e.g. Isaac Sim's bundled ``python.sh``).
+    When ``uv`` is available and either a virtual environment is active or uv's
+    ``UV_SYSTEM_PYTHON`` opt-in is enabled, returns ``["uv", "pip"]``.
+    ``UV_PYTHON`` is set so uv always operates on the interpreter selected by
+    Isaac Lab, including Isaac Sim's bundled ``python.sh`` in containers.
+    Otherwise returns ``[python_exe, "-m", "pip"]``.
 
     Args:
         python_exe: Python executable path.  Resolved via
@@ -277,7 +276,8 @@ def get_pip_command(python_exe: str | None = None) -> list[str]:
         python_exe = extract_python_exe()
 
     in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
-    if shutil.which("uv") and (in_venv or _is_virtualenv_python(python_exe)):
+    use_system_uv = os.environ.get("UV_SYSTEM_PYTHON", "").lower() in {"1", "true"}
+    if shutil.which("uv") and (in_venv or _is_virtualenv_python(python_exe) or use_system_uv):
         os.environ["UV_PYTHON"] = python_exe
         return ["uv", "pip"]
 

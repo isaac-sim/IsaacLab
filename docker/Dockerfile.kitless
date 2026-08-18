@@ -19,7 +19,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
 ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
-ENV UV_NO_CACHE=1
+ENV UV_LINK_MODE=copy
 
 # Native build tools remain confined to this stage.
 RUN apt-get update \
@@ -50,7 +50,8 @@ COPY isaaclab.sh ./
 # the standalone URDF/MJCF importers that replace the Isaac Sim ones. The venv pins
 # python3.12 to match the runtime stage's libpython3.12, and isaaclab.sh resolves
 # VIRTUAL_ENV first.
-RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
  && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all],importers \
  && python -c "import importlib.metadata as m; \

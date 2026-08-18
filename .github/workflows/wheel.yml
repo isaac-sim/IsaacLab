@@ -172,7 +172,7 @@ jobs:
           name: ${{ steps.meta.outputs.artifact_name }}
           path: /tmp/isaaclab-wheel-artifact
 
-      - name: Test wheel extras resolution
+      - name: Test wheel installation and extras resolution
         if: steps.changes.outputs.run_build == 'true'
         run: |
           set -euo pipefail
@@ -193,6 +193,9 @@ jobs:
             echo "No isaaclab wheel found in downloaded artifact" >&2
             exit 1
           fi
+
+          uv pip install --no-deps "$wheel"
+          python -c "import isaaclab"
 
           uv pip install \
             --dry-run \
