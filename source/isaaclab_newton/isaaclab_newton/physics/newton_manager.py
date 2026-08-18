@@ -1741,8 +1741,7 @@ class NewtonManager(PhysicsManager):
                 or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
             ):
                 logger.debug(
-                    "Skipping cable '%s': unsupported BasisCurves topology"
-                    " (vertex_counts=%s, type=%s, wrap=%s).",
+                    "Skipping cable '%s': unsupported BasisCurves topology (vertex_counts=%s, type=%s, wrap=%s).",
                     prim_path,
                     counts,
                     curve.GetTypeAttr().Get(),
