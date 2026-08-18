@@ -20,7 +20,7 @@ overrides = [
     { name = "coverage", specifier = ">=7.6.1" },
     { name = "mujoco", specifier = "~=3.11.0" },
     { name = "mujoco-warp", specifier = "~=3.11.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=release-1.5" },
+    { name = "newton", extras = ["sim"], specifier = "==1.5.0" },
     { name = "newton-usd-schemas", specifier = ">=0.4.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -1764,7 +1764,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "16.2.1"
+version = "16.2.2"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2158,7 +2158,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "2.0.2"
+version = "2.0.3"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2212,7 +2212,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "16.3.0"
+version = "16.4.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -3344,9 +3344,12 @@ wheels = [
 [[package]]
 name = "newton"
 version = "1.5.0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.5#cca3bb8a17a3620a1343df3cf12c625e4161b317" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "warp-lang", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/a8/706cd18af6c42a47f750a129c2605e7ed9af5800a37665ad78b870d34383/newton-1.5.0-py3-none-any.whl", hash = "sha256:a9eef789e2e0f857e40df3382f101b5faadff5dd8a61cb86dd5ec5382dd27865", size = 5556791, upload-time = "2026-08-11T13:06:15.61Z" },
 ]
 
 [package.optional-dependencies]

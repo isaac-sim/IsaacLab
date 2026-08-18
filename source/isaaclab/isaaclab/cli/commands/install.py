@@ -333,19 +333,19 @@ def _ensure_cuda_torch() -> None:
 
 
 def _ensure_newton() -> None:
-    """Install the pinned Newton git build, replacing any index version.
+    """Install the pinned Newton release, replacing any other version.
 
     Isaac Sim bundles ``newton[sim]==1.2.0``, which satisfies the loose core bound in
     the root pyproject, so the centralized install would otherwise keep the older
-    Newton. Isaac Lab owns the exact commit via ``[tool.uv].override-dependencies``
+    Newton. Isaac Lab owns the exact version via ``[tool.uv].override-dependencies``
     (``uv sync`` honors it, ``pip``/``uv pip`` installs do not), so force it in here
     from that single source.
     """
     overrides = _load_root_pyproject().get("tool", {}).get("uv", {}).get("override-dependencies", [])
     requirement = next((r for r in overrides if _requirement_name(r) == "newton"), None)
     if not requirement:
-        raise KeyError("Newton git pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
-    commit = _pinned_version("newton")
+        raise KeyError("Newton pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
+    version = _pinned_version("newton")
     # Newton-matched schemas (isaacsim pins the older ==0.2.0); force it alongside newton.
     schemas = next((r for r in overrides if _requirement_name(r) == "newton-usd-schemas"), None)
 
@@ -353,15 +353,15 @@ def _ensure_newton() -> None:
     pip_cmd = get_pip_command(python_exe)
     using_uv = pip_cmd[0] == "uv"
 
-    # git installs record the commit in freeze output; skip if it is already present.
+    # Exact index installs use ``name==version`` in freeze output; skip if it is already present.
     frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
     if frozen.returncode == 0 and any(
-        _requirement_name(line) == "newton" and commit in line for line in frozen.stdout.splitlines()
+        line.strip().lower() == f"newton=={version}" for line in frozen.stdout.splitlines()
     ):
-        print_info(f"Newton git build ({commit[:10]}) already installed.")
+        print_info(f"Newton {version} already installed.")
         return
 
-    print_info(f"Installing pinned Newton git build ({commit[:10]})...")
+    print_info(f"Installing Newton {version}...")
     uninstall_flags = ["-y"] if not using_uv else []
     run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
     run_command(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
@@ -1298,7 +1298,7 @@ def command_install(install_type: str = "all") -> None:
                     _install_extra_feature(feature_name, selector)
 
             # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton git build (the default physics engine) over it. This runs after every
+            # pinned Newton release (the default physics engine) over it. This runs after every
             # install pass because they go through pip, which does not see
             # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
             # newton-usd-schemas pins would otherwise stand.

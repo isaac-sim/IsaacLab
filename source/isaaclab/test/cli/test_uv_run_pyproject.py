@@ -175,10 +175,10 @@ def test_version_single_source_matches_literal_pins():
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in overrides
 
-    # Newton is pinned to a git ref (branch/tag/commit) via a uv override; warp-lang is a
-    # core dependency whose table value may be an exact pin ("1.2.3" -> ``==``) or a range
+    # Newton is pinned to an exact PyPI release via a uv override; warp-lang is a core
+    # dependency whose table value may be an exact pin ("1.2.3" -> ``==``) or a range
     # (">=1.2.3" -> mirrored verbatim).
-    assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
+    assert f"newton[sim]=={versions['newton']}" in overrides
     warp_value = versions["warp"]
     warp_spec = f"warp-lang=={warp_value}" if warp_value[0].isdigit() else f"warp-lang{warp_value}"
     assert warp_spec in dependencies

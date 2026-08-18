@@ -235,18 +235,18 @@ class TestEnsureNewton:
     """Tests for :func:`~isaaclab.cli.commands.install._ensure_newton`.
 
     Isaac Sim bundles ``newton[sim]==1.2.0``; the install CLI must force the pinned
-    Newton git build (sourced from ``[tool.uv].override-dependencies``) over it.
+    Newton release (sourced from ``[tool.uv].override-dependencies``) over it.
     """
 
     @staticmethod
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_pinned_git_build_when_absent(self):
-        """When the pinned commit is not installed, uninstall newton then install the git build."""
+    def test_installs_pinned_release_when_absent(self):
+        """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 
-        commit = install._pinned_version("newton")
+        version = install._pinned_version("newton")
         calls = []
 
         def fake_run(cmd, *args, **kwargs):
@@ -264,20 +264,20 @@ class TestEnsureNewton:
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
         install_args = install_cmds[-1]
-        assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
+        assert f"newton[sim]=={version}" in install_args
         assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 
-    def test_skips_when_commit_already_installed(self):
-        """When freeze already reports the pinned commit, do not reinstall."""
+    def test_skips_when_release_already_installed(self):
+        """When freeze already reports the pinned release, do not reinstall."""
         from isaaclab.cli.commands import install
 
-        commit = install._pinned_version("newton")
+        version = install._pinned_version("newton")
         calls = []
 
         def fake_run(cmd, *args, **kwargs):
             calls.append(cmd)
             if cmd[-1] == "freeze":
-                stdout = f"newton @ git+https://github.com/newton-physics/newton.git@{commit}\n"
+                stdout = f"newton=={version}\n"
                 return self._completed(stdout=stdout)
             return self._completed()
 
