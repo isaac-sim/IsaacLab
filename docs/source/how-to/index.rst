@@ -185,28 +185,10 @@ additional resources that help you use Omniverse features in Isaac Lab.
     master_omniverse
 
 
-Setting up Isaac Teleop with CloudXR
-------------------------------------
+.. note::
 
-This guide explains how to install Isaac Teleop, start the CloudXR runtime, and connect XR
-devices for immersive teleoperation in Isaac Lab.
-
-.. toctree::
-    :maxdepth: 1
-
-    cloudxr_teleoperation
-
-
-Setting up Haply Teleoperation
-------------------------------
-
-This guide explains how to use Haply Inverse3 and VerseGrip devices for robot teleoperation
-with directional force feedback in Isaac Lab.
-
-.. toctree::
-    :maxdepth: 1
-
-    haply_teleoperation
+   Teleoperation setup guides (CloudXR / XR headsets, Haply haptic devices) have moved under
+   :ref:`isaac-teleop-feature` in the Features section.
 
 
 Understanding Simulation Performance
