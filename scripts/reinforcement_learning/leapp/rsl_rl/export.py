@@ -15,6 +15,7 @@ import random
 import sys
 import time
 from collections.abc import Mapping
+from copy import deepcopy
 
 RSL_RL_MIN_VERSION = "5.0.1"
 _RUNTIME_IMPORTS_LOADED = False
@@ -213,6 +214,54 @@ def _update_agent_cfg_from_export_args(agent_cfg, args_cli: argparse.Namespace):
     return agent_cfg
 
 
+def write_deployment_env_yaml(save_path: str, graph_name: str, env_cfg) -> str:
+    """Write the portable deployment subset of an Isaac Lab environment config.
+
+    The companion config intentionally omits ``spawn.usd_path``. A LEAPP bundle
+    describes the policy interface, while the deployment host selects the robot
+    USD appropriate for its asset installation. This mirrors the Isaac Sim
+    policy-runner contract and keeps a bundle portable across asset roots.
+    """
+    from isaaclab.utils import class_to_dict
+
+    config = class_to_dict(env_cfg)
+    robot = config["scene"]["robot"]
+    spawn = robot["spawn"]
+    init_state = robot["init_state"]
+    if not spawn.get("usd_path"):
+        raise ValueError("Isaac Lab deployment export requires scene.robot.spawn.usd_path.")
+    deployment = {
+        "decimation": int(config["decimation"]),
+        "sim": {"dt": float(config["sim"]["dt"]), "render_interval": int(config["sim"]["render_interval"])},
+        "scene": {
+            "robot": {
+                "init_state": {
+                    "pos": [float(value) for value in init_state["pos"]],
+                    "rot": [float(value) for value in init_state["rot"]],
+                    "joint_pos": deepcopy(init_state.get("joint_pos") or {}),
+                    "joint_vel": deepcopy(init_state.get("joint_vel") or {}),
+                },
+                "spawn": {
+                    "variants": deepcopy(spawn.get("variants") or {}),
+                    "rigid_props": deepcopy(spawn.get("rigid_props") or {}),
+                    "articulation_props": deepcopy(spawn.get("articulation_props") or {}),
+                    "joint_drive_props": deepcopy(spawn.get("joint_drive_props") or {}),
+                },
+                "actuators": deepcopy(robot.get("actuators") or {}),
+            }
+        },
+    }
+    output_dir = os.path.join(save_path, graph_name)
+    output_path = os.path.join(output_dir, "env.yaml")
+    os.makedirs(output_dir, exist_ok=True)
+    import yaml
+
+    with open(output_path, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(deployment, stream, sort_keys=False)
+    print(f"[INFO]: Wrote portable Isaac Sim deployment environment: {output_path}")
+    return output_path
+
+
 def export_rsl_rl_agent(
     args_cli: argparse.Namespace,
     env_cfg,
@@ -346,6 +395,7 @@ def export_rsl_rl_agent(
         leapp_started = False
         validate = args_cli.validation_steps > 0
         leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        write_deployment_env_yaml(save_path, graph_name, env_cfg)
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):
