@@ -542,7 +542,6 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_visual_counts = [1]
     renderer._particle_workaround_applied = True
     renderer._cable_segment_counts = [1]
-    renderer._cable_point_offsets = [0]
     renderer._renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}

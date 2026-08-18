@@ -233,7 +233,6 @@ def compute_cable_points_world_kernel(
     shape_ids: wp.array(dtype=wp.int32),  # type: ignore
     offsets: wp.array(dtype=wp.int32),  # type: ignore
     counts: wp.array(dtype=wp.int32),  # type: ignore
-    point_offsets: wp.array(dtype=wp.int32),  # type: ignore
     shape_body: wp.array(dtype=wp.int32),  # type: ignore
     body_q: wp.array(dtype=wp.transformf),  # type: ignore
     shape_transform: wp.array(dtype=wp.transformf),  # type: ignore
@@ -254,7 +253,6 @@ def compute_cable_points_world_kernel(
         shape_ids: Flattened Newton segment shape ids packed by curve.
         offsets: Start index into ``shape_ids`` for each curve.
         counts: Segment count per curve.
-        point_offsets: Start index into ``points_out`` for each curve (``counts[i] + 1`` points).
         shape_body: Newton shape-to-body index map.
         body_q: Body poses in world frame [m, quaternion].
         shape_transform: Local shape transforms relative to body [m, quaternion].
@@ -267,7 +265,9 @@ def compute_cable_points_world_kernel(
         return
 
     offset = offsets[curve]
-    point_base = point_offsets[curve]
+    # ``offset`` is the prefix sum of segment counts. Every preceding curve contributes one
+    # additional endpoint, so its point-buffer start is ``offset + curve``.
+    point_base = offset + curve
     if point == 0:
         endpoint_w = _cable_capsule_endpoint_world(
             shape_ids[offset], -1.0, shape_body, body_q, shape_transform, shape_scale

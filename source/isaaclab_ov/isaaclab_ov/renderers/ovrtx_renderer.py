@@ -364,12 +364,10 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_visual_counts: list[int] = []
         # Shared Newton cable curve state used by both legacy and ovstage write paths.
         self._cable_segment_counts: list[int] = []
-        self._cable_point_offsets: list[int] = []
         self._cable_max_points: int = 0
         self._cable_shape_ids: wp.array | None = None
         self._cable_offsets: wp.array | None = None
         self._cable_counts: wp.array | None = None
-        self._cable_point_offsets_wp: wp.array | None = None
         self._cable_points: wp.array | None = None
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
@@ -850,8 +848,8 @@ class OVRTXRenderer(BaseRenderer):
         # Device-resident buffers select OVRTX's GPU-interop update path via DLPack device.
         self._allocate_cable_device_buffers(flat_shape_ids, offsets, counts)
         self._cable_point_slices = [
-            self._cable_points[point_offset : point_offset + segment_count + 1]
-            for point_offset, segment_count in zip(self._cable_point_offsets, counts, strict=True)
+            self._cable_points[offset + curve : offset + curve + segment_count + 1]
+            for curve, (offset, segment_count) in enumerate(zip(offsets, counts, strict=True))
         ]
 
     def _setup_particle_bindings_legacy(self) -> None:
@@ -1515,13 +1513,11 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_workaround_applied = False
         self._cable_point_slices = []
         self._cable_segment_counts = []
-        self._cable_point_offsets = []
         self._cable_max_points = 0
         self._cable_points = None
         self._cable_shape_ids = None
         self._cable_offsets = None
         self._cable_counts = None
-        self._cable_point_offsets_wp = None
 
         if self._renderer:
             try:
@@ -1619,13 +1615,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_counts = wp.array(counts, dtype=wp.int32, device=device)
         self._cable_segment_counts = counts
         self._cable_max_points = max(counts) + 1 if counts else 0
-        self._cable_point_offsets = []
-        total_points = 0
-        for count in counts:
-            self._cable_point_offsets.append(total_points)
-            total_points += count + 1
-        self._cable_points = wp.zeros(total_points, dtype=wp.vec3f, device=device)
-        self._cable_point_offsets_wp = wp.array(self._cable_point_offsets, dtype=wp.int32, device=device)
+        self._cable_points = wp.zeros(sum(count + 1 for count in counts), dtype=wp.vec3f, device=device)
 
     def _compute_cable_points_world(self) -> None:
         """Launch the cable endpoint kernel into ``_cable_points``."""
@@ -1643,7 +1633,6 @@ class OVRTXRenderer(BaseRenderer):
                 self._cable_shape_ids,
                 self._cable_offsets,
                 self._cable_counts,
-                self._cable_point_offsets_wp,
                 model.shape_body,
                 state.body_q,
                 model.shape_transform,
@@ -2286,10 +2275,11 @@ class OVRTXRenderer(BaseRenderer):
         # ``vec3f`` slice exports as ``(N, 3)`` lanes=1, which is rejected as a type mismatch
         # against the lanes=3 column.
         points_np = self._cable_points.numpy()
-        cable_slices = [
-            _points_tensor_from_numpy(points_np[point_offset : point_offset + segment_count + 1])
-            for point_offset, segment_count in zip(self._cable_point_offsets, self._cable_segment_counts, strict=True)
-        ]
+        cable_slices = []
+        point_offset = 0
+        for segment_count in self._cable_segment_counts:
+            cable_slices.append(_points_tensor_from_numpy(points_np[point_offset : point_offset + segment_count + 1]))
+            point_offset += segment_count + 1
 
         self._stage.write_attribute(
             self._cable_points_query,
@@ -2416,13 +2406,11 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_visual_offsets = []
         self._particle_visual_counts = []
         self._cable_segment_counts = []
-        self._cable_point_offsets = []
         self._cable_max_points = 0
         self._cable_points = None
         self._cable_shape_ids = None
         self._cable_offsets = None
         self._cable_counts = None
-        self._cable_point_offsets_wp = None
 
         # Detach before closing ExitStack: the renderer holds a live reference into the stage,
         # so detaching first avoids a use-after-free when ExitStack destroys Stage and PathDictionary.

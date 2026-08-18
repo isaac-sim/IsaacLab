@@ -109,7 +109,6 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     # this module is testing.
     renderer._cable_points_binding = None
     renderer._cable_segment_counts = []
-    renderer._cable_point_offsets = []
     renderer._use_ovstage = False
     return renderer, renderer._renderer
 
@@ -533,8 +532,8 @@ def test_setup_cable_bindings_offsets_span_every_curve(monkeypatch: pytest.Monke
 
     assert renderer._cable_segment_counts == [3, 5, 2]
     assert renderer._cable_max_points == 6
-    # 4 points, then 6, then 3 -- each cable starts where the previous one ended.
-    assert renderer._cable_point_offsets == [0, 4, 10]
+    # The segment offset plus the curve index yields point starts 0, 4, and 10.
+    assert renderer._cable_offsets.numpy().tolist() == [0, 3, 8]
     assert len(renderer._cable_points) == 13
 
 
@@ -562,7 +561,7 @@ def test_write_cable_points_writes_one_slice_per_cable(monkeypatch: pytest.Monke
     renderer._setup_cable_bindings()
 
     model = SimpleNamespace(shape_body=None, shape_transform=None, shape_scale=None)
-    monkeypatch.setattr(NewtonManager, "_model", model)
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(body_q=None)))
     # The kernel needs a live Newton model; this test covers the slicing around it, not the maths in it.
     launch_kwargs: dict = {}
@@ -575,7 +574,7 @@ def test_write_cable_points_writes_one_slice_per_cable(monkeypatch: pytest.Monke
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=1234))
 
-    renderer._write_cable_points()
+    renderer._write_cable_points_legacy()
 
     assert launch_kwargs["dim"] == (2, 4)
     written = renderer._cable_points_binding.written
