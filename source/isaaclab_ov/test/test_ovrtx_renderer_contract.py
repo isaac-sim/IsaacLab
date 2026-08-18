@@ -83,6 +83,25 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch):
+    """OVRTX 0.4.1 options are passed directly to ``RendererConfig``."""
+    config_kwargs: dict[str, object] = {}
+
+    class RecordingRendererConfig:
+        def __init__(self, **kwargs):
+            config_kwargs.update(kwargs)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: object())  # noqa: ARG005
+    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: False)
+
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
+
+    assert renderer._renderer is not None
+    assert config_kwargs["suppress_deprecation_warnings"] is True
+    assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
+
+
 def test_ovrtx_supported_output_types_key_set():
     """OVRTX publishes the documented key set and per-output spec."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -520,7 +539,6 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
-    renderer._particle_workaround_applied = True
     renderer._renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -596,7 +614,6 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert renderer._object_xform_binding is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
-    assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
