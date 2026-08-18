@@ -15,7 +15,7 @@ import logging
 import re
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -214,20 +214,6 @@ class _ParticleVisualPrim:
     count: int
     sync_frequency: int
     frames_since_sync: int
-
-
-@dataclass
-class CableRegistryEntry:
-    """Renderable cable curve instances for Fabric point sync.
-
-    Populated by :meth:`NewtonManager._discover_cables_into_registry` from Newton shape
-    labels. Each entry is one concrete curve prim and its ordered segment shape ids.
-    """
-
-    curve_prim_path: str
-    segments_per_cable: int
-    instance_curve_paths: list[str] = field(default_factory=list)
-    instance_segment_shape_ids: list[list[int]] = field(default_factory=list)
 
 
 @wp.kernel(enable_backward=False)
@@ -456,9 +442,6 @@ class NewtonManager(PhysicsManager):
     _cable_shape_ids: wp.array | None = None
     # Curve prims the cable init accepted, invalidated individually after each device-side write.
     _cable_prim_paths: list[str] = []
-    # Populated by model/USD discovery (:meth:`_discover_cables_into_registry`). Consumed by
-    # Fabric cable tagging. OVRTX binds via :meth:`collect_cable_segment_shapes` directly.
-    _cable_registry: list[CableRegistryEntry] = []
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
     _particle_visual_prims: dict[str, _ParticleVisualPrim] = {}
@@ -1145,7 +1128,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cables_dirty = False
         NewtonManager._cable_shape_ids = None
         NewtonManager._cable_prim_paths = []
-        NewtonManager._cable_registry = []
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
         NewtonManager._deformable_registry = []
@@ -1758,50 +1740,30 @@ class NewtonManager(PhysicsManager):
         return cable_shapes
 
     @classmethod
-    def _discover_cables_into_registry(cls) -> None:
-        """Populate ``_cable_registry`` from Newton labels for Fabric cable sync."""
-        discovered: list[CableRegistryEntry] = []
-        for prim_path, shape_ids in cls.collect_cable_segment_shapes().items():
-            discovered.append(
-                CableRegistryEntry(
-                    curve_prim_path=prim_path,
-                    segments_per_cable=len(shape_ids),
-                    instance_curve_paths=[prim_path],
-                    instance_segment_shape_ids=[list(shape_ids)],
-                )
-            )
-        NewtonManager._cable_registry = discovered
-
-    @classmethod
     def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
         """Initialize Fabric curve tags and packed Newton segment mappings from cable discovery."""
-        cls._discover_cables_into_registry()
+        cable_shapes = cls.collect_cable_segment_shapes()
 
         shape_ids: list[int] = []
         accepted_prim_paths: list[str] = []
-        for entry in cls._cable_registry:
-            for prim_path, segment_shape_ids in zip(
-                entry.instance_curve_paths, entry.instance_segment_shape_ids, strict=True
-            ):
-                prim = stage.GetPrimAtPath(prim_path)
-                if not prim.IsValid():
-                    # Kit-less hosts may only have clone destinations in the render backend.
-                    continue
-                segment_count = len(segment_shape_ids)
-                prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
-                usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
-                offset = len(shape_ids)
-                prim.CreateAttribute(cls._newton_cable_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(
-                    offset
-                )
-                prim.CreateAttribute(cls._newton_cable_count_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(
-                    segment_count
-                )
-                shape_ids.extend(segment_shape_ids)
-                accepted_prim_paths.append(prim_path)
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            prim = stage.GetPrimAtPath(prim_path)
+            if not prim.IsValid():
+                # Kit-less hosts may only have clone destinations in the render backend.
+                continue
+            segment_count = len(segment_shape_ids)
+            prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
+            usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
+            offset = len(shape_ids)
+            prim.CreateAttribute(cls._newton_cable_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(offset)
+            prim.CreateAttribute(cls._newton_cable_count_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True).Set(
+                segment_count
+            )
+            shape_ids.extend(segment_shape_ids)
+            accepted_prim_paths.append(prim_path)
 
-        if cls._cable_registry and not accepted_prim_paths:
-            # Registry has cables but none exist on this Fabric stage (kit-less). Leave Fabric
+        if cable_shapes and not accepted_prim_paths:
+            # Discovery found cables but none exist on this Fabric stage (kit-less). Leave Fabric
             # cable sync disabled; OVRTX consumes collect_cable_segment_shapes directly.
             NewtonManager._cable_shape_ids = None
             NewtonManager._cable_prim_paths = []
