@@ -24,7 +24,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.actuators import IdealPDActuator, ImplicitActuator
+from isaaclab.actuators import IdealPDActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
@@ -1396,7 +1396,9 @@ class randomize_actuator_gains(ManagerTermBase):
         self._gain_actuators = {
             name: actuator
             for name, actuator in collection.items()
-            if name in self._native_group_names or isinstance(actuator, (ImplicitActuator, IdealPDActuator))
+            if name in self._native_group_names
+            or getattr(actuator, "is_implicit_model", False)
+            or isinstance(actuator, IdealPDActuator)
         }
         group_joint_indices = getattr(collection, "_group_joint_indices", None)
         self._group_joint_indices = {
@@ -1415,7 +1417,7 @@ class randomize_actuator_gains(ManagerTermBase):
             else:
                 stiffness = actuator.stiffness
                 damping = actuator.damping
-            if not isinstance(actuator, ImplicitActuator):
+            if not getattr(actuator, "is_implicit_model", False):
                 # Explicit and Newton PD gains replace the zeroed solver gains in the defaults.
                 self.default_joint_stiffness[:, joint_ids] = stiffness
                 self.default_joint_damping[:, joint_ids] = damping
@@ -1500,7 +1502,7 @@ class randomize_actuator_gains(ManagerTermBase):
                         :, actuator_indices
                     ]
                 randomize(stiffness, stiffness_distribution_params)
-                if isinstance(actuator, ImplicitActuator):
+                if getattr(actuator, "is_implicit_model", False):
                     self.asset.write_joint_stiffness_to_sim_index(
                         stiffness=stiffness[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )
@@ -1526,7 +1528,7 @@ class randomize_actuator_gains(ManagerTermBase):
                         :, actuator_indices
                     ]
                 randomize(damping, damping_distribution_params)
-                if isinstance(actuator, ImplicitActuator):
+                if getattr(actuator, "is_implicit_model", False):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping[:, actuator_indices], joint_ids=writer_joint_ids, env_ids=env_ids
                     )

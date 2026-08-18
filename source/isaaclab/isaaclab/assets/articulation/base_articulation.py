@@ -1684,8 +1684,8 @@ class BaseArticulation(AssetBase):
 
         warnings.warn(
             f"{writer_name} is deprecated in 3.x and will be removed in 4.0. Use "
-            "randomize_actuator_gains for managed randomization or ActuatorBase.write_parameter for direct "
-            "controller writes.",
+            "randomize_actuator_gains for managed randomization or "
+            "isaaclab.actuators.newton.write_group_parameter for direct controller writes.",
             DeprecationWarning,
             stacklevel=3,
         )

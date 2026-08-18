@@ -189,7 +189,7 @@ def _run_simulation(
 
         recorded_pos, recorded_vel = [], []
         recorded_computed_effort, recorded_applied_effort = [], []
-        recorded_adapter_computed, recorded_adapter_applied = [], []
+        recorded_adapter_applied = []
         for _ in range(num_steps):
             if handles_dec:
                 articulation.write_data_to_sim()
@@ -205,7 +205,6 @@ def _run_simulation(
             recorded_computed_effort.append(articulation.actuators.computed_effort.torch.clone())
             recorded_applied_effort.append(articulation.actuators.applied_effort.torch.clone())
             if use_newton_actuators:
-                recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
                 recorded_adapter_applied.append(wp.to_torch(articulation.data._sim_bind_joint_effort).clone())
 
     return {
@@ -217,7 +216,6 @@ def _run_simulation(
         "joint_vel": recorded_vel,
         "computed_effort": recorded_computed_effort,
         "applied_effort": recorded_applied_effort,
-        "adapter_computed_effort": recorded_adapter_computed,
         "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),

@@ -12,7 +12,10 @@ from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from isaaclab.actuators import ActuatorCollection
 from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
+
+from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 
 args = SimpleNamespace(no_shape_checks=False)
 
@@ -181,10 +184,6 @@ def create_test_articulation(
     object.__setattr__(
         articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
     )
-
-    from isaaclab.actuators import ActuatorCollection
-
-    from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 
     control = PhysxActuatorControl(articulation)
     object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
