@@ -78,7 +78,12 @@ class SensorBase(ABC):
     def __del__(self):
         """Unsubscribe from the callbacks."""
         # clear physics events handles
-        self._clear_callbacks()
+        try:
+            self._clear_callbacks()
+        except ImportError:
+            # Interpreter is shutting down (``sys.meta_path`` is None), so lazy imports of
+            # ``isaaclab.sim`` can no longer be resolved. Callback cleanup is moot at this point.
+            pass
 
     """
     Properties
