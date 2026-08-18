@@ -1,897 +1,109 @@
 .. _isaac-teleop-deep-dive:
 
 Isaac Teleop: Architecture Deep Dive
-=====================================
+====================================
 
 .. currentmodule:: isaaclab
 
-This page covers Isaac Teleop's internals: the device/session architecture, the
-retargeting pipeline, environment configuration, XR camera feedback, haptics, and
-performance tuning. If you just want to get a session running, start with the
-:ref:`isaac-teleop-feature` overview and the :ref:`cloudxr-teleoperation` setup guide.
+This guide explains how Isaac Teleop integrates with Isaac Lab, including retargeting pipelines,
+environment configuration, XR behavior, haptics, standalone devices, and performance tuning.
+
+If you only want to start a teleoperation session, see :ref:`isaac-teleop-feature` and
+:ref:`cloudxr-teleoperation`.
+
 
 .. _isaac-teleop-architecture:
 
-How It Works
+Architecture
 ------------
 
-The :class:`~isaaclab_teleop.IsaacTeleopDevice` is the main integration point between Isaac Teleop
-and Isaac Lab. It composes three collaborators:
+:class:`~isaaclab_teleop.IsaacTeleopDevice` is the main integration point between Isaac Teleop
+and Isaac Lab. It coordinates three components:
 
-* **XrAnchorManager** -- creates and synchronizes an XR anchor prim in the simulation, and
-  computes the ``world_T_anchor`` transform matrix that maps XR tracking data into the simulation
-  coordinate frame.
+* **XrAnchorManager** maps XR tracking coordinates into the simulation world.
+* **TeleopSessionLifecycle** creates and advances the Isaac Teleop session and retargeting pipeline.
+* **CommandHandler** handles start, stop, and reset callbacks.
 
-* **TeleopSessionLifecycle** -- builds the retargeting pipeline, acquires OpenXR handles from
-  Isaac Sim's XR bridge (or, in standalone mode, creates its own OpenXR session through the
-  CloudXR runtime -- see :ref:`isaac-teleop-standalone`), creates the ``TeleopSession``, and
-  steps it each frame to produce an action tensor.
+Each call to ``advance()`` steps the teleoperation session and, when ready, returns the flattened
+action tensor expected by the environment.
 
-* **CommandHandler** -- lightweight callback registry for START / STOP / RESET commands.  Scripts
-  can register callbacks via :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback`, but the
-  primary control path uses :func:`~isaaclab_teleop.poll_control_events` (see
-  :ref:`isaac-teleop-control-states`).
+.. dropdown:: Session creation and lifecycle
 
-.. dropdown:: Session lifecycle details
+   XR sessions use deferred creation. Before **Start XR** is activated in Isaac Sim,
+   ``advance()`` retries session creation until the required OpenXR handles become available.
 
-   The session uses **deferred creation**: if the user has not yet clicked "Start XR" in the Isaac
-   Sim UI, the session is not created immediately. Instead, each call to ``advance()`` retries
-   session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
-   flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
-   the session is not yet ready or has been torn down.
+   Once connected, ``advance()`` returns a ``torch.Tensor`` on the configured device. It returns
+   ``None`` while the session is unavailable or after it has been torn down.
 
-   In standalone mode (:ref:`isaac-teleop-standalone`), creation is **not** gated on Kit XR
-   handles -- the session starts as soon as the CloudXR runtime is available.
-
-
-.. _isaac-teleop-tracking-debug-visualization:
-
-Visualize XR Tracking
----------------------
-
-Isaac Teleop can draw the raw XR tracking poses in the Isaac Lab world frame. Use this
-visualization to confirm that tracking data is available and aligned with the simulated robot:
-
-* red spheres show the 26 joints of each tracked hand when the retargeting pipeline contains a
-  ``HandsSource``;
-* RGB coordinate axes show the OpenXR aim pose of each tracked controller. The X, Y, and Z axes
-  are red, green, and blue, respectively, and the controller's ``-Z`` axis points forward in its
-  natural pointing direction.
-
-Enable the visualization when launching a teleoperation session:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr \
-             --enable_debug_visualization
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr \
-             --enable_debug_visualization
-
-The ``--enable_debug_visualization`` flag is also available in ``scripts/tools/record_demos.py``
-and ``scripts/environments/teleoperation/teleop_replay_agent.py``. The option is applied when the
-Isaac Teleop device is created and cannot be toggled during a running device session. The markers
-are diagnostic only and do not change the actions produced by the retargeting pipeline.
-
-.. note::
-
-   Tracking markers are only visible when the Kit visualizer is active. A marker is created after
-   the corresponding hand or controller first produces valid tracking data.
-
-
-.. _isaac-teleop-control-states:
-
-Teleop Control States (Start / Stop / Reset)
----------------------------------------------
-
-Isaac Lab supports remote teleop control commands -- **start**, **stop**, and **reset** -- sent
-from the XR headset to the simulation.  These are used to begin and end demonstration recording,
-pause the robot, or reset the environment without touching the simulation host. The same commands
-can be driven **locally** without a headset via
-:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start` /
-:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop` and :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset`
-(see :ref:`isaac-teleop-standalone`).
-
-How it works
-~~~~~~~~~~~~
-
-By default, every :class:`~isaaclab_teleop.IsaacTeleopCfg` enables a control message channel
-using the well-known UUID ``uuid5(NAMESPACE_DNS, "teleop_command")``.  The channel is created as
-a ``teleop_control_pipeline`` inside TeleopCore's :class:`TeleopSession`, which means:
-
-1. A :class:`~isaacteleop.retargeting_engine.deviceio_source_nodes.MessageChannelSource` opens an
-   OpenXR opaque data channel (``XR_NV_opaque_data_channel``) with the agreed-upon UUID.
-2. The CloudXR JS client (or any other client) discovers the channel by UUID and sends UTF-8
-   JSON commands::
-
-       {"type": "teleop_command", "message": {"command": "start teleop"}}
-       {"type": "teleop_command", "message": {"command": "stop teleop"}}
-       {"type": "teleop_command", "message": {"command": "reset teleop"}}
-
-3. A :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor` parses these
-   payloads and produces boolean pulse signals (``run_toggle``, ``kill``, ``reset``).
-4. :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager` consumes the
-   boolean signals, runs its state machine (edge detection, fail-safe), and produces
-   ``teleop_state`` (one-hot) and ``reset_event`` (bool pulse) outputs.
-5. TeleopCore decodes these outputs into ``ExecutionEvents`` and injects them into every
-   retargeter's ``ComputeContext``, so stateful retargeters can react to state changes
-   (e.g. reinitializing cross-step state on reset).
-
-Polling control events in your script
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Use :func:`~isaaclab_teleop.poll_control_events` to read the latest control state each frame:
-
-.. code-block:: python
-
-   from isaaclab_teleop import poll_control_events
-
-   with IsaacTeleopDevice(cfg) as device:
-       running = False
-       while sim_app.is_running():
-           action = device.advance()
-
-           ctrl = poll_control_events(device)
-           if ctrl.is_active is not None:
-               running = ctrl.is_active      # True after "start", False after "stop"
-           if ctrl.should_reset:
-               env.reset()                    # "reset" command received this frame
-
-           if action is not None and running:
-               env.step(action.repeat(num_envs, 1))
-           else:
-               env.sim.render()
-
-:class:`~isaaclab_teleop.ControlEvents` has two fields:
-
-* ``is_active`` -- ``True`` after a "start" command, ``False`` after "stop", ``None`` when no
-  command has been received yet (callers should leave their own flag unchanged).
-* ``should_reset`` -- ``True`` for exactly one frame after a "reset" command.
-
-Disabling the control channel
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you do not need headset-driven start/stop/reset (e.g. keyboard-only workflows), set
-``control_channel_uuid=None`` in your config:
-
-.. code-block:: python
-
-   IsaacTeleopCfg(
-       pipeline_builder=_build_my_pipeline,
-       control_channel_uuid=None,   # no opaque data channel created
-   )
-
-Using a custom channel UUID
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To use a different channel UUID (e.g. for a separate control protocol), pass any 16-byte
-``bytes`` value:
-
-.. code-block:: python
-
-   import uuid
-
-   MY_UUID = uuid.uuid5(uuid.NAMESPACE_DNS, "my_custom_control").bytes
-
-   IsaacTeleopCfg(
-       pipeline_builder=_build_my_pipeline,
-       control_channel_uuid=MY_UUID,
-   )
-
-The CloudXR JS client must be updated to discover this UUID when sending commands.
-
-
-.. _isaac-teleop-standalone:
-
-Run Without a Headset (Standalone I/O)
---------------------------------------
-
-By default the teleop scripts drive Isaac Teleop through Isaac Sim's Kit XR bridge, which renders
-the scene to a connected XR headset. When you only need Isaac Teleop as an **input/output
-transport** -- for example a joint-space leader arm streaming encoder angles, or any non-XR device
--- you can run it *standalone*, with no Kit XR rendering.
-
-The ``teleop_se3_agent.py`` and ``record_demos.py`` scripts select the mode with the ``--xr`` flag:
-
-* **With** ``--xr`` -- the full Kit XR path (headset rendering, anchor, hand / controller tracking).
-* **Without** ``--xr`` -- Isaac Teleop creates and owns its own OpenXR session through the CloudXR
-  runtime (``create_isaac_teleop_device(..., use_kit_xr_bridge=False)``); teleop input/output works
-  headless, with no Kit XR rendering.
-
-Starting teleop without a headset
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Without a headset there is no client to send the **start** command, so the scripts drive the state
-machine locally:
-
-* On startup they call :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`, which transitions
-  the teleop state machine to RUNNING (see :ref:`isaac-teleop-control-states`) -- so a headless
-  session begins running immediately, with no headset UI.
-* When a Kit viewport window is present, they also bind keys for interactive control:
-
-  .. list-table::
-     :header-rows: 1
-     :widths: 15 85
-
-     * - Key
-       - Action
-     * - ``B``
-       - Start / resume teleoperation.
-     * - ``P``
-       - Pause teleoperation (robot holds position).
-     * - ``R``
-       - Reset the environment.
-
-Both paths flow through the same state machine, so
-:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start` /
-:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop` and remote headset commands are
-interchangeable, and :func:`~isaaclab_teleop.poll_control_events` stays authoritative.
-
-.. note::
-
-   A clientless CloudXR runtime advertises no HMD, so the standalone OpenXR session needs a device
-   profile that reports a system without a connected client. The scripts default ``--cloudxr_env``
-   to :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` when ``--xr`` is omitted (and to ``cloudxrjs``
-   when it is passed); see :ref:`isaac-teleop-cloudxr-profiles`.
-
-.. _isaac-teleop-so101-leader-example:
-
-Example: SO-101 leader-arm joint teleoperation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` mirrors the joint angles streamed by a physical
-SO-101 leader arm directly onto the simulated follower -- no XR headset, inverse kinematics, or
-anchor. Its pipeline is
-``JointStateSource -> JointStateRetargeter (mode="joint") -> TensorReorderer``.
-
-For the end-to-end walkthrough -- building the plugin, hardware setup, calibration, launching, and
-recording a dataset -- see `Data Collection in Sim`_ in the Isaac Teleop documentation. The
-prerequisites below are the minimum needed to get this example running.
-
-Prerequisites
-^^^^^^^^^^^^^
-
-* **SO-101 hardware**: A physical SO-101 leader arm connected to the workstation over USB.
-
-* **The** ``so101_leader`` **plugin, built from Isaac Teleop source**: the leader's joint state is
-  streamed by a standalone C++ plugin that you run alongside the sim.
-
-  .. important::
-
-     ``so101_leader_plugin`` is **not** shipped with Isaac Lab, is **not** part of the
-     ``isaacteleop`` pip package, and is not in any release archive. It exists only after building
-     the `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository from source. If
-     ``install/plugins/so101_leader/so101_leader_plugin`` does not exist in your Isaac Teleop
-     checkout, this step has not been completed.
-
-  Install the build prerequisites first -- a missing ``clang-format-14`` is the most common cause
-  of a failed build, because the format check is enforced by default on Linux:
-
-  .. code-block:: bash
-
-     sudo apt-get update
-     sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
-
-  Then clone, configure, build, and install. To target a specific Python version, pass
-  ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
-  version needs its own build directory if building multiple at once:
-
-  .. code-block:: bash
-
-     git clone https://github.com/NVIDIA/IsaacTeleop.git
-     cd IsaacTeleop
-
-     cmake -B build                       # configure (default: Python 3.11)
-     cmake --build build --parallel       # build
-     cmake --install build                # install into ./install
-
-  The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
-  Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
-  path for ``/path/to/IsaacTeleop``. Verify the build by running the plugin with **no arguments** --
-  that selects the synthetic backend, so it starts without any hardware attached:
-
-  .. code-block:: bash
-
-     cd /path/to/IsaacTeleop
-     ./install/plugins/so101_leader/so101_leader_plugin
-
-  See `Build from Source`_ for the full prerequisite list and all build options, and the
-  build-troubleshooting table in `Data Collection in Sim`_ for common failures (including the
-  ``clang-format not found but ENABLE_CLANG_FORMAT_CHECK is ON`` CMake error).
-
-* **Calibration**: The SO-101 arm must be calibrated before use. The plugin talks to the FEETECH
-  servos directly -- it has no ``lerobot`` or FEETECH SDK dependency -- so calibrate with its own
-  ``calibrate`` subcommand, which needs no OpenXR runtime.
-
-  First, identify the serial port. The easiest way is ``uvx``, which runs
-  ``lerobot-find-port`` in a temporary environment with no installation required:
-
-  .. code-block:: bash
-
-     uvx --from "lerobot[hardware]" lerobot-find-port
-
-  Alternatively, plug in the USB cable and immediately run:
-
-  .. code-block:: bash
-
-     sudo dmesg | grep tty | tail -1
-
-  Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
-  names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
-  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
-
-  .. code-block:: bash
-
-     cd /path/to/IsaacTeleop
-     ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
-
-  It runs two interactive steps (hold the arm at mid-range, then sweep every joint through its full
-  range) and writes the calibration file, which the plugin reads at startup to map raw encoder
-  values to joint angles. An existing LeRobot calibration ``.json`` can be passed instead. Running
-  without calibration produces incorrect joint mappings and the follower arm will not track the
-  leader.
-
-Run the simulation
-^^^^^^^^^^^^^^^^^^
-
-The SO-101 workflow supports two monitoring modes -- choose based on whether you have an XR
-headset available:
-
-**Without a headset (local viewport only)**
-
-Omit ``--xr``. The sim runs in standalone mode and the teleop state machine starts automatically
-on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`). Pass
-``--visualizer kit`` to watch the follower in the local Kit viewport; headless is the default.
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit
-
-**With a headset (immersive XR view)**
-
-Add ``--xr`` to stream the simulation to a Quest, Pico, or Apple Vision Pro headset while the
-SO-101 leader arm still drives the follower joints. The retargeting pipeline is unchanged; ``--xr``
-only controls whether the scene is rendered to the headset. Follow the connection steps in
-:ref:`connect-xr-device` to pair the headset after launching.
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit --xr
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit --xr
-
-Start the plugin
-^^^^^^^^^^^^^^^^
-
-Isaac Lab does not spawn the plugin for you. Launch the sim first -- it brings up the CloudXR
-runtime the plugin connects through -- then, in a **separate terminal**, source the environment
-file the runtime writes on startup (this points the OpenXR loader at CloudXR) and start the plugin
-on the leader's serial port (replace ``/dev/ttyACM0`` with your device -- see the port-identification
-note in the Calibration step above):
-
-.. code-block:: bash
-
-   cd /path/to/IsaacTeleop
-   source ~/.cloudxr/run/cloudxr.env
-   ./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader so101_leader.calib
-
-Arguments are positional: ``[device_path] [collection_id] [calibration_file]``. The
-``collection_id`` must stay ``so101_leader`` -- that is the tensor collection this task's
-``JointStateSource`` subscribes to.
-
-Running the plugin with **no arguments at all** streams a synthetic trajectory on the default
-``so101_leader`` collection, which is a good way to confirm the sim side is wired up before
-connecting hardware. Because the arguments are positional, there is no way to skip only the device
-path while still passing the later two:
-
-.. code-block:: bash
-
-   ./install/plugins/so101_leader/so101_leader_plugin   # synthetic, no hardware needed
-
-See the `SO-101 plugin README`_ and `Data Collection in Sim`_ for all configuration options.
-
-Start teleoperation
-^^^^^^^^^^^^^^^^^^^
-
-**Without ``--xr``**: the script calls :meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`
-automatically on startup, so the follower begins mirroring the leader immediately with no
-additional input required.
-
-**With ``--xr``**: a **start** command can be sent from the connected headset UI (Quest / Pico:
-the CloudXR.js **Connect** button; Apple Vision Pro: the **Play** button in the Isaac XR Teleop
-Sample Client). The SO-101 then begins driving the follower as soon as the headset sends the
-start command.
-
-Regardless of mode, when the Kit viewport is open you can also control the session with keyboard
-shortcuts:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 15 85
-
-   * - Key
-     - Action
-   * - ``B``
-     - Start / resume teleoperation.
-   * - ``P``
-     - Pause teleoperation (follower holds position).
-   * - ``R``
-     - Reset the environment.
-
-Move the physical SO-101 leader arm and the simulated follower will mirror its joint angles in real
-time. To record demonstrations from this task, run ``scripts/tools/record_demos.py`` with the same
-``--task`` and the plugin running in its second terminal -- see `Data Collection in Sim`_ for the
-full recording workflow and runtime troubleshooting.
-
-.. note::
-
-   After stacking the cube, open the gripper **all the way** before ending the episode. The task's
-   success check requires the gripper to be fully open -- a partially open gripper holding position
-   on top of the stack will not register as success, even if the cube is correctly placed.
+   Standalone sessions do not depend on Kit XR handles and can start as soon as the CloudXR
+   runtime is available. See :ref:`isaac-teleop-standalone`.
 
 
 .. _isaac-teleop-retargeting:
 
-Retargeting Framework
----------------------
+Retargeting Pipeline
+--------------------
 
-Isaac Teleop uses a graph-based retargeting pipeline. Data flows from **source nodes** through
-**retargeters** and is combined into a single action tensor.
+Isaac Teleop uses a graph-based retargeting pipeline:
+
+**input source → coordinate transform → retargeters → action tensor**
 
 .. figure:: ../../_static/teleop/teleop_diagram.jpg
    :align: center
    :figwidth: 100%
-   :alt: Example dexterous-hand retargeting pipeline, using an Apple Vision Pro hand-tracking capture retargeted through Pink IK and dex-retargeting to drive a Unitree G1 with an Inspire hand.
+   :alt: Example dexterous-hand retargeting pipeline
 
-   One example of the retargeting pipeline: hand-tracking data is retargeted through IK (arms) and
-   ``dex-retargeting`` (fingers) to drive a dexterous humanoid hand. This capture used an Apple
-   Vision Pro; the primary supported client is
-   `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_ on
-   Meta Quest 3 / Pico 4 Ultra, which feeds the same pipeline from either hand tracking or motion
-   controllers (trigger / button presses drive the fingers).
+   Example hand-tracking pipeline for a dexterous humanoid. The same graph model is used for
+   controller, hand-tracking, and external-device inputs.
 
-Source Nodes
-~~~~~~~~~~~~
+Input Sources
+~~~~~~~~~~~~~
 
-* ``HandsSource`` -- provides hand tracking data (left/right, 26 joints each).
-* ``ControllersSource`` -- provides motion controller data (grip pose, trigger, thumbstick, etc.).
+The most common source nodes are:
 
-Available Retargeters
-~~~~~~~~~~~~~~~~~~~~~
+* ``HandsSource`` — left and right hand tracking with 26 joints per hand.
+* ``ControllersSource`` — controller grip pose, trigger, squeeze, thumbstick, and related inputs.
 
-Retargeters are provided by the ``isaacteleop`` package from the
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository. The retargeters listed below
-are those used by the built-in Isaac Lab environments. Isaac Teleop may offer additional
-retargeters not listed here -- refer to the
-`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_ for the full set.
+External devices can provide additional source nodes through Isaac Teleop plugins.
 
-.. dropdown:: Se3AbsRetargeter / Se3RelRetargeter
+Retargeters
+~~~~~~~~~~~
 
-   Maps hand or controller tracking to end-effector pose. ``Se3AbsRetargeter`` outputs a 7D
-   absolute pose (position + quaternion). ``Se3RelRetargeter`` outputs a 6D delta.
-   Configurable rotation offsets (roll, pitch, yaw in degrees).
+The built-in Isaac Lab environments primarily use the following retargeters:
 
-.. dropdown:: GripperRetargeter
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
 
-   Outputs a single float (-1.0 closed, 1.0 open). Uses controller trigger (priority) or
-   thumb-index pinch distance from hand tracking.
+   * - Retargeter
+     - Purpose
+   * - ``Se3AbsRetargeter``
+     - Maps hand or controller tracking to an absolute 7D end-effector pose.
+   * - ``Se3RelRetargeter``
+     - Maps tracking input to a 6D relative end-effector command.
+   * - ``GripperRetargeter``
+     - Produces a scalar gripper command from a controller trigger or hand pinch.
+   * - ``DexHandRetargeter`` / ``DexBiManualRetargeter``
+     - Maps full hand tracking to robot-specific dexterous-hand joint angles.
+   * - ``TriHandMotionControllerRetargeter``
+     - Maps controller trigger and squeeze inputs to G1 TriHand joints.
+   * - ``LocomotionRootCmdRetargeter``
+     - Maps controller thumbsticks to planar velocity, yaw rate, and hip height.
+   * - ``TensorReorderer``
+     - Flattens and reorders retargeter outputs into the environment action tensor.
 
-.. dropdown:: DexHandRetargeter / DexBiManualRetargeter
+.. note::
 
-   Retargets full hand tracking (26 joints) to robot-specific hand joint angles using the
-   ``dex-retargeting`` library. Requires a robot hand URDF and a YAML configuration file.
-
-   .. warning::
-
-      The links used for retargeting must be defined at the actual fingertips, not in the middle
-      of the fingers, to ensure accurate optimization.
+   ``DexHandRetargeter`` requires a robot hand URDF and retargeting configuration. Fingertip
+   links should be located at the actual fingertips rather than mid-finger.
 
    .. figure:: ../../_static/teleop/hand_asset.jpg
       :align: center
       :figwidth: 90%
-      :alt: Comparison of a typical mid-finger end link versus a fingertip link used for dex-retargeting
+      :alt: Mid-finger and fingertip link comparison for dexterous retargeting
 
-      Left: a typical hand asset with no fingertip link -- the end link sits mid-finger. Right:
-      the fingertip link ``dex-retargeting`` expects for accurate optimization.
-
-.. dropdown:: TriHandMotionControllerRetargeter
-
-   Maps VR controller buttons (trigger, squeeze) to G1 TriHand joints (7 DOF per hand). Simple
-   mapping: trigger controls the index finger, squeeze controls the middle finger, and both
-   together control the thumb.
-
-.. dropdown:: LocomotionRootCmdRetargeter
-
-   Maps controller thumbsticks to a 4D locomotion command:
-   ``[vel_x, vel_y, rot_vel_z, hip_height]``.
-
-.. dropdown:: TensorReorderer
-
-   Utility that flattens and reorders outputs from multiple retargeters into a single 1D action
-   tensor. The ``output_order`` must match the action space expected by the environment.
-
-The built-in Isaac Lab environments use these retargeters as follows:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Environment
-     - Retargeters Used
-   * - Franka manipulation (stack, pick-place)
-     - ``Se3AbsRetargeter``, ``GripperRetargeter``, ``TensorReorderer``
-   * - G1 Inspire dexterous pick-place
-     - ``Se3AbsRetargeter``, ``DexHandRetargeter``, ``TensorReorderer``
-   * - GR1-T2 dexterous pick-place
-     - ``Se3AbsRetargeter``, ``DexHandRetargeter``, ``TensorReorderer``
-   * - G1 upper-body (fixed base)
-     - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``TensorReorderer``
-   * - G1 loco-manipulation
-     - ``Se3AbsRetargeter``, ``TriHandMotionControllerRetargeter``, ``LocomotionRootCmdRetargeter``, ``TensorReorderer``
-
-
-.. _isaac-teleop-env-control-reference:
-
-Teleoperation Environment Reference
------------------------------------
-
-The tables below list every built-in Isaac Lab environment that supports teleoperation,
-organized by input method. For closed-loop policy evaluation, the play script automatically
-applies each environment config's ``play_mode`` overrides; pass ``--train_env_cfg`` to
-play the training configuration as-is.
-
-Isaac Teleop (XR Headset) Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-These environments use the Isaac Teleop XR pipeline with motion controllers or hand tracking.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 28 14 14 44
-
-   * - Task ID
-     - Input Mode
-     - Hands
-     - Operator Interaction
-   * - ``IsaacContrib-Stack-Cube-Franka-IK-Abs``
-     - Controllers
-     - Right
-     - **Arm:** right controller grip pose drives end-effector.
-       **Gripper:** right trigger.
-   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``
-     - Controllers
-     - Right
-     - **Arm:** right controller grip pose drives the end-effector via absolute IK
-       (clutch-rebased; IK tracks position, orientation soft-weighted).
-       **Gripper:** right trigger (analog).
-   * - ``IsaacContrib-PickPlace-GR1T2-Abs``
-     - Hand tracking
-     - Both
-     - **Arms:** left/right hand wrist pose drives each end-effector.
-       **Hands:** full 26-joint hand tracking retargeted to 11 DOF per Fourier hand via ``DexHandRetargeter``.
-   * - ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``
-     - Hand tracking
-     - Both
-     - Same as ``IsaacContrib-PickPlace-GR1T2-Abs`` with waist DOFs enabled.
-   * - ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
-     - Hand tracking
-     - Both
-     - Same retargeting pipeline as ``IsaacContrib-PickPlace-GR1T2-Abs`` (different task scene).
-   * - ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
-     - Hand tracking
-     - Both
-     - Same retargeting pipeline as ``IsaacContrib-PickPlace-GR1T2-Abs`` (different task scene).
-   * - ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``
-     - Hand tracking
-     - Both
-     - **Arms:** left/right hand wrist pose drives each end-effector.
-       **Hands:** full 26-joint hand tracking retargeted to 12 DOF per Inspire hand via ``DexHandRetargeter``.
-   * - ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
-     - Controllers
-     - Both
-     - **Arms:** left/right controller grip pose drives each end-effector.
-       **Hands:** trigger closes index, squeeze closes middle, both together close thumb (7 DOF TriHand per hand).
-   * - ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
-     - Controllers
-     - Both
-     - **Arms:** same as fixed-base G1 above.
-       **Hands:** same TriHand mapping.
-       **Locomotion:** left thumbstick = linear velocity (x/y), right thumbstick X = rotational velocity, right thumbstick Y = hip height.
-
-.. tip::
-
-   **Controllers** provide a grip pose plus physical buttons (trigger, squeeze, thumbstick),
-   ideal for tasks that need a gripper or simple hand mapping. **Hand tracking** captures 26
-   wrist and finger joints per hand, required for dexterous retargeting to complex robot hands.
-
-Keyboard and SpaceMouse Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. note::
-
-   Keyboard and SpaceMouse teleoperation uses the legacy native Isaac Lab teleop stack
-   (``isaaclab.devices``), not Isaac Teleop. These environments do not require an XR headset.
-
-The device button layouts below apply to all environments in this section. Per-environment
-differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
-follows.
-
-**Keyboard**
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 20 60
-
-   * - Function
-     - Keys
-     - Description
-   * - Position X
-     - ``W`` / ``S``
-     - Move end-effector forward / backward.
-   * - Position Y
-     - ``A`` / ``D``
-     - Move end-effector left / right.
-   * - Position Z
-     - ``Q`` / ``E``
-     - Move end-effector up / down.
-   * - Roll
-     - ``Z`` / ``X``
-     - Rotate about X axis.
-   * - Pitch
-     - ``T`` / ``G``
-     - Rotate about Y axis.
-   * - Yaw
-     - ``C`` / ``V``
-     - Rotate about Z axis.
-   * - Gripper toggle
-     - ``K``
-     - Open / close gripper or suction (disabled in Reach envs).
-   * - Reset
-     - ``L``
-     - Clear accumulated delta pose and gripper state.
-
-**SpaceMouse**
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 20 60
-
-   * - Function
-     - Control
-     - Description
-   * - Translation
-     - 6-DOF knob
-     - Push/pull/slide the knob to move the end-effector in X/Y/Z.
-   * - Rotation
-     - 6-DOF knob
-     - Tilt/twist the knob to rotate the end-effector in roll/pitch/yaw.
-   * - Gripper toggle
-     - Left button
-     - Open / close gripper or suction (disabled in Reach envs).
-   * - Reset
-     - Right button
-     - Clear accumulated delta pose and gripper state.
-
-**Gamepad** (Reach environments only)
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 20 60
-
-   * - Function
-     - Control
-     - Description
-   * - Position X / Y
-     - Left stick
-     - Move end-effector forward/backward and left/right.
-   * - Position Z
-     - Right stick (up/down)
-     - Move end-effector up / down.
-   * - Roll / Pitch
-     - D-Pad
-     - Left/right for roll, up/down for pitch.
-   * - Yaw
-     - Right stick (left/right)
-     - Rotate about Z axis.
-   * - Gripper toggle
-     - X button
-     - Open / close gripper (disabled in Reach envs).
-
-.. list-table::
-   :header-rows: 1
-   :widths: 34 18 48
-
-   * - Task ID
-     - Devices
-     - Operator Interaction
-   * - ``IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow``
-     - Keyboard, SpaceMouse
-     - **Arm:** end-effector pose via RMPFlow.
-       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow``
-
-       **Note:** With the RMPFlow controller, avoid colliding with
-       the cubes during teleoperation: contact forces cause the
-       controller to overtune and the arm to drift. Move the
-       end-effector close to and just above the cube, stop, then
-       close the suction cup.
-     - Keyboard, SpaceMouse
-     - **Arm:** end-effector pose via RMPFlow.
-       **Suction:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor``
-     - Keyboard, SpaceMouse
-     - Same as left-arm gripper above with camera observations.
-   * - ``IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow``
-     - Keyboard, SpaceMouse
-     - **Arm:** left-arm end-effector pose via RMPFlow.
-       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow``
-     - Keyboard, SpaceMouse
-     - **Arm:** right-arm end-effector pose via RMPFlow.
-       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
-     - Keyboard, SpaceMouse
-     - **Arm:** relative IK end-effector control.
-       **Suction:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
-     - Keyboard, SpaceMouse
-     - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** relative IK end-effector control. Gripper disabled.
-
-
-.. note::
-
-   Humanoid arms (e.g. Galbot, Agibot) have joint limits that inverse kinematics must respect.
-   The differential IK controller ignores these limits, so RMPFlow is preferred for teleoperating
-   them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
-   responding when the commanded target pose is unreachable within those limits -- this is expected,
-   not a bug.
-
-Leader-Arm Environments
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-These environments are driven by a physical *leader* arm that streams joint angles over the Isaac
-Teleop tensor transport; the angles are mirrored directly onto the simulated follower with no XR
-headset or inverse kinematics. See
-:ref:`Example: SO-101 leader-arm joint teleoperation <isaac-teleop-so101-leader-example>` above
-for the run command and pipeline.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 34 18 48
-
-   * - Task ID
-     - Device
-     - Operator Interaction
-   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0``
-     - SO-101 leader arm
-     - **Arm + gripper:** the leader arm's six joint angles (five arm DOF + gripper) are mirrored
-       onto the follower via ``JointStateRetargeter`` (``mode="joint"``).
-
-.. _isaac-teleop-switching-input-mode:
-
-Switch Between Controllers and Hand Tracking
----------------------------------------------
-
-The retargeting pipeline determines whether an environment uses motion controllers or hand
-tracking. Switching input modes requires changing the ``pipeline_builder`` function in your
-environment config. No other environment-level changes are needed as long as the action
-space (``TensorReorderer`` output order) stays the same.
-
-**Controller to hand tracking**
-
-The key changes are:
-
-#. Create a ``HandsSource`` and apply the world-to-anchor transform to it (instead of
-   ``ControllersSource``).
-#. Point the ``Se3RetargeterConfig.input_device`` at the appropriate ``HandsSource`` key.
-#. Set ``use_wrist_rotation=True`` and ``use_wrist_position=True`` so that the SE3 retargeter
-   reads from the hand wrist joint rather than the controller grip pose.
-#. The ``GripperRetargeter`` already supports both inputs -- it uses the controller trigger
-   when connected to a ``ControllersSource`` or thumb-index pinch when connected to a
-   ``HandsSource``.
-
-Here is the Franka stack environment's controller-based pipeline alongside a hand-tracking
-variant for comparison.
-
-**Original (controller-based):**
-
-.. code-block:: python
-   :emphasize-lines: 4-5,10-12
-
-   # SE3: tracks right controller grip pose
-   se3_cfg = Se3RetargeterConfig(
-       input_device=ControllersSource.RIGHT,
-       use_wrist_rotation=False,
-       use_wrist_position=False,
-       target_offset_roll=90.0,
-   )
-   se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
-   connected_se3 = se3.connect({
-       ControllersSource.RIGHT: transformed_controllers.output(
-           ControllersSource.RIGHT
-       ),
-   })
-
-**Modified (hand-tracking-based):**
-
-.. code-block:: python
-   :emphasize-lines: 2-5,9-11
-
-   se3_cfg = Se3RetargeterConfig(
-       input_device=HandsSource.RIGHT,
-       use_wrist_rotation=True,
-       use_wrist_position=True,
-       target_offset_roll=0.0,
-   )
-   se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
-
-   transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
-   connected_se3 = se3.connect({
-       HandsSource.RIGHT: transformed_hands.output(HandsSource.RIGHT),
-   })
-
-The ``GripperRetargeter`` needs no changes -- it accepts both controller and hand inputs and
-uses whichever source is connected.
-
-**Hand tracking to controller**
-
-Reverse the steps above: set ``input_device`` to a ``ControllersSource`` key, transform the
-controllers instead of the hands, and set ``use_wrist_rotation=False`` and
-``use_wrist_position=False``. Adjust ``target_offset_roll/pitch/yaw`` to account for the
-controller grip frame orientation (typically 90 degrees roll for Franka-style grippers).
-
-.. note::
-
-   When switching between input modes, you may need to tune the ``target_offset_roll``,
-   ``target_offset_pitch``, and ``target_offset_yaw`` values. Controller grip frames and hand
-   wrist frames have different default orientations relative to the robot end-effector.
+The complete set of retargeters is maintained in the
+`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository.
 
 
 .. _isaac-teleop-pipeline-builder:
@@ -899,51 +111,70 @@ controller grip frame orientation (typically 90 degrees roll for Franka-style gr
 Build a Retargeting Pipeline
 ----------------------------
 
-A pipeline builder is a callable that constructs the retargeting graph and returns an
-``OutputCombiner`` with a single ``"action"`` key. Here is a complete example for a Franka
-manipulator (from ``stack_ik_abs_env_cfg.py``):
+A pipeline builder creates the retargeting graph and returns an ``OutputCombiner`` containing a
+single ``"action"`` output.
+
+The example below creates a controller-driven Franka pipeline with end-effector pose and gripper
+control:
 
 .. code-block:: python
 
    def _build_franka_stack_pipeline():
-       from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+       from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+           ControllersSource,
+           HandsSource,
+       )
        from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+       from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
        from isaacteleop.retargeters import (
-           GripperRetargeter, GripperRetargeterConfig,
-           Se3AbsRetargeter, Se3RetargeterConfig,
+           GripperRetargeter,
+           GripperRetargeterConfig,
+           Se3AbsRetargeter,
+           Se3RetargeterConfig,
            TensorReorderer,
        )
-       from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
-       # 1. Create input sources
+       # Input sources
        controllers = ControllersSource(name="controllers")
        hands = HandsSource(name="hands")
 
-       # 2. Apply coordinate-frame transform (world_T_anchor provided by IsaacTeleopDevice)
+       # Transform XR data into the simulation world frame
        transform_input = ValueInput("world_T_anchor", TransformMatrix())
        transformed_controllers = controllers.transformed(
            transform_input.output(ValueInput.VALUE)
        )
 
-       # 3. Create and connect retargeters
-       se3_cfg = Se3RetargeterConfig(
-           input_device=ControllersSource.RIGHT,
-           target_offset_roll=90.0,
+       # End-effector pose
+       se3 = Se3AbsRetargeter(
+           Se3RetargeterConfig(
+               input_device=ControllersSource.RIGHT,
+               target_offset_roll=90.0,
+           ),
+           name="ee_pose",
        )
-       se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
        connected_se3 = se3.connect({
-           ControllersSource.RIGHT: transformed_controllers.output(ControllersSource.RIGHT),
+           ControllersSource.RIGHT:
+               transformed_controllers.output(ControllersSource.RIGHT),
        })
 
-       gripper_cfg = GripperRetargeterConfig(hand_side="right")
-       gripper = GripperRetargeter(gripper_cfg, name="gripper")
+       # Gripper
+       gripper = GripperRetargeter(
+           GripperRetargeterConfig(hand_side="right"),
+           name="gripper",
+       )
        connected_gripper = gripper.connect({
-           ControllersSource.RIGHT: transformed_controllers.output(ControllersSource.RIGHT),
-           HandsSource.RIGHT: hands.output(HandsSource.RIGHT),
+           ControllersSource.RIGHT:
+               transformed_controllers.output(ControllersSource.RIGHT),
+           HandsSource.RIGHT:
+               hands.output(HandsSource.RIGHT),
        })
 
-       # 4. Flatten into a single action tensor with TensorReorderer
-       ee_elements = ["pos_x", "pos_y", "pos_z", "quat_x", "quat_y", "quat_z", "quat_w"]
+       # Environment action tensor
+       ee_elements = [
+           "pos_x", "pos_y", "pos_z",
+           "quat_x", "quat_y", "quat_z", "quat_w",
+       ]
+
        reorderer = TensorReorderer(
            input_config={
                "ee_pose": ee_elements,
@@ -951,28 +182,78 @@ manipulator (from ``stack_ik_abs_env_cfg.py``):
            },
            output_order=ee_elements + ["gripper_value"],
            name="action_reorderer",
-           input_types={"ee_pose": "array", "gripper_command": "scalar"},
+           input_types={
+               "ee_pose": "array",
+               "gripper_command": "scalar",
+           },
        )
+
        connected_reorderer = reorderer.connect({
            "ee_pose": connected_se3.output("ee_pose"),
            "gripper_command": connected_gripper.output("gripper_command"),
        })
 
-       # 5. Return OutputCombiner with "action" key
-       return OutputCombiner({"action": connected_reorderer.output("output")})
+       return OutputCombiner({
+           "action": connected_reorderer.output("output"),
+       })
 
-.. tip::
+.. important::
 
-   The ``output_order`` of the ``TensorReorderer`` must match the action space of your environment.
-   Mismatches will cause silent control errors.
+   ``TensorReorderer.output_order`` must match the action space expected by the environment.
+
+
+.. _isaac-teleop-switching-input-mode:
+
+Switch Between Controllers and Hand Tracking
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Input mode is defined by the retargeting graph rather than by the environment itself.
+
+To switch from controllers to hand tracking:
+
+#. Replace ``ControllersSource`` with ``HandsSource``.
+#. Point ``Se3RetargeterConfig.input_device`` to the corresponding hand.
+#. Enable ``use_wrist_position`` and ``use_wrist_rotation``.
+#. Adjust the end-effector orientation offset if needed.
+
+For example:
+
+.. code-block:: python
+
+   se3_cfg = Se3RetargeterConfig(
+       input_device=HandsSource.RIGHT,
+       use_wrist_position=True,
+       use_wrist_rotation=True,
+       target_offset_roll=0.0,
+   )
+
+   transformed_hands = hands.transformed(
+       transform_input.output(ValueInput.VALUE)
+   )
+
+   connected_se3 = se3.connect({
+       HandsSource.RIGHT:
+           transformed_hands.output(HandsSource.RIGHT),
+   })
+
+``GripperRetargeter`` can consume either source: controller input uses the trigger, while hand
+tracking uses thumb-index pinch distance.
+
+To switch back to controllers, use a ``ControllersSource`` input and disable the wrist-position
+and wrist-rotation options.
+
+.. note::
+
+   Controller grip frames and hand wrist frames have different orientations, so
+   ``target_offset_roll``, ``target_offset_pitch``, and ``target_offset_yaw`` may need adjustment.
 
 
 .. _isaac-teleop-env-config:
 
-Configure Your Environment
---------------------------
+Configure the Environment
+-------------------------
 
-Register the pipeline in your environment configuration using :class:`~isaaclab_teleop.IsaacTeleopCfg`:
+Register the pipeline with :class:`~isaaclab_teleop.IsaacTeleopCfg`:
 
 .. code-block:: python
 
@@ -992,266 +273,163 @@ Register the pipeline in your environment configuration using :class:`~isaaclab_
                xr_cfg=self.xr,
            )
 
-Key ``IsaacTeleopCfg`` fields:
-
-* ``pipeline_builder`` -- callable that returns an ``OutputCombiner`` with an ``"action"`` output.
-* ``retargeters_to_tune`` -- optional callable returning retargeters to expose in the live tuning UI.
-* ``xr_cfg`` -- :class:`~isaaclab_teleop.XrCfg` for anchor configuration (see below).
-* ``xr_camera_feeds`` -- ordered selection and per-feed panel settings for existing task cameras.
-  The list is empty by default, so tasks opt in to PiP explicitly.
-* ``xr_camera_feed_layout`` -- viewer reference, fixed world pose, and manual, horizontal, vertical,
-  or grid panel packing.
-* ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
-* ``sim_device`` -- torch device string (default ``"cuda:0"``).
-* ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
-  Defaults to ``RetargetingExecutionConfig(mode="pipelined")`` with
-  ``DeadlinePacingConfig(safety_margin_s=0.025)`` so retargeting can run on
-  the IsaacTeleop worker instead of blocking the simulation loop.
-  The 25 ms safety margin staggers IsaacTeleop's Python work behind Isaac
-  Lab's step Python, giving native work such as rendering time to overlap
-  instead of having both Python stacks contend for the GIL at the start of
-  the step.
-
-.. warning::
-
-   ``pipeline_builder`` and ``retargeters_to_tune`` must be **callables** (functions or lambdas),
-   not pre-built objects. The ``@configclass`` decorator deep-copies mutable attributes, which
-   would break pre-built pipeline graphs.
-
-
-.. _isaac-teleop-cloudxr-profiles:
-
-CloudXR Environment Profiles
------------------------------
-
-Isaac Lab ships three ``.env`` profiles that configure the CloudXR runtime -- two for XR devices
-and one for headless standalone use. These are bundled inside the ``isaaclab_teleop`` package and
-can be referenced via constants:
+The most commonly used fields are:
 
 .. list-table::
    :header-rows: 1
-   :widths: 28 24 20 18 20
+   :widths: 30 70
 
-   * - Constant
-     - File
-     - ``NV_DEVICE_PROFILE``
-     - ``NV_CXR_ENABLE_PUSH_DEVICES``
-     - ``NV_ENABLE_POSE_WAIT``
-   * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
-     - ``cloudxrjs-cloudxr.env``
-     - ``auto-webrtc``
-     - ``0``
-     - ``0``
-   * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
-     - ``avp-cloudxr.env``
-     - ``auto-native``
-     - ``0``
-     - ``0``
-   * - :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV`
-     - ``cloudxr-standalone.env``
-     - ``quest3``
-     - ``0``
-     - ``0``
+   * - Field
+     - Purpose
+   * - ``pipeline_builder``
+     - Builds the retargeting pipeline and returns its ``"action"`` output.
+   * - ``xr_cfg``
+     - Configures the XR anchor and viewer relationship.
+   * - ``xr_camera_feeds``
+     - Selects task cameras to show as XR picture-in-picture feeds.
+   * - ``xr_camera_feed_layout``
+     - Controls placement and layout of XR camera panels.
+   * - ``plugins``
+     - Configures Isaac Teleop plugins such as Manus.
+   * - ``sim_device``
+     - Torch device used by teleoperation. Default: ``"cuda:0"``.
+   * - ``retargeters_to_tune``
+     - Exposes selected retargeters to the live tuning interface.
+   * - ``retargeting_execution``
+     - Configures synchronous or pipelined retargeting execution.
 
-All three profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
-tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
-this to ``1`` in a custom profile (see below).
-They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
-times spike. This favors lower latency over CloudXR's pose-wait smoothing.
+.. warning::
 
-:data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` is the default when running **without** ``--xr``
-(see :ref:`isaac-teleop-standalone`). It pins an emulated ``quest3`` device profile so a CloudXR
-runtime with no client still advertises an OpenXR system, working around
-``XR_ERROR_FORM_FACTOR_UNAVAILABLE``.
-
-Override at launch time
-~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` selects which
-``.env`` profile to use. When unset it defaults to ``cloudxrjs`` (Quest/Pico) with ``--xr`` and
-``standalone`` without ``--xr``. Use the ``avp`` shorthand for Apple Vision Pro, ``standalone``
-for the headless profile, or pass a full file path for a custom profile:
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Use the AVP profile
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit --xr \
-             --cloudxr_env avp
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Use the AVP profile
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit --xr \
-             --cloudxr_env avp
-
-Create a custom profile
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Copy a shipped profile and edit it:
-
-.. code-block:: bash
-
-   # Start from the Quest/Pico profile
-   cp $(uv run --extra teleop python -c \
-       "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
-
-Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
-Manus gloves), then pass it via ``--cloudxr_env ~/my-cloudxr.env``.
-
-Disable auto-launch
-~~~~~~~~~~~~~~~~~~~
-
-If you prefer to run the CloudXR runtime manually in a separate terminal
-(``python -m isaacteleop.cloudxr``), you can disable auto-launch in several ways:
-
-* **CLI flag**: ``--no-auto_launch_cloudxr`` on the teleop script.
-* **Disable CloudXR entirely**: ``--cloudxr_env none``.
-* **Environment variable**: ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` overrides the CLI flag at runtime.
-
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Disable via CLI flag
-         uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr \
-             --no-auto_launch_cloudxr
-
-         # Or disable via environment variable
-         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run --extra teleop isaaclab teleop run \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr
+   ``pipeline_builder`` and ``retargeters_to_tune`` must be callables rather than pre-built graph
+   objects. ``@configclass`` deep-copies mutable configuration attributes.
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+.. _isaac-teleop-control-states:
 
-      .. code-block:: bash
+Control Start, Stop, and Reset
+------------------------------
 
-         # Disable via CLI flag
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr \
-             --no-auto_launch_cloudxr
+XR clients can send **start**, **stop**, and **reset** commands to Isaac Lab. These commands can
+start or pause teleoperation, control demonstration recording, and reset the environment without
+using the host workstation.
 
-         # Or disable via environment variable
-         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr
+In application code, poll them once per frame:
+
+.. code-block:: python
+
+   from isaaclab_teleop import poll_control_events
+
+   with IsaacTeleopDevice(cfg) as device:
+       running = False
+
+       while sim_app.is_running():
+           action = device.advance()
+           ctrl = poll_control_events(device)
+
+           if ctrl.is_active is not None:
+               running = ctrl.is_active
+
+           if ctrl.should_reset:
+               env.reset()
+
+           if action is not None and running:
+               env.step(action.repeat(num_envs, 1))
+           else:
+               env.sim.render()
+
+:class:`~isaaclab_teleop.ControlEvents` exposes:
+
+* ``is_active`` — ``True`` after start, ``False`` after stop, or ``None`` before either command.
+* ``should_reset`` — ``True`` for one frame after a reset command.
+
+The same state machine can be controlled locally with
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_start`,
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.request_stop`, and
+:meth:`~isaaclab_teleop.IsaacTeleopDevice.reset`.
+
+.. dropdown:: Control channel internals
+
+   ``IsaacTeleopCfg`` enables a control channel by default using the UUID
+   ``uuid5(NAMESPACE_DNS, "teleop_command")``.
+
+   The XR client sends commands such as::
+
+      {"type": "teleop_command", "message": {"command": "start teleop"}}
+      {"type": "teleop_command", "message": {"command": "stop teleop"}}
+      {"type": "teleop_command", "message": {"command": "reset teleop"}}
+
+   ``TeleopMessageProcessor`` converts these messages into state-machine signals, and
+   ``DefaultTeleopStateManager`` produces the resulting execution state and reset event.
+
+   Execution events are also forwarded to retargeters through their ``ComputeContext``.
+
+Disable the control channel by setting:
+
+.. code-block:: python
+
+   IsaacTeleopCfg(
+       pipeline_builder=_build_my_pipeline,
+       control_channel_uuid=None,
+   )
+
+A custom 16-byte UUID can also be supplied through ``control_channel_uuid``. The client must use
+the same UUID.
 
 
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
-------------------------
+-----------------------
 
-The :class:`~isaaclab_teleop.XrCfg` controls how the simulation is positioned and oriented in the
-XR device's view.
+:class:`~isaaclab_teleop.XrCfg` controls how the simulation is positioned relative to the XR
+tracking space.
 
 ``anchor_pos`` / ``anchor_rot``
-   Static anchor placement. The simulation point at these coordinates appears at the XR device's
-   local origin (floor level). Set to a point on the floor beneath the robot to position it in
-   front of the user.
+   Set a static anchor pose. For manipulation tasks, place the anchor near the floor beneath the
+   robot.
 
 ``anchor_prim_path``
-   Attach the anchor to a USD prim for dynamic positioning. Use this for locomotion tasks where
-   the robot moves and the XR camera should follow.
+   Attach the anchor to a USD prim. This is useful for locomotion tasks where the viewer should
+   follow the robot.
 
 ``anchor_rotation_mode``
-   Controls how anchor rotation behaves:
+   Controls how the anchor follows orientation:
 
    .. list-table::
       :header-rows: 1
       :widths: 30 70
 
       * - Mode
-        - Description
+        - Behavior
       * - ``FIXED``
-        - Sets rotation once from ``anchor_rot``. Best for static manipulation setups.
+        - Uses ``anchor_rot`` and remains fixed.
       * - ``FOLLOW_PRIM``
-        - Rotation continuously tracks the attached prim. Best for locomotion where the user
-          should face the robot's heading direction.
+        - Continuously follows the attached prim orientation.
       * - ``FOLLOW_PRIM_SMOOTHED``
-        - Same as ``FOLLOW_PRIM`` with slerp interpolation. Controlled by
-          ``anchor_rotation_smoothing_time`` (seconds, default 1.0). Reduces motion sickness from
-          abrupt rotation changes. Typical range: 0.3--1.5 s.
+        - Follows with slerp smoothing to reduce abrupt viewer rotation.
       * - ``CUSTOM``
-        - User-provided callable
-          ``anchor_rotation_custom_func(headpose, primpose) -> quaternion`` for fully custom logic.
+        - Uses a custom ``anchor_rotation_custom_func``.
 
 ``fixed_anchor_height``
-   When ``True`` (default), keeps the anchor height at its initial value. Prevents vertical
-   bobbing during locomotion.
+   Keeps the initial anchor height fixed. Enabled by default.
 
 ``near_plane``
-   Closest render distance for the XR device (default 0.15 m).
+   Sets the closest XR render distance. Default: ``0.15`` m.
+
+For ``FOLLOW_PRIM_SMOOTHED``, ``anchor_rotation_smoothing_time`` controls smoothing duration and
+defaults to 1 second.
 
 .. note::
 
-   On Apple Vision Pro, the local coordinate frame can be reset to a point on the floor beneath
-   the user by holding the digital crown.
-
-.. tip::
-
-   Camera sensors add GPU cost. Strip them with ``--disable_external_cameras`` when the workflow
-   needs neither image observations nor XR camera feedback. That flag also skips configured PiP
-   feeds.
+   On Apple Vision Pro, holding the digital crown can reset the local coordinate frame.
 
 
 XR Camera Feedback
 ------------------
 
-An ordered list of :class:`~isaaclab_teleop.XrCameraFeedCfg` objects selects existing task scene
-cameras. The manager publishes each new RGBA frame after rendering, while
-:class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
-vertical, and grid layouts. ``IsaacContrib-PickPlace-GR1T2-Abs`` and
-``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` are the primary reference examples.
+Isaac Teleop can display existing task cameras as picture-in-picture panels inside XR.
 
-``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
-environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the reference examples, the selected
-``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. Both reference cameras are parented to a physical robot body
-link, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
-tasks also present their existing recorded ``robot_pov_cam``:
-
-.. code-block:: bash
-
-   uv run --extra teleop isaaclab teleop run \
-       --task IsaacContrib-PickPlace-GR1T2-Abs \
-       --xr --device cpu
-
-   uv run --extra teleop isaaclab teleop run \
-       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-       --xr --device cpu
-
-XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
-startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
-unchanged.
-
-The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
-mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
-attributes only on the selected camera render product. On Isaac Sim 6.1 and newer, Ray
-Reconstruction also requires the process-global responsive-denoising setting, which the session
-enables before environment construction. On earlier versions, selected PiP feeds fall back to
-classic DLSS because responsive denoising is unavailable.
-
-Camera selection
-~~~~~~~~~~~~~~~~
-
-Tasks declare their default selection through ``IsaacTeleopCfg.xr_camera_feeds``:
+Tasks opt in by listing :class:`~isaaclab_teleop.XrCameraFeedCfg` entries:
 
 .. code-block:: python
 
@@ -1265,26 +443,19 @@ Tasks declare their default selection through ``IsaacTeleopCfg.xr_camera_feeds``
                enable_dlss_ray_reconstruction=True,
                dlss_exec_mode="quality",
            ),
-           XrCameraFeedCfg(camera_name="overview_camera", enabled=False),
        ],
    )
 
-For a recorded training view, define the named ``CameraCfg`` in the task scene and a matching
-``mdp.image`` term in ``observations.policy``. The normal recorder then stores that observation,
-while the PiP declaration above only selects it for presentation. Enabled task-declared entries
-control camera selection, panel count, display order, and automatic-layout order without mutating
-the reusable task configuration.
+The camera must already exist in the task scene. If the same camera is also configured as an
+``mdp.image`` observation, the normal demonstration recorder stores the view shown to the operator.
 
-Placement
-~~~~~~~~~
+PiP currently supports one environment instance. A task with enabled feeds therefore requires
+``--num_envs 1``.
 
-The default :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.placement` is ``"viewer_start"``. The
-presenter waits for the first valid headset pose, captures its eye position and upright yaw, then
-places the layout 0.8 m ahead at eye height. That pose remains fixed in the world while the user
-moves. Panels hide when the XR display disconnects and capture a new starting pose after reconnect;
-resetting the environment does not recenter them.
+Camera Placement
+~~~~~~~~~~~~~~~~
 
-Three placement references are available:
+:class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` supports three placement references:
 
 .. list-table::
    :header-rows: 1
@@ -1293,30 +464,28 @@ Three placement references are available:
    * - Placement
      - Behavior
    * - ``viewer_start``
-     - Capture the first valid eye position and upright yaw, then keep the layout world-static.
-       This is the default.
+     - Places panels relative to the first valid headset pose, then keeps them fixed in the world.
    * - ``head_locked``
-     - Follow the current headset position and orientation with the configured offset and distance.
+     - Keeps panels positioned relative to the current headset pose.
    * - ``world``
-     - Use ``world_position_m`` and ``world_orientation_xyzw`` as a fixed pose in the Isaac Lab USD
-       stage world. ``distance_m`` is unused.
+     - Uses an explicit pose in the Isaac Lab world frame.
+
+Automatic layout modes include ``horizontal``, ``vertical``, and ``grid``:
 
 .. code-block:: python
 
    from isaaclab_teleop import XrCameraFeedLayoutCfg
 
-   # Default: fixed in the world at the user's starting eye pose.
-   self.isaac_teleop.xr_camera_feed_layout = XrCameraFeedLayoutCfg()
-
-   # Follow the headset and pack feeds left to right.
    self.isaac_teleop.xr_camera_feed_layout = XrCameraFeedLayoutCfg(
        placement="head_locked",
        mode="horizontal",
        distance_m=0.8,
    )
 
-   # Place a grid in an Isaac Lab Z-up world. This example assumes an eye at
-   # (0, 0, 1.6) looking along world +Y.
+For fixed world placement:
+
+.. code-block:: python
+
    self.isaac_teleop.xr_camera_feed_layout = XrCameraFeedLayoutCfg(
        placement="world",
        mode="grid",
@@ -1325,39 +494,33 @@ Three placement references are available:
        max_columns=2,
    )
 
-``manual`` mode preserves each feed's ``offset_m`` and ``distance_m``. ``horizontal``, ``vertical``,
-and ``grid`` modes pack enabled feeds around ``center_offset_m`` using ``panel_gap_m``; grid mode
-also honors ``max_columns``. Offsets are measured in the selected layout plane. With
-``viewer_start`` and ``head_locked``, ``distance_m`` places that plane in front of the viewer
-reference. In manual mode, feeds with identical offsets overlap; select an automatic mode or assign
-distinct feed offsets when showing multiple panels.
+``manual`` layout preserves each feed's individual offset. Automatic layouts arrange enabled
+feeds around ``center_offset_m`` using ``panel_gap_m``.
 
-With ``world``, the explicit pose is measured in the Isaac Lab USD stage world in meters, not
-OpenXR physical space. Isaac Lab stages are Z-up. ``world_orientation_xyzw`` maps panel-local
-coordinates into that world: local +X is image right, local +Y is image up, and local +Z points
-from the readable face toward the viewer. Feed and automatic-layout offsets are applied in the
-panel's local XY plane.
+Disable Camera Rendering
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Disable cameras and PiP
-~~~~~~~~~~~~~~~~~~~~~~~
+Set ``enabled=False`` on an individual feed or use ``xr_camera_feeds=[]`` to disable PiP.
 
-Set :attr:`~isaaclab_teleop.XrCameraFeedCfg.enabled` to ``False`` to suppress one feed, or set
-``xr_camera_feeds=[]`` to suppress all PiP. The list is empty by default. These choices do not
-remove camera sensors independently owned by the task.
+To remove external camera sensors entirely, pass:
 
-``--disable_external_cameras`` is the master camera-rendering switch for ``teleop_se3_agent.py`` and
-``record_demos.py``. It strips camera sensors and suppresses every configured PiP feed.
+.. code-block:: bash
 
-Kit Scene UI presentation
-~~~~~~~~~~~~~~~~~~~~~~~~~
+   --disable_external_cameras
 
-PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
-an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
-and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
-the camera selection configuration usable when a future kitless entry point no longer provides
-Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
-keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
-configuration, camera-buffer, and panel-initialization errors still fail during startup.
+This reduces rendering cost but also removes camera observations and PiP feeds.
+
+.. dropdown:: Rendering implementation details
+
+   PiP uses Kit Scene UI and ``SpatialSource`` placement. Kit modules are imported only when an
+   enabled feed is requested.
+
+   If Scene UI is unavailable, the scripts warn and continue without PiP. Task-owned camera
+   observations remain available.
+
+   Selected feeds can request render-product-local DLSS Ray Reconstruction. On Isaac Sim 6.1 and
+   newer, the session also enables the required responsive-denoising setting. Earlier versions
+   fall back to classic DLSS.
 
 
 .. _isaac-teleop-haptics:
@@ -1365,42 +528,20 @@ configuration, camera-buffer, and panel-initialization errors still fail during 
 Haptic Feedback
 ---------------
 
-Isaac Teleop can render **haptic feedback** on the operator's device from a sim-side signal,
-closing the loop on grasp feel during teleoperation and demonstration recording. Two backends
-ship today:
+Isaac Teleop can send simulation-side contact information back to supported operator devices.
 
-* **Controller vibration** -- a motion controller rumbles in proportion to the total contact
-  force on the corresponding robot hand.
-* **Haptic glove** -- each finger of a haptic glove vibrates in proportion to how tightly that
-  finger grips the manipulated object.
+Two feedback modes are currently available:
 
-Feedback is an *output* path that mirrors the input retargeting pipeline in reverse. Each step, a
-:class:`~isaaclab_teleop.HapticFeedbackDriver` reads a per-hand signal vector from the scene and
-pushes it to the :class:`~isaaclab_teleop.IsaacTeleopDevice`, which renders it through an Isaac
-Teleop ``HapticSink``. The signal-to-device mapping runs inside the retargeting graph, so no
-device-specific code lives in your environment.
+* **Controller vibration** — maps total hand contact force to controller rumble.
+* **Haptic gloves** — maps per-finger object contact forces to glove vibration.
 
-The design keeps three concerns pluggable, so the same seam serves both devices:
+The environment provides the contact signal, while the Isaac Teleop pipeline handles
+device-specific output.
 
-* **Signal source** -- how the per-hand vector is read from the environment.
-* **Output port** -- the :class:`~isaaclab_teleop.HapticFeedbackReceiver` protocol, whose payload
-  is a *vector* (one scalar for a rumble motor, one value per finger for a glove).
-* **Device backend** -- selected by the concrete :class:`~isaaclab_teleop.HapticFeedbackCfg`
-  subclass, which wires the retargeter and device behind the ``HapticSink``.
-
-To enable feedback, add per-hand :class:`~isaaclab.sensors.ContactSensor` s to the scene and attach
-a :class:`~isaaclab_teleop.HapticFeedbackCfg` subclass as a sibling of ``isaac_teleop``. The teleop
-scripts (``teleop_se3_agent.py`` and ``record_demos.py``) detect the ``haptic_feedback`` attribute
-automatically -- no extra flags are needed. If the active device cannot render haptics (e.g.
-keyboard) or the env has no ``haptic_feedback``, the feature is silently skipped.
-
-Controller vibration
+Controller Vibration
 ~~~~~~~~~~~~~~~~~~~~
 
-Use :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg`. It sums each hand's contact force to a
-single amplitude and maps it via ``amplitude = clamp(gain * (force - deadband), 0, saturation)``
-(fields ``gain`` [1/N], ``deadband`` [N], ``saturation``, plus ``frequency_hz`` / ``duration_s``
-for the pulse).
+Use :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg` with contact sensors for each hand:
 
 .. code-block:: python
 
@@ -1410,204 +551,405 @@ for the pulse).
    @configclass
    class MySceneCfg(InteractiveSceneCfg):
        left_hand_contact = ContactSensorCfg(
-           prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link", update_period=0.0, history_length=3
+           prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link",
+           update_period=0.0,
+           history_length=3,
        )
        right_hand_contact = ContactSensorCfg(
-           prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link", update_period=0.0, history_length=3
+           prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link",
+           update_period=0.0,
+           history_length=3,
        )
 
-   # in the env cfg __post_init__:
    self.scene.robot.spawn.activate_contact_sensors = True
+
    self.haptic_feedback = ControllerHapticFeedbackCfg(
        left_sensor_name="left_hand_contact",
        right_sensor_name="right_hand_contact",
    )
 
-Enabled on the two G1 loco-manipulation teleop environments
-(``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``,
-``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``). Controller vibration is delivered over
-OpenXR (``xrApplyHapticFeedback``), so no CloudXR ``.env`` profile change is required.
+The default mapping is based on:
 
-Haptic glove (per-finger grip)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``amplitude = clamp(gain * (force - deadband), 0, saturation)``
 
-Use :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`. Each hand's contact sensor is **filtered
-against the grasped object** (``filter_prim_paths_expr``), so ``force_matrix_w`` reports each
-finger's force on that object and nothing else. The driver orders the per-finger magnitudes
-Thumb..Pinky (matched from the sensor's body names via ``finger_order``) into a
-``FingerPowerVector`` rendered by a cross-process glove device on ``collection_id``.
+Controller feedback is delivered through OpenXR and requires no additional CloudXR profile
+configuration.
+
+Haptic Gloves
+~~~~~~~~~~~~~
+
+Use :class:`~isaaclab_teleop.GloveHapticFeedbackCfg` for per-finger feedback.
+
+Contact sensors should filter against the manipulated object so each finger reports only its
+force on that object:
 
 .. code-block:: python
 
-   from isaaclab.sensors import ContactSensorCfg
-   from isaaclab_teleop import GloveHapticFeedbackCfg
-
-   @configclass
-   class MySceneCfg(InteractiveSceneCfg):
-       object = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Object", ...)
-       left_hand_contact = ContactSensorCfg(
-           prim_path="{ENV_REGEX_NS}/Robot/.*L_(thumb_distal|index_intermediate|"
-           "middle_intermediate|ring_intermediate|pinky_intermediate)_link",
-           filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
-           update_period=0.0, history_length=3,
-       )
-       right_hand_contact = ContactSensorCfg(
-           prim_path="{ENV_REGEX_NS}/Robot/.*R_(...)_link",
-           filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
-           update_period=0.0, history_length=3,
-       )
-
-   # in the env cfg __post_init__:
    self.haptic_feedback = GloveHapticFeedbackCfg(
        left_sensor_name="left_hand_contact",
        right_sensor_name="right_hand_contact",
    )
 
-Enabled on the two GR1T2 pick-place teleop environments
-(``IsaacContrib-PickPlace-GR1T2-Abs``, ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``).
+The glove backend sends a Thumb-to-Pinky force vector to an external glove plugin.
 
 .. note::
 
-   The glove is a *cross-process* device: ``GloveHapticFeedbackCfg`` pushes per-finger powers on
-   ``collection_id`` (default ``"manus_glove_haptic"``) to a vendor plugin. Run that plugin and set
-   ``NV_CXR_ENABLE_PUSH_DEVICES=1`` in a custom CloudXR profile (see
-   :ref:`isaac-teleop-cloudxr-profiles`). Contact-sensor ``prim_path`` regexes must match your
-   robot's finger body names -- verify with ``print(robot.data.body_names)`` if unsure.
+   Haptic gloves use a cross-process device plugin. Run the vendor plugin and enable external
+   push devices with ``NV_CXR_ENABLE_PUSH_DEVICES=1`` in a custom CloudXR profile.
+
+   Contact sensor patterns must match the robot's actual finger body names.
+
+
+.. _isaac-teleop-standalone:
+
+Standalone I/O
+--------------
+
+Isaac Teleop can also run without headset rendering. This is useful for non-XR hardware such as
+physical leader arms.
+
+The teleoperation scripts select the mode with ``--xr``:
+
+* **With ``--xr``** — use Kit XR for headset rendering and XR tracking.
+* **Without ``--xr``** — create a standalone OpenXR session for device I/O without headset
+  rendering.
+
+Standalone sessions start teleoperation locally because there is no headset to send a start
+command.
+
+When a Kit viewport is available, the following shortcuts can also control the session:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 85
+
+   * - Key
+     - Action
+   * - ``B``
+     - Start or resume teleoperation.
+   * - ``P``
+     - Pause teleoperation.
+   * - ``R``
+     - Reset the environment.
+
+Standalone mode automatically uses
+:data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV` unless another profile is selected.
+
+
+.. _isaac-teleop-so101-leader-example:
+
+SO-101 Leader Arm Example
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` mirrors six joint values from a physical SO-101
+leader directly onto the simulated follower:
+
+``JointStateSource → JointStateRetargeter → TensorReorderer``
+
+No inverse kinematics or XR headset is required.
+
+The full hardware setup, build, calibration, and recording workflow is documented in
+`Data Collection in Sim`_. The essential Isaac Lab workflow is summarized here.
+
+Build the Plugin
+^^^^^^^^^^^^^^^^
+
+The ``so101_leader_plugin`` is built from the Isaac Teleop repository and is not included in the
+``isaacteleop`` Python package.
+
+Install build dependencies:
+
+.. code-block:: bash
+
+   sudo apt-get update
+   sudo apt-get install -y \
+       build-essential cmake libx11-dev clang-format-14 ccache patchelf
+
+Build Isaac Teleop:
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/IsaacTeleop.git
+   cd IsaacTeleop
+
+   cmake -B build
+   cmake --build build --parallel
+   cmake --install build
+
+The plugin is installed at:
+
+.. code-block:: text
+
+   install/plugins/so101_leader/so101_leader_plugin
+
+See `Build from Source`_ for additional build options.
+
+Calibrate the Leader
+^^^^^^^^^^^^^^^^^^^^
+
+Find the serial port:
+
+.. code-block:: bash
+
+   uvx --from "lerobot[hardware]" lerobot-find-port
+
+Then run the plugin calibration:
+
+.. code-block:: bash
+
+   ./install/plugins/so101_leader/so101_leader_plugin \
+       calibrate /dev/ttyACM0 so101_leader.calib
+
+The calibration process records the leader's usable joint range and writes the mapping to the
+specified file.
+
+Run Isaac Lab
+^^^^^^^^^^^^^
+
+Without a headset:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop run \
+       --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
+       --num_envs 1 \
+       --visualizer kit
+
+To monitor the simulation in XR, add ``--xr``.
+
+Start the Plugin
+^^^^^^^^^^^^^^^^
+
+After Isaac Lab starts the CloudXR runtime, open another terminal:
+
+.. code-block:: bash
+
+   cd /path/to/IsaacTeleop
+   source ~/.cloudxr/run/cloudxr.env
+
+   ./install/plugins/so101_leader/so101_leader_plugin \
+       /dev/ttyACM0 \
+       so101_leader \
+       so101_leader.calib
+
+The arguments are:
+
+``[device_path] [collection_id] [calibration_file]``
+
+The collection ID must remain ``so101_leader`` for this task.
+
+Running the plugin with no arguments produces a synthetic trajectory, which is useful for testing
+the pipeline without hardware:
+
+.. code-block:: bash
+
+   ./install/plugins/so101_leader/so101_leader_plugin
+
+See the `SO-101 plugin README`_ and `Data Collection in Sim`_ for the complete workflow.
+
+.. note::
+
+   For the stack task, fully open the gripper before ending the episode. The success condition
+   requires the gripper to be fully open after placement.
+
+
+.. _isaac-teleop-cloudxr-profiles:
+
+CloudXR Profiles
+----------------
+
+Isaac Lab ships profiles for the primary CloudXR modes:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 28 20 20
+
+   * - Constant
+     - Device profile
+     - Push devices
+     - Typical use
+   * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
+     - ``auto-webrtc``
+     - Disabled
+     - Quest / Pico with CloudXR.js
+   * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
+     - ``auto-native``
+     - Disabled
+     - Apple Vision Pro
+   * - :data:`~isaaclab_teleop.CLOUDXR_STANDALONE_ENV`
+     - ``quest3``
+     - Disabled
+     - Standalone device I/O
+
+The scripts select the appropriate default based on whether ``--xr`` is enabled.
+
+Override the profile with ``--cloudxr_env``:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop run \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+       --visualizer kit \
+       --xr \
+       --cloudxr_env avp
+
+You can also pass a custom ``.env`` file.
+
+For example, to enable an external push device such as Manus:
+
+.. code-block:: bash
+
+   cp $(uv run --extra teleop python -c \
+       "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") \
+       ~/my-cloudxr.env
+
+Then set:
+
+.. code-block:: text
+
+   NV_CXR_ENABLE_PUSH_DEVICES=1
+
+and launch with:
+
+.. code-block:: bash
+
+   --cloudxr_env ~/my-cloudxr.env
+
+All shipped profiles also set ``NV_ENABLE_POSE_WAIT=0`` to avoid CloudXR throttling during
+application frame-time spikes.
+
+To manage CloudXR manually instead of auto-launching it, use:
+
+.. code-block:: bash
+
+   --no-auto_launch_cloudxr
+
+or set:
+
+.. code-block:: bash
+
+   ISAACLAB_CXR_SKIP_AUTOLAUNCH=1
+
+Use ``--cloudxr_env none`` to disable CloudXR entirely.
 
 
 .. _isaac-teleop-imitation-learning:
 
-Record Demonstrations for Imitation Learning
----------------------------------------------
+Record Demonstrations
+---------------------
 
-Isaac Teleop integrates with Isaac Lab's ``record_demos.py`` script for recording teleoperated
-demonstrations, exposed as the ``isaaclab teleop record`` command.
+For environments configured with ``isaac_teleop``, use:
 
-When your environment configuration has an ``isaac_teleop`` attribute, the script automatically
-uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
+.. code-block:: bash
 
-.. tab-set::
+   uv run --extra teleop isaaclab teleop record \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --visualizer kit \
+       --xr
 
-   .. tab-item:: uv (Recommended)
+The recorder automatically creates the Isaac Teleop device from the environment configuration.
 
-      .. code-block:: bash
+Legacy ``isaaclab.devices`` environments instead select a device explicitly:
 
-         uv run --extra teleop isaaclab teleop record \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
+.. code-block:: bash
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   uv run isaaclab teleop record \
+       --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
+       --teleop_device keyboard
 
-      .. code-block:: bash
+Recorded demonstrations are stored as HDF5 datasets and can be used with Isaac Lab Mimic or other
+imitation-learning workflows.
 
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
+For replay, augmentation, and policy training, see :ref:`teleoperation-imitation-learning`.
 
-Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
-(e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
-the input device:
 
-.. tab-set::
-
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         uv run --extra teleop isaaclab teleop record \
-             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
-             --visualizer kit \
-             --teleop_device keyboard
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
-             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
-             --visualizer kit \
-             --teleop_device keyboard
-
-The workflow is:
-
-#. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
-   or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
-#. Run ``record_demos.py`` with the task name.
-#. For XR tasks: start AR, connect your XR device, and teleoperate.
-   For legacy tasks: use the configured input device directly.
-#. Demonstrations are recorded to HDF5 files.
-#. Use the recorded data with Isaac Lab Mimic or other imitation learning frameworks.
-
-For the broader imitation learning pipeline (replay, augmentation, policy training), see
-:ref:`teleoperation-imitation-learning`.
+Extending Isaac Teleop
+----------------------
 
 
 .. _isaac-teleop-new-embodiment:
 
 Add a New Robot
----------------
+~~~~~~~~~~~~~~~
 
-To add teleoperation support for a new robot in Isaac Lab:
+To support a new robot:
 
-#. **Choose a control scheme.** Refer to the :ref:`isaac-teleop-control-schemes` table to determine
-   which retargeters match your robot's capabilities.
+#. Choose an input and control scheme from :ref:`isaac-teleop-control-schemes`.
+#. Build a retargeting pipeline whose output matches the environment action space.
+#. Configure dexterous-hand assets if required.
+#. Configure an XR anchor when using XR.
+#. Register the pipeline with ``IsaacTeleopCfg``.
 
-#. **Build the pipeline.** If existing retargeters are sufficient (e.g. ``Se3AbsRetargeter`` +
-   ``GripperRetargeter`` for a new manipulator), write a pipeline builder function following the
-   pattern in :ref:`isaac-teleop-pipeline-builder`. Configure the ``TensorReorderer`` output order
-   to match your environment's action space.
-
-#. **For dexterous hands**: create a robot hand URDF and YAML config for ``DexHandRetargeter``.
-   Ensure fingertip links are positioned at the actual fingertips, not mid-finger.
-
-#. **For a custom retargeter**: see :ref:`isaac-teleop-new-retargeter` below.
-
-#. **Configure the XR anchor** for your robot (static for manipulation, dynamic for locomotion).
-   See :ref:`isaac-teleop-xr-anchor`.
-
-#. **Register in env config** via ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`).
+For most manipulators, an existing combination such as ``Se3AbsRetargeter`` +
+``GripperRetargeter`` is sufficient.
 
 
 .. _isaac-teleop-new-retargeter:
 
 Add a New Retargeter
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
-If the built-in retargeters do not cover your use case, you can implement a custom one in the
-`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_:
+If existing retargeters do not cover your control scheme:
 
-#. Inherit from ``BaseRetargeter`` and implement ``input_spec()``, ``output_spec()``, and
-   ``compute()``.
-#. Optionally add a ``ParameterState`` for parameters that should be live-tunable via the
-   retargeter tuning UI.
-#. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
-   ``IDeviceIOSource`` subclass for custom input devices.
+#. Inherit from ``BaseRetargeter``.
+#. Implement ``input_spec()``, ``output_spec()``, and ``compute()``.
+#. Optionally expose live-tunable values through ``ParameterState``.
+#. Connect the retargeter to existing or custom source nodes.
 
-See the `Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_
-and `Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_ for details.
+See the `Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_ and
+`Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_.
 
 
 .. _isaac-teleop-new-device:
 
 Add a New Device
-----------------
+~~~~~~~~~~~~~~~~
 
-There are two levels of device integration:
+There are two common integration paths:
 
-**Isaac Teleop plugin (C++ level)**
-   For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
-   collections. Existing plugins include Manus gloves, OAK-D camera, controller synthetic hands,
-   and foot pedals. After creating the plugin, update the retargeting pipeline config to consume
-   data from the new plugin's source node.
+**Isaac Teleop plugin**
+   Use a C++ plugin when the hardware requires its own SDK or driver. Plugins publish device data
+   through OpenXR tensor collections.
 
-   See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_ for examples.
+**Pipeline-only integration**
+   If the device already appears as supported hand, controller, or tensor data, only the
+   ``pipeline_builder`` needs to change.
 
-**Pipeline configuration only**
-   For devices already supported by Isaac Teleop (or whose data is available as hand / controller
-   tracking). Simply update your ``pipeline_builder`` to use the appropriate source nodes and
-   retargeters for the device's data format.
+See the
+`Isaac Teleop plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_
+for examples.
+
+
+Debugging
+---------
+
+
+.. _isaac-teleop-tracking-debug-visualization:
+
+Visualize XR Tracking
+~~~~~~~~~~~~~~~~~~~~~
+
+Use ``--enable_debug_visualization`` to visualize raw XR tracking data:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop run \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --visualizer kit \
+       --xr \
+       --enable_debug_visualization
+
+The visualizer displays:
+
+* red spheres for tracked hand joints;
+* RGB axes for controller aim poses.
+
+These markers are diagnostic only and do not affect the retargeting output.
+
+.. note::
+
+   Tracking markers require the Kit visualizer and appear only after valid tracking data has been
+   received.
 
 
 .. _isaac-teleop-performance:
@@ -1615,231 +957,250 @@ There are two levels of device integration:
 Optimize XR Performance
 -----------------------
 
-.. dropdown:: Configure the physics and render time step
-   :open:
+Start with the changes that usually have the largest impact:
 
-   Ensure the simulation render time step roughly matches the XR device's display rate and can
-   be sustained in real time. Quest 3 and Pico 4 Ultra typically run at 90 Hz, so we recommend a
-   simulation ``dt`` of 90 Hz with a ``render_interval`` of 2 (rendering at 45 Hz):
+#. Match simulation and render rates to the workload.
+#. Disable camera rendering when it is not needed.
+#. Run without the local viewport when possible.
+#. Lower XR render resolution if GPU-bound.
+#. Use RTX - Minimal when additional rendering savings are needed.
+#. Tune retargeting execution only if profiling shows it is significant.
 
-   .. code-block:: python
 
-      @configclass
-      class XrTeleopEnvCfg(ManagerBasedRLEnvCfg):
+Physics and Rendering Rate
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-          def __post_init__(self):
-              self.sim.dt = 1.0 / 90        # physics steps at 90 Hz
-              self.sim.render_interval = 2  # one render per 2 physics steps -> 45 Hz
+A common starting point is 90 Hz physics with rendering every second step:
 
-   ``sim.render_interval`` is the number of physics simulation steps that occur between
-   renders. Increasing it reduces rendering frequency (and GPU cost) without changing physics
-   behavior -- useful when physics can keep up but rendering cannot.
+.. code-block:: python
 
-   The choice of ``sim.dt`` is a trade-off between stability and performance: a smaller ``dt``
-   (e.g. ``1.0 / 120``) integrates contacts more accurately and is more stable for stiff
-   contact-rich tasks, but each step costs more wall-clock time and lowers achievable frame
-   rate. A larger ``dt`` (e.g. ``1.0 / 60``) is cheaper but can introduce contact jitter or
-   instabilities. Pick the largest ``dt`` your task tolerates.
+   self.sim.dt = 1.0 / 90
+   self.sim.render_interval = 2
 
-.. dropdown:: Switch the viewport to the RTX - Minimal renderer
-   :open:
+This produces 45 rendered frames per second while keeping physics at 90 Hz.
 
-   The RTX - Minimal renderer trades image fidelity for substantially lower per-frame GPU cost.
-   It is the recommended choice when the simulation cannot sustain the XR device's display rate
-   in real time -- for example on lower-spec GPUs, in scenes with many lights or complex
-   materials, or when you have already configured ``sim.dt`` and ``sim.render_interval`` and
-   still see dropped frames.
+Smaller simulation time steps generally improve contact stability at higher computational cost.
+Increase ``render_interval`` when rendering is the bottleneck but physics can keep up.
 
-   .. admonition:: Known issue
-      :class: important
 
-      Starting an XR session while RTX - Minimal is already the active renderer is a known
-      issue: robot control inputs may never be applied and teleoperation stays non-functional,
-      with no error reported. Switching to RTX - Minimal *after* the XR session has started and
-      teleoperation is confirmed working is not affected.
+Disable External Cameras
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-      As a workaround, start under the default renderer before switching to RTX - Minimal:
+If camera observations and PiP are not required:
 
-      #. Launch Isaac Lab with the default renderer and start the XR session.
-      #. Confirm that teleoperation is working (the robot responds to your hand motions).
-      #. Switch the viewport renderer to **RTX - Minimal** as described below.
+.. code-block:: bash
 
-   To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
-   select **RTX - Minimal**:
+   uv run --extra teleop isaaclab teleop run \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --visualizer kit \
+       --xr \
+       --disable_external_cameras
 
-   .. figure:: ../../_static/teleop/recommended-render-select.jpg
-      :width: 80%
-      :alt: Viewport renderer dropdown with RTX - Minimal selected
+This removes external camera rendering and suppresses configured XR camera feeds.
 
-      Selecting the **RTX - Minimal** renderer from the viewport dropdown.
 
-   For best results, open **Render Settings** from the top-right of the Isaac Lab UI, switch to
-   the **Minimal** tab, and set **Minimal Shading Mode** to **Diffuse/Glossy/Emission**:
+Run Without the Local Viewport
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   .. figure:: ../../_static/teleop/recommended-render-settings.jpg
-      :width: 80%
-      :alt: Render Settings panel showing the Minimal Shading Mode options
+The local Kit viewport consumes additional GPU resources. To render only for XR:
 
-      The **Render Settings** panel with the **Minimal Shading Mode** dropdown open
-      (recommended: **Diffuse/Glossy/Emission**).
+.. code-block:: bash
 
-   .. note::
+   uv run --extra teleop isaaclab teleop run \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --viz none \
+       --xr
 
-      The RTX Minimal renderer currently only supports ``DistantLight`` prims for scene
-      illumination -- ``DomeLight`` prims are ignored. If your environment uses a ``DomeLight``,
-      swap (or supplement) it with a ``DistantLight`` so the scene is lit when running under
-      RTX Minimal:
+Headless XR starts automatically when a client connects.
 
-      .. code-block:: python
+.. note::
 
-         import isaaclab.sim as sim_utils
-         from isaaclab.assets import AssetBaseCfg
+   The old ``--headless`` flag is no longer used. Headless is the default when no visualizer is
+   selected.
 
-         light = AssetBaseCfg(
-             prim_path="/World/light",
-             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-         )
 
-      Depending on your environment, the default ``DistantLight`` orientation may cast shadows
-      that overlap the robot and reduce visibility during teleoperation. If you encounter this,
-      adjust the light's orientation via ``init_state`` on :class:`~isaaclab.assets.AssetBaseCfg`
-      to position the light source at an angle that gives clear visibility:
+Lower XR Resolution
+~~~~~~~~~~~~~~~~~~~
 
-      .. code-block:: python
+In **XR → Advanced Settings → Render Resolution**, reduce **Resolution Multiplier**.
 
-         import isaaclab.sim as sim_utils
-         from isaaclab.assets import AssetBaseCfg
+A value around ``0.8`` is a reasonable first step when the application is GPU-bound.
 
-         light = AssetBaseCfg(
-             prim_path="/World/light",
-             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-             init_state=AssetBaseCfg.InitialStateCfg(
-                 rot=(0.0, 0.0, 0.0, 1.0),  # quaternion (x, y, z, w); adjust to reduce shadow overlap
-             ),
-         )
+.. figure:: ../../_static/teleop/xr-resolution-slider.jpg
+   :width: 80%
+   :alt: XR render resolution multiplier
 
-      Experiment with different orientations in your scene to find an angle that avoids
-      shadow overlap on the robot. A slight tilt away from the camera viewpoint is a good
-      starting point.
 
-.. dropdown:: Lower the XR render resolution
-   :open:
+RTX - Minimal
+~~~~~~~~~~~~~
 
-   The XR render resolution multiplier scales the size of the render buffers that are then
-   upscaled to the headset's recommended display resolution. Lowering it trades image
-   sharpness for substantially lower per-frame GPU cost, which can help sustain real-time
-   frame rates on lower-spec GPUs or in heavy scenes.
+The **RTX - Minimal** renderer can substantially reduce rendering cost.
 
-   In the Isaac Lab UI, open the **XR** tab on the right-side panel, expand
-   **Advanced Settings -> Render Resolution**, and drag the **Resolution Multiplier** slider:
+.. important::
 
-   .. figure:: ../../_static/teleop/xr-resolution-slider.jpg
-      :width: 80%
-      :alt: XR Render Resolution slider in the Advanced Settings panel
+   Start the XR session with the default renderer first. Starting XR while RTX - Minimal is
+   already active can prevent control input from being applied.
 
-      The **Resolution Multiplier** under **XR -> Advanced Settings -> Render Resolution**.
-      Values below ``1.0`` reduce the render-buffer size before upscaling to the headset.
+After teleoperation is working, select **RTX - Minimal** from the viewport renderer menu.
 
-   A value around ``0.8`` is usually a good starting point: noticeable GPU savings with minimal
-   perceptible quality loss. Reduce further only if you still cannot hit the headset's display
-   rate.
+.. figure:: ../../_static/teleop/recommended-render-select.jpg
+   :width: 80%
+   :alt: RTX - Minimal renderer selection
 
-.. dropdown:: Disable external camera rendering
-   :open:
+For best results, select **Diffuse/Glossy/Emission** under the Minimal render settings.
 
-   The teleop scripts (``teleop_se3_agent.py``, ``record_demos.py``, and
-   ``teleop_replay_agent.py``) render external camera sensors by default. Camera render products
-   add significant GPU cost and contend with the XR view, so if your task does not need camera
-   observations during teleoperation, disable them with ``--disable_external_cameras``:
+.. figure:: ../../_static/teleop/recommended-render-settings.jpg
+   :width: 80%
+   :alt: RTX Minimal shading settings
 
-   .. code-block:: bash
+.. note::
 
-      uv run --extra teleop isaaclab teleop run \
-          --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-          --visualizer kit --xr \
-          --disable_external_cameras
+   RTX - Minimal supports ``DistantLight`` for scene illumination. If a scene relies on a
+   ``DomeLight``, add or replace it with a ``DistantLight``.
 
-   The flag strips the environment's camera sensors (equivalent to calling
-   :func:`~isaaclab_teleop.remove_camera_configs` on the env config) and selects a lighter Kit
-   experience. For ``teleop_se3_agent.py`` it is also the master PiP gate: task-default and
-   task-configured feeds are ignored and no camera panel is created. Omit it to keep cameras enabled
-   (the default) -- required when recording camera observations, showing XR camera feedback, or when
-   you want ``teleop_replay_agent.py`` to mirror the production render load.
 
-.. dropdown:: Run headless (skip the local viewport)
-   :open:
+Retargeting Execution
+~~~~~~~~~~~~~~~~~~~~~
 
-   Passing ``--visualizer kit`` opens the local Kit viewport, which renders a window on the host
-   in addition to the XR view. On a server or cloud instance -- or whenever you do not need the
-   local window -- run headless so only the XR view is rendered, freeing GPU for the headset:
+Retargeting can run synchronously or on a pipelined worker.
 
-   .. code-block:: bash
+The default pipelined configuration is:
 
-      uv run --extra teleop isaaclab teleop run \
-          --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-          --viz none --xr
+.. code-block:: python
 
-   In headless XR the OpenXR/AR session **starts automatically** -- there is no local viewport to
-   click **Start XR**, so Isaac Lab begins streaming as soon as a CloudXR client connects.
+   retargeting_execution=RetargetingExecutionConfig(
+       mode="pipelined",
+       pacing=DeadlinePacingConfig(
+           safety_margin_s=0.025,
+       ),
+   )
 
-   .. note::
+Use ``mode="sync"`` for lightweight, Python-heavy retargeting where worker-thread GIL contention
+outweighs the benefit of overlap.
 
-      The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
-      (omit ``--visualizer``); pass ``--visualizer none`` / ``--viz none`` to force it when a
-      config might otherwise enable a visualizer, or set ``HEADLESS=1`` in the environment.
+Use ``mode="pipelined"`` when retargeting contains enough native or expensive work to overlap with
+simulation and rendering.
 
-.. dropdown:: Configure retargeting execution
-   :open:
+Increase ``safety_margin_s`` if retargeting occasionally misses its deadline.
 
-   Isaac Teleop can run retargeting either synchronously on the application thread or
-   asynchronously through a pipelined worker. This is controlled by
-   ``RetargetingExecutionConfig``.
 
-   In synchronous mode, retargeting runs inline with the simulation step. This can be the
-   best choice for lightweight retargeting or retargeting implemented mostly in Python,
-   since a background Python worker can still contend with the application thread through
-   the GIL.
+CloudXR Frame Pacing
+~~~~~~~~~~~~~~~~~~~~
 
-   In pipelined mode, Isaac Teleop submits retargeting work to a background worker and the
-   application uses the most recent completed result. This is useful when retargeting has
-   enough native work to overlap with simulation or rendering, or when the retargeting cost
-   is large enough that running it inline would directly extend the frame.
+Repeated application frame-time spikes can cause CloudXR to settle at a lower stable rate.
 
-   .. code-block:: python
+The shipped profiles set:
 
-      retargeting_execution=RetargetingExecutionConfig(
-          mode="pipelined",
-          pacing=DeadlinePacingConfig(safety_margin_s=0.025),
-      )
+.. code-block:: text
 
-   ``DeadlinePacingConfig`` intentionally delays the background retargeting work until
-   closer to when the next result is needed, instead of starting it immediately when the
-   request is submitted. This helps avoid competing with the Python work Isaac Lab performs
-   at the beginning of the frame, and tends to line the retargeting work up with rendering
-   or other native work where overlap is more useful.
+   NV_ENABLE_POSE_WAIT=0
 
-   The ``safety_margin_s`` value controls how early retargeting starts before the predicted
-   deadline. A larger margin starts retargeting earlier, which gives heavier or more variable
-   retargeting work more time to finish before the next frame consumes the result. The
-   trade-off is that the input sample may be slightly older, and Python-heavy retargeting
-   may introduce more GIL contention.
+If you create a custom CloudXR profile, retain this setting unless you intentionally want
+pose-wait smoothing.
 
-   If retargeting is mostly Python and lightweight, consider ``mode="sync"``. If retargeting
-   performs substantial native work or has occasional long spikes, use ``mode="pipelined"``
-   and increase ``safety_margin_s`` so the work starts earlier.
 
-.. dropdown:: Check CloudXR frame pacing
-   :open:
+.. _isaac-teleop-env-control-reference:
 
-   The CloudXR Runtime frame pacer attempts to keep the client experience smooth. If the
-   application has repeated frame-time spikes, the pacer may settle at a lower stable frame
-   rate instead of oscillating between rates. This can make a connected client appear slower
-   even when Isaac Lab profiling does not show a proportional simulation-side regression.
+Teleoperation Environment Reference
+-----------------------------------
 
-   The shipped CloudXR profiles set ``NV_ENABLE_POSE_WAIT=0`` to mitigate this case, favoring lower
-   latency over pose-wait smoothing. If you use a custom ``.env`` file, copy that setting into the
-   custom profile, then point ``teleop_se3_agent.py`` or ``record_demos.py`` at it with
-   ``--cloudxr_env``. See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
+The following tables summarize built-in teleoperation environments by input stack.
+
+Isaac Teleop Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 18 44
+
+   * - Task ID
+     - Input
+     - Control
+   * - ``IsaacContrib-Stack-Cube-Franka-IK-Abs``
+     - Right controller
+     - End-effector pose + trigger gripper
+   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``
+     - Right controller
+     - Absolute IK + analog trigger gripper
+   * - ``IsaacContrib-PickPlace-GR1T2-Abs``
+     - Both hands
+     - Wrist-pose arm control + dexterous hand retargeting
+   * - ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``
+     - Both hands
+     - Same as GR1T2 pick-place with waist enabled
+   * - ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
+     - Both hands
+     - GR1T2 hand-tracking pipeline
+   * - ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
+     - Both hands
+     - GR1T2 hand-tracking pipeline
+   * - ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``
+     - Both hands
+     - Wrist-pose arms + Inspire hand retargeting
+   * - ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
+     - Both controllers
+     - Arm pose + TriHand trigger/squeeze mapping
+   * - ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+     - Both controllers
+     - Arm + TriHand + thumbstick locomotion
+
+Legacy Device Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Keyboard, SpaceMouse, and gamepad environments use ``isaaclab.devices`` rather than Isaac Teleop.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 20 35
+
+   * - Task ID
+     - Devices
+     - Control
+   * - ``IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow``
+     - Keyboard, SpaceMouse
+     - Left arm + gripper
+   * - ``IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow``
+     - Keyboard, SpaceMouse
+     - Right arm + suction
+   * - ``IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor``
+     - Keyboard, SpaceMouse
+     - Left arm + gripper + camera observations
+   * - ``IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow``
+     - Keyboard, SpaceMouse
+     - Left arm + gripper
+   * - ``IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow``
+     - Keyboard, SpaceMouse
+     - Right arm + gripper
+   * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
+     - Keyboard, SpaceMouse
+     - Relative IK + suction
+   * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
+     - Keyboard, SpaceMouse
+     - Relative IK + suction
+   * - ``Isaac-Reach-Franka``
+     - Keyboard, Gamepad, SpaceMouse
+     - Relative IK; no gripper
+
+For keyboard, SpaceMouse, and gamepad mappings, see the corresponding device documentation.
+
+.. note::
+
+   RMPFlow is preferred for humanoid arms such as Galbot and Agibot because it respects joint
+   limits. An arm may stop moving when the requested target is unreachable; this is expected.
+
+Leader-Arm Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 20 35
+
+   * - Task ID
+     - Device
+     - Control
+   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0``
+     - SO-101 leader arm
+     - Direct six-joint mirroring through ``JointStateRetargeter``
 
 
 .. _isaac-teleop-known-issues:
@@ -1847,26 +1208,22 @@ Optimize XR Performance
 Known Issues
 ------------
 
-* ``XR_ERROR_VALIDATION_FAILURE: xrWaitFrame(frameState->type == 0)`` when stopping AR Mode
+``XR_ERROR_VALIDATION_FAILURE`` when stopping XR
+   Caused by an exit-handler race and can generally be ignored.
 
-  Can be safely ignored. Caused by a race condition in the exit handler.
+``XR_ERROR_INSTANCE_LOST`` in ``xrPollEvent``
+   Occurs when the CloudXR runtime exits before Isaac Lab. Restart the runtime.
 
-* ``XR_ERROR_INSTANCE_LOST in xrPollEvent``
+``TF_PYTHON_EXCEPTION`` when starting or stopping XR
+   Caused by an XR enter/exit race and can generally be ignored.
 
-  Occurs if the CloudXR runtime exits before Isaac Lab. Restart the runtime to resume.
+``Invalid version string in _ParseVersionString``
+   Usually originates from shader assets authored with older USD versions and is typically safe
+   to ignore.
 
-* ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
-
-  Can be safely ignored. Caused by a race condition in the enter/exit handler.
-
-* ``Invalid version string in _ParseVersionString``
-
-  Caused by shader assets authored with older USD versions. Typically safe to ignore.
-
-* XR device connects but no video is displayed (viewport responds to tracking)
-
-  The GPU index may differ between host and container. Set ``NV_GPU_INDEX`` to ``0``, ``1``, or
-  ``2`` in the runtime to match the host GPU.
+XR connects but no video appears
+   The selected GPU index may differ between the host and container. Set ``NV_GPU_INDEX`` to the
+   GPU used by the runtime.
 
 
 .. _isaac-teleop-api-ref:
@@ -1874,29 +1231,26 @@ Known Issues
 API Reference
 -------------
 
-See the :ref:`isaaclab_teleop-api` for full class and function documentation:
+See :ref:`isaaclab_teleop-api` for the complete API.
+
+Common entry points include:
 
 * :class:`~isaaclab_teleop.IsaacTeleopCfg`
 * :class:`~isaaclab_teleop.IsaacTeleopDevice`
 * :func:`~isaaclab_teleop.create_isaac_teleop_device`
 * :class:`~isaaclab_teleop.ControlEvents`
-* :class:`~isaaclab_teleop.SupportsControlEvents`
 * :func:`~isaaclab_teleop.poll_control_events`
-* :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
+* :class:`~isaaclab_teleop.XrCfg`
+* :class:`~isaaclab_teleop.XrCameraFeedCfg`
+* :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg`
 * :class:`~isaaclab_teleop.HapticFeedbackCfg`
 * :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg`
 * :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`
-* :class:`~isaaclab_teleop.HapticFeedbackReceiver`
-* :class:`~isaaclab_teleop.HapticFeedbackDriver`
-* :func:`~isaaclab_teleop.create_haptic_feedback_driver`
-* :class:`~isaaclab_teleop.XrCameraFeedCfg`
-* :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg`
-* :class:`~isaaclab_teleop.XrCfg`
-* :class:`~isaaclab_teleop.XrAnchorRotationMode`
 
 
 ..
    References
+
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`SO-101 plugin README`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader
 .. _`Data Collection in Sim`: https://nvidia.github.io/IsaacTeleop/main/getting_started/lerobot/data_collection_sim.html
