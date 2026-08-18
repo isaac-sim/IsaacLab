@@ -14,6 +14,12 @@
 **/*.usdc
 **/*.usdz
 
+# The cable-routing task vendors pinned, self-contained YAM and fixture packages
+# so their USD payloads are available without a Nucleus connection.
+!source/isaaclab_tasks/isaaclab_tasks/contrib/cable_routing/assets/yam/**/*.usda
+!source/isaaclab_tasks/isaaclab_tasks/contrib/cable_routing/assets/yam/**/*.usdc
+!source/isaaclab_tasks/isaaclab_tasks/contrib/cable_routing/assets/manipulationnet/**/*.usdc
+
 # Python
 .DS_Store
 **/*.egg-info/

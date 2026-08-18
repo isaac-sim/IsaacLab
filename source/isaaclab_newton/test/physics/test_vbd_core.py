@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from newton.solvers import SolverVBD
 
 from isaaclab.physics import PhysicsManager
 
@@ -216,6 +217,17 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
 
     assert NewtonManager._solver is solver
     assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
+
+
+def test_vbd_cfg_forwards_per_body_contact_capacities_to_newton():
+    """Dense-contact capacities reach the Newton VBD solver constructor."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    cfg = physics.VBDSolverCfg(rigid_body_contact_buffer_size=256, rigid_body_particle_contact_buffer_size=512)
+
+    kwargs = physics.NewtonVBDManager._filter_solver_kwargs(SolverVBD, cfg)
+
+    assert kwargs["rigid_body_contact_buffer_size"] == 256
+    assert kwargs["rigid_body_particle_contact_buffer_size"] == 512
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

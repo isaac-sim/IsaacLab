@@ -61,6 +61,13 @@ class VBDSolverCfg(NewtonSolverCfg):
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 
+    rigid_body_contact_buffer_size: int = 64
+    """Per-body body-body contact list capacity.
+
+    Increase this value when Newton reports a per-body rigid contact buffer overflow.
+    Only used when :attr:`integrate_with_external_rigid_solver` is ``False``.
+    """
+
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body capacity of the particle, edge, and face soft-contact list.
 

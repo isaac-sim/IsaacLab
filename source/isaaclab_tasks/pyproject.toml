@@ -20,11 +20,15 @@ requires-python = ">=3.12"
 dependencies = [
     "isaaclab",
     "isaaclab_assets",
+    "isaaclab_contrib",
+    "isaaclab_newton",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 isaaclab_assets = { path = "../isaaclab_assets", editable = true }
+isaaclab_contrib = { path = "../isaaclab_contrib", editable = true }
+isaaclab_newton = { path = "../isaaclab_newton", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
@@ -39,3 +43,13 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.contrib.cable_routing" = [
+    "assets/manipulationnet/LICENSE",
+    "assets/manipulationnet/*.md",
+    "assets/manipulationnet/*.usdc",
+    "assets/yam/*.md",
+    "assets/yam/*.usda",
+    "assets/yam/i2rt_yam/*.usda",
+    "assets/yam/i2rt_yam/Payload/*.usda",
+    "assets/yam/i2rt_yam/Payload/*.usdc",
+]
