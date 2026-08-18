@@ -8,6 +8,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import IO, Any
 
@@ -196,6 +197,8 @@ def run_command(
     check: bool = True,
     stdout: int | IO[str] | None = None,
     stderr: int | IO[str] | None = None,
+    retry_attempts: int = 1,
+    retry_delay_seconds: float = 3.0,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a command in a subprocess.
@@ -208,11 +211,18 @@ def run_command(
         check: Whether to raise on non-zero exit code.
         stdout: Standard output stream or redirection target.
         stderr: Standard error stream or redirection target.
+        retry_attempts: Total number of attempts for a failed command.
+        retry_delay_seconds: Delay between attempts [s].
         **kwargs: Additional keyword arguments forwarded to ``subprocess.run``.
 
     Returns:
         Result object returned by ``subprocess.run``.
     """
+
+    if retry_attempts < 1:
+        raise ValueError("retry_attempts must be at least 1")
+    if retry_delay_seconds < 0:
+        raise ValueError("retry_delay_seconds must be non-negative")
 
     if cwd is None:
         cwd = ISAACLAB_ROOT
@@ -228,22 +238,39 @@ def run_command(
     if isinstance(cmd, (list, tuple)) and is_windows():
         cmd = _escape_for_cmd_exe(cmd)
 
-    try:
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            env=env,
-            shell=shell,
-            check=check,
-            stdout=stdout,
-            stderr=stderr,
-            **kwargs,
+    for attempt in range(1, retry_attempts + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                env=env,
+                shell=shell,
+                check=check,
+                stdout=stdout,
+                stderr=stderr,
+                **kwargs,
+            )
+        except subprocess.CalledProcessError as error:
+            returncode = error.returncode
+            result = None
+        except KeyboardInterrupt:
+            sys.exit(130)
+        else:
+            returncode = result.returncode
+
+        if returncode == 0 or attempt == retry_attempts:
+            if result is not None:
+                return result
+            print_error(f'Command failed with code {returncode}: "{command_str}"')
+            sys.exit(returncode)
+
+        print_warning(
+            f"Command failed with code {returncode}; retrying in {retry_delay_seconds:g} seconds "
+            f'(attempt {attempt + 1}/{retry_attempts}): "{command_str}"'
         )
-    except subprocess.CalledProcessError as e:
-        print_error(f'Command failed with code {e.returncode}: "{command_str}"')
-        sys.exit(e.returncode)
-    except KeyboardInterrupt:
-        sys.exit(130)
+        time.sleep(retry_delay_seconds)
+
+    raise AssertionError("unreachable")
 
 
 def _is_virtualenv_python(python_exe: str | Path) -> bool:
