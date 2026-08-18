@@ -3,7 +3,8 @@ Added
 
 * Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
   writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
-  directory, and cooked colliders now persist across runs.
+  directory, so cooked colliders are reusable from that directory for as long as it is retained.
+  Set it to ``None`` to keep OVPhysX's own resolution.
 
 Fixed
 ^^^^^

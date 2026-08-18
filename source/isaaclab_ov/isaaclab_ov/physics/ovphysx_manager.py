@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
 import re
+import stat
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
@@ -43,6 +45,38 @@ if TYPE_CHECKING:
     from .ovphysx_manager_cfg import OvPhysxCfg
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
+
+
+def _prepare_default_cache_dir(cache_dir: str) -> str:
+    """Create the default cooked-collider cache directory and refuse one this user does not own.
+
+    The default sits in the shared temporary directory, so any local user can pre-create the path;
+    OVPhysX follows a symlink there and writes through it. A directory the caller configured is
+    their own choice and is passed through untouched.
+
+    Args:
+        cache_dir: Default cache directory to create or validate.
+
+    Returns:
+        The validated directory.
+
+    Raises:
+        RuntimeError: If the path exists as a symlink, a non-directory, or another user's directory.
+    """
+    try:
+        os.makedirs(cache_dir, mode=0o700)
+        return cache_dir
+    except FileExistsError:
+        pass
+    entry = os.lstat(cache_dir)
+    if stat.S_ISLNK(entry.st_mode):
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is a symlink; refusing to write through it.")
+    if not stat.S_ISDIR(entry.st_mode):
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' exists and is not a directory.")
+    if hasattr(os, "getuid") and entry.st_uid != os.getuid():
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is owned by another user; refusing to use it.")
+    return cache_dir
+
 
 logger = logging.getLogger(__name__)
 
@@ -922,7 +956,10 @@ class OvPhysxManager(PhysicsManager):
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
         # The runtime is also constructed outside a configured simulation, where no cfg exists.
-        cache_dir = getattr(PhysicsManager._cfg, "cooked_collider_cache_dir", DEFAULT_COOKED_COLLIDER_CACHE_DIR)
+        cfg = PhysicsManager._cfg
+        cache_dir = DEFAULT_COOKED_COLLIDER_CACHE_DIR if cfg is None else cfg.cooked_collider_cache_dir
+        if cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR:
+            cache_dir = _prepare_default_cache_dir(cache_dir)
         cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index, cache_dir)
         if not cls._atexit_registered:
             # Globally retained environments may otherwise keep TensorBinding DLPack

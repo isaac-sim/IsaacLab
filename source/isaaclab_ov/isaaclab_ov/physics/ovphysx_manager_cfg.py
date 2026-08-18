@@ -31,12 +31,16 @@ class OvPhysxCfg(PhysicsCfg):
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
 
-    cooked_collider_cache_dir: str = DEFAULT_COOKED_COLLIDER_CACHE_DIR
-    """Directory for the OVPhysX cooked-collider cache. Defaults to a per-user directory under the system
-    temporary directory.
+    cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
+    """Directory for the OVPhysX cooked-collider cache, defaulting to a per-user directory under the
+    system temporary directory.
 
-    Left unset, the packaged Carbonite resolves this cache relative to the running executable, which for
-    an embedded runtime is the Python interpreter rather than an application package.
+    Set to ``None`` to let OVPhysX resolve the location itself, which places the cache beside the running
+    executable -- for an embedded runtime that is the Python interpreter, whose directory the program does
+    not own.
+
+    OVPhysX never evicts entries, so the directory grows with every distinct cooked collider and is
+    reclaimed by deleting it. A system temporary directory may also be purged between boots.
     """
 
     enable_enhanced_determinism: bool = False
