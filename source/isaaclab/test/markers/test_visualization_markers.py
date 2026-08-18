@@ -85,21 +85,50 @@ def test_instantiation(sim):
 
 
 @pytest.mark.parametrize(
-    ("is_rendering", "visualizers", "expected_backends"),
+    ("has_gui", "rtx_sensors", "xr_enabled", "has_offscreen_render", "visualizers", "expected_backends"),
     [
-        (True, [], ["kit"]),
-        (False, [], []),
-        (False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
-        (False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
-        (False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
+        (True, False, False, False, [], ["kit"]),
+        (False, True, False, False, [], ["kit"]),
+        (False, False, True, False, [], ["kit"]),
+        (False, False, False, True, [], ["kit"]),
+        (False, False, False, False, [], []),
+        (False, False, False, False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
+        (False, False, False, False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
     ],
 )
-def test_marker_backend_selection(monkeypatch, is_rendering: bool, visualizers: list, expected_backends: list[str]):
-    """Marker backend selection follows rendering state and active visualizer type."""
+def test_marker_backend_selection(
+    monkeypatch,
+    has_gui: bool,
+    rtx_sensors: bool,
+    xr_enabled: bool,
+    has_offscreen_render: bool,
+    visualizers: list,
+    expected_backends: list[str],
+):
+    """Marker backend selection follows rendering state and active visualizer type.
+
+    Regression coverage for a bug where a non-Kit-pumping visualizer (e.g. ``newton_gl``) alone
+    would still spin up the Kit/USD marker backend (because it also makes ``sim.is_rendering``
+    true), leaving raw USD marker writes undigested by Fabric. That desynced the point-instancer
+    prototype table and crashed the next PhysX GPU step. The ``newton_gl``-only case below
+    (``rtx_sensors``/``xr_enabled``/``has_gui``/``has_offscreen_render`` all False) must select
+    only the ``newton`` backend, never ``kit``.
+    """
     marker = object.__new__(VisualizationMarkers)
     marker._backends = []
-    fake_sim = type("FakeSim", (), {"is_rendering": is_rendering, "visualizers": visualizers})()
+    settings = {"/isaaclab/render/rtx_sensors": rtx_sensors, "/isaaclab/xr/enabled": xr_enabled}
+    fake_sim = type(
+        "FakeSim",
+        (),
+        {
+            "has_gui": has_gui,
+            "has_offscreen_render": has_offscreen_render,
+            "visualizers": visualizers,
+            "get_setting": lambda self, key: settings.get(key, False),
+        },
+    )()
 
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: fake_sim))
     monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
