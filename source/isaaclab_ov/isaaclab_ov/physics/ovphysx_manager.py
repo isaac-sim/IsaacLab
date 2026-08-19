@@ -583,6 +583,16 @@ class OvPhysxManager(PhysicsManager):
         operation = physx.reset_stage()
         physx.wait_op(operation)
 
+    @staticmethod
+    def _warmup_physx(physx: Any) -> None:
+        """Warm a runtime through its current or legacy API."""
+        warmup = getattr(physx, "warmup", None)
+        if warmup is None:
+            warmup = getattr(physx, "warmup_gpu", None)
+        if warmup is None:
+            raise AttributeError("OVPhysX exposes neither warmup() nor legacy warmup_gpu()")
+        warmup()
+
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
@@ -910,8 +920,8 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs ``warmup_gpu`` so the new stage's
-        bodies are resident.
+        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set, or if a device
@@ -985,7 +995,7 @@ class OvPhysxManager(PhysicsManager):
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
-            cls._physx.warmup_gpu()
+            cls._warmup_physx(cls._physx)
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
         # the OVStage is attached. The central

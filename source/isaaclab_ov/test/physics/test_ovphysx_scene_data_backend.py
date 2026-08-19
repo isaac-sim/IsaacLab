@@ -544,6 +544,41 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     ]
 
 
+def test_manager_prefers_current_warmup_api():
+    """The current warmup API wins when both API generations are visible."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(
+        warmup=lambda: calls.append("warmup"),
+        warmup_gpu=lambda: calls.append("warmup_gpu"),
+    )
+
+    OvPhysxManager._warmup_physx(physx)
+
+    assert calls == ["warmup"]
+
+
+def test_manager_supports_legacy_warmup_api():
+    """The released OVPhysX runtime keeps using its GPU-only warmup API."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(warmup_gpu=lambda: calls.append("warmup_gpu"))
+
+    OvPhysxManager._warmup_physx(physx)
+
+    assert calls == ["warmup_gpu"]
+
+
+def test_manager_rejects_missing_warmup_api():
+    """An unsupported runtime reports both expected entry points explicitly."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    with pytest.raises(AttributeError, match=r"neither warmup\(\) nor legacy warmup_gpu\(\)"):
+        OvPhysxManager._warmup_physx(SimpleNamespace())
+
+
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     """A failed in-memory population does not leak its OVStage allocation."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
