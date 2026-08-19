@@ -13,6 +13,7 @@ from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
+from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
@@ -27,6 +28,10 @@ class CartpoleCameraEnv(CartpoleEnv):
     cfg: CartpoleCameraEnvCfg
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
+        # The observation space must use the concrete camera dimensions before
+        # DirectRLEnv creates its Gym spaces. DirectRLEnv resolves presets later
+        # in its initialization, so resolve nested camera presets here first.
+        resolve_cfg_presets(cfg)
         cfg.frame_stack = max(1, cfg.frame_stack)
         if isinstance(cfg.observation_space, list):
             cfg.observation_space = [
