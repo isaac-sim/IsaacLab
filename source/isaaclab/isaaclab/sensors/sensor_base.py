@@ -22,6 +22,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
 from isaaclab.sim.utils.transforms import resolve_prim_pose
@@ -56,6 +57,9 @@ class SensorBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
+        # expand the namespace macro for sensors built outside the scene, which has already
+        # expanded it for the ones it collects
+        cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
         self._source_cfg = cfg
         self.cfg = cfg.copy()
@@ -236,11 +240,11 @@ class SensorBase(ABC):
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
         elif clone_plan is not None:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = int(clone_plan.env_ids.numel())
         else:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
@@ -447,7 +451,7 @@ class SensorBase(ABC):
 
         The returned expression may still contain regex-style wildcards (e.g.
         ``.*``); callers are responsible for converting to glob form for their
-        physics view (e.g. ``.replace(".*", "*")``).
+        physics view (e.g. via :func:`~isaaclab.sim.utils.path_expr_to_glob`).
 
         Returns:
             A tuple of:

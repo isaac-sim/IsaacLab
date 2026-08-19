@@ -19,7 +19,7 @@ from rendering_test_utils import (
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_RENDERING_PARAMS = make_kitless_rendering_params_franka(include_cloth_motion_vectors=True)
+_RENDERING_PARAMS = make_kitless_rendering_params_franka()
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()

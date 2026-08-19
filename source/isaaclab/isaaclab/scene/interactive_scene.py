@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
 
-    from isaaclab.renderers.base_renderer import BaseRenderer
     from isaaclab.terrains.terrain_importer import TerrainImporter
 
 import torch
@@ -34,8 +33,8 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 
@@ -162,9 +161,8 @@ class InteractiveScene:
         self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
         self.cloner_cfg.device = self.device
         self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
-        self._env_regex_ns = self.cloner_cfg.clone_regex
-        self._env_fmt = self._env_regex_ns.replace(".*", "{}")
-        self._env_ns = self._env_regex_ns.rsplit("/", 1)[0]
+        # the template is authoritative; the regex form is the same namespace spelled for matching
+        self._env_fmt = self.cloner_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._scene_asset_names: list[str] = []
         self._clone_valid_set: torch.Tensor | None = None
@@ -192,6 +190,7 @@ class InteractiveScene:
             num_clones=self.num_envs,
             env_spacing=self.cfg.env_spacing,
             device=self.device,
+            env_template=self._env_fmt,
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
             valid_set=self._clone_valid_set,
@@ -200,7 +199,12 @@ class InteractiveScene:
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()
 
-        self._aggregate_scene_data_requirements(requested_viz_types)
+        # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
+        cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
+        for type_name in requested_viz_types.union(cam_types):
+            requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
+            self.sim.requires_usd_stage |= requires_stage
+            self.sim.requires_newton_model |= requires_model
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
@@ -228,8 +232,8 @@ class InteractiveScene:
             )
             for child in children:
                 if hasattr(child, "prim_path"):
-                    child.prim_path = child.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.clone_regex)
-                    if hasattr(child, "spawn") and child.spawn is not None and self.env_ns in child.prim_path:
+                    child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
+                    if getattr(child, "spawn", None) is not None and cloner.path.match(child.prim_path, self._env_fmt):
                         clone_asset_names.append(asset_name)
                         variant_counts.append(cloner.num_spawn_variants(child.spawn))
                 cfgs.append(child)
@@ -245,66 +249,6 @@ class InteractiveScene:
         else:
             self._clone_valid_set = None
         return cfgs
-
-    def _aggregate_scene_data_requirements(self, visualizer_types=()) -> None:
-        """Aggregate scene-data requirements from visualizers and sensor renderers.
-
-        Runs once after :meth:`_add_entities_from_cfg` so all sensors are constructed and
-        their renderer types are visible. Pushes the merged :class:`SceneDataRequirement` to
-        :class:`SimulationContext` for later consumption by the scene data provider.
-        """
-        discovered_req = resolve_scene_data_requirements(
-            visualizer_types=visualizer_types,
-            renderer_types=self._sensor_renderer_types(),
-        )
-        current_req = self.sim.get_scene_data_requirements()
-        requirements = aggregate_requirements((current_req, discovered_req))
-        if requirements != current_req:
-            self.sim.update_scene_data_requirements(requirements)
-
-    def _sensor_renderer_types(self) -> list[str]:
-        """Return renderer type names used by scene sensors (skipping any without a renderer cfg)."""
-        return [
-            getattr(rcfg, "renderer_type", "default")
-            for s in self._sensors.values()
-            if (rcfg := getattr(getattr(s, "cfg", None), "renderer_cfg", None)) is not None
-        ]
-
-    def initialize_renderers(self) -> list[BaseRenderer]:
-        """Pre-create renderer backends for all scene sensors with a ``renderer_cfg``.
-
-        Walks the constructed sensors and registers each unique
-        :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` with the
-        simulation-scoped :class:`~isaaclab.renderers.render_context.RenderContext`.
-        Configs that compare equal share a single backend (see
-        :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so
-        calling this method is idempotent and safe to invoke before
-        :meth:`~isaaclab.sim.SimulationContext.reset`.
-
-        Pre-creating backends here makes the order of renderer construction
-        deterministic (matches sensor registration order) and front-loads logging
-        instead of trickling out during the first :meth:`Camera._initialize_impl`.
-        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` is
-        intentionally not invoked here; it runs on first camera initialization
-        with the correct ``num_envs`` and final stage.
-
-        Returns:
-            The list of unique renderer backends now registered on the
-            shared :class:`~isaaclab.renderers.render_context.RenderContext`,
-            in sensor registration order.
-        """
-        ctx = self.sim.render_context
-        backends: list[BaseRenderer] = []
-        seen: set[int] = set()
-        for sensor in self._sensors.values():
-            rcfg = getattr(getattr(sensor, "cfg", None), "renderer_cfg", None)
-            if rcfg is None:
-                continue
-            backend = ctx.get_renderer(rcfg)
-            if id(backend) not in seen:
-                seen.add(id(backend))
-                backends.append(backend)
-        return backends
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -390,12 +334,12 @@ class InteractiveScene:
     @property
     def env_ns(self) -> str:
         """The namespace ``/World/envs`` in which all environments are created."""
-        return self._env_ns
+        return self._env_fmt.rsplit("/", 1)[0]
 
     @property
     def env_regex_ns(self) -> str:
-        """The namespace ``/World/envs/env_.*`` in which all environments are created."""
-        return self._env_regex_ns
+        """The namespace ``/World/envs/env_[^/]+`` in which all environments are created."""
+        return self._env_fmt.format("[^/]+")
 
     @property
     def num_envs(self) -> int:
@@ -836,15 +780,12 @@ class InteractiveScene:
         ]
 
         for asset_name, asset_cfg in ordered_items:
-            # resolve prim_path with env regex
-            if hasattr(asset_cfg, "prim_path"):
-                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
             # set spawn_path on spawner if cloning is needed
             if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
                 is_multi_spawner = isinstance(
                     asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
                 )
-                if self.env_ns not in asset_cfg.prim_path:
+                if cloner.path.match(asset_cfg.prim_path, self._env_fmt) is None:
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path
                 elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
                     raise RuntimeError(f"Clone planning did not assign spawn_paths for '{asset_cfg.prim_path}'.")
@@ -866,13 +807,12 @@ class InteractiveScene:
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
                     # set spawn_path on spawner if cloning is needed
                     if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
                         is_multi_spawner = isinstance(
                             rigid_object_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
                         )
-                        if self.env_ns not in rigid_object_cfg.prim_path:
+                        if cloner.path.match(rigid_object_cfg.prim_path, self._env_fmt) is None:
                             rigid_object_cfg.spawn.spawn_path = rigid_object_cfg.prim_path
                         elif is_multi_spawner and not rigid_object_cfg.spawn.spawn_paths:
                             raise RuntimeError(
@@ -893,34 +833,31 @@ class InteractiveScene:
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
-                    updated_target_frames = []
                     for target_frame in asset_cfg.target_frames:
-                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
-                        updated_target_frames.append(target_frame)
-                    asset_cfg.target_frames = updated_target_frames
+                        target_frame.prim_path = cloner.expand_env_regex_ns(target_frame.prim_path, self._env_fmt)
                 elif isinstance(asset_cfg, ContactSensorCfg):
                     asset_cfg.filter_prim_paths_expr = [
-                        p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
+                        cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_prim_paths_expr
                     ]
                     if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr:
                         asset_cfg.sensor_shape_prim_expr = [
-                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.sensor_shape_prim_expr
+                            cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.sensor_shape_prim_expr
                         ]
                     if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr:
                         asset_cfg.filter_shape_prim_expr = [
-                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_shape_prim_expr
+                            cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_shape_prim_expr
                         ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
-                        asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(
-                            ENV_REGEX_NS=self.env_regex_ns
+                        asset_cfg.camera_cfg.prim_path = cloner.expand_env_regex_ns(
+                            asset_cfg.camera_cfg.prim_path, self._env_fmt
                         )
                     if (
                         hasattr(asset_cfg, "contact_object_prim_path_expr")
                         and asset_cfg.contact_object_prim_path_expr is not None
                     ):
-                        asset_cfg.contact_object_prim_path_expr = asset_cfg.contact_object_prim_path_expr.format(
-                            ENV_REGEX_NS=self.env_regex_ns
+                        asset_cfg.contact_object_prim_path_expr = cloner.expand_env_regex_ns(
+                            asset_cfg.contact_object_prim_path_expr, self._env_fmt
                         )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)

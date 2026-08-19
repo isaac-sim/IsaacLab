@@ -1,6 +1,74 @@
 Changelog
 ---------
 
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
+2.0.4 (2026-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved OVRTX camera-output throughput on Linux. A render var has to be read in an order that
+  respects render completion, and on Linux blocking the calling thread on the render-completion
+  event measures faster than a GPU-side wait. Camera outputs are now read that way on Linux, worth
+  15-70% more end-to-end throughput depending on task and environment count. Other platforms order
+  the read on the consuming Warp stream, which Linux can also be switched to by setting
+  ``ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC=1``. Camera outputs themselves are unchanged.
+
+
+2.0.3 (2026-08-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Constrained the optional OVRTX runtime to ``ovrtx>0.4.0,<0.4.1`` to retain the validated
+  OVRTX 0.4.0 rendering outputs. Users with OVRTX 0.4.1 should downgrade until its output
+  changes are adopted with updated rendering baselines.
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to suppress the OVRTX deprecation warnings
+  emitted for the legacy stage API. Isaac Lab still drives that API until the ovstage path becomes
+  the default, so the warnings were noise no user of this renderer could act on. The option is set
+  only when the installed OVRTX build exposes it, so older wheels are unaffected.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX environment placement by authoring root translations from the clone plan after
+  cloning instead of capturing transforms from the USD stage.
+
+
+2.0.2 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX deformable render bindings leaving the environment slot unresolved, so they
+  bound against a path expression instead of the concrete per-environment mesh prims.
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+
+
 2.0.1 (2026-08-13)
 ~~~~~~~~~~~~~~~~~~
 

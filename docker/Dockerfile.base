@@ -7,9 +7,10 @@
 # Please check the NGC container page for license information.
 
 # Base image
-ARG ISAACSIM_BASE_IMAGE_ARG
-ARG ISAACSIM_VERSION_ARG
+ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
+ARG ISAACSIM_VERSION_ARG=6.0.0
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
+ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
@@ -34,6 +35,8 @@ ENV HOME=${DOCKER_USER_HOME}
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_RETRIES=12
+ENV UV_HTTP_RETRIES=12
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.

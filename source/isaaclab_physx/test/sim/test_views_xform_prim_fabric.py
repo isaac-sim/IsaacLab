@@ -107,7 +107,7 @@ def view_factory(request):
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage)
 
         sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-        view = FrameView("/World/Parent_.*/Child", device=device)
+        view = FrameView("/World/Parent_[^/]*/Child", device=device)
         # close() is idempotent, so this is safe even for tests that close (or
         # tear down) themselves; it keeps views from being reaped by garbage
         # collection, which would log the missing-close() warning per test.
@@ -368,7 +368,7 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
         sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage_usd)
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage_usd)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()
 
     child_attr = view._child_index_attr
@@ -549,7 +549,7 @@ def _build_rotated_parent_view(device: str) -> "FrameView":
     )
     sim_utils.create_prim("/World/Parent_0/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force Fabric init and USD→Fabric seed
     return view
 
@@ -630,7 +630,7 @@ def test_initial_seed_with_scaled_parent(device):
         stage=stage,
     )
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
 
     world_pos, _ = view.get_world_poses()
     torch.testing.assert_close(
@@ -674,8 +674,8 @@ def test_multi_view_writer_isolation(device):
     sim_utils.create_prim("/World/EnvB_0/ChildB", "Camera", translation=(0.2, 0.0, 0.0), stage=stage)
 
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view_a = FrameView("/World/EnvA_.*/ChildA", device=device)
-    view_b = FrameView("/World/EnvB_.*/ChildB", device=device)
+    view_a = FrameView("/World/EnvA_[^/]*/ChildA", device=device)
+    view_b = FrameView("/World/EnvB_[^/]*/ChildB", device=device)
 
     expected_a0 = torch.tensor([[0.1, 0.0, 1.0]], dtype=torch.float32, device=device)
     expected_b0 = torch.tensor([[0.2, 0.0, 2.0]], dtype=torch.float32, device=device)
@@ -829,7 +829,7 @@ def _build_two_child_view(device: str) -> "FrameView":
         )
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force init
     return view
 

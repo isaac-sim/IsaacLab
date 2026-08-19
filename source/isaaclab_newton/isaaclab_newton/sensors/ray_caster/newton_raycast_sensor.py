@@ -14,6 +14,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
@@ -63,10 +64,16 @@ def _gather_pose_by_index_kernel(
     quat_dst[index] = quat_src[source_index]
 
 
+# the clone slot, spelled the way every other destination expression spells it, so patterns
+# built here compare equal to ones built from the destination template.
+_ENV_SLOT_NS = DEFAULT_ENV_TEMPLATE.format("[^/]+")
+_CONCRETE_ENV_NS = re.compile(rf"^{re.escape(DEFAULT_ENV_TEMPLATE.format(''))}\d+/")
+
+
 def _newton_body_pattern(body_path: str) -> str:
     """Convert a concrete environment index to a prototype body pattern."""
-    body_path = body_path.replace("{}", ".*")
-    return re.sub(r"^(/World/envs/)env_\d+/", r"\1env_.*/", body_path)
+    body_path = body_path.replace("{}", "[^/]+")
+    return _CONCRETE_ENV_NS.sub(_ENV_SLOT_NS + "/", body_path)
 
 
 def _identity_offsets(count: int, device: str) -> tuple[wp.array, wp.array]:
@@ -95,8 +102,8 @@ class _NewtonRayCasterPoseMixin:
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         if plan is not None:
             for destination_template in plan.destinations:
-                destination_prefix, _ = cloner.path.split(destination_template)
-                if prim_expr.startswith(destination_prefix) and "/" not in prim_expr[len(destination_prefix) :]:
+                matched = cloner.path.match(prim_expr, destination_template)
+                if matched is not None and not matched.suffix:
                     return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
 
         try:
@@ -105,8 +112,9 @@ class _NewtonRayCasterPoseMixin:
             # Preserve support for sensor paths registered before their USD prim
             # exists. Known camera/raycaster child names attach to their parent.
             body_expr = prim_expr
-            if prim_expr.rsplit("/", 1)[-1].lower() in ("camera", "raycaster"):
-                body_expr = prim_expr.rsplit("/", 1)[0]
+            *parent_segments, leaf_segment = sim_utils.split_path_expr(prim_expr)
+            if leaf_segment.lower() in ("camera", "raycaster"):
+                body_expr = "/".join(parent_segments)
             fixed_pos = None
             fixed_quat = None
 

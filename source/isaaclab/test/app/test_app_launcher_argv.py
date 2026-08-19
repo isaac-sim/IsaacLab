@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from isaaclab.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 def test_sanitize_sys_argv_removes_trailing_pytest_verbosity(monkeypatch):
@@ -40,50 +41,101 @@ def test_sanitize_sys_argv_removes_pytest_marker_pair(monkeypatch):
     assert result == ["test_script.py", "--keep"]
 
 
-def _resolve_device(launcher_args: dict) -> dict:
-    """Run device resolution without constructing an ``AppLauncher``."""
+def _resolve_devices_and_kit_args(launcher_args: dict, monkeypatch) -> tuple[dict, list[str]]:
+    """Resolve device settings and Kit arguments without constructing an ``AppLauncher``.
+
+    ``_resolve_kit_args`` extends ``sys.argv``, so the caller's argv is isolated.
+    """
+    monkeypatch.setattr(sys, "argv", ["script.py"])
     launcher = AppLauncher.__new__(AppLauncher)
     launcher.device_id = 0
     launcher._deferred_cuda_device_id = None
     launcher._xr = False
     AppLauncher._resolve_device_settings(launcher, launcher_args)
-    return launcher_args
+    AppLauncher._resolve_kit_args(launcher, launcher_args)
+    return launcher_args, launcher._kit_args
 
 
-def test_renderer_device_selected_by_cuda_index():
-    """Select the renderer device through the CUDA-indexed setting."""
-    args = _resolve_device({"device": "cuda:1"})
+@pytest.mark.parametrize(
+    ("launcher_args", "expected_renderer_args"),
+    [
+        pytest.param(
+            {"device": "cuda:1", "multi_gpu": False},
+            ["--/renderer/multiGpu/activeCudaGpus=1,"],
+            id="single-gpu",
+        ),
+        pytest.param(
+            {"device": "cuda:1", "multi_gpu": False, "kit_args": "--/renderer/multiGpu/activeCudaGpus=3,"},
+            ["--/renderer/multiGpu/activeCudaGpus=3,"],
+            id="explicit-kit-arg",
+        ),
+        pytest.param({"device": "cuda:1"}, [], id="multi-gpu"),
+    ],
+)
+def test_devices_selected_by_cuda_index(launcher_args, expected_renderer_args, monkeypatch):
+    """Select physics and single-GPU rendering devices by CUDA index."""
+    args, kit_args = _resolve_devices_and_kit_args(launcher_args, monkeypatch)
 
-    assert "--/renderer/multiGpu/activeCudaGpus=1," in args["extra_args"]
-
-
-def test_active_gpu_is_left_unset():
-    """Leave ``activeGpu`` unset: the renderer only applies the CUDA translation without it."""
-    args = _resolve_device({"device": "cuda:1"})
-
-    assert args.get("active_gpu") is None
-
-
-def test_physics_keeps_the_cuda_index():
-    """Keep the CUDA index for physics, which CUDA resolves itself."""
-    args = _resolve_device({"device": "cuda:1"})
-
+    renderer_args = [arg for arg in kit_args if arg.startswith("--/renderer/multiGpu/activeCudaGpus=")]
+    assert renderer_args == expected_renderer_args
     assert args["physics_gpu"] == 1
+    assert "active_gpu" not in args
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cuda:3"])
-def test_cuda_index_setting_is_comma_terminated(device):
-    """Terminate the value with a comma: a bare integer is silently ignored by the renderer."""
-    args = _resolve_device({"device": device})
+@pytest.mark.parametrize(
+    ("launcher_state", "expected_enabled"),
+    [
+        pytest.param({}, False, id="headless-training"),
+        pytest.param({"_cfg_has_kit_visualizer": True}, True, id="config-kit-visualizer"),
+        pytest.param(
+            {"_cli_visualizer_explicit": True, "_cli_visualizer_types": ["kit"]},
+            True,
+            id="cli-kit-visualizer",
+        ),
+        pytest.param({"_render_viewport": True}, True, id="viewport"),
+        pytest.param(
+            {
+                "_cfg_has_kit_visualizer": True,
+                "_cli_visualizer_explicit": True,
+                "_cli_visualizer_types": ["rerun"],
+            },
+            False,
+            id="cli-non-kit-overrides-config",
+        ),
+        pytest.param({"_video_enabled": True}, True, id="video"),
+        pytest.param({"_livestream": 1}, True, id="livestream"),
+        pytest.param({"_xr": True}, True, id="xr"),
+    ],
+)
+def test_spectator_view_follows_visual_output_intent(launcher_state, expected_enabled, monkeypatch):
+    """Enable all-partitions spectator mode only for visual output paths."""
+    monkeypatch.setattr(sys, "argv", ["script.py"])
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._cli_visualizer_explicit = False
+    launcher._cli_visualizer_types = []
+    launcher._cfg_has_kit_visualizer = False
+    launcher._render_viewport = False
+    launcher._video_enabled = False
+    launcher._livestream = 0
+    launcher._xr = False
+    for name, value in launcher_state.items():
+        setattr(launcher, name, value)
 
-    cuda_gpu_args = [arg for arg in args["extra_args"] if "activeCudaGpus" in arg]
-    assert len(cuda_gpu_args) == 1
-    assert cuda_gpu_args[0].endswith(",")
+    launcher._resolve_kit_args({})
+
+    spectator_arg = f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true"
+    assert (spectator_arg in launcher._kit_args) is expected_enabled
 
 
-def test_user_extra_args_are_preserved():
-    """Append to caller-provided ``extra_args`` rather than replacing them."""
-    args = _resolve_device({"device": "cuda:0", "extra_args": ["--/app/fastShutdown=False"]})
+def test_explicit_spectator_setting_overrides_visualizer_default(monkeypatch):
+    """Preserve an explicit Kit setting when a Kit visualizer is requested."""
+    monkeypatch.setattr(sys, "argv", ["script.py"])
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._cli_visualizer_explicit = True
+    launcher._cli_visualizer_types = ["kit"]
+    explicit_arg = f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=false"
 
-    assert "--/app/fastShutdown=False" in args["extra_args"]
-    assert any("activeCudaGpus" in arg for arg in args["extra_args"])
+    launcher._resolve_kit_args({"kit_args": explicit_arg})
+
+    assert explicit_arg in launcher._kit_args
+    assert f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true" not in launcher._kit_args
