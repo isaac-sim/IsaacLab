@@ -77,14 +77,14 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
             # https://github.com/RobotLocomotion/models/blob/master/iiwa_description/sdf/iiwa7_no_collision.sdf
             # https://www.wonikrobotics.com/robot-hand
             # https://github.com/RobotLocomotion/models/blob/master/allegro_hand_description/sdf/allegro_hand_description_right.sdf
-            effort_limit_sim={
+            joint_effort_limit={
                 "iiwa7_joint_(1|2)": 176.0,
                 "iiwa7_joint_(3|4|5)": 110.0,
                 "iiwa7_joint_(6|7)": 40.0,
                 "(index|middle|ring|thumb)_joint_(0|1|2|3)": 0.7,
             },
-            # motor velocity limits for mdp checking — deliberately NOT velocity_limit_sim.
-            velocity_limit={
+            # motor velocity limits for mdp checking — deliberately NOT joint_velocity_limit.
+            actuator_velocity_limit={
                 "iiwa7_joint_(1|2)": 1.7104,
                 "iiwa7_joint_3": 1.7453,
                 "iiwa7_joint_4": 2.2689,
