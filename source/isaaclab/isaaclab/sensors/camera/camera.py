@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -226,17 +227,24 @@ class Camera(SensorBase):
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
 
-    def __del__(self):
-        """Unsubscribes from callbacks and cleans up renderer resources."""
+    def __del__(self, _sys=sys):
+        """Unsubscribes from callbacks and cleans up renderer resources.
+
+        Skips cleanup during interpreter shutdown so destructor-time imports or renderer teardown
+        cannot raise ``ImportError: sys.meta_path is None`` and mask the original exception.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         # unsubscribe callbacks
         super().__del__()
-        # release the frame view's backend state
-        if self._view is not None:
+
+        # release the frame view's backend state, getattr covers partial initialization
+        if getattr(self, "_view", None) is not None:
             self._view.close()
             self._view = None
         # cleanup render resources (renderer may be None if never initialized)
-        if self._renderer is not None:
-            self._renderer.cleanup(self._render_data)
+        if getattr(self, "_renderer", None) is not None:
+            self._renderer.cleanup(getattr(self, "_render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
