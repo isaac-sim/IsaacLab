@@ -22,7 +22,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
-from task_discovery import discover_tasks
+
+# ``is_training_task`` is re-exported for callers that import it from here.
+from task_discovery import RL_LIBRARY_PRIORITY, discover_tasks, is_training_task  # noqa: F401
 
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
@@ -48,13 +50,9 @@ _BACKEND_MIRROR_NAMES = frozenset(
     }
 )
 
-# RL libraries listed in a stable order across generated docs.
-_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
-
-# Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
-# evaluation variants (e.g. ``IsaacContrib-Assemble-Trocar-G129-Dex3-Eval``, an alias
-# registered for RLinf eval configs) that should not appear as their own training row.
-_EVAL_TASK_SUFFIXES = ("-Eval",)
+# RL libraries listed in a stable order across generated docs. Owned by
+# ``task_discovery`` so the tables and the task matrix cannot drift apart.
+_RL_LIBRARY_ORDER = RL_LIBRARY_PRIORITY
 
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
@@ -115,17 +113,6 @@ def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetT
         return WarpFrontend.check_compatibility(cfg) is None
     except (ImportError, gym.error.Error):
         return False
-
-
-def is_training_task(task_id: str) -> bool:
-    """Return ``True`` when *task_id* is a training (non-inference) Isaac task."""
-    if "Isaac" not in task_id:
-        return False
-    if any(task_id.endswith(suffix) for suffix in _EVAL_TASK_SUFFIXES):
-        return False
-    if "-Benchmark-" in task_id:
-        return False
-    return True
 
 
 def parse_rl_libraries_from_kwargs(kwargs: dict) -> dict[str, list[str]]:
