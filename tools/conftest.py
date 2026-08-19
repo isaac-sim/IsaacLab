@@ -143,12 +143,12 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1):
     return stdout_chunk, stderr_chunk
 
 
-def _dump_hung_process_stacks(process, stdout_fd, stderr_fd):
+def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
     """Ask a hung process for a stack of every thread, and collect what it writes.
 
     Sends :data:`hang_dump.DUMP_SIGNAL`, which ``tools/hang_dump.py`` registers with ``faulthandler`` in the
     test process.  See that module for why the dump cannot be triggered with ``SIGTERM``, ``SIGABRT``, or a
-    Python-level :mod:`signal` handler.
+    Python-level :mod:`signal` handler, and why it lands in a file rather than on the process's stderr.
 
     The signal goes to the test process itself rather than its group.  The handler is registered there, and
     a standalone script the test launched as a grandchild has no handler -- ``SIGUSR1`` would simply kill it,
@@ -158,35 +158,38 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd):
         process: The hung child.
         stdout_fd: Read end of the child's stdout, already non-blocking.
         stderr_fd: Read end of the child's stderr, already non-blocking.
+        env: Environment the child was started with, read for the dump file it was told to write.
 
     Returns:
         Tuple of ``(dump_section, stdout_bytes, stderr_bytes)``.  *dump_section* is a report section, or
         ``""`` when the process wrote nothing -- the case when it is wedged somewhere the signal cannot be
-        delivered, or died before it could answer.  The byte strings are whatever the child wrote while being
-        dumped, and belong in the captured streams either way.
+        delivered, or died before it could answer.  The byte strings are whatever the child wrote to its own
+        streams while being dumped, and belong in the captured output either way.
     """
     stdout_data = b""
     stderr_data = b""
     dumps = []
 
-    if hang_dump.DUMP_SIGNAL is None:
+    dump_file = env.get(hang_dump.DUMP_PATH_ENV_VAR, "")
+    if hang_dump.DUMP_SIGNAL is None or not dump_file:
         return "", stdout_data, stderr_data
 
     for _ in range(HANG_DUMP_PASSES):
+        # Only this pass's share of the file is the dump it asked for.
+        start = hang_dump.size(dump_file)
         try:
             os.kill(process.pid, hang_dump.DUMP_SIGNAL)
         except OSError:
             break
 
-        # faulthandler writes the dump to the child's stderr, so that is the stream it arrives on.
-        dumped = b""
+        # Keep draining while the handler runs, so a full pipe cannot be what stops it answering.
         deadline = time.time() + HANG_DUMP_GRACE
         while time.time() < deadline:
             stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
             stdout_data += stdout_chunk
             stderr_data += stderr_chunk
-            dumped += stderr_chunk
-        if dumped:
+
+        if dumped := hang_dump.read_since(dump_file, start):
             dumps.append(dumped)
         # exit early if the process died
         if process.poll() is not None:
@@ -195,10 +198,7 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd):
     if not dumps:
         return "", stdout_data, stderr_data
 
-    body = "\n".join(
-        f"----- dump {index} of {len(dumps)} -----\n{dump.decode('utf-8', errors='replace')}"
-        for index, dump in enumerate(dumps, start=1)
-    )
+    body = "\n".join(f"----- dump {index} of {len(dumps)} -----\n{dump}" for index, dump in enumerate(dumps, start=1))
     section = f"=== HANG STACK DUMP (all threads) ===\n{body}"
     if len(section) > HANG_DUMP_LIMIT_BYTES:
         section = section[:HANG_DUMP_LIMIT_BYTES] + "\n... (truncated)"
@@ -284,7 +284,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
 
                 # Ask the process where it is stuck before killing it -- SIGKILL below cannot be caught,
                 # so this is the only chance to get a stack out of it.
-                hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(process, stdout_fd, stderr_fd)
+                hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env)
                 stdout_data += dump_stdout
                 stderr_data += dump_stderr
                 if hang_stacks:
@@ -692,9 +692,11 @@ def _retry_failed_test_in_fresh_process(
             f"⚠️  {test_file}: failed in subprocess"
             f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
         )
-        # The renderer log goes too: a retry that dies has its log quoted in the rebuilt report, and a
-        # leftover from the previous attempt would be attributed to this one.
-        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+        # The renderer log and hang dump go too: a retry that dies has both quoted in the rebuilt report,
+        # and a leftover from the previous attempt would be attributed to this one.
+        for stale_file in (report_file, journal_file, env.get(hang_dump.DUMP_PATH_ENV_VAR, ""), ovrtx_log.LOG_PATH):
+            if not stale_file:
+                continue
             with contextlib.suppress(FileNotFoundError):
                 os.remove(stale_file)
 
@@ -884,7 +886,11 @@ def _run_one_pass(
     # pytest creates the report directory in ``pytest_sessionfinish``, which a crashed run never
     # reaches; without this the journal's first write fails and ``_journal_write`` swallows it.
     os.makedirs(os.path.dirname(journal_file), exist_ok=True)
-    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file}
+    # Absolute for the same reason, and a file rather than the process's stderr because pytest captures
+    # at the fd level: a dump written to fd 2 is discarded with the rest of the captured output when the
+    # process is killed, which is the only case it is ever written in.
+    hang_dump_file = os.path.abspath(f"tests/test-hangdump-{report_slug}{suffix}.log")
+    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file, hang_dump.DUMP_PATH_ENV_VAR: hang_dump_file}
 
     cmd = [
         sys.executable,
@@ -916,7 +922,7 @@ def _run_one_pass(
     while True:
         # Clear the renderer log too: read after the subprocess dies, it is the only renderer output a
         # crash, hang, or timeout reports, and a leftover would be attributed to the wrong run.
-        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+        for stale_file in (report_file, journal_file, hang_dump_file, ovrtx_log.LOG_PATH):
             with contextlib.suppress(FileNotFoundError):
                 os.remove(stale_file)
 

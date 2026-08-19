@@ -24,9 +24,17 @@ Two constraints decide which signal that can be:
 through :func:`faulthandler.register` rather than :mod:`signal`. That installs a C-level handler which walks
 every thread and writes to a file descriptor from inside the handler, so it reports a process whose GIL is
 held by a native call that will never release it.
+
+The dump goes to a *file*, not to stderr, for the same reason ``tools/ovrtx_log.py`` keeps the renderer log
+in one: pytest captures at the file-descriptor level, so it has already pointed fd 2 at a temporary file of
+its own by the time this plugin loads. A dump written there is discarded with the rest of the captured output
+when the process is ``SIGKILL``ed, which is exactly the case this module exists to report. Writing to a file
+this module owns puts the dump somewhere pytest does not redirect and the runner can read after the process
+is gone.
 """
 
 import faulthandler
+import os
 import signal
 import sys
 
@@ -36,29 +44,78 @@ DUMP_SIGNAL = getattr(signal, "SIGUSR1", None)
 ``None`` off POSIX. ``tools/conftest.py`` reads this so the sender and the receiver cannot disagree.
 """
 
+DUMP_PATH_ENV_VAR = "ISAACLAB_HANG_DUMP"
+"""Environment variable naming the file stacks are dumped to. Unset (the default) disables dumping.
+
+The runner sets it per test file, mirroring the crash journal's ``ISAACLAB_TEST_JOURNAL``. Leaving it unset
+outside CI keeps a local ``pytest`` run from registering a handler nothing will ever signal.
+"""
+
+_dump_file = None
+"""Open handle for the dump file, held for the process lifetime.
+
+``faulthandler`` keeps the file *descriptor*, not the object, so dropping this reference would close the fd
+out from under the handler and the dump would go nowhere.
+"""
+
 
 def is_supported():
     """Return whether this process can register the dump handler.
 
-    :func:`faulthandler.register` and ``SIGUSR1`` are both POSIX-only, and ``sys.__stderr__`` is ``None``
-    when the interpreter starts without a real stderr.
+    :func:`faulthandler.register` and ``SIGUSR1`` are both POSIX-only.
     """
-    return DUMP_SIGNAL is not None and hasattr(faulthandler, "register") and sys.__stderr__ is not None
+    return DUMP_SIGNAL is not None and hasattr(faulthandler, "register")
+
+
+def dump_path():
+    """Return the configured dump file, or ``""`` when dumping is disabled."""
+    return os.environ.get(DUMP_PATH_ENV_VAR, "")
+
+
+def size(path):
+    """Return the size of ``path`` in bytes, or 0 when it does not exist yet."""
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
+def read_since(path, start):
+    """Return the text appended to ``path`` after ``start`` bytes.
+
+    Args:
+        path: Dump file to read.
+        start: Offset the read begins at. A file shorter than this was rewritten, so the offset no longer
+            describes its contents and the whole file is read instead.
+
+    Returns:
+        The appended text, or ``""`` when there is none -- the case when the process never answered.
+    """
+    if size(path) < start:
+        start = 0
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(start)
+            return handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
 
 
 def register():
-    """Install the dump handler, and return whether it was installed.
-
-    The dump is written to ``sys.__stderr__`` rather than :data:`sys.stderr` so it survives pytest's capture
-    and lands on the pipe the runner is already draining -- the same reason ``AppLauncher`` prints its startup
-    marker there.
-    """
-    if not is_supported():
+    """Install the dump handler, and return whether it was installed."""
+    global _dump_file
+    path = dump_path()
+    if not path or not is_supported():
         return False
-    faulthandler.register(DUMP_SIGNAL, file=sys.__stderr__, all_threads=True, chain=False)
+    try:
+        _dump_file = open(path, "w")  # noqa: SIM115  (held open for the process lifetime, see above)
+    except OSError:
+        return False
+    faulthandler.register(DUMP_SIGNAL, file=_dump_file, all_threads=True, chain=False)
     return True
 
 
 def pytest_configure(config):
     """Register the handler before any test imports Kit, so a startup hang is reportable too."""
-    register()
+    if not register() and dump_path():
+        print(f"[ISAACLAB] hang stack dumps unavailable on {sys.platform}", file=sys.__stderr__, flush=True)

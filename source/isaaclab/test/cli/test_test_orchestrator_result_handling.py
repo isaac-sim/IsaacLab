@@ -499,21 +499,25 @@ def test_result_summary_includes_fast_failure_after_thirty_slower_files():
     assert all(test_path in summary for test_path in test_files)
 
 
-def _write_hanging_script(tmp_path: Path) -> Path:
-    """Write a script that registers the dump handler and then blocks forever."""
-    script = tmp_path / "hangs.py"
-    script.write_text(
-        "import sys, threading\n"
-        f"sys.path.insert(0, {str(TOOLS_DIR)!r})\n"
-        "import hang_dump\n"
-        "hang_dump.register()\n"
-        "print('collected 1 item', flush=True)\n"
-        "def wedged_call():\n"
-        "    threading.Event().wait()\n"
-        "wedged_call()\n",
+def _hanging_pytest_run(tmp_path: Path) -> tuple[list[str], dict[str, str]]:
+    """Return the command and environment for a hung *pytest* process.
+
+    The child has to be pytest, not a bare script. pytest captures at the file-descriptor level, so it has
+    already redirected fd 2 by the time a test runs; a dump written there is discarded when the process is
+    killed. A bare script has no such capture and would pass whether or not the dump reaches a file.
+    """
+    test_file = tmp_path / "test_wedges.py"
+    test_file.write_text(
+        "import threading\n\n\ndef test_wedges():\n    wedged_call()\n\n\ndef wedged_call():\n"
+        "    threading.Event().wait()\n",
         encoding="utf-8",
     )
-    return script
+    env = os.environ.copy()
+    # `-p hang_dump` needs tools/ importable; the orchestrator gets this from the repo-root conftest.
+    env["PYTHONPATH"] = str(TOOLS_DIR) + os.pathsep + env.get("PYTHONPATH", "")
+    env["ISAACLAB_HANG_DUMP"] = str(tmp_path / "hangdump.log")
+    cmd = [sys.executable, "-m", "pytest", "-p", "hang_dump", "-p", "no:cacheprovider", str(test_file)]
+    return cmd, env
 
 
 @posix_only
@@ -530,10 +534,9 @@ def test_hung_process_report_names_where_it_is_stuck(monkeypatch, tmp_path: Path
     # missing stack rather than on the missing constant.
     monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
 
+    cmd, env = _hanging_pytest_run(tmp_path)
     _returncode, _stdout, _stderr, kill_reason, _wall_time, pre_kill_diag = (
-        orchestrator.capture_test_output_with_timeout(
-            [sys.executable, str(_write_hanging_script(tmp_path))], timeout=2, env=os.environ.copy()
-        )
+        orchestrator.capture_test_output_with_timeout(cmd, timeout=15, env=env)
     )
 
     assert kill_reason == "timeout"
@@ -550,9 +553,8 @@ def test_hung_process_is_dumped_more_than_once(monkeypatch, tmp_path: Path) -> N
     # missing stack rather than on the missing constant.
     monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
 
-    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(
-        [sys.executable, str(_write_hanging_script(tmp_path))], timeout=2, env=os.environ.copy()
-    )
+    cmd, env = _hanging_pytest_run(tmp_path)
+    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(cmd, timeout=15, env=env)
 
     assert pre_kill_diag.count("----- dump ") > 1
 
@@ -566,9 +568,8 @@ def test_hang_dump_precedes_system_diagnostics(monkeypatch, tmp_path: Path) -> N
     # missing stack rather than on the missing constant.
     monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
 
-    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(
-        [sys.executable, str(_write_hanging_script(tmp_path))], timeout=2, env=os.environ.copy()
-    )
+    cmd, env = _hanging_pytest_run(tmp_path)
+    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(cmd, timeout=15, env=env)
 
     assert "HANG STACK DUMP" in pre_kill_diag
     assert pre_kill_diag.index("HANG STACK DUMP") < pre_kill_diag.index("SYSTEM DIAGNOSTICS BODY")
