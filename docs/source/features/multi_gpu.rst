@@ -152,17 +152,47 @@ Run each benchmark with the same launcher options used by ``train-multigpu``:
       --rl_library rsl_rl --num_gpus 2 \
       --task Isaac-Cartpole --num_envs 4096 --max_iterations 100
 
-``training-multigpu`` supports RSL-RL, RL-Games, and skrl with PyTorch. The
-startup and runtime results describe rank 0 under full-node contention; they are
-not aggregate throughput. The training result is global because all ranks train
-in lockstep.
+``training-multigpu`` supports RSL-RL, RL-Games, and skrl with PyTorch. It does
+not support skrl with JAX or SB3. It also rejects ``--video``,
+``--capture_env_sensors``, and ``--check_success``, which do not produce a
+meaningful aggregate result across ranks.
+
+For multi-node benchmarks, pass the same ``--nnodes``, ``--node_rank``, and
+rendezvous options described in :ref:`multi-node-training` on every node.
+
+Read multi-GPU benchmark results
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Only global rank 0 writes a result bundle. The ``extra`` fields record the rank
+layout and clarify which measurements the bundle covers:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - ``extra`` field
+     - Meaning
+   * - ``world_size``, ``local_world_size``, ``num_nodes``
+     - Rank layout of the job.
+   * - ``num_envs_per_rank``
+     - Environments hosted by each rank.
+   * - ``workload_scope``
+     - ``global`` for ``training-multigpu`` because ranks train in lockstep.
+       ``rank0`` for ``startup-multigpu`` and ``runtime-multigpu`` because each
+       rank runs independently and only rank 0 is measured.
+   * - ``measurement_scope``
+     - ``rank0_process``: timings, learning curves, CPU, and RAM come from rank
+       0 alone.
+   * - ``gpu_measurement_scope``
+     - ``rank0_node``: ``resources.devices`` reports every GPU visible to rank
+       0. GPU utilization and memory values remain scoped to rank 0's device.
 
 When comparing one GPU with multiple GPUs, keep ``--num_envs`` constant **per
-rank** and compare global training throughput. An N-GPU job processes N times as
-many environments as the one-GPU job at the same per-rank setting.
-
-See :ref:`testing_benchmarks_multigpu` for output fields, measurement scope, and
-comparison guidance.
+rank**. An N-GPU job processes N times as many environments as the one-GPU job
+at the same per-rank setting. Compare the global throughput of
+``training-multigpu`` against N times the single-GPU throughput. Do not treat
+``startup-multigpu`` or ``runtime-multigpu`` as aggregate rates; they measure
+rank 0 while the other ranks create host contention.
 
 How multi-GPU training works
 ----------------------------
@@ -219,6 +249,8 @@ redirection:
 
 The log filtering options apply to PyTorch workflows. skrl with JAX writes every
 rank to the console.
+
+.. _multi-node-training:
 
 Train across multiple nodes
 ---------------------------

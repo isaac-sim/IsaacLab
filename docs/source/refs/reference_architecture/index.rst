@@ -294,7 +294,9 @@ Multi-GPU and Multi-Node Training
     :alt: Multi GPU Training Data Flow
 
 
-Isaac Lab supports scaling up training by taking advantage of multi-GPU and multi-node training on Linux. Follow the tutorial on `Multi-GPU training <https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-gpu-training>`__ and `Multi-Node training <https://isaac-sim.github.io/IsaacLab/main/source/features/multi_gpu.html#multi-node-training>`__ to get started.
+Isaac Lab supports multi-GPU and multi-node training on Linux. See
+:ref:`train-multigpu-command` for the supported launcher, scaling benchmarks,
+and multi-node setup.
 
 
 Cloud-Based Training
