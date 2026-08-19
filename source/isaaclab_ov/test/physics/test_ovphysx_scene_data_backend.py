@@ -455,6 +455,7 @@ def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
 
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     """The manager owns OVStage from population through PhysX release."""
+    import isaaclab_ov.physics.ovphysx_manager as om_mod
     from isaaclab_ov.physics import OvPhysxManager
 
     events = []
@@ -491,7 +492,6 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
             events.append(("release",))
 
     fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.Stage = FakeStage
     fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
     fake_ovstage.population = SimpleNamespace(
         open_usd_from_string=lambda stage, usda, ordinal, domains: events.append(
@@ -499,6 +499,9 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         )
     )
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+    # The manager builds its stage through the shared helper so every stage in the process gets
+    # the same ovstage configuration; that is the seam to fake, not ``ovstage.Stage``.
+    monkeypatch.setattr(om_mod, "create_ovstage", FakeStage)
 
     previous_physx = OvPhysxManager._physx
     previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
@@ -535,6 +538,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     """A failed in-memory population does not leak its OVStage allocation."""
+    import isaaclab_ov.physics.ovphysx_manager as om_mod
     from isaaclab_ov.physics import OvPhysxManager
 
     destroyed = []
@@ -550,10 +554,10 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
         raise RuntimeError("population failed")
 
     fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.Stage = FakeStage
     fake_ovstage.PopulationDomain = SimpleNamespace(ALL="all")
     fake_ovstage.population = SimpleNamespace(open_usd_from_string=fail_population)
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+    monkeypatch.setattr(om_mod, "create_ovstage", FakeStage)
 
     previous_ovstage = getattr(OvPhysxManager, "_ovstage", None)
     OvPhysxManager._ovstage = None
