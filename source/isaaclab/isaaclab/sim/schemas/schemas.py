@@ -525,11 +525,8 @@ def modify_articulation_root_properties(
     # apply per-field exceptions + main-namespace writes
     _apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
-    # backward-compat shim: the deprecated PhysX-only 'enabled_self_collisions' field (present only
-    # on ArticulationRootPropertiesCfg / PhysxArticulationRootPropertiesCfg) only authors
-    # 'physxArticulation:enabledSelfCollisions'. Newton's schema resolver checks the native
-    # 'newton:selfCollisionEnabled' attribute first and only falls back to the PhysX attribute when
-    # the newton-native one is unauthored, so mirror the value there too.
+    # backward-compat shim: mirror the deprecated PhysX-only 'enabled_self_collisions' onto
+    # 'newton:selfCollisionEnabled', which Newton checks before falling back to the PhysX attribute.
     enabled_self_collisions = cfg_dict.get("enabled_self_collisions")
     if enabled_self_collisions is not None:
         if "NewtonArticulationRootAPI" not in articulation_prim.GetAppliedSchemas():
