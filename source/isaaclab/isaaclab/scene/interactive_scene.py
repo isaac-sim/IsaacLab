@@ -34,8 +34,8 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 
@@ -200,7 +200,12 @@ class InteractiveScene:
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()
 
-        self._aggregate_scene_data_requirements(requested_viz_types)
+        # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
+        cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
+        for type_name in requested_viz_types.union(cam_types):
+            requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
+            self.sim.requires_usd_stage |= requires_stage
+            self.sim.requires_newton_model |= requires_model
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
@@ -245,30 +250,6 @@ class InteractiveScene:
         else:
             self._clone_valid_set = None
         return cfgs
-
-    def _aggregate_scene_data_requirements(self, visualizer_types=()) -> None:
-        """Aggregate scene-data requirements from visualizers and sensor renderers.
-
-        Runs once after :meth:`_add_entities_from_cfg` so all sensors are constructed and
-        their renderer types are visible. Pushes the merged :class:`SceneDataRequirement` to
-        :class:`SimulationContext` for later consumption by the scene data provider.
-        """
-        discovered_req = resolve_scene_data_requirements(
-            visualizer_types=visualizer_types,
-            renderer_types=self._sensor_renderer_types(),
-        )
-        current_req = self.sim.get_scene_data_requirements()
-        requirements = aggregate_requirements((current_req, discovered_req))
-        if requirements != current_req:
-            self.sim.update_scene_data_requirements(requirements)
-
-    def _sensor_renderer_types(self) -> list[str]:
-        """Return renderer type names used by scene sensors (skipping any without a renderer cfg)."""
-        return [
-            getattr(rcfg, "renderer_type", "default")
-            for s in self._sensors.values()
-            if (rcfg := getattr(getattr(s, "cfg", None), "renderer_cfg", None)) is not None
-        ]
 
     def initialize_renderers(self) -> list[BaseRenderer]:
         """Pre-create renderer backends for all scene sensors with a ``renderer_cfg``.

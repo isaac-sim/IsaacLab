@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
 2.0.4 (2026-08-18)
 ~~~~~~~~~~~~~~~~~~
 

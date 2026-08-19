@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+16.5.1 (2026-08-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Made ``IsaacContrib-Franka-Pour`` download its canonical reset artifact from
+  the standard Isaac Lab asset root.
+
+
 16.5.0 (2026-08-18)
 ~~~~~~~~~~~~~~~~~~~
 
