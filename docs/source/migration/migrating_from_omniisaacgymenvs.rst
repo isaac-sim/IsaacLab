@@ -661,33 +661,33 @@ Note that resets are no longer performed in the ``pre_physics_step`` API. In add
 ``_pre_physics_step`` and ``_apply_action`` methods allow for more flexibility in processing the action buffer
 and setting actions into simulation.
 
-+------------------------------------------------------------------+-------------------------------------------------------------+
-| OmniIsaacGymEnvs                                                 | IsaacLab                                                    |
-+------------------------------------------------------------------+-------------------------------------------------------------+
-|.. code-block:: python                                            |.. code-block:: python                                       |
-|                                                                  |                                                             |
-| def pre_physics_step(self, actions) -> None:                     | def _pre_physics_step(self,                                 |
-|     if not self.world.is_playing():                              |         actions: torch.Tensor) -> None:                     |
-|         return                                                   |     self.actions = self.action_scale * actions              |
-|                                                                  |                                                             |
-|     reset_env_ids = self.reset_buf.nonzero(                      | def _apply_action(self) -> None:                            |
-|         as_tuple=False).squeeze(-1)                              |     self.cartpole.actuators.target_command.set_effort_index(       |
-|     if len(reset_env_ids) > 0:                                   |         value=self.actions, joint_ids=self._cart_dof_idx)   |
-|         self.reset_idx(reset_env_ids)                            |                                                             |
-|                                                                  |                                                             |
-|     actions = actions.to(self._device)                           |                                                             |
-|                                                                  |                                                             |
-|     forces = torch.zeros((self._cartpoles.count,                 |                                                             |
-|         self._cartpoles.num_dof),                                |                                                             |
-|         dtype=torch.float32, device=self._device)                |                                                             |
-|     forces[:, self._cart_dof_idx] =                              |                                                             |
-|         self._max_push_effort * actions[:, 0]                    |                                                             |
-|                                                                  |                                                             |
-|     indices = torch.arange(self._cartpoles.count,                |                                                             |
-|         dtype=torch.int32, device=self._device)                  |                                                             |
-|     self._cartpoles.set_joint_efforts(                           |                                                             |
-|         forces, indices=indices)                                 |                                                             |
-+------------------------------------------------------------------+-------------------------------------------------------------+
++---------------------------------------------------+--------------------------------------------------------------+
+| OmniIsaacGymEnvs                                  | IsaacLab                                                     |
++---------------------------------------------------+--------------------------------------------------------------+
+|.. code-block:: python                             |.. code-block:: python                                        |
+|                                                   |                                                              |
+| def pre_physics_step(self, actions) -> None:      | def _pre_physics_step(self,                                  |
+|     if not self.world.is_playing():               |         actions: torch.Tensor) -> None:                      |
+|         return                                    |     self.actions = self.action_scale * actions               |
+|                                                   |                                                              |
+|     reset_env_ids = self.reset_buf.nonzero(       | def _apply_action(self) -> None:                             |
+|         as_tuple=False).squeeze(-1)               |     self.cartpole.actuators.target_command.set_effort_index( |
+|     if len(reset_env_ids) > 0:                    |         value=self.actions, joint_ids=self._cart_dof_idx)    |
+|         self.reset_idx(reset_env_ids)             |                                                              |
+|                                                   |                                                              |
+|     actions = actions.to(self._device)            |                                                              |
+|                                                   |                                                              |
+|     forces = torch.zeros((self._cartpoles.count,  |                                                              |
+|         self._cartpoles.num_dof),                 |                                                              |
+|         dtype=torch.float32, device=self._device) |                                                              |
+|     forces[:, self._cart_dof_idx] =               |                                                              |
+|         self._max_push_effort * actions[:, 0]     |                                                              |
+|                                                   |                                                              |
+|     indices = torch.arange(self._cartpoles.count, |                                                              |
+|         dtype=torch.int32, device=self._device)   |                                                              |
+|     self._cartpoles.set_joint_efforts(            |                                                              |
+|         forces, indices=indices)                  |                                                              |
++---------------------------------------------------+--------------------------------------------------------------+
 
 
 Dones and Resets

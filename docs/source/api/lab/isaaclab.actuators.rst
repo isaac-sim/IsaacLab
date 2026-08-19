@@ -13,7 +13,6 @@
     ActuatorCollection
     ActuatorControl
     ActuatorOutputCommand
-    ActuatorJointProperties
     ImplicitActuator
     ImplicitActuatorCfg
     IdealPDActuator
@@ -68,11 +67,6 @@ Actuator Control
 .. autoclass:: ActuatorControl
   :members:
   :inherited-members:
-
-.. autoclass:: ActuatorJointProperties
-  :members:
-  :inherited-members:
-  :exclude-members: __init__
 
 Implicit Actuator
 -----------------

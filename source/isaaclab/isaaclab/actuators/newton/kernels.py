@@ -109,7 +109,7 @@ def sync_torque_telemetry(
 
 
 def build_implicit_dof_mask(
-    implicit_joint_indices: Sequence[slice | torch.Tensor | None],
+    implicit_joint_indices: "Sequence[slice | torch.Tensor | None]",
     num_joints: int,
     device: str,
 ) -> tuple[wp.array, torch.Tensor]:

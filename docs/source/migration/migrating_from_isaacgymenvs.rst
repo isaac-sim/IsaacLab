@@ -776,32 +776,32 @@ collecting states, computing dones, calculating rewards, performing resets, and 
 This workflow is done automatically by the framework such that a ``post_physics_step`` API is not required in the task.
 However, individual tasks can override the ``step()`` API to control the workflow.
 
-+------------------------------------------------------------------+-------------------------------------------------------------+
-| IsaacGymEnvs                                                     | IsaacLab                                                    |
-+------------------------------------------------------------------+-------------------------------------------------------------+
-|.. code-block:: python                                            |.. code-block:: python                                       |
-|                                                                  |                                                             |
-| def pre_physics_step(self, actions):                             | def _pre_physics_step(self, actions: torch.Tensor) -> None: |
-|     actions_tensor = torch.zeros(                                |     self.actions = self.action_scale * actions              |
-|         self.num_envs * self.num_dof,                            |                                                             |
-|         device=self.device, dtype=torch.float)                   | def _apply_action(self) -> None:                            |
-|     actions_tensor[::self.num_dof] = actions.to(                 |     self.cartpole.actuators.target_command.set_effort_index(       |
-|         self.device).squeeze() * self.max_push_effort            |         value=self.actions, joint_ids=self._cart_dof_idx)   |
-|     forces = gymtorch.unwrap_tensor(actions_tensor)              |                                                             |
-|     self.gym.set_dof_actuation_force_tensor(                     |                                                             |
-|         self.sim, forces)                                        |                                                             |
-|                                                                  |                                                             |
-| def post_physics_step(self):                                     |                                                             |
-|     self.progress_buf += 1                                       |                                                             |
-|                                                                  |                                                             |
-|     env_ids = self.reset_buf.nonzero(                            |                                                             |
-|         as_tuple=False).squeeze(-1)                              |                                                             |
-|     if len(env_ids) > 0:                                         |                                                             |
-|         self.reset_idx(env_ids)                                  |                                                             |
-|                                                                  |                                                             |
-|     self.compute_observations()                                  |                                                             |
-|     self.compute_reward()                                        |                                                             |
-+------------------------------------------------------------------+-------------------------------------------------------------+
++-------------------------------------------------------+--------------------------------------------------------------+
+| IsaacGymEnvs                                          | IsaacLab                                                     |
++-------------------------------------------------------+--------------------------------------------------------------+
+|.. code-block:: python                                 |.. code-block:: python                                        |
+|                                                       |                                                              |
+| def pre_physics_step(self, actions):                  | def _pre_physics_step(self, actions: torch.Tensor) -> None:  |
+|     actions_tensor = torch.zeros(                     |     self.actions = self.action_scale * actions               |
+|         self.num_envs * self.num_dof,                 |                                                              |
+|         device=self.device, dtype=torch.float)        | def _apply_action(self) -> None:                             |
+|     actions_tensor[::self.num_dof] = actions.to(      |     self.cartpole.actuators.target_command.set_effort_index( |
+|         self.device).squeeze() * self.max_push_effort |         value=self.actions, joint_ids=self._cart_dof_idx)    |
+|     forces = gymtorch.unwrap_tensor(actions_tensor)   |                                                              |
+|     self.gym.set_dof_actuation_force_tensor(          |                                                              |
+|         self.sim, forces)                             |                                                              |
+|                                                       |                                                              |
+| def post_physics_step(self):                          |                                                              |
+|     self.progress_buf += 1                            |                                                              |
+|                                                       |                                                              |
+|     env_ids = self.reset_buf.nonzero(                 |                                                              |
+|         as_tuple=False).squeeze(-1)                   |                                                              |
+|     if len(env_ids) > 0:                              |                                                              |
+|         self.reset_idx(env_ids)                       |                                                              |
+|                                                       |                                                              |
+|     self.compute_observations()                       |                                                              |
+|     self.compute_reward()                             |                                                              |
++-------------------------------------------------------+--------------------------------------------------------------+
 
 
 Dones and Resets

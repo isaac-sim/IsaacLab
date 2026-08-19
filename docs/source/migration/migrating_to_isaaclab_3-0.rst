@@ -1203,18 +1203,18 @@ Method Relocations
 The following methods on :class:`~isaaclab.assets.Articulation` move to the actuator collection.
 The old methods are deprecated and will be removed in a future release:
 
-+---------------------------------------------------------------+-------------------------------------------------+
-| Deprecated                                                    | New                                             |
-+===============================================================+=================================================+
-| ``set_joint_position_target``                                 | ``actuators.target_command.set_position_index``        |
-+---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_velocity_target``                                 | ``actuators.target_command.set_velocity_index``        |
-+---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_effort_target``                                   | ``actuators.target_command.set_effort_index``          |
-+---------------------------------------------------------------+-------------------------------------------------+
-| ``set_joint_{position,velocity,effort}_target_index/_mask``   | ``actuators.target_command.set_{position,velocity,``   |
-|                                                               | ``effort}_index/_mask``                         |
-+---------------------------------------------------------------+-------------------------------------------------+
++-------------------------------------------------------------+------------------------------------------------------+
+| Deprecated                                                  | New                                                  |
++=============================================================+======================================================+
+| ``set_joint_position_target``                               | ``actuators.target_command.set_position_index``      |
++-------------------------------------------------------------+------------------------------------------------------+
+| ``set_joint_velocity_target``                               | ``actuators.target_command.set_velocity_index``      |
++-------------------------------------------------------------+------------------------------------------------------+
+| ``set_joint_effort_target``                                 | ``actuators.target_command.set_effort_index``        |
++-------------------------------------------------------------+------------------------------------------------------+
+| ``set_joint_{position,velocity,effort}_target_index/_mask`` | ``actuators.target_command.set_{position,velocity,`` |
+|                                                             | ``effort}_index/_mask``                              |
++-------------------------------------------------------------+------------------------------------------------------+
 
 Property Relocations (Data Class)
 ---------------------------------
@@ -1223,19 +1223,19 @@ The following properties on :class:`~isaaclab.assets.ArticulationData` move to t
 collection under the command view. The old properties are deprecated and will be removed in a
 future release:
 
-+------------------------------------------+------------------------------------------+
-| Deprecated                               | New                                      |
-+==========================================+==========================================+
-| ``data.joint_pos_target``                | ``actuators.target_command.position``           |
-+------------------------------------------+------------------------------------------+
-| ``data.joint_vel_target``                | ``actuators.target_command.velocity``           |
-+------------------------------------------+------------------------------------------+
-| ``data.joint_effort_target``             | ``actuators.target_command.effort``             |
-+------------------------------------------+------------------------------------------+
-| ``data.computed_torque``                 | ``actuators.computed_effort``            |
-+------------------------------------------+------------------------------------------+
-| ``data.applied_torque``                  | ``actuators.applied_effort``             |
-+------------------------------------------+------------------------------------------+
++------------------------------+---------------------------------------+
+| Deprecated                   | New                                   |
++==============================+=======================================+
+| ``data.joint_pos_target``    | ``actuators.target_command.position`` |
++------------------------------+---------------------------------------+
+| ``data.joint_vel_target``    | ``actuators.target_command.velocity`` |
++------------------------------+---------------------------------------+
+| ``data.joint_effort_target`` | ``actuators.target_command.effort``   |
++------------------------------+---------------------------------------+
+| ``data.computed_torque``     | ``actuators.computed_effort``         |
++------------------------------+---------------------------------------+
+| ``data.applied_torque``      | ``actuators.applied_effort``          |
++------------------------------+---------------------------------------+
 
 .. note::
 
