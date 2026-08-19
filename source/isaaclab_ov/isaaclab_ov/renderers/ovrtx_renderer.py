@@ -2176,7 +2176,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_newton_indices = None
         self._object_scales = None
-        self._object_scales_by_path.clear()
+        self._object_scales_by_path = {}
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
