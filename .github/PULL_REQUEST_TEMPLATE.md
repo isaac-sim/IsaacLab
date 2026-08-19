@@ -57,3 +57,11 @@ For example,
 - [x] I have done this task
 - [ ] I have not done this task
 -->
+
+<!-- CI invocation for docker tests -->
+## CI
+
+Docker and GPU tests do not run automatically. Tick the box to start them; every push unticks it.
+
+- [ ] Run Docker and GPU tests
+<!-- CI invocation for docker tests -->

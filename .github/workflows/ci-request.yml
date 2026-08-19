@@ -1,0 +1,157 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# region help
+# Turns the "Run Docker and GPU tests" box in the PR description into a Docker
+# CI run. Every push unticks the box, so each batch of commits has to be
+# requested on its own. A description without the section gets it appended --
+# on any event, so a PR opened before the template carried the block, or one
+# whose author deleted it, picks it up again on the next push.
+#
+# ``pull_request_target`` runs the base branch's copy of this file and carries
+# a write token and secrets even on fork PRs, which is what lets a workflow
+# living on ``develop`` act on a PR. A comment command could not: GitHub reads
+# ``issue_comment`` only from the repository's default branch.
+#
+# This workflow never checks out PR code, and it never interpolates the PR body
+# into a shell line -- a description is attacker-controlled text, so it moves
+# through environment variables and jq only.
+# endregion
+
+name: CI Request
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ci-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with the block at the end of .github/PULL_REQUEST_TEMPLATE.md.
+  # The markers delimit the block so it stays recognisable to a reader when the
+  # surrounding description changes.
+  CI_SECTION: |
+    <!-- CI invocation for docker tests -->
+    ## CI
+
+    Docker and GPU tests do not run automatically. Tick the box to start them; every push unticks it.
+
+    - [ ] Run Docker and GPU tests
+    <!-- CI invocation for docker tests -->
+
+jobs:
+  ci-request:
+    name: Handle CI request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Editing a PR description is already limited to the author and users with
+      # triage or write access, so ticking the box needs no separate permission
+      # check. Writing the body back with GITHUB_TOKEN keeps this step from
+      # retriggering the workflow: events caused by GITHUB_TOKEN do not create
+      # workflow runs.
+      - name: Normalize the request box
+        id: box
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Read the body from the API, not the event payload: an edit that
+          # landed while this run was queued would otherwise be clobbered.
+          body="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.body // ""')"
+          box_line='^[[:space:]]*-[[:space:]]*\[[ xX]\][[:space:]]*Run Docker and GPU tests'
+          ticked='^[[:space:]]*-[[:space:]]*\[[xX]\][[:space:]]*Run Docker and GPU tests'
+
+          # Keyed on the box rather than the marker: a description that kept the
+          # markers but lost the box would otherwise be left with no way to
+          # request CI. Appending cannot duplicate the box, only the markers.
+          if ! grep -qE "$box_line" <<< "$body"; then
+            # Section missing -- append it at the end, unticked.
+            if [ -z "$body" ]; then
+              body_out="$CI_SECTION"
+            else
+              body_out="$(printf '%s\n\n%s' "$body" "$CI_SECTION")"
+            fi
+            checked=false
+          elif [ "$EVENT_ACTION" = "synchronize" ]; then
+            body_out="$(sed -E 's/^([[:space:]]*-[[:space:]]*)\[[xX]\]([[:space:]]*Run Docker and GPU tests)/\1[ ]\2/' <<< "$body")"
+            checked=false
+          else
+            body_out="$body"
+            if grep -qE "$ticked" <<< "$body"; then checked=true; else checked=false; fi
+          fi
+
+          if [ "$body_out" != "$body" ]; then
+            jq -n --arg body "$body_out" '{body: $body}' \
+              | gh api --method PATCH "repos/$REPOSITORY/pulls/$PR_NUMBER" --input - --silent
+            echo "Updated the CI request box in the description." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "checked=$checked" >> "$GITHUB_OUTPUT"
+
+      # A ticked box fires ``edited`` again on any later description change, so
+      # skip when this head commit already has a run rather than starting a
+      # duplicate. For pull_request runs, head_sha is the PR head commit.
+      - name: Check whether this commit already ran
+        id: prior
+        if: steps.box.outputs.checked == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          count="$(
+            gh api "repos/$REPOSITORY/actions/runs?head_sha=$HEAD_SHA&event=pull_request" \
+              --jq '[.workflow_runs[] | select(.name == "Docker + Tests")] | length'
+          )"
+          if [ "$count" -gt 0 ]; then
+            echo "Docker CI already ran for ${HEAD_SHA:0:7}; not requesting it again." >> "$GITHUB_STEP_SUMMARY"
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create isaaclab-bot token
+        id: app-token
+        if: steps.prior.outputs.needed == 'true'
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      # Labels applied with GITHUB_TOKEN do not create workflow runs, so the App
+      # token is what lets this reach Docker + Tests.
+      - name: Trigger Docker CI
+        if: steps.prior.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          LABEL: ci:run-docker
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
+          gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
+          gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
+          gh api --method DELETE "$endpoint/$LABEL" --silent
+
+          echo "Requested Docker CI for PR #$PR_NUMBER." >> "$GITHUB_STEP_SUMMARY"
