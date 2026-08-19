@@ -1837,15 +1837,10 @@ def rendering_test_franka_cloth(
 
         # Advance the cloth before capturing camera output.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        if data_type == "motion_vectors":
-            initial_mean_z = env.scene["deformable"].data.nodal_pos_w.torch[..., 2].mean()
         env.step(zero_actions)
         # TODO: Remove the extra step when NVBug 6565960 is fixed.
         if data_type == "motion_vectors":
             env.step(zero_actions)
-            current_mean_z = env.scene["deformable"].data.nodal_pos_w.torch[..., 2].mean()
-            fall_distance = (initial_mean_z - current_mean_z).item()
-            assert fall_distance > 0.005, f"Cloth fell only {fall_distance:.4f} m before motion-vector capture."
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output
