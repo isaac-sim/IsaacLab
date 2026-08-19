@@ -76,7 +76,7 @@ def test_multi_node_rendezvous_options_reach_torchrun():
     assert command[command.index("--rdzv_endpoint") + 1] == "host0:29400"
 
 
-def test_virtual_local_rank_is_opt_in_and_forwarded_without_a_value():
+def test_virtual_local_rank_reaches_torchrun_without_a_value():
     """``--virtual_local_rank`` reaches torchrun as a bare flag and never reaches the workers."""
     enabled = _command("training", ["--num_gpus", "2", "--virtual_local_rank", "--task", "X"])
 
@@ -84,6 +84,40 @@ def test_virtual_local_rank_is_opt_in_and_forwarded_without_a_value():
     assert "True" not in enabled  # torchrun rejects the flag if it is given a value
     assert "--virtual_local_rank" not in _worker_argv(enabled)
     assert "--virtual_local_rank" not in _command("training", ["--num_gpus", "2", "--task", "X"])
+
+
+@pytest.mark.parametrize(
+    "preset_argv, expected",
+    [
+        (["presets=ovphysx,ovrtx"], True),
+        (["physics=ovphysx", "renderer=ovrtx"], True),
+        (["presets=ovrtx", "physics=ovphysx"], True),
+        # ``rtx`` only becomes OVRTX once the worker resolves it, so the launcher cannot match on it.
+        (["physics=ovphysx", "renderer=rtx"], True),
+        # Engaged but inert: no RTX renderer shares the process here.
+        (["presets=ovphysx"], True),
+        (["presets=ovphysx,newton_renderer"], True),
+        (["presets=newton_mjwarp,ovrtx"], False),
+        (["presets=newton_mjwarp"], False),
+        ([], False),
+    ],
+)
+def test_virtual_local_rank_follows_the_ovphysx_preset(preset_argv: list[str], expected: bool):
+    """Selecting OVPhysX enables the workaround regardless of which renderer the worker resolves."""
+    command = _command("training", ["--num_gpus", "2", "--task", "X", *preset_argv])
+
+    assert ("--virtual_local_rank" in command) is expected
+    # The presets are read, not claimed, so the worker still receives them verbatim.
+    assert all(token in _worker_argv(command) for token in preset_argv)
+
+
+def test_no_virtual_local_rank_overrides_the_preset():
+    """An explicit opt-out wins over the automatic OVPhysX/OVRTX detection."""
+    command = _command(
+        "training", ["--num_gpus", "2", "--no_virtual_local_rank", "--task", "X", "presets=ovphysx,ovrtx"]
+    )
+
+    assert "--virtual_local_rank" not in command
 
 
 def test_dry_run_prints_a_shell_parsable_command(capsys: pytest.CaptureFixture[str]):

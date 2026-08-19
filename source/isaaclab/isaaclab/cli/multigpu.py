@@ -50,6 +50,12 @@ SKRL_JAX_ARGS = ("nnodes", "node_rank", "coordinator_address")
 SKRL_JAX_TORCHRUN_ONLY_ARGS = tuple(name for name in TORCHRUN_ARGS if name not in SKRL_JAX_ARGS)
 """``torchrun`` options that have no skrl JAX equivalent."""
 
+PRESET_SELECTOR_PREFIXES = ("presets=", "physics=", "renderer=")
+"""Hydra-style tokens that name a preset, forwarded to the worker rather than parsed here."""
+
+VIRTUAL_LOCAL_RANK_PRESET = "ovphysx"
+"""Preset that needs one visible GPU per worker. See :func:`_selects_virtual_local_rank_preset`."""
+
 # torchelastic gives its own workers 30 s before it SIGKILLs them, so the graceful window stays
 # above that rather than preempting a shutdown that is already making progress.
 _POLL_INTERVAL_S = 0.2
@@ -156,15 +162,23 @@ def build_parser(cfg: MultiGpuLauncherCfg) -> argparse.ArgumentParser:
             "failing ranks are reported either way."
         ),
     )
-    parser.add_argument(
+    virtual_local_rank = parser.add_mutually_exclusive_group()
+    virtual_local_rank.add_argument(
         "--virtual_local_rank",
         action="store_true",
+        default=None,
         help=(
-            "Give every worker a single GPU as ``cuda:0`` instead of exposing all of them. Works around "
-            "OVPhysX <= 0.5.10 selecting the wrong CUDA device when OVRTX shares the process, which hangs "
-            "``presets=ovphysx,ovrtx`` runs on more than one GPU (nvbug 6573426). Every worker reports "
-            "``LOCAL_RANK=0``, so use the global rank to name per-rank files."
+            "Give every worker a single GPU as ``cuda:0`` instead of exposing all of them. Enabled "
+            "automatically when the forwarded presets select OVPhysX, which otherwise hangs runs on more "
+            "than one GPU whenever an RTX renderer shares the process (nvbug 6573426). Every worker "
+            "reports ``LOCAL_RANK=0``, so use the global rank to name per-rank files."
         ),
+    )
+    virtual_local_rank.add_argument(
+        "--no_virtual_local_rank",
+        dest="virtual_local_rank",
+        action="store_false",
+        help="Expose every GPU to every worker, even when the forwarded presets would enable the workaround.",
     )
     parser.add_argument(
         "--dry_run", action="store_true", help="Print the distributed launcher command without running it."
@@ -216,7 +230,7 @@ def build_launch_command(args_cli: argparse.Namespace, worker_args: list[str], c
     if not args_cli.log_all_ranks and args_cli.local_ranks_filter is None:
         command.extend(("--local_ranks_filter", "0"))
 
-    if args_cli.virtual_local_rank:
+    if _use_virtual_local_rank(args_cli, worker_args):
         command.append("--virtual_local_rank")
 
     return command + _worker_argv(args_cli, worker_args, cfg)
@@ -242,7 +256,8 @@ def run_multigpu_cli(argv: list[str] | None, cfg: MultiGpuLauncherCfg) -> int:
         print(shlex.join(command))
         return 0
 
-    print(f"[INFO] Launching distributed workers with: {shlex.join(command)}")
+    # Flushed so the launcher preamble precedes the workers' inherited-fd output in a redirected log.
+    print(f"[INFO] Launching distributed workers with: {shlex.join(command)}", flush=True)
     return run_launch_command(command)
 
 
@@ -291,6 +306,48 @@ def _is_skrl_jax_launcher(args_cli: argparse.Namespace, worker_args: list[str], 
     if not cfg.rl_libraries or args_cli.rl_library != "skrl":
         return False
     return _forwarded_arg_value(worker_args, "--ml_framework") == "jax"
+
+
+def _selects_virtual_local_rank_preset(worker_args: list[str]) -> bool:
+    """Return whether the forwarded presets put OVPhysX in every worker process.
+
+    The preset tokens are Hydra-style ``key=value`` pairs the worker parses itself, so they are read
+    here without claiming them from ``worker_args``.
+
+    Only OVPhysX is matched, even though the hang needs an RTX renderer in the process too. A renderer
+    cannot be recognized by name at this point: ``renderer=rtx`` is a placeholder that becomes OVRTX
+    only once the worker resolves it against the available runtime. Matching the physics backend alone
+    keeps this decision independent of that resolution, at the cost of also engaging the workaround for
+    OVPhysX with a renderer that does not need it, where it is inert.
+    """
+    selected: set[str] = set()
+    for arg in worker_args:
+        for prefix in PRESET_SELECTOR_PREFIXES:
+            if arg.startswith(prefix):
+                selected.update(name.strip() for name in arg[len(prefix) :].split(","))
+    return VIRTUAL_LOCAL_RANK_PRESET in selected
+
+
+def _use_virtual_local_rank(args_cli: argparse.Namespace, worker_args: list[str]) -> bool:
+    """Return whether each worker should see a single GPU, preferring an explicit choice.
+
+    OVPhysX up to 0.5.10 does not apply the requested CUDA ordinal before PhysX creates its context,
+    so with an RTX renderer in the process PhysX keeps the already-current device. Every rank above local rank 0
+    then dies on a device mismatch and rank 0 blocks forever in the NCCL bootstrap (nvbug 6573426,
+    fixed in ovphysx 0.5.11). One visible GPU per worker makes the PhysX default correct everywhere.
+    Remove this fallback once the ovphysx pin moves past 0.5.10.
+    """
+    if args_cli.virtual_local_rank is not None:
+        return args_cli.virtual_local_rank
+    if not _selects_virtual_local_rank_preset(worker_args):
+        return False
+    print(
+        "[INFO] Presets select OVPhysX, which hangs on more than one GPU when an RTX renderer shares the "
+        "process (nvbug 6573426). Giving every worker a single GPU as cuda:0; pass "
+        "--no_virtual_local_rank to opt out.",
+        flush=True,
+    )
+    return True
 
 
 def _visible_cuda_device_count() -> int | None:
