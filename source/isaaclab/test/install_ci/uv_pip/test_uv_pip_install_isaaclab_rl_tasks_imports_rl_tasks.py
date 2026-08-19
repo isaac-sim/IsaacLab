@@ -24,11 +24,7 @@ from utils import UV_Mixin
 
 @pytest.mark.install_path_uv_pip
 class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
-    """``uv pip install <wheel>[sb3,skrl,rsl-rl]``: verify RL imports without Isaac Sim.
-
-    The extras are named individually to keep this import test small. The aggregate ``all``
-    extra also excludes Isaac Sim, but adds the curated OV, RL, and visualizer dependencies.
-    """
+    """Verify RL imports without Isaac Sim."""
 
     _wheel: str = ""
     _extras: str = "[sb3,skrl,rsl-rl]"
@@ -43,7 +39,6 @@ class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
         cls = self.__class__
         cls._wheel = str(wheel)
 
-        # Create the uv env and install the RL extras (no isaacsim, no NVIDIA flags).
         self.create_uv_env(isaaclab_root)
         cls.env_path = self.env_path
         cls.python = self.python

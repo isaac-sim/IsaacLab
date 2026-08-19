@@ -47,8 +47,6 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
     def test_uv_pip_install_isaaclab_all_trains_cartpole(self, isaaclab_root, wheel, cartpole_smoke_script):
         """Install the runner-supplied wheel with ``[all]`` via ``uv pip``, then train."""
         try:
-            # 1. Create the uv env and install the wheel with the aggregate [all] extra, which
-            #    carries both OV backends and the curated RL library and visualizer set.
             self.create_uv_env(isaaclab_root)
 
             result = self.run_in_uv_env(
@@ -56,11 +54,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             )
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
-            # 2. uv pip install --reinstall-package torch --reinstall-package torchvision
-            #    torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
-            #    (versions from [tool.isaaclab.versions]; cu128 on x86_64, cu130 on aarch64,
-            #    e.g. GB10 / DGX Spark with CUDA capability 12.x).
-            #    --reinstall-package forces uv to swap the CPU torch installed above with the CUDA build.
+            # Restore the CUDA build selected for this architecture.
             result = self.run_in_uv_env(
                 [
                     "uv",
@@ -79,7 +73,6 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             )
             assert result.returncode == 0, f"uv pip install CUDA torch failed:\n{result.stdout}\n{result.stderr}"
 
-            # 3. Run the shared state and camera Cartpole smoke in the installed environment.
             result = self.run_in_uv_env(
                 [str(self.python), str(cartpole_smoke_script)],
                 cwd=isaaclab_root,

@@ -33,12 +33,7 @@ from utils import UV_Mixin, run_cmd
 
 @pytest.mark.smoke
 class Test_Wheel_Builder_Smoke(UV_Mixin):
-    """Test building the isaaclab wheel and installing it in a uv environment.
-
-    The extras are named individually rather than using the aggregate ``all``: this is a
-    fast smoke test of the built wheel, and ``all`` would pull both OV backends plus
-    the full curated RL and visualizer set. The dedicated ``[all]`` install test covers it.
-    """
+    """Test building and installing the Isaac Lab wheel with selected RL extras."""
 
     _wheel: str = ""
     _extras: str = "[sb3,skrl,rsl-rl]"

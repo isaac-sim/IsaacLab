@@ -61,8 +61,6 @@ jobs:
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
       run: |
-        # ``all`` is the curated OV, RL library, and visualizer set; it excludes Isaac Sim.
-        # Name Isaac Sim, ``rlinf``, and ``mimic`` explicitly to keep them scanned.
         bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
           uv sync --extra all --extra isaacsim --extra test --extra rlinf --extra mimic
         # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
