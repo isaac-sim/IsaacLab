@@ -23,6 +23,10 @@
     ActuatorNetMLPCfg
     ActuatorNetLSTM
     ActuatorNetLSTMCfg
+    ActuatorNetGRU
+    ActuatorNetGRUCfg
+    ActuatorNetGRUResidual
+    ActuatorNetGRUResidualCfg
 
 Actuator Base
 -------------
@@ -129,6 +133,34 @@ LSTM Network Actuator
   :show-inheritance:
 
 .. autoclass:: ActuatorNetLSTMCfg
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__, class_type
+
+GRU Network Actuator
+--------------------
+
+.. autoclass:: ActuatorNetGRU
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: ActuatorNetGRUCfg
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__, class_type
+
+GRU Residual Network Actuator
+-----------------------------
+
+.. autoclass:: ActuatorNetGRUResidual
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: ActuatorNetGRUResidualCfg
   :members:
   :inherited-members:
   :show-inheritance:
