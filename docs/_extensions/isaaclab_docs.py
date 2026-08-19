@@ -203,8 +203,8 @@ class IsaacLabIsaacSimInstall(SphinxDirective):
         return _parse_rst(self, content)
 
 
-class IsaacLabUvWheelInstall(SphinxDirective):
-    """Render the uv wheel installation command for the current documentation version."""
+class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
+    """Render the Isaac Lab wheel command for the current Isaac Sim version."""
 
     has_content = False
 
@@ -216,10 +216,10 @@ class IsaacLabUvWheelInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[all]" \\
+   uv pip install "isaaclab[isaacsim]" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
-     --index-strategy unsafe-best-match --prerelease=allow
+     --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
 
@@ -323,7 +323,7 @@ def setup(app):
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)
     app.add_directive("isaaclab-quickstart-install", IsaacLabQuickstartInstall)
     app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
-    app.add_directive("isaaclab-uv-wheel-install", IsaacLabUvWheelInstall)
+    app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)
     app.add_directive("isaaclab-ovrtx-install", IsaacLabOvrtxInstall)
     return {

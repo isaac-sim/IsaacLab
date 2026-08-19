@@ -36,8 +36,8 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
     """Test building the isaaclab wheel and installing it in a uv environment.
 
     The extras are named individually rather than using the aggregate ``all``: this is a
-    fast smoke test of the built wheel, and ``all`` would pull Isaac Sim and both OV
-    backends in. ``test_uv_pip_install_isaaclab_all_trains_cartpole`` covers ``[all]``.
+    fast smoke test of the built wheel, and ``all`` would pull both OV backends plus
+    the full curated RL and visualizer set. The dedicated ``[all]`` install test covers it.
     """
 
     _wheel: str = ""

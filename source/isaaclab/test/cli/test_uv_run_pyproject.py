@@ -82,19 +82,18 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
-    """``all`` is the single flag for every backend, RL library, and visualizer.
+def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
+    """``all`` aggregates the curated OV, RL library, and visualizer extras.
 
-    Nothing is forked in ``[tool.uv].conflicts``, so Isaac Sim and both OV backends fit in
-    one environment alongside every RL library and visualizer. The specialized workflows stay
-    opt-in by name -- they are large, narrowly used, or both.
+    Isaac Sim and specialized workflows stay opt-in by name because they need separate
+    installation steps, are narrowly used, or both.
     """
     optional = _root_pyproject()["project"]["optional-dependencies"]
 
     # ``all`` is a single self-reference listing the extras it aggregates.
     assert len(optional["all"]) == 1
     aggregated = set(re.fullmatch(r"isaaclab-dev\[(.+)\]", optional["all"][0]).group(1).split(","))
-    assert aggregated == {"isaacsim", "ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
+    assert aggregated == {"ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
 
     # ``ov`` pulls both OV backends, so naming it covers ``ovphysx`` and ``ovrtx`` too.
     reachable = aggregated | {"ovphysx", "ovrtx"}
@@ -103,6 +102,7 @@ def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
     # has to be classified deliberately -- into ``all`` or into this list.
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "isaacsim",
         "mimic",
         "teleop",
         "tetrahedralization",

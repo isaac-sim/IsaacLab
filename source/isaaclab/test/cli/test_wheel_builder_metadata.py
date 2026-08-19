@@ -86,24 +86,31 @@ def test_wheel_builder_includes_isaacsim_extra(tmp_path):
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
+def test_wheel_builder_requests_required_tinyobjloader_prerelease_directly(tmp_path):
+    """Plain wheel installs must opt into the isolated importer's prerelease dependency."""
+    generated = _generate_wheel_pyproject(tmp_path)
+
+    assert "tinyobjloader==2.0.0rc13" in generated["project"]["dependencies"]
+
+
 def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
     """``isaaclab[all]`` must ship the aggregated requirements, not a self-reference.
 
     At the root, ``all`` is the self-reference ``isaaclab-dev[...]``. The generator
     inlines it, so the published wheel carries the concrete third-party requirements
-    for every backend, RL library, and visualizer.
+    for the curated OV backends, RL libraries, and visualizers.
     """
     generated = _generate_wheel_pyproject(tmp_path)
     optional_dependencies = generated["project"]["optional-dependencies"]
     all_extra = optional_dependencies["all"]
 
     assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
-    # Sampled across what ``all`` aggregates: Isaac Sim, both OV backends, the RL
-    # libraries, and the visualizers.
-    for prefix in ("isaacsim[", "ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
+    # Sampled across what ``all`` aggregates: both OV backends, the RL libraries,
+    # and the visualizers.
+    for prefix in ("ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
         assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
-    # The specialized extras and the developer tooling stay opt-in by name.
-    for prefix in ("ray", "robomimic", "isaacteleop", "pytetwild", "moviepy", "leapp", "pytest"):
+    # Isaac Sim, specialized extras, and developer tooling stay opt-in by name.
+    for prefix in ("isaacsim[", "ray", "robomimic", "isaacteleop", "pytetwild", "moviepy", "leapp", "pytest"):
         assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
 
 
