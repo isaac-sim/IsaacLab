@@ -566,9 +566,12 @@ def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(d
         event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
         event(env, env_ids=torch.tensor([0], device=device), **event_params)
 
-        group = articulation.actuators["joint"]
-        torch.testing.assert_close(group.stiffness, torch.tensor([[101.0], [20.0]], device=device))
-        torch.testing.assert_close(group.damping, torch.tensor([[3.0], [1.0]], device=device))
+        from isaaclab.actuators.newton import read_group_parameter
+
+        stiffness = read_group_parameter(articulation.actuators, "joint", "controller", "kp")
+        damping = read_group_parameter(articulation.actuators, "joint", "controller", "kd")
+        torch.testing.assert_close(stiffness, torch.tensor([[101.0], [20.0]], device=device))
+        torch.testing.assert_close(damping, torch.tensor([[3.0], [1.0]], device=device))
 
 
 @pytest.fixture
