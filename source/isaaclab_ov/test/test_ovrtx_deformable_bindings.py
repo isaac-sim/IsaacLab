@@ -271,7 +271,7 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
     class _FakeStream:
         cuda_stream = 42
 
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
+    renderer._warp_device = SimpleNamespace(stream=_FakeStream())
 
     renderer.update_geometries()
 
@@ -407,7 +407,7 @@ def test_update_particle_points_writes_world_particle_positions(monkeypatch: pyt
     class _FakeStream:
         cuda_stream = 42
 
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
+    renderer._warp_device = SimpleNamespace(stream=_FakeStream())
 
     renderer.update_geometries()
 
@@ -449,7 +449,7 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     class _FakeStream:
         cuda_stream = 42
 
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
+    renderer._warp_device = SimpleNamespace(stream=_FakeStream())
 
     renderer.update_geometries()
 
@@ -533,7 +533,7 @@ def test_update_geometries_writes_one_slice_per_cable(monkeypatch: pytest.Monkey
             launch_kwargs["kernel"] = args[0]
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=1234))
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=1234))
 
     renderer.update_geometries()
 
@@ -573,6 +573,7 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
 
     renderer._stage = SimpleNamespace(write_attribute=_write)
     renderer._current_ordinal = 7
+    renderer._warp_device = wp.get_device("cuda:0")
 
     renderer._write_particle_q_slices_ovstage("points_query", particle_q, [1], [3])
 
@@ -608,7 +609,7 @@ def test_update_transforms_writes_caller_owned_buffer(monkeypatch: pytest.Monkey
         launch_kwargs.update(kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=99))
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
 
     renderer.update_transforms()
 
@@ -635,7 +636,7 @@ def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", _fake_zeros)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=7))
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=7))
 
     positions = SimpleNamespace(shape=(2,), warp=object())
     renderer.update_camera(object(), positions, SimpleNamespace(warp=object()), object())

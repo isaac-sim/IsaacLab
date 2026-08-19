@@ -457,11 +457,11 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
     sentinel = object()
     render_var = _RecordingRenderVar()
     monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cuda:0"
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
     with renderer._map_render_var_to_dlpack(render_var) as array:
         assert array is sentinel
 

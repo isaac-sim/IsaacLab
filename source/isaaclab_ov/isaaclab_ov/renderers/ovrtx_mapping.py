@@ -25,13 +25,12 @@ import warp as wp
 def cuda_device_id(device: str) -> int:
     """CUDA device index parsed from a Warp device string, e.g. ``"cuda:1"`` -> ``1``.
 
-    Shared by the attribute mappings below and by the render product's ``deviceIds``, so both
-    resolve the renderer's device the same way.
+    Used by the attribute mapping below. The renderer itself no longer parses device strings — it
+    caches ``wp.get_device(spec.device)`` once and derives device ids and sync streams from it.
 
-    TODO: A bare ``"cuda"`` parses to ``0`` while Warp enqueues fill work on its *current* CUDA
-    device, so the mapping and the fill can target different GPUs on multi-GPU processes. The
-    split predates this helper and is kept here to avoid a behavior change; a follow-up caches
-    the resolved Warp device on the renderer instead of re-deriving it from strings.
+    Caveat for direct callers: a bare ``"cuda"`` parses to ``0`` while Warp enqueues fill work on
+    its *current* CUDA device, so on multi-GPU processes prefer resolving through
+    ``wp.get_device`` and passing an explicit ``"cuda:<index>"``.
 
     Args:
         device: Warp CUDA device string (``"cuda"`` or ``"cuda:<index>"``).
