@@ -29,7 +29,7 @@ permissions:
 # purpose (it builds on the public isaac-sim base via postmerge-ci.yml).
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  CRON_BRANCHES: develop,release/3.0.0-beta2
+  CRON_BRANCHES: develop,release/3.0.0-beta2,release/3.0.0
 
 jobs:
   resolve-branches:
