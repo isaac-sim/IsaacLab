@@ -37,10 +37,7 @@ from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
-from isaaclab.utils.renderers import (
-    ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING,
-    ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING,
-)
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1280,13 +1277,6 @@ class AppLauncher:
                 self._kit_args.append(argument)
 
         argument = "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false"
-        setting = argument.partition("=")[0]
-        if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
-            self._kit_args.append(argument)
-
-        # RTX scene-partition processing is disabled by default in Kit. Enable the
-        # capability before startup; renderer configs still control token authoring.
-        argument = f"--{ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING}=true"
         setting = argument.partition("=")[0]
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
