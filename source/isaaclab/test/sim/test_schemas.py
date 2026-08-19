@@ -507,7 +507,10 @@ def test_articulation_root_base_no_physx_schema_when_only_fix_root_link_set(setu
 @pytest.mark.isaacsim_ci
 def test_physx_articulation_root_writes_self_collisions(setup_simulation):
     """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must
-    author ``physxArticulation:enabledSelfCollisions`` AND apply ``PhysxArticulationAPI``."""
+    author ``physxArticulation:enabledSelfCollisions`` AND apply ``PhysxArticulationAPI``, and must
+    mirror the value onto ``newton:selfCollisionEnabled`` / ``NewtonArticulationRootAPI`` so the
+    deprecated PhysX-only cfg also takes effect under Newton (which checks its native attribute
+    first and only falls back to the PhysX one when unauthored)."""
     sim, _, _, _, _, _ = setup_simulation
     stage = sim_utils.get_current_stage()
 
@@ -517,8 +520,10 @@ def test_physx_articulation_root_writes_self_collisions(setup_simulation):
 
     prim = stage.GetPrimAtPath("/World/arti_sc")
     assert prim.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert prim.GetAttribute("newton:selfCollisionEnabled").Get() is True
     applied = prim.GetAppliedSchemas()
     assert "PhysxArticulationAPI" in applied
+    assert "NewtonArticulationRootAPI" in applied
 
 
 @pytest.mark.isaacsim_ci
