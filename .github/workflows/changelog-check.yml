@@ -61,5 +61,5 @@ jobs:
             echo "PR does not touch tools/changelog/ — skipping unit tests."
             exit 0
           fi
-          pip install pytest
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" pip install pytest
           python3 -m pytest tools/changelog/test/ -q

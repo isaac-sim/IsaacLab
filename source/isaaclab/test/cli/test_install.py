@@ -18,6 +18,7 @@ from isaaclab.cli.utils import (
     extract_isaacsim_path,
     extract_python_exe,
     get_pip_command,
+    run_command,
 )
 
 pytestmark = pytest.mark.unit
@@ -33,6 +34,31 @@ def _python_for_conda(base: Path) -> Path:
     if sys.platform == "win32":
         return base / "python.exe"
     return base / "bin" / "python"
+
+
+# ---------------------------------------------------------------------------
+# run_command
+# ---------------------------------------------------------------------------
+
+
+def test_run_command_retries_a_failed_process():
+    """A command-level retry reruns a failed package-manager process."""
+    failure = subprocess.CalledProcessError(returncode=1, cmd=["pip", "install", "example"])
+    success = subprocess.CompletedProcess(args=["pip", "install", "example"], returncode=0)
+
+    with (
+        mock.patch("isaaclab.cli.utils.subprocess.run", side_effect=[failure, success]) as subprocess_run,
+        mock.patch("isaaclab.cli.utils.time.sleep") as sleep,
+    ):
+        result = run_command(
+            ["pip", "install", "example"],
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
+
+    assert result is success
+    assert subprocess_run.call_count == 2
+    sleep.assert_called_once_with(3.0)
 
 
 # ---------------------------------------------------------------------------
@@ -288,8 +314,8 @@ class TestEnsureNewton:
         ):
             install._ensure_newton()
 
-        assert not any("install" in cmd for cmd in calls), "should not install when commit already present"
-        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when commit already present"
+        assert not any("install" in cmd for cmd in calls), "should not install when release already present"
+        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when release already present"
 
 
 def test_no_shadowing_prebundled_torch_in_isaac_sim():
