@@ -69,8 +69,13 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 # selects one data-type preset or provides a test-local collection of compatible data types;
 # ``None`` uses the task default.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", ("albedo", "depth"), "cartpole"),
+    pytest.param("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole", id="Isaac-Cartpole-Camera-Direct-rgb-cartpole"),
+    pytest.param(
+        "Isaac-Cartpole-Camera-Direct",
+        ("albedo", "depth"),
+        "cartpole",
+        id="Isaac-Cartpole-Camera-Direct-albedo-depth-cartpole",
+    ),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),

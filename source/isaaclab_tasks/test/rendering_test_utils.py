@@ -1627,8 +1627,7 @@ def rendering_test_cartpole(
             renderer,
             camera_outputs,
             max_different_pixels_percentage={
-                data_type: _max_different_pixels_percentage("cartpole", renderer, data_type)
-                for data_type in data_types
+                data_type: _max_different_pixels_percentage("cartpole", renderer, data_type) for data_type in data_types
             },
             comparison_scores=comparison_scores,
         )
@@ -1781,8 +1780,7 @@ def rendering_test_lift_kuka(
             renderer,
             env.scene.sensors["base_camera"].data.output,
             max_different_pixels_percentage={
-                data_type: _max_different_pixels_percentage(test_name, renderer, data_type)
-                for data_type in data_types
+                data_type: _max_different_pixels_percentage(test_name, renderer, data_type) for data_type in data_types
             },
             comparison_scores=comparison_scores,
         )
@@ -1894,8 +1892,7 @@ def rendering_test_franka_cloth(
             renderer,
             camera_outputs,
             max_different_pixels_percentage={
-                data_type: _max_different_pixels_percentage(test_name, renderer, data_type)
-                for data_type in data_types
+                data_type: _max_different_pixels_percentage(test_name, renderer, data_type) for data_type in data_types
             },
             comparison_scores=comparison_scores,
         )
@@ -1967,8 +1964,7 @@ def rendering_test_franka_soft(
             renderer,
             env.scene.sensors["base_camera"].data.output,
             max_different_pixels_percentage={
-                data_type: _max_different_pixels_percentage(test_name, renderer, data_type)
-                for data_type in data_types
+                data_type: _max_different_pixels_percentage(test_name, renderer, data_type) for data_type in data_types
             },
             comparison_scores=comparison_scores,
         )

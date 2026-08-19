@@ -21,9 +21,7 @@ from rendering_test_utils import (
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
-_RENDERING_PARAMS = group_rendering_params(
-    make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-)
+_RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS))
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
