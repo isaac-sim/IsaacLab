@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the registry-independent parts of task discovery.
+"""Tests for the parts of task discovery that need no Isaac Lab.
 
-The registry walk and selector detection need Isaac Lab importable and are
-exercised by running the tool; everything here is pure and runs offline.
+Resolution is stubbed here so the module stays importable on pytest alone; the real
+resolver is covered by ``test_task_discovery_resolve.py``.
 """
 
 from __future__ import annotations
@@ -37,21 +37,53 @@ from task_discovery import (  # noqa: E402
 )
 
 Mode = DiscoveredTask.Mode
+Default = DiscoveredTask.Default
+
+
+@pytest.fixture
+def resolver(monkeypatch):
+    """Install a ``_mode_resolves`` driven by a ``combination -> (fingerprint, backend)`` table.
+
+    A combination absent from the table resolves to ``None``, i.e. cannot run.
+    """
+
+    def install(runs):
+        monkeypatch.setattr(
+            task_discovery,
+            "_mode_resolves",
+            lambda task, physics, renderer, presets=None: runs.get((physics, renderer, presets)),
+        )
+
+    return install
+
+
+@pytest.fixture
+def broken_validator(monkeypatch):
+    """Install a ``_mode_resolves`` that fails structurally on one physics token."""
+
+    def install(backend):
+        def fake(task, physics, renderer, presets=None):
+            if physics == backend:
+                raise DiscoveryError("AttributeError: no attribute 'solver_cfg'")
+            return ("fp", "PhysxCfg")
+
+        monkeypatch.setattr(task_discovery, "_mode_resolves", fake)
+
+    return install
 
 
 @pytest.mark.parametrize(
     ("kwargs", "expected"),
     [
         ({"rsl_rl_cfg_entry_point": "x"}, ("rsl_rl",)),
-        # Variant entry points belong to their library; matching the exact name
-        # would drop every recurrent, distillation and per-terrain config.
+        # Variants belong to their library; exact-name matching would drop every
+        # recurrent, distillation and per-terrain config.
         ({"rsl_rl_recurrent_cfg_entry_point": "x"}, ("rsl_rl",)),
         ({"skrl_flat_ppo_cfg_entry_point": "x"}, ("skrl",)),
         # Ordering follows RL_LIBRARY_PRIORITY, not registration order.
         ({"skrl_cfg_entry_point": "x", "rsl_rl_cfg_entry_point": "x"}, ("rsl_rl", "skrl")),
         # The env config is not an agent config.
         ({"env_cfg_entry_point": "x"}, ()),
-        ({}, ()),
     ],
 )
 def test_rl_libraries_are_read_from_entry_point_stems(kwargs: dict, expected: tuple[str, ...]) -> None:
@@ -72,69 +104,57 @@ def test_only_trainable_isaac_tasks_are_walked(task_id: str, expected: bool) -> 
     assert is_training_task(task_id) is expected
 
 
-def test_domain_presets_drop_names_the_task_also_declares_as_a_typed_selector() -> None:
-    # Reachable as ``physics=ovphysx`` / ``renderer=ovrtx``, so reporting them again
-    # as ``presets=`` tokens would double-count the same run.
-    names = ["rgb", "ovphysx", "depth", "ovrtx"]
-
-    assert _domain_presets(names, ("ovphysx", "ovrtx")) == ("depth", "rgb")
-
-
-def test_a_backend_exposed_only_as_a_domain_preset_is_kept() -> None:
-    # Isaac-Open-Drawer-Franka buckets its backends under DOMAIN because their cfg
-    # classes do not subclass PhysicsCfg, so ``presets=newton_mjwarp`` is the only
-    # way to select them and ``physics=newton_mjwarp`` is rejected. Dropping them by
-    # name left the task reporting one mode carrying no tokens, hiding four runs.
-    names = ["isaacsim_physx", "newton_kamino", "newton_mjwarp", "ovphysx", "physx"]
-
-    assert _domain_presets(names, ()) == tuple(sorted(names))
+@pytest.mark.parametrize(
+    ("names", "typed", "expected"),
+    [
+        # Declared on a typed axis too, so reachable as ``physics=``/``renderer=`` and
+        # reporting them again as ``presets=`` would double-count the same run.
+        (["rgb", "ovphysx", "depth", "ovrtx"], ("ovphysx", "ovrtx"), ("depth", "rgb")),
+        # Isaac-Open-Drawer-Franka: backends bucket under DOMAIN because their cfg
+        # classes do not subclass PhysicsCfg, so ``presets=`` is the only way to select
+        # them. Dropping them by name left the task reporting one empty mode.
+        (["newton_mjwarp", "ovphysx", "physx"], (), ("newton_mjwarp", "ovphysx", "physx")),
+    ],
+)
+def test_domain_presets_drop_only_what_a_typed_axis_already_offers(names, typed, expected) -> None:
+    assert _domain_presets(names, typed) == expected
 
 
-def test_modes_are_the_raw_cross_product_when_resolution_is_skipped() -> None:
-    # Nothing has been resolved, so nothing can be collapsed and there is no default.
-    modes, default = _build_modes("Isaac-X", ("physx", "newton_mjwarp"), ("ovrtx",), (), resolve=False)
-
-    assert modes == (Mode("physx", "ovrtx", None), Mode("newton_mjwarp", "ovrtx", None))
-    assert default is None
-
-
-def test_a_task_without_presets_gets_one_mode_carrying_no_tokens() -> None:
-    assert _build_modes("Isaac-X", (), (), (), resolve=False)[0] == (Mode(None, None, None),)
-
-
-def test_domain_presets_are_expanded_one_at_a_time_beside_the_default() -> None:
-    # Presets targeting the same field conflict, so they are never combined; the
-    # ``None`` entry keeps the task's own default reachable.
-    modes, _ = _build_modes("Isaac-X", (), (), ("rgb", "depth"), resolve=False)
-
-    assert modes == (Mode(None, None, None), Mode(None, None, "rgb"), Mode(None, None, "depth"))
-
-
-def _resolver(runs: dict[tuple[str | None, str | None, str | None], tuple[str, str]]):
-    """Return a ``_mode_resolves`` stand-in driven by a combination -> run table."""
-
-    def fake(task_id, physics, renderer, presets=None):
-        return runs.get((physics, renderer, presets))
-
-    return fake
-
-
-def test_spellings_that_resolve_to_the_same_run_collapse_to_one_mode(monkeypatch) -> None:
-    # Isaac-Open-Drawer-Franka in miniature: passing nothing lands on the same config
-    # as naming the preset the task already defaults to, and the ``physx`` alias lands
-    # on the same config as the concrete backend it resolves to.
-    monkeypatch.setattr(
-        task_discovery,
-        "_mode_resolves",
-        _resolver(
-            {
-                (None, None, None): ("fp-physx", "PhysxCfg"),
-                (None, None, "isaacsim_physx"): ("fp-physx", "PhysxCfg"),
-                (None, None, "ovphysx"): ("fp-ov", "OvPhysxCfg"),
-                (None, None, "physx"): ("fp-ov", "OvPhysxCfg"),
-                (None, None, "newton_mjwarp"): ("fp-newton", "NewtonCfg(MJWarpSolverCfg)"),
-            }
+@pytest.mark.parametrize(
+    ("physics", "renderers", "domains", "expected"),
+    [
+        # Renderers are expanded across: a camera task reported headless-only would omit
+        # the thing under test.
+        (
+            ("physx", "newton_mjwarp"),
+            ("ovrtx",),
+            (),
+            (Mode("physx", "ovrtx", None), Mode("newton_mjwarp", "ovrtx", None)),
         ),
+        # Declaring nothing still leaves one way to run.
+        ((), (), (), (Mode(None, None, None),)),
+        # Domain presets go one at a time, never combined; ``None`` keeps the task's own
+        # default reachable beside them.
+        ((), (), ("rgb", "depth"), (Mode(None, None, None), Mode(None, None, "rgb"), Mode(None, None, "depth"))),
+    ],
+)
+def test_declared_modes_are_the_raw_cross_product(physics, renderers, domains, expected) -> None:
+    # Nothing has been resolved, so nothing can be collapsed and there is no default.
+    assert _build_modes("Isaac-X", physics, renderers, domains, resolve=False) == (expected, None)
+
+
+def test_spellings_that_resolve_to_the_same_run_collapse_to_one_mode(resolver) -> None:
+    # Isaac-Open-Drawer-Franka in miniature: passing nothing lands on the same config as
+    # naming the preset the task already defaults to, and ``physx`` lands on the same
+    # config as the concrete backend it aliases.
+    resolver(
+        {
+            (None, None, None): ("fp-physx", "PhysxCfg"),
+            (None, None, "isaacsim_physx"): ("fp-physx", "PhysxCfg"),
+            (None, None, "ovphysx"): ("fp-ov", "OvPhysxCfg"),
+            (None, None, "physx"): ("fp-ov", "OvPhysxCfg"),
+            (None, None, "newton_mjwarp"): ("fp-newton", "NewtonCfg(MJWarpSolverCfg)"),
+        }
     )
 
     modes, default = _build_modes(
@@ -147,22 +167,18 @@ def test_spellings_that_resolve_to_the_same_run_collapse_to_one_mode(monkeypatch
         Mode(None, None, "newton_mjwarp"),
         Mode(None, None, "ovphysx"),
     )
-    assert default == DiscoveredTask.Default(backend="PhysxCfg", mode=Mode(None, None, "isaacsim_physx"))
+    assert default == Default(backend="PhysxCfg", mode=Mode(None, None, "isaacsim_physx"))
 
 
-def test_runs_sharing_a_backend_but_not_a_config_stay_separate(monkeypatch) -> None:
-    # Isaac-Reach-Franka's controller presets all run on Newton MJWarp and are four
-    # different runs, so collapsing on the backend instead of the config is wrong.
-    monkeypatch.setattr(
-        task_discovery,
-        "_mode_resolves",
-        _resolver(
-            {
-                (None, None, None): ("fp-joint", "NewtonCfg(MJWarpSolverCfg)"),
-                (None, None, "joint_pos"): ("fp-joint", "NewtonCfg(MJWarpSolverCfg)"),
-                (None, None, "diffik"): ("fp-diffik", "NewtonCfg(MJWarpSolverCfg)"),
-            }
-        ),
+def test_runs_sharing_a_backend_but_not_a_config_stay_separate(resolver) -> None:
+    # Isaac-Reach-Franka's controller presets all run on Newton MJWarp and are different
+    # runs, so collapsing on the backend instead of the config would merge them.
+    resolver(
+        {
+            (None, None, None): ("fp-joint", "NewtonCfg(MJWarpSolverCfg)"),
+            (None, None, "joint_pos"): ("fp-joint", "NewtonCfg(MJWarpSolverCfg)"),
+            (None, None, "diffik"): ("fp-diffik", "NewtonCfg(MJWarpSolverCfg)"),
+        }
     )
 
     modes, default = _build_modes("Isaac-X", (), (), ("joint_pos", "diffik"), resolve=True)
@@ -171,92 +187,50 @@ def test_runs_sharing_a_backend_but_not_a_config_stay_separate(monkeypatch) -> N
     assert default.mode == Mode(None, None, "joint_pos")
 
 
-def test_a_default_that_matches_no_named_preset_survives_as_its_own_mode(monkeypatch) -> None:
-    monkeypatch.setattr(
-        task_discovery,
-        "_mode_resolves",
-        _resolver(
-            {
-                (None, None, None): ("fp-own", "PhysxCfg"),
-                (None, None, "rgb"): ("fp-rgb", "PhysxCfg"),
-            }
-        ),
-    )
+def test_a_default_matching_no_named_preset_survives_as_its_own_mode(resolver) -> None:
+    resolver({(None, None, None): ("fp-own", "PhysxCfg"), (None, None, "rgb"): ("fp-rgb", "PhysxCfg")})
 
     modes, default = _build_modes("Isaac-X", (), (), ("rgb",), resolve=True)
 
     assert modes == (Mode(None, None, None), Mode(None, None, "rgb"))
-    assert default == DiscoveredTask.Default(backend="PhysxCfg", mode=Mode(None, None, None))
+    assert default == Default(backend="PhysxCfg", mode=Mode(None, None, None))
 
 
-def _validator_broken_on(backend: str):
-    """Return a ``_mode_resolves`` stand-in that fails structurally on *backend*."""
+def test_uncollapsed_keeps_every_spelling_but_still_drops_rejections(resolver) -> None:
+    # ``shapes`` names the default of its own axis, so it resolves to the default config
+    # and the collapse drops it -- but it is still a token a reader can type, which is
+    # what the documentation view needs. ``raycaster`` is absent from the table, so it
+    # does not resolve and must be dropped either way.
+    resolver(
+        {
+            (None, None, None): ("fp-default", "PhysxCfg"),
+            (None, None, "shapes"): ("fp-default", "PhysxCfg"),
+            (None, None, "cube"): ("fp-cube", "PhysxCfg"),
+        }
+    )
+    domains = ("shapes", "cube", "raycaster")
 
-    def fake(task_id, physics, renderer, presets=None):
-        if physics == backend:
-            raise DiscoveryError("AttributeError: no attribute 'solver_cfg'")
-        return ("fp", "PhysxCfg")
+    collapsed, _ = _build_modes("Isaac-X", (), (), domains, resolve=True)
+    every, default = _build_modes("Isaac-X", (), (), domains, resolve=True, collapse=False)
 
-    return fake
+    assert collapsed == (Mode(None, None, "shapes"), Mode(None, None, "cube"))
+    assert every == (Mode(None, None, None), Mode(None, None, "shapes"), Mode(None, None, "cube"))
+    assert default == Default(backend="PhysxCfg", mode=Mode(None, None, "shapes"))
 
 
-def test_a_combination_the_validator_cannot_judge_is_dropped_and_the_walk_continues(monkeypatch) -> None:
-    # One task whose config breaks the validator must not cost the caller every
-    # other task in the registry. Unknown is not legal either, so the combination
-    # is dropped rather than reported.
-    monkeypatch.setattr(task_discovery, "_mode_resolves", _validator_broken_on("newton_mjwarp"))
+def test_a_combination_the_validator_cannot_judge_is_dropped_and_the_walk_continues(broken_validator) -> None:
+    # One task breaking the validator must not cost the caller the rest of the registry.
+    # Unknown is not legal either, so the combination is dropped rather than reported.
+    broken_validator("newton_mjwarp")
 
     modes, _ = _build_modes("Isaac-X", ("physx", "newton_mjwarp"), (), (), resolve=True)
 
     assert modes == (Mode("physx", None, None),)
 
 
-def test_strict_raises_on_a_structural_failure_instead_of_dropping_it(monkeypatch) -> None:
+def test_strict_raises_on_a_structural_failure_instead_of_dropping_it(broken_validator) -> None:
     # Callers policing Isaac Lab API drift want the canary, not a survivable walk.
-    monkeypatch.setattr(task_discovery, "_mode_resolves", _validator_broken_on("newton_mjwarp"))
+    broken_validator("newton_mjwarp")
 
     with pytest.raises(DiscoveryError):
         _build_modes("Isaac-X", ("physx", "newton_mjwarp"), (), (), resolve=True, strict=True)
-
-
-def test_uncollapsed_mode_keeps_every_validated_spelling(monkeypatch) -> None:
-    # A preset naming the default of its own axis resolves to the default config, so
-    # the collapse drops it -- but it is still a token a reader can type, so the
-    # documentation view has to keep it.
-    monkeypatch.setattr(
-        task_discovery,
-        "_mode_resolves",
-        _resolver(
-            {
-                (None, None, None): ("fp-default", "PhysxCfg"),
-                (None, None, "shapes"): ("fp-default", "PhysxCfg"),
-                (None, None, "cube"): ("fp-cube", "PhysxCfg"),
-            }
-        ),
-    )
-
-    collapsed, _ = _build_modes("Isaac-X", (), (), ("shapes", "cube"), resolve=True)
-    every, default = _build_modes("Isaac-X", (), (), ("shapes", "cube"), resolve=True, collapse=False)
-
-    assert collapsed == (Mode(None, None, "shapes"), Mode(None, None, "cube"))
-    assert every == (Mode(None, None, None), Mode(None, None, "shapes"), Mode(None, None, "cube"))
-    # The default still names an explicit spelling, not the bare no-token mode.
-    assert default == DiscoveredTask.Default(backend="PhysxCfg", mode=Mode(None, None, "shapes"))
-
-
-def test_uncollapsed_mode_still_drops_combinations_the_validator_rejects(monkeypatch) -> None:
-    monkeypatch.setattr(
-        task_discovery,
-        "_mode_resolves",
-        _resolver(
-            {
-                (None, None, None): ("fp-default", "PhysxCfg"),
-                (None, None, "rgb"): ("fp-rgb", "PhysxCfg"),
-            }
-        ),
-    )
-
-    every, _ = _build_modes("Isaac-X", (), (), ("rgb", "raycaster_depth"), resolve=True, collapse=False)
-
-    # Asserting the whole tuple, not just absence -- ``not in`` also passes on empty.
-    assert every == (Mode(None, None, None), Mode(None, None, "rgb"))

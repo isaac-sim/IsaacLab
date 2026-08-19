@@ -59,33 +59,28 @@ def test_a_kit_backed_physics_and_a_kitless_renderer_are_rejected() -> None:
     assert _mode_resolves("Isaac-Cartpole-Camera", "ovphysx", "ovrtx", None) is not None
 
 
-def test_distinct_backends_get_distinct_fingerprints() -> None:
-    """Guards the collapse against a config serialization that stops discriminating.
+def test_the_fingerprint_identifies_a_run() -> None:
+    """The collapse is only as good as this: stable per run, distinct across runs.
 
     ``to_dict`` erases class identity, so backends differ only by the values it keeps.
-    Should that discriminator ever be dropped upstream, two backends would silently
-    merge into one mode and a dispatcher would stop scheduling one of them.
+    Were that discriminator dropped upstream, two backends would merge into one mode
+    and a dispatcher would silently stop scheduling one of them.
     """
-    resolutions = [_mode_resolves("Isaac-Cartpole", name, None, None) for name in ("newton_mjwarp", "newton_kamino")]
-    assert all(r is not None for r in resolutions)
-    fingerprints = {r[0] for r in resolutions}
-    backends = {r[1] for r in resolutions}
-    assert len(backends) == 2, backends
-    assert len(fingerprints) == len(backends)
+    once = _mode_resolves("Isaac-Cartpole", "newton_mjwarp", None, None)
+    again = _mode_resolves("Isaac-Cartpole", "newton_mjwarp", None, None)
+    other = _mode_resolves("Isaac-Cartpole", "newton_kamino", None, None)
+
+    assert once is not None and other is not None
+    assert once == again, "an unstable fingerprint splits one run across several modes"
+    assert once[1] != other[1], "different backends"
+    assert once[0] != other[0], "...so they must not share a fingerprint"
 
 
 def test_an_alias_collapses_onto_the_backend_it_resolves_to() -> None:
     """``physics=physx`` is an alias, so it must share a fingerprint with its target."""
-    alias = _mode_resolves("Isaac-Cartpole", "physx", None, None)
-    concrete = _mode_resolves("Isaac-Cartpole", "ovphysx", None, None)
-
-    assert alias is not None and concrete is not None
-    assert alias == concrete
-
-
-def test_the_same_combination_fingerprints_the_same_way_twice() -> None:
-    """An unstable fingerprint would split one run across several modes, silently."""
-    assert _mode_resolves("Isaac-Cartpole", None, None, None) == _mode_resolves("Isaac-Cartpole", None, None, None)
+    assert _mode_resolves("Isaac-Cartpole", "physx", None, None) == _mode_resolves(
+        "Isaac-Cartpole", "ovphysx", None, None
+    )
 
 
 @pytest.mark.parametrize(
@@ -105,22 +100,15 @@ def test_failures_are_sorted_into_rejection_or_api_drift(monkeypatch, raised, ex
     import isaaclab_tasks.utils as utils
 
     monkeypatch.setattr(utils, "resolve_task_config", _raise(raised))
+    # ``discover_tasks`` runs in-process from a CLI tool, so an argv leak on any of
+    # these paths would corrupt the caller.
+    before = list(sys.argv)
 
     if expectation == "raises":
         with pytest.raises(DiscoveryError):
-            _mode_resolves("Isaac-Cartpole", None, None, None)
+            _mode_resolves("Isaac-Cartpole", "ovphysx", None, "rgb")
     else:
-        assert _mode_resolves("Isaac-Cartpole", None, None, None) is None
-
-
-def test_sys_argv_is_restored_even_when_resolution_fails(monkeypatch) -> None:
-    """``discover_tasks`` runs in-process from a CLI tool, so a leak would corrupt it."""
-    import isaaclab_tasks.utils as utils
-
-    monkeypatch.setattr(utils, "resolve_task_config", _raise(ValueError("nope")))
-    before = list(sys.argv)
-
-    assert _mode_resolves("Isaac-Cartpole", "ovphysx", None, "rgb") is None
+        assert _mode_resolves("Isaac-Cartpole", "ovphysx", None, "rgb") is None
 
     assert sys.argv == before
 

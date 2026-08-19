@@ -74,26 +74,23 @@ class DiscoveredTask:
         rl_libraries: RL libraries the task declares an agent config for, in
             :data:`RL_LIBRARY_PRIORITY` order. Empty for registered environments with
             no RL entry point, such as IK, teleop and mimic tasks.
-        declared: Preset names the task declares, keyed by axis (``physics``,
-            ``renderer``, ``presets``) exactly as the registry reports them, or ``None``
-            when the config could not be loaded. ``None`` means unknown; an all-empty
-            mapping means the task declares nothing and runs on a fixed backend.
-            Unreconciled: aliases and cross-axis duplicates are all present. Use
+        declared: Preset names by axis (``physics``, ``renderer``, ``presets``) as
+            ``enumerate_task_presets`` reports them, or ``None`` when the config would
+            not load. ``None`` is unknown; an all-empty mapping is a task that declares
+            nothing. Unreconciled -- same-axis duplicate spellings (``physx`` beside
+            ``isaacsim_physx``) and cross-axis duplicates are all present, so use
             ``modes`` for a deduplicated answer.
-        modes: Ways to run the task. In resolved mode these passed the validator, and
-            with ``collapse`` are reduced so each is a distinct run rather than a
-            distinct spelling; without it every validated spelling is kept. In declared
-            mode they are the raw cross product, unverified.
+        modes: Ways to run the task. Resolved modes passed the validator, and with
+            ``collapse`` are reduced to distinct runs rather than distinct spellings.
+            Declared modes are the raw cross product, unverified.
 
-            Validation assumes a **headless launch** -- no ``--visualizer kit``,
-            ``--livestream``, ``--experience`` or ``--require_kit``. Each is a Kit
-            source, so adding one narrows the legal set; the kitless visualizers
-            (``newton``, ``rerun``, ``viser``) are not. The assumption is not hermetic:
-            Kit sources are also read from the config's own visualizer intent, and from
-            the ``LIVESTREAM`` environment variable, which silently rejects every
-            kitless combination when set. It also stops at the validator, so a
-            Kit-requiring combination is reported runnable even where Isaac Sim is not
-            installed and the launcher would refuse it.
+            Resolved against a **headless launch**. Kit sources narrow the legal set --
+            ``--visualizer kit`` (not the kitless ``newton``/``rerun``/``viser``),
+            ``--livestream``, ``--experience``, ``--require_kit``, and the config's own
+            visualizer intent. Two leaks: ``LIVESTREAM`` is read from the environment
+            even with no flag, and validation stops before the Isaac Sim availability
+            check, so Kit-requiring combinations are reported runnable on machines that
+            cannot launch them.
         default: What the task does when given no preset tokens, or ``None`` in
             declared mode or when that run does not resolve.
         resolved: Whether ``modes`` was resolved, or merely declared.
@@ -104,18 +101,16 @@ class DiscoveredTask:
         """One way to run a task.
 
         Args:
-            physics: Physics preset token, or ``None`` when the run passes no
-                ``physics=`` token and the config's own default applies. That happens
-                both for tasks declaring no physics presets and for the probe of a
-                declaring task's default.
-            renderer: Renderer preset token, or ``None`` when the run passes no
-                ``renderer=`` token and the config's own default renderer applies.
-            presets: Domain preset token passed as ``presets=<value>``, or ``None``.
-                Never more than one. ``presets=`` does take a comma-separated list and
-                names on different config paths compose (``duo_camera,depth128,cube``);
-                only names sharing a path conflict (``depth,rgb``). Discovery validates
-                each name alone and never tries a pair, so ``modes`` under-approximates
-                a task with several independent preset axes.
+            physics: Physics preset token, or ``None`` for a run passing no
+                ``physics=`` token -- the task declares none, or this is the probe of a
+                declaring task's own default.
+            renderer: Renderer preset token, or ``None`` for a run passing no
+                ``renderer=`` token.
+            presets: One ``presets=`` token, or ``None``. The token takes a comma list --
+                names on different config paths compose (``duo_camera,depth128,cube``),
+                only same-path names conflict (``depth,rgb``) -- but discovery validates
+                each name alone, so ``modes`` under-approximates a task with several
+                independent preset axes.
         """
 
         physics: str | None
@@ -357,17 +352,16 @@ def discover_tasks(
 
     Args:
         specs: Gym specs to walk. When ``None``, the whole registry is scanned.
-        resolve: When ``True``, every combination is built and checked against the
-            runtime validator and only usable ones are returned. When ``False``,
-            combinations are reported as declared: fast but unverified.
-        strict: When ``True``, a combination the validator cannot judge raises instead
-            of being logged and dropped. Off by default so one unjudgeable combination
-            costs the caller that combination rather than the whole registry -- note the
-            task is still returned, with that combination missing from ``modes``.
-        collapse: When ``True`` (the default), spellings resolving to the same config are
-            reduced to one, so ``modes`` is the distinct runs a dispatcher should
-            schedule. Turn it off to keep every validated spelling, which is what
-            documentation needs. Ignored when ``resolve`` is off.
+        resolve: Build every combination and keep only what the validator accepts.
+            When ``False``, report what is declared: fast, unverified.
+        strict: Raise on a combination the validator cannot judge, instead of logging
+            and dropping it. Off by default, so one unjudgeable combination costs the
+            caller that combination and not the registry -- the task is still returned,
+            with that combination missing from ``modes``.
+        collapse: Reduce spellings that resolve to the same config to one, leaving the
+            distinct runs a dispatcher should schedule. Turn it off to keep every
+            validated spelling, which is what documentation needs. Ignored when
+            ``resolve`` is off.
 
     Returns:
         Discovered tasks sorted by ``task_id``.
