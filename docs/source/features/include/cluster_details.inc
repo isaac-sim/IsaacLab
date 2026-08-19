@@ -207,6 +207,12 @@ single node and scales training across the GPUs on that node through the
 :ref:`train-multigpu <train-multigpu-command>` command. The following parameters can be overridden
 at submission time:
 
+.. note::
+
+   The template uses the deprecated ``train_multigpu`` spelling because its default
+   ``3.0.0-beta2`` container image predates the rename. Custom images built from current source can
+   use ``train-multigpu``.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 80

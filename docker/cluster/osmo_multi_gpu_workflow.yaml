@@ -61,7 +61,7 @@ workflow:
           export OPENBLAS_NUM_THREADS="${OMP_NUM_THREADS}"
 
           {% if num_gpu > 1 %}
-          /workspace/isaaclab/isaaclab.sh train-multigpu \
+          /workspace/isaaclab/isaaclab.sh train_multigpu \
             --rl_library {{ rl_library }} \
             --nproc_per_node {{ num_gpu }} \
             --master_port {{ master_port }} \
