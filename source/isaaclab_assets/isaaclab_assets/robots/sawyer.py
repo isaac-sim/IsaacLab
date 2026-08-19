@@ -48,13 +48,13 @@ SAWYER_CFG = ArticulationCfg(
     actuators={
         "head": ImplicitActuatorCfg(
             joint_names_expr=["head_pan"],
-            effort_limit_sim=8.0,
+            joint_effort_limit=8.0,
             stiffness=800.0,
             damping=40.0,
         ),
         "arm": ImplicitActuatorCfg(
             joint_names_expr=["right_j[0-6]"],
-            effort_limit_sim={
+            joint_effort_limit={
                 "right_j[0-1]": 80.0,
                 "right_j[2-3]": 40.0,
                 "right_j[4-6]": 9.0,
