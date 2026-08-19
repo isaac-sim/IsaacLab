@@ -568,6 +568,38 @@ def test_manager_rejects_missing_warmup_api():
         OvPhysxManager._warmup_physx(SimpleNamespace())
 
 
+def test_manager_uses_current_destroy_api():
+    """A current OVPhysX runtime tears down through destroy()."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(destroy=lambda: calls.append("destroy"))
+
+    OvPhysxManager._destroy_physx(physx)
+
+    assert calls == ["destroy"]
+
+
+def test_manager_supports_legacy_release_api():
+    """The released OVPhysX runtime keeps using its release() entry point."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(release=lambda: calls.append("release"))
+
+    OvPhysxManager._destroy_physx(physx)
+
+    assert calls == ["release"]
+
+
+def test_manager_rejects_missing_destroy_api():
+    """An unsupported runtime reports both expected entry points explicitly."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    with pytest.raises(AttributeError, match=r"neither destroy\(\) nor legacy release\(\)"):
+        OvPhysxManager._destroy_physx(SimpleNamespace())
+
+
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     """A failed in-memory population does not leak its OVStage allocation."""
     from isaaclab_ov.physics import OvPhysxManager
