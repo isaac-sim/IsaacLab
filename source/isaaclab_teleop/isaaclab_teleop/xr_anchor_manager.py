@@ -13,14 +13,17 @@ import logging
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-import carb
-
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrCfg
 
-# Import XR components with fallback for testing
+# Import Kit components with fallback for testing and for headless, kitless
+# environments where Kit is not installed. Every use site already guards on
+# availability, so the module stays importable without them.
+carb = None
 XRCore = None
 XRCoreEventType = None
+with contextlib.suppress(ModuleNotFoundError):
+    import carb
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRCoreEventType
 

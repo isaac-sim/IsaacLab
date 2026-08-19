@@ -1951,6 +1951,11 @@ teleop = [
     { name = "isaacsim", extra = ["all", "extscache"], marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacteleop", extra = ["cloudxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
+teleop-headless = [
+    { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "isaaclab-teleop", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaacteleop", extra = ["retargeters"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
 test = [
     { name = "autodocsumm", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "coverage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1993,6 +1998,7 @@ requires-dist = [
     { name = "daqp", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')", specifier = "==0.8.5" },
     { name = "decord2", marker = "extra == 'rlinf'" },
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "==0.5.0" },
+    { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop-headless'", specifier = "==0.5.0" },
     { name = "diffusers", marker = "extra == 'rlinf'", specifier = ">=0.35.0" },
     { name = "dm-tree", marker = "extra == 'rlinf'", specifier = ">=0.1.8" },
     { name = "einops" },
@@ -2022,11 +2028,13 @@ requires-dist = [
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
     { name = "isaaclab-tasks-experimental", editable = "source/isaaclab_tasks_experimental" },
     { name = "isaaclab-teleop", marker = "extra == 'teleop'", editable = "source/isaaclab_teleop" },
+    { name = "isaaclab-teleop", marker = "extra == 'teleop-headless'", editable = "source/isaaclab_teleop" },
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.0.1.0" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'teleop'", specifier = "==6.0.1.0" },
     { name = "isaacsim-asset-isolated", specifier = ">=6.0,<6.1" },
     { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.0" },
+    { name = "isaacteleop", extras = ["retargeters"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop-headless'", specifier = "~=1.4.0" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
     { name = "leapp", marker = "extra == 'leapp'", specifier = ">=0.5.2" },
@@ -2115,7 +2123,7 @@ requires-dist = [
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "warp-lang", specifier = "==1.16.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "teleop-headless", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
