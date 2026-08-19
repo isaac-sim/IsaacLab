@@ -29,10 +29,9 @@ Changed
   Legacy single-cfg values are unaffected.
 * **Breaking:** Changed the fragment schema writers to no longer apply their defining
   USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. For
-  articulation roots, anchoring on the spawn prim now requires a ``{"": [...]}``
-  entry in :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props`
-  together with ``articulation_props_create_if_missing=True`` on the spawner
-  configuration.
+  articulation roots, anchoring on the spawn prim needs an entry targeting it in
+  :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props` together with
+  ``articulation_props_create_if_missing=True`` on the spawner configuration.
 * **Breaking:** Changed :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
   to author on every matched articulation root, warning when they nest, instead of
   silently pruning nested roots; asset validity is the author's responsibility.
@@ -44,4 +43,4 @@ Fixed
   :func:`~isaaclab.sim.schemas.apply_mass_properties` only reaching the outermost
   schema-bearing prim on assets with nested rigid-body hierarchies (child links authored
   under their parent link prims, as produced by the URDF importer in Isaac Sim 6.0 and
-  later). A whole-subtree target pattern (``{"(/.*)?": [...]}``) reaches every carrier.
+  later). A whole-subtree target pattern (``{"/.*": [...]}``) reaches every carrier.

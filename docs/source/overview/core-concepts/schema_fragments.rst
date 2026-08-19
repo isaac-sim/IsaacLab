@@ -147,7 +147,8 @@ A robot spawned from USD, with a broad rule and a narrowing override:
        },
    )
 
-A primitive shape, where ``""`` targets the family's anchor prim directly:
+A primitive shape, where every family targets the anchor prim, so the mapping can be
+dropped entirely:
 
 .. code-block:: python
 
@@ -157,28 +158,14 @@ A primitive shape, where ``""`` targets the family's anchor prim directly:
 
    cuboid = sim_utils.CuboidCfg(
        size=(0.1, 0.1, 0.1),
-       rigid_props={"": [UsdPhysicsRigidBodyCfg()]},
-       mass_props={"": [MassCfg(mass=0.5)]},
-       collision_props={
-           "": [UsdPhysicsCollisionCfg(collision_enabled=True), NewtonCollisionCfg(contact_margin=0.001)],
-       },
-   )
-
-Since ``""`` is the common case for shapes and meshes, the same configuration can drop the
-mapping entirely:
-
-.. code-block:: python
-
-   cuboid = sim_utils.CuboidCfg(
-       size=(0.1, 0.1, 0.1),
        rigid_props=UsdPhysicsRigidBodyCfg(),
        mass_props=MassCfg(mass=0.5),
        collision_props=[UsdPhysicsCollisionCfg(collision_enabled=True), NewtonCollisionCfg(contact_margin=0.001)],
    )
 
-Reach for the mapping when a rule must target something other than the anchor prim — which
-is the usual situation for assets spawned from USD, URDF, or MJCF files, where the spawn
-prim is a container and the schema carriers sit beneath it.
+Reach for the mapping when a rule must target something other than the anchor prim — the
+usual situation for assets spawned from USD, URDF, or MJCF files, where the spawn prim is a
+container and the schema carriers sit beneath it.
 
 Creating missing APIs
 ---------------------
