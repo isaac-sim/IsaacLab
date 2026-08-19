@@ -50,8 +50,8 @@ SKRL_JAX_ARGS = ("nnodes", "node_rank", "coordinator_address")
 SKRL_JAX_TORCHRUN_ONLY_ARGS = tuple(name for name in TORCHRUN_ARGS if name not in SKRL_JAX_ARGS)
 """``torchrun`` options that have no skrl JAX equivalent."""
 
-PRESET_SELECTOR_PREFIXES = ("presets=", "physics=", "renderer=")
-"""Hydra-style tokens that name a preset, forwarded to the worker rather than parsed here."""
+PRESET_SELECTOR_PREFIXES = ("presets=", "physics=")
+"""Hydra-style tokens that can name a physics backend, forwarded to the worker rather than parsed here."""
 
 VIRTUAL_LOCAL_RANK_PRESET = "ovphysx"
 """Preset that needs one visible GPU per worker. See :func:`_use_virtual_local_rank`."""
@@ -291,21 +291,11 @@ def _is_skrl_jax_launcher(args_cli: argparse.Namespace, worker_args: list[str], 
 
 
 def _use_virtual_local_rank(worker_args: list[str]) -> bool:
-    """Return whether the forwarded presets put OVPhysX in every worker process.
+    """Return whether the presets select OVPhysX, which needs one visible GPU per worker.
 
-    OVPhysX up to 0.5.10 does not apply the requested CUDA ordinal before PhysX creates its
-    context, so with an RTX renderer in the process PhysX keeps the already-current device. Every
-    rank above local rank 0 then dies on a device mismatch and rank 0 blocks in the NCCL bootstrap
-    (nvbug 6573426, fixed in ovphysx 0.5.11). One visible GPU per worker makes the PhysX default
-    correct everywhere, so it is applied whenever OVPhysX is selected rather than offered as an
-    option. Delete this once the ovphysx pin moves past 0.5.10.
-
-    The preset tokens are Hydra-style ``key=value`` pairs the worker parses itself, so they are read
-    here without claiming them from ``worker_args``. Only OVPhysX is matched, even though the hang
-    also needs an RTX renderer: ``renderer=rtx`` is a placeholder that becomes OVRTX only once the
-    worker resolves it against the available runtime, so it cannot be recognized by name here.
-    Matching the physics backend alone keeps the decision independent of that resolution, at the
-    cost of also engaging the workaround where no RTX renderer is present and it is inert.
+    Works around nvbug 6573426 in ovphysx <= 0.5.10; delete with the pin. Matches the physics backend
+    only, because ``renderer=rtx`` resolves to OVRTX inside the worker, and matches the raw name, so a
+    future ``ovphysx`` alias would bypass it.
     """
     selected: set[str] = set()
     for arg in worker_args:
@@ -315,8 +305,8 @@ def _use_virtual_local_rank(worker_args: list[str]) -> bool:
     if VIRTUAL_LOCAL_RANK_PRESET not in selected:
         return False
     print(
-        "[INFO] Presets select OVPhysX, which hangs on more than one GPU when an RTX renderer shares "
-        "the process (nvbug 6573426). Giving every worker a single GPU as cuda:0.",
+        "[INFO] Presets select OVPhysX; giving every worker a single GPU as cuda:0 to avoid the "
+        "multi-GPU device-selection hang (nvbug 6573426).",
         flush=True,
     )
     return True
