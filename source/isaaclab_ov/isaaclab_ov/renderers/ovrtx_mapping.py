@@ -22,6 +22,21 @@ from typing import Any
 import warp as wp
 
 
+def get_warp_device_id(device: str) -> int:
+    """CUDA device index of the Warp device ``device`` resolves to.
+
+    Resolving through Warp keeps the mapped device consistent with where Warp enqueues the fill
+    work: a bare ``"cuda"`` means Warp's current CUDA device, not index ``0``.
+
+    Args:
+        device: Warp CUDA device identifier (e.g. ``"cuda"`` or ``"cuda:1"``).
+
+    Returns:
+        The CUDA device index.
+    """
+    return wp.get_device(device).ordinal
+
+
 @contextmanager
 def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iterator[wp.array]:
     """Map ``binding`` for CUDA writes and yield its buffer as a Warp array; commit after the fill.
@@ -32,8 +47,8 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     GPU instead of racing it. OVRTX has no discard path (unmap always commits), so a failed fill
     still publishes whatever landed in the buffer.
 
-    ``device`` is resolved once through Warp, so the mapped CUDA device and the sync stream cannot
-    diverge -- a bare ``"cuda"`` maps and syncs Warp's current CUDA device.
+    ``device`` is resolved through Warp (see :func:`get_warp_device_id`), so the mapped CUDA device
+    matches where the fill work runs -- a bare ``"cuda"`` maps and syncs Warp's current CUDA device.
 
     Args:
         binding: OVRTX attribute binding (from ``bind_attribute``) whose buffer is written.
@@ -49,9 +64,8 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     # already imported by the time this runs.
     from ovrtx import Device  # noqa: PLC0415
 
-    warp_device = wp.get_device(device)
-    attr_mapping = binding.map(device=Device.CUDA, device_id=warp_device.ordinal)
+    attr_mapping = binding.map(device=Device.CUDA, device_id=get_warp_device_id(device))
     try:
         yield wp.from_dlpack(attr_mapping.tensor, dtype=dtype)
     finally:
-        attr_mapping.unmap(stream=warp_device.stream.cuda_stream)
+        attr_mapping.unmap(stream=wp.get_stream(device).cuda_stream)

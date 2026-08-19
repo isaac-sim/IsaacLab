@@ -501,8 +501,19 @@ class _RecordingMappedBinding:
 
 def _patch_warp_device(monkeypatch, *, ordinal: int, cuda_stream: int) -> None:
     """Resolve any device ident to one fake Warp device with the given ordinal and current stream."""
-    warp_device = types.SimpleNamespace(ordinal=ordinal, stream=types.SimpleNamespace(cuda_stream=cuda_stream))
-    monkeypatch.setattr(ovrtx_mapping.wp, "get_device", lambda device: warp_device)
+    monkeypatch.setattr(ovrtx_mapping.wp, "get_device", lambda device: types.SimpleNamespace(ordinal=ordinal))
+    monkeypatch.setattr(ovrtx_mapping.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=cuda_stream))
+
+
+def test_get_warp_device_id_resolves_through_warp(monkeypatch):
+    """The device index comes from Warp's resolution of the ident, never from parsing the string.
+
+    Parsing would send a bare ``"cuda"`` to index 0 while Warp enqueues the fill on its current
+    CUDA device, so the mapping and the sync stream could target different GPUs.
+    """
+    monkeypatch.setattr(ovrtx_mapping.wp, "get_device", lambda device: types.SimpleNamespace(ordinal=3))
+
+    assert ovrtx_mapping.get_warp_device_id("cuda") == 3
 
 
 def test_map_attribute_for_warp_writes_commits_on_the_producer_stream(monkeypatch):
@@ -521,23 +532,6 @@ def test_map_attribute_for_warp_writes_commits_on_the_producer_stream(monkeypatc
 
     assert binding.map_calls == [{"device": ovrtx_renderer_module.Device.CUDA, "device_id": 1}]
     assert binding.unmap_calls == [{"event": None, "stream": 99}]
-
-
-def test_map_attribute_for_warp_writes_resolves_bare_cuda_through_warp(monkeypatch):
-    """A bare ``"cuda"`` maps the device Warp resolves it to, not index 0.
-
-    Parsing the string instead would map GPU 0 while syncing another GPU's stream whenever Warp's
-    current CUDA device is non-zero, silently voiding the ordering guarantee.
-    """
-    binding = _RecordingMappedBinding()
-    _patch_warp_device(monkeypatch, ordinal=3, cuda_stream=42)
-    monkeypatch.setattr(ovrtx_mapping.wp, "from_dlpack", lambda tensor, dtype: object())
-
-    with ovrtx_mapping.map_attribute_for_warp_writes(binding, "cuda", wp.mat44d):
-        pass
-
-    assert binding.map_calls == [{"device": ovrtx_renderer_module.Device.CUDA, "device_id": 3}]
-    assert binding.unmap_calls == [{"event": None, "stream": 42}]
 
 
 def test_map_attribute_for_warp_writes_unmaps_when_the_fill_raises(monkeypatch):
