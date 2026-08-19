@@ -5,10 +5,9 @@
 
 """Enumerate registered training tasks and the backend combinations they support.
 
-What a task **declares** is one registry walk: fast, unverified. What it **resolves**
-costs a config build and a validator run per combination, and is the only way to know
-a combination can run -- the cross product is not all legal, since OVRTX is kitless and
-cannot share a process with Kit physics. :func:`discover_tasks` answers either.
+Declared combinations come from one registry walk. Resolved ones cost a config build
+and a validator run each, and are the only reliable answer: the cross product is not
+all legal, since OVRTX cannot share a process with Kit physics.
 """
 
 from __future__ import annotations
@@ -55,29 +54,21 @@ class DiscoveredTask:
         scope: ``core`` or ``contrib``.
         rl_libraries: Libraries the task declares an agent config for, in
             :data:`RL_LIBRARY_PRIORITY` order. Empty for IK, teleop and mimic tasks.
-        declared: Preset names by axis (``physics``, ``renderer``, ``presets``), or
-            ``None`` when the config would not load. ``None`` is unknown, an all-empty
-            mapping is a task declaring nothing. Duplicate spellings are all present, so
-            use ``modes`` for a deduplicated answer.
-        modes: Ways to run the task; see :func:`_build_modes`. Resolved against a
-            headless launch, and two things escape that: ``LIVESTREAM`` is read from the
-            environment, and validation stops before the Isaac Sim availability check,
-            so Kit-requiring combinations are reported runnable where they cannot launch.
-        default: The no-token run, ``None`` in declared mode or when it does not resolve.
-        resolved: Whether ``modes`` was resolved, or merely declared.
+        declared: Preset names by axis, or ``None`` if the config would not load. An
+            all-empty mapping means the task declares none. Keeps duplicate spellings.
+        modes: Ways to run the task; see :func:`_build_modes`. Resolution assumes a
+            headless launch, reads ``LIVESTREAM`` from the environment, and stops before
+            the Isaac Sim availability check.
+        default: The no-token run. ``None`` in declared mode, or if it does not resolve.
+        resolved: Whether ``modes`` was resolved or merely declared.
     """
 
     @dataclass(frozen=True)
     class Mode:
-        """One way to run a task.
+        """The tokens one run passes, ``None`` on an axis it leaves to the config.
 
-        Args:
-            physics: ``physics=`` token, or ``None`` for a run passing none -- the task
-                declares none, or this is the probe of its own default.
-            renderer: ``renderer=`` token, or ``None`` for a run passing none.
-            presets: One ``presets=`` token, or ``None``. The token takes a comma list
-                and names on different config paths compose, but discovery validates
-                each alone, so ``modes`` under-approximates a multi-axis task.
+        ``presets`` holds at most one name even though the token takes a comma list, so
+        a task with several independent preset axes is under-approximated.
         """
 
         physics: str | None
@@ -86,13 +77,8 @@ class DiscoveredTask:
 
     @dataclass(frozen=True)
     class Default:
-        """The run a task performs when given no preset tokens.
-
-        Args:
-            backend: Physics config the run resolves to, e.g.
-                ``NewtonCfg(MJWarpSolverCfg)`` -- a class, since a default need not have
-                a preset name.
-            mode: The entry in ``modes`` this run collapsed into.
+        """The no-token run: the ``modes`` entry it collapsed into, and the physics
+        cfg class it resolves to, e.g. ``NewtonCfg(MJWarpSolverCfg)``.
         """
 
         backend: str | None
@@ -111,9 +97,7 @@ class DiscoveredTask:
 def _domain_presets(names: list[str], typed_names: tuple[str, ...]) -> tuple[str, ...]:
     """Return domain presets, dropping those the task also declares on a typed axis.
 
-    A backend buckets under ``DOMAIN`` or a typed target by cfg class, so the same name
-        means different things per task: on both, it is reachable as ``physics=NAME`` and
-        reporting it again double-counts; here only, ``presets=NAME`` is the sole way in.
+    Filtering by name instead would hide backends only reachable as ``presets=NAME``.
     """
     typed = set(typed_names)
     return tuple(sorted(name for name in names if name not in typed))
@@ -149,14 +133,13 @@ def _rl_libraries_from_kwargs(kwargs: dict[str, Any]) -> tuple[str, ...]:
 def _mode_resolves(
     task_id: str, physics: str | None, renderer: str | None, presets: str | None = None
 ) -> tuple[str, str | None] | None:
-    """Resolve one combination and identify the run it produces.
+    """Resolve one combination.
 
     Returns:
-        ``None`` when the combination cannot run -- an unknown preset, an unloadable
-        config and a rejected pairing are one answer. Otherwise ``(fingerprint,
-        backend)``: *fingerprint* digests the resolved config, so two spellings of one
-        run share it, and *backend* carries the solver, which is what separates
-        ``newton_mjwarp`` from ``newton_kamino``.
+        ``None`` if it cannot run. Otherwise ``(fingerprint, backend)``: the fingerprint
+        digests the resolved config, so two spellings of one run share it, and the
+        backend carries the solver that separates ``newton_mjwarp`` from
+        ``newton_kamino``.
 
     Raises:
         DiscoveryError: If validation could not run at all.
@@ -165,8 +148,7 @@ def _mode_resolves(
     import hashlib
     import sys
 
-    # Two of these are private. Losing one is drift, never a rejected combination, so
-    # it must not fall through to the handlers below.
+    # Two are private. Losing one is drift, not a rejected combination.
     try:
         from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, scan
 
@@ -200,8 +182,7 @@ def _mode_resolves(
             backend = f"{backend}({type(solver).__name__})"
         return fingerprint, backend
     except ModuleNotFoundError:
-        # An uninstalled extra: same answer as a rejection, which keeps a partial
-        # install usable. Narrower than ``ImportError``, which would also swallow drift.
+        # An uninstalled extra. Narrower than ``ImportError``, which would hide drift.
         return None
     except _INFRASTRUCTURE_ERRORS as exc:
         raise DiscoveryError(
@@ -226,11 +207,8 @@ def _build_modes(
 ) -> tuple[tuple[DiscoveredTask.Mode, ...], DiscoveredTask.Default | None]:
     """Return the runs for one task, and what it does when given no tokens.
 
-    Renderers are expanded across; domain presets one at a time, never combined.
-
-    ``collapse`` deduplicates on the resolved config -- not on the backend, which would
-    merge the Reach controller presets. Without it every validated spelling is kept,
-    which is what documentation needs.
+    Renderers expand across, domain presets one at a time. ``collapse`` deduplicates on
+    the resolved config, not the backend, which would merge same-backend runs.
 
     Returns:
         ``(modes, default)``. *default* names an explicit spelling even when ``collapse``
@@ -311,14 +289,11 @@ def discover_tasks(
         specs: Gym specs to walk. When ``None``, the whole registry is scanned.
         resolve: Build every combination and keep only what the validator accepts.
             When ``False``, report what is declared: fast, unverified.
-        strict: Raise on a combination the validator cannot judge, instead of logging
-            and dropping it. Off by default, so one unjudgeable combination costs the
-            caller that combination and not the registry -- the task is still returned,
-            with that combination missing from ``modes``.
-        collapse: Reduce spellings that resolve to the same config to one, leaving the
-            distinct runs a dispatcher should schedule. Turn it off to keep every
-            validated spelling, which is what documentation needs. Ignored when
-            ``resolve`` is off.
+        strict: Raise on a combination the validator cannot judge instead of logging
+            and dropping it. Off by default, so the task is still returned with that
+            combination missing from ``modes``.
+        collapse: Reduce spellings resolving to the same config to one. Off keeps every
+            validated spelling. Ignored when ``resolve`` is off.
 
     Returns:
         Discovered tasks sorted by ``task_id``.
