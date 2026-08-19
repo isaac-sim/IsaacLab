@@ -1791,6 +1791,9 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
     env_cfg.commands.deformable_pose.debug_vis = False
+    if data_type == "motion_vectors":
+        initial_pos = env_cfg.scene.deformable.init_state.pos
+        env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
     env_cfg.events.reset_deformable.params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
@@ -1804,7 +1807,8 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    _skip_if_newton_motion_vectors(physics_backend, data_type)
+    if renderer != "ovrtx_renderer":
+        _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
@@ -1831,11 +1835,17 @@ def rendering_test_franka_cloth(
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
-        # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
-        # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
-        # numerical precision.
+        # Advance the cloth before capturing camera output.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        if data_type == "motion_vectors":
+            initial_mean_z = env.scene["deformable"].data.nodal_pos_w.torch[..., 2].mean()
         env.step(zero_actions)
+        # TODO: Remove the extra step when NVBug 6565960 is fixed.
+        if data_type == "motion_vectors":
+            env.step(zero_actions)
+            current_mean_z = env.scene["deformable"].data.nodal_pos_w.torch[..., 2].mean()
+            fall_distance = (initial_mean_z - current_mean_z).item()
+            assert fall_distance > 0.005, f"Cloth fell only {fall_distance:.4f} m before motion-vector capture."
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output
