@@ -493,3 +493,45 @@ def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name
     assert compatibility
     assert set(compatibility) <= set(agents)
     assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
+
+
+# ---------------------------------------------------------------------------
+# _auto_select_agent: preset → agent entry point wiring
+# ---------------------------------------------------------------------------
+
+
+def test_setup_preset_cli_auto_selects_agent_for_showcase_task(monkeypatch):
+    """setup_preset_cli wires the preset to the right entry point end-to-end."""
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "IsaacContrib-Cartpole-Showcase-Direct"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = argparse.ArgumentParser(prog="train.py", add_help=False)
+    parser.add_argument("--task", default=None)
+    parser.add_argument("--agent", default=None)
+
+    argv = ["--task", "IsaacContrib-Cartpole-Showcase-Direct", "presets=box_discrete"]
+    args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
+    assert args.agent == "skrl_box_discrete_cfg_entry_point"
+
+
+def test_setup_preset_cli_auto_selects_agent_when_default_absent(monkeypatch):
+    """setup_preset_cli selects the sole entry point when the default is not registered.
+
+    AMP tasks only register ``skrl_amp_cfg_entry_point`` (no ``skrl_cfg_entry_point``).
+    Without this auto-select the benchmark command defaults to ``--algorithm PPO``,
+    resolves ``skrl_cfg_entry_point``, and crashes because it is not registered.
+    """
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "IsaacContrib-Humanoid-AMP-Walk-Direct"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = argparse.ArgumentParser(prog="train.py", add_help=False)
+    parser.add_argument("--task", default=None)
+    parser.add_argument("--agent", default=None)
+
+    argv = ["--task", "IsaacContrib-Humanoid-AMP-Walk-Direct"]
+    args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
+    assert args.agent == "skrl_amp_cfg_entry_point"
