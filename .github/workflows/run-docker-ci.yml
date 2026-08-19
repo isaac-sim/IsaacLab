@@ -1,0 +1,96 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Run Docker CI Command
+run-name: Run Docker CI for PR #${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: run-docker-ci-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  request-docker-ci:
+    name: Request Docker CI
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == 'run-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Authorize the request
+        env:
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          read -r pr_author pr_state head_sha < <(
+            gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state, .head.sha] | @tsv'
+          )
+          if [ "$pr_state" != "open" ]; then
+            echo "::error::PR #$PR_NUMBER is not open."
+            exit 1
+          fi
+          if [ "${COMMENT_AUTHOR,,}" != "${pr_author,,}" ]; then
+            commenter_permission="$(
+              gh api "repos/$REPOSITORY/collaborators/$COMMENT_AUTHOR/permission" \
+                --jq '.permission' 2>/dev/null || printf 'none'
+            )"
+            case "$commenter_permission" in
+              admin|maintain|write) ;;
+              *)
+                echo "::error::Only PR author @$pr_author or a user with write access can request Docker CI."
+                exit 1
+                ;;
+            esac
+          fi
+
+          # The label applies to whatever the PR head is now, which may not be
+          # the head the comment asked about: this workflow can be queued behind
+          # an earlier request, and the runner itself adds delay. Committer date
+          # stands in for push time — it is the closest timestamp the API gives
+          # for the head commit, and it only ever lags a push.
+          head_committed_at="$(
+            gh api "repos/$REPOSITORY/commits/$head_sha" --jq '.commit.committer.date'
+          )"
+          if [ "$(date -u -d "$COMMENT_CREATED_AT" +%s)" -lt "$(date -u -d "$head_committed_at" +%s)" ]; then
+            echo "::error::This request predates the current head ${head_sha:0:7} ($head_committed_at). Comment run-ci again to test it."
+            exit 1
+          fi
+
+      - name: Create isaaclab-bot token
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Trigger Docker CI
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          LABEL: ci:run-docker
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
+          gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
+          gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
+          gh api --method DELETE "$endpoint/$LABEL" --silent
+
+          echo "Requested Docker CI for PR #$PR_NUMBER." >> "$GITHUB_STEP_SUMMARY"
