@@ -194,10 +194,11 @@ jobs:
             exit 1
           fi
 
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install --dry-run "${wheel}[all]"
+
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
-            --prerelease=allow \
-            "${wheel}[all]"
+            "${wheel}[isaacsim]"

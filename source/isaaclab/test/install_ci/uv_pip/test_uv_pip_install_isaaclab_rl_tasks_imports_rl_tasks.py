@@ -26,9 +26,8 @@ from utils import UV_Mixin
 class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
     """``uv pip install <wheel>[sb3,skrl,rsl-rl]``: verify RL imports without Isaac Sim.
 
-    The extras are named individually on purpose. ``test_install_rl_tasks_omits_isaacsim``
-    asserts Isaac Sim is absent, and the aggregate ``all`` extra carries it -- switching to
-    ``[all]`` would make that assertion fail.
+    The extras are named individually to keep this import test small. The aggregate ``all``
+    extra also excludes Isaac Sim, but adds the curated OV, RL, and visualizer dependencies.
     """
 
     _wheel: str = ""

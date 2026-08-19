@@ -75,6 +75,9 @@ dependencies = [
     # alongside it without displacing it: Kit serves ``isaacsim.asset`` from its extension
     # roots when the runtime is present, and the standalone packages serve it otherwise.
     "isaacsim-asset-isolated>=6.0,<6.1",
+    # uv ignores transitive pre-releases unless one is requested directly. The isolated
+    # importer requires this release candidate, so declare it here for plain wheel installs.
+    "tinyobjloader==2.0.0rc13",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -193,12 +196,11 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
-# Every backend, RL library, and visualizer in one flag. No extra is forked in
-# [tool.uv].conflicts, so any combination resolves into a single environment. The
-# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp)
-# and the developer ``test`` tooling stay opt-in by name.
+# Curated OV backends, RL libraries, and visualizers in one flag. Isaac Sim and the
+# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp) plus
+# the developer ``test`` tooling stay opt-in by name.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
