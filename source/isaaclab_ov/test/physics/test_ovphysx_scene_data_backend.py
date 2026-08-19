@@ -579,6 +579,151 @@ def test_manager_rejects_missing_warmup_api():
         OvPhysxManager._warmup_physx(SimpleNamespace())
 
 
+def test_manager_uses_current_destroy_api():
+    """A current OVPhysX runtime tears down through destroy()."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(
+        destroy=lambda: calls.append("destroy"),
+        release=lambda: calls.append("release"),
+    )
+
+    OvPhysxManager._destroy_physx(physx)
+
+    assert calls == ["destroy"]
+
+
+def test_manager_supports_legacy_release_api():
+    """The released OVPhysX runtime keeps using its release() entry point."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    calls = []
+    physx = SimpleNamespace(release=lambda: calls.append("release"))
+
+    OvPhysxManager._destroy_physx(physx)
+
+    assert calls == ["release"]
+
+
+def test_manager_rejects_missing_destroy_api():
+    """An unsupported runtime reports both expected entry points explicitly."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    with pytest.raises(AttributeError, match=r"neither destroy\(\) nor legacy release\(\)"):
+        OvPhysxManager._destroy_physx(SimpleNamespace())
+
+
+def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
+    """A pre-teardown destroy failure preserves the runtime and stage for retry."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    events = []
+
+    class FakePhysX:
+        fail_destroy = True
+
+        @property
+        def handle(self):
+            return 17
+
+        def reset_stage(self):
+            events.append("reset")
+            return 23
+
+        def wait_op(self, operation):
+            events.append(("wait", operation))
+
+        def destroy(self):
+            events.append("destroy")
+            if self.fail_destroy:
+                raise RuntimeError("destroy did not reach native teardown")
+
+    class FakeStage:
+        def destroy(self):
+            events.append("destroy_stage")
+
+    physx = FakePhysX()
+    stage = FakeStage()
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = OvPhysxManager._ovstage
+    OvPhysxManager._physx = physx
+    OvPhysxManager._ovstage = stage
+    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: events.append("close_views")))
+    try:
+        with pytest.raises(RuntimeError, match="did not reach native teardown"):
+            OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is physx
+        assert OvPhysxManager._ovstage is stage
+
+        physx.fail_destroy = False
+        OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is None
+        assert OvPhysxManager._ovstage is None
+        assert events == [
+            "close_views",
+            "reset",
+            ("wait", 23),
+            "destroy",
+            "close_views",
+            "reset",
+            ("wait", 23),
+            "destroy",
+            "destroy_stage",
+        ]
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+
+def test_manager_releases_owners_after_terminal_destroy_error(monkeypatch):
+    """A destroy error after terminal teardown does not retain dead owners."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    events = []
+
+    class FakePhysX:
+        terminal = False
+
+        @property
+        def handle(self):
+            if self.terminal:
+                raise RuntimeError("PhysX instance has been destroyed")
+            return 17
+
+        def reset_stage(self):
+            return 23
+
+        def wait_op(self, operation):
+            pass
+
+        def destroy(self):
+            self.terminal = True
+            raise RuntimeError("native teardown reported a terminal failure")
+
+    class FakeStage:
+        def destroy(self):
+            events.append("destroy_stage")
+
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = OvPhysxManager._ovstage
+    OvPhysxManager._physx = FakePhysX()
+    OvPhysxManager._ovstage = FakeStage()
+    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: None))
+    try:
+        with pytest.raises(RuntimeError, match="terminal failure"):
+            OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is None
+        assert OvPhysxManager._ovstage is None
+        assert events == ["destroy_stage"]
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     """A failed in-memory population does not leak its OVStage allocation."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod

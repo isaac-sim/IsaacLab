@@ -593,6 +593,16 @@ class OvPhysxManager(PhysicsManager):
             raise AttributeError("OVPhysX exposes neither warmup() nor legacy warmup_gpu()")
         warmup()
 
+    @staticmethod
+    def _destroy_physx(physx: Any) -> None:
+        """Tear a runtime down through its current or legacy API."""
+        destroy = getattr(physx, "destroy", None)
+        if destroy is None:
+            destroy = getattr(physx, "release", None)
+        if destroy is None:
+            raise AttributeError("OVPhysX exposes neither destroy() nor legacy release()")
+        destroy()
+
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
@@ -625,18 +635,40 @@ class OvPhysxManager(PhysicsManager):
         GPU-first processes.
         """
         physx = cls._physx
-        cls._physx = None
+        if physx is None:
+            cls._destroy_ovstage()
+            return
+
+        destroyed = False
         try:
-            if physx is not None:
+            try:
+                cls._close_physx_views(physx)
+            finally:
                 try:
-                    cls._close_physx_views(physx)
+                    cls._reset_physx_stage(physx)
                 finally:
                     try:
-                        cls._reset_physx_stage(physx)
-                    finally:
-                        physx.release()
+                        cls._destroy_physx(physx)
+                    except Exception:
+                        # Current OVPhysX keeps ``handle`` valid when destroy raises
+                        # before native teardown. Preserve both owners so a later close
+                        # can retry. A RuntimeError from ``handle`` means destruction
+                        # reached its terminal state even though it reported a failure.
+                        try:
+                            physx.handle
+                        except RuntimeError:
+                            destroyed = True
+                        except Exception:
+                            # An unfamiliar handle probe must not replace the
+                            # original destroy error or release either owner.
+                            destroyed = False
+                        raise
+                    else:
+                        destroyed = True
         finally:
-            cls._destroy_ovstage()
+            if destroyed:
+                cls._physx = None
+                cls._destroy_ovstage()
 
     @classmethod
     def _attach_ovstage(cls, stage_usda: str) -> None:
