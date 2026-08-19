@@ -801,6 +801,7 @@ jobs:
           test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
+        warp-cache: restore
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
@@ -847,6 +848,7 @@ jobs:
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
+        warp-cache: restore
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
