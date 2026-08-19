@@ -35,9 +35,14 @@ Newton is kitless and supports the lightweight GL viewer:
 ```bash
 DISPLAY=:1 uv run isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Conveyor-Franka-Newton-v0 \
-  --checkpoint /path/to/model.pt \
+  --checkpoint pretrained \
   --num_envs 8 --device cuda:0 --viz newton_gl --real-time
 ```
+
+The `pretrained` selector downloads the RSL-RL policy published specifically for the Newton MJWarp
+backend. To evaluate another policy, replace `pretrained` with an explicit checkpoint path. The
+PhysX task resolves a different backend-specific artifact name, so transferring this Newton policy
+to PhysX currently requires the explicit local checkpoint path shown below.
 
 Training uses the same task ID and defaults to 256 environments:
 
