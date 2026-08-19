@@ -223,7 +223,8 @@ jobs:
               fi
               echo "::warning::Offline pip install failed; retrying with online package indexes"
             fi
-            python -m pip install "$@"
+            bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+              python -m pip install "$@"
           }
 
           uv_pip_install() {
@@ -233,7 +234,8 @@ jobs:
               fi
               echo "::warning::Offline uv install failed; retrying with online package indexes"
             fi
-            uv pip install "$@"
+            bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+              uv pip install "$@"
           }
 
           pip_install --user uv

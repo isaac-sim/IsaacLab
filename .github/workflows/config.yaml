@@ -9,7 +9,7 @@
 # (frozen at 6.1.0-alpha.2). Both images use Isaac Sim's NGC org, which is current and
 # which the CI credential can reach.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
-# Pinned to Isaac Sim 6.1.0-alpha.47 (commit 0d707bba) for reproducible CI.
-isaacsim_image_tag: latest-develop@sha256:a0fe646aa0d2c717a51231589eb210a8f59db7d3e6ccb8e8ba8b11f9ae13ed85
+# Isaac Sim 6.1.0-alpha.50 (b86cf6ce) includes Kit 110.3.0-360924's fix for NVBug 6566677.
+isaacsim_image_tag: latest-develop@sha256:d4667d2c0cbc1d0dcd3aac3213799777ee2cbf8de1e91cc41684023c256f176f
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""

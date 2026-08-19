@@ -40,10 +40,12 @@ runs:
           if ! PIP_NO_INDEX=1 "$venv/bin/python" -m pip install --quiet \
             --no-index --find-links "$wheelhouse" pytest pytest-timeout; then
             echo "::warning::Offline collector bootstrap failed; retrying with configured package indexes"
-            "$venv/bin/python" -m pip install --quiet pytest pytest-timeout
+            bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+              "$venv/bin/python" -m pip install --quiet pytest pytest-timeout
           fi
         else
-          "$venv/bin/python" -m pip install --quiet pytest pytest-timeout
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+            "$venv/bin/python" -m pip install --quiet pytest pytest-timeout
         fi
         # -m "not skip" hides tests with @pytest.mark.skip; they would just
         # report SKIPPED at run time and clutter the collected inventory.

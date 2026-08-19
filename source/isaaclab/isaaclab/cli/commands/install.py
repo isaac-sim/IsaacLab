@@ -6,6 +6,7 @@
 import os
 import re
 import shutil
+import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -26,6 +27,20 @@ from ..utils import (
     run_command,
 )
 from .misc import command_vscode_settings
+
+_PACKAGE_INDEX_RETRIES = "12"
+_PACKAGE_INSTALL_RETRY_ATTEMPTS = 3
+_PACKAGE_INSTALL_RETRY_DELAY_SECONDS = 3.0
+
+
+def _run_package_install(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
+    """Run a package installation with command-level retries."""
+    return run_command(
+        cmd,
+        check=check,
+        retry_attempts=_PACKAGE_INSTALL_RETRY_ATTEMPTS,
+        retry_delay_seconds=_PACKAGE_INSTALL_RETRY_DELAY_SECONDS,
+    )
 
 
 @contextmanager
@@ -262,7 +277,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     pink_ik_stack = _pink_ik_stack()
-    install_result = run_command(
+    install_result = _run_package_install(
         pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
         check=False,
     )
@@ -329,7 +344,9 @@ def _ensure_cuda_torch() -> None:
         check=False,
     )
 
-    run_command(pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"])
+    _run_package_install(
+        pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"]
+    )
 
 
 def _ensure_newton() -> None:
@@ -364,7 +381,7 @@ def _ensure_newton() -> None:
     print_info(f"Installing pinned Newton git build ({commit[:10]})...")
     uninstall_flags = ["-y"] if not using_uv else []
     run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
-    run_command(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
+    _run_package_install(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
 
 
 # Isaac Sim install settings.
@@ -476,7 +493,7 @@ def _install_root_extra(extra: str) -> None:
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
     print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
-    run_command(pip_cmd + ["install"] + dependencies)
+    _run_package_install(pip_cmd + ["install"] + dependencies)
 
 
 def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: list[str]) -> None:
@@ -494,7 +511,7 @@ def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: l
     core_dependencies = _root_core_dependencies()
     if core_dependencies:
         print_info("Installing core dependencies from the root pyproject...")
-        run_command(pip_cmd + ["install"] + core_dependencies)
+        _run_package_install(pip_cmd + ["install"] + core_dependencies)
     # dict preserves order while de-duplicating extras shared across submodules.
     extras: dict[str, None] = {}
     for submodule_name in optional_submodules:
@@ -588,7 +605,7 @@ def _upgrade_extension_pip_dependencies(
 
         for requirement in matching_requirements:
             print_info(f"Upgrading {dependency_name} for {distribution_name}: {requirement}")
-            run_command(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
+            _run_package_install(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
 
 
 def _install_isaacsim() -> None:
@@ -630,7 +647,7 @@ def _install_isaacsim() -> None:
         # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
         extra_flags = ["--index-strategy", "unsafe-best-match"]
 
-    run_command(
+    _run_package_install(
         pip_cmd
         + [
             "install",
@@ -743,7 +760,7 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
             print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
-        run_command(pip_cmd + ["install", "--editable", str(item)])
+        _run_package_install(pip_cmd + ["install", "--editable", str(item)])
         _upgrade_extension_pip_dependencies(
             python_exe,
             pip_cmd,
@@ -1143,6 +1160,10 @@ def command_install(install_type: str = "all") -> None:
                   ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """
 
+    # Let package managers retry failed requests without repeating complete install commands.
+    os.environ.setdefault("PIP_RETRIES", _PACKAGE_INDEX_RETRIES)
+    os.environ.setdefault("UV_HTTP_RETRIES", _PACKAGE_INDEX_RETRIES)
+
     # Install system dependencies first.
     _install_system_deps()
 
@@ -1259,13 +1280,10 @@ def command_install(install_type: str = "all") -> None:
             # Upgrade pip first to avoid compatibility issues (skip when using uv).
             if not using_uv:
                 print_info("Upgrading pip...")
-                run_command(pip_cmd + ["install", "--upgrade", "pip"])
-            else:
-                # Tolerate transient failures from indexes queried by ``unsafe-best-match``.
-                os.environ.setdefault("UV_HTTP_RETRIES", "6")
+                _run_package_install(pip_cmd + ["install", "--upgrade", "pip"])
 
             # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
-            run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+            _run_package_install(pip_cmd + ["install", "setuptools<82.0.0"])
 
             # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
             _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)

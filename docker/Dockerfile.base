@@ -43,6 +43,8 @@ ARG ALLOW_ONLINE_FALLBACK_ARG=true
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_RETRIES=12
+ENV UV_HTTP_RETRIES=12
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.

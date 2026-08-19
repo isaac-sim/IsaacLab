@@ -61,7 +61,8 @@ jobs:
             --no-index --find-links "$wheelhouse" \
             pytest junitparser flaky; then
             echo "::warning::Offline test dependency install failed; retrying with configured package indexes"
-            python3 -m pip install pytest junitparser flaky
+            bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+              python3 -m pip install pytest junitparser flaky
           fi
 
       - name: Run tools tests

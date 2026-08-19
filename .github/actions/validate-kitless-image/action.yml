@@ -26,10 +26,12 @@ runs:
 
       # A deps-cached image carries the dependency graph but not necessarily
       # this PR's source, so mount the checkout over the baked copy read-only.
+      retry_helper="$GITHUB_ACTION_PATH/../_lib/with-python-package-retries.sh"
       mount_args=(
         -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
         -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
         -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
+        -v "${retry_helper}:/with-python-package-retries.sh:ro"
       )
       if [ -n "${CI_WHEELHOUSE_DIR:-}" ] && [ -d "${CI_WHEELHOUSE_DIR}/wheelhouse" ]; then
         mount_args+=(-v "${CI_WHEELHOUSE_DIR}:/tmp/ci-wheelhouse:ro")
@@ -68,10 +70,12 @@ runs:
         if ! UV_NO_INDEX=1 UV_FIND_LINKS=/tmp/ci-wheelhouse/wheelhouse \
           uv pip install --python "$VIRTUAL_ENV/bin/python" pytest; then
           echo "::warning::Offline pytest install failed; retrying with configured package indexes"
-          uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+          bash /with-python-package-retries.sh \
+            uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
         fi
       else
-        uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+        bash /with-python-package-retries.sh \
+          uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
       fi
       python -m pytest \
         source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \

@@ -286,13 +286,13 @@ including file path, simulation parameters, actuator properties, and initial sta
        actuators={
            "cart_actuator": ImplicitActuatorCfg(
                joint_names_expr=["slider_to_cart"],
-               effort_limit=400.0,
-               velocity_limit=100.0,
+               joint_effort_limit=400.0,
+               joint_velocity_limit=100.0,
                stiffness=0.0,
                damping=10.0,
            ),
            "pole_actuator": ImplicitActuatorCfg(
-               joint_names_expr=["cart_to_pole"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
+               joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, joint_velocity_limit=100.0, stiffness=0.0, damping=0.0
            ),
        },
    )
@@ -726,14 +726,14 @@ the need to set simulation parameters for actors in the task implementation.
 |     asset_root = os.path.dirname(asset_path)                           |     actuators={                                                     |
 |     asset_file = os.path.basename(asset_path)                          |         "cart_actuator": ImplicitActuatorCfg(                       |
 |                                                                        |             joint_names_expr=["slider_to_cart"],                    |
-|     asset_options = gymapi.AssetOptions()                              |             effort_limit_sim=400.0,                                 |
-|     asset_options.fix_base_link = True                                 |             velocity_limit_sim=100.0,                               |
+|     asset_options = gymapi.AssetOptions()                              |             joint_effort_limit=400.0,                               |
+|     asset_options.fix_base_link = True                                 |             joint_velocity_limit=100.0,                             |
 |     cartpole_asset = self.gym.load_asset(self.sim,                     |             stiffness=0.0,                                          |
 |         asset_root, asset_file, asset_options)                         |             damping=10.0,                                           |
 |     self.num_dof = self.gym.get_asset_dof_count(                       |         ),                                                          |
 |         cartpole_asset)                                                |         "pole_actuator": ImplicitActuatorCfg(                       |
 |                                                                        |             joint_names_expr=["cart_to_pole"],                      |
-|     pose = gymapi.Transform()                                          |             effort_limit_sim=400.0, velocity_limit_sim=100.0,       |
+|     pose = gymapi.Transform()                                          |             joint_effort_limit=400.0, joint_velocity_limit=100.0,   |
 |     if self.up_axis == 'z':                                            |             stiffness=0.0, damping=0.0                              |
 |         pose.p.z = 2.0                                                 |         ),                                                          |
 |         pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)                       |     },                                                              |
@@ -776,32 +776,32 @@ collecting states, computing dones, calculating rewards, performing resets, and 
 This workflow is done automatically by the framework such that a ``post_physics_step`` API is not required in the task.
 However, individual tasks can override the ``step()`` API to control the workflow.
 
-+------------------------------------------------------------------+-------------------------------------------------------------+
-| IsaacGymEnvs                                                     | IsaacLab                                                    |
-+------------------------------------------------------------------+-------------------------------------------------------------+
-|.. code-block:: python                                            |.. code-block:: python                                       |
-|                                                                  |                                                             |
-| def pre_physics_step(self, actions):                             | def _pre_physics_step(self, actions: torch.Tensor) -> None: |
-|     actions_tensor = torch.zeros(                                |     self.actions = self.action_scale * actions              |
-|         self.num_envs * self.num_dof,                            |                                                             |
-|         device=self.device, dtype=torch.float)                   | def _apply_action(self) -> None:                            |
-|     actions_tensor[::self.num_dof] = actions.to(                 |     self.cartpole.set_joint_effort_target(                  |
-|         self.device).squeeze() * self.max_push_effort            |          self.actions, joint_ids=self._cart_dof_idx)        |
-|     forces = gymtorch.unwrap_tensor(actions_tensor)              |                                                             |
-|     self.gym.set_dof_actuation_force_tensor(                     |                                                             |
-|         self.sim, forces)                                        |                                                             |
-|                                                                  |                                                             |
-| def post_physics_step(self):                                     |                                                             |
-|     self.progress_buf += 1                                       |                                                             |
-|                                                                  |                                                             |
-|     env_ids = self.reset_buf.nonzero(                            |                                                             |
-|         as_tuple=False).squeeze(-1)                              |                                                             |
-|     if len(env_ids) > 0:                                         |                                                             |
-|         self.reset_idx(env_ids)                                  |                                                             |
-|                                                                  |                                                             |
-|     self.compute_observations()                                  |                                                             |
-|     self.compute_reward()                                        |                                                             |
-+------------------------------------------------------------------+-------------------------------------------------------------+
++-------------------------------------------------------+--------------------------------------------------------------+
+| IsaacGymEnvs                                          | IsaacLab                                                     |
++-------------------------------------------------------+--------------------------------------------------------------+
+|.. code-block:: python                                 |.. code-block:: python                                        |
+|                                                       |                                                              |
+| def pre_physics_step(self, actions):                  | def _pre_physics_step(self, actions: torch.Tensor) -> None:  |
+|     actions_tensor = torch.zeros(                     |     self.actions = self.action_scale * actions               |
+|         self.num_envs * self.num_dof,                 |                                                              |
+|         device=self.device, dtype=torch.float)        | def _apply_action(self) -> None:                             |
+|     actions_tensor[::self.num_dof] = actions.to(      |     self.cartpole.actuators.target_command.set_effort_index( |
+|         self.device).squeeze() * self.max_push_effort |         value=self.actions, joint_ids=self._cart_dof_idx)    |
+|     forces = gymtorch.unwrap_tensor(actions_tensor)   |                                                              |
+|     self.gym.set_dof_actuation_force_tensor(          |                                                              |
+|         self.sim, forces)                             |                                                              |
+|                                                       |                                                              |
+| def post_physics_step(self):                          |                                                              |
+|     self.progress_buf += 1                            |                                                              |
+|                                                       |                                                              |
+|     env_ids = self.reset_buf.nonzero(                 |                                                              |
+|         as_tuple=False).squeeze(-1)                   |                                                              |
+|     if len(env_ids) > 0:                              |                                                              |
+|         self.reset_idx(env_ids)                       |                                                              |
+|                                                       |                                                              |
+|     self.compute_observations()                       |                                                              |
+|     self.compute_reward()                             |                                                              |
++-------------------------------------------------------+--------------------------------------------------------------+
 
 
 Dones and Resets

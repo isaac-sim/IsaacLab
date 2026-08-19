@@ -84,6 +84,7 @@ jobs:
           if ! PIP_NO_INDEX=1 python3 -m pip install \
             --no-index --find-links "$wheelhouse" pytest; then
             echo "::warning::Offline test dependency install failed; retrying with configured package indexes"
-            python3 -m pip install pytest
+            bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+              python3 -m pip install pytest
           fi
           python3 -m pytest tools/changelog/test/ -q

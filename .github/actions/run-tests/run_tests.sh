@@ -333,6 +333,7 @@ run_tests() {
   docker run -d --name "$container_name" \
     --init --stop-timeout 5 \
     --entrypoint bash --gpus all --network=host \
+    -v "$PWD/.github/actions/_lib/with-python-package-retries.sh:/with-python-package-retries.sh:ro" \
     --security-opt=no-new-privileges:true \
     --memory="$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m" \
     --cpus="$(echo "$(nproc) * 0.9" | bc)" \
@@ -393,11 +394,11 @@ run_tests() {
           fi
           wheelhouse_required_fallback_used=true
           if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
-            ./isaaclab.sh -p -m pip install \
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install \
               --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
               --upgrade --force-reinstall \"\${wheelhouse_packages[@]}\"
           else
-            ./isaaclab.sh -p -m pip install \
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install \
               --upgrade --force-reinstall \"\${wheelhouse_packages[@]}\"
           fi
         fi
@@ -414,13 +415,14 @@ run_tests() {
               exit 1
             fi
             echo \"::warning::Offline extra pip package installation failed; retrying with configured package indexes\"
-            ./isaaclab.sh -p -m pip install \
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install \
               --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
               \"\${extra_pip_packages[@]}\"
           fi
         else
           echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
-          ./isaaclab.sh -p -m pip install \"\${extra_pip_packages[@]}\"
+          bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install \
+            \"\${extra_pip_packages[@]}\"
         fi
         case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
           *\" leapp\"*)
@@ -447,11 +449,11 @@ run_tests() {
                 exit 1
               fi
               echo \"::warning::Offline uv installation failed; retrying with configured package indexes\"
-              ./isaaclab.sh -p -m pip install \
+              bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install \
                 --find-links=\"\${TEST_WHEELHOUSE_PATH}\" uv
             fi
           else
-            ./isaaclab.sh -p -m pip install uv
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
           fi
         fi
         # Isaac Sim puts bundled packages ahead of the user site. Overlay only
@@ -470,15 +472,19 @@ run_tests() {
           else
             if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
               UV_FIND_LINKS=\"\${TEST_WHEELHOUSE_PATH}\" \
-                \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+                bash /with-python-package-retries.sh \"\${uv_executable}\" \
+                pip install --python \"\${isaac_python}\" \
                 --target \"\${isaac_user_site}\" \"\${extra_uv_packages[@]}\" &&
               UV_FIND_LINKS=\"\${TEST_WHEELHOUSE_PATH}\" \
-                \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+                bash /with-python-package-retries.sh \"\${uv_executable}\" \
+                pip install --python \"\${isaac_python}\" \
                 --target \"\${isaac_uv_overlay}\" --no-deps \"\${extra_uv_packages[@]}\"
             else
-              \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+              bash /with-python-package-retries.sh \"\${uv_executable}\" \
+                pip install --python \"\${isaac_python}\" \
                 --target \"\${isaac_user_site}\" \"\${extra_uv_packages[@]}\" &&
-              \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+              bash /with-python-package-retries.sh \"\${uv_executable}\" \
+                pip install --python \"\${isaac_python}\" \
                 --target \"\${isaac_uv_overlay}\" --no-deps \"\${extra_uv_packages[@]}\"
             fi
           fi

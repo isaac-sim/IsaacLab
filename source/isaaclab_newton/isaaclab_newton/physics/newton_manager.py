@@ -108,7 +108,8 @@ from isaaclab_newton.physics.visualization_deformables import populate_shadow_de
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.actuators import NewtonActuatorAdapter
+    from isaaclab.actuators.newton import NewtonActuatorAdapter
+
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)
@@ -2132,17 +2133,10 @@ class NewtonManager(PhysicsManager):
         cls._eval_fk(None, None)
         cls._mark_transforms_dirty()
 
-        # Skip the initial graph capture when the Newton actuator fast path is
-        # active. Capturing here would use ``cls._decimation`` (still its default
-        # of 1, because the env's ``set_decimation`` hasn't run yet); a second
-        # capture from ``set_decimation`` then triggers an illegal-memory-access
-        # CUDA fault inside the captured ``_simulate_full`` graph (back-to-back
-        # captures of the contact + actuator pipeline don't survive re-capture
-        # — root cause is in Newton's collision/actuator buffer handling, not
-        # Lab code). For non-Newton-actuator paths this branch is unaffected:
-        # ``set_decimation`` is a no-op for them (``_is_all_graphable`` is False),
-        # so we still need the start-time capture below.
-        if not cls._use_newton_actuators_active:
+        # Fully graphable Newton actuators defer capture until ``set_decimation``
+        # provides the environment's final decimation value. Other paths capture
+        # the solver here; non-graphable actuators otherwise leave it eager.
+        if not cls._is_all_graphable():
             cls._capture_or_defer_graph()
 
     @classmethod
@@ -3139,7 +3133,7 @@ class NewtonManager(PhysicsManager):
             return
         if cls._model is None or not cls._model.actuators:
             return
-        from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+        from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(

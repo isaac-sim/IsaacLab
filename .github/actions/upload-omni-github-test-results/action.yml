@@ -96,6 +96,7 @@ runs:
         # Validating with a local pinned copy of the schemas is recommended by the omni-github team.
         schema_venv="${RUNNER_TEMP}/omni-github-jsonschema-venv"
         python3 -m venv "$schema_venv"
+        retry_helper="$GITHUB_ACTION_PATH/../_lib/with-python-package-retries.sh"
         wheelhouse_links=""
         if [ -n "${CI_WHEELHOUSE_DIR:-}" ] && [ -d "${CI_WHEELHOUSE_DIR}/wheelhouse" ]; then
           wheelhouse_links="${CI_WHEELHOUSE_DIR}/wheelhouse"
@@ -119,10 +120,10 @@ runs:
               exit 1
             fi
             echo "::warning::Offline jsonschema installation failed; retrying with configured package indexes"
-            "$schema_venv/bin/python" -m pip install -q jsonschema
+            bash "$retry_helper" "$schema_venv/bin/python" -m pip install -q jsonschema
           fi
         else
-          "$schema_venv/bin/python" -m pip install -q jsonschema
+          bash "$retry_helper" "$schema_venv/bin/python" -m pip install -q jsonschema
         fi
         if ! "$schema_venv/bin/python" -m jsonschema \
           "$GITHUB_ACTION_PATH/result-json.schema.json" \

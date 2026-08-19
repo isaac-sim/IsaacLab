@@ -43,6 +43,8 @@ ARG ALLOW_ONLINE_FALLBACK_ARG=true
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_RETRIES=12
+ENV UV_HTTP_RETRIES=12
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.
@@ -106,7 +108,8 @@ RUN set -euo pipefail && \
 
 ENV CUDA_HOME=/usr/local/cuda-12.8
 ENV PATH=${CUDA_HOME}/bin:${PATH}
-ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64
+ARG LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 
 # copy files necessary for installing Isaac Lab and its dependencies
