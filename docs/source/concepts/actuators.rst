@@ -745,7 +745,7 @@ This page does **not** cover:
 * Motion generators or low-level control modes -- see
   :doc:`/source/overview/core-concepts/motion_generators`.
 * Cross-backend policy transfer and solver-dynamics differences -- see
-  :doc:`/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer`.
+  :doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
 
 .. seealso::
 

@@ -24,7 +24,6 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.actuators import IdealPDActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
@@ -1391,6 +1390,8 @@ class randomize_actuator_gains(ManagerTermBase):
         # Ownership decides the gain source and write path per group: implicit groups are
         # articulation-owned, Newton-executed groups are controller-owned (their mapping
         # entries are the Newton actuator objects), and Lab explicit groups own their tensors.
+        from isaaclab.actuators import IdealPDActuator  # noqa: PLC0415
+
         collection = self.asset.actuators
         self._native_group_names = getattr(collection, "_native_group_names", set())
         self._gain_actuators = {
