@@ -989,7 +989,7 @@ class OvPhysxManager(PhysicsManager):
 
     @staticmethod
     def _create_physx_instance(
-        ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str
+        ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str | None
     ) -> Any:
         """Create a PhysX instance through the pinned OVPhysX runtime API.
 
@@ -997,7 +997,8 @@ class OvPhysxManager(PhysicsManager):
             ovphysx: Imported OVPhysX runtime module.
             ovphysx_device: Physics device, either ``"cpu"`` or ``"gpu"``.
             gpu_index: CUDA device ordinal selected for GPU physics.
-            cooked_collider_cache_dir: Directory for the cooked-collider cache.
+            cooked_collider_cache_dir: Directory for the cooked-collider cache, or ``None`` to let
+                OVPhysX resolve it.
 
         Returns:
             The configured ``ovphysx.PhysX`` instance.
