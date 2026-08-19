@@ -259,7 +259,7 @@ Guarded so this module stays import-safe against older wheels that lack them.
 
 try:
     SHAPE_FRICTION_AND_RESTITUTION = _TT.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
-    """Per-collision-shape material of each articulation instance — read/write, GPU.
+    """Per-collision-shape material of each articulation instance — read/write, CPU.
     Shape ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]``
     restitution (all dimensionless)."""
 except AttributeError:
@@ -267,7 +267,7 @@ except AttributeError:
 
 try:
     RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION = _TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
-    """Per-collision-shape material of each rigid body — read/write, GPU. Shape
+    """Per-collision-shape material of each rigid body — read/write, CPU. Shape
     ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]`` restitution
     (all dimensionless)."""
 except AttributeError:
@@ -454,4 +454,18 @@ _CPU_ONLY_TYPES_CANDIDATES: tuple = (
 _RIGID_BODY_OPTIONAL_CPU: tuple = tuple(
     globals()[name] for name in ("RIGID_BODY_INV_MASS", "RIGID_BODY_INV_INERTIA") if name in globals()
 )
-_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(_CPU_ONLY_TYPES_CANDIDATES + _RIGID_BODY_OPTIONAL_CPU)
+# Per-shape material properties end in CPU PhysX calls, so their bindings are host
+# resident even on a GPU sim. Omitting them made get_attribute allocate on the
+# simulation device: OVPhysX 0.5 accepted that and staged the buffer to the host
+# behind the caller, which is a device round trip on every reset for the configs
+# that randomize materials with mode="reset". OVPhysX 0.6 removed that staging and
+# refuses the GPU tensor outright. Gated like the entries above because both types
+# are optional -- older wheels do not define them.
+_SHAPE_MATERIAL_OPTIONAL_CPU: tuple = tuple(
+    globals()[name]
+    for name in ("SHAPE_FRICTION_AND_RESTITUTION", "RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION")
+    if name in globals()
+)
+_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(
+    _CPU_ONLY_TYPES_CANDIDATES + _RIGID_BODY_OPTIONAL_CPU + _SHAPE_MATERIAL_OPTIONAL_CPU
+)
