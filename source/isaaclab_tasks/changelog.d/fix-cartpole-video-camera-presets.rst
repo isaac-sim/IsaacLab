@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Resolved tiled-camera presets before deriving Cartpole camera observation dimensions, restoring direct construction and sensor video recording.
+* Used the selected tiled-camera preset when deriving Cartpole camera observation dimensions, restoring direct construction and sensor video recording.
