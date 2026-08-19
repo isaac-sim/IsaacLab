@@ -72,7 +72,6 @@ from the physics backend package:
    * - ``from isaaclab_physx.assets import DeformableObjectCfg``
      - ``from isaaclab.assets import DeformableObjectCfg``
 
-
 Removed Properties
 ^^^^^^^^^^^^^^^^^^
 
@@ -245,9 +244,6 @@ Limitations
   deformable will raise a ``ValueError``.
 - **Surface-specific solver properties** (``collision_pair_update_frequency``,
   ``collision_iteration_multiplier``) have no effect on volume deformables.
-- **Newton deformables are experimental.** They are implemented in
-  :mod:`isaaclab_contrib.deformable` and currently target VBD-based solvers and
-  coupled rigid-deformable workflows.
 
 
 .. _Omni Physics documentation: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.0/dev_guide/deformables/deformable_bodies.html

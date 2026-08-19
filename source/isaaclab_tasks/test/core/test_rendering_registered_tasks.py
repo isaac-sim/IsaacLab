@@ -28,6 +28,7 @@ from rendering_test_utils import (  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 
+_SCENE_PARTITION_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -63,8 +64,8 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank
 # rendering. The max different pixels percentage is set based on the screen space taken up by the
-# env. The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
-# ``None`` uses the default.
+# env. These golden baselines validate Isaac Sim PhysX with Isaac RTX. The ``presets`` column
+# selects a data-type variant on the consolidated cartpole camera task; ``None`` uses its default.
 _RENDER_CORRECTNESS_TASK_IDS = [
     ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
@@ -86,9 +87,9 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 
 
 @pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-# TODO: Restore enable_scene_partition after NVBug 6264822 is fixed.
-def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str):
+def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str, monkeypatch: pytest.MonkeyPatch):
     """Test registered tasks rendering correctness."""
+    monkeypatch.delenv(_SCENE_PARTITION_ENV_VAR, raising=False)
     env = None
 
     try:
@@ -96,7 +97,10 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
-        env_cfg = resolve_presets(env_cfg, {presets} if presets else frozenset())
+        selected_presets = {"isaacsim_physx", "isaacsim_rtx"}
+        if presets:
+            selected_presets.add(presets)
+        env_cfg = resolve_presets(env_cfg, selected_presets)
         env_cfg.sim.device = "cuda:0"
         env_cfg.scene.num_envs = 4
 

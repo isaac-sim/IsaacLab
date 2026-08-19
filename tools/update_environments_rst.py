@@ -48,6 +48,7 @@ _bootstrap_paths()
 
 from environ_docs import (  # noqa: E402
     collect_environment_doc_rows,
+    collect_environment_preview_images,
     patch_curated_environment_tables,
     patch_environment_browser_javascript,
     patch_environments_rst,
@@ -102,7 +103,8 @@ def main() -> int:
 
     browser_output_path = args.browser_output.resolve()
     browser_original = browser_output_path.read_text(encoding="utf-8")
-    browser_rows = render_environment_browser_task_rows(rows)
+    preview_images = collect_environment_preview_images(original)
+    browser_rows = render_environment_browser_task_rows(rows, preview_images)
     browser_updated = patch_environment_browser_javascript(browser_original, browser_rows)
 
     if args.check:
