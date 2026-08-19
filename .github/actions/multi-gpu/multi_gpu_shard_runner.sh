@@ -20,7 +20,7 @@
 #
 # Behavior:
 #   1. Materializes HOME + PYTHONUSERBASE dirs (tmpfs, world-writable)
-#   2. Installs pytest deps (junitparser et al.) into the shared PYTHONUSERBASE
+#   2. Uses the baseline pytest dependencies preinstalled in the shared CI image
 #   3. Derives shard count from nvidia-smi -L (authoritative; torch.cuda.device_count
 #      under-counts MIG-on-same-parent unless CUDA_VISIBLE_DEVICES enumerates each)
 #   4. Cross-checks torch against the nvidia-smi count and caps shards to what torch
@@ -35,21 +35,9 @@ set +e  # keep going on errors; per-shard exit codes are aggregated at the end
 cd /workspace/isaaclab
 unset DISPLAY  # clear the var that would force Kit into headed (X11) mode
 
-# Container-level HOME + PYTHONUSERBASE for pip --user installs. The image
-# runs as --user $host_uid:$host_gid with no matching /etc/passwd entry, so
-# HOME defaults to /root which the user cannot write. /tmp/* is on tmpfs
-# (1777, world-writable).
-#
-# PYTHONUSERBASE is the key for the 1-docker shape: pip --user writes to
-# ${PYTHONUSERBASE}/lib/python3.12/site-packages, and every Python invocation
-# that sees the same env var imports from there. Per-shard subshells below
-# override HOME (so .cache / .nvidia-omniverse are isolated) but inherit
-# PYTHONUSERBASE so junitparser et al. resolve everywhere.
+# Container-level HOME + PYTHONUSERBASE remain writable for tests that perform
+# user installs. The baseline test tooling is available from the shared image.
 mkdir -p /tmp/mgpu-base-home /tmp/mgpu-pyuserbase
-
-# Pytest deps (same as run-tests action). junitparser is imported at
-# tools/conftest.py load time, so it must be present first.
-./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky "coverage>=7.6.1"
 
 # Shard count from nvidia-smi -L (truth; torch under-counts MIG).
 MIG_COUNT=$(nvidia-smi -L | grep -c "^  MIG ")  # grep -c = count of matching lines (MIG slices)
