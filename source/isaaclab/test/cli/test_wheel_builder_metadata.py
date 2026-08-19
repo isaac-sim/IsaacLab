@@ -94,22 +94,14 @@ def test_wheel_builder_requests_required_tinyobjloader_prerelease_directly(tmp_p
 
 
 def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
-    """``isaaclab[all]`` must ship the aggregated requirements, not a self-reference.
-
-    At the root, ``all`` is the self-reference ``isaaclab-dev[...]``. The generator
-    inlines it, so the published wheel carries the concrete third-party requirements
-    for the curated OV backends, RL libraries, and visualizers.
-    """
+    """``isaaclab[all]`` must contain concrete curated requirements."""
     generated = _generate_wheel_pyproject(tmp_path)
     optional_dependencies = generated["project"]["optional-dependencies"]
     all_extra = optional_dependencies["all"]
 
     assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
-    # Sampled across what ``all`` aggregates: both OV backends, the RL libraries,
-    # and the visualizers.
     for prefix in ("ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
         assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
-    # Isaac Sim, specialized extras, and developer tooling stay opt-in by name.
     for prefix in ("isaacsim[", "ray", "robomimic", "isaacteleop", "pytetwild", "moviepy", "leapp", "pytest"):
         assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
 
