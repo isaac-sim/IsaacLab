@@ -326,6 +326,38 @@ Choosing an API
      - Isaac Lab's tested path is the ``isaaclab.cloner`` API described here.
 
 
+Collision Filtering and Isolation
+---------------------------------
+
+Some prims, such as terrain, are intentionally shared across environments and should collide
+with every environment. These are modeled as global collision paths. The workaround is only
+the per-environment filtering: when cloning is fully isolated per world, cloned environments
+should not collide with each other and no manual per-environment filter should be needed.
+Some PhysX cloning paths still rely on USD collision groups for that isolation fallback. In
+the scene workflow this is handled by ``InteractiveScene`` when ``filter_collisions=True``
+and the backend is PhysX.
+
+For direct PhysX usage, call :func:`~isaaclab.cloner.filter_collisions` after cloning if
+per-environment isolation is not already provided by the cloning backend:
+
+.. code-block:: python
+
+    from isaaclab.cloner import filter_collisions
+
+    filter_collisions(
+        stage=stage,
+        physicsscene_path="/physicsScene",
+        collision_root_path="/World/collisions",
+        prim_paths=[f"/World/envs/env_{i}" for i in range(num_envs)],
+        global_paths=["/World/ground"],
+    )
+
+.. note::
+
+    Collision filtering uses PhysX collision groups. Newton handles per-environment isolation
+    through its own world system.
+
+
 Backend and Option Notes
 ------------------------
 
@@ -336,14 +368,9 @@ replication function automatically. Direct PhysX users call
 
 **``replicate_physics=False``.** Disable physics replication when environments need
 independent authored USD or physics state, such as some scale, texture, or color
-randomization workflows. Startup and physics parsing are slower because the backend cannot
-assume every environment is a clone of the same source.
-
-**``copy_from_source``.** ``InteractiveScene`` calls
-``clone_environments(copy_from_source=True)`` when ``replicate_physics=False``. This skips
-backend physics replication and leaves physics parsing to the backend. Spawner-level
-``copy_from_source`` is a separate setting used by spawn functions that clone from a source
-path matched by a regex.
+randomization workflows. USD replication still creates the per-environment prims, but backend
+physics replication is skipped. Startup and physics parsing are slower because the backend
+cannot assume every environment is a clone of the same source.
 
 **Fabric cloning.** ``clone_in_fabric=True`` applies to PhysX replication. It can reduce
 scene-creation time for large PhysX scenes, especially when many replicated rigid bodies are
