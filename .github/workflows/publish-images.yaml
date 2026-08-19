@@ -6,8 +6,11 @@
 name: Publish Docker Images
 
 on:
-  # Image publishing is owned by the nightly cron (registered on the default
-  # branch, main). No push triggers — pushes to develop / release no longer publish.
+  # Release branches publish after every merge. Develop remains on the nightly
+  # publisher registered on the default branch (main).
+  push:
+    branches:
+      - 'release/**'
   workflow_dispatch:
 
 # Concurrency control to prevent parallel runs

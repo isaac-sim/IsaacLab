@@ -1,0 +1,1 @@
+CI-only: release branch pushes now publish Docker images after merges. No package release note is required.
