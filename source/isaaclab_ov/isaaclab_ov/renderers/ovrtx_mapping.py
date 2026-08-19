@@ -22,19 +22,22 @@ from typing import Any
 import warp as wp
 
 
-def get_warp_device_id(device: str) -> int:
-    """CUDA device index of the Warp device ``device`` resolves to.
+def _cuda_device_id(device: str) -> int:
+    """CUDA device index parsed from a Warp device string, e.g. ``"cuda:1"`` -> ``1``.
 
-    Resolving through Warp keeps the mapped device consistent with where Warp enqueues the fill
-    work: a bare ``"cuda"`` means Warp's current CUDA device, not index ``0``.
+    TODO: A bare ``"cuda"`` parses to ``0`` while Warp enqueues fill work on its *current* CUDA
+    device, so the mapping and the fill can target different GPUs on multi-GPU processes. The
+    split predates this helper and is kept here to avoid a behavior change; a follow-up caches
+    the resolved Warp device on the renderer instead of re-deriving it from strings.
 
     Args:
-        device: Warp CUDA device identifier (e.g. ``"cuda"`` or ``"cuda:1"``).
+        device: Warp CUDA device string (``"cuda"`` or ``"cuda:<index>"``).
 
     Returns:
-        The CUDA device index.
+        The parsed CUDA device index, ``0`` when the string carries none.
     """
-    return wp.get_device(device).ordinal
+    parts = device.split(":")
+    return int(parts[1]) if len(parts) > 1 else 0
 
 
 @contextmanager
@@ -46,9 +49,6 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     that stream as the CUDA sync, so OVRTX's commit of the mapped data waits for the fill on the
     GPU instead of racing it. OVRTX has no discard path (unmap always commits), so a failed fill
     still publishes whatever landed in the buffer.
-
-    ``device`` is resolved through Warp (see :func:`get_warp_device_id`), so the mapped CUDA device
-    matches where the fill work runs -- a bare ``"cuda"`` maps and syncs Warp's current CUDA device.
 
     Args:
         binding: OVRTX attribute binding (from ``bind_attribute``) whose buffer is written.
@@ -64,7 +64,7 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     # already imported by the time this runs.
     from ovrtx import Device  # noqa: PLC0415
 
-    attr_mapping = binding.map(device=Device.CUDA, device_id=get_warp_device_id(device))
+    attr_mapping = binding.map(device=Device.CUDA, device_id=_cuda_device_id(device))
     try:
         yield wp.from_dlpack(attr_mapping.tensor, dtype=dtype)
     finally:

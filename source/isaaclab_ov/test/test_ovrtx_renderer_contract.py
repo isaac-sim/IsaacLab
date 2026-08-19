@@ -500,20 +500,18 @@ class _RecordingMappedBinding:
 
 
 def _patch_warp_device(monkeypatch, *, ordinal: int, cuda_stream: int) -> None:
-    """Resolve any device ident to one fake Warp device with the given ordinal and current stream."""
-    monkeypatch.setattr(ovrtx_mapping.wp, "get_device", lambda device: types.SimpleNamespace(ordinal=ordinal))
+    """Fake the current Warp stream; ``ordinal`` documents the device the test pretends to run on."""
     monkeypatch.setattr(ovrtx_mapping.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=cuda_stream))
 
 
-def test_get_warp_device_id_resolves_through_warp(monkeypatch):
-    """The device index comes from Warp's resolution of the ident, never from parsing the string.
+@pytest.mark.parametrize(("device", "expected"), [("cuda:1", 1), ("cuda", 0)])
+def test_cuda_device_id_parses_the_device_string(device, expected):
+    """The mapping device index is parsed from the string; a bare ``"cuda"`` parses to 0.
 
-    Parsing would send a bare ``"cuda"`` to index 0 while Warp enqueues the fill on its current
-    CUDA device, so the mapping and the sync stream could target different GPUs.
+    The bare-``"cuda"`` case intentionally preserves pre-existing behavior even though Warp
+    resolves it to its current CUDA device -- see the TODO on ``_cuda_device_id``.
     """
-    monkeypatch.setattr(ovrtx_mapping.wp, "get_device", lambda device: types.SimpleNamespace(ordinal=3))
-
-    assert ovrtx_mapping.get_warp_device_id("cuda") == 3
+    assert ovrtx_mapping._cuda_device_id(device) == expected
 
 
 def test_map_attribute_for_warp_writes_commits_on_the_producer_stream(monkeypatch):
