@@ -7,6 +7,10 @@
 # Newton physics, OVRTX rendering, and every core RL framework.
 ARG BASE_IMAGE_ARG=ubuntu:24.04
 
+# Empty fallback for direct `docker build`; --build-context ci_wheelhouse=<path>
+# overrides this stage when a prepared CI wheelhouse is available.
+FROM scratch AS ci_wheelhouse
+
 FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv
 
 FROM ${BASE_IMAGE_ARG} AS builder
@@ -20,6 +24,7 @@ ENV LANG=C.UTF-8
 ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
 ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
 ENV UV_NO_CACHE=1
+ARG ALLOW_ONLINE_FALLBACK_ARG=true
 
 # Native build tools remain confined to this stage.
 RUN apt-get update \
@@ -50,17 +55,53 @@ COPY isaaclab.sh ./
 # the standalone URDF/MJCF importers that replace the Isaac Sim ones. The venv pins
 # python3.12 to match the runtime stage's libpython3.12, and isaaclab.sh resolves
 # VIRTUAL_ENV first.
-RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
- && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
- && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all],importers \
- && python -c "import importlib.metadata as m; \
-      names = {d.metadata['Name'].lower() for d in m.distributions()}; \
-      assert 'isaacsim' not in names; \
-      assert 'ovphysx' in names; \
-      assert 'ovrtx' in names; \
-      assert 'viser' in names; \
-      assert 'rerun-sdk' in names" \
- && test ! -e "${ISAACLAB_PATH}/_isaac_sim"
+# BuildKit bind mounts are read-only unless explicitly marked rw. No-index
+# affects registry lookup only, so explicit VCS requirements remain available.
+RUN --mount=type=bind,from=ci_wheelhouse,target=/mnt/ci-wheelhouse \
+    set -euo pipefail; \
+    wheelhouse_root=/mnt/ci-wheelhouse; \
+    install_kitless() { \
+        rm -rf "${VIRTUAL_ENV}"; \
+        uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
+        && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
+        && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all],importers \
+        && python -c "import importlib.metadata as m; \
+             names = {d.metadata['Name'].lower() for d in m.distributions()}; \
+             assert 'isaacsim' not in names; \
+             assert 'ovphysx' in names; \
+             assert 'ovrtx' in names; \
+             assert 'viser' in names; \
+             assert 'rerun-sdk' in names" \
+        && test ! -e "${ISAACLAB_PATH}/_isaac_sim"; \
+    }; \
+    if [ -d "${wheelhouse_root}/wheelhouse" ] \
+       && [ -f "${wheelhouse_root}/manifest.json" ] \
+       && { [ -f "${wheelhouse_root}/.complete" ] || [ -f "${wheelhouse_root}/complete" ]; }; then \
+        echo "Using complete CI wheelhouse for kit-less Python dependencies"; \
+        if ( \
+            export PIP_NO_INDEX=1 \
+                   PIP_FIND_LINKS="${wheelhouse_root}/wheelhouse" \
+                   UV_NO_INDEX=1 \
+                   UV_FIND_LINKS="${wheelhouse_root}/wheelhouse"; \
+            install_kitless \
+        ); then \
+            exit 0; \
+        fi; \
+        echo "CI wheelhouse dependency install failed"; \
+    elif [ "${ALLOW_ONLINE_FALLBACK_ARG}" != "true" ]; then \
+        echo "CI wheelhouse is missing or incomplete and online fallback is disabled" >&2; \
+        exit 1; \
+    fi; \
+    if [ "${ALLOW_ONLINE_FALLBACK_ARG}" != "true" ]; then \
+        echo "CI wheelhouse install failed and online fallback is disabled" >&2; \
+        exit 1; \
+    fi; \
+    if [ -d "${wheelhouse_root}/wheelhouse" ]; then \
+        export PIP_FIND_LINKS="${wheelhouse_root}/wheelhouse https://py.mujoco.org/" \
+               UV_FIND_LINKS="${wheelhouse_root}/wheelhouse https://py.mujoco.org/"; \
+    fi; \
+    echo "Using online package indexes for kit-less Python dependencies"; \
+    install_kitless
 
 # isaaclab.utils.assets parses apps/isaaclab.python.kit at import time to
 # resolve the Nucleus asset root, so apps/ is required even without Kit.

@@ -1,0 +1,241 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Prepare CI Wheelhouse'
+description: >
+  Restores, fills, validates, and optionally publishes a profile-specific CI
+  wheelhouse for reuse by jobs in this workflow and by singleton workflows.
+  Exact cache hits are reused without publishing duplicate persistent entries.
+
+inputs:
+  profile:
+    description: 'Profile name from .github/ci-wheelhouse/profiles.toml'
+    required: true
+  python-tag:
+    description: 'Optional CPython wheel tag override'
+    required: false
+    default: ''
+  architecture:
+    description: 'Optional wheel architecture override'
+    required: false
+    default: ''
+  base-image:
+    description: 'Optional base image compatibility override'
+    required: false
+    default: ''
+  base-version:
+    description: 'Optional base image version compatibility override'
+    required: false
+    default: ''
+  save-cache:
+    description: 'Save a complete wheelhouse unless the stable exact cache key already matched'
+    required: false
+    default: 'false'
+  upload-artifact:
+    description: 'Upload the validated wheelhouse for jobs in the current workflow'
+    required: false
+    default: 'true'
+  artifact-name:
+    description: 'Optional artifact name override'
+    required: false
+    default: ''
+  artifact-retention-days:
+    description: 'Workflow artifact retention in days'
+    required: false
+    default: '1'
+
+outputs:
+  collection:
+    description: 'Exact identity-qualified compatibility collection'
+    value: ${{ steps.key.outputs.collection }}
+  key:
+    description: 'Stable exact cache key for this compatibility identity'
+    value: ${{ steps.key.outputs.key }}
+  restore-keys:
+    description: 'Broader compatible-target prefix used to reuse overlapping wheels'
+    value: ${{ steps.key.outputs.restore-keys }}
+  host-dir:
+    description: 'Host directory containing wheelhouse/, manifest.json, and optional complete'
+    value: ${{ steps.key.outputs.host-dir }}
+  manifest:
+    description: 'Validated manifest.json path'
+    value: ${{ steps.build.outputs.manifest }}
+  complete:
+    description: 'Whether every required wheel was prepared'
+    value: ${{ steps.build.outputs.complete }}
+  status:
+    description: 'Preparation status: complete, partial, or invalid'
+    value: ${{ steps.build.outputs.status }}
+  artifact-name:
+    description: 'Uploaded artifact name, or the deterministic name when upload is disabled'
+    value: ${{ inputs.artifact-name != '' && inputs.artifact-name || steps.key.outputs.artifact-name }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve CI wheelhouse identifiers
+      id: key
+      uses: ./.github/actions/ci-wheelhouse-key
+      with:
+        profile: ${{ inputs.profile }}
+        python-tag: ${{ inputs.python-tag }}
+        architecture: ${{ inputs.architecture }}
+        base-image: ${{ inputs.base-image }}
+        base-version: ${{ inputs.base-version }}
+
+    - name: Prepare persistent cache directory
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.key.outputs.host-dir }}
+      run: |
+        set -euo pipefail
+        rm -rf "$HOST_DIR"
+        mkdir -p "$HOST_DIR"
+
+    - name: Restore persistent CI wheelhouse cache
+      id: cache
+      continue-on-error: true
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.key.outputs.host-dir }}
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.restore-keys }}
+
+    - name: Inspect restored CI wheelhouse
+      id: restored
+      if: steps.cache.outcome == 'success' && steps.cache.outputs.cache-matched-key != ''
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.key.outputs.host-dir }}
+        VALIDATOR: ${{ github.action_path }}/../restore-ci-wheelhouse/validate_wheelhouse.py
+        PROFILE: ${{ inputs.profile }}
+        PYTHON_TAG: ${{ inputs.python-tag }}
+        ARCHITECTURE: ${{ inputs.architecture }}
+        BASE_IMAGE: ${{ inputs.base-image }}
+        BASE_VERSION: ${{ inputs.base-version }}
+        PYTHON_PATH: ${{ steps.key.outputs.python-path }}
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE"
+        "$PYTHON_PATH" "$VALIDATOR" \
+          --host-dir "$HOST_DIR" \
+          --profile "$PROFILE" \
+          --python-tag "$PYTHON_TAG" \
+          --architecture "$ARCHITECTURE" \
+          --base-image "$BASE_IMAGE" \
+          --base-version "$BASE_VERSION" \
+          --soft-fail
+
+    - name: Build CI wheelhouse
+      id: build
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.key.outputs.host-dir }}
+        VALIDATOR: ${{ github.action_path }}/../restore-ci-wheelhouse/validate_wheelhouse.py
+        PROFILE: ${{ inputs.profile }}
+        PYTHON_TAG: ${{ inputs.python-tag }}
+        ARCHITECTURE: ${{ inputs.architecture }}
+        BASE_IMAGE: ${{ inputs.base-image }}
+        BASE_VERSION: ${{ inputs.base-version }}
+        RESTORED_VALID: ${{ steps.restored.outputs.valid }}
+        RESTORED_COMPLETE: ${{ steps.restored.outputs.complete }}
+        RESTORED_MANIFEST: ${{ steps.restored.outputs.manifest }}
+        PYTHON_PATH: ${{ steps.key.outputs.python-path }}
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE"
+
+        if [ "$RESTORED_VALID" = "true" ] && [ "$RESTORED_COMPLETE" = "true" ]; then
+          echo "Reusing complete CI wheelhouse from the persistent cache"
+          echo "builder-exit-code=0" >> "$GITHUB_OUTPUT"
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+          echo "complete=true" >> "$GITHUB_OUTPUT"
+          echo "status=complete" >> "$GITHUB_OUTPUT"
+          echo "manifest=$RESTORED_MANIFEST" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        mkdir -p "$HOST_DIR"
+        command=(
+          "$PYTHON_PATH" -m tools.ci_wheelhouse build
+          --profile "$PROFILE"
+          --output_dir "$HOST_DIR"
+          --lock_file "$GITHUB_WORKSPACE/uv.lock"
+          --profiles_file "$GITHUB_WORKSPACE/.github/ci-wheelhouse/profiles.toml"
+          --target_python "$PYTHON_PATH"
+        )
+        [ -n "$PYTHON_TAG" ] && command+=(--python_tag "$PYTHON_TAG")
+        [ -n "$ARCHITECTURE" ] && command+=(--architecture "$ARCHITECTURE")
+        [ -n "$BASE_IMAGE" ] && command+=(--base_image "$BASE_IMAGE")
+        [ -n "$BASE_VERSION" ] && command+=(--base_version "$BASE_VERSION")
+
+        set +e
+        "${command[@]}"
+        builder_rc=$?
+        set -e
+        echo "builder-exit-code=$builder_rc" >> "$GITHUB_OUTPUT"
+
+        "$PYTHON_PATH" "$VALIDATOR" \
+          --host-dir "$HOST_DIR" \
+          --profile "$PROFILE" \
+          --python-tag "$PYTHON_TAG" \
+          --architecture "$ARCHITECTURE" \
+          --base-image "$BASE_IMAGE" \
+          --base-version "$BASE_VERSION" \
+          --soft-fail
+
+    # Cache entries are immutable. An exact hit already contains this multi-GB
+    # identity, so only a cold or broader-prefix restore publishes the exact key.
+    # The workflow artifact below remains per-run and is uploaded in either case.
+    - name: Save persistent CI wheelhouse cache
+      if: >-
+        inputs.save-cache == 'true' &&
+        steps.build.outputs.valid == 'true' &&
+        steps.build.outputs.complete == 'true' &&
+        steps.build.outputs.builder-exit-code == '0' &&
+        steps.cache.outputs.cache-matched-key != steps.key.outputs.key
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.key.outputs.host-dir }}
+        key: ${{ steps.key.outputs.key }}
+
+    - name: Upload workflow CI wheelhouse artifact
+      if: inputs.upload-artifact == 'true' && steps.build.outputs.valid == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name != '' && inputs.artifact-name || steps.key.outputs.artifact-name }}
+        path: |
+          ${{ steps.key.outputs.host-dir }}/wheelhouse
+          ${{ steps.key.outputs.host-dir }}/manifest.json
+          ${{ steps.key.outputs.host-dir }}/complete
+        if-no-files-found: error
+        retention-days: ${{ inputs.artifact-retention-days }}
+        compression-level: 0
+
+    - name: Report CI wheelhouse status
+      shell: bash
+      env:
+        VALID: ${{ steps.build.outputs.valid }}
+        COMPLETE: ${{ steps.build.outputs.complete }}
+        STATUS: ${{ steps.build.outputs.status }}
+        BUILDER_EXIT_CODE: ${{ steps.build.outputs.builder-exit-code }}
+        HOST_DIR: ${{ steps.key.outputs.host-dir }}
+      run: |
+        set -euo pipefail
+        echo "CI_WHEELHOUSE_DIR=$HOST_DIR" >> "$GITHUB_ENV"
+        echo "CI_WHEELHOUSE_ALLOW_ONLINE_FALLBACK=true" >> "$GITHUB_ENV"
+        if [ "$VALID" != "true" ]; then
+          echo "::error::CI wheelhouse output is invalid (builder exit code ${BUILDER_EXIT_CODE:-unknown})"
+          rc="${BUILDER_EXIT_CODE:-1}"
+          [ "$rc" -eq 0 ] && rc=1
+          exit "$rc"
+        fi
+        if [ "$COMPLETE" != "true" ]; then
+          echo "::warning::CI wheelhouse is partial; it was not saved to the persistent cache"
+        else
+          echo "CI wheelhouse is complete"
+        fi
+        echo "CI wheelhouse status: $STATUS"

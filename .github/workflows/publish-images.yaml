@@ -59,7 +59,11 @@ jobs:
           tag_suffix: ""
           dockerfile: docker/Dockerfile.base
           # Empty: follow whatever the Isaac Sim base image supports.
+          # The x86 wheelhouse accelerates amd64; a multiarch arm64 leg uses
+          # the Dockerfile's explicit online fallback until arm artifacts can
+          # be merged without exceeding workflow artifact limits.
           platforms: ""
+          wheelhouse_profile: isaacsim-cp312-x86_64
           build_args: >-
             --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }}
             --build-arg ISAACSIM_VERSION_ARG=${{ needs.config.outputs.isaacsim_image_tag }}
@@ -77,6 +81,7 @@ jobs:
           # would build under QEMU emulation. Publish amd64 until an arm64
           # validation path exists; the Dockerfile itself is arch-agnostic.
           platforms: linux/amd64
+          wheelhouse_profile: hosted-cp312-x86_64
           # BASE_IMAGE_ARG is intentionally omitted: docker/.env.kitless and the
           # Dockerfile default are the single source of truth for the base image.
           build_args: --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab
@@ -93,6 +98,15 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+
+    - name: Prepare CI wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: ${{ matrix.wheelhouse_profile }}
+        base-image: ${{ matrix.key == 'base' && needs.config.outputs.isaacsim_image_name || '' }}
+        base-version: ${{ matrix.key == 'base' && needs.config.outputs.isaacsim_image_tag || '' }}
+        upload-artifact: 'false'
+        save-cache: 'false'
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -223,6 +237,11 @@ jobs:
         echo "Tags to publish:"
         printf '  - %s\n' "${TAGS[@]}"
 
+        WHEELHOUSE_ARGS=()
+        if [ -n "${CI_WHEELHOUSE_DIR:-}" ] && [ -d "$CI_WHEELHOUSE_DIR" ]; then
+          WHEELHOUSE_ARGS+=(--build-context "ci_wheelhouse=$CI_WHEELHOUSE_DIR")
+        fi
+
         # Compose -t flags for buildx
         TAG_ARGS=()
         for t in "${TAGS[@]}"; do
@@ -234,6 +253,7 @@ jobs:
           --platform "$BUILD_PLATFORMS" \
           --progress=plain \
           "${TAG_ARGS[@]}" \
+          "${WHEELHOUSE_ARGS[@]}" \
           ${{ matrix.build_args }} \
           --cache-from type=gha,scope=publish-${{ matrix.key }} \
           --cache-to type=gha,mode=max,scope=publish-${{ matrix.key }} \

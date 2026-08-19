@@ -22,6 +22,12 @@ on:
       - "scripts/reinforcement_learning/train.py"
       - "source/isaaclab_rl/isaaclab_rl/entrypoints/**"
       - ".github/workflows/test-multi-gpu.yaml"
+      - ".github/actions/ci-wheelhouse-key/**"
+      - ".github/actions/prepare-ci-wheelhouse/**"
+      - ".github/actions/restore-ci-wheelhouse/**"
+      - ".github/ci-wheelhouse/**"
+      - "tools/ci_wheelhouse/**"
+      - "uv.lock"
   workflow_dispatch:
 
 concurrency:
@@ -29,11 +35,30 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  prepare-ci-wheelhouse:
+    name: Prepare CI Wheelhouse
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.prepare.outputs.artifact-name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare CI wheelhouse
+        id: prepare
+        uses: ./.github/actions/prepare-ci-wheelhouse
+        with:
+          profile: hosted-full-cp310-x86_64
+          artifact-name: ci-wheelhouse-hosted-full-cp310-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+          upload-artifact: 'true'
+          save-cache: 'false'
+
   test-multi-gpu:
     name: Multi-GPU (${{ matrix.physics }}, ${{ matrix.renderer }})
     # Use dedicated multi-GPU runner to avoid blocking standard CI resources
     # Configure this label on a runner with 2+ GPUs (e.g., g5.12xlarge with 4x A10G)
     runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    needs: [prepare-ci-wheelhouse]
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -88,8 +113,34 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Restore CI wheelhouse
+        id: restore-wheelhouse
+        uses: ./.github/actions/restore-ci-wheelhouse
+        with:
+          profile: hosted-full-cp310-x86_64
+          artifact-name: ${{ needs.prepare-ci-wheelhouse.outputs.artifact_name }}
+          allow-online-fallback: 'true'
+
       - name: Install Isaac Lab
+        env:
+          WHEELHOUSE_COMPLETE: ${{ steps.restore-wheelhouse.outputs.complete }}
+          WHEELHOUSE_ROOT: ${{ steps.restore-wheelhouse.outputs.host-dir }}
         run: |
+          set -euo pipefail
+
+          wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+          if [ "$WHEELHOUSE_COMPLETE" = "true" ] && [ -d "$wheelhouse" ]; then
+            # No-index mode still permits the intentionally uncached VCS direct URLs.
+            if PIP_NO_INDEX=1 PIP_FIND_LINKS="$wheelhouse" \
+              UV_NO_INDEX=1 UV_FIND_LINKS="$wheelhouse" \
+              ./isaaclab.sh --install; then
+              exit 0
+            fi
+            echo "::warning::Offline Isaac Lab install failed; retrying with online package indexes"
+          else
+            echo "::warning::Complete CI wheelhouse unavailable; installing Isaac Lab with online package indexes"
+          fi
+
           ./isaaclab.sh --install
 
       - name: Verify multi-GPU availability

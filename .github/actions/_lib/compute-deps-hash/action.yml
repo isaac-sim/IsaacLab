@@ -9,7 +9,7 @@ description: >
   docker-build (local-store check) and ecr-build-push-pull (registry check)
   actions so a local hit and a registry hit always agree on the same
   `deps-<hash>` tag. Hashes the install-relevant files, resolved base image
-  digest, and target platform.
+  digest, target platform, and optional CI wheelhouse identity.
 
 inputs:
   dockerfile-path:
@@ -24,6 +24,18 @@ inputs:
   platform:
     description: 'Target platform included in the dependency-cache identity'
     default: 'linux/amd64'
+    required: false
+  wheelhouse-path:
+    description: >
+      Optional CI wheelhouse root. Its manifest profile, manifest content hash,
+      and completeness state are included in the dependency-cache identity.
+    default: ''
+    required: false
+  allow-online-fallback:
+    description: >
+      Whether Python registry installs may fall back online. Included in the
+      dependency-cache identity when wheelhouse-path is supplied.
+    default: 'true'
     required: false
 
 outputs:
@@ -41,6 +53,8 @@ runs:
         ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
         ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
         TARGET_PLATFORM: ${{ inputs.platform }}
+        CI_WHEELHOUSE_PATH: ${{ inputs.wheelhouse-path }}
+        ALLOW_ONLINE_FALLBACK: ${{ inputs.allow-online-fallback }}
       run: |
         set -euo pipefail
 
@@ -72,8 +86,52 @@ runs:
         mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
         file_hash=$(git ls-files -s "${deps_files[@]}" "${manifest_files[@]}" 2>/dev/null \
           | sha256sum | cut -c1-16)
-        deps_hash=$(printf '%s %s %s' "${file_hash}" "${base_image_uniq_id}" "${TARGET_PLATFORM}" \
-          | sha256sum | cut -c1-16)
+
+        wheelhouse_identity=""
+        if [ -n "${CI_WHEELHOUSE_PATH}" ]; then
+          case "${ALLOW_ONLINE_FALLBACK}" in
+            true|false) ;;
+            *)
+              echo "🔴 allow-online-fallback must be 'true' or 'false'"
+              exit 1
+              ;;
+          esac
+
+          wheelhouse_manifest="${CI_WHEELHOUSE_PATH}/manifest.json"
+          wheelhouse_profile="unknown"
+          wheelhouse_manifest_hash="missing"
+          wheelhouse_state="missing"
+
+          if [ -d "${CI_WHEELHOUSE_PATH}" ]; then
+            wheelhouse_state="partial"
+          fi
+          if [ -f "${wheelhouse_manifest}" ]; then
+            wheelhouse_manifest_hash=$(sha256sum "${wheelhouse_manifest}" | cut -d' ' -f1)
+            wheelhouse_profile="$(
+              python3 -c \
+                'import json, sys; p=json.load(open(sys.argv[1], encoding="utf-8")).get("profile", "unknown"); print(json.dumps(p, sort_keys=True, separators=(",", ":")) if not isinstance(p, str) else p)' \
+                "${wheelhouse_manifest}" 2>/dev/null || printf 'unknown'
+            )"
+          fi
+          if [ -d "${CI_WHEELHOUSE_PATH}/wheelhouse" ] \
+             && [ -f "${wheelhouse_manifest}" ] \
+             && { [ -f "${CI_WHEELHOUSE_PATH}/.complete" ] || [ -f "${CI_WHEELHOUSE_PATH}/complete" ]; }; then
+            wheelhouse_state="complete"
+          fi
+
+          wheelhouse_identity="${wheelhouse_profile}:${wheelhouse_manifest_hash}:${wheelhouse_state}:${ALLOW_ONLINE_FALLBACK}"
+          echo "🔵 Wheelhouse identity: profile=${wheelhouse_profile}, manifest=${wheelhouse_manifest_hash:0:16}, state=${wheelhouse_state}, allow-online-fallback=${ALLOW_ONLINE_FALLBACK}"
+        fi
+
+        if [ -n "${wheelhouse_identity}" ]; then
+          deps_hash=$(printf '%s %s %s %s' \
+            "${file_hash}" "${base_image_uniq_id}" "${TARGET_PLATFORM}" "${wheelhouse_identity}" \
+            | sha256sum | cut -c1-16)
+        else
+          # Preserve existing cache keys for callers that do not supply a wheelhouse.
+          deps_hash=$(printf '%s %s %s' "${file_hash}" "${base_image_uniq_id}" "${TARGET_PLATFORM}" \
+            | sha256sum | cut -c1-16)
+        fi
 
         echo "🔵 Deps hash: ${deps_hash}"
         echo "hash=${deps_hash}" >> "$GITHUB_OUTPUT"

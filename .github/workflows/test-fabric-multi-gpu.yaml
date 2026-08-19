@@ -42,6 +42,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Deliberately remains online: this manual-only diagnostic has no
+      # provisioned runner/profile contract, so an architecture-compatible
+      # wheelhouse cannot be selected safely yet.
       - name: Install Isaac Lab
         run: ./isaaclab.sh --install
 

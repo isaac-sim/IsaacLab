@@ -89,11 +89,13 @@ jobs:
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
           ^pyproject\.toml$ :: Root Python project (OV pins + Docker copy)
+          ^uv\.lock$ :: Locked Python dependency graph
           ^environment\.yml$ :: Conda env (Docker copy)
           ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/arm-ci\.yml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Base image config
           ^\.github/actions/ :: CI actions
+          ^\.github/ci-wheelhouse/ :: CI wheelhouse profiles
 
   # Loads the Isaac Sim base image name/tag from config.yaml and computes the
   # per-run CI image tag. Inlined here (rather than shared with build.yaml)
@@ -160,6 +162,19 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    - name: Prepare CI wheelhouse
+      id: prepare
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: isaacsim-cp312-aarch64
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        upload-artifact: 'false'
+        save-cache: >-
+          ${{ github.event_name == 'push' &&
+          (github.ref_name == 'main' || github.ref_name == 'develop' ||
+          startsWith(github.ref_name, 'release/')) && 'true' || 'false' }}
+
     - name: Build base image (linux/arm64)
       uses: ./.github/actions/docker-build
       with:
@@ -168,6 +183,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         platform: linux/arm64
+        wheelhouse-path: ${{ steps.prepare.outputs.host-dir }}
+        allow-online-fallback: 'true'
         # The Spark runner is long-lived self-hosted with no ECR, so its local
         # deps-cache tags accumulate; evict ones older than 14 days each run.
         evict-stale-cache: "true"
@@ -187,6 +204,8 @@ jobs:
         test-k-expr: not ovphysx
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
+        wheelhouse-host-dir: ${{ steps.prepare.outputs.host-dir }}
+        allow-online-fallback: 'true'
 
     - name: Run arm_ci OVPhysX marker tests
       uses: ./.github/actions/run-tests
@@ -199,6 +218,8 @@ jobs:
         test-k-expr: ovphysx
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
+        wheelhouse-host-dir: ${{ steps.prepare.outputs.host-dir }}
+        allow-online-fallback: 'true'
 
 
     - name: Run shared Cartpole smoke
@@ -209,6 +230,8 @@ jobs:
         container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         volume-mount-source: ${{ github.workspace }}
+        wheelhouse-host-dir: ${{ steps.prepare.outputs.host-dir }}
+        allow-online-fallback: 'true'
 
     - name: Upload test reports
       if: always()

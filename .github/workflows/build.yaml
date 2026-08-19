@@ -104,11 +104,13 @@ jobs:
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
           ^pyproject\.toml$ :: Root Python project (Docker copy)
+          ^uv\.lock$ :: Locked Python dependency graph
           ^environment\.yml$ :: Conda env (Docker copy)
           ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
           ^\.github/workflows/build\.yaml$ :: This workflow file
           ^\.github/workflows/config\.yaml$ :: Shared CI config
           ^\.github/actions/ :: CI actions
+          ^\.github/ci-wheelhouse/ :: CI wheelhouse profiles
           ^\.github/test-subsets/ :: CI test subset config
 
   config:
@@ -158,11 +160,145 @@ jobs:
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
+  prepare-ci-wheelhouse-x86:
+    name: Prepare CI Wheelhouse (x86_64)
+    runs-on: [self-hosted, gpu]
+    needs: [changes, config]
+    if: needs.changes.outputs.should_run == 'true'
+    outputs:
+      full_artifact_name: ${{ steps.prepare-full.outputs.artifact-name }}
+      full_complete: ${{ steps.prepare-full.outputs.complete }}
+      full_status: ${{ steps.prepare-full.outputs.status }}
+      runtime_artifact_name: ${{ steps.prepare-runtime.outputs.artifact-name }}
+      runtime_complete: ${{ steps.prepare-runtime.outputs.complete }}
+      runtime_status: ${{ steps.prepare-runtime.outputs.status }}
+    # Serialize trusted cache writers without allowing pull requests to hold
+    # the writer lock while they prepare their workflow-scoped artifacts.
+    concurrency:
+      group: >-
+        ${{ github.event_name == 'push' &&
+        (github.ref_name == 'main' || github.ref_name == 'develop' ||
+        startsWith(github.ref_name, 'release/')) &&
+        'ci-wheelhouse-write-isaacsim-cp312-x86_64' ||
+        format('ci-wheelhouse-read-isaacsim-cp312-x86_64-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: false
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Prepare full build CI wheelhouse
+      id: prepare-full
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: isaacsim-cp312-x86_64
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        artifact-name: ci-wheelhouse-isaacsim-cp312-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+        upload-artifact: 'true'
+        save-cache: >-
+          ${{ github.event_name == 'push' &&
+          (github.ref_name == 'main' || github.ref_name == 'develop' ||
+          startsWith(github.ref_name, 'release/')) && 'true' || 'false' }}
+
+    - name: Report partial full build CI wheelhouse
+      if: steps.prepare-full.outputs.complete != 'true'
+      shell: bash
+      run: >-
+        echo "::notice::Full build CI wheelhouse status is ${{ steps.prepare-full.outputs.status }};
+        Docker build jobs may use online fallback."
+
+    - name: Prepare runtime CI wheelhouse
+      id: prepare-runtime
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: runtime-cp312-x86_64
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        artifact-name: ci-wheelhouse-runtime-cp312-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+        upload-artifact: 'true'
+        save-cache: >-
+          ${{ github.event_name == 'push' &&
+          (github.ref_name == 'main' || github.ref_name == 'develop' ||
+          startsWith(github.ref_name, 'release/')) && 'true' || 'false' }}
+
+    - name: Report partial runtime CI wheelhouse
+      if: steps.prepare-runtime.outputs.complete != 'true'
+      shell: bash
+      run: >-
+        echo "::notice::Runtime CI wheelhouse status is ${{ steps.prepare-runtime.outputs.status }};
+        strict offline smoke will be skipped and test jobs may use online fallback."
+
+  strict-wheelhouse-offline-smoke:
+    name: strict-wheelhouse-offline-smoke
+    runs-on: [self-hosted, gpu]
+    needs: [config, prepare-ci-wheelhouse-x86]
+    if: needs.prepare-ci-wheelhouse-x86.outputs.runtime_complete == 'true'
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+
+    - name: Restore complete CI wheelhouse
+      id: restore-wheelhouse
+      uses: ./.github/actions/restore-ci-wheelhouse
+      with:
+        profile: runtime-cp312-x86_64
+        artifact-name: ${{ needs.prepare-ci-wheelhouse-x86.outputs.runtime_artifact_name }}
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        allow-online-fallback: 'false'
+
+    - name: Require complete restored wheelhouse
+      if: steps.restore-wheelhouse.outputs.complete != 'true'
+      shell: bash
+      run: |
+        echo "::error::The prepared wheelhouse was complete, but the restored artifact is not."
+        exit 1
+
+    - name: Install and import representative packages offline
+      shell: bash
+      env:
+        WHEELHOUSE_ROOT: ${{ steps.restore-wheelhouse.outputs.host-dir }}
+      run: |
+        set -euo pipefail
+
+        wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+        smoke_venv="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ci-wheelhouse-smoke.XXXXXX")"
+        trap 'rm -rf "$smoke_venv"' EXIT
+        python3 -m venv "$smoke_venv"
+
+        network_isolation=()
+        if command -v unshare >/dev/null 2>&1 && unshare --net -- true >/dev/null 2>&1; then
+          network_isolation=(unshare --net --)
+          echo "Running wheelhouse smoke test in an isolated network namespace"
+        else
+          echo "::notice::A usable unshare network namespace is unavailable; enforcing pip no-index mode."
+        fi
+
+        # jsonschema covers hosted action tooling and pytetwild covers a binary
+        # runtime feature dependency from the roots-only profile.
+        PIP_NO_INDEX=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+          "${network_isolation[@]}" "$smoke_venv/bin/python" -m pip install \
+          --no-index \
+          --find-links "$wheelhouse" \
+          jsonschema \
+          "pytetwild[all]>=0.3,<0.4"
+
+        "${network_isolation[@]}" "$smoke_venv/bin/python" - <<'PY'
+        import jsonschema
+        import pytetwild
+
+        print("Strict offline wheelhouse imports succeeded.")
+        PY
+
   #region build jobs
   build:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [changes, config]
+    needs: [changes, config, prepare-ci-wheelhouse-x86]
     if: needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
@@ -171,6 +307,16 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    - name: Restore CI wheelhouse
+      id: restore-wheelhouse
+      uses: ./.github/actions/restore-ci-wheelhouse
+      with:
+        profile: isaacsim-cp312-x86_64
+        artifact-name: ${{ needs.prepare-ci-wheelhouse-x86.outputs.full_artifact_name }}
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        allow-online-fallback: 'true'
+
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -178,12 +324,14 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
+        wheelhouse-path: ${{ steps.restore-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
         cache-tag: cache-base
 
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [changes, config]
+    needs: [changes, config, prepare-ci-wheelhouse-x86]
     if: >-
       github.event_name != 'push' &&
       needs.changes.outputs.should_run == 'true'
@@ -194,6 +342,16 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    - name: Restore CI wheelhouse
+      id: restore-wheelhouse
+      uses: ./.github/actions/restore-ci-wheelhouse
+      with:
+        profile: isaacsim-cp312-x86_64
+        artifact-name: ${{ needs.prepare-ci-wheelhouse-x86.outputs.full_artifact_name }}
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        allow-online-fallback: 'true'
+
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -201,6 +359,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
+        wheelhouse-path: ${{ steps.restore-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
         cache-tag: cache-curobo
 
   #endregion

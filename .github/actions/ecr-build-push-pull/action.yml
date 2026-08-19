@@ -23,6 +23,19 @@ inputs:
     description: 'Path to Dockerfile, relative to the repository root'
     default: 'docker/Dockerfile.base'
     required: false
+  wheelhouse-path:
+    description: >
+      Optional host directory containing wheelhouse/, manifest.json, and the
+      complete marker. Forwarded to docker-build as the ci_wheelhouse context.
+    default: ''
+    required: false
+  allow-online-fallback:
+    description: >
+      When 'true', a missing or partial wheelhouse keeps the existing online
+      package installation path. When 'false', Python registry installation
+      requires a complete wheelhouse.
+    default: 'true'
+    required: false
   ecr-url:
     description: >
       ECR repository URL (e.g. "123456789.dkr.ecr.us-west-2.amazonaws.com/my-repo").
@@ -147,12 +160,14 @@ runs:
     ##### 4: Check if exact image exists in ECR #####
 
     # Lightweight manifest check - fetches only the image manifest (~KB),
-    # not the actual layers.  If the exact per-commit image already exists
-    # in ECR, sets output `hit: true` to skip all subsequent build/push steps.
+    # not the actual layers. Lenient mode preserves this fast path. Strict
+    # mode bypasses it because an exact tag does not encode wheelhouse policy.
 
     - name: Check exact image in ECR
       id: pull-exact
-      if: steps.resolve-ecr.outputs.available == 'true'
+      if: >
+        steps.resolve-ecr.outputs.available == 'true' &&
+        inputs.allow-online-fallback == 'true'
       shell: bash
       run: |
         echo "🔵 Checking if commit-tagged image exists in ECR >> ${ECR_IMAGE}"
@@ -196,6 +211,8 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
+        wheelhouse-path: ${{ inputs.wheelhouse-path }}
+        allow-online-fallback: ${{ inputs.allow-online-fallback }}
 
     - name: Check deps cache
       id: deps-cache
@@ -238,6 +255,8 @@ runs:
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
+        wheelhouse-path: ${{ inputs.wheelhouse-path }}
+        allow-online-fallback: ${{ inputs.allow-online-fallback }}
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
         deps-hash: ${{ steps.deps-hash.outputs.hash }}

@@ -45,9 +45,13 @@ jobs:
           patterns=(
             $'^apps/\tStandalone apps packaged in the wheel'
             $'^pyproject\.toml$\tWheel dependency metadata and resolver overrides'
+            $'^uv\.lock$\tLocked dependency graph mirrored into the CI wheelhouse'
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
             $'^tools/wheel_builder/\tWheel build tooling'
+            $'^tools/ci_wheelhouse/\tCI wheelhouse tooling'
+            $'^\.github/ci-wheelhouse/\tCI wheelhouse profiles'
+            $'^\.github/actions/(ci-wheelhouse-key|prepare-ci-wheelhouse|restore-ci-wheelhouse)/\tCI wheelhouse actions'
             $'^\.github/workflows/wheel\.yml$\tThis workflow file'
           )
 
@@ -136,6 +140,15 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      - name: Prepare hosted CI wheelhouse
+        if: steps.changes.outputs.run_build == 'true'
+        id: prepare-wheelhouse
+        uses: ./.github/actions/prepare-ci-wheelhouse
+        with:
+          profile: hosted-cp312-x86_64
+          upload-artifact: 'false'
+          save-cache: 'false'
+
       # Compose Docker-image-style metadata for the artifact. The artifact
       # name is what QA sees in `gh run download`, so we make it scannable:
       # isaaclab-<VERSION>-build<RUN_NUMBER>-<SHA7>. The wheel inside follows
@@ -154,7 +167,22 @@ jobs:
         env:
           WHEEL_BUILD_NUMBER: ${{ github.run_number }}
           WHEEL_SHA: ${{ github.sha }}
-        run: bash tools/wheel_builder/build.sh
+          WHEELHOUSE_COMPLETE: ${{ steps.prepare-wheelhouse.outputs.complete }}
+          WHEELHOUSE_ROOT: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
+        run: |
+          set -euo pipefail
+
+          wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+          if [ "$WHEELHOUSE_COMPLETE" = "true" ] && [ -d "$wheelhouse" ]; then
+            if PIP_NO_INDEX=1 PIP_FIND_LINKS="$wheelhouse" bash tools/wheel_builder/build.sh; then
+              exit 0
+            fi
+            echo "::warning::Offline wheel build failed; retrying with online package indexes"
+          else
+            echo "::warning::Complete CI wheelhouse unavailable; building with online package indexes"
+          fi
+
+          bash tools/wheel_builder/build.sh
 
       - name: Upload wheel artifact
         if: steps.changes.outputs.run_build == 'true'
@@ -174,10 +202,41 @@ jobs:
 
       - name: Test wheel extras resolution
         if: steps.changes.outputs.run_build == 'true'
+        env:
+          WHEELHOUSE_COMPLETE: ${{ steps.prepare-wheelhouse.outputs.complete }}
+          WHEELHOUSE_ROOT: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
         run: |
           set -euo pipefail
 
-          python -m pip install --user uv
+          wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+          wheelhouse_ready=false
+          if [ "$WHEELHOUSE_COMPLETE" = "true" ] && [ -d "$wheelhouse" ]; then
+            wheelhouse_ready=true
+          else
+            echo "::warning::Complete CI wheelhouse unavailable; package installs will use online indexes"
+          fi
+
+          pip_install() {
+            if [ "$wheelhouse_ready" = "true" ]; then
+              if python -m pip install --no-index --find-links "$wheelhouse" "$@"; then
+                return 0
+              fi
+              echo "::warning::Offline pip install failed; retrying with online package indexes"
+            fi
+            python -m pip install "$@"
+          }
+
+          uv_pip_install() {
+            if [ "$wheelhouse_ready" = "true" ]; then
+              if UV_NO_INDEX=1 UV_FIND_LINKS="$wheelhouse" uv pip install "$@"; then
+                return 0
+              fi
+              echo "::warning::Offline uv install failed; retrying with online package indexes"
+            fi
+            uv pip install "$@"
+          }
+
+          pip_install --user uv
           export PATH="$HOME/.local/bin:$PATH"
 
           overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
@@ -186,7 +245,7 @@ jobs:
 
           uv venv --python 3.12 /tmp/isaaclab-wheel-install
           source /tmp/isaaclab-wheel-install/bin/activate
-          uv pip install --upgrade pip
+          uv_pip_install --upgrade pip
 
           wheel="$(find /tmp/isaaclab-wheel-artifact -name 'isaaclab-*.whl' -print -quit)"
           if [ -z "$wheel" ]; then
@@ -194,7 +253,7 @@ jobs:
             exit 1
           fi
 
-          uv pip install \
+          uv_pip_install \
             --dry-run \
             --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \

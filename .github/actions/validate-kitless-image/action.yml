@@ -31,6 +31,9 @@ runs:
         -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
         -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
       )
+      if [ -n "${CI_WHEELHOUSE_DIR:-}" ] && [ -d "${CI_WHEELHOUSE_DIR}/wheelhouse" ]; then
+        mount_args+=(-v "${CI_WHEELHOUSE_DIR}:/tmp/ci-wheelhouse:ro")
+      fi
 
       docker run --rm "$IMAGE_TAG" \
         python -c '
@@ -61,7 +64,15 @@ runs:
         "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
-      uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+      if [ -d /tmp/ci-wheelhouse/wheelhouse ]; then
+        if ! UV_NO_INDEX=1 UV_FIND_LINKS=/tmp/ci-wheelhouse/wheelhouse \
+          uv pip install --python "$VIRTUAL_ENV/bin/python" pytest; then
+          echo "::warning::Offline pytest install failed; retrying with configured package indexes"
+          uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+        fi
+      else
+        uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+      fi
       python -m pytest \
         source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
         source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics.py \

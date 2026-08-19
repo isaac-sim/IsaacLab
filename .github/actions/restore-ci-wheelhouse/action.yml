@@ -1,0 +1,269 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Restore CI Wheelhouse'
+description: >
+  Restores and validates a CI wheelhouse from a workflow-scoped artifact or,
+  when no artifact is supplied, from the persistent compatibility cache. A
+  complete artifact wins; cache fallback uses a separate directory so a valid
+  partial artifact remains available when the cache is unusable.
+
+inputs:
+  profile:
+    description: 'Profile name; required for cache restore and optional for an explicitly named artifact'
+    required: false
+    default: ''
+  artifact-name:
+    description: 'Workflow artifact to download; empty selects the profile-specific persistent cache'
+    required: false
+    default: ''
+  fallback-to-cache:
+    description: 'With a profile, try the cache when the requested artifact is unavailable, invalid, or partial'
+    required: false
+    default: 'false'
+  allow-online-fallback:
+    description: 'Continue without a wheelhouse when neither requested source validates'
+    required: false
+    default: 'false'
+  python-tag:
+    description: 'Optional CPython wheel tag override'
+    required: false
+    default: ''
+  architecture:
+    description: 'Optional wheel architecture override'
+    required: false
+    default: ''
+  base-image:
+    description: 'Optional base image compatibility override'
+    required: false
+    default: ''
+  base-version:
+    description: 'Optional base image version compatibility override'
+    required: false
+    default: ''
+
+outputs:
+  host-dir:
+    description: 'Selected artifact or stable cache directory containing the restored wheelhouse'
+    value: ${{ steps.result.outputs.host-dir }}
+  manifest:
+    description: 'Validated manifest.json path'
+    value: ${{ steps.result.outputs.manifest }}
+  complete:
+    description: 'Whether the restored manifest and complete sentinel describe a complete wheelhouse'
+    value: ${{ steps.result.outputs.complete }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve CI wheelhouse identifiers
+      id: key
+      if: inputs.profile != ''
+      uses: ./.github/actions/ci-wheelhouse-key
+      with:
+        profile: ${{ inputs.profile }}
+        python-tag: ${{ inputs.python-tag }}
+        architecture: ${{ inputs.architecture }}
+        base-image: ${{ inputs.base-image }}
+        base-version: ${{ inputs.base-version }}
+
+    - name: Set up Python for artifact-only restore
+      id: artifact-python
+      if: inputs.profile == ''
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      with:
+        python-version: "3.12"
+        update-environment: false
+
+    - name: Resolve restore directories
+      id: paths
+      shell: bash
+      env:
+        CACHE_DIR: ${{ steps.key.outputs.host-dir }}
+        KEY_PYTHON_PATH: ${{ steps.key.outputs.python-path }}
+        ARTIFACT_PYTHON_PATH: ${{ steps.artifact-python.outputs.python-path }}
+        ARTIFACT_NAME: ${{ inputs.artifact-name }}
+      run: |
+        set -euo pipefail
+        python_path="${KEY_PYTHON_PATH:-$ARTIFACT_PYTHON_PATH}"
+        if [ -z "$python_path" ]; then
+          echo "::error::Could not resolve the private Python 3.12 executable"
+          exit 1
+        fi
+
+        artifact_hash="$(printf '%s' "$ARTIFACT_NAME" | sha256sum | cut -d ' ' -f 1)"
+        artifact_dir="${RUNNER_TEMP}/isaaclab-ci-wheelhouse-artifacts/${artifact_hash:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        if [ -n "$ARTIFACT_NAME" ]; then
+          rm -rf "$artifact_dir"
+          mkdir -p "$artifact_dir"
+        fi
+
+        echo "artifact-dir=$artifact_dir" >> "$GITHUB_OUTPUT"
+        echo "cache-dir=$CACHE_DIR" >> "$GITHUB_OUTPUT"
+        echo "python-path=$python_path" >> "$GITHUB_OUTPUT"
+
+    # Artifact and cache trees stay separate so a failed cache fallback cannot
+    # destroy a valid partial artifact that can still reduce online downloads.
+    - name: Download CI wheelhouse artifact
+      id: download
+      if: inputs.artifact-name != ''
+      continue-on-error: true
+      uses: actions/download-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.paths.outputs.artifact-dir }}
+
+    - name: Inspect downloaded CI wheelhouse
+      id: artifact-validation
+      if: inputs.artifact-name != '' && steps.download.outcome == 'success'
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.paths.outputs.artifact-dir }}
+        PYTHON_PATH: ${{ steps.paths.outputs.python-path }}
+        VALIDATOR: ${{ github.action_path }}/validate_wheelhouse.py
+        PROFILE: ${{ inputs.profile }}
+        PYTHON_TAG: ${{ inputs.python-tag }}
+        ARCHITECTURE: ${{ inputs.architecture }}
+        BASE_IMAGE: ${{ inputs.base-image }}
+        BASE_VERSION: ${{ inputs.base-version }}
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE"
+        "$PYTHON_PATH" "$VALIDATOR" \
+          --host-dir "$HOST_DIR" \
+          --profile "$PROFILE" \
+          --python-tag "$PYTHON_TAG" \
+          --architecture "$ARCHITECTURE" \
+          --base-image "$BASE_IMAGE" \
+          --base-version "$BASE_VERSION" \
+          --soft-fail
+
+    - name: Prepare persistent-cache fallback
+      if: >-
+        inputs.profile != '' &&
+        (inputs.artifact-name == '' ||
+        (inputs.fallback-to-cache == 'true' &&
+        (steps.download.outcome != 'success' ||
+        steps.artifact-validation.outputs.valid != 'true' ||
+        steps.artifact-validation.outputs.complete != 'true')))
+      shell: bash
+      env:
+        CACHE_DIR: ${{ steps.paths.outputs.cache-dir }}
+      run: |
+        set -euo pipefail
+        rm -rf "$CACHE_DIR"
+        mkdir -p "$CACHE_DIR"
+
+    # Empty artifact-name intentionally means cache-only mode. With an artifact,
+    # cache fallback is attempted for unavailable, invalid, and partial trees.
+    - name: Restore persistent CI wheelhouse cache
+      id: cache
+      if: >-
+        inputs.profile != '' &&
+        (inputs.artifact-name == '' ||
+        (inputs.fallback-to-cache == 'true' &&
+        (steps.download.outcome != 'success' ||
+        steps.artifact-validation.outputs.valid != 'true' ||
+        steps.artifact-validation.outputs.complete != 'true')))
+      continue-on-error: true
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.paths.outputs.cache-dir }}
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.restore-keys }}
+
+    - name: Validate cached CI wheelhouse
+      id: cache-validation
+      if: steps.cache.outcome == 'success' && steps.cache.outputs.cache-matched-key != ''
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.paths.outputs.cache-dir }}
+        PYTHON_PATH: ${{ steps.paths.outputs.python-path }}
+        VALIDATOR: ${{ github.action_path }}/validate_wheelhouse.py
+        PROFILE: ${{ inputs.profile }}
+        PYTHON_TAG: ${{ inputs.python-tag }}
+        ARCHITECTURE: ${{ inputs.architecture }}
+        BASE_IMAGE: ${{ inputs.base-image }}
+        BASE_VERSION: ${{ inputs.base-version }}
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE"
+        "$PYTHON_PATH" "$VALIDATOR" \
+          --host-dir "$HOST_DIR" \
+          --profile "$PROFILE" \
+          --python-tag "$PYTHON_TAG" \
+          --architecture "$ARCHITECTURE" \
+          --base-image "$BASE_IMAGE" \
+          --base-version "$BASE_VERSION" \
+          --soft-fail
+
+    - name: Export restored CI wheelhouse
+      id: result
+      shell: bash
+      env:
+        ARTIFACT_DIR: ${{ steps.paths.outputs.artifact-dir }}
+        CACHE_DIR: ${{ steps.paths.outputs.cache-dir }}
+        ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        PROFILE: ${{ inputs.profile }}
+        ALLOW_ONLINE_FALLBACK: ${{ inputs.allow-online-fallback }}
+        ARTIFACT_VALID: ${{ steps.artifact-validation.outputs.valid }}
+        ARTIFACT_COMPLETE: ${{ steps.artifact-validation.outputs.complete }}
+        ARTIFACT_MANIFEST: ${{ steps.artifact-validation.outputs.manifest }}
+        CACHE_VALID: ${{ steps.cache-validation.outputs.valid }}
+        CACHE_COMPLETE: ${{ steps.cache-validation.outputs.complete }}
+        CACHE_MANIFEST: ${{ steps.cache-validation.outputs.manifest }}
+      run: |
+        set -euo pipefail
+
+        selected_dir=""
+        manifest=""
+        complete="false"
+        source=""
+        if [ "$ARTIFACT_VALID" = "true" ] && [ "$ARTIFACT_COMPLETE" = "true" ]; then
+          selected_dir="$ARTIFACT_DIR"
+          manifest="$ARTIFACT_MANIFEST"
+          complete="true"
+          source="workflow artifact"
+        elif [ "$CACHE_VALID" = "true" ] && [ "$CACHE_COMPLETE" = "true" ]; then
+          selected_dir="$CACHE_DIR"
+          manifest="$CACHE_MANIFEST"
+          complete="true"
+          source="persistent cache"
+        elif [ "$ARTIFACT_VALID" = "true" ]; then
+          selected_dir="$ARTIFACT_DIR"
+          manifest="$ARTIFACT_MANIFEST"
+          complete="$ARTIFACT_COMPLETE"
+          source="partial workflow artifact"
+        elif [ "$CACHE_VALID" = "true" ]; then
+          selected_dir="$CACHE_DIR"
+          manifest="$CACHE_MANIFEST"
+          complete="$CACHE_COMPLETE"
+          source="partial persistent cache"
+        fi
+
+        if [ -n "$selected_dir" ]; then
+          echo "host-dir=$selected_dir" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "complete=$complete" >> "$GITHUB_OUTPUT"
+          echo "CI_WHEELHOUSE_DIR=$selected_dir" >> "$GITHUB_ENV"
+          echo "CI_WHEELHOUSE_ALLOW_ONLINE_FALLBACK=$ALLOW_ONLINE_FALLBACK" >> "$GITHUB_ENV"
+          echo "Restored $source at $selected_dir (complete=$complete)"
+          exit 0
+        fi
+
+        echo "host-dir=" >> "$GITHUB_OUTPUT"
+        echo "manifest=" >> "$GITHUB_OUTPUT"
+        echo "complete=false" >> "$GITHUB_OUTPUT"
+        if [ "$ALLOW_ONLINE_FALLBACK" = "true" ]; then
+          echo "::warning::No valid CI wheelhouse was restored; continuing with online package indexes"
+          exit 0
+        fi
+
+        if [ -z "$ARTIFACT_NAME" ] && [ -z "$PROFILE" ]; then
+          echo "::error::restore-ci-wheelhouse requires artifact-name or profile"
+        else
+          echo "::error::No valid CI wheelhouse was restored and online fallback is disabled"
+        fi
+        exit 1

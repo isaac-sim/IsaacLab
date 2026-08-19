@@ -1,0 +1,84 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'CI Wheelhouse Key'
+description: >
+  Computes a stable compatibility cache key and run-scoped artifact identifiers
+  from the lockfile, profiles file, resolved profile, target platform, and
+  base-image identity. Requires a prior checkout.
+
+inputs:
+  profile:
+    description: 'Profile name from .github/ci-wheelhouse/profiles.toml'
+    required: true
+  python-tag:
+    description: 'Optional CPython wheel tag override (for example cp312)'
+    required: false
+    default: ''
+  architecture:
+    description: 'Optional wheel architecture override (for example x86_64 or aarch64)'
+    required: false
+    default: ''
+  base-image:
+    description: 'Optional base image reference whose resolved digest contributes to compatibility'
+    required: false
+    default: ''
+  base-version:
+    description: 'Optional base image version or tag'
+    required: false
+    default: ''
+
+outputs:
+  collection:
+    description: 'Exact identity-qualified collection for this lockfile, profiles file, profile, platform, and image'
+    value: ${{ steps.compute.outputs.collection }}
+  key:
+    description: 'Stable exact cache key for this compatibility identity'
+    value: ${{ steps.compute.outputs.key }}
+  restore-keys:
+    description: 'Broader schema, OS, profile, Python, and architecture prefix for overlapping prior wheelhouses'
+    value: ${{ steps.compute.outputs.restore-keys }}
+  host-dir:
+    description: 'Stable target-specific cache directory containing wheelhouse/, manifest.json, and complete'
+    value: ${{ steps.compute.outputs.host-dir }}
+  artifact-name:
+    description: 'Deterministic workflow artifact name for this run and profile'
+    value: ${{ steps.compute.outputs.artifact-name }}
+  python-path:
+    description: 'Private Python 3.12 executable used by wheelhouse actions'
+    value: ${{ steps.python.outputs.python-path }}
+
+runs:
+  using: composite
+  steps:
+    # Profile parsing uses stdlib tomllib. Some self-hosted runners still expose
+    # Python 3.10 as python3. Keep that workflow default untouched and pass the
+    # private 3.12 executable explicitly to every wheelhouse helper.
+    - name: Set up Python
+      id: python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      with:
+        python-version: "3.12"
+        update-environment: false
+
+    - name: Compute CI wheelhouse identifiers
+      id: compute
+      shell: bash
+      env:
+        COMPUTE_SCRIPT: ${{ github.action_path }}/compute_key.py
+        PROFILE: ${{ inputs.profile }}
+        PYTHON_TAG: ${{ inputs.python-tag }}
+        ARCHITECTURE: ${{ inputs.architecture }}
+        BASE_IMAGE: ${{ inputs.base-image }}
+        BASE_VERSION: ${{ inputs.base-version }}
+        PYTHON_PATH: ${{ steps.python.outputs.python-path }}
+      run: |
+        set -euo pipefail
+        "$PYTHON_PATH" "$COMPUTE_SCRIPT" \
+          --profile "$PROFILE" \
+          --python-tag "$PYTHON_TAG" \
+          --architecture "$ARCHITECTURE" \
+          --base-image "$BASE_IMAGE" \
+          --base-version "$BASE_VERSION"

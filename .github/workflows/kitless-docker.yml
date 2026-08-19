@@ -60,23 +60,50 @@ jobs:
           ^source/isaaclab_(physx|newton|ov)/isaaclab_.*/test/fixtures/ :: Backend fixture implementation
           ^source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics\.py$ :: Kit-less pytest subset
           ^\.github/workflows/kitless-docker\.yml$ :: This workflow file
+          ^\.github/ci-wheelhouse/ :: CI wheelhouse profiles
           ^\.github/actions/detect-changes/ :: Change-detection action
+          ^\.github/actions/(ci-wheelhouse-key|prepare-ci-wheelhouse|restore-ci-wheelhouse)/ :: CI wheelhouse actions
           ^\.github/actions/_lib/compute-deps-hash/ :: Dependency-cache identity
           ^\.github/actions/docker-build/ :: Docker build action
           ^\.github/actions/ecr-build-push-pull/ :: ECR build-cache action
           ^\.github/actions/validate-kitless-image/ :: Kit-less image validation action
+          ^tools/ci_wheelhouse/ :: CI wheelhouse tooling
 
     - name: Set up uv
       if: steps.detect.outputs.should_run == 'true'
       uses: astral-sh/setup-uv@v6
 
+    - name: Set up Python
+      if: steps.detect.outputs.should_run == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Prepare hosted CI wheelhouse
+      id: wheelhouse
+      if: steps.detect.outputs.should_run == 'true'
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: hosted-cp312-x86_64
+        upload-artifact: 'false'
+        save-cache: 'false'
+
     - name: Validate kit-less container profile
       if: steps.detect.outputs.should_run == 'true'
       shell: bash
+      env:
+        WHEELHOUSE_ROOT: ${{ steps.wheelhouse.outputs.host-dir }}
       run: |
         set -euo pipefail
-        uv run --no-project --with pytest --with pyyaml \
-          python -m pytest -q \
+        gate_venv="$RUNNER_TEMP/kitless-gate-venv"
+        wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+        uv venv --python "$(command -v python3)" "$gate_venv"
+        if ! uv pip install --python "$gate_venv/bin/python" \
+          --no-index --find-links "$wheelhouse" pytest pyyaml; then
+          echo "::warning::Offline gate dependency install failed; retrying with configured package indexes"
+          uv pip install --python "$gate_venv/bin/python" pytest pyyaml
+        fi
+        "$gate_venv/bin/python" -m pytest -q \
           docker/test/test_container_profiles.py \
           docker/test/test_dockerfile_nonroot.py
         (
@@ -100,6 +127,14 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+
+    - name: Prepare full x86 CI wheelhouse
+      id: wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: hosted-cp312-x86_64
+        upload-artifact: 'false'
+        save-cache: 'false'
 
     # Mirrors the per-commit tag scheme of build.yaml's config job so the
     # ECR tags stay in the same family as the other CI images.
@@ -133,6 +168,8 @@ jobs:
         isaacsim-base-image: ubuntu
         isaacsim-version: "24.04"
         dockerfile-path: docker/Dockerfile.kitless
+        wheelhouse-path: ${{ steps.wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
         cache-tag: cache-kitless
         # Validation below docker-runs the image in this same job, and the
         # ECR login only exists while the action runs, so the action itself

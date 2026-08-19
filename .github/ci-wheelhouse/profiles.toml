@@ -1,0 +1,132 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+schema = 1
+
+[root_groups]
+bootstrap = [
+    "uv==0.12.5",
+    "build==1.5.0",
+    "wheel==0.48.0",
+    "setuptools<82",
+    "poetry-core==2.4.1",
+    "hatchling==1.32.0",
+    "pip-licenses==5.5.5",
+    "pipdeptree==4.2.1",
+]
+test = [
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flaky",
+    "coverage>=7.6.1",
+    "pytest-timeout==2.4.0",
+    "jsonschema",
+    "pyyaml",
+    "pre-commit==4.6.2",
+]
+docs = [
+    "sphinx>=7.0,<9",
+    "sphinx-book-theme>=1.1",
+    "myst-parser",
+    "sphinxcontrib-bibtex==2.5.0",
+    "autodocsumm",
+    "sphinx-copybutton",
+    "sphinx-icon",
+    "sphinx-design",
+    "sphinx-paramlinks==0.6.0",
+    "sphinxemoji",
+    "sphinx-tabs",
+    "sphinx-multiversion==0.2.4",
+]
+features = [
+    "pytetwild[all]>=0.3,<0.4",
+    "decorator<5",
+]
+ov = [
+    "ovphysx",
+    "ovrtx",
+    "ovstage",
+]
+[profiles._linux-cp312]
+python_tag = "cp312"
+python_version = "3.12"
+architecture = "x86_64"
+implementation = "cp"
+mirror_lock = true
+exclude_package_prefixes = ["isaacsim"]
+platforms = [
+    "manylinux_2_35_{architecture}",
+    "manylinux_2_28_{architecture}",
+    "manylinux_2_17_{architecture}",
+    "manylinux2014_{architecture}",
+]
+abis = ["{python_tag}", "abi3", "none"]
+ci_root_groups = ["bootstrap", "test", "features", "ov"]
+ci_roots = ["leapp"]
+lock_roots = ["leapp", "ovphysx", "ovrtx", "ovstage"]
+
+[profiles.hosted-cp312-x86_64]
+extends = "_linux-cp312"
+mirror_lock = false
+ci_root_groups = ["bootstrap", "test", "docs"]
+ci_roots = []
+
+[profiles.hosted-full-cp312-x86_64]
+extends = "_linux-cp312"
+
+[profiles.hosted-full-cp310-x86_64]
+extends = "_linux-cp312"
+python_tag = "cp310"
+python_version = "3.10"
+mirror_lock = false
+
+[profiles.hosted-cp312-aarch64]
+extends = "hosted-cp312-x86_64"
+architecture = "aarch64"
+
+[profiles.runtime-cp312-x86_64]
+extends = "_linux-cp312"
+mirror_lock = false
+ci_root_groups = ["features"]
+ci_roots = ["uv==0.12.5", "jsonschema"]
+ci_roots_no_deps = ["leapp"]
+
+[profiles.runtime-cp312-aarch64]
+extends = "runtime-cp312-x86_64"
+architecture = "aarch64"
+
+[profiles.isaacsim-cp312-x86_64]
+extends = "_linux-cp312"
+base_image = "nvcr.io/nvidia/isaac-sim"
+
+[profiles.isaacsim-cp312-aarch64]
+extends = "_linux-cp312"
+architecture = "aarch64"
+base_image = "nvcr.io/nvidia/isaac-sim"
+
+[profiles.compatibility-cp312-x86_64]
+extends = "_linux-cp312"
+template = true
+base_image = "nvcr.io/nvidia/isaac-sim"
+ci_root_groups = ["bootstrap", "test", "features", "ov"]
+ci_roots = ["leapp", "isaacsim[all,extscache]=={base_version}"]
+extra_index_urls = ["https://pypi.nvidia.com"]
+
+[profiles.compatibility-cp310-x86_64]
+extends = "compatibility-cp312-x86_64"
+python_tag = "cp310"
+python_version = "3.10"
+mirror_lock = false
+
+[profiles.compatibility-cp311-x86_64]
+extends = "compatibility-cp312-x86_64"
+python_tag = "cp311"
+python_version = "3.11"
+mirror_lock = false
+
+[profiles.compatibility-cp312-aarch64]
+extends = "compatibility-cp312-x86_64"
+architecture = "aarch64"

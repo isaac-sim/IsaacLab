@@ -53,24 +53,54 @@ jobs:
       uses: astral-sh/setup-uv@v6
       with:
         python-version: '3.12'
-        enable-cache: true
+        enable-cache: false
+
+    - name: Prepare hosted CI wheelhouse
+      id: prepare-wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: hosted-cp312-x86_64
+        upload-artifact: 'false'
+        save-cache: 'false'
 
     - name: Install dependencies with uv
       env:
         OMNI_KIT_ACCEPT_EULA: yes
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
+        WHEELHOUSE_COMPLETE: ${{ steps.prepare-wheelhouse.outputs.complete }}
+        WHEELHOUSE_ROOT: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
       run: |
+        set -euo pipefail
+
+        wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+        wheelhouse_ready=false
+        if [ "$WHEELHOUSE_COMPLETE" = "true" ] && [ -d "$wheelhouse" ]; then
+          wheelhouse_ready=true
+        else
+          echo "::warning::Complete CI wheelhouse unavailable; dependency installs will use online indexes"
+        fi
+
+        run_uv_with_fallback() {
+          if [ "$wheelhouse_ready" = "true" ]; then
+            if UV_NO_INDEX=1 UV_FIND_LINKS="$wheelhouse" "$@"; then
+              return 0
+            fi
+            echo "::warning::Offline uv install failed; retrying with online package indexes"
+          fi
+          "$@"
+        }
+
         # ``all`` covers every backend (Isaac Sim included), RL library, and visualizer.
         # ``rlinf`` and ``mimic`` are outside ``all``, so name them to keep them scanned.
         # No extras conflict, so this is a single resolution -- Isaac Sim no longer needs
         # an imperative install after the sync.
-        uv sync --extra all --extra test --extra rlinf --extra mimic
+        run_uv_with_fallback uv sync --extra all --extra test --extra rlinf --extra mimic
         # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
         # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
         # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license
         # strings unsorted. Cap below 6.0 until 6.x ships stable and is re-reviewed.
-        uv pip install "pip-licenses<6.0" pipdeptree \
+        run_uv_with_fallback uv pip install "pip-licenses<6.0" pipdeptree \
           -r tools/template/requirements.txt
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
@@ -190,6 +220,23 @@ jobs:
         echo "base_image_tag=${base_tag}" >> "$GITHUB_OUTPUT"
         echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
 
+    - name: Prepare Isaac Sim CI wheelhouse
+      id: prepare-wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: isaacsim-cp312-x86_64
+        base-image: ${{ steps.config.outputs.base_image_name }}
+        base-version: ${{ steps.config.outputs.base_image_tag }}
+        upload-artifact: 'false'
+        save-cache: 'false'
+
+    - name: Report Docker package fallback
+      if: steps.prepare-wheelhouse.outputs.complete != 'true'
+      shell: bash
+      run: >-
+        echo "::warning::Complete Isaac Sim CI wheelhouse unavailable;
+        Docker dependency installation may use online package indexes."
+
     - name: Build or fetch Isaac Lab image
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -197,6 +244,8 @@ jobs:
         isaacsim-base-image: ${{ steps.config.outputs.base_image_name }}
         isaacsim-version: ${{ steps.config.outputs.base_image_tag }}
         dockerfile-path: docker/Dockerfile.base
+        wheelhouse-path: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
         cache-tag: cache-base
 
     - name: Log in to NGC for the base image

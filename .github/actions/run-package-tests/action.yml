@@ -88,12 +88,29 @@ inputs:
     default: ''
     required: false
   wheelhouse-image:
-    description: 'Optional digest-pinned Docker image containing /wheelhouse and /manifest.json'
+    description: 'Optional digest-pinned legacy Docker image containing /wheelhouse and /manifest.json'
     default: ''
     required: false
   wheelhouse-packages:
-    description: 'Space-separated packages to install from the wheelhouse with pip --no-index'
+    description: 'Space-separated packages to install from the CI wheelhouse with pip --no-index'
     default: ''
+    required: false
+  wheelhouse-artifact:
+    description: 'Optional workflow-scoped CI wheelhouse artifact name; use with wheelhouse-profile'
+    default: ''
+    required: false
+  wheelhouse-profile:
+    description: 'CI wheelhouse profile for artifact validation or persistent-cache restore'
+    default: ''
+    required: false
+  wheelhouse-fallback-to-cache:
+    description: 'Try the persistent CI wheelhouse cache when the workflow artifact is unavailable, invalid, or partial'
+    default: 'true'
+    required: false
+  allow-online-fallback:
+    description: 'Retry package installation from configured indexes when an offline wheelhouse install fails'
+    default: 'true'
+    required: false
   omni-github-test-type:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
@@ -232,13 +249,64 @@ runs:
 
         python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache restored"
 
+    - name: Resolve CI wheelhouse request
+      id: wheelhouse-request
+      shell: bash
+      env:
+        INPUT_ARTIFACT: ${{ inputs.wheelhouse-artifact }}
+        INPUT_PROFILE: ${{ inputs.wheelhouse-profile }}
+        LEGACY_IMAGE: ${{ inputs.wheelhouse-image }}
+      run: |
+        set -euo pipefail
+        profile="$INPUT_PROFILE"
+        artifact="$INPUT_ARTIFACT"
+
+        # Standard package-test jobs consume the per-run x86 artifact without
+        # repeating these inputs at every call site. An explicitly configured
+        # legacy wheelhouse image keeps its existing path.
+        if [ -z "$profile" ] && [ -z "$artifact" ] && [ -z "$LEGACY_IMAGE" ]; then
+          profile="runtime-cp312-x86_64"
+        fi
+        if [ -n "$profile" ] && [ -z "$artifact" ]; then
+          artifact="ci-wheelhouse-${profile}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        fi
+
+        echo "profile=$profile" >> "$GITHUB_OUTPUT"
+        echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+
+    - name: Validate CI wheelhouse inputs
+      if: steps.wheelhouse-request.outputs.artifact != '' && steps.wheelhouse-request.outputs.profile == ''
+      shell: bash
+      run: |
+        echo "::error::wheelhouse-profile is required when wheelhouse-artifact is set"
+        exit 1
+
+    - name: Restore CI wheelhouse
+      id: restore-wheelhouse
+      if: steps.wheelhouse-request.outputs.artifact != '' || steps.wheelhouse-request.outputs.profile != ''
+      continue-on-error: ${{ inputs.allow-online-fallback == 'true' }}
+      uses: ./.github/actions/restore-ci-wheelhouse
+      with:
+        artifact-name: ${{ steps.wheelhouse-request.outputs.artifact }}
+        profile: ${{ steps.wheelhouse-request.outputs.profile }}
+        fallback-to-cache: ${{ inputs.wheelhouse-fallback-to-cache }}
+        base-image: ${{ inputs.isaacsim-base-image }}
+        base-version: ${{ inputs.isaacsim-version }}
+
+    - name: Report CI wheelhouse online fallback
+      if: steps.restore-wheelhouse.outcome == 'failure' && inputs.allow-online-fallback == 'true'
+      shell: bash
+      run: echo "::warning::CI wheelhouse restore failed; package installs will use configured indexes"
+
     - name: Setup wheelhouse registry authentication
-      if: inputs.wheelhouse-image != ''
+      if: steps.wheelhouse-request.outputs.artifact == '' && steps.wheelhouse-request.outputs.profile == '' && inputs.wheelhouse-image != ''
       uses: ./.github/actions/_lib/setup-docker-config
 
-    - name: Extract ovphysx wheelhouse
+    # Keep digest-pinned image extraction for existing OVPhysX callers that do
+    # not opt into the workflow artifact/profile path.
+    - name: Extract CI wheelhouse image
       id: extract-wheelhouse
-      if: inputs.wheelhouse-image != ''
+      if: steps.wheelhouse-request.outputs.artifact == '' && steps.wheelhouse-request.outputs.profile == '' && inputs.wheelhouse-image != ''
       shell: bash
       env:
         WHEELHOUSE_IMAGE: ${{ inputs.wheelhouse-image }}
@@ -250,7 +318,7 @@ runs:
           exit 1
         fi
 
-        wheelhouse_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-wheelhouse.XXXXXX")"
+        wheelhouse_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ci-wheelhouse.XXXXXX")"
         container_id=""
         image_pulled=false
         preserve_root=false
@@ -281,7 +349,7 @@ runs:
         preserve_root=true
 
     - name: Cleanup wheelhouse registry authentication
-      if: always() && inputs.wheelhouse-image != ''
+      if: always() && steps.wheelhouse-request.outputs.artifact == '' && steps.wheelhouse-request.outputs.profile == '' && inputs.wheelhouse-image != ''
       shell: bash
       run: |
         if [ -n "${DOCKER_CONFIG:-}" ] && [ -d "$DOCKER_CONFIG" ]; then
@@ -309,8 +377,9 @@ runs:
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
         extra-uv-packages: ${{ inputs.extra-uv-packages }}
-        wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
+        wheelhouse-host-dir: ${{ steps.restore-wheelhouse.outcome == 'success' && steps.restore-wheelhouse.outputs.host-dir || steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
+        allow-online-fallback: ${{ inputs.allow-online-fallback }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
         warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
@@ -382,9 +451,19 @@ runs:
         key: ${{ steps.warp-cache-key.outputs.key }}
 
     - name: Cleanup wheelhouse artifacts
-      if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''
+      if: always() && (steps.restore-wheelhouse.outputs.host-dir != '' || steps.extract-wheelhouse.outputs.wheelhouse_host_dir != '')
       shell: bash
-      run: rm -rf "${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}"
+      env:
+        WHEELHOUSE_HOST_DIR: ${{ steps.restore-wheelhouse.outputs.host-dir || steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
+      run: |
+        if [ -z "$WHEELHOUSE_HOST_DIR" ]; then
+          exit 0
+        fi
+        if [ -z "${RUNNER_TEMP:-}" ] || [[ "$WHEELHOUSE_HOST_DIR" != "$RUNNER_TEMP"/* ]]; then
+          echo "::warning::Refusing to clean CI wheelhouse outside RUNNER_TEMP: $WHEELHOUSE_HOST_DIR"
+          exit 0
+        fi
+        rm -rf -- "$WHEELHOUSE_HOST_DIR"
 
     - name: Kill container on cancellation
       if: cancelled()

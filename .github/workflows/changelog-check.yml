@@ -44,10 +44,30 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin ${{ steps.base.outputs.ref }}
 
+      - name: Detect changelog tool changes
+        id: changelog-tests
+        shell: bash
+        run: |
+          if git diff --name-only origin/${{ steps.base.outputs.ref }}...HEAD | grep -qE '^tools/changelog/'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare hosted CI wheelhouse
+        id: wheelhouse
+        if: steps.changelog-tests.outputs.run == 'true'
+        uses: ./.github/actions/prepare-ci-wheelhouse
+        with:
+          profile: hosted-cp312-x86_64
+          upload-artifact: 'false'
+          save-cache: 'false'
+
       - name: Verify changelog fragments
         run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}
 
       - name: Run changelog tool unit tests
+        if: steps.changelog-tests.outputs.run == 'true'
         # Gates tools/changelog/cli.py itself: regression tests for the
         # filename rules, fragment parsing, CHANGELOG_HEADER_RE invariant,
         # and cmd_check / cmd_compile orchestration. Without this, a cli.py
@@ -56,10 +76,14 @@ jobs:
         # Skipped when the PR doesn't touch tools/changelog/ — fragment-only
         # PRs are already covered by the content gate above, so paying for a
         # pytest install + run on every PR is wasted.
+        env:
+          WHEELHOUSE_ROOT: ${{ steps.wheelhouse.outputs.host-dir }}
         run: |
-          if ! git diff --name-only origin/${{ steps.base.outputs.ref }}...HEAD | grep -qE '^tools/changelog/'; then
-            echo "PR does not touch tools/changelog/ — skipping unit tests."
-            exit 0
+          set -euo pipefail
+          wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+          if ! PIP_NO_INDEX=1 python3 -m pip install \
+            --no-index --find-links "$wheelhouse" pytest; then
+            echo "::warning::Offline test dependency install failed; retrying with configured package indexes"
+            python3 -m pip install pytest
           fi
-          pip install pytest
           python3 -m pytest tools/changelog/test/ -q

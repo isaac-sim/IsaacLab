@@ -21,6 +21,25 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.12"
+    - name: Prepare hosted CI wheelhouse
+      id: wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: hosted-cp312-x86_64
+        upload-artifact: 'false'
+        save-cache: 'false'
+    - name: Install pre-commit
+      env:
+        WHEELHOUSE_ROOT: ${{ steps.wheelhouse.outputs.host-dir }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+        if ! PIP_NO_INDEX=1 python3 -m pip install \
+          --no-index --find-links "$wheelhouse" pre-commit; then
+          echo "::warning::Offline pre-commit install failed; retrying with configured package indexes"
+          python3 -m pip install pre-commit
+        fi
     - uses: pre-commit/action@v3.0.0
       # The local fragment hook needs a full base-branch history. The
       # dedicated changelog-check workflow supplies that authoritative gate.

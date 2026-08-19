@@ -112,6 +112,21 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    - name: Prepare compatibility CI wheelhouse
+      id: prepare-wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: >-
+          ${{ matrix.isaacsim_version == '4.5.0' && 'compatibility-cp310-x86_64' ||
+          matrix.isaacsim_version == '5.0.0' && 'compatibility-cp311-x86_64' ||
+          'compatibility-cp312-x86_64' }}
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ matrix.isaacsim_version }}
+        upload-artifact: 'false'
+        # Compatibility profiles are version-specific and large; persisting
+        # every matrix variant would evict the primary x86/arm caches.
+        save-cache: 'false'
+
     # Single source of truth: read the OV runtime pins from [tool.isaaclab.versions].
     - name: Resolve OV runtime pins from pyproject
       uses: ./.github/actions/resolve-ov-pins
@@ -123,6 +138,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        wheelhouse-path: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -136,6 +153,8 @@ jobs:
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: ${{ format('{0} {1}', steps.ov_pins.outputs.ovphysx, steps.ov_pins.outputs.ovrtx) }}
+        wheelhouse-host-dir: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
 
     - name: Copy All Test Results from IsaacLab Tasks Container
       run: |
@@ -177,12 +196,29 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    - name: Prepare compatibility CI wheelhouse
+      id: prepare-wheelhouse
+      uses: ./.github/actions/prepare-ci-wheelhouse
+      with:
+        profile: >-
+          ${{ matrix.isaacsim_version == '4.5.0' && 'compatibility-cp310-x86_64' ||
+          matrix.isaacsim_version == '5.0.0' && 'compatibility-cp311-x86_64' ||
+          'compatibility-cp312-x86_64' }}
+        base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        base-version: ${{ matrix.isaacsim_version }}
+        upload-artifact: 'false'
+        # Compatibility profiles are version-specific and large; persisting
+        # every matrix variant would evict the primary x86/arm caches.
+        save-cache: 'false'
+
     - name: Build Docker Image
       uses: ./.github/actions/docker-build
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        wheelhouse-path: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -195,6 +231,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "not isaaclab_tasks"
+        wheelhouse-host-dir: ${{ steps.prepare-wheelhouse.outputs.host-dir }}
+        allow-online-fallback: 'true'
 
     - name: Copy All Test Results from General Tests Container
       run: |

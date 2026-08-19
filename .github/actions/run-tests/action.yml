@@ -90,12 +90,13 @@ inputs:
     default: ''
     required: false
   wheelhouse-host-dir:
-    description: 'Host directory containing wheelhouse/ and manifest.json for offline pip installs'
+    description: 'Host directory containing the CI wheelhouse/ and manifest.json'
     default: ''
     required: false
   wheelhouse-packages:
-    description: 'Space-separated packages to install from /tmp/ovphysx-wheelhouse with pip --no-index'
+    description: 'Space-separated packages to install from the CI wheelhouse with pip --no-index'
     default: ''
+    required: false
   warp-cache-host-dir:
     description: 'Host Warp kernel cache directory bind-mounted into the container as WARP_CACHE_PATH'
     default: ''
@@ -120,6 +121,10 @@ inputs:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
     required: false
+  allow-online-fallback:
+    description: 'Retry package installation from configured indexes when an offline wheelhouse install fails'
+    default: 'true'
+    required: false
 
 runs:
   using: composite
@@ -127,14 +132,45 @@ runs:
     - name: Run Tests in Docker Container
       shell: bash
       env:
-        # Passed via env instead of inline ${{ }} interpolation: pytest options may
-        # contain spaces and quotes (e.g. -k "not ovphysx"), which would word-split
-        # the run_tests positional arguments if substituted textually.
+        # Pass free-form options and package specs via env instead of inline
+        # expression interpolation so quoting cannot shift positional arguments.
         PYTEST_OPTIONS: ${{ inputs.pytest-options }}
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
         CI_MARKER_INPUT: ${{ inputs.ci-marker }}
+        EXTRA_PIP_PACKAGES_INPUT: ${{ inputs.extra-pip-packages }}
+        EXTRA_UV_PACKAGES_INPUT: ${{ inputs.extra-uv-packages }}
+        WHEELHOUSE_HOST_DIR_INPUT: ${{ inputs.wheelhouse-host-dir }}
+        WHEELHOUSE_PACKAGES_INPUT: ${{ inputs.wheelhouse-packages }}
+        ALLOW_ONLINE_FALLBACK_INPUT: ${{ inputs.allow-online-fallback }}
       run: |
-        bash .github/actions/run-tests/run_tests.sh "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.warp-cache-host-dir }}" "${{ inputs.extra-uv-packages }}"
+        bash .github/actions/run-tests/run_tests.sh \
+          "${{ inputs.test-path }}" \
+          "${{ inputs.result-file }}" \
+          "${{ inputs.container-name }}" \
+          "${{ inputs.image-tag }}" \
+          "${{ inputs.reports-dir }}" \
+          "$PYTEST_OPTIONS" \
+          "${{ inputs.filter-pattern }}" \
+          "${{ inputs.exclude-pattern }}" \
+          "${{ inputs.curobo-only }}" \
+          "${{ inputs.include-files }}" \
+          "${{ inputs.quarantined-only }}" \
+          "${{ inputs.shard-index }}" \
+          "${{ inputs.shard-count }}" \
+          "${{ inputs.volume-mount-source }}" \
+          "$EXTRA_PIP_PACKAGES_INPUT" \
+          "${{ inputs.test-node-ids-file }}" \
+          "${{ inputs.test-node-ids-key }}" \
+          "$WHEELHOUSE_HOST_DIR_INPUT" \
+          "$WHEELHOUSE_PACKAGES_INPUT" \
+          "$TEST_K_EXPR_INPUT" \
+          "$CI_MARKER_INPUT" \
+          "${{ inputs.standalone-script-scope }}" \
+          "${{ inputs.standalone-script-visualizer }}" \
+          "${{ inputs.standalone-script-runtime-group }}" \
+          "${{ inputs.warp-cache-host-dir }}" \
+          "$EXTRA_UV_PACKAGES_INPUT" \
+          "$ALLOW_ONLINE_FALLBACK_INPUT"
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash

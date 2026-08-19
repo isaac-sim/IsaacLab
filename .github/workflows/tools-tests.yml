@@ -39,12 +39,30 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Prepare hosted CI wheelhouse
+        id: wheelhouse
+        uses: ./.github/actions/prepare-ci-wheelhouse
+        with:
+          profile: hosted-cp312-x86_64
+          upload-artifact: 'false'
+          save-cache: 'false'
+
       # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
       # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
       # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
       # installed that test skips itself rather than failing, so keep it in this list.
       - name: Install test dependencies
-        run: python3 -m pip install pytest junitparser flaky
+        env:
+          WHEELHOUSE_ROOT: ${{ steps.wheelhouse.outputs.host-dir }}
+        run: |
+          set -euo pipefail
+          wheelhouse="${WHEELHOUSE_ROOT}/wheelhouse"
+          if ! PIP_NO_INDEX=1 python3 -m pip install \
+            --no-index --find-links "$wheelhouse" \
+            pytest junitparser flaky; then
+            echo "::warning::Offline test dependency install failed; retrying with configured package indexes"
+            python3 -m pip install pytest junitparser flaky
+          fi
 
       - name: Run tools tests
         env:

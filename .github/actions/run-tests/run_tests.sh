@@ -37,10 +37,14 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  # The action-to-script positional interface is append-only for direct callers.
+  local allow_online_fallback="${27:-true}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
   local docker_runtime_dir=""
+  local wheelhouse_error=""
+  local -a wheelhouse_volume_args=()
 
   # Kill the container immediately if the runner is cancelled.
   # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
@@ -72,6 +76,18 @@ run_tests() {
   if [ -n "$wheelhouse_packages" ]; then
     echo "With wheelhouse packages: $wheelhouse_packages"
   fi
+  case "$allow_online_fallback" in
+    true)
+      echo "Online package-index fallback is enabled"
+      ;;
+    false)
+      echo "Online fallback for CI wheelhouse installs is disabled"
+      ;;
+    *)
+      echo "::error::allow-online-fallback must be 'true' or 'false', got: $allow_online_fallback"
+      return 1
+      ;;
+  esac
   if [ -n "$filter_pattern" ]; then
     echo "With filter pattern: $filter_pattern"
   fi
@@ -107,7 +123,7 @@ run_tests() {
   mkdir -p "$reports_dir"
 
   # Clean up any existing container
-  docker rm -f $container_name 2>/dev/null || true
+  docker rm -f "$container_name" 2>/dev/null || true
 
   # Build Docker environment variables
   docker_env_vars="\
@@ -211,6 +227,13 @@ run_tests() {
     fi
   fi
 
+  export TEST_ALLOW_ONLINE_FALLBACK="$allow_online_fallback"
+  docker_env_vars="$docker_env_vars -e TEST_ALLOW_ONLINE_FALLBACK"
+  if [ -n "$wheelhouse_packages" ]; then
+    export TEST_WHEELHOUSE_PACKAGES="$wheelhouse_packages"
+    docker_env_vars="$docker_env_vars -e TEST_WHEELHOUSE_PACKAGES"
+  fi
+
   # Volume mount for deps-cache-hit mode: bind-mount the checked-out
   # source code over /workspace/isaaclab instead of baking it into the image.
   docker_volume_args=""
@@ -269,28 +292,33 @@ run_tests() {
   fi
 
   if [ -n "$wheelhouse_host_dir" ]; then
-    if [ -z "$wheelhouse_packages" ]; then
-      echo "::error::wheelhouse-host-dir was provided but wheelhouse-packages is empty"
-      return 1
+    if [ -n "${GITHUB_ENV:-}" ]; then
+      printf 'CI_WHEELHOUSE_DIR=%s\n' "${wheelhouse_host_dir}/wheelhouse" >> "$GITHUB_ENV"
+      printf 'CI_WHEELHOUSE_ALLOW_ONLINE_FALLBACK=%s\n' "$allow_online_fallback" >> "$GITHUB_ENV"
     fi
     if [ ! -d "${wheelhouse_host_dir}/wheelhouse" ]; then
-      echo "::error::wheelhouse directory not found: ${wheelhouse_host_dir}/wheelhouse"
-      return 1
+      wheelhouse_error="wheelhouse directory not found: ${wheelhouse_host_dir}/wheelhouse"
+    elif [ ! -f "${wheelhouse_host_dir}/manifest.json" ]; then
+      wheelhouse_error="wheelhouse manifest not found: ${wheelhouse_host_dir}/manifest.json"
     fi
-    if [ ! -f "${wheelhouse_host_dir}/manifest.json" ]; then
-      echo "::error::wheelhouse manifest not found: ${wheelhouse_host_dir}/manifest.json"
-      return 1
+    if [ -n "$wheelhouse_error" ]; then
+      if [ "$allow_online_fallback" = "true" ]; then
+        echo "::warning::${wheelhouse_error}; package installs will use configured indexes"
+        wheelhouse_host_dir=""
+      else
+        echo "::error::${wheelhouse_error}"
+        return 1
+      fi
     fi
+  fi
 
-    export TEST_WHEELHOUSE_PACKAGES="$wheelhouse_packages"
-    docker_volume_args="$docker_volume_args \
-      -v ${wheelhouse_host_dir}/wheelhouse:/tmp/ovphysx-wheelhouse:ro \
-      -v ${wheelhouse_host_dir}/manifest.json:/tmp/ovphysx-wheelhouse-manifest.json:ro"
+  if [ -n "$wheelhouse_host_dir" ]; then
+    wheelhouse_volume_args=(-v "${wheelhouse_host_dir}:/tmp/ci-wheelhouse:ro")
     docker_env_vars="$docker_env_vars \
-      -e TEST_WHEELHOUSE_PATH=/tmp/ovphysx-wheelhouse \
-      -e TEST_WHEELHOUSE_MANIFEST=/tmp/ovphysx-wheelhouse-manifest.json \
-      -e TEST_WHEELHOUSE_PACKAGES"
-    echo "Mounting wheelhouse at /tmp/ovphysx-wheelhouse"
+      -e CI_WHEELHOUSE_DIR=/tmp/ci-wheelhouse/wheelhouse \
+      -e TEST_WHEELHOUSE_PATH=/tmp/ci-wheelhouse/wheelhouse \
+      -e TEST_WHEELHOUSE_MANIFEST=/tmp/ci-wheelhouse/manifest.json"
+    echo "Mounting CI wheelhouse read-only at /tmp/ci-wheelhouse"
   fi
 
   echo "Docker environment variables: '$docker_env_vars'"
@@ -302,19 +330,20 @@ run_tests() {
   # step can still `docker kill` the container reliably.
   # `docker logs -f` is the foreground process and is trivially killable.
   echo "🔵 Starting Docker container for tests..."
-  docker run -d --name $container_name \
+  docker run -d --name "$container_name" \
     --init --stop-timeout 5 \
     --entrypoint bash --gpus all --network=host \
     --security-opt=no-new-privileges:true \
-    --memory=$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m \
-    --cpus=$(echo "$(nproc) * 0.9" | bc) \
+    --memory="$(echo "$(free -m | awk '/^Mem:/{print $2}') * 0.9 / 1" | bc)m" \
+    --cpus="$(echo "$(nproc) * 0.9" | bc)" \
     --oom-kill-disable=false \
     --ulimit nofile=65536:65536 \
     --ulimit nproc=4096:4096 \
     $docker_volume_args \
+    "${wheelhouse_volume_args[@]}" \
     $docker_user_args \
     $docker_env_vars \
-    $image_tag \
+    "$image_tag" \
     -c "
       set -e
       cd /workspace/isaaclab
@@ -325,29 +354,74 @@ run_tests() {
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
       fi
-      if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
-        if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
-          echo \"Wheelhouse path is missing: \${TEST_WHEELHOUSE_PATH:-}\"
+      if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+        if [ ! -d \"\${TEST_WHEELHOUSE_PATH}\" ]; then
+          echo \"::error::CI wheelhouse path is missing: \${TEST_WHEELHOUSE_PATH}\"
           exit 1
         fi
         if [ ! -f \"\${TEST_WHEELHOUSE_MANIFEST:-}\" ]; then
-          echo \"Wheelhouse manifest is missing: \${TEST_WHEELHOUSE_MANIFEST:-}\"
+          echo \"::error::CI wheelhouse manifest is missing: \${TEST_WHEELHOUSE_MANIFEST:-}\"
           exit 1
         fi
-
-        echo \"Installing wheelhouse packages offline: \${TEST_WHEELHOUSE_PACKAGES}\"
-        ./isaaclab.sh -p -m pip uninstall -y \${TEST_WHEELHOUSE_PACKAGES} || true
-        PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --force-reinstall \${TEST_WHEELHOUSE_PACKAGES}
-
-        case \" \${TEST_WHEELHOUSE_PACKAGES} \" in
-          *\" ovphysx \"*)
-            ./isaaclab.sh -p -c \"import importlib.metadata,json,os,pathlib; from packaging.version import Version; manifest=json.loads(pathlib.Path(os.environ['TEST_WHEELHOUSE_MANIFEST']).read_text(encoding='utf-8')); expected=manifest.get('ovphysx_version'); actual=importlib.metadata.version('ovphysx'); print(f'Resolved ovphysx package version: {actual}'); print(f'Wheelhouse manifest ovphysx version: {expected}'); import ovphysx; runtime=getattr(ovphysx, '__version__', actual); print(f'Imported ovphysx runtime version: {runtime}'); raise SystemExit(0 if Version(actual) == Version(expected) and Version(runtime) == Version(expected) else f'ovphysx version mismatch: installed {actual}, import {runtime}, manifest {expected}')\"
-            ;;
-        esac
+      fi
+      wheelhouse_required_fallback_used=false
+      if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
+        read -r -a wheelhouse_packages <<< \"\${TEST_WHEELHOUSE_PACKAGES}\"
+        if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+          echo \"Installing CI wheelhouse packages offline: \${TEST_WHEELHOUSE_PACKAGES}\"
+          ./isaaclab.sh -p -m pip uninstall -y \"\${wheelhouse_packages[@]}\" || true
+          if PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install \
+            --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
+            --upgrade --force-reinstall \"\${wheelhouse_packages[@]}\"; then
+            wheelhouse_install_succeeded=true
+          else
+            wheelhouse_install_succeeded=false
+          fi
+        else
+          wheelhouse_install_succeeded=false
+        fi
+        if [ \"\$wheelhouse_install_succeeded\" != \"true\" ]; then
+          if [ \"\${TEST_ALLOW_ONLINE_FALLBACK:-true}\" != \"true\" ]; then
+            echo \"::error::CI wheelhouse package installation failed and online fallback is disabled\"
+            exit 1
+          fi
+          if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+            echo \"::warning::CI wheelhouse package installation failed; retrying with configured package indexes\"
+          else
+            echo \"::warning::CI wheelhouse is unavailable; installing requested wheelhouse packages from configured indexes\"
+            ./isaaclab.sh -p -m pip uninstall -y \"\${wheelhouse_packages[@]}\" || true
+          fi
+          wheelhouse_required_fallback_used=true
+          if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+            ./isaaclab.sh -p -m pip install \
+              --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
+              --upgrade --force-reinstall \"\${wheelhouse_packages[@]}\"
+          else
+            ./isaaclab.sh -p -m pip install \
+              --upgrade --force-reinstall \"\${wheelhouse_packages[@]}\"
+          fi
+        fi
       fi
       if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
-        echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
-        ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+        read -r -a extra_pip_packages <<< \"\${TEST_EXTRA_PIP_PACKAGES}\"
+        if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+          echo \"Installing extra pip packages from the CI wheelhouse: \${TEST_EXTRA_PIP_PACKAGES}\"
+          if ! PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install \
+            --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
+            \"\${extra_pip_packages[@]}\"; then
+            if [ \"\${TEST_ALLOW_ONLINE_FALLBACK:-true}\" != \"true\" ]; then
+              echo \"::error::Offline extra pip package installation failed and online fallback is disabled\"
+              exit 1
+            fi
+            echo \"::warning::Offline extra pip package installation failed; retrying with configured package indexes\"
+            ./isaaclab.sh -p -m pip install \
+              --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
+              \"\${extra_pip_packages[@]}\"
+          fi
+        else
+          echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
+          ./isaaclab.sh -p -m pip install \"\${extra_pip_packages[@]}\"
+        fi
         case \" \${TEST_EXTRA_PIP_PACKAGES} \" in
           *\" leapp\"*)
             echo \"Resolved LEAPP package:\"
@@ -356,6 +430,7 @@ run_tests() {
         esac
       fi
       if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
+        read -r -a extra_uv_packages <<< \"\${TEST_EXTRA_UV_PACKAGES}\"
         echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
         # isaaclab.sh prints an informational line before command output, and pip
         # installs scripts into the user base when Isaac Sim site-packages is read-only.
@@ -363,15 +438,72 @@ run_tests() {
         isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | tail -n 1)\"
         uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | tail -n 1)\"
         if [ ! -x \"\${uv_executable}\" ]; then
-          ./isaaclab.sh -p -m pip install uv
+          if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+            if ! PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install \
+              --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" \
+              --upgrade --force-reinstall uv; then
+              if [ \"\${TEST_ALLOW_ONLINE_FALLBACK:-true}\" != \"true\" ]; then
+                echo \"::error::Offline uv installation failed and online fallback is disabled\"
+                exit 1
+              fi
+              echo \"::warning::Offline uv installation failed; retrying with configured package indexes\"
+              ./isaaclab.sh -p -m pip install \
+                --find-links=\"\${TEST_WHEELHOUSE_PATH}\" uv
+            fi
+          else
+            ./isaaclab.sh -p -m pip install uv
+          fi
         fi
-        \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
         # Isaac Sim puts bundled packages ahead of the user site. Overlay only
         # the explicitly requested packages so compatible direct pins win
         # without shadowing bundled transitive dependencies such as NumPy.
         isaac_uv_overlay=\"\$(mktemp -d)\"
-        \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_uv_overlay}\" --no-deps \${TEST_EXTRA_UV_PACKAGES}
+        install_uv_packages() {
+          local use_wheelhouse=\"\$1\"
+          if [ \"\$use_wheelhouse\" = \"true\" ]; then
+            UV_NO_INDEX=1 UV_FIND_LINKS=\"\${TEST_WHEELHOUSE_PATH}\" \
+              \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+              --target \"\${isaac_user_site}\" \"\${extra_uv_packages[@]}\" &&
+            UV_NO_INDEX=1 UV_FIND_LINKS=\"\${TEST_WHEELHOUSE_PATH}\" \
+              \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+              --target \"\${isaac_uv_overlay}\" --no-deps \"\${extra_uv_packages[@]}\"
+          else
+            if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+              UV_FIND_LINKS=\"\${TEST_WHEELHOUSE_PATH}\" \
+                \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+                --target \"\${isaac_user_site}\" \"\${extra_uv_packages[@]}\" &&
+              UV_FIND_LINKS=\"\${TEST_WHEELHOUSE_PATH}\" \
+                \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+                --target \"\${isaac_uv_overlay}\" --no-deps \"\${extra_uv_packages[@]}\"
+            else
+              \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+                --target \"\${isaac_user_site}\" \"\${extra_uv_packages[@]}\" &&
+              \"\${uv_executable}\" pip install --python \"\${isaac_python}\" \
+                --target \"\${isaac_uv_overlay}\" --no-deps \"\${extra_uv_packages[@]}\"
+            fi
+          fi
+        }
+        if [ -n \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+          if ! install_uv_packages true; then
+            if [ \"\${TEST_ALLOW_ONLINE_FALLBACK:-true}\" != \"true\" ]; then
+              echo \"::error::Offline uv package installation failed and online fallback is disabled\"
+              exit 1
+            fi
+            echo \"::warning::Offline uv package installation failed; retrying with configured package indexes\"
+            rm -rf \"\${isaac_uv_overlay}\"
+            isaac_uv_overlay=\"\$(mktemp -d)\"
+            install_uv_packages false
+          fi
+        else
+          install_uv_packages false
+        fi
         export PYTHONPATH=\"\${isaac_uv_overlay}\${PYTHONPATH:+:\${PYTHONPATH}}\"
+      fi
+      if [ -n \"\${TEST_WHEELHOUSE_MANIFEST:-}\" ]; then
+        TEST_WHEELHOUSE_REQUIRED_PACKAGES=\"\${TEST_WHEELHOUSE_PACKAGES:-}\" \
+        TEST_WHEELHOUSE_OPTIONAL_PACKAGES=\"\${TEST_EXTRA_PIP_PACKAGES:-} \${TEST_EXTRA_UV_PACKAGES:-}\" \
+        TEST_WHEELHOUSE_REQUIRED_FALLBACK_USED=\"\${wheelhouse_required_fallback_used}\" \
+        ./isaaclab.sh -p tools/ci_wheelhouse/verify_installed.py
       fi
       echo 'Starting pytest with path: $test_path'
       ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
@@ -384,13 +516,13 @@ run_tests() {
   # Background `docker wait` + bash `wait` (interruptible by signals).
   docker wait "$container_name" > "$docker_wait_file" &
   wait_pid=$!
-  wait $wait_pid 2>/dev/null
+  wait "$wait_pid" 2>/dev/null
   local wait_status=$?
   wait_pid=""
 
   # If interrupted by signal, trap already handled cleanup.
-  if [ $wait_status -gt 128 ]; then
-    kill $logs_pid 2>/dev/null || true
+  if [ "$wait_status" -gt 128 ]; then
+    kill "$logs_pid" 2>/dev/null || true
     exit 130
   fi
 
@@ -398,11 +530,11 @@ run_tests() {
   rm -f "$docker_wait_file"
 
   # Stop following logs.
-  kill $logs_pid 2>/dev/null || true
-  wait $logs_pid 2>/dev/null || true
+  kill "$logs_pid" 2>/dev/null || true
+  wait "$logs_pid" 2>/dev/null || true
   logs_pid=""
 
-  if [ $DOCKER_EXIT -eq 0 ]; then
+  if [ "$DOCKER_EXIT" -eq 0 ]; then
     echo "🟢 Docker container completed successfully"
   else
     echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
@@ -416,12 +548,12 @@ run_tests() {
   if [ -n "$volume_mount_source" ] && [ -f "${volume_mount_source}/tests/$result_file" ]; then
     cp "${volume_mount_source}/tests/$result_file" "$reports_dir/$result_file"
     echo "🟢 Test results copied from volume mount to $reports_dir/$result_file"
-  elif cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
+  elif cp_err=$(docker cp "${container_name}:/workspace/isaaclab/tests/${result_file}" "$reports_dir/$result_file" 2>&1); then
     echo "🟢 Test results copied successfully to $reports_dir/$result_file"
   else
     echo "🔴 Failed to copy specific result file: $cp_err"
     echo "🔴 Trying to copy all test results..."
-    if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/ "$reports_dir/" 2>&1); then
+    if cp_err=$(docker cp "${container_name}:/workspace/isaaclab/tests/" "$reports_dir/" 2>&1); then
       echo "🟢 All test results copied successfully to $reports_dir/"
       # Look for any XML files and use the first one found
       if [ -f "$reports_dir/full_report.xml" ]; then
@@ -465,13 +597,13 @@ run_tests() {
   echo "::group::Cleanup"
   # Clean up container
   echo "🔵 Cleaning up Docker container..."
-  docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
+  docker rm "$container_name" 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
   if [ -n "$docker_runtime_dir" ]; then
     rm -rf "$docker_runtime_dir" || echo "🟠 Docker runtime storage cleanup failed, but continuing..."
   fi
   echo "::endgroup::"
 
-  return $DOCKER_EXIT
+  return "$DOCKER_EXIT"
 }
 
 # Call the function with provided parameters

@@ -27,6 +27,12 @@ on:
       - ".github/actions/run-package-tests/**"
       - ".github/actions/run-tests/**"
       - ".github/actions/ecr-build-push-pull/**"
+      - ".github/actions/ci-wheelhouse-key/**"
+      - ".github/actions/prepare-ci-wheelhouse/**"
+      - ".github/actions/restore-ci-wheelhouse/**"
+      - ".github/ci-wheelhouse/**"
+      - "tools/ci_wheelhouse/**"
+      - "uv.lock"
   workflow_dispatch:
 
 concurrency:
@@ -56,9 +62,31 @@ jobs:
           echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
 
+  prepare-ci-wheelhouse-x86:
+    name: Prepare CI Wheelhouse (x86_64)
+    runs-on: [self-hosted, gpu]
+    needs: [config]
+    outputs:
+      artifact_name: ${{ steps.prepare.outputs.artifact-name }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+
+      - name: Prepare CI wheelhouse
+        id: prepare
+        uses: ./.github/actions/prepare-ci-wheelhouse
+        with:
+          profile: isaacsim-cp312-x86_64
+          base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          artifact-name: ci-wheelhouse-isaacsim-cp312-x86_64-${{ github.run_id }}-${{ github.run_attempt }}
+          upload-artifact: 'true'
+          save-cache: 'false'
+
   build:
     name: Build / cache image
-    needs: [config]
+    needs: [config, prepare-ci-wheelhouse-x86]
     # Must run on the SAME pool as the test job. The ECR cache repo is resolved
     # per runner pool (single-GPU `gpu` runners -> gitci-docker-cache; multi-GPU
     # runners -> multigpu-docker-cache). If this built on `[self-hosted, gpu]`
@@ -73,6 +101,16 @@ jobs:
           fetch-depth: 1
           lfs: true
 
+      - name: Restore CI wheelhouse
+        id: restore-wheelhouse
+        uses: ./.github/actions/restore-ci-wheelhouse
+        with:
+          profile: isaacsim-cp312-x86_64
+          artifact-name: ${{ needs.prepare-ci-wheelhouse-x86.outputs.artifact_name }}
+          base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          base-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          allow-online-fallback: 'true'
+
       # Pre-populates the ECR exact-commit tag from deps-cache (registry-side
       # alias). Without this prior step, run-package-tests' internal
       # ecr-build-push-pull hits exact-cache-miss + deps-cache-hit and leaves
@@ -86,6 +124,8 @@ jobs:
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
           isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
           dockerfile-path: docker/Dockerfile.base
+          wheelhouse-path: ${{ steps.restore-wheelhouse.outputs.host-dir }}
+          allow-online-fallback: 'true'
           cache-tag: cache-base
 
   test-multi-gpu-pytest:

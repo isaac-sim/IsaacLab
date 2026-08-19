@@ -24,6 +24,19 @@ inputs:
     description: 'Build context path'
     default: '.'
     required: false
+  wheelhouse-path:
+    description: >
+      Optional host directory containing wheelhouse/, manifest.json, and the
+      complete marker. Passed to BuildKit as the ci_wheelhouse named context.
+    default: ''
+    required: false
+  allow-online-fallback:
+    description: >
+      When 'true', a missing or partial wheelhouse keeps the existing online
+      package installation path. When 'false', Python registry installation
+      fails unless a complete wheelhouse is available.
+    default: 'true'
+    required: false
   platform:
     description: 'Target platform for `docker buildx build --platform`.'
     default: 'linux/amd64'
@@ -100,7 +113,23 @@ runs:
     - name: Check image locally
       id: local
       shell: bash
+      env:
+        ALLOW_ONLINE_FALLBACK: ${{ inputs.allow-online-fallback }}
       run: |
+        set -euo pipefail
+
+        case "${ALLOW_ONLINE_FALLBACK}" in
+          true) ;;
+          false)
+            echo "🔵 Strict wheelhouse mode bypasses exact local image hits"
+            exit 0
+            ;;
+          *)
+            echo "🔴 allow-online-fallback must be 'true' or 'false'"
+            exit 1
+            ;;
+        esac
+
         if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
           echo "🟢 Image already in local docker store: ${{ inputs.image-tag }}"
           echo "hit=true" >> "$GITHUB_OUTPUT"
@@ -119,6 +148,8 @@ runs:
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
         platform: ${{ inputs.platform }}
+        wheelhouse-path: ${{ inputs.wheelhouse-path }}
+        allow-online-fallback: ${{ inputs.allow-online-fallback }}
 
     - name: Check deps-tag locally
       id: local-deps
@@ -147,7 +178,20 @@ runs:
         steps.local.outputs.hit != 'true' &&
         steps.local-deps.outputs.hit != 'true'
       shell: bash
+      env:
+        WHEELHOUSE_PATH: ${{ inputs.wheelhouse-path }}
+        ALLOW_ONLINE_FALLBACK: ${{ inputs.allow-online-fallback }}
       run: |
+        set -euo pipefail
+
+        case "${ALLOW_ONLINE_FALLBACK}" in
+          true|false) ;;
+          *)
+            echo "🔴 allow-online-fallback must be 'true' or 'false'"
+            exit 1
+            ;;
+        esac
+
         BUILD_ARGS=(
           --progress=plain
           --platform "${{ inputs.platform }}"
@@ -157,8 +201,19 @@ runs:
           --build-arg "ISAACSIM_ROOT_PATH_ARG=/isaac-sim"
           --build-arg "ISAACLAB_PATH_ARG=/workspace/isaaclab"
           --build-arg "DOCKER_USER_HOME_ARG=/root"
+          --build-arg "ALLOW_ONLINE_FALLBACK_ARG=${ALLOW_ONLINE_FALLBACK}"
           -t "${{ inputs.image-tag }}"
         )
+        if [ -n "${WHEELHOUSE_PATH}" ]; then
+          if [ -d "${WHEELHOUSE_PATH}" ]; then
+            BUILD_ARGS+=( --build-context "ci_wheelhouse=${WHEELHOUSE_PATH}" )
+          elif [ "${ALLOW_ONLINE_FALLBACK}" = "true" ]; then
+            echo "🟠 Wheelhouse path not found; continuing with online package installation: ${WHEELHOUSE_PATH}"
+          else
+            echo "🔴 Wheelhouse path not found and online fallback is disabled: ${WHEELHOUSE_PATH}"
+            exit 1
+          fi
+        fi
         if [ -n "${{ inputs.cache-from }}" ]; then
           BUILD_ARGS+=( --cache-from "${{ inputs.cache-from }}" )
         fi
