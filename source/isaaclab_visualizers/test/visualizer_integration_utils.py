@@ -1356,24 +1356,28 @@ def _capture_visualizer_tiled_camera_rgb(
     assert camera_sensor is not None, "Visualizer did not create a tiled camera sensor."
     camera_indices = [int(index) for index in (visualizer._camera_sensor_indices or [0])]
     if force_recompute and getattr(visualizer, "_camera_is_owned", False):
-        visualizer._update_owned_camera_poses()
-        if isinstance(visualizer, KitVisualizer):
-            visualizer._sync_camera_pose_updates_to_kit()
-            # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
-            # after the first iteration; on PhysX it is never set so we skip the full drain and
-            # let _pump_tiled_until_stable handle convergence instead.
-            _drain_until_newton_fabric_ready(max_updates=20, updates_per_iter=4)
-            try:
-                from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
+        kit_simulation_paused = isinstance(visualizer, KitVisualizer) and visualizer.is_training_paused()
+        if not kit_simulation_paused:
+            visualizer._update_owned_camera_poses()
+            if isinstance(visualizer, KitVisualizer):
+                visualizer._sync_camera_pose_updates_to_kit()
+                # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
+                # after the first iteration; on PhysX it is never set so we skip the full drain and
+                # let _pump_tiled_until_stable handle convergence instead.
+                _drain_until_newton_fabric_ready(max_updates=20, updates_per_iter=4)
+                try:
+                    from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
 
-                if NewtonManager._newton_fabric_ready:
-                    _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
+                    if NewtonManager._newton_fabric_ready:
+                        _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
+                        _update_active_simulation_app()
+                        _force_newton_transforms_resync()
+                    else:
+                        _update_active_simulation_app()
+                except Exception:
                     _update_active_simulation_app()
-                    _force_newton_transforms_resync()
-                else:
-                    _update_active_simulation_app()
-            except Exception:
-                _update_active_simulation_app()
+        # Paused captures still re-render through the camera sensor below. Keeping
+        # camera/Fabric transforms fixed isolates renderer drift from pose resync.
         return _pump_tiled_until_stable(camera_sensor, camera_indices)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()

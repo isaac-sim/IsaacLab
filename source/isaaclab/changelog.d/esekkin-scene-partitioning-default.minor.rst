@@ -25,5 +25,7 @@ Changed
 Fixed
 ^^^^^
 
+* Fixed per-environment scene-partition tokens being ignored by enabling RTX
+  scene-partition processing before Kit startup.
 * Fixed built-in pose and velocity command-marker instances appearing across
   environment scene partitions.

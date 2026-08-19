@@ -10,7 +10,10 @@ import sys
 import pytest
 
 from isaaclab.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
-from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.utils.renderers import (
+    ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING,
+    ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING,
+)
 
 
 def test_sanitize_sys_argv_removes_trailing_pytest_verbosity(monkeypatch):
@@ -80,6 +83,28 @@ def test_devices_selected_by_cuda_index(launcher_args, expected_renderer_args, m
     assert renderer_args == expected_renderer_args
     assert args["physics_gpu"] == 1
     assert "active_gpu" not in args
+
+
+def test_scene_partition_processing_enabled_before_startup(monkeypatch):
+    """Enable RTX scene-partition token processing before Kit starts."""
+    monkeypatch.setattr(sys, "argv", ["script.py"])
+    launcher = AppLauncher.__new__(AppLauncher)
+
+    launcher._resolve_kit_args({})
+
+    assert f"--{ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING}=true" in launcher._kit_args
+
+
+def test_explicit_scene_partition_processing_setting_overrides_default(monkeypatch):
+    """Preserve an explicit Kit override for RTX scene-partition processing."""
+    monkeypatch.setattr(sys, "argv", ["script.py"])
+    launcher = AppLauncher.__new__(AppLauncher)
+    explicit_arg = f"--{ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING}=false"
+
+    launcher._resolve_kit_args({"kit_args": explicit_arg})
+
+    assert explicit_arg in launcher._kit_args
+    assert f"--{ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING}=true" not in launcher._kit_args
 
 
 @pytest.mark.parametrize(

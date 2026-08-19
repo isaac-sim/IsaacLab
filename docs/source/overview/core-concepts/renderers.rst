@@ -51,7 +51,9 @@ Per-environment Isaac RTX scene partitioning
 
 The Isaac RTX renderer enables per-environment scene partitioning by default. It assigns
 matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy and its
-camera so tiled views render only that environment's geometry.
+camera so tiled views render only that environment's geometry. :class:`~isaaclab.app.AppLauncher`
+also enables Kit's process-global scene-partition processing before RTX starts; the renderer
+configuration controls whether Isaac Lab authors the tokens.
 
 Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`:
 

@@ -7,6 +7,9 @@
 
 import os
 
+ISAAC_RTX_SCENE_PARTITIONING_ENABLED_SETTING = "/renderer/scenePartitioning/enabled"
+"""RTX setting that enables camera-specific scene-partition processing."""
+
 ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING = "/rtx/scenePartitioning/showAllPartitionsByDefault"
 """RTX setting that exposes partitioned content to cameras without a partition token."""
 
