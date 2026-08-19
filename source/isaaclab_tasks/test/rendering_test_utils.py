@@ -1773,11 +1773,27 @@ def rendering_test_franka_cloth(
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
 
+        camera = env.scene.sensors["base_camera"]
+        camera_outputs = camera.data.output
+        if renderer == "isaacsim_rtx_renderer":
+            # Some RTX AOVs are attached before their first buffer is populated. Warm
+            # only an empty buffer without advancing the deformable simulation.
+            for _ in range(10):
+                has_valid_outputs = all(
+                    torch.count_nonzero(output if isinstance(output, torch.Tensor) else output.torch).item() > 0
+                    for output in camera_outputs.values()
+                )
+                if has_valid_outputs:
+                    break
+                env.sim.render()
+                env.scene.update(dt=env.physics_dt)
+                camera_outputs = camera.data.output
+
         validate_camera_outputs(
             test_name,
             physics_backend,
             renderer,
-            env.scene.sensors["base_camera"].data.output,
+            camera_outputs,
             max_different_pixels_percentage=_max_different_pixels_percentage(test_name, renderer, data_type),
             comparison_scores=comparison_scores,
         )
