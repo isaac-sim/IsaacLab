@@ -1153,6 +1153,7 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, e
             sim.reset()
         assert all(name in str(exc_info.value) for name in expected_names)
         assert all(message in str(exc_info.value) for message in expected_messages)
+        assert "Hint:" not in str(exc_info.value)
 
         del camera
     finally:

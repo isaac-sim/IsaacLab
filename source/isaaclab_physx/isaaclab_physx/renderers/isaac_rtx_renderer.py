@@ -274,7 +274,6 @@ class IsaacRtxRenderer(BaseRenderer):
                     "Isaac RTX renderer does not support the following requested data types in"
                     " Isaac Sim versions before 6.0:"
                     f" {unsupported}."
-                    "\n\tHint: Upgrade to Isaac Sim 6.0+ or remove the unsupported data types."
                 )
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation

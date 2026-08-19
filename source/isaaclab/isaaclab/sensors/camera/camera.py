@@ -658,15 +658,12 @@ class Camera(SensorBase):
                 unknown.append(name)
         errors = []
         if unknown:
-            errors.append(
-                f"Unknown camera data types: {unknown}.\n\tHint: Check CameraCfg.data_types for spelling errors."
-            )
+            errors.append(f"Unknown camera data types: {unknown}.")
         if unsupported:
             errors.append(
                 f"Renderer {type(self._renderer).__name__} does not support the following requested data types:"
                 f" {unsupported}."
                 f"\n\tSupported data types: {sorted(str(kind) for kind in specs)}"
-                "\n\tHint: Remove the unsupported data types or select a renderer that supports them."
             )
         if errors:
             raise ValueError("\n".join(errors))
