@@ -88,7 +88,7 @@ Here are examples for different robots:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/sim2sim_transfer/rsl_rl_transfer.py \
-       --task=Isaac-Velocity-Flat-Go2-v0 \
+       --task=Isaac-Velocity-Flat-Unitree-Go2-v0 \
        --num_envs=32 \
        --checkpoint <PATH_TO_PHYSX_CHECKPOINT> \
        --policy_transfer_file scripts/sim2sim_transfer/config/physx_to_newton_go2.yaml \
@@ -143,7 +143,7 @@ Here are examples for different robots:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/sim2sim_transfer/rsl_rl_transfer.py \
-       --task=Isaac-Velocity-Flat-Go2-v0 \
+       --task=Isaac-Velocity-Flat-Unitree-Go2-v0 \
        --num_envs=32 \
        --checkpoint <PATH_TO_NEWTON_CHECKPOINT> \
        --policy_transfer_file scripts/sim2sim_transfer/config/newton_to_physx_go2.yaml

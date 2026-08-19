@@ -70,7 +70,7 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
         agent_cfg_entry_point: The entry point key to resolve the agent's configuration file.
 
     Returns:
-        The decorated function with the envrionment's and agent's configurations updated from command line arguments.
+        The decorated function with the environment's and agent's configurations updated from command line arguments.
     """
 
     def decorator(func):
