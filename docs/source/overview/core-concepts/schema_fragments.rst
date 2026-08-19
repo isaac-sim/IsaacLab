@@ -255,10 +255,10 @@ the simulation mesh, and a mixed PhysX/Newton material:
 
    sim_utils.MeshCuboidCfg(
        size=(0.2, 0.2, 0.2),
-       volume_deformable_props={"": [
+       volume_deformable_props=[
            sim_utils.schemas.OmniPhysicsDeformableBodyCfg(mass=0.5),
            PhysxDeformableBodyCfg(solver_position_iteration_count=32),
-       ]},
+       ],
        collision_props={"/sim_mesh": [PhysxCollisionCfg(contact_offset=0.01)]},
        physics_material=[
            OmniPhysicsDeformableMaterialCfg(youngs_modulus=1.0e6, poissons_ratio=0.45),
