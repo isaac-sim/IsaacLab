@@ -31,11 +31,37 @@ def props_expr(prim_path: str, pattern: str) -> str:
     return f"{prim_path}{pattern}"
 
 
+def fragment_mapping(value) -> dict | None:
+    """Normalize a fragment spawner-configuration value to a target-pattern mapping.
+
+    The mapping form (``{pattern: [fragment, ...]}``) is the general spelling. As a convenience,
+    a bare fragment or a sequence of fragments is accepted for the common case of authoring on
+    the anchor prim itself, and is read as ``{"": [...]}``. Legacy dataclass configurations are
+    reported as ``None`` so callers route them to the legacy writers.
+
+    Args:
+        value: The value of a fragment spawner-configuration field.
+
+    Returns:
+        The equivalent target-pattern mapping, or None when the value is a legacy configuration.
+    """
+    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, SchemaFragment):
+        return {"": [value]}
+    if isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value):
+        return {"": list(value)}
+    return None
+
+
 def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
     """Pick the active deformable slot on a spawner cfg.
 
-    Returns ``("volume" | "surface", mapping)`` for the new dict slots, or None when neither is
-    set. Raises when more than one of the new slots and the legacy ``deformable_props`` is set.
+    Returns ``("volume" | "surface", mapping)`` for the new slots, normalized through
+    :func:`fragment_mapping`, or None when neither is set. Raises when more than one of the new
+    slots and the legacy ``deformable_props`` is set.
 
     Args:
         cfg: The spawner configuration to inspect.
@@ -50,7 +76,7 @@ def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
         ("volume", getattr(cfg, "volume_deformable_props", None)),
         ("surface", getattr(cfg, "surface_deformable_props", None)),
     ]
-    active = [(kind, mapping) for kind, mapping in slots if mapping is not None]
+    active = [(kind, fragment_mapping(value)) for kind, value in slots if value is not None]
     legacy = getattr(cfg, "deformable_props", None)
     if len(active) + (legacy is not None) > 1:
         raise ValueError(

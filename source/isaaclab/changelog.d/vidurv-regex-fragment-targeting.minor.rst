@@ -24,8 +24,9 @@ Changed
   itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"``
   the spawn prim together with its descendants. Entries apply in insertion order, so on
   overlapping targets later entries override earlier ones per attribute. Pass
-  ``{"(/.*)?": [...]}`` to recover the previous fragment-list behavior. Legacy
-  single-cfg values are unaffected.
+  ``{"(/.*)?": [...]}`` to recover the previous fragment-list behavior. A bare fragment or
+  list of fragments is accepted as shorthand for ``{"": [...]}``, targeting the anchor prim.
+  Legacy single-cfg values are unaffected.
 * **Breaking:** Changed the fragment schema writers to no longer apply their defining
   USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. For
   articulation roots, anchoring on the spawn prim now requires a ``{"": [...]}``

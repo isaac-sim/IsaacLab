@@ -15,7 +15,7 @@ from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.sim.spawners._utils import props_expr
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.utils import delete_prim, enable_extension, export_prim_to_file
 
 # import logger
@@ -130,8 +130,9 @@ class MeshConverter(AssetConverterBase):
                     # fragment path: mapping entries anchor at this mesh prim, so ``""`` preserves
                     # the legacy placement; entries apply in insertion order. Otherwise a legacy
                     # cfg routes to the legacy writer.
-                    if isinstance(cfg.collision_props, dict):
-                        for pattern, fragments in cfg.collision_props.items():
+                    collision_props_mapping = fragment_mapping(cfg.collision_props)
+                    if collision_props_mapping is not None:
+                        for pattern, fragments in collision_props_mapping.items():
                             schemas.apply_collision_properties(
                                 props_expr(str(child_mesh_prim.GetPath()), pattern),
                                 fragments,
@@ -213,8 +214,9 @@ class MeshConverter(AssetConverterBase):
         # legacy writer.
         # apply mass properties
         if cfg.mass_props is not None:
-            if isinstance(cfg.mass_props, dict):
-                for pattern, fragments in cfg.mass_props.items():
+            mass_props_mapping = fragment_mapping(cfg.mass_props)
+            if mass_props_mapping is not None:
+                for pattern, fragments in mass_props_mapping.items():
                     schemas.apply_mass_properties(
                         props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
                     )
@@ -222,8 +224,9 @@ class MeshConverter(AssetConverterBase):
                 schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
         # apply rigid body properties
         if cfg.rigid_props is not None:
-            if isinstance(cfg.rigid_props, dict):
-                for pattern, fragments in cfg.rigid_props.items():
+            rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+            if rigid_props_mapping is not None:
+                for pattern, fragments in rigid_props_mapping.items():
                     schemas.apply_rigid_body_properties(
                         props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
                     )

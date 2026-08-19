@@ -34,9 +34,13 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     scale: tuple[float, float, float] | None = None
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
-    articulation_props: dict[str, list[schemas.ArticulationRootFragment]] | schemas.ArticulationRootBaseCfg | None = (
-        None
-    )
+    articulation_props: (
+        dict[str, list[schemas.ArticulationRootFragment]]
+        | schemas.ArticulationRootFragment
+        | list[schemas.ArticulationRootFragment]
+        | schemas.ArticulationRootBaseCfg
+        | None
+    ) = None
     """Properties to apply to the articulation root.
 
     Accepts either a mapping from target pattern to a list of
@@ -47,7 +51,9 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
-    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
     """
 
     articulation_props_create_if_missing: bool = False
@@ -79,7 +85,13 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`~isaaclab.sim.schemas.ArticulationRootBaseCfg.fix_root_link` on that cfg instead.
     """
 
-    fixed_tendons_props: dict[str, list[schemas.FixedTendonFragment]] | schemas.FixedTendonPropertiesCfg | None = None
+    fixed_tendons_props: (
+        dict[str, list[schemas.FixedTendonFragment]]
+        | schemas.FixedTendonFragment
+        | list[schemas.FixedTendonFragment]
+        | schemas.FixedTendonPropertiesCfg
+        | None
+    ) = None
     """Properties to apply to the fixed tendons (if any).
 
     Accepts either a mapping from target pattern to a list of
@@ -88,11 +100,17 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
-    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
     """
 
     spatial_tendons_props: (
-        dict[str, list[schemas.SpatialTendonFragment]] | schemas.SpatialTendonPropertiesCfg | None
+        dict[str, list[schemas.SpatialTendonFragment]]
+        | schemas.SpatialTendonFragment
+        | list[schemas.SpatialTendonFragment]
+        | schemas.SpatialTendonPropertiesCfg
+        | None
     ) = None
     """Properties to apply to the spatial tendons (if any).
 
@@ -102,10 +120,18 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
-    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
     """
 
-    joint_drive_props: dict[str, list[schemas.JointDriveFragment]] | schemas.JointDriveBaseCfg | None = None
+    joint_drive_props: (
+        dict[str, list[schemas.JointDriveFragment]]
+        | schemas.JointDriveFragment
+        | list[schemas.JointDriveFragment]
+        | schemas.JointDriveBaseCfg
+        | None
+    ) = None
     """Properties to apply to a joint.
 
     Accepts either a mapping from target pattern to a list of
@@ -118,7 +144,9 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
     targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
-    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute.
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
 
     .. note::
         The joint drive properties set the USD attributes of all the joint drives in the asset.
