@@ -10,3 +10,7 @@ Fixed
   :meth:`~isaaclab.sim.schemas.modify_articulation_root_properties` now also mirrors
   ``enabled_self_collisions`` onto ``newton:selfCollisionEnabled`` (applying
   ``NewtonArticulationRootAPI``), so the deprecated cfg controls self-collisions on both backends.
+* Fixed ``./isaaclab.sh -i`` and the CI Docker install failing with ``No matching distribution
+  found for isaaclab_physx`` because ``CORE_ISAACLAB_SUBMODULES`` installed ``isaaclab_assets``
+  before ``isaaclab_newton``/``isaaclab_physx``, which it now depends on. Reordered the submodule
+  list so the backend packages install first.
