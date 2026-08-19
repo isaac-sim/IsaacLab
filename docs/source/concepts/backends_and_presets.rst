@@ -234,7 +234,7 @@ command line.
 Where to go next
 ----------------
 
-- :doc:`/source/overview/environments` lists environments and their supported
+- :doc:`/source/setup/environments` lists environments and their supported
   presets.
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.

@@ -36,6 +36,14 @@ Training outputs, including checkpoints, are saved under ``logs/``. Add
 
    uv run isaaclab train --help
 
+.. figure:: ../_static/quickstart/task-sampler.gif
+   :width: 100%
+   :align: center
+   :alt: Cartpole, G1 locomotion, and Kuka Allegro manipulation tasks running side by side
+
+   The same train and play workflow applies across classic control, locomotion,
+   and manipulation tasks.
+
 .. hint::
 
     ``uv run`` installs the core dependencies automatically. To use an optional
@@ -122,6 +130,14 @@ All task commands accept ``--task <task_name>``. Start by listing the registered
 All supported RL libraries use ``--checkpoint`` to choose a checkpoint for
 playback. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
 for the complete training and playback reference.
+
+.. figure:: ../_static/quickstart/agent-comparison.gif
+   :width: 100%
+   :align: center
+   :alt: Cartpole controlled by the zero agent, random agent, and a trained policy side by side
+
+   On the same Cartpole task, ``zero_agent`` applies no control, ``random_agent``
+   samples actions, and ``play`` runs a trained policy from a checkpoint.
 
 
 Choose a backend
@@ -290,7 +306,7 @@ how to read results.
 Next steps
 ----------
 
-- Browse all registered environments: :doc:`/source/overview/environments`
+- Browse registered environments and build a command: :doc:`/source/setup/environments`
 - Learn how backends and presets fit together: :doc:`/source/concepts/backends_and_presets`
 - Learn how to override task configuration: :doc:`/source/features/hydra`
 - Follow a guided environment-building tutorial: :doc:`/source/tutorials/index`

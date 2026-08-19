@@ -73,6 +73,6 @@ Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgym
 - [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
 - [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)
 - [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
-- [Environments overview](../../../docs/source/overview/environments.rst)
+- [Environment browser](../../../docs/source/setup/environments.rst)
 - [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
 - [Create manager-based environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)

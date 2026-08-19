@@ -9,7 +9,7 @@
     "use strict";
 
     const initializeEnvironmentBrowser = () => {
-        // Generated from the core and contributed rows in source/overview/environments.rst.
+        // Generated from the core and contributed Gym registry entries.
         // START-AUTO-GENERATED: environment-browser-task-rows
         const taskRows = [
             ["Isaac-Ant-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/ant.jpg"],
