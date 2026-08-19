@@ -62,7 +62,7 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     :attr:`articulation_props` mapping.
 
     Creation applies to every matched prim lacking the API; when enabling this, narrow the
-    pattern -- typically ``{"": [...]}`` to anchor the spawn prim itself. Only consumed when
+    pattern -- typically a bare fragment, which anchors the spawn prim itself. Only consumed when
     :attr:`articulation_props` is given as fragments.
     """
 

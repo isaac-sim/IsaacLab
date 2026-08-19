@@ -16,7 +16,7 @@ class MeshConverterCfg(AssetConverterBaseCfg):
     """Mass properties to apply to the USD. Defaults to None.
 
     Accepts either a mapping from target pattern to a list of
-    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``{"": [MassCfg(...)]}``) or a
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``MassCfg(...)``) or a
     single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg`. Keys are target patterns
     relative to the root Xform prim of the converted asset; an empty string targets that prim
     itself. Entries are applied in insertion order, so on overlapping targets later entries
