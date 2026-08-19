@@ -41,15 +41,15 @@ __all__ = ["SKRL_JAX_ARGS", "SKRL_JAX_TORCHRUN_ONLY_ARGS", "TORCHRUN_ARGS", "WOR
 WORKER_SCRIPT = str(Path(__file__).resolve())
 
 LAUNCHER_CFG = MultiGpuLauncherCfg(
-    prog="train_multigpu",
+    prog="train-multigpu",
     description="Launch multi-GPU RL training with the selected distributed launcher.",
     worker_script=WORKER_SCRIPT,
     rl_libraries=MULTI_GPU_BACKENDS,
     epilog=(
         "Examples:\n"
-        "  train_multigpu --num_gpus 4 --task Isaac-Cartpole\n"
-        "  train_multigpu --rl_library skrl --num_gpus 2 --task Isaac-Cartpole\n"
-        "  train_multigpu --rl_library skrl --num_gpus 2 --ml_framework jax --task Isaac-Cartpole\n"
+        "  train-multigpu --num_gpus 4 --task Isaac-Cartpole\n"
+        "  train-multigpu --rl_library skrl --num_gpus 2 --task Isaac-Cartpole\n"
+        "  train-multigpu --rl_library skrl --num_gpus 2 --ml_framework jax --task Isaac-Cartpole\n"
         "\n"
         "All unrecognized arguments are forwarded to the selected training library."
     ),

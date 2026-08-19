@@ -26,6 +26,7 @@ from .commands.misc import (
 from .utils import (
     ISAACLAB_ROOT,
     is_windows,
+    print_warning,
     run_python_command,
 )
 
@@ -44,6 +45,12 @@ def train_multigpu(args: list[str] | None = None) -> None:
     run_python_command(
         ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train_multigpu.py", args, check=True
     )
+
+
+def _train_multigpu_deprecated(args: list[str] | None = None) -> None:
+    """Run multi-GPU training through the deprecated underscore command alias."""
+    print_warning("'train_multigpu' is deprecated. Use 'train-multigpu' instead.", stream=sys.stderr)
+    train_multigpu(args)
 
 
 def play(args: list[str] | None = None) -> None:
@@ -115,7 +122,8 @@ def cli() -> None:
         "benchmark": benchmark,
         "microbenchmark": microbenchmark,
         "train": train,
-        "train_multigpu": train_multigpu,
+        "train-multigpu": train_multigpu,
+        "train_multigpu": _train_multigpu_deprecated,
         "play": play,
         "zero_agent": zero_agent,
         "random_agent": random_agent,
@@ -139,7 +147,7 @@ def cli() -> None:
             "                  (append -multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
-            "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
+            "  train-multigpu  Train with one worker per GPU\n"
             "  play            Run scripts/reinforcement_learning/play.py\n"
             "  zero_agent      Run scripts/environments/zero_agent.py\n"
             "  random_agent    Run scripts/environments/random_agent.py\n"

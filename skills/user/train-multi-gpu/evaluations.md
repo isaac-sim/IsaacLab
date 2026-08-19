@@ -6,7 +6,7 @@ Query: "How do I train Isaac-Cartpole across all my GPUs?"
 
 Expected behavior:
 
-- Uses `uv run isaaclab train_multigpu` with `--rl_library` and the suffixless task name.
+- Uses `uv run isaaclab train-multigpu` with `--rl_library` and the suffixless task name.
 - Explains that the default `--num_gpus gpu` uses every visible device, and that training flags are
   passed exactly as for single-GPU training.
 - Suggests confirming the single-GPU run first, and mentions `--dry_run` to inspect the resolved
@@ -26,7 +26,7 @@ Expected behavior:
 
 - Identifies the signature: no traceback, no timeout, participating GPUs pinned at 100% utilization,
   which indicates a stalled NCCL collective rather than a task bug.
-- Bisects outward-in: retries at a different world size, then bypasses `train_multigpu` with plain
+- Bisects outward-in: retries at a different world size, then bypasses `train-multigpu` with plain
   `torchrun`, then runs the standalone NCCL probe from `reference.md`.
 - Calls out world size 2 on systems without NVLink as the most common cause, and checks
   `nvidia-smi topo -m`.
