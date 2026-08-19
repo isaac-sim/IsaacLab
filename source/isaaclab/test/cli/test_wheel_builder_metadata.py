@@ -374,7 +374,6 @@ def test_ci_wheelhouse_profile_loading_and_inheritance(tmp_path):
         "pipdeptree==4.2.1",
         "pytest-timeout==2.4.0",
         "pre-commit==4.6.2",
-        "sphinx-paramlinks==0.6.0",
     ):
         assert root in hosted.ci_roots
     assert not {"leapp", "ovphysx", "pytetwild[all]>=0.3,<0.4"} & set(hosted.ci_roots)

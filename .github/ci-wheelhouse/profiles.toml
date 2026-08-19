@@ -36,7 +36,6 @@ docs = [
     "sphinx-copybutton",
     "sphinx-icon",
     "sphinx-design",
-    "sphinx-paramlinks==0.6.0",
     "sphinxemoji",
     "sphinx-tabs",
     "sphinx-multiversion==0.2.4",

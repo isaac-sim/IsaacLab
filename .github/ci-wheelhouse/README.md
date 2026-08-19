@@ -106,3 +106,5 @@ These entries are documented in the manifest instead of being passed to a
 wheel builder. Downstream jobs may keep an explicit online fallback for them.
 MoviePy 1.x, used by the record-video lane, is one such source-only package;
 its wheel-capable dependencies remain cached while MoviePy uses that fallback.
+Sphinx Paramlinks is likewise source-only at the documentation pin and remains
+on the documentation workflow's retry-wrapped online fallback.
