@@ -10,16 +10,16 @@ needs to know about that category in one place:
 
 * ``label`` -- the Hydra-style selector key (e.g. ``"physics"`` for
   ``physics=NAME``) and ``self.value``.
-* ``base_classes`` -- the cfg base classes whose subclass instances belong to
-  this bucket. Help-time bucketing in :mod:`isaaclab_tasks.utils.preset_cli`
-  routes variants through :meth:`PresetTarget.matches`. Empty for
-  :attr:`PresetTarget.DOMAIN`, which is the catch-all whose membership is
-  "no typed target matched".
+* ``base_classes`` -- cfg base classes matched directly by
+  :meth:`PresetTarget.matches`. A target may also recognize documented
+  container shapes. Empty for :attr:`PresetTarget.DOMAIN`, which is the
+  catch-all whose membership is "no typed target matched".
 * ``legacy_aliases`` -- deprecated-name to canonical-name table for this
   target, aggregated for hydra's resolver via :meth:`all_legacy_aliases`.
 
 Adding a new typed target = appending one enum member with its label, base
-classes, and (optional) legacy alias map. The CLI layer needs no other wiring.
+classes, and (optional) legacy alias map. Extend :meth:`matches` only when the
+target also accepts a non-subclass container shape.
 """
 
 from __future__ import annotations
@@ -52,7 +52,8 @@ class PresetTarget(enum.Enum):
     ``PresetCfg`` field regardless of class; the typed bucketing only governs
     which header it appears under in ``--help``.
 
-    Adding a new target = appending one enum member.
+    Adding a new target = appending one enum member. Extend :meth:`matches`
+    only when the target also accepts a non-subclass container shape.
     """
 
     # Members. Tuple values are (label, base_classes, legacy_aliases); the
@@ -86,8 +87,8 @@ class PresetTarget(enum.Enum):
     DOMAIN = ("presets",)
     """Free-form env-specific presets -- ``presets=NAME[,...]`` selector (catch-all).
 
-    No ``base_classes`` -- any variant whose cfg class doesn't subclass a typed
-    target's base ends up here. The ``presets=`` token also acts as a
+    No ``base_classes`` -- any variant that does not match a typed target ends
+    up here. The ``presets=`` token also acts as a
     broadcast: hydra's resolver applies a DOMAIN-bucketed name to every
     matching ``PresetCfg`` regardless of target. ``self.value`` matches the
     CLI selector key (``"presets"``) so the CLI layer can dispatch by
@@ -105,9 +106,9 @@ class PresetTarget(enum.Enum):
         Args:
             label: Hydra-style selector key (e.g. ``"physics"`` is recognized
                 as the ``physics=NAME`` token and becomes ``self.value``).
-            base_classes: Cfg base classes whose instances route to this
-                target via :func:`isinstance`. Defaults to ``()`` (no typed
-                routing).
+            base_classes: Cfg base classes matched directly by :meth:`matches`.
+                A target may also define additional container-shape matching.
+                Defaults to ``()`` (no typed routing).
             legacy_aliases: Optional deprecated-to-canonical map for this
                 target; copied so members cannot alias each other's tables.
 
