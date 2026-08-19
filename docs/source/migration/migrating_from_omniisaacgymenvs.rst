@@ -295,13 +295,13 @@ including file path, simulation parameters, actuator properties, and initial sta
        actuators={
            "cart_actuator": ImplicitActuatorCfg(
                joint_names_expr=["slider_to_cart"],
-               effort_limit_sim=400.0,
-               velocity_limit_sim=100.0,
+               joint_effort_limit=400.0,
+               joint_velocity_limit=100.0,
                stiffness=0.0,
                damping=10.0,
            ),
            "pole_actuator": ImplicitActuatorCfg(
-               joint_names_expr=["cart_to_pole"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
+               joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, joint_velocity_limit=100.0, stiffness=0.0, damping=0.0
            ),
        },
    )
@@ -539,18 +539,18 @@ Task config in Isaac Lab can be split into the main task configuration class and
 |     gpu_max_rigid_patch_count: 81920                            |   actuators={                                                   |
 |     gpu_found_lost_pairs_capacity: 1024                         |     "cart_actuator": ImplicitActuatorCfg(                       |
 |     gpu_found_lost_aggregate_pairs_capacity: 262144             |        joint_names_expr=["slider_to_cart"],                     |
-|     gpu_total_aggregate_pairs_capacity: 1024                    |        effort_limit=400.0,                                      |
-|     gpu_max_soft_body_contacts: 1048576                         |        velocity_limit=100.0,                                    |
+|     gpu_total_aggregate_pairs_capacity: 1024                    |        joint_effort_limit=400.0,                                |
+|     gpu_max_soft_body_contacts: 1048576                         |        joint_velocity_limit=100.0,                              |
 |     gpu_max_particle_contacts: 1048576                          |        stiffness=0.0,                                           |
 |     gpu_heap_capacity: 67108864                                 |        damping=10.0,                                            |
 |     gpu_temp_buffer_capacity: 16777216                          |     ),                                                          |
 |     gpu_max_num_partitions: 8                                   |     "pole_actuator": ImplicitActuatorCfg(                       |
-|                                                                 |        joint_names_expr=["cart_to_pole"], effort_limit=400.0,   |
-|     Cartpole:                                                   |        velocity_limit=100.0, stiffness=0.0, damping=0.0         |
-|       override_usd_defaults: False                              |     ),                                                          |
-|       enable_self_collisions: False                             |   },                                                            |
-|       enable_gyroscopic_forces: True                            | )                                                               |
-|       solver_position_iteration_count: 4                        |                                                                 |
+|                                                                 |        joint_names_expr=["cart_to_pole"],                       |
+|     Cartpole:                                                   |        joint_effort_limit=400.0, joint_velocity_limit=100.0,    |
+|       override_usd_defaults: False                              |        stiffness=0.0, damping=0.0                               |
+|       enable_self_collisions: False                             |     ),                                                          |
+|       enable_gyroscopic_forces: True                            |   },                                                            |
+|       solver_position_iteration_count: 4                        | )                                                               |
 |       solver_velocity_iteration_count: 0                        |                                                                 |
 |       sleep_threshold: 0.005                                    |                                                                 |
 |       stabilization_threshold: 0.001                            |                                                                 |
@@ -661,33 +661,33 @@ Note that resets are no longer performed in the ``pre_physics_step`` API. In add
 ``_pre_physics_step`` and ``_apply_action`` methods allow for more flexibility in processing the action buffer
 and setting actions into simulation.
 
-+------------------------------------------------------------------+-------------------------------------------------------------+
-| OmniIsaacGymEnvs                                                 | IsaacLab                                                    |
-+------------------------------------------------------------------+-------------------------------------------------------------+
-|.. code-block:: python                                            |.. code-block:: python                                       |
-|                                                                  |                                                             |
-| def pre_physics_step(self, actions) -> None:                     | def _pre_physics_step(self,                                 |
-|     if not self.world.is_playing():                              |         actions: torch.Tensor) -> None:                     |
-|         return                                                   |     self.actions = self.action_scale * actions              |
-|                                                                  |                                                             |
-|     reset_env_ids = self.reset_buf.nonzero(                      | def _apply_action(self) -> None:                            |
-|         as_tuple=False).squeeze(-1)                              |     self.cartpole.set_joint_effort_target(                  |
-|     if len(reset_env_ids) > 0:                                   |         self.actions, joint_ids=self._cart_dof_idx)         |
-|         self.reset_idx(reset_env_ids)                            |                                                             |
-|                                                                  |                                                             |
-|     actions = actions.to(self._device)                           |                                                             |
-|                                                                  |                                                             |
-|     forces = torch.zeros((self._cartpoles.count,                 |                                                             |
-|         self._cartpoles.num_dof),                                |                                                             |
-|         dtype=torch.float32, device=self._device)                |                                                             |
-|     forces[:, self._cart_dof_idx] =                              |                                                             |
-|         self._max_push_effort * actions[:, 0]                    |                                                             |
-|                                                                  |                                                             |
-|     indices = torch.arange(self._cartpoles.count,                |                                                             |
-|         dtype=torch.int32, device=self._device)                  |                                                             |
-|     self._cartpoles.set_joint_efforts(                           |                                                             |
-|         forces, indices=indices)                                 |                                                             |
-+------------------------------------------------------------------+-------------------------------------------------------------+
++---------------------------------------------------+--------------------------------------------------------------+
+| OmniIsaacGymEnvs                                  | IsaacLab                                                     |
++---------------------------------------------------+--------------------------------------------------------------+
+|.. code-block:: python                             |.. code-block:: python                                        |
+|                                                   |                                                              |
+| def pre_physics_step(self, actions) -> None:      | def _pre_physics_step(self,                                  |
+|     if not self.world.is_playing():               |         actions: torch.Tensor) -> None:                      |
+|         return                                    |     self.actions = self.action_scale * actions               |
+|                                                   |                                                              |
+|     reset_env_ids = self.reset_buf.nonzero(       | def _apply_action(self) -> None:                             |
+|         as_tuple=False).squeeze(-1)               |     self.cartpole.actuators.target_command.set_effort_index( |
+|     if len(reset_env_ids) > 0:                    |         value=self.actions, joint_ids=self._cart_dof_idx)    |
+|         self.reset_idx(reset_env_ids)             |                                                              |
+|                                                   |                                                              |
+|     actions = actions.to(self._device)            |                                                              |
+|                                                   |                                                              |
+|     forces = torch.zeros((self._cartpoles.count,  |                                                              |
+|         self._cartpoles.num_dof),                 |                                                              |
+|         dtype=torch.float32, device=self._device) |                                                              |
+|     forces[:, self._cart_dof_idx] =               |                                                              |
+|         self._max_push_effort * actions[:, 0]     |                                                              |
+|                                                   |                                                              |
+|     indices = torch.arange(self._cartpoles.count, |                                                              |
+|         dtype=torch.int32, device=self._device)   |                                                              |
+|     self._cartpoles.set_joint_efforts(            |                                                              |
+|         forces, indices=indices)                  |                                                              |
++---------------------------------------------------+--------------------------------------------------------------+
 
 
 Dones and Resets

@@ -177,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          python -m pip install --user uv
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python -m pip install --user uv
           export PATH="$HOME/.local/bin:$PATH"
 
           overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
@@ -186,7 +186,7 @@ jobs:
 
           uv venv --python 3.12 /tmp/isaaclab-wheel-install
           source /tmp/isaaclab-wheel-install/bin/activate
-          uv pip install --upgrade pip
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install --upgrade pip
 
           wheel="$(find /tmp/isaaclab-wheel-artifact -name 'isaaclab-*.whl' -print -quit)"
           if [ -z "$wheel" ]; then
@@ -194,7 +194,7 @@ jobs:
             exit 1
           fi
 
-          uv pip install \
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \

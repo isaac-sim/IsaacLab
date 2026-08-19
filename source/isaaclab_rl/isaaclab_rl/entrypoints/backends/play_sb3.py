@@ -33,7 +33,10 @@ from isaaclab_rl.entrypoints.common import (
     startup_screen,
 )
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -69,7 +72,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--agent", type=str, default="sb3_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
@@ -116,7 +119,8 @@ def main():
             log_root_path = os.path.join("logs", "sb3", train_task_name)
             log_root_path = os.path.abspath(log_root_path)
             if args_cli.checkpoint == "pretrained":
-                checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name)
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name, *backend_names)
                 if not checkpoint_path:
                     print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                     return

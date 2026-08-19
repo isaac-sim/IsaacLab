@@ -1349,7 +1349,7 @@ def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.nda
 
 
 def _capture_visualizer_tiled_camera_rgb(
-    visualizer, *, label: str = "capture", force_recompute: bool = True
+    visualizer, *, label: str = "capture", force_recompute: bool = True, paused: bool = False
 ) -> np.ndarray:
     """Return the visualizer-owned/generated tiled camera RGB frame as an HxWx3 array."""
     camera_sensor = visualizer._camera_sensor
@@ -1367,9 +1367,11 @@ def _capture_visualizer_tiled_camera_rgb(
                 from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
 
                 if NewtonManager._newton_fabric_ready:
-                    _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
+                    if not paused:
+                        _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
                     _update_active_simulation_app()
-                    _force_newton_transforms_resync()
+                    if not paused:
+                        _force_newton_transforms_resync()
                 else:
                     _update_active_simulation_app()
             except Exception:
@@ -1420,10 +1422,10 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
         # Re-render both paused captures: comparing the sensor's cached frame with itself cannot
         # detect a renderer that keeps changing the image after physics stops.  The denoiser residue
         # that motivated caching is handled by the per-channel threshold below (NVBUG 6570125).
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20")
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20", paused=True)
         for _ in range(PAUSE_VIZ_N_STEP):
             env.sim.render()
-        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25")
+        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25", paused=True)
         _save_visualizer_debug_phase_images(
             paused_start_frame,
             paused_end_frame,

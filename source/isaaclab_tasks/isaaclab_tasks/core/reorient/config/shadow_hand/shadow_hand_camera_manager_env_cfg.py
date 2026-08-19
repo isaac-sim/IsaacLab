@@ -97,10 +97,6 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
         # goal cube must sit inside the tiled camera's frustum
         self.commands.object_pose.fixed_marker_pos = (-0.2, 0.1, 0.6)
         self.observations.policy.camera_features.params["feature_extractor_cfg"] = self.feature_extractor
-        # Only the Isaac RTX tiled camera renders the default modalities, so the camera
-        # task defaults to it. Newton stays selectable via ``physics=newton_mjwarp``.
-        for backend_cfg in (self.sim.physics, self.scene.robot):
-            backend_cfg.default = backend_cfg.isaacsim_physx
 
     def validate_config(self):
         """Check the camera pipeline against the feature extractor it feeds."""

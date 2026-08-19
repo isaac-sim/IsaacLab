@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX-only stepping helper for :class:`~newton.actuators.Actuator`.
+"""Host-PhysX stepping helper for :class:`~newton.actuators.Actuator`.
 
 Newton's :meth:`Actuator.step` requires a ``sim_state`` / ``sim_control``
 pair that exposes flat 1-D Warp arrays (``joint_q``, ``joint_qd``,
@@ -18,11 +18,11 @@ no wrapper is needed because:
   articulation code that calls :meth:`Actuator.step` lives in
   ``newton_manager.py`` and has direct access to the model's state.
 
-On the **PhysX backend**, no Newton solver exists — the actuators are
-stepped manually from the Lab articulation's ``write_data_to_sim``
-path.  Isaac Lab stores joint data as 2-D tensors (``num_envs ×
-num_joints``), so :class:`PhysxActuatorWrapper` provides zero-copy flat
-views that satisfy the protocol without allocating new memory.
+On a **host-PhysX backend** (PhysX or OVPhysX), no Newton solver exists —
+the actuators are stepped manually from the Lab articulation's
+``write_data_to_sim`` path. Isaac Lab stores joint data as 2-D tensors
+(``num_envs × num_joints``), so :class:`PhysxActuatorWrapper` provides
+zero-copy flat views that satisfy the protocol without allocating new memory.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import warp as wp
 @dataclass
 class PhysxActuatorWrapper:
     """Flat-array wrapper serving as ``sim_state`` / ``sim_control`` for
-    :meth:`Actuator.step` on the PhysX backend.
+    :meth:`Actuator.step` on host-PhysX backends.
 
     Most attributes are bound once at articulation init to zero-copy flat
     views of Isaac Lab's 2-D buffers. ``joint_f_2d`` is the only persistent

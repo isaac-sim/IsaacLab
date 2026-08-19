@@ -250,8 +250,8 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
             # inspired by libfranka's joint_impedance_control.cpp
             "panda_arm": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[1-7]"],
-                effort_limit_sim={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
-                velocity_limit_sim={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+                joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+                joint_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
                 stiffness={
                     "panda_joint[1-4]": 600.0,
                     "panda_joint5": 250.0,
@@ -272,23 +272,32 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
             ),
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint1"],
-                effort_limit_sim=70.0,
-                velocity_limit=0.2,
-                velocity_limit_sim=2.0,
+                joint_effort_limit=70.0,
+                actuator_velocity_limit=0.2,
+                joint_velocity_limit=2.0,
                 stiffness=350.0,
                 damping=175.0,
                 armature=0.1,
             ),
             "panda_finger2_passive": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint2"],
-                effort_limit_sim=1.0,
-                velocity_limit=0.2,
-                velocity_limit_sim=2.0,
+                joint_effort_limit=1.0,
+                actuator_velocity_limit=0.2,
+                joint_velocity_limit=2.0,
                 stiffness=0.0,
                 damping=0.0,
                 armature=0.1,
             ),
         }
+
+        # disable gravity on the arm so the low-PD actuators do not need to fight gravity sag,
+        # which is the dominant source of steady-state IK tracking error.
+        self.robot.spawn.rigid_props.disable_gravity = True
+
+        # increase franka gripper stiffness
+        self.robot.actuators["panda_hand"].joint_effort_limit = 500.0
+        self.robot.actuators["panda_hand"].stiffness = 1000.0
+        self.robot.actuators["panda_hand"].damping = 100.0
 
 
 @configclass
