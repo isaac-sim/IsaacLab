@@ -30,14 +30,15 @@ jobs:
       - name: Authorize the request
         env:
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          read -r pr_author pr_state < <(
-            gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state] | @tsv'
+          read -r pr_author pr_state head_sha < <(
+            gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '[.user.login, .state, .head.sha] | @tsv'
           )
           if [ "$pr_state" != "open" ]; then
             echo "::error::PR #$PR_NUMBER is not open."
@@ -55,6 +56,17 @@ jobs:
                 exit 1
                 ;;
             esac
+          fi
+
+          # The label starts Docker CI against whatever the PR head is at that
+          # moment, so a comment older than the head commit would run code the
+          # commenter never saw. Push first, then ask for CI.
+          head_committed_at="$(
+            gh api "repos/$REPOSITORY/commits/$head_sha" --jq '.commit.committer.date'
+          )"
+          if [ "$(date -u -d "$COMMENT_CREATED_AT" +%s)" -le "$(date -u -d "$head_committed_at" +%s)" ]; then
+            echo "::error::Head commit ${head_sha:0:7} ($head_committed_at) is not older than this comment ($COMMENT_CREATED_AT). Comment 'run-ci' again to test the current head."
+            exit 1
           fi
 
       - name: Create isaaclab-bot token
