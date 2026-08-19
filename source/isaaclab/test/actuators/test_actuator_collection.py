@@ -344,35 +344,37 @@ class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
 
 
 @pytest.mark.parametrize(
-    ("cfg_factory", "canonical_name", "expected_model_limit", "expected_joint_limit"),
+    ("cfg_factory", "with_joint_limit", "expected_joint_limit"),
     [
-        (_ideal_pd_cfg, "actuator_effort_limit", 12.0, 34.0),
-        (_implicit_cfg, "joint_effort_limit", None, 12.0),
+        (_ideal_pd_cfg, True, 34.0),
+        (_implicit_cfg, True, 34.0),
+        (_implicit_cfg, False, 12.0),
     ],
 )
-def test_deprecated_effort_limit_forwards_by_actuator_type(
-    cfg_factory, canonical_name, expected_model_limit, expected_joint_limit
-):
+def test_deprecated_effort_limit_forwards_by_actuator_type(cfg_factory, with_joint_limit, expected_joint_limit):
+    """``effort_limit`` resolves to the rated ``actuator_effort_limit`` for every actuator type.
+
+    For implicit groups without a separate solver clamp, the rated value also reaches
+    ``joint_effort_limit`` for backward compatibility.
+    """
     cfg = (
-        cfg_factory(effort_limit=12.0, joint_effort_limit=34.0)
-        if expected_model_limit
-        else cfg_factory(effort_limit=12.0)
+        cfg_factory(effort_limit=12.0, joint_effort_limit=34.0) if with_joint_limit else cfg_factory(effort_limit=12.0)
     )
     # Lab execution keeps the group as an inspectable Lab model instance; the explicit
     # variant additionally warns about deprecated Lab execution, which pytest.warns tolerates.
     control = FakeActuatorControl()
 
-    with pytest.warns(DeprecationWarning, match=canonical_name):
+    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
         collection = ActuatorCollection({"motor": cfg}, control)
 
     # Runtime alias-property behavior (group.effort_limit get/set warnings) is covered by
     # the per-actuator suites in test_implicit_actuator.py and test_ideal_pd_actuator.py.
     group = collection["motor"]
-    assert getattr(group.cfg, canonical_name) == 12.0
+    assert group.cfg.actuator_effort_limit == 12.0
     assert group.cfg.joint_effort_limit == expected_joint_limit
-    if expected_model_limit:
-        torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), expected_model_limit))
-    else:
+    torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
+    if isinstance(group, ImplicitActuator):
+        # Lab explicit models hold no solver-limit view; the solver clamp lives on articulation data.
         torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
 
 
@@ -392,11 +394,15 @@ def test_constructor_resolves_deprecated_velocity_limit_alias():
     assert actuator.cfg.velocity_limit_sim is None
 
 
-def test_implicit_actuator_effort_limit_is_rejected():
-    cfg = _implicit_cfg(actuator_effort_limit=12.0)
+def test_implicit_actuator_separate_rated_effort_limit_is_honored():
+    """A rated limit distinct from the solver clamp stays on the implicit actuator."""
+    cfg = _implicit_cfg(actuator_effort_limit=12.0, joint_effort_limit=34.0)
 
-    with pytest.raises(ValueError, match="[Ii]mplicit.*actuator_effort_limit"):
-        ActuatorCollection({"motor": cfg}, FakeActuatorControl())
+    collection = ActuatorCollection({"motor": cfg}, FakeActuatorControl())
+
+    group = collection["motor"]
+    torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
+    torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), 34.0))
 
 
 @pytest.mark.parametrize(
@@ -478,7 +484,7 @@ def test_conflicting_limit_aliases_raise():
         ("joint_effort_limit", "effort_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
         ("joint_velocity_limit", "velocity_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
         ("actuator_effort_limit", "effort_limit", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_effort_limit", "effort_limit", _implicit_cfg, FakeActuatorControl),
+        ("actuator_effort_limit", "effort_limit", _implicit_cfg, FakeActuatorControl),
     )
 
     for canonical_name, alias_name, cfg_factory, control_factory in scenarios:

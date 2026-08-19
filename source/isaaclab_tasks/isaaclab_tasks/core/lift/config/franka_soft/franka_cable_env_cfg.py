@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg
@@ -23,7 +23,6 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable import VBDSolverCfg
 
 from isaaclab_tasks.utils import PresetCfg
 

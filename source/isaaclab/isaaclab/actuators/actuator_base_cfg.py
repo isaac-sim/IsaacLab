@@ -39,8 +39,11 @@ class ActuatorBaseCfg:
     actuator_effort_limit: dict[str, float] | float | None = None
     """Actuator-model effort clipping limit [N or N·m, depending on joint type].
 
-    This limit is used by explicit actuator models to clip their computed effort. If
-    None, it defaults to the authored/USD joint effort limit. It is not a solver limit.
+    The actuator's rated force/torque reflected at the joint. Explicit actuator models
+    clip their computed effort with it; implicit actuators use it as the model-facing
+    limit for effort telemetry. If None, it defaults to the authored/USD joint effort
+    limit (explicit) or tracks the live solver limit (implicit). It is not a solver
+    limit; that is :attr:`joint_effort_limit`.
 
     :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
     angle-dependent limits in its ``joint_parameter_lookup``.

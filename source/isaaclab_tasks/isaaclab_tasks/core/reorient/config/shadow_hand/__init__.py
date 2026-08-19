@@ -26,6 +26,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_env_cfg:ShadowHandEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandPPORunnerCfg",
+        "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
@@ -37,6 +38,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.shadow_hand_manager_env_cfg:ShadowHandManagerEnvPresetCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandManagerPPORunnerCfg",
+        "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
 )
@@ -52,6 +54,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_camera_env_cfg:ShadowHandCameraEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
+        "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
     },
 )
@@ -62,6 +65,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_camera_manager_env_cfg:ShadowHandCameraManagerEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
+        "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
     },
 )

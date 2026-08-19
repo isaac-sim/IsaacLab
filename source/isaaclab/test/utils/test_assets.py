@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -258,6 +259,22 @@ def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeyp
     assert (asset_path / "example_bot.usd").read_text(encoding="utf-8") == "#usda 1.0\n"
 
 
+@pytest.mark.parametrize(
+    ("git_path", "is_remote"),
+    [
+        ("https://example.com/example-assets.git", True),
+        ("git@example.com:org/example-assets.git", True),
+        ("/home/user/newton-assets", False),
+        # ``urlparse`` reports a drive letter as a scheme, so these read as remote repositories
+        ("C:/Users/user/newton-assets", False),
+        (r"C:\Users\user\newton-assets", False),
+    ],
+)
+def test_git_asset_paths_tell_a_windows_drive_letter_from_a_url_scheme(git_path, is_remote):
+    """Test a local Windows checkout is not mistaken for a repository to clone into the cache."""
+    assert assets_utils._is_git_remote_path(git_path) is is_remote
+
+
 def test_retrieve_git_asset_path_raises_for_missing_asset(tmp_path):
     """Test that git asset retrieval raises when the requested asset is missing."""
     repo_dir = tmp_path / "newton-assets"
@@ -277,6 +294,7 @@ def asset_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(assets_utils, "_REMOTE_FINGERPRINTS", {})
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRROR_DIRS", set())
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRRORS", set())
+    monkeypatch.setattr(assets_utils, "_MIRRORED_URLS", {})
     return tmp_path
 
 
@@ -417,6 +435,69 @@ def test_using_local_copies_is_announced_once_per_cache_directory(asset_cache, m
     assert str(asset_cache) in banners[0].getMessage()
     assert len(per_asset) == 2
     assert {_REMOTE_URL, other_url} == {record.args[0] for record in per_asset}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/Assets/Isaac/6.0/Isaac/Props/Blocks/DexCube/Materials/dex_cube_mod.png",
+        "http://example.com/Assets/example.usd",
+        "omniverse://nucleus.example-lab.com:3009/Assets/example.usd",
+    ],
+)
+def test_unmirror_file_path_recovers_the_url_a_copy_was_cached_from(asset_cache, url):
+    """Test a cached copy names the asset it came from, so exports do not carry local paths."""
+    assert assets_utils.unmirror_file_path(assets_utils._mirror_path(url, str(asset_cache))) == url
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/home/user/assets/example.usd", "Materials/dex_cube_mod.png", "OmniPBR.mdl", ""],
+)
+def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
+    """Test a locally authored asset path is not mistaken for a cached remote copy."""
+    assert assets_utils.unmirror_file_path(path) == ""
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        # ``Omniverse`` is where Omniverse puts user projects by default
+        "C:/Users/user/Omniverse/MyProject/scene.usd",
+        "/data/omniverse/assets/robot.usd",
+        "/mnt/nfs/OMNIVERSE/Library/Wood/oak.mdl",
+        "/home/user/projects/https/site/logo.png",
+    ],
+)
+def test_unmirror_file_path_leaves_a_directory_named_after_a_url_scheme_unclaimed(asset_cache, path):
+    """Test an ordinary local layout is not read as a cache layout because of a directory name."""
+    assert assets_utils.unmirror_file_path(path) == ""
+
+
+def test_unmirror_file_path_does_not_claim_a_windows_drive_letter_path(asset_cache):
+    """Test a drive letter, which ``urlparse`` also reports as a scheme, is not read as a URL."""
+    mirrored = assets_utils._mirror_path("C:/Users/user/assets/robot.usd", str(asset_cache))
+
+    assert assets_utils.unmirror_file_path(mirrored) == ""
+
+
+def test_unmirror_file_path_recognises_a_copy_reported_with_forward_slashes(asset_cache):
+    """Test a copy is recognised when USD reports it with forward slashes, as it does on Windows."""
+    url = "https://example.com/Assets/Isaac/example.usd"
+    mirrored = assets_utils._mirror_path(url, str(asset_cache))
+
+    assert assets_utils.unmirror_file_path(mirrored.replace(os.sep, "/")) == url
+
+
+def test_unmirror_file_path_recognises_a_copy_cached_by_an_earlier_run(asset_cache, monkeypatch):
+    """Test a warm cache still names its source, since no download happens to record it."""
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    mirrored = _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    # no payload is served, so the URL is recovered without the asset being downloaded again
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+    assets_utils.read_file(_REMOTE_URL)
+
+    assert assets_utils.unmirror_file_path(str(mirrored)) == _REMOTE_URL
 
 
 def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):

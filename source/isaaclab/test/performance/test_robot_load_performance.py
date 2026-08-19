@@ -73,7 +73,7 @@ def test_robot_load_performance(test_config, device):
         )
 
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
-            robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_.*/Robot"))  # noqa: F841
+            robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_[^/]*/Robot"))  # noqa: F841
             sim.reset()
             elapsed_time = timer.time_elapsed
         assert elapsed_time <= test_config["expected_load_time"]

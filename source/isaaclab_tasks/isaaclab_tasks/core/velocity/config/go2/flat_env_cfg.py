@@ -33,7 +33,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 @configclass

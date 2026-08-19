@@ -36,12 +36,9 @@ configurations to the canonical fields below. The former names remain accepted w
    * - Deprecated configuration field
      - Canonical configuration field
      - Runtime owner
-   * - ``effort_limit`` (explicit)
+   * - ``effort_limit``
      - ``actuator_effort_limit``
-     - Explicit actuator model
-   * - ``effort_limit`` (implicit)
-     - ``joint_effort_limit``
-     - :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits`
+     - Actuator model (rated limit)
    * - ``effort_limit_sim``
      - ``joint_effort_limit``
      - :attr:`~isaaclab.assets.ArticulationData.joint_effort_limits`
@@ -53,9 +50,11 @@ configurations to the canonical fields below. The former names remain accepted w
 ``joint_velocity_limit`` are construction-time joint-property overrides selected by an actuator
 group's joint expression. The deprecated aliases ``effort_limit``, ``velocity_limit``,
 ``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted through 3.x. ``effort_limit``
-resolves by actuator type: use ``actuator_effort_limit`` for explicit groups and
-``joint_effort_limit`` for implicit groups. The runtime ``effort_limit`` and ``velocity_limit``
-group properties follow the same mapping and are also deprecated.
+resolves to the rated ``actuator_effort_limit`` for every actuator type. For an implicit group
+without a separately configured solver clamp, the rated value also populates
+``joint_effort_limit`` for backward compatibility; configure both fields to author distinct
+rated and solver limits. The runtime ``effort_limit`` and ``velocity_limit`` group properties
+follow the same mapping and are also deprecated.
 ``actuator_velocity_limit`` describes rated speed or an implicit soft-limit snapshot.
 ``joint_velocity_limit`` only requests solver enforcement, which is backend-dependent. See
 :ref:`actuators-joint-property-ownership` for the full ownership model.

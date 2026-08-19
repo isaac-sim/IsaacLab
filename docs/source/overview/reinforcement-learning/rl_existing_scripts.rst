@@ -164,6 +164,74 @@ algorithms, are algorithm choices rather than preset requirements.
    :ref:`rlinf-post-training` has been completed.
 
 
+.. _pretrained-checkpoints:
+
+Pretrained checkpoints
+----------------------
+
+Published pretrained checkpoints are available only for supported core tasks,
+and availability may vary by RL library and backend combination. Other
+registered tasks, including contributed tasks, are not covered by the
+published checkpoint set.
+
+Pass ``--checkpoint pretrained`` to load the published policy matching the
+resolved task configuration. The selector does not guarantee that an artifact
+exists for every registered task: if the matching artifact has not been
+published, the command reports that it is unavailable and exits. In that case,
+train the task locally and omit ``--checkpoint`` to use automatic local
+discovery, or pass an explicit checkpoint path.
+
+Published checkpoints are grouped by RL library and use the following filename:
+
+.. code-block:: text
+
+   <task_name>_<physics_backend>_<render_backend>_<rl_library>.<extension>
+
+The physics token is ``physx`` for Isaac Sim PhysX and ``newtonmjwarp`` for
+Newton using the MJWarp solver. For example,
+``Isaac-Cartpole_newtonmjwarp_none_rsl_rl.pt`` is the RSL-RL policy for state-based
+Cartpole on Newton MJWarp, while
+``Isaac-Cartpole-Camera_newtonmjwarp_rtx_rsl_rl.pt`` is the RSL-RL camera policy
+using Newton MJWarp physics and RTX rendering. State-only tasks use ``none`` for
+the render backend.
+Pass the same physics, renderer, and domain selectors used during training so
+the checkpoint and policy network agree:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl \
+       --task Isaac-Cartpole-Camera \
+       --checkpoint pretrained \
+       physics=newton_mjwarp renderer=isaacsim_rtx
+
+Maintainers can generate the preferred core-task checkpoint matrix with
+``scripts/tools/train_and_publish_checkpoints.py``. The script selects RSL-RL
+when available, falls back to RL-Games, and uses SKRL MAPPO for multi-agent
+tasks. It preserves each task's default domain preset and trains only backend
+combinations declared by that task. Newton Kamino presets are excluded from
+this matrix; tasks whose only Newton preset is Kamino are skipped for Newton.
+Use ``--list --all --core`` to list the tasks and backend combinations targeted
+for publication by the current source tree. This matrix is not a live check of
+the remote asset store; a listed combination becomes usable with
+``--checkpoint pretrained`` only after its checkpoint has been uploaded.
+
+.. code-block:: bash
+
+   # Inspect and smoke-test the supported matrix.
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --list --all --core
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --smoke --all --core
+
+   # Run each agent config's full schedule and collect the last/best checkpoint.
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --train --all --core
+
+Collected files are written under ``logs/pretrained_checkpoints/<rl_library>/``
+by default. Re-running the command skips completed jobs, so interrupted matrices
+can be resumed.
+
+
 RL-Games
 --------
 

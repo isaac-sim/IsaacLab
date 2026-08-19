@@ -169,8 +169,10 @@ different values. Explicit models clip output to ``actuator_effort_limit``;
 implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
 enforce it differently, solver velocity limits are not portable clamps. ``effort_limit`` and
 ``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
-resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``
-for explicit actuators and to ``joint_effort_limit`` for implicit actuators.
+resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``.
+An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
+to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
+live solver limit.
 
 Choosing a model
 -----------------

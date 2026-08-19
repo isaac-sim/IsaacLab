@@ -130,7 +130,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
 
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",
             # usd_path=f'{ASSET_DIR}/automate_franka.usd',
@@ -199,5 +199,5 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
         },
     )
     # contact_sensor: ContactSensorCfg = ContactSensorCfg(
-    #     prim_path="/World/envs/env_.*/Robot/.*", update_period=0.0, history_length=1, debug_vis=True
+    #     prim_path="{ENV_REGEX_NS}/Robot/[^/]*", update_period=0.0, history_length=1, debug_vis=True
     # )

@@ -35,9 +35,11 @@ Deprecated
 * Deprecated the actuator configuration aliases ``effort_limit``,
   ``effort_limit_sim``, and ``velocity_limit_sim``, and the runtime group
   property ``effort_limit``. Use
-  ``actuator_effort_limit`` for explicit actuator-model clipping and
-  ``joint_effort_limit`` or ``joint_velocity_limit`` for solver limits. The
-  aliases remain available through Isaac Lab 3.x and will be removed in 4.0.
+  ``actuator_effort_limit`` for the rated actuator-model limit and
+  ``joint_effort_limit`` or ``joint_velocity_limit`` for solver limits.
+  Implicit groups may configure both to keep distinct rated and solver
+  effort limits. The aliases remain available through Isaac Lab 3.x and
+  will be removed in 4.0.
 * Deprecated ``write_actuator_stiffness_to_sim`` and
   ``write_actuator_damping_to_sim``. These backend-specific writers remain
   available through 3.x; use

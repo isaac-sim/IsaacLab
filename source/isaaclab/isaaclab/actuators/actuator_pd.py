@@ -112,6 +112,14 @@ class ImplicitActuator(ActuatorBase):
             num_envs,
             device,
         )
+        # optional rated (model-facing) effort limit, kept separate from the solver clamp.
+        # When unset, :attr:`actuator_effort_limit` tracks the live solver limit instead.
+        if self.cfg.actuator_effort_limit is not None:
+            self._rated_effort_limit: torch.Tensor | None = resolve_joint_parameter(
+                self.cfg.actuator_effort_limit, None, joint_names, num_envs, device
+            )
+        else:
+            self._rated_effort_limit = None
         # full articulation-order joint property tensors, set by :meth:`_bind_actuator_parameters`.
         self._stiffness: torch.Tensor | None = None
         self._damping: torch.Tensor | None = None
@@ -158,9 +166,13 @@ class ImplicitActuator(ActuatorBase):
     def actuator_effort_limit(self) -> torch.Tensor:
         """Actuator effort limit [N or N·m, depending on joint type].
 
-        The implicit drive is applied by the solver, so the actuator effort limit is the
+        The actuator's rated force/torque reflected at the joint when configured through
+        :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit`; it clips the
+        effort telemetry but is not pushed to the solver. When unset, it tracks the live
         articulation joint effort limit (:attr:`joint_effort_limit`).
         """
+        if self._rated_effort_limit is not None:
+            return self._rated_effort_limit
         return self.joint_effort_limit
 
     @actuator_effort_limit.setter

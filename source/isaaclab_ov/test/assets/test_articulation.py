@@ -397,7 +397,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
 
     return articulation, translations
 

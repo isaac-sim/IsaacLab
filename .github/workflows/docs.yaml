@@ -58,6 +58,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        lfs: true
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v6
@@ -66,7 +68,7 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Build current version docs
@@ -89,6 +91,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        lfs: true
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v6
@@ -97,7 +101,7 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs

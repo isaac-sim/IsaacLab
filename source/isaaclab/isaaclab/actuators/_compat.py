@@ -51,11 +51,10 @@ def _resolve_limit_aliases(
     configuration object they were given.
     """
     implicit = _is_implicit_actuator_cfg(cfg)
-    if implicit and cfg.actuator_effort_limit is not None:
-        raise ValueError(
-            f"Implicit actuator group '{actuator_name}' cannot set 'actuator_effort_limit'. "
-            "Use 'joint_effort_limit' for the solver limit."
-        )
+    if implicit and cfg.joint_effort_limit is None and cfg.effort_limit_sim is None and cfg.effort_limit is not None:
+        # Deprecated implicit behavior: without a separate solver clamp, the rated
+        # effort limit also reaches the solver.
+        cfg.joint_effort_limit = cfg.effort_limit
     if implicit and cfg.actuator_velocity_limit is None and cfg.velocity_limit is None and cfg.velocity_limit_sim is not None:
         # Deprecated implicit behavior: the solver clamp doubles as the soft joint
         # velocity limit so the data buffers stay meaningful.
@@ -63,7 +62,7 @@ def _resolve_limit_aliases(
 
     for new_name, old_name in (
         ("joint_effort_limit", "effort_limit_sim"),
-        ("joint_effort_limit" if implicit else "actuator_effort_limit", "effort_limit"),
+        ("actuator_effort_limit", "effort_limit"),
         ("joint_velocity_limit", "velocity_limit_sim"),
         ("actuator_velocity_limit", "velocity_limit"),
     ):

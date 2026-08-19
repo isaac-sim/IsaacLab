@@ -33,7 +33,6 @@ class AntPhysicsCfg(PresetCfg):
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=45,
@@ -50,6 +49,7 @@ class AntPhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
+    default = newton_mjwarp
 
 
 @configclass
@@ -86,12 +86,12 @@ class AntEnvCfg(DirectRLEnvCfg):
     )
 
     # robot
-    robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot: ArticulationCfg = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # effort scale per joint, keyed by joint name expression
     joint_gears: dict[str, float] = {".*": 15.0}
 
     # sensors
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="/World/envs/env_.*/Robot")
+    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     feet_body_names: list[str] = ["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
 
     # walk target, relative to the environment origin

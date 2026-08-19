@@ -107,5 +107,78 @@ def test_implicit_actuator_init_limits(num_envs, num_joints, device, cfg_limit, 
     )
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_implicit_actuator_separate_rated_and_solver_effort_limits(device):
+    """A configured rated limit stays on the actuator while the solver keeps its own clamp."""
+    joint_names = ["joint_0"]
+    actuator_cfg = ImplicitActuatorCfg(
+        joint_names_expr=joint_names,
+        stiffness=200,
+        damping=10,
+        actuator_effort_limit=87.0,
+        joint_effort_limit=870.0,
+    )
+    actuator = actuator_cfg.class_type(
+        actuator_cfg,
+        joint_names=joint_names,
+        joint_ids=[0],
+        num_envs=2,
+        device=device,
+        stiffness=actuator_cfg.stiffness,
+        damping=actuator_cfg.damping,
+    )
+    torch.testing.assert_close(actuator.actuator_effort_limit, 87.0 * torch.ones(2, 1, device=device))
+    torch.testing.assert_close(actuator.joint_effort_limit, 870.0 * torch.ones(2, 1, device=device))
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_implicit_actuator_deprecated_effort_aliases_resolve_rated_and_solver(device):
+    """Deprecated ``effort_limit``/``effort_limit_sim`` map to the rated and solver limits."""
+    joint_names = ["joint_0"]
+    actuator_cfg = ImplicitActuatorCfg(
+        joint_names_expr=joint_names,
+        stiffness=200,
+        damping=10,
+        effort_limit=87.0,
+        effort_limit_sim=870.0,
+    )
+    with pytest.warns(DeprecationWarning):
+        actuator = actuator_cfg.class_type(
+            actuator_cfg,
+            joint_names=joint_names,
+            joint_ids=[0],
+            num_envs=2,
+            device=device,
+            stiffness=actuator_cfg.stiffness,
+            damping=actuator_cfg.damping,
+        )
+    torch.testing.assert_close(actuator.actuator_effort_limit, 87.0 * torch.ones(2, 1, device=device))
+    torch.testing.assert_close(actuator.joint_effort_limit, 870.0 * torch.ones(2, 1, device=device))
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_implicit_actuator_deprecated_effort_limit_alone_reaches_solver(device):
+    """Without a separate solver clamp, the deprecated rated limit also reaches the solver."""
+    joint_names = ["joint_0"]
+    actuator_cfg = ImplicitActuatorCfg(
+        joint_names_expr=joint_names,
+        stiffness=200,
+        damping=10,
+        effort_limit=87.0,
+    )
+    with pytest.warns(DeprecationWarning):
+        actuator = actuator_cfg.class_type(
+            actuator_cfg,
+            joint_names=joint_names,
+            joint_ids=[0],
+            num_envs=2,
+            device=device,
+            stiffness=actuator_cfg.stiffness,
+            damping=actuator_cfg.damping,
+        )
+    torch.testing.assert_close(actuator.actuator_effort_limit, 87.0 * torch.ones(2, 1, device=device))
+    torch.testing.assert_close(actuator.joint_effort_limit, 87.0 * torch.ones(2, 1, device=device))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

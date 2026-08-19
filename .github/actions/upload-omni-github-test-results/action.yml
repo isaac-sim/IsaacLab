@@ -96,7 +96,8 @@ runs:
         # Validating with a local pinned copy of the schemas is recommended by the omni-github team.
         schema_venv="${RUNNER_TEMP}/omni-github-jsonschema-venv"
         python3 -m venv "$schema_venv"
-        "$schema_venv/bin/python" -m pip install -q jsonschema
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+          "$schema_venv/bin/python" -m pip install -q jsonschema
         if ! "$schema_venv/bin/python" -m jsonschema \
           "$GITHUB_ACTION_PATH/result-json.schema.json" \
           --instance "$result_json"; then
