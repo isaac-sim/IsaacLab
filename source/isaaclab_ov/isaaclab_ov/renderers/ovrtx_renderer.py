@@ -355,6 +355,8 @@ class OVRTXRenderer(BaseRenderer):
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
         # through its stage queries.
         self._object_newton_indices: wp.array | None = None
+        self._object_scales: wp.array | None = None
+        self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particle_counts: list[int] = []
         self._particle_visual_offsets: list[int] = []
@@ -431,6 +433,9 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Preparing stage (%d envs)...", num_envs)
         create_scene_partition_attributes(stage, num_envs)
 
+        # Composed scales must be read while the full stage is still live, before export trims it.
+        self._capture_object_scales(stage)
+
         # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
         # path to not already exist, so the non-source env roots must be trimmed from the exported
         # stage for it to recreate them.
@@ -440,6 +445,49 @@ class OVRTXRenderer(BaseRenderer):
             source_paths=self._clone_plan.sources,
             keep_env_roots=not self._use_ovstage,
         )
+
+    def _capture_object_scales(self, stage: Any) -> None:
+        """Record composed world scales of scaled environment prims before the stage is exported.
+
+        The per-frame object transform write rebuilds each body's matrix from a Newton
+        ``transformf``, which carries only translation and rotation, so any scale authored on the
+        USD prim is lost once that write lands. Capturing the composed scale here, while the full
+        stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
+
+        Only prims whose scale deviates from unit are stored, keeping the mapping small for scenes
+        with many environments.
+
+        Args:
+            stage: The live USD stage, before per-environment trimming and export.
+        """
+        self._object_scales_by_path.clear()
+
+        from pxr import Gf, Usd, UsdGeom
+
+        envs_prim = stage.GetPrimAtPath("/World/envs")
+        if not envs_prim.IsValid():
+            return
+
+        xform_cache = UsdGeom.XformCache()
+        for prim in Usd.PrimRange(envs_prim):
+            if not prim.IsA(UsdGeom.Xformable):
+                continue
+            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                self._object_scales_by_path[str(prim.GetPath())] = scale
+
+    def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
+        """Build the device scale array aligned with the Newton body binding order.
+
+        Args:
+            object_paths: Bound body prim paths, ordered to match the Newton index array.
+
+        Returns:
+            Per-body scale factors, shape ``[len(object_paths)]``, unit where no scale was authored.
+        """
+        scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
+        return wp.array(scales, dtype=wp.vec3f, device=self._device)
 
     def _init_fields_legacy(self) -> None:
         """Initialize the legacy-path instance fields.
@@ -654,6 +702,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+        self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -837,7 +886,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
-        if self._object_xform_binding is None or self._object_newton_indices is None:
+        if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -857,7 +906,7 @@ class OVRTXRenderer(BaseRenderer):
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
                 dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
+                inputs=[ovrtx_transforms, self._object_newton_indices, body_q, self._object_scales],
                 device=self._device,
             )
 
@@ -1767,6 +1816,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+        self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
         """Setup OVRTX bindings for Newton deformable bodies (ovstage path).
@@ -1912,7 +1962,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX particle point bindings")
 
     def _update_transforms_ovstage(self) -> None:
-        if self._object_xform_query is None or self._object_newton_indices is None:
+        if self._object_xform_query is None or self._object_newton_indices is None or self._object_scales is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -1932,7 +1982,7 @@ class OVRTXRenderer(BaseRenderer):
         wp.launch(
             kernel=sync_newton_transforms_kernel,
             dim=num_objects,
-            inputs=[object_transforms, self._object_newton_indices, body_q],
+            inputs=[object_transforms, self._object_newton_indices, body_q, self._object_scales],
             device=self._device,
         )
         # Synchronize then copy to CPU numpy: ovstage's make_dltensor only accepts the lanes=16
@@ -2125,6 +2175,8 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_paths_list = None
 
         self._object_newton_indices = None
+        self._object_scales = None
+        self._object_scales_by_path = {}
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
