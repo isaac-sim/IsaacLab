@@ -258,4 +258,5 @@ def test_uncollapsed_mode_still_drops_combinations_the_validator_rejects(monkeyp
 
     every, _ = _build_modes("Isaac-X", (), (), ("rgb", "raycaster_depth"), resolve=True, collapse=False)
 
-    assert Mode(None, None, "raycaster_depth") not in every
+    # Asserting the whole tuple, not just absence -- ``not in`` also passes on empty.
+    assert every == (Mode(None, None, None), Mode(None, None, "rgb"))

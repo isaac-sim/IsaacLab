@@ -51,9 +51,13 @@ jobs:
           # The tests import the modules under test (crash_journal, _device_split) directly.
           PYTHONPATH: tools
         # Files are listed explicitly rather than collected from tools/: test_settings.py is a
-        # configuration module, not a test, and tools/test/ needs the full Isaac Lab install.
+        # configuration module, not a test, and most of tools/test/ needs the full Isaac Lab
+        # install. test_task_discovery.py is the exception - task_discovery.py defers every
+        # isaaclab import into a function body, so its unit tests run on pytest alone.
         #
         # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
-        run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v --noconftest
+        run: >-
+          python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py
+          tools/test/test_task_discovery.py -v --noconftest
