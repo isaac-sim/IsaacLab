@@ -80,8 +80,7 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
                    scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT>
+                   --task <TASK_NAME>
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -89,8 +88,7 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
                    scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT>
+                   --task <TASK_NAME>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -104,8 +102,7 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                uv run --extra leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
-                   --task <TASK_NAME> ^
-                   --checkpoint <PATH_TO_CHECKPOINT>
+                   --task <TASK_NAME>
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -114,8 +111,12 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
-                   --task <TASK_NAME> ^
-                   --checkpoint <PATH_TO_CHECKPOINT>
+                   --task <TASK_NAME>
+
+When ``--checkpoint`` is omitted, the exporter uses the selected task's agent configuration to
+find the default checkpoint in the newest matching local run. This avoids hardcoding the
+experiment directory or training iteration in the command. Pass ``--checkpoint <PATH_TO_CHECKPOINT>``
+to export a specific model instead.
 
 For example, to export a Humanoid policy trained with RSL-RL:
 
@@ -133,8 +134,7 @@ For example, to export a Humanoid policy trained with RSL-RL:
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
                    scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Humanoid \
-                   --checkpoint logs/rsl_rl/humanoid/<date timestamp>/model_999.pt
+                   --task Isaac-Humanoid
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -142,8 +142,7 @@ For example, to export a Humanoid policy trained with RSL-RL:
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
                    scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Humanoid \
-                   --checkpoint logs/rsl_rl/humanoid/<date timestamp>/model_999.pt
+                   --task Isaac-Humanoid
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -157,8 +156,7 @@ For example, to export a Humanoid policy trained with RSL-RL:
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                uv run --extra leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task Isaac-Humanoid ^
-                   --checkpoint logs\rsl_rl\humanoid\<date timestamp>\model_999.pt
+                   --task Isaac-Humanoid
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -167,8 +165,7 @@ For example, to export a Humanoid policy trained with RSL-RL:
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task Isaac-Humanoid ^
-                   --checkpoint logs\rsl_rl\humanoid\<date timestamp>\model_999.pt
+                   --task Isaac-Humanoid
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.
@@ -187,6 +184,10 @@ backend-specific and AppLauncher arguments:
    * - Argument
      - Default
      - Description
+   * - ``--checkpoint``
+     - Automatic local discovery
+     - Path to a specific checkpoint, or ``pretrained`` to request the published checkpoint for
+       the resolved task, RL library, physics backend, and renderer backend.
    * - ``--export_task_name``
      - Task name
      - Name for the exported graph and output directory.
@@ -205,7 +206,14 @@ backend-specific and AppLauncher arguments:
      - ``False``
      - Skip generating the pipeline graph PNG.
 
-The script accepts ``--checkpoint`` for locating the trained model.
+.. note::
+
+   ``--checkpoint pretrained`` is supported by the RSL-RL, RL-Games, skrl, and Stable-Baselines3
+   exporters, but a published artifact is not available for every task and backend combination.
+   If no matching artifact has been published, the exporter reports that it is unavailable and
+   exits. Train the task locally and omit ``--checkpoint`` for automatic discovery, or pass an
+   explicit checkpoint path. See :ref:`pretrained-checkpoints` for the publication scope and the
+   command that lists the targeted task matrix.
 
 
 How It Works (High Level)

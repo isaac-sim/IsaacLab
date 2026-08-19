@@ -134,7 +134,7 @@ class AnymalCEnv(DirectRLEnv):
         # angular velocity x/y
         ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
         # joint torques
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.actuators.applied_effort.torch), dim=1)
         # joint acceleration
         joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         # action rate

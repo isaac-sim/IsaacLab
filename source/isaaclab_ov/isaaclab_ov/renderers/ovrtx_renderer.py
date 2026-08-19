@@ -24,6 +24,8 @@ import logging
 import math
 import os
 import re
+import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -62,6 +64,7 @@ try:
         Renderer,
         RendererConfig,
         Semantic,
+        TextureStreamingMode,
     )
 except ModuleNotFoundError as exc:
     if exc.name != "ovrtx":
@@ -69,8 +72,7 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
-        "'ovrtx>0.4.0,<0.4.1')."
+        "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
@@ -123,6 +125,11 @@ _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 # Runtime environment variable used to enable the ovstage code path for ovrtx.
 _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
+
+
+# Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
+# See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
+_DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 
 
 if _OVSTAGE_AVAILABLE:
@@ -199,6 +206,25 @@ def _read_gpu_transforms_enabled() -> bool:
     if value not in {"0", "1"}:
         raise ValueError(
             f"Invalid value for environment variable `{_READ_GPU_TRANSFORMS_ENV}`: {value}. Expected 0 or 1."
+        )
+    return value == "1"
+
+
+def _gpu_side_render_var_sync_enabled() -> bool:
+    """Return whether a render-var mapping is ordered by a GPU-side wait rather than a host wait.
+
+    See :meth:`OVRTXRenderer._map_render_var_to_dlpack` for why Linux is the exception, and
+    :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` for opting out of it.
+
+    Raises:
+        ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
+    """
+    if not sys.platform.startswith("linux"):
+        return True
+    value = os.environ.get(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "0").strip()
+    if value not in {"0", "1"}:
+        raise ValueError(
+            f"Invalid value for environment variable `{_DISABLE_LINUX_CUDA_CPU_SYNC_ENV}`: {value}. Expected 0 or 1."
         )
     return value == "1"
 
@@ -329,6 +355,8 @@ class OVRTXRenderer(BaseRenderer):
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
         # through its stage queries.
         self._object_newton_indices: wp.array | None = None
+        self._object_scales: wp.array | None = None
+        self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particle_counts: list[int] = []
         self._particle_visual_offsets: list[int] = []
@@ -350,7 +378,10 @@ class OVRTXRenderer(BaseRenderer):
             log_level=self.cfg.log_level,
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
+            suppress_deprecation_warnings=True,
+            texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
+
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
             raise RuntimeError(
@@ -402,6 +433,9 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Preparing stage (%d envs)...", num_envs)
         create_scene_partition_attributes(stage, num_envs)
 
+        # Composed scales must be read while the full stage is still live, before export trims it.
+        self._capture_object_scales(stage)
+
         # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
         # path to not already exist, so the non-source env roots must be trimmed from the exported
         # stage for it to recreate them.
@@ -412,19 +446,61 @@ class OVRTXRenderer(BaseRenderer):
             keep_env_roots=not self._use_ovstage,
         )
 
+    def _capture_object_scales(self, stage: Any) -> None:
+        """Record composed world scales of scaled environment prims before the stage is exported.
+
+        The per-frame object transform write rebuilds each body's matrix from a Newton
+        ``transformf``, which carries only translation and rotation, so any scale authored on the
+        USD prim is lost once that write lands. Capturing the composed scale here, while the full
+        stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
+
+        Only prims whose scale deviates from unit are stored, keeping the mapping small for scenes
+        with many environments.
+
+        Args:
+            stage: The live USD stage, before per-environment trimming and export.
+        """
+        self._object_scales_by_path.clear()
+
+        from pxr import Gf, Usd, UsdGeom
+
+        envs_prim = stage.GetPrimAtPath("/World/envs")
+        if not envs_prim.IsValid():
+            return
+
+        xform_cache = UsdGeom.XformCache()
+        for prim in Usd.PrimRange(envs_prim):
+            if not prim.IsA(UsdGeom.Xformable):
+                continue
+            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                self._object_scales_by_path[str(prim.GetPath())] = scale
+
+    def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
+        """Build the device scale array aligned with the Newton body binding order.
+
+        Args:
+            object_paths: Bound body prim paths, ordered to match the Newton index array.
+
+        Returns:
+            Per-body scale factors, shape ``[len(object_paths)]``, unit where no scale was authored.
+        """
+        scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
+        return wp.array(scales, dtype=wp.vec3f, device=self._device)
+
     def _init_fields_legacy(self) -> None:
         """Initialize the legacy-path instance fields.
 
         Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles and the
-        ``UsdGeom.Points`` seeding flag. State shared by both paths (``_object_newton_indices``, the
-        particle offset/count lists) stays in :meth:`__init__`.
+        here: the four ``bind_attribute``/``bind_array_attribute`` handles. State shared by both
+        paths (``_object_newton_indices``, the particle offset/count lists) stays in
+        :meth:`__init__`.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
-        self._particle_workaround_applied = False
 
     def _initialize_from_spec_legacy(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
@@ -626,6 +702,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+        self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -765,8 +842,6 @@ class OVRTXRenderer(BaseRenderer):
             flags=BindingFlag.OPTIMIZE,
         )
 
-        self._particle_workaround_applied = False
-
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
@@ -811,7 +886,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
-        if self._object_xform_binding is None or self._object_newton_indices is None:
+        if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -831,7 +906,7 @@ class OVRTXRenderer(BaseRenderer):
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
                 dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
+                inputs=[ovrtx_transforms, self._object_newton_indices, body_q, self._object_scales],
                 device=self._device,
             )
 
@@ -863,16 +938,12 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         if self._particle_points_binding is not None:
-            if not self._particle_workaround_applied:
-                self._apply_particle_workaround(particle_q)
-                self._particle_workaround_applied = True
-            else:
-                self._write_particle_q_slices(
-                    self._particle_points_binding,
-                    particle_q,
-                    self._particle_visual_offsets,
-                    self._particle_visual_counts,
-                )
+            self._write_particle_q_slices(
+                self._particle_points_binding,
+                particle_q,
+                self._particle_visual_offsets,
+                self._particle_visual_counts,
+            )
 
     def _write_particle_q_slices(
         self,
@@ -907,24 +978,6 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
-
-    def _apply_particle_workaround(self, particle_q: wp.array) -> None:
-        """Host-SYNC seed ``UsdGeom.Points`` so later GPU ASYNC writes can work correctly.
-
-        OVRTX does not initialize UsdGeom.Points prims from a GPU ASYNC ``points`` write as expected.
-        A host SYNC write + a renderer step call are needed to finish initialization; later frames
-        can then use zero-copy GPU ASYNC write with the same binding.
-
-        TODO: The workaround will be removed when OVRTX fixes the issue (OMPE-102610).
-        """
-        particle_q_host = particle_q.numpy()
-        host_slices = [
-            particle_q_host[particle_offset : particle_offset + particle_count]
-            for particle_offset, particle_count in zip(
-                self._particle_visual_offsets, self._particle_visual_counts, strict=True
-            )
-        ]
-        self._particle_points_binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
 
     def _update_camera_legacy(
         self,
@@ -1008,6 +1061,40 @@ class OVRTXRenderer(BaseRenderer):
         )
         return output_colors
 
+    @contextlib.contextmanager
+    def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
+        """Map ``render_var`` for CUDA reads and yield it as a Warp array.
+
+        The render is still in flight when the mapping returns, so reading it has to be ordered
+        against render completion. Normally that is a ``cudaStreamWaitEvent`` on the Warp stream the
+        consuming kernels run on, which is the ordering the OVRTX API is designed around.
+
+        On Linux that GPU-side wait measures substantially slower end to end, so the mapping is
+        instead requested with no GPU-side barrier and the calling thread blocks on the
+        render-completion event. Setting :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` to ``1`` puts
+        Linux back on the GPU-side wait; it is an escape hatch for platforms where that trade-off
+        no longer holds, and is worth re-measuring before being relied on.
+
+        Note that ``sync_stream=0`` is OVRTX's "no sync" sentinel, *not* the NULL CUDA stream: the
+        field encodes ``0=no sync, 1=default stream, >1=specific stream``, so omitting the argument
+        entirely means ``1``, not ``0``.
+
+        The yielded array is a zero-copy view of the mapped memory and is only valid inside the
+        ``with`` block -- the mapping is released on exit.
+
+        Args:
+            render_var: OVRTX ``RenderVarOutput`` to map (``frame.render_vars[name]``).
+
+        Yields:
+            The render var's contents as a Warp array, valid for the duration of the context.
+        """
+        gpu_side_sync = _gpu_side_render_var_sync_enabled()
+        sync_stream = wp.get_stream(self._device).cuda_stream if gpu_side_sync else 0
+        with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
+            if not gpu_side_sync:
+                mapping.wait()
+            yield wp.from_dlpack(mapping)
+
     def _process_id_segmentation_render_var(
         self,
         render_data: OVRTXRenderData,
@@ -1034,8 +1121,7 @@ class OVRTXRenderer(BaseRenderer):
         if render_var_name not in frame.render_vars or buffer_key not in output_buffers:
             return
 
-        with frame.render_vars[render_var_name].map(device=Device.CUDA) as mapping:
-            tiled_data = wp.from_dlpack(mapping)
+        with self._map_render_var_to_dlpack(frame.render_vars[render_var_name]) as tiled_data:
             if tiled_data.dtype != wp.uint32:
                 return
 
@@ -1247,15 +1333,13 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
-                    tiled_data = wp.from_dlpack(mapping)
+                with self._map_render_var_to_dlpack(frame.render_vars["LdrColor"]) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
-            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
-                tiled_depth_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars[depth_var]) as tiled_depth_data:
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
@@ -1264,13 +1348,11 @@ class OVRTXRenderer(BaseRenderer):
             break
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
-                tiled_albedo_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["DiffuseAlbedoSD"]) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
-            with frame.render_vars["HdrColor"].map(device=Device.CUDA) as mapping:
-                tiled_hdr_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["HdrColor"]) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
@@ -1300,16 +1382,14 @@ class OVRTXRenderer(BaseRenderer):
             self._process_instance_segmentation_maps(render_data, frame)
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
-            with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
-                tiled_normals_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["NormalSD"]) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
         if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
-            with frame.render_vars["TargetMotionSD"].map(device=Device.CUDA) as mapping:
-                tiled_motion_vectors_data = wp.from_dlpack(mapping)
+            with self._map_render_var_to_dlpack(frame.render_vars["TargetMotionSD"]) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def _render_legacy(self, render_data: OVRTXRenderData) -> None:
@@ -1364,7 +1444,6 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
         self._particle_visual_counts = []
-        self._particle_workaround_applied = False
 
         if self._renderer:
             try:
@@ -1737,6 +1816,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+        self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
         """Setup OVRTX bindings for Newton deformable bodies (ovstage path).
@@ -1881,14 +1961,8 @@ class OVRTXRenderer(BaseRenderer):
         if self._particle_points_query is None:
             raise RuntimeError("Failed to create OVRTX particle point bindings")
 
-        # Note: no ``UsdGeom.Points`` seeding workaround is needed here. The legacy path's
-        # ``_apply_particle_workaround`` (OMPE-102610) exists because OVRTX fails to initialize
-        # Points prims from a zero-copy GPU ASYNC ``points`` write through ``bind_array_attribute``.
-        # The ovstage path instead writes host numpy DLTensors through ``Stage.write_attribute``,
-        # which populates the column synchronously, so the prims are valid from the first frame.
-
     def _update_transforms_ovstage(self) -> None:
-        if self._object_xform_query is None or self._object_newton_indices is None:
+        if self._object_xform_query is None or self._object_newton_indices is None or self._object_scales is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -1908,7 +1982,7 @@ class OVRTXRenderer(BaseRenderer):
         wp.launch(
             kernel=sync_newton_transforms_kernel,
             dim=num_objects,
-            inputs=[object_transforms, self._object_newton_indices, body_q],
+            inputs=[object_transforms, self._object_newton_indices, body_q, self._object_scales],
             device=self._device,
         )
         # Synchronize then copy to CPU numpy: ovstage's make_dltensor only accepts the lanes=16
@@ -2101,6 +2175,8 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_paths_list = None
 
         self._object_newton_indices = None
+        self._object_scales = None
+        self._object_scales_by_path = {}
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []

@@ -20,7 +20,7 @@ from rendering_test_utils import (
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
-_RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params_lift(include_texture_readiness_xfail=True))
+_RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params_lift())
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()

@@ -24,7 +24,6 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim.utils import enable_extension
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
@@ -196,10 +195,10 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
-        Authoring is only performed when
-        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` is set.
-        When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
-        or ``omni:scenePartition`` attributes are written to the stage.
+        Authoring is controlled by
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning`.
+        When disabled, this method is a no-op and writes no
+        ``primvars:omni:scenePartition`` or ``omni:scenePartition`` attributes.
 
         When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
@@ -208,13 +207,11 @@ class IsaacRtxRenderer(BaseRenderer):
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
 
-        if not isaac_rtx_per_env_scene_partition_enabled():
+        if not self.cfg.enable_scene_partitioning:
             return
 
         logger.debug(
-            "Per-environment RTX scene partitioning is enabled"
-            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
-            " Authoring primvars:omni:scenePartition on %d env(s).",
+            "Per-environment RTX scene partitioning is enabled. Authoring primvars:omni:scenePartition on %d env(s).",
             num_envs,
         )
 

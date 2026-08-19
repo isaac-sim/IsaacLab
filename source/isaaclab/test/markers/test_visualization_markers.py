@@ -147,6 +147,70 @@ def test_rendering_context_authors_visible_usd_point_instancer(sim):
     assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 1]
 
 
+def test_environment_ids_author_point_instance_scene_partitions(sim):
+    """Per-instance environment IDs should author vertex-interpolated scene-partition tokens."""
+    from pxr import Sdf, UsdGeom
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/partitioned_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    test_marker.visualize(
+        translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
+        environment_ids=torch.tensor([1, 0], device=sim.device),
+    )
+
+    instancer_prim = stage.GetPrimAtPath(test_marker.prim_path)
+    primvar = UsdGeom.PrimvarsAPI(instancer_prim).GetPrimvar("omni:scenePartition")
+    assert primvar
+    assert primvar.GetTypeName() == Sdf.ValueTypeNames.TokenArray
+    assert primvar.GetInterpolation() == UsdGeom.Tokens.vertex
+    assert list(primvar.Get()) == ["env_1", "env_0"]
+
+
+def test_environment_ids_require_active_scene_partitions(sim):
+    """Environment IDs should not partition markers when renderer stage preparation is inactive."""
+    from pxr import UsdGeom
+
+    sim._has_offscreen_render = True
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/unpartitioned_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    test_marker.visualize(
+        translations=torch.tensor([[0.0, 0.0, 0.0]], device=sim.device),
+        environment_ids=torch.tensor([0], device=sim.device),
+    )
+
+    instancer_prim = sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path)
+    primvar = UsdGeom.PrimvarsAPI(instancer_prim).GetPrimvar("omni:scenePartition")
+    assert not primvar or not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+def test_environment_ids_must_match_marker_count(sim):
+    """Each marker instance should require one environment ID."""
+    sim._has_offscreen_render = True
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/mismatched_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+
+    with pytest.raises(ValueError, match="one index per marker"):
+        test_marker.visualize(
+            translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
+            environment_ids=torch.tensor([0], device=sim.device),
+        )
+
+
 def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototypes(sim):
     """Omitted marker indices should not preserve initialization prototype placeholders."""
     from pxr import UsdGeom
