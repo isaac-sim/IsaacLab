@@ -4,8 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Every test job runs on every PR and merge queue candidate. Pushes to protected branches run the
-# post-merge integration tests.
+# On a PR, the Docker builds and their dependent tests run only on a labeled event. Tick the "Run
+# Docker and GPU tests" box in the PR description and ci-request.yml applies the label for you;
+# every push unticks it, so each batch of commits is requested on its own. A manual workflow
+# dispatch runs the same jobs. Do not filter the label with a job-level ``if``: GitHub treats
+# skipped required jobs as successful status checks, so an unrequested PR must produce no run at
+# all rather than a skipped one. Pushes to protected branches still run the post-merge integration
+# tests.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -53,7 +58,7 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [labeled]
     branches:
       - main
       - develop
