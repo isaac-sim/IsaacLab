@@ -106,8 +106,6 @@ def test_convert_junit_marks_xfail_as_unreliable(tmp_path: Path) -> None:
         app_platform="linux-x86_64",
         app_config="test-job",
         group_name="Docker + Tests / rendering-correctness-kitless",
-        junit_log_url="",
-        comparison_images_url="",
         retries=0,
     )
 
