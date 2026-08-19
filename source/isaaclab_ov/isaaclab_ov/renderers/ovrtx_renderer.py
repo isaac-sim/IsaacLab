@@ -64,6 +64,7 @@ try:
         Renderer,
         RendererConfig,
         Semantic,
+        TextureStreamingMode,
     )
 except ModuleNotFoundError as exc:
     if exc.name != "ovrtx":
@@ -71,8 +72,7 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install --extra-index-url https://pypi.nvidia.com "
-        "'ovrtx>0.4.0,<0.4.1')."
+        "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
 from isaaclab.cloner.clone_plan import ClonePlan
@@ -355,6 +355,8 @@ class OVRTXRenderer(BaseRenderer):
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
         # through its stage queries.
         self._object_newton_indices: wp.array | None = None
+        self._object_scales: wp.array | None = None
+        self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particle_counts: list[int] = []
         self._particle_visual_offsets: list[int] = []
@@ -376,14 +378,9 @@ class OVRTXRenderer(BaseRenderer):
             log_level=self.cfg.log_level,
             read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
+            suppress_deprecation_warnings=True,
+            texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Isaac Lab still drives ovrtx's legacy stage API until the ovstage path is the default, so
-        # its deprecation warnings are noise no user of this renderer can act on. Set after
-        # construction because ``RendererConfig`` is a plain dataclass and wheels predating the
-        # option would reject it as an unexpected keyword argument.
-        # TODO: Remove this once the ovstage path is the default and the legacy stage API is removed.
-        if hasattr(OVRTX_CONFIG, "suppress_deprecation_warnings"):
-            OVRTX_CONFIG.suppress_deprecation_warnings = True
 
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
@@ -436,6 +433,9 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Preparing stage (%d envs)...", num_envs)
         create_scene_partition_attributes(stage, num_envs)
 
+        # Composed scales must be read while the full stage is still live, before export trims it.
+        self._capture_object_scales(stage)
+
         # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
         # path to not already exist, so the non-source env roots must be trimmed from the exported
         # stage for it to recreate them.
@@ -446,19 +446,61 @@ class OVRTXRenderer(BaseRenderer):
             keep_env_roots=not self._use_ovstage,
         )
 
+    def _capture_object_scales(self, stage: Any) -> None:
+        """Record composed world scales of scaled environment prims before the stage is exported.
+
+        The per-frame object transform write rebuilds each body's matrix from a Newton
+        ``transformf``, which carries only translation and rotation, so any scale authored on the
+        USD prim is lost once that write lands. Capturing the composed scale here, while the full
+        stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
+
+        Only prims whose scale deviates from unit are stored, keeping the mapping small for scenes
+        with many environments.
+
+        Args:
+            stage: The live USD stage, before per-environment trimming and export.
+        """
+        self._object_scales_by_path.clear()
+
+        from pxr import Gf, Usd, UsdGeom
+
+        envs_prim = stage.GetPrimAtPath("/World/envs")
+        if not envs_prim.IsValid():
+            return
+
+        xform_cache = UsdGeom.XformCache()
+        for prim in Usd.PrimRange(envs_prim):
+            if not prim.IsA(UsdGeom.Xformable):
+                continue
+            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                self._object_scales_by_path[str(prim.GetPath())] = scale
+
+    def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
+        """Build the device scale array aligned with the Newton body binding order.
+
+        Args:
+            object_paths: Bound body prim paths, ordered to match the Newton index array.
+
+        Returns:
+            Per-body scale factors, shape ``[len(object_paths)]``, unit where no scale was authored.
+        """
+        scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
+        return wp.array(scales, dtype=wp.vec3f, device=self._device)
+
     def _init_fields_legacy(self) -> None:
         """Initialize the legacy-path instance fields.
 
         Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles and the
-        ``UsdGeom.Points`` seeding flag. State shared by both paths (``_object_newton_indices``, the
-        particle offset/count lists) stays in :meth:`__init__`.
+        here: the four ``bind_attribute``/``bind_array_attribute`` handles. State shared by both
+        paths (``_object_newton_indices``, the particle offset/count lists) stays in
+        :meth:`__init__`.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
-        self._particle_workaround_applied = False
 
     def _initialize_from_spec_legacy(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
@@ -660,6 +702,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+        self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -799,8 +842,6 @@ class OVRTXRenderer(BaseRenderer):
             flags=BindingFlag.OPTIMIZE,
         )
 
-        self._particle_workaround_applied = False
-
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
@@ -845,7 +886,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
-        if self._object_xform_binding is None or self._object_newton_indices is None:
+        if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -865,7 +906,7 @@ class OVRTXRenderer(BaseRenderer):
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
                 dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
+                inputs=[ovrtx_transforms, self._object_newton_indices, body_q, self._object_scales],
                 device=self._device,
             )
 
@@ -897,16 +938,12 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         if self._particle_points_binding is not None:
-            if not self._particle_workaround_applied:
-                self._apply_particle_workaround(particle_q)
-                self._particle_workaround_applied = True
-            else:
-                self._write_particle_q_slices(
-                    self._particle_points_binding,
-                    particle_q,
-                    self._particle_visual_offsets,
-                    self._particle_visual_counts,
-                )
+            self._write_particle_q_slices(
+                self._particle_points_binding,
+                particle_q,
+                self._particle_visual_offsets,
+                self._particle_visual_counts,
+            )
 
     def _write_particle_q_slices(
         self,
@@ -941,24 +978,6 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
-
-    def _apply_particle_workaround(self, particle_q: wp.array) -> None:
-        """Host-SYNC seed ``UsdGeom.Points`` so later GPU ASYNC writes can work correctly.
-
-        OVRTX does not initialize UsdGeom.Points prims from a GPU ASYNC ``points`` write as expected.
-        A host SYNC write + a renderer step call are needed to finish initialization; later frames
-        can then use zero-copy GPU ASYNC write with the same binding.
-
-        TODO: The workaround will be removed when OVRTX fixes the issue (OMPE-102610).
-        """
-        particle_q_host = particle_q.numpy()
-        host_slices = [
-            particle_q_host[particle_offset : particle_offset + particle_count]
-            for particle_offset, particle_count in zip(
-                self._particle_visual_offsets, self._particle_visual_counts, strict=True
-            )
-        ]
-        self._particle_points_binding.write(cast(Any, host_slices), data_access=DataAccess.SYNC)
 
     def _update_camera_legacy(
         self,
@@ -1425,7 +1444,6 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []
         self._particle_visual_counts = []
-        self._particle_workaround_applied = False
 
         if self._renderer:
             try:
@@ -1798,6 +1816,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
+        self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
         """Setup OVRTX bindings for Newton deformable bodies (ovstage path).
@@ -1942,14 +1961,8 @@ class OVRTXRenderer(BaseRenderer):
         if self._particle_points_query is None:
             raise RuntimeError("Failed to create OVRTX particle point bindings")
 
-        # Note: no ``UsdGeom.Points`` seeding workaround is needed here. The legacy path's
-        # ``_apply_particle_workaround`` (OMPE-102610) exists because OVRTX fails to initialize
-        # Points prims from a zero-copy GPU ASYNC ``points`` write through ``bind_array_attribute``.
-        # The ovstage path instead writes host numpy DLTensors through ``Stage.write_attribute``,
-        # which populates the column synchronously, so the prims are valid from the first frame.
-
     def _update_transforms_ovstage(self) -> None:
-        if self._object_xform_query is None or self._object_newton_indices is None:
+        if self._object_xform_query is None or self._object_newton_indices is None or self._object_scales is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -1969,7 +1982,7 @@ class OVRTXRenderer(BaseRenderer):
         wp.launch(
             kernel=sync_newton_transforms_kernel,
             dim=num_objects,
-            inputs=[object_transforms, self._object_newton_indices, body_q],
+            inputs=[object_transforms, self._object_newton_indices, body_q, self._object_scales],
             device=self._device,
         )
         # Synchronize then copy to CPU numpy: ovstage's make_dltensor only accepts the lanes=16
@@ -2162,6 +2175,8 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_paths_list = None
 
         self._object_newton_indices = None
+        self._object_scales = None
+        self._object_scales_by_path = {}
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
         self._particle_visual_offsets = []

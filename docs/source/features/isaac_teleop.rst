@@ -1296,6 +1296,18 @@ the same view shown to the operator. Both reference cameras are parented to a ph
 link, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
 tasks also present their existing recorded ``robot_pov_cam``:
 
+.. figure:: ../_static/teleop/xr-camera-pip.jpg
+   :width: 80%
+   :alt: XR teleoperation view with the robot point-of-view camera shown in a picture-in-picture panel
+
+   Robot point-of-view camera feedback shown as a picture-in-picture panel during XR teleoperation.
+
+.. warning::
+
+   If a PiP panel enters its source camera's field of view, the camera captures the panel and
+   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
+   by changing the robot pose, to keep the panel outside the camera's field of view.
+
 .. code-block:: bash
 
    uv run --extra teleop isaaclab teleop run \
