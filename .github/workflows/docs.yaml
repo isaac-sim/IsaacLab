@@ -68,7 +68,7 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Build current version docs
@@ -101,7 +101,7 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs

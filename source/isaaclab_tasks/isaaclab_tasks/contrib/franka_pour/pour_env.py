@@ -31,6 +31,7 @@ from isaaclab_newton.physics import NewtonMPMManager
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.assets import retrieve_file_path
 
 from .geometry import (
     CUP_GRASP_HEIGHT,
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 _RESET_DATASET_GENERATOR_COMMAND = "uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0"
+_RESET_DATASET_LOCAL_OVERRIDE = "env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt"
 
 if TYPE_CHECKING:
     from isaaclab_newton.assets import MPMObject
@@ -66,7 +68,17 @@ _SOURCE_CUP_PARTICLE_FRICTION = 0.9
 
 
 def _resolve_reset_dataset_path(configured_path: str) -> Path:
-    """Resolve a reset dataset from the repository root and require it to exist."""
+    """Resolve a local dataset or download a remote dataset through the standard asset cache."""
+    if "://" in configured_path:
+        try:
+            return Path(retrieve_file_path(configured_path)).resolve()
+        except (FileNotFoundError, RuntimeError) as exc:
+            raise FileNotFoundError(
+                f"Franka Pour reset dataset unavailable: {configured_path}. Generate a local artifact from the "
+                f"Isaac Lab repository root with: {_RESET_DATASET_GENERATOR_COMMAND}. Then select it in the launch "
+                f"command with: {_RESET_DATASET_LOCAL_OVERRIDE}"
+            ) from exc
+
     cache_path = Path(configured_path).expanduser()
     if not cache_path.is_absolute():
         cache_path = _REPO_ROOT / cache_path
