@@ -5,22 +5,10 @@
 
 """Enumerate registered training tasks and the backend combinations they support.
 
-Two questions get asked of the Gym registry, and they have different answers:
-
-* What does a task **declare**? One registry walk. Fast, and unverified.
-* What does a task actually **resolve**? One config build and validator run per
-  combination -- minutes for the full registry, but the only way to know a
-  combination can run. The cross product is not all legal: OVRTX is kitless and
-  cannot share a process with Kit physics, so ``isaacsim_physx + ovrtx`` is
-  declared yet unusable.
-
-:func:`discover_tasks` answers either, selected with ``resolve``.
-
-Resolving also identifies each run by the config it produces rather than by how it
-was spelled, so spellings that produce the same run collapse: ``physics=physx``
-folds into the concrete backend it resolves to, and passing nothing folds into
-whichever preset the config already defaults to. That last run is reported
-separately as ``default``, which the collapse would otherwise hide.
+What a task **declares** is one registry walk: fast, unverified. What it **resolves**
+costs a config build and a validator run per combination, and is the only way to know
+a combination can run -- the cross product is not all legal, since OVRTX is kitless and
+cannot share a process with Kit physics. :func:`discover_tasks` answers either.
 """
 
 from __future__ import annotations
@@ -39,24 +27,18 @@ __all__ = [
     "discover_tasks",
 ]
 
-# Stable ordering for the RL library axis, shared with the environment tables. Only the
-# ordering is shared: ``environ_docs.RL_LIBRARY_OVERRIDES`` adds libraries that declare
-# no entry point, so a task can carry ``rlinf`` in the tables and not in
-# :attr:`DiscoveredTask.rl_libraries`. ``rlinf`` is listed here for ordering only.
+# Shared with the environment tables, but only the ordering: ``RL_LIBRARY_OVERRIDES``
+# there adds libraries declaring no entry point, so ``rlinf`` can appear in the tables
+# and not in :attr:`DiscoveredTask.rl_libraries`.
 RL_LIBRARY_PRIORITY: tuple[str, ...] = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
 
-# ``-Eval`` marks dedicated evaluation variants, registered separately against an
-# eval-specific env cfg, which should not appear as their own training row.
-# ``-Benchmark-`` tasks are perf harnesses rather than trainable environments.
+# ``-Eval`` variants are separate registrations against an eval-specific env cfg, and
+# ``-Benchmark-`` tasks are perf harnesses; neither is a training row.
 _EVAL_TASK_SUFFIXES = ("-Eval",)
 
-# Errors meaning the validator itself could not run, rather than that the combination
-# under test was rejected. Swallowing them would mark every combination illegal, so
-# they are logged and the combination dropped; ``strict=True`` re-raises instead.
-# ``TypeError`` is included because calling the validator with the wrong argument type
-# is otherwise indistinguishable from a rejected combination, and ``ImportError``
-# because a module that imports but no longer exports what a config asks for is drift
-# -- a missing extra raises ``ModuleNotFoundError`` and is handled before these.
+# The validator could not run, as opposed to rejecting the combination. Swallowing
+# these would mark every combination illegal. ``ImportError`` counts as drift because a
+# missing *extra* raises ``ModuleNotFoundError`` and is handled before them.
 _INFRASTRUCTURE_ERRORS = (ImportError, AttributeError, NameError, SyntaxError, TypeError)
 
 
@@ -71,28 +53,17 @@ class DiscoveredTask:
     Args:
         task_id: Gym task id.
         scope: ``core`` or ``contrib``.
-        rl_libraries: RL libraries the task declares an agent config for, in
-            :data:`RL_LIBRARY_PRIORITY` order. Empty for registered environments with
-            no RL entry point, such as IK, teleop and mimic tasks.
-        declared: Preset names by axis (``physics``, ``renderer``, ``presets``) as
-            ``enumerate_task_presets`` reports them, or ``None`` when the config would
-            not load. ``None`` is unknown; an all-empty mapping is a task that declares
-            nothing. Unreconciled -- same-axis duplicate spellings (``physx`` beside
-            ``isaacsim_physx``) and cross-axis duplicates are all present, so use
-            ``modes`` for a deduplicated answer.
-        modes: Ways to run the task. Resolved modes passed the validator, and with
-            ``collapse`` are reduced to distinct runs rather than distinct spellings.
-            Declared modes are the raw cross product, unverified.
-
-            Resolved against a **headless launch**. Kit sources narrow the legal set --
-            ``--visualizer kit`` (not the kitless ``newton``/``rerun``/``viser``),
-            ``--livestream``, ``--experience``, ``--require_kit``, and the config's own
-            visualizer intent. Two leaks: ``LIVESTREAM`` is read from the environment
-            even with no flag, and validation stops before the Isaac Sim availability
-            check, so Kit-requiring combinations are reported runnable on machines that
-            cannot launch them.
-        default: What the task does when given no preset tokens, or ``None`` in
-            declared mode or when that run does not resolve.
+        rl_libraries: Libraries the task declares an agent config for, in
+            :data:`RL_LIBRARY_PRIORITY` order. Empty for IK, teleop and mimic tasks.
+        declared: Preset names by axis (``physics``, ``renderer``, ``presets``), or
+            ``None`` when the config would not load. ``None`` is unknown, an all-empty
+            mapping is a task declaring nothing. Duplicate spellings are all present, so
+            use ``modes`` for a deduplicated answer.
+        modes: Ways to run the task; see :func:`_build_modes`. Resolved against a
+            headless launch, and two things escape that: ``LIVESTREAM`` is read from the
+            environment, and validation stops before the Isaac Sim availability check,
+            so Kit-requiring combinations are reported runnable where they cannot launch.
+        default: The no-token run, ``None`` in declared mode or when it does not resolve.
         resolved: Whether ``modes`` was resolved, or merely declared.
     """
 
@@ -101,16 +72,12 @@ class DiscoveredTask:
         """One way to run a task.
 
         Args:
-            physics: Physics preset token, or ``None`` for a run passing no
-                ``physics=`` token -- the task declares none, or this is the probe of a
-                declaring task's own default.
-            renderer: Renderer preset token, or ``None`` for a run passing no
-                ``renderer=`` token.
-            presets: One ``presets=`` token, or ``None``. The token takes a comma list --
-                names on different config paths compose (``duo_camera,depth128,cube``),
-                only same-path names conflict (``depth,rgb``) -- but discovery validates
-                each name alone, so ``modes`` under-approximates a task with several
-                independent preset axes.
+            physics: ``physics=`` token, or ``None`` for a run passing none -- the task
+                declares none, or this is the probe of its own default.
+            renderer: ``renderer=`` token, or ``None`` for a run passing none.
+            presets: One ``presets=`` token, or ``None``. The token takes a comma list
+                and names on different config paths compose, but discovery validates
+                each alone, so ``modes`` under-approximates a multi-axis task.
         """
 
         physics: str | None
@@ -122,9 +89,9 @@ class DiscoveredTask:
         """The run a task performs when given no preset tokens.
 
         Args:
-            backend: Concrete physics config the run resolves to, e.g. ``PhysxCfg`` or
-                ``NewtonCfg(MJWarpSolverCfg)``. Reported as the config class because a
-                task's default need not have a preset name.
+            backend: Physics config the run resolves to, e.g.
+                ``NewtonCfg(MJWarpSolverCfg)`` -- a class, since a default need not have
+                a preset name.
             mode: The entry in ``modes`` this run collapsed into.
         """
 
@@ -144,12 +111,9 @@ class DiscoveredTask:
 def _domain_presets(names: list[str], typed_names: tuple[str, ...]) -> tuple[str, ...]:
     """Return domain presets, dropping those the task also declares on a typed axis.
 
-    A backend buckets under ``DOMAIN`` or under ``PHYSICS`` / ``RENDERER`` depending on
-    whether its cfg class subclasses ``PhysicsCfg`` / ``RendererCfg``, so the same name
-    means different things on different tasks. Declared on a typed axis too, it is
-    reachable as ``physics=NAME`` and reporting it again double-counts one run; declared
-    only here, ``presets=NAME`` is the sole way to select it and ``physics=NAME`` is
-    rejected. Deciding by name rather than per task hides every backend of the latter.
+    A backend buckets under ``DOMAIN`` or a typed target by cfg class, so the same name
+        means different things per task: on both, it is reachable as ``physics=NAME`` and
+        reporting it again double-counts; here only, ``presets=NAME`` is the sole way in.
     """
     typed = set(typed_names)
     return tuple(sorted(name for name in names if name not in typed))
@@ -189,22 +153,20 @@ def _mode_resolves(
 
     Returns:
         ``None`` when the combination cannot run -- an unknown preset, an unloadable
-        config and a rejected backend pairing are the same answer. Otherwise
-        ``(fingerprint, backend)``, where *fingerprint* digests the resolved env config
-        so two spellings of one run share it, and *backend* names the concrete physics
-        config, e.g. ``NewtonCfg(MJWarpSolverCfg)``. The solver is included because it
-        is what separates ``newton_mjwarp`` from ``newton_kamino``.
+        config and a rejected pairing are one answer. Otherwise ``(fingerprint,
+        backend)``: *fingerprint* digests the resolved config, so two spellings of one
+        run share it, and *backend* carries the solver, which is what separates
+        ``newton_mjwarp`` from ``newton_kamino``.
 
     Raises:
-        DiscoveryError: If validation could not run at all, e.g. because an Isaac Lab
-            import or API it depends on has changed.
+        DiscoveryError: If validation could not run at all.
     """
     import argparse
     import hashlib
     import sys
 
-    # Discovery's own dependencies, two of them private. Losing one is API drift, never a
-    # rejected combination, so it must not fall through to the handlers below.
+    # Two of these are private. Losing one is drift, never a rejected combination, so
+    # it must not fall through to the handlers below.
     try:
         from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, scan
 
@@ -238,10 +200,8 @@ def _mode_resolves(
             backend = f"{backend}({type(solver).__name__})"
         return fingerprint, backend
     except ModuleNotFoundError:
-        # The config needs an extra that is not installed, so the combination cannot
-        # run here. Same answer as a rejection, and it keeps a partial install usable.
-        # Narrower than ``ImportError`` on purpose: a module that is absent is a missing
-        # extra, whereas a module that is present but missing a symbol is drift.
+        # An uninstalled extra: same answer as a rejection, which keeps a partial
+        # install usable. Narrower than ``ImportError``, which would also swallow drift.
         return None
     except _INFRASTRUCTURE_ERRORS as exc:
         raise DiscoveryError(
@@ -266,14 +226,11 @@ def _build_modes(
 ) -> tuple[tuple[DiscoveredTask.Mode, ...], DiscoveredTask.Default | None]:
     """Return the runs for one task, and what it does when given no tokens.
 
-    Renderers are expanded across, since reporting a camera task as headless-only omits
-    the thing under test. Domain presets are expanded one at a time, never combined.
+    Renderers are expanded across; domain presets one at a time, never combined.
 
-    ``collapse`` deduplicates on the resolved config, so each mode is a distinct run.
-    Collapsing on the *backend* instead would be wrong -- the Reach controller presets
-    share a backend and are four different runs. Without it every validated spelling is
-    kept, which is what documentation needs: a preset naming the default of its own axis
-    is still a token a reader can type.
+    ``collapse`` deduplicates on the resolved config -- not on the backend, which would
+    merge the Reach controller presets. Without it every validated spelling is kept,
+    which is what documentation needs.
 
     Returns:
         ``(modes, default)``. *default* names an explicit spelling even when ``collapse``
