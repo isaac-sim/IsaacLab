@@ -83,6 +83,25 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch):
+    """OVRTX 0.4.1 options are passed directly to ``RendererConfig``."""
+    config_kwargs: dict[str, object] = {}
+
+    class RecordingRendererConfig:
+        def __init__(self, **kwargs):
+            config_kwargs.update(kwargs)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: object())  # noqa: ARG005
+    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: False)
+
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
+
+    assert renderer._renderer is not None
+    assert config_kwargs["suppress_deprecation_warnings"] is True
+    assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
+
+
 def test_ovrtx_supported_output_types_key_set():
     """OVRTX publishes the documented key set and per-output spec."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -516,11 +535,13 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
+    renderer._cable_points_binding = _RecordingBinding(events, "cable")
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
     renderer._particle_workaround_applied = True
+    renderer._cable_segment_counts = [1]
     renderer._renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -564,6 +585,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_paths_list = "deformable"
     renderer._particle_points_query = "particle"
     renderer._particle_paths_list = "particle"
+    renderer._cable_points_query = "cable"
+    renderer._cable_paths_list = "cable"
     renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
@@ -590,12 +613,14 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:object",
         "unbind:deformable",
         "unbind:particle",
+        "unbind:cable",
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
+    assert renderer._cable_points_binding is None
     assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []
@@ -625,11 +650,15 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_path_list:deformable",
         "release_query:particle",
         "destroy_path_list:particle",
+        "release_query:cable",
+        "destroy_path_list:cable",
         "detach_ovstage",
         "exit_stack_close",
     ]
     assert renderer._camera_xform_query is None
     assert renderer._particle_paths_list is None
+    assert renderer._cable_points_query is None
+    assert renderer._cable_paths_list is None
     assert renderer._object_newton_indices is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None

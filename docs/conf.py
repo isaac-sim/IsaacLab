@@ -80,7 +80,8 @@ _pinned_versions = _read_pinned_versions()
 isaacsim_version = _pinned_versions["isaacsim"]
 torch_version = _pinned_versions["torch"]
 torchvision_version = _pinned_versions["torchvision"]
-ovrtx_spec = _pinned_versions["ovrtx"]
+ovrtx_version = _pinned_versions["ovrtx"]
+ovrtx_spec = f"=={ovrtx_version}" if ovrtx_version[0].isdigit() else ovrtx_version
 ovphysx_version = _pinned_versions["ovphysx"]
 
 # Short version strings used in external documentation URLs and badges.
@@ -324,7 +325,12 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["source/_static/css", "source/_static/how-to"]
+html_static_path = [
+    "source/_static/css",
+    "source/_static/how-to",
+    "source/_static/tasks/previews",
+    "source/_static/benchmarks",
+]
 html_css_files = ["custom.css", "environment-browser.css"]
 html_js_files = ["environment-browser.js"]
 

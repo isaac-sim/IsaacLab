@@ -240,14 +240,16 @@ def test_argv_helper_task_returns_last_value():
     assert _ArgvHelper(["train.py", "--task=Old", "--task", "New"]).task_name == "New"
 
 
-def test_bucket_variants_routes_by_base_class_isinstance():
-    """Variants bucket by ``isinstance`` against ``PresetTarget.base_classes``.
+def test_bucket_variants_routes_by_target_match():
+    """Variants bucket through :meth:`PresetTarget.matches`.
 
     PhysicsCfg subclass instances route to PHYSICS, RendererCfg subclass
-    instances route to RENDERER, and everything else falls into DOMAIN.
+    instances route to RENDERER, PhysicsCfg-containing SimulationCfg bundles
+    route to PHYSICS, and values matching no target fall into DOMAIN.
     """
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
+    from isaaclab.sim import SimulationCfg
     from isaaclab.utils.configclass import configclass
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
@@ -280,6 +282,14 @@ def test_bucket_variants_routes_by_base_class_isinstance():
             "default": _RendVariant(),
             "newton_renderer": _RendVariant(),
         },
+        "sim": {
+            "default": SimulationCfg(dt=1 / 60, physics=_PhysVariant()),
+            "simulation_physx": SimulationCfg(dt=1 / 60, physics=_PhysVariant()),
+        },
+        "sim_no_backend": {
+            "default": SimulationCfg(dt=1 / 240),
+            "plain": SimulationCfg(dt=1 / 240),
+        },
         "weight": {  # cfgs whose type is not a typed-target base subclass -> DOMAIN
             "default": 1.0,
             "light": 0.5,
@@ -288,10 +298,10 @@ def test_bucket_variants_routes_by_base_class_isinstance():
     }
     result = _bucket_variants_by_target(walked)
     # All physics variants bucket to PHYSICS (including the wrapper-shaped ones).
-    assert {"physx", "newton_mjwarp", "newton_kamino"} <= result[PresetTarget.PHYSICS]
+    assert {"physx", "newton_mjwarp", "newton_kamino", "simulation_physx"} <= result[PresetTarget.PHYSICS]
     assert "newton_renderer" in result[PresetTarget.RENDERER]
     # Primitive-typed variants land in DOMAIN.
-    assert {"light", "heavy"} <= result[PresetTarget.DOMAIN]
+    assert {"plain", "light", "heavy"} <= result[PresetTarget.DOMAIN]
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
     for bucket in result.values():
         assert "default" not in bucket
@@ -323,8 +333,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "empty",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: (none)",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "physics=NAME (typed) selects a physics backend. Available: (none)",
+                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
             ],
             id="zero_variants_everywhere",
@@ -332,8 +342,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "physics_only",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: - alpha - beta",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "physics=NAME (typed) selects a physics backend. Available: - alpha - beta",
+                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
             ],
             id="typed_populated_other_typed_empty",
@@ -341,8 +351,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "domain_only",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: (none)",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: (none)",
+                "physics=NAME (typed) selects a physics backend. Available: (none)",
+                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
             ],
             id="domain_bucket_only",
@@ -350,8 +360,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
         pytest.param(
             "mixed",
             [
-                "physics=NAME (typed) selects a PhysicsCfg variant. Available: - my_phys",
-                "renderer=NAME (typed) selects a RendererCfg variant. Available: - my_rend",
+                "physics=NAME (typed) selects a physics backend. Available: - my_phys",
+                "renderer=NAME (typed) selects a renderer backend. Available: - my_rend",
                 "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
             ],
             id="all_three_buckets_populated",
@@ -360,8 +370,8 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
 )
 def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phrases):
     """Each branch of the description builder renders the documented strings
-    for its variant shape. Typed-bucketed names (PhysicsCfg/RendererCfg subclass
-    instances) appear only under their typed section; the DOMAIN bucket
+    for its variant shape. Typed-bucketed names appear only under their typed
+    section; the DOMAIN bucket
     (``presets:``) lists only variants that fell into the catch-all. The
     parametrize id captures which branch each case locks; argparse line-
     wrapping is normalized away before substring assertions so wording changes

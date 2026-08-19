@@ -266,7 +266,7 @@ class IsaacLabOvrtxInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com "ovrtx{spec}"
+   pip install "ovrtx{spec}"
 """
         return _parse_rst(self, content)
 

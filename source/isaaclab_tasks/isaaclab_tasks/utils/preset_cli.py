@@ -259,9 +259,9 @@ class _DescriptionBuilder:
 
     @staticmethod
     def _description(target: PresetTarget) -> str:
-        """One-line description; for typed targets includes the cfg base class name."""
+        """One-line description of a selector's semantic target."""
         if target.base_classes:
-            return f"(typed) selects a {target.base_classes[0].__name__} variant"
+            return f"(typed) selects a {target.value} backend"
         return "broadcast: applied to every matching PresetCfg"
 
 
@@ -367,14 +367,15 @@ def _enumerate_agents(task_name: str, agent_library: str) -> tuple[list[str], di
 def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     """Convert :func:`collect_presets` output into ``{target: set[name]}``.
 
-    Routes each ``(name, cfg)`` by ``isinstance(cfg, target.base_classes)``;
-    cfgs matching no typed target fall into ``DOMAIN``. The implicit
-    ``default`` field is filtered -- it's the fallback, not a selectable name.
+    Routes each ``(name, cfg)`` through :meth:`PresetTarget.matches`; cfgs
+    matching no typed target fall into ``DOMAIN``. The implicit ``default``
+    field is filtered -- it's the fallback, not a selectable name.
 
-    Routing by class hierarchy means new backends subclassing
+    Direct routing by class hierarchy means new backends subclassing
     :class:`~isaaclab.physics.PhysicsCfg` /
     :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` bucket automatically
-    regardless of what name the env_cfg gives the field.
+    regardless of what name the env_cfg gives the field. Targets may also
+    recognize documented container shapes through :meth:`PresetTarget.matches`.
     """
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
@@ -383,7 +384,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
             if name == "default":
                 continue
             matched = next(
-                (t for t in typed_targets if isinstance(cfg, t.base_classes)),
+                (target for target in typed_targets if target.matches(cfg)),
                 PresetTarget.DOMAIN,
             )
             result[matched].add(name)

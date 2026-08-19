@@ -46,6 +46,41 @@ Choosing a renderer backend
    on velocity-like visual cues should add explicit temporal observations
    (e.g. task-local frame stacking) rather than relying on renderer-specific artifacts.
 
+Per-environment Isaac RTX scene partitioning
+---------------------------------------------
+
+The Isaac RTX renderer enables per-environment scene partitioning by default. It assigns
+matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy and its
+camera so tiled views render only that environment's geometry.
+
+Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`:
+
+.. code-block:: python
+
+   from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+   renderer_cfg = IsaacRtxRendererCfg(enable_scene_partitioning=False)
+
+Scene partitioning and the all-environment spectator view are separate controls.
+:class:`~isaaclab.app.AppLauncher` enables spectator support before RTX startup only
+when the Kit viewport is enabled or Kit visualization, recording, livestreaming, or XR
+is requested. Regular headless training and camera-sensor runs keep it disabled so
+tiled cameras are not exposed to the spectator mode's world-space layout constraints.
+
+``global_settings.show_all_partitions_by_default`` maps to that same process-global RTX
+setting; it is not a separate feature. Its default value of ``None`` preserves the
+launch-time choice made by :class:`~isaaclab.app.AppLauncher`. An explicit value overrides
+that setting when the Isaac RTX renderer is constructed. When enabled, environments must
+remain spatially separated because overlapping partition bounds can make content leak into
+another environment or disappear. When disabled, the Kit viewport displays only the
+selected environment.
+
+This setting does not affect OVRTX, which always partitions multi-environment scenes.
+
+Prims outside the environment hierarchies remain in the shared background partition.
+Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
+token per instance; markers without that ownership information remain shared.
+
 Architecture Overview
 ---------------------
 
@@ -116,8 +151,8 @@ Installing the OVRTX renderer
 
 The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
 source package ships with the core install, but the renderer's ``ovrtx`` runtime
-wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, hosted on
-``pypi.nvidia.com``) is **not** installed by default. You must request it
+wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, published
+on public PyPI) is **not** installed by default. You must request it
 explicitly — OVRTX does **not** require Isaac Sim.
 
 Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
@@ -133,7 +168,7 @@ Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
    packages are already part of the core install). Use ``ov[ovrtx]`` (or ``ov[all]``)
    to pull in the ``ovrtx`` dependency.
 
-Or install the ``ovrtx`` runtime wheel directly with pip (note the extra index URL):
+Or install the public ``ovrtx`` package directly from PyPI:
 
 .. isaaclab-ovrtx-install::
 

@@ -140,7 +140,7 @@ class AnymalCEnv(DirectRLEnv):
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         z_vel_error = torch.square(self._robot.data.root_lin_vel_b.torch[:, 2])
         ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.actuators.applied_effort.torch), dim=1)
         joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]

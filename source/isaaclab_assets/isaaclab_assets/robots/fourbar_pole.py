@@ -46,7 +46,7 @@ FOURBAR_POLE_CFG = ArticulationCfg(
     actuators={
         "fourbar_actuator": ImplicitActuatorCfg(
             joint_names_expr=["ground_to_crank"],
-            effort_limit_sim=400.0,
+            joint_effort_limit=400.0,
             stiffness=0.0,
             damping=10.0,
         ),
@@ -55,7 +55,7 @@ FOURBAR_POLE_CFG = ArticulationCfg(
         # an actuated joint and preserve its user-specified joint position on resets.
         "pole_actuator": ImplicitActuatorCfg(
             joint_names_expr=["coupler_to_pole"],
-            effort_limit_sim=400.0,
+            joint_effort_limit=400.0,
             stiffness=0.0,
             damping=0.0,
         ),
