@@ -369,7 +369,7 @@ def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | N
         t0 = time.perf_counter_ns()
         with torch.inference_mode():
             actions = policy(obs)
-        result = env.step(actions)
+            result = env.step(actions)
         t1 = time.perf_counter_ns()
         step_times.append((t1 - t0) / 1e9)
 
