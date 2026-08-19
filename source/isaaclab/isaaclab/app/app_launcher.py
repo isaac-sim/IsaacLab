@@ -721,7 +721,6 @@ class AppLauncher:
         "fast_shutdown": [bool],
         "limit_cpu_threads": [int],
         "experience": [str],
-        "extra_args": [list, type(None)],
     }
     """A dictionary containing the type of arguments passed to SimulationApp.
 
