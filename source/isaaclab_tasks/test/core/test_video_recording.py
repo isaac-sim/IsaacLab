@@ -58,6 +58,7 @@ _CLIP = 12  # frames per clip
 _STEPS = 22  # env steps: enough for one full clip plus close() flush
 _MIN_NONZERO_RATIO = 0.005
 _MIN_MOTION_STD = 0.1
+_SEED = 42
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +83,7 @@ def _cartpole_cfg(*, num_envs: int = 1):
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
     cfg = CartpoleEnvCfg()
+    cfg.seed = _SEED
     cfg.scene.num_envs = num_envs
     cfg.sim.physics = PhysxCfg()
     return cfg
@@ -93,6 +95,7 @@ def _cartpole_cfg_newton(*, num_envs: int = 1):
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
     cfg = CartpoleEnvCfg()
+    cfg.seed = _SEED
     cfg.scene.num_envs = num_envs
     cfg.sim.physics = NewtonCfg(solver_cfg=MJWarpSolverCfg())
     return cfg
@@ -106,6 +109,7 @@ def _cartpole_camera_cfg_physx(*, num_envs: int = 1):
 
     cfg = CartpoleCameraEnvCfg()
     cfg = cfg.default
+    cfg.seed = _SEED
     cfg.scene.num_envs = num_envs
     cfg.sim.physics = PhysxCfg()
     cfg.tiled_camera.renderer_cfg = IsaacRtxRendererCfg()
