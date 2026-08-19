@@ -269,6 +269,14 @@
         populateSelect(fields.presets, task.presets, [fields.presets.value, "joint", "ik", "rgb", "cube", "single_camera"]);
     };
 
+    const updateModeControls = () => {
+        const supportsPretrainedCheckpoint = state.mode === "play";
+        fields.checkpoint.disabled = !supportsPretrainedCheckpoint;
+        if (!supportsPretrainedCheckpoint) {
+            fields.checkpoint.checked = false;
+        }
+    };
+
     const currentCommand = () => {
         const extras = [];
         if (fields.physics.value === "ovphysx" && fields.renderer.value === "ovrtx") {
@@ -289,7 +297,11 @@
         for (const extra of extras) {
             parts.push("--extra", extra);
         }
-        parts.push("isaaclab", state.mode, "--rl_library", fields.rl.value, "--task", state.task);
+        parts.push("isaaclab", state.mode);
+        if (fields.rl.value) {
+            parts.push("--rl_library", fields.rl.value);
+        }
+        parts.push("--task", state.task);
         const task = selectedTask();
         const selectedAgent = Object.entries(task.agentPresetCompatibility).find(([agent, presets]) => (
             agent.startsWith(`${fields.rl.value}_`) && presets.includes(fields.presets.value)
@@ -380,7 +392,9 @@
             button.type = "button";
             button.className = "environment-task-row";
             button.dataset.taskName = task.task;
-            button.setAttribute("aria-pressed", String(task.task === state.task));
+            const isSelected = task.task === state.task;
+            button.classList.toggle("is-selected", isSelected);
+            button.setAttribute("aria-pressed", String(isSelected));
             button.innerHTML = `<span class="environment-task-name"></span><span class="environment-task-meta"></span>`;
             button.querySelector(".environment-task-name").textContent = task.task;
             const meta = button.querySelector(".environment-task-meta");
@@ -607,7 +621,7 @@
             if (!response.ok) {
                 throw new Error(`Benchmark request failed with ${response.status}`);
             }
-            benchmarkRows = parseCsv(await response.text());
+            benchmarkRows = parseCsv(await response.text()).filter((row) => row.data_origin === "measured");
             updatePreview();
         } catch (error) {
             benchmarks.querySelector("[data-benchmark-chart]").hidden = true;
@@ -636,6 +650,7 @@
                 modeButton.classList.toggle("is-active", isActive);
                 modeButton.setAttribute("aria-pressed", String(isActive));
             }
+            updateModeControls();
             commandOutput.textContent = currentCommand();
             updatePreview();
         });
@@ -675,6 +690,7 @@
     taskSearch.addEventListener("input", renderTasks);
     taskCategory.addEventListener("change", renderTasks);
 
+        updateModeControls();
         initializeTasks();
         renderBenchmarks();
     };

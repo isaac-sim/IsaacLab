@@ -249,6 +249,12 @@ html[data-theme="dark"] .environment-browser {
     max-height: 34rem;
 }
 
+.environment-preview-stage img[hidden],
+.environment-preview-stage video[hidden],
+.environment-benchmark-toolbar[hidden] {
+    display: none;
+}
+
 .environment-preview-caption {
     display: flex;
     align-items: baseline;
