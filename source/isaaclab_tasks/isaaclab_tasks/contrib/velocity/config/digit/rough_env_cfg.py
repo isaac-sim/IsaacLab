@@ -261,12 +261,8 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        # ``LocomotionVelocityRoughEnvCfg`` declares ``base_com`` as a preset whose
-        # ``newton_mjwarp`` branch disables the randomization, because Newton does not
-        # support it. Digit is PhysX-only (see :class:`DigitPhysicsCfg`), so that branch
-        # names no reachable backend: it survives as a bare ``presets=newton_mjwarp``
-        # token that would drop this randomization from a PhysX run. Collapse the preset
-        # to its default so the task offers only what it can actually run.
+        # Digit is PhysX-only, so the inherited ``newton_mjwarp`` branch names no
+        # reachable backend; collapse the preset so it cannot be selected on its own.
         self.events.base_com = self.events.base_com.default
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
