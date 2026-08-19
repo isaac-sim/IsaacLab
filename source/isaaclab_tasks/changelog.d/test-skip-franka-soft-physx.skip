@@ -1,0 +1,1 @@
+Test-only: excluded the Franka soft-lift state and camera tasks from the Isaac Sim PhysX smoke suite.

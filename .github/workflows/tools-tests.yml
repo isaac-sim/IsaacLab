@@ -44,7 +44,7 @@ jobs:
       # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
       # installed that test skips itself rather than failing, so keep it in this list.
       - name: Install test dependencies
-        run: python3 -m pip install pytest junitparser flaky
+        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest junitparser flaky
 
       - name: Run tools tests
         env:

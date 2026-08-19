@@ -39,7 +39,7 @@ jobs:
         run: python3 tools/skills/cli.py check
 
       - name: Install test dependencies
-        run: python3 -m pip install pytest
+        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest
 
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
