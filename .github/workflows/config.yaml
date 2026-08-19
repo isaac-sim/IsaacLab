@@ -10,6 +10,6 @@
 # which the CI credential can reach.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
 # Isaac Sim 6.1.0-alpha.58 (4927c0e5) includes Kit 110.3.0+feature.365234.
-isaacsim_image_tag: latest-develop-4927c0e5@sha256:d4f160ea1568fc9e56cea00e29a3b913b7f85d07b6f2036c01a46515f320aa5e
+isaacsim_image_tag: latest-develop@sha256:d4f160ea1568fc9e56cea00e29a3b913b7f85d07b6f2036c01a46515f320aa5e
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
