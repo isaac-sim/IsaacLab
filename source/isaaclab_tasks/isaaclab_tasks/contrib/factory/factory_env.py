@@ -103,8 +103,10 @@ class FactoryEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
 
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
+        # Isaac Sim PhysX always needs USD filtering; OvPhysX needs it on CPU.
+        if self.scene.physics_backend == "physxmanager" or (
+            self.scene.physics_backend == "ovphysxmanager" and self.device == "cpu"
+        ):
             self.scene.filter_collisions()
 
         self.scene.articulations["robot"] = self._robot

@@ -230,8 +230,10 @@ class PickAndPlaceEnv(DirectRLEnv):
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
+        # Isaac Sim PhysX always needs USD filtering; OvPhysX needs it on CPU.
+        if self.scene.physics_backend == "physxmanager" or (
+            self.scene.physics_backend == "ovphysxmanager" and self.device == "cpu"
+        ):
             self.scene.filter_collisions(global_prim_paths=["/World/ground"])
         # add articulation to scene
         self.scene.articulations["pick_and_place"] = self.pick_and_place
