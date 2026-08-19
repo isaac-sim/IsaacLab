@@ -29,3 +29,28 @@ def props_expr(prim_path: str, pattern: str) -> str:
         The absolute prim path expression to pass to a fragment family writer.
     """
     return f"{prim_path}{pattern}"
+
+
+def fragment_mapping(value) -> dict | None:
+    """Normalize a fragment spawner-configuration value to a target-pattern mapping.
+
+    The mapping form (``{pattern: [fragment, ...]}``) is the general spelling. As a convenience,
+    a bare fragment or a sequence of fragments is accepted for the common case of authoring on
+    the anchor prim itself, and is read as ``{"": [...]}``. Legacy dataclass configurations are
+    reported as ``None`` so callers route them to the legacy writers.
+
+    Args:
+        value: The value of a fragment spawner-configuration field.
+
+    Returns:
+        The equivalent target-pattern mapping, or None when the value is a legacy configuration.
+    """
+    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, SchemaFragment):
+        return {"": [value]}
+    if isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value):
+        return {"": list(value)}
+    return None

@@ -258,3 +258,46 @@ def test_apply_namespaced_raises_without_namespace():
     UsdPhysics.RigidBodyAPI.Apply(prim)
     with pytest.raises(ValueError):
         apply_namespaced(_NoNamespaceFragment(rigid_body_enabled=True), "/World/NoNs", stage)
+
+
+def test_fragment_mapping_normalizes_bare_fragment_and_list():
+    """A bare fragment (or list) on a spawner field is shorthand for the anchor-prim mapping."""
+    from isaaclab.sim.schemas import MassCfg, MassPropertiesCfg, UsdPhysicsRigidBodyCfg
+    from isaaclab.sim.spawners._utils import fragment_mapping
+
+    frag = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    assert fragment_mapping(frag) == {"": [frag]}
+
+    a, b = MassCfg(mass=1.0), MassCfg(density=10.0)
+    assert fragment_mapping([a, b]) == {"": [a, b]}
+    assert fragment_mapping((a, b)) == {"": [a, b]}
+
+    # an explicit mapping is passed through untouched
+    mapping = {"/.*": [frag]}
+    assert fragment_mapping(mapping) is mapping
+
+    # legacy dataclass cfgs report None so callers route them to the legacy writers
+    assert fragment_mapping(MassPropertiesCfg(mass=1.0)) is None
+    assert fragment_mapping(None) is None
+
+
+def test_shape_spawner_accepts_bare_fragment_for_props():
+    """A bare fragment authors on the shape's anchor prim, exactly as ``{"": [...]}`` would."""
+    from pxr import UsdPhysics
+
+    from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    cfg = sim_utils.CuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=MassCfg(mass=0.5),
+    )
+    cfg.func("/World/Bare", cfg)
+
+    prim = stage.GetPrimAtPath("/World/Bare")
+    assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert abs(prim.GetAttribute("physics:mass").Get() - 0.5) < 1e-6

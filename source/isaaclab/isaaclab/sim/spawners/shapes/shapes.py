@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from pxr import Usd, UsdGeom
 
 from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import props_expr
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
@@ -360,8 +360,9 @@ def _spawn_geom_from_prim_type(
     # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
     # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
     if getattr(cfg, "collision_props", None) is not None:
-        if isinstance(cfg.collision_props, dict):
-            for pattern, fragments in cfg.collision_props.items():
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            for pattern, fragments in collision_props_mapping.items():
                 schemas.apply_collision_properties(
                     props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
                 )
@@ -393,8 +394,9 @@ def _spawn_geom_from_prim_type(
     # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
     # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if getattr(cfg, "mass_props", None) is not None:
-        if isinstance(cfg.mass_props, dict):
-            for pattern, fragments in cfg.mass_props.items():
+        mass_props_mapping = fragment_mapping(cfg.mass_props)
+        if mass_props_mapping is not None:
+            for pattern, fragments in mass_props_mapping.items():
                 schemas.apply_mass_properties(
                     props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
                 )
@@ -402,8 +404,9 @@ def _spawn_geom_from_prim_type(
             schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if getattr(cfg, "rigid_props", None) is not None:
-        if isinstance(cfg.rigid_props, dict):
-            for pattern, fragments in cfg.rigid_props.items():
+        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+        if rigid_props_mapping is not None:
+            for pattern, fragments in rigid_props_mapping.items():
                 schemas.apply_rigid_body_properties(
                     props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
                 )

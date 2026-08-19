@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from filelock import FileLock
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners._utils import props_expr
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import (
@@ -293,22 +293,25 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
     """
     # modify rigid body properties
     if cfg.rigid_props is not None:
-        if isinstance(cfg.rigid_props, dict):
-            for pattern, fragments in cfg.rigid_props.items():
+        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+        if rigid_props_mapping is not None:
+            for pattern, fragments in rigid_props_mapping.items():
                 schemas.apply_rigid_body_properties(props_expr(prim_path, pattern), fragments)
         else:
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
-        if isinstance(cfg.collision_props, dict):
-            for pattern, fragments in cfg.collision_props.items():
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            for pattern, fragments in collision_props_mapping.items():
                 schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments)
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
     # modify mass properties
     if cfg.mass_props is not None:
-        if isinstance(cfg.mass_props, dict):
-            for pattern, fragments in cfg.mass_props.items():
+        mass_props_mapping = fragment_mapping(cfg.mass_props)
+        if mass_props_mapping is not None:
+            for pattern, fragments in mass_props_mapping.items():
                 schemas.apply_mass_properties(
                     props_expr(prim_path, pattern),
                     fragments,
@@ -336,7 +339,8 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
     # a legacy single cfg routes to the legacy writer -- it owns its own ``fix_root_link`` field; a
     # mapping (also an empty one) routes to the fragment writer, where the spawner-level topology
     # flag is honored even without any schema properties to author.
-    if articulation_props is not None and not isinstance(articulation_props, dict):
+    articulation_mapping = fragment_mapping(articulation_props)
+    if articulation_props is not None and articulation_mapping is None:
         if articulation_fix_root_link is not None:
             logger.warning(
                 f"Ignoring the spawner-level 'fix_root_link={articulation_fix_root_link}' because"
@@ -345,7 +349,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
             )
         schemas.modify_articulation_root_properties(prim_path, articulation_props)
     else:
-        articulation_entries = list(articulation_props.items()) if articulation_props else []
+        articulation_entries = list(articulation_mapping.items()) if articulation_mapping else []
         if articulation_entries:
             # the root topology is fixed once; entries after the first must not re-fix it
             for index, (pattern, fragments) in enumerate(articulation_entries):
@@ -365,14 +369,16 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
             )
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
-        if isinstance(cfg.fixed_tendons_props, dict):
-            for pattern, fragments in cfg.fixed_tendons_props.items():
+        fixed_tendons_props_mapping = fragment_mapping(cfg.fixed_tendons_props)
+        if fixed_tendons_props_mapping is not None:
+            for pattern, fragments in fixed_tendons_props_mapping.items():
                 schemas.apply_fixed_tendon_properties(props_expr(prim_path, pattern), fragments)
         else:
             schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
     if cfg.spatial_tendons_props is not None:
-        if isinstance(cfg.spatial_tendons_props, dict):
-            for pattern, fragments in cfg.spatial_tendons_props.items():
+        spatial_tendons_props_mapping = fragment_mapping(cfg.spatial_tendons_props)
+        if spatial_tendons_props_mapping is not None:
+            for pattern, fragments in spatial_tendons_props_mapping.items():
                 schemas.apply_spatial_tendon_properties(props_expr(prim_path, pattern), fragments)
         else:
             schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
@@ -384,8 +390,9 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
         # own body-gravcomp coupling in apply_mujoco_joint, so the fragment path adds no backend
         # coupling here); a legacy single cfg -> the pre-existing gravcomp auto-enable +
         # modify_joint_drive_properties below.
-        if isinstance(cfg.joint_drive_props, dict):
-            for pattern, fragments in cfg.joint_drive_props.items():
+        joint_drive_props_mapping = fragment_mapping(cfg.joint_drive_props)
+        if joint_drive_props_mapping is not None:
+            for pattern, fragments in joint_drive_props_mapping.items():
                 schemas.apply_joint_drive_properties(
                     props_expr(prim_path, pattern),
                     fragments,
@@ -405,7 +412,8 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
 
             # gravcomp may be authored either via the legacy MujocoRigidBodyPropertiesCfg or via a
             # MujocoRigidBodyCfg fragment in the rigid_props mapping. Treat either as "already set".
-            if isinstance(cfg.rigid_props, dict):
+            rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+            if rigid_props_mapping is not None:
                 rigid_props_list = [fragment for fragments in cfg.rigid_props.values() for fragment in fragments]
             else:
                 rigid_props_list = [cfg.rigid_props]

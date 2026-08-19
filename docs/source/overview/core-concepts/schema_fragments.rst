@@ -95,8 +95,9 @@ Configuring fragments on spawners
 
 Spawner configurations (:class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`,
 :class:`~isaaclab.sim.spawners.shapes.CuboidCfg`, ...) expose one field per family.
-Each field accepts either a mapping from target pattern to a list of fragments (the
-only fragment spelling), a single legacy dataclass cfg (e.g.
+Each field accepts either a mapping from target pattern to a list of fragments, a bare
+fragment or list of fragments (shorthand for ``{"": [...]}``, the anchor prim itself), a
+single legacy dataclass cfg (e.g.
 :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` or a backend ``*PropertiesCfg``, routed
 to the legacy writers), or ``None``.
 
@@ -155,6 +156,22 @@ A primitive shape, where ``""`` targets the family's anchor prim directly:
            "": [UsdPhysicsCollisionCfg(collision_enabled=True), NewtonCollisionCfg(contact_margin=0.001)],
        },
    )
+
+Since ``""`` is the common case for shapes and meshes, the same configuration can drop the
+mapping entirely:
+
+.. code-block:: python
+
+   cuboid = sim_utils.CuboidCfg(
+       size=(0.1, 0.1, 0.1),
+       rigid_props=UsdPhysicsRigidBodyCfg(),
+       mass_props=MassCfg(mass=0.5),
+       collision_props=[UsdPhysicsCollisionCfg(collision_enabled=True), NewtonCollisionCfg(contact_margin=0.001)],
+   )
+
+Reach for the mapping when a rule must target something other than the anchor prim — which
+is the usual situation for assets spawned from USD, URDF, or MJCF files, where the spawn
+prim is a container and the schema carriers sit beneath it.
 
 Creating missing APIs
 ---------------------
