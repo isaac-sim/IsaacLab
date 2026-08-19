@@ -267,8 +267,8 @@ for the lift-cube environment:
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |franka-pour|           | |franka-pour-link|           | Pour granular media from a source cup into a receiver with the Franka robot |                                         |
-    |                         |                              | Generate its local reset artifact first (about two minutes); see            |                                         |
-    |                         |                              | :ref:`franka-pour-reset-artifact`.                                          |                                         |
+    |                         |                              | The canonical reset artifact downloads automatically; see                   |                                         |
+    |                         |                              | :ref:`franka-pour-reset-artifact` to regenerate it locally.                 |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |ur10-particle-push|    | |ur10-particle-push-link|    | Push granular media from randomized piles into a bin with the UR10 robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+

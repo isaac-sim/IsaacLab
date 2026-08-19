@@ -58,6 +58,7 @@ MPM_ENTRY = "media"
 FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
 FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "0dc38454f02ea14d9ddd2437995fdc7c4a65634443cacdcc2a04e3de25655e00"
 FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/franka_pour_cups.usda"
+FRANKA_POUR_RESET_DATASET_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/reset_dataset.pt"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
 FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
     {
@@ -549,7 +550,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     mpm_cell_capacity_alignment: int = 512
     mpm_cell_cap_override: int | None = None
 
-    reset_dataset_path: str = "datasets/franka_pour/reset_dataset.pt"
+    reset_dataset_path: str = FRANKA_POUR_RESET_DATASET_ASSET_ID
     reset_dataset_content_sha256: str | None = None
     reset_dataset_top_grasp_count: int | None = None
     reset_dataset_sampling_mode: Literal["adaptive", "uniform"] = "adaptive"

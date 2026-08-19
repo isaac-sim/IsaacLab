@@ -60,7 +60,9 @@ class CartpoleCameraEnvCfg(PresetCfg):
         Values less than two disable stacking.
         """
 
-        # spaces: an image instead of the 4-dim joint-state vector
+        # spaces: single-frame channels + default spatial size. At env init, height/width
+        # are replaced with the tiled camera size and channels are expanded by frame_stack.
+        # Only the channel count must stay in sync with the camera data type (presets set this).
         observation_space = [3, 96, 96]
         state_space = 4
 
