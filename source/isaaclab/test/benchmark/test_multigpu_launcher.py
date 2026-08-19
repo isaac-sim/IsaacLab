@@ -77,13 +77,19 @@ def test_multi_node_rendezvous_options_reach_torchrun():
 
 
 def test_virtual_local_rank_reaches_torchrun_without_a_value():
-    """``--virtual_local_rank`` reaches torchrun as a bare flag and never reaches the workers."""
-    enabled = _command("training", ["--num_gpus", "2", "--virtual_local_rank", "--task", "X"])
+    """The OVPhysX workaround reaches torchrun as a bare flag and never reaches the workers."""
+    enabled = _command("training", ["--num_gpus", "2", "--task", "X", "presets=ovphysx,ovrtx"])
 
     assert "--virtual_local_rank" in enabled[: enabled.index(multigpu.WORKER_SCRIPT)]
     assert "True" not in enabled  # torchrun rejects the flag if it is given a value
     assert "--virtual_local_rank" not in _worker_argv(enabled)
-    assert "--virtual_local_rank" not in _command("training", ["--num_gpus", "2", "--task", "X"])
+
+
+def test_virtual_local_rank_is_not_a_launcher_option():
+    """The workaround is inferred from the presets, so the launcher honors no opt-in flag."""
+    command = _command("training", ["--num_gpus", "2", "--task", "X", "--virtual_local_rank"])
+
+    assert "--virtual_local_rank" not in command[: command.index(multigpu.WORKER_SCRIPT)]
 
 
 @pytest.mark.parametrize(
@@ -109,15 +115,6 @@ def test_virtual_local_rank_follows_the_ovphysx_preset(preset_argv: list[str], e
     assert ("--virtual_local_rank" in command) is expected
     # The presets are read, not claimed, so the worker still receives them verbatim.
     assert all(token in _worker_argv(command) for token in preset_argv)
-
-
-def test_no_virtual_local_rank_overrides_the_preset():
-    """An explicit opt-out wins over the automatic OVPhysX/OVRTX detection."""
-    command = _command(
-        "training", ["--num_gpus", "2", "--no_virtual_local_rank", "--task", "X", "presets=ovphysx,ovrtx"]
-    )
-
-    assert "--virtual_local_rank" not in command
 
 
 def test_dry_run_prints_a_shell_parsable_command(capsys: pytest.CaptureFixture[str]):
