@@ -20,20 +20,6 @@ from contextlib import contextmanager
 from typing import Any
 
 import warp as wp
-from ovrtx import Device
-
-
-def cuda_device_id(device: str) -> int:
-    """CUDA device index parsed from a Warp device string, e.g. ``"cuda:1"`` -> ``1``.
-
-    Args:
-        device: Warp CUDA device string (``"cuda"`` or ``"cuda:<index>"``).
-
-    Returns:
-        The device index, ``0`` when the string carries none.
-    """
-    parts = device.split(":")
-    return int(parts[1]) if len(parts) > 1 else 0
 
 
 @contextmanager
@@ -46,16 +32,26 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     GPU instead of racing it. OVRTX has no discard path (unmap always commits), so a failed fill
     still publishes whatever landed in the buffer.
 
+    ``device`` is resolved once through Warp, so the mapped CUDA device and the sync stream cannot
+    diverge -- a bare ``"cuda"`` maps and syncs Warp's current CUDA device.
+
     Args:
         binding: OVRTX attribute binding (from ``bind_attribute``) whose buffer is written.
-        device: Warp CUDA device string the fill work runs on (e.g. ``"cuda:0"``).
+        device: Warp CUDA device the fill work runs on (e.g. ``"cuda:0"``).
         dtype: Warp dtype the mapped tensor is viewed as (e.g. ``wp.mat44d``).
 
     Yields:
         The mapped buffer as a zero-copy Warp array, valid only inside the ``with`` block.
     """
-    attr_mapping = binding.map(device=Device.CUDA, device_id=cuda_device_id(device))
+    # Deferred so importing this module (e.g. through the package's lazy exports) cannot initialize
+    # ovrtx without the guarded environment ``ovrtx_renderer`` establishes (OVRTX_SKIP_USD_CHECK,
+    # actionable install error). Any real ``binding`` was created through that path, so ovrtx is
+    # already imported by the time this runs.
+    from ovrtx import Device  # noqa: PLC0415
+
+    warp_device = wp.get_device(device)
+    attr_mapping = binding.map(device=Device.CUDA, device_id=warp_device.ordinal)
     try:
         yield wp.from_dlpack(attr_mapping.tensor, dtype=dtype)
     finally:
-        attr_mapping.unmap(stream=wp.get_stream(device).cuda_stream)
+        attr_mapping.unmap(stream=warp_device.stream.cuda_stream)
