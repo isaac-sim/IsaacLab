@@ -367,9 +367,9 @@ def _enumerate_agents(task_name: str, agent_library: str) -> tuple[list[str], di
 def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     """Convert :func:`collect_presets` output into ``{target: set[name]}``.
 
-    Routes each ``(name, cfg)`` by ``isinstance(cfg, target.base_classes)``;
-    cfgs matching no typed target fall into ``DOMAIN``. The implicit
-    ``default`` field is filtered -- it's the fallback, not a selectable name.
+    Routes each ``(name, cfg)`` through :meth:`PresetTarget.matches`; cfgs
+    matching no typed target fall into ``DOMAIN``. The implicit ``default``
+    field is filtered -- it's the fallback, not a selectable name.
 
     Routing by class hierarchy means new backends subclassing
     :class:`~isaaclab.physics.PhysicsCfg` /
@@ -383,7 +383,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
             if name == "default":
                 continue
             matched = next(
-                (t for t in typed_targets if isinstance(cfg, t.base_classes)),
+                (target for target in typed_targets if target.matches(cfg)),
                 PresetTarget.DOMAIN,
             )
             result[matched].add(name)

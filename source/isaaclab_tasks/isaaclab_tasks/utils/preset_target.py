@@ -12,7 +12,7 @@ needs to know about that category in one place:
   ``physics=NAME``) and ``self.value``.
 * ``base_classes`` -- the cfg base classes whose subclass instances belong to
   this bucket. Help-time bucketing in :mod:`isaaclab_tasks.utils.preset_cli`
-  routes variants by ``isinstance`` against these. Empty for
+  routes variants through :meth:`PresetTarget.matches`. Empty for
   :attr:`PresetTarget.DOMAIN`, which is the catch-all whose membership is
   "no typed target matched".
 * ``legacy_aliases`` -- deprecated-name to canonical-name table for this
@@ -29,6 +29,7 @@ import functools
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.sim import SimulationCfg
 
 
 class PresetTarget(enum.Enum):
@@ -36,18 +37,20 @@ class PresetTarget(enum.Enum):
 
     **Bucketing contract.** Help-time bucketing in
     :mod:`isaaclab_tasks.utils.preset_cli` routes each preset variant to a
-    typed target by checking ``isinstance(cfg_value, target.base_classes)``
-    against every typed target's bases. A variant whose cfg value does *not*
-    subclass any typed target's base falls into :attr:`DOMAIN` and shows up
-    under the ``presets:`` catch-all in ``--help``.
+    typed target through :meth:`matches`. A variant whose cfg value does not
+    match any typed target falls into :attr:`DOMAIN` and shows up under the
+    ``presets:`` catch-all in ``--help``.
 
-    To opt into the typed ``physics`` / ``renderer`` help-text listing,
-    a backend's cfg class must subclass :class:`~isaaclab.physics.PhysicsCfg`
-    or :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` respectively.
-    A variant whose class does *not* subclass either base still **resolves
-    correctly at runtime** -- hydra applies the selected name across every
-    matching ``PresetCfg`` field regardless of class; the typed bucketing only
-    governs which header it appears under in ``--help``.
+    To opt into the typed ``physics`` / ``renderer`` help-text listing, a
+    backend's cfg class must subclass :class:`~isaaclab.physics.PhysicsCfg` or
+    :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` respectively. Physics
+    presets may also wrap a physics config in a complete
+    :class:`~isaaclab.sim.SimulationCfg` when backend selection must change
+    simulation-wide settings such as the time step.
+    A variant that matches neither typed target still **resolves correctly at
+    runtime** -- hydra applies the selected name across every matching
+    ``PresetCfg`` field regardless of class; the typed bucketing only governs
+    which header it appears under in ``--help``.
 
     Adding a new target = appending one enum member.
     """
@@ -117,6 +120,22 @@ class PresetTarget(enum.Enum):
         obj.base_classes = tuple(base_classes)
         obj.legacy_aliases = dict(legacy_aliases) if legacy_aliases else {}
         return obj
+
+    def matches(self, cfg: object) -> bool:
+        """Return whether a preset value belongs to this typed target.
+
+        A physics preset may contain a complete simulation configuration when
+        backend-specific settings extend beyond the physics config itself.
+
+        Args:
+            cfg: Preset alternative to classify.
+
+        Returns:
+            Whether the alternative belongs to this target.
+        """
+        if isinstance(cfg, self.base_classes):
+            return True
+        return self is PresetTarget.PHYSICS and isinstance(cfg, SimulationCfg) and isinstance(cfg.physics, PhysicsCfg)
 
     @classmethod
     @functools.cache
