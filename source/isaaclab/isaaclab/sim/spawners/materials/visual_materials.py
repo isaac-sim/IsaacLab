@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdShade
+from pxr import Sdf, Usd, UsdShade
 
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
@@ -30,9 +30,8 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     both *specular* and *metallic* workflows. All color inputs are in linear color space (RGB).
     For more information, see the `documentation <https://openusd.org/release/spec_usdpreviewsurface.html>`__.
 
-    The function calls the USD command `CreateShaderPrimFromSdrCommand`_ to create the prim.
-
-    .. _CreateShaderPrimFromSdrCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.CreateShaderPrimFromSdrCommand.html
+    The material is authored using the standard OpenUSD :class:`UsdShade` schema and can therefore
+    be consumed by any renderer that supports ``UsdPreviewSurface``.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -50,41 +49,21 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # check if Kit is available (required for shader creation commands)
-    if not has_kit():
-        logger.warning("Skipping preview surface material at '%s' — Kit is not available.", prim_path)
-        return None
-
     # get stage handle
     stage = get_current_stage()
 
     # spawn material if it doesn't exist.
     if not stage.GetPrimAtPath(prim_path).IsValid():
-        # note: we don't use Omniverse's CreatePreviewSurfaceMaterialPrimCommand
-        # since it does not support USD stage as an argument. The created material
-        # in that case is always the one from USD Context which makes it difficult to
-        # handle scene creation on a custom stage.
-        material_prim = UsdShade.Material.Define(stage, prim_path)
-        if material_prim:
-            from omni.usd.commands import CreateShaderPrimFromSdrCommand
-
-            shader_prim = CreateShaderPrimFromSdrCommand(
-                parent_path=prim_path,
-                identifier="UsdPreviewSurface",
-                stage_or_context=stage,
-                prim_name="Shader",
-            ).do()
-            # bind the shader graph to the material
-            if shader_prim:
-                surface_out = shader_prim.GetOutput("surface")
-                if surface_out:
-                    material_prim.CreateSurfaceOutput().ConnectToSource(surface_out)
-
-                displacement_out = shader_prim.GetOutput("displacement")
-                if displacement_out:
-                    material_prim.CreateDisplacementOutput().ConnectToSource(displacement_out)
-        else:
-            raise ValueError(f"Failed to create preview surface shader at path: '{prim_path}'.")
+        material = UsdShade.Material.Define(stage, prim_path)
+        shader = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")
+        shader.CreateIdAttr("UsdPreviewSurface")
+        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f)
+        shader.CreateInput("emissiveColor", Sdf.ValueTypeNames.Color3f)
+        shader.CreateInput("roughness", Sdf.ValueTypeNames.Float)
+        shader.CreateInput("metallic", Sdf.ValueTypeNames.Float)
+        shader.CreateInput("opacity", Sdf.ValueTypeNames.Float)
+        shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+        material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
