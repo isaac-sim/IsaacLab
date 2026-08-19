@@ -36,8 +36,9 @@ from isaaclab.utils.timer import Timer
 if TYPE_CHECKING:
     import newton
 
-    from isaaclab.cloner import ClonePlan
     from pxr import Usd
+
+    from isaaclab.cloner import ClonePlan
 
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""

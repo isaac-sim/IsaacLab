@@ -17,7 +17,6 @@ pytest.importorskip("warp")
 pytest.importorskip("pxr")
 
 import torch
-
 from isaaclab_newton.renderers.segmentation import NewtonSegmentationMapper
 
 from pxr import Usd
