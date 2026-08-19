@@ -909,7 +909,11 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
 
     def _post_step_visualize(self) -> None:
         """Update goal markers outside CUDA graph scope."""
-        self.goal_markers.visualize(wp.to_torch(self.goal_pos_w), wp.to_torch(self.goal_rot))
+        self.goal_markers.visualize(
+            wp.to_torch(self.goal_pos_w),
+            wp.to_torch(self.goal_rot),
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
     def _compute_intermediate_values(self):
         # data for hand/object (Warp version of the Torch env's `_compute_intermediate_values`)
