@@ -37,6 +37,7 @@ Guidelines for modifications:
 * Mayank Mittal
 * Mike Yan Michelis
 * Mikhail Yurasov
+* Mustafa Haiderbhai
 * Nikita Rudin
 * Octi (Zhengyu) Zhang
 * Ossama Ahmed
@@ -148,7 +149,6 @@ Guidelines for modifications:
 * Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
-* Mustafa Haiderbhai
 * Narendra Dahile
 * Neel Anand Jawale
 * Nicola Loi
