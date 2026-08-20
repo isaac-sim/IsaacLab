@@ -45,6 +45,7 @@ from environ_docs import (  # noqa: E402
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_doc_rows,
+    collect_environment_preview_images,
     format_presets_rst,
     format_rl_libraries,
     get_workflow,
@@ -225,6 +226,32 @@ def test_collect_environment_doc_rows_from_mock_specs():
     assert "sb3" in rows[0].rl_libraries
 
 
+def test_collect_environment_doc_rows_includes_registered_agent_preset_compatibility():
+    specs = [
+        EnvSpec(
+            id="Isaac-Camera",
+            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            kwargs={
+                "env_cfg_entry_point": "cfg:CameraEnvCfg",
+                "rsl_rl_cfg_entry_point": "agents:state_cfg",
+                "rsl_rl_feature_cfg_entry_point": "agents:feature_cfg",
+                "agent_preset_compatibility": {
+                    "rsl_rl_cfg_entry_point": ("rgb",),
+                    "rsl_rl_feature_cfg_entry_point": ("resnet18",),
+                    "missing_cfg_entry_point": ("unused",),
+                },
+            },
+        )
+    ]
+
+    rows = collect_environment_doc_rows(specs)
+
+    assert rows[0].agent_preset_compatibility == {
+        "rsl_rl_cfg_entry_point": ("rgb",),
+        "rsl_rl_feature_cfg_entry_point": ("resnet18",),
+    }
+
+
 def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
     specs = [
         EnvSpec(
@@ -340,7 +367,7 @@ def test_patch_curated_environment_tables_synchronizes_concrete_presets():
     assert "``physx``" not in updated
 
 
-def test_environment_browser_rows_include_only_concrete_core_selectors():
+def test_environment_browser_rows_include_concrete_core_and_contributed_selectors():
     rows = [
         EnvironmentDocRow(
             task_name="Isaac-Cartpole",
@@ -351,6 +378,10 @@ def test_environment_browser_rows_include_only_concrete_core_selectors():
                 PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
                 PresetTarget.DOMAIN: ["rgb"],
             },
+            agent_preset_compatibility={
+                "rsl_rl_cfg_entry_point": ("rgb",),
+                "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
+            },
         ),
         EnvironmentDocRow(
             task_name="IsaacContrib-Cartpole",
@@ -359,7 +390,8 @@ def test_environment_browser_rows_include_only_concrete_core_selectors():
             presets={PresetTarget.PHYSICS: ["ovphysx"]},
         ),
     ]
-    rendered = render_environment_browser_task_rows(rows)
+    rows.reverse()
+    rendered = render_environment_browser_task_rows(rows, {"IsaacContrib-Cartpole": "tasks/classic/cartpole.jpg"})
     original = (
         f"        {ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
         "        const taskRows = [];\n"
@@ -374,8 +406,29 @@ def test_environment_browser_rows_include_only_concrete_core_selectors():
     assert '"isaacsim_physx,newton_mjwarp"' in updated
     assert '"isaacsim_rtx,ovrtx"' in updated
     assert '"rgb"' in updated
-    assert "IsaacContrib-Cartpole" not in updated
+    assert '"rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]' in updated
+    assert '"IsaacContrib-Cartpole"' in updated
+    assert '"ovphysx"' in updated
+    assert '"tasks/classic/cartpole.jpg"' in updated
+    assert updated.index('"Isaac-Cartpole"') < updated.index('"IsaacContrib-Cartpole"')
     assert "const preserved = true;" in updated
+
+
+def test_collect_environment_preview_images_reuses_curated_world_for_variants():
+    content = """
+    | |stack-cube| | |stack-cube-link| | Stack cubes |
+
+.. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
+.. |stack-cube-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka <cfg.py>`
+.. |stack-cube-ik-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka-IK-Rel <ik_cfg.py>`
+"""
+
+    preview_images = collect_environment_preview_images(content)
+
+    assert preview_images == {
+        "IsaacContrib-Stack-Cube-Franka": "tasks/manipulation/franka_stack.jpg",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel": "tasks/manipulation/franka_stack.jpg",
+    }
 
 
 def test_patch_environment_browser_rejects_markers_around_non_generated_code():

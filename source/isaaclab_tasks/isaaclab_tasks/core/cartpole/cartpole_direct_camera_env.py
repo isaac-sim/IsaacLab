@@ -16,6 +16,7 @@ from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
+from isaaclab_tasks.utils import PresetCfg
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
@@ -27,11 +28,17 @@ class CartpoleCameraEnv(CartpoleEnv):
     cfg: CartpoleCameraEnvCfg
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        frame_stack = max(1, cfg.frame_stack)
-        cfg.frame_stack = frame_stack
-        if frame_stack > 1:
-            single_channels = int(cfg.observation_space[0])
-            cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]
+        # DirectRLEnv resolves presets after this subclass derives its Gym
+        # observation space. Use the default camera preset only for that
+        # derivation; leave full config resolution to DirectRLEnv.
+        camera_cfg = cfg.tiled_camera.default if isinstance(cfg.tiled_camera, PresetCfg) else cfg.tiled_camera
+        cfg.frame_stack = max(1, cfg.frame_stack)
+        if isinstance(cfg.observation_space, list):
+            cfg.observation_space = [
+                int(cfg.observation_space[0]) * cfg.frame_stack,
+                int(camera_cfg.height),
+                int(camera_cfg.width),
+            ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -42,10 +49,12 @@ class CartpoleCameraEnv(CartpoleEnv):
             )
 
         self._stack: CircularBuffer | None = None
-        if frame_stack > 1:
+        if self.cfg.frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
-            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1)
+            self._stack = CircularBuffer(
+                max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
+            )
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""

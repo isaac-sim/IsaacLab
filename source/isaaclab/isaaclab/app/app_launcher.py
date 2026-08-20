@@ -37,6 +37,7 @@ from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1245,6 +1246,20 @@ class AppLauncher:
                 raise ValueError("Animation recording is not supported in headless mode.")
             sys.argv += ["--enable", "omni.physx.pvd"]
 
+    def _requires_all_partitions_spectator_view(self) -> bool:
+        """Return whether the launch needs an unpartitioned all-environment view."""
+        if getattr(self, "_cli_visualizer_explicit", False):
+            has_kit_visualizer = "kit" in getattr(self, "_cli_visualizer_types", [])
+        else:
+            has_kit_visualizer = bool(getattr(self, "_cfg_has_kit_visualizer", False))
+        return (
+            has_kit_visualizer
+            or bool(getattr(self, "_render_viewport", False))
+            or bool(getattr(self, "_video_enabled", False))
+            or int(getattr(self, "_livestream", 0)) > 0
+            or bool(getattr(self, "_xr", False))
+        )
+
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
         self._kit_args = launcher_args.get("kit_args", "").split()
@@ -1265,6 +1280,14 @@ class AppLauncher:
         setting = argument.partition("=")[0]
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
+
+        # RTX allocates spectator support during startup, so visual output intent
+        # must become a Kit argument before SimulationApp is created.
+        if self._requires_all_partitions_spectator_view():
+            argument = f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
 
         # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
         if launcher_args.get("multi_gpu") is False:

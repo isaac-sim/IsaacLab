@@ -15,6 +15,7 @@ import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
@@ -38,6 +39,7 @@ _RTX_FIELD_TO_SETTING = {
     "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
     "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
     "view_tile_limit": "/rtx/viewTile/limit",
+    "show_all_partitions_by_default": ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING,
     # RT2 path tracing settings
     "max_bounces": "/rtx/rtpt/maxBounces",
     "split_glass": "/rtx/rtpt/splitGlass",

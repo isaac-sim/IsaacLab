@@ -558,7 +558,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         scene_cfg.contact_sensor_a = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/ObjectA",
             update_period=0.0,
-            history_length=1,
+            history_length=0,
             filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
         )
 
@@ -576,9 +576,15 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
             perform_sim_step(sim, scene, SIM_DT)
             if step >= settle_steps - avg_window:
                 matrix_raw = contact_sensor.data.force_matrix_w
+                matrix_history_raw = contact_sensor.data.force_matrix_w_history
                 net_raw = contact_sensor.data.net_forces_w
                 if not matrix_samples:
                     assert matrix_raw is not None, "force_matrix_w should not be None when filter is set"
+                    assert matrix_history_raw is not None, (
+                        "force_matrix_w_history should not be None when filter is set"
+                    )
+                    assert matrix_history_raw.torch.shape == (num_envs, 1, 1, 1, 3)
+                    torch.testing.assert_close(matrix_history_raw.torch[:, 0], matrix_raw.torch)
                 matrix_samples.append(matrix_raw.torch.clone())
                 net_samples.append(net_raw.torch.clone())
 

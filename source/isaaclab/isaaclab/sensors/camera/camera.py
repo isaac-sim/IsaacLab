@@ -213,8 +213,15 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # Renderer and render data — assigned in _initialize_impl.
+        # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
+        # ``sim.reset()``; sensor initialization only runs on ``PhysicsEvent.PHYSICS_READY``, which is
+        # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
         self._renderer: BaseRenderer | None = None
+        if sim_ctx is not None:
+            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+            with force_log_level(logging.INFO):
+                logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Render data — assigned in _initialize_impl.
         self._render_data = None
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
@@ -502,10 +509,9 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function obtains the simulation-scoped :class:`~isaaclab.renderers.base_renderer.BaseRenderer`
-        from :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context` using the configured
-        :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` and delegates all render-product
-        and annotator management to it. It also initializes the internal buffers to store the data.
+        This function delegates all render-product and annotator management to the
+        :class:`~isaaclab.renderers.base_renderer.BaseRenderer` created in :meth:`__init__`. It also
+        initializes the internal buffers to store the data.
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
@@ -518,9 +524,9 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
-        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
-        with force_log_level(logging.INFO):
-            logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
+        if self._renderer is None:
+            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
 
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume
