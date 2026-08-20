@@ -85,6 +85,7 @@ def test_build_isaacsim_runs_incremental_build_for_existing_checkout(tmp_path):
         mock.patch.object(misc, "ISAACLAB_ROOT", workspace),
         mock.patch.object(misc, "run_command") as run_command,
         mock.patch.object(misc, "_set_uv_find_links"),
+        mock.patch.object(misc, "_set_uv_environment"),
         mock.patch.object(misc, "_pin_isaacsim_local_extra"),
         mock.patch.object(misc, "_add_isaacsim_local_conflicts"),
         mock.patch("shutil.which", return_value=None),
@@ -135,6 +136,62 @@ def test_build_isaacsim_creates_and_updates_local_extra(tmp_path):
         "isaacsim": ["isaacsim[all,extscache]==6.0.1.0"],
         "isaacsim-local": ["isaacsim[all,extscache]==6.0.1rc8+develop.1.local"],
     }
+
+
+@pytest.mark.parametrize(
+    ("sys_platform", "machine", "expected"),
+    [
+        ("linux", "x86_64", "sys_platform == 'linux' and platform_machine == 'x86_64'"),
+        ("linux", "aarch64", "sys_platform == 'linux' and platform_machine == 'aarch64'"),
+        ("win32", "AMD64", "sys_platform == 'win32' and platform_machine == 'AMD64'"),
+    ],
+)
+def test_build_isaacsim_limits_uv_resolution_to_current_platform(tmp_path, sys_platform, machine, expected):
+    """The local lock must only resolve for the platform that produced the wheels."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """[tool.uv]
+# Platforms supported by the committed lock.
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
+
+[tool.other]
+environments = ["preserve-me"]
+""",
+        encoding="utf-8",
+    )
+
+    with (
+        mock.patch.object(misc, "ISAACLAB_ROOT", tmp_path),
+        mock.patch.object(misc.sys, "platform", sys_platform),
+        mock.patch.object(misc.platform, "machine", return_value=machine),
+    ):
+        misc._set_uv_environment()
+        misc._set_uv_environment()
+
+    config = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    assert config["tool"]["uv"]["environments"] == [expected]
+    assert config["tool"]["other"]["environments"] == ["preserve-me"]
+    assert pyproject.read_text(encoding="utf-8").count("Local-only, do not commit.") == 1
+
+
+def test_build_isaacsim_rejects_unsupported_uv_platform(tmp_path):
+    """The source-build workflow must reject platforms without supported Isaac Sim wheels."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[tool.uv]\n", encoding="utf-8")
+
+    with (
+        mock.patch.object(misc, "ISAACLAB_ROOT", tmp_path),
+        mock.patch.object(misc.sys, "platform", "darwin"),
+        mock.patch.object(misc.platform, "machine", return_value="arm64"),
+        pytest.raises(SystemExit, match="1"),
+    ):
+        misc._set_uv_environment()
+
+    assert pyproject.read_text(encoding="utf-8") == "[tool.uv]\n"
 
 
 def test_build_isaacsim_adds_local_conflicts_without_duplicates(tmp_path):

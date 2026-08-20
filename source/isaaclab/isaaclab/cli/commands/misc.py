@@ -6,8 +6,10 @@
 """Misc commands"""
 
 import json
+import platform
 import re
 import shutil
+import sys
 import zipfile
 from pathlib import Path
 
@@ -196,6 +198,7 @@ def command_build_isaacsim(source_path: str) -> None:
     # back to the registry. uv only honors a version this specific per conflicting-extra fork when
     # it is written into the requirement itself, so create and pin the extra to the version just built.
     _pin_isaacsim_local_extra(local_version)
+    _set_uv_environment()
     _add_isaacsim_local_conflicts()
 
     # Re-resolve Isaac Sim so the lock file picks the local wheels over the published release.
@@ -355,6 +358,51 @@ def _pin_isaacsim_local_extra(version: str) -> None:
     if updated != text:
         pyproject.write_text(updated, encoding="utf-8")
     print_info(f"Created and pinned the 'isaacsim-local' extra to isaacsim=={version}.")
+
+
+def _set_uv_environment() -> None:
+    """Limit uv's local source-build resolution to the current platform."""
+    machine = platform.machine().lower()
+    normalized_platforms = {
+        ("linux", "amd64"): ("linux", "x86_64"),
+        ("linux", "x86_64"): ("linux", "x86_64"),
+        ("linux", "aarch64"): ("linux", "aarch64"),
+        ("linux", "arm64"): ("linux", "aarch64"),
+        ("win32", "amd64"): ("win32", "AMD64"),
+        ("win32", "x86_64"): ("win32", "AMD64"),
+    }
+    current_platform = normalized_platforms.get((sys.platform, machine))
+    if current_platform is None:
+        print_error(f"Isaac Sim source wheels are not supported on platform '{sys.platform}' with machine '{machine}'.")
+        raise SystemExit(1)
+
+    sys_platform, platform_machine = current_platform
+    marker = f"sys_platform == '{sys_platform}' and platform_machine == '{platform_machine}'"
+    entry = f"environments = [\n    {json.dumps(marker)},\n]"
+    comment = (
+        "# Locally built Isaac Sim wheels are only compatible with this machine's platform.\n"
+        "# Local-only, do not commit."
+    )
+
+    pyproject = ISAACLAB_ROOT / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    header = re.search(r"^\[tool\.uv\]$", text, flags=re.MULTILINE)
+    if header is None:
+        print_error(f"Could not find the '[tool.uv]' table in {pyproject}.")
+        raise SystemExit(1)
+    start = header.end()
+    following = re.search(r"^\[", text[start:], flags=re.MULTILINE)
+    end = start + (following.start() if following is not None else len(text) - start)
+    section = text[start:end]
+
+    environment_match = re.search(r"(?:^#.*\n)*^environments\s*=\s*\[(?:[^\]]|\n)*?\]", section, flags=re.MULTILINE)
+    replacement = f"{comment}\n{entry}"
+    if environment_match is None:
+        section = f"\n{replacement}{section}"
+    else:
+        section = section[: environment_match.start()] + replacement + section[environment_match.end() :]
+    pyproject.write_text(text[:start] + section + text[end:], encoding="utf-8")
+    print_info(f"Limited uv resolution to the local Isaac Sim wheel platform ({marker}).")
 
 
 def _add_isaacsim_local_conflicts() -> None:
