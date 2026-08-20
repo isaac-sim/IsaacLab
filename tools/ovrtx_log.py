@@ -107,7 +107,7 @@ def _slugify(name):
     Names here are test node IDs, whose leading directories repeat across a run while the test name and
     its parameters at the end are what tell two saved logs apart.
     """
-    return _UNSAFE_NAME_CHARS.sub("_", name).strip("_")[-_NAME_LIMIT:]
+    return _UNSAFE_NAME_CHARS.sub("_", name).strip("_")
 
 
 def _unused_dir(directory, stem):
