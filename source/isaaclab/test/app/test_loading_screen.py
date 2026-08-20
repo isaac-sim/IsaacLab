@@ -146,6 +146,13 @@ def test_static_logos_omit_the_tagline():
     assert all("trained" not in logo for logo in loading_screen.LoadingScreen(1)._logos)
 
 
+def test_static_isaac_lab_logos_use_the_original_coloured_artwork():
+    expected_colour = "\x1b[38;2;118;185;0m"
+
+    assert expected_colour in loading_screen.LOGO
+    assert expected_colour in loading_screen.LOGO_WIDE
+
+
 def test_static_nvidia_logo_uses_artwork(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(loading_screen.random, "choice", lambda pairs: pairs[1])
 
