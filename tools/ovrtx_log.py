@@ -20,10 +20,17 @@ the one place that reads it back:
 Both readers are needed: the replay attributes output to the test that produced it and stays out of the job
 log for passing tests, and neither is possible from inside a process that segfaults, aborts, is OOM-killed,
 or is SIGKILLed for hanging.
+
+Both are also bounded, because what they report lands in the job log and in the JUnit XML, and both cover
+the log alone. So when :data:`LOG_DIR_ENV_VAR` names a directory, everything a test left in the renderer's
+own directory -- its log, whole, and any dump beside it -- is additionally saved there for CI to upload as
+an artifact, which is what a diagnosis reads when the quoted tail is not enough.
 """
 
 import contextlib
 import os
+import re
+import shutil
 import tempfile
 
 import pytest
@@ -35,12 +42,27 @@ Mirrors the default of :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_file_p
 loading this module does not import ``isaaclab_ov``.
 """
 
-LOG_LIMIT_BYTES = 64 * 1024
+LOG_LIMIT_BYTES = 1024 * 1024
 """Maximum bytes of renderer log shown at once; earlier bytes are reported as omitted.
 
 The log is verbose, and what is shown lands in the job log and in JUnit XML. An unbounded read would put a
-multi-megabyte log in both -- the oversized-log problem the NUL blocks caused, with real text.
+multi-megabyte log in both -- the oversized-log problem the NUL blocks caused, with real text. This is
+sized to hold a whole rendering test's log rather than its tail, since the tests this exists for log a few
+hundred kilobytes each; the copy saved under :data:`LOG_DIR_ENV_VAR` covers the runs that outgrow it.
 """
+
+LOG_DIR_ENV_VAR = "ISAACLAB_OVRTX_LOG_DIR"
+"""Environment variable naming the directory each test's renderer output is saved under, whole.
+
+Set per pytest invocation by ``tools/conftest.py``, to a directory under ``tests/`` that CI collects as a
+job artifact. Unset by default, which leaves a local run writing nothing beyond the replay.
+"""
+
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+"""Everything a test node ID may hold that a file name should not, e.g. ``/``, ``::``, and ``[param]``."""
+
+_NAME_LIMIT = 160
+"""Characters kept from a slugged node ID, leaving the numbered suffix room inside a 255-byte file name."""
 
 
 def log_size(path):
@@ -83,6 +105,31 @@ def format_log_section(path, label, start=0, limit=LOG_LIMIT_BYTES):
     return f"{header}\n{chunk}"
 
 
+def _slugify(name):
+    """Return ``name`` as a file name, keeping its tail when it is too long.
+
+    Names here are test node IDs, whose leading directories repeat across a run while the test name and
+    its parameters at the end are what tell two saved logs apart.
+    """
+    return _UNSAFE_NAME_CHARS.sub("_", name).strip("_")[-_NAME_LIMIT:]
+
+
+def _unused_dir(directory, stem):
+    """Create and return ``<directory>/<stem>.<n>/``, numbered past any attempt already saved there.
+
+    A retry reruns a test in a fresh process against the directory the first attempt wrote to, so
+    overwriting would drop the attempt that failed in favour of the one that came after it.
+    """
+    attempt = 0
+    candidate = os.path.join(directory, f"{stem}.{attempt}")
+
+    while os.path.exists(candidate):
+        attempt += 1
+        candidate = os.path.join(directory, f"{stem}.{attempt}")
+    os.makedirs(candidate)
+    return candidate
+
+
 def pytest_configure(config):
     """Claim the renderer log for this session, before any test imports the renderer.
 
@@ -97,13 +144,32 @@ def pytest_configure(config):
 
 @pytest.fixture(autouse=True)
 def _echo_ovrtx_log(request):
-    """Replay whatever the renderer appended to its log during the test.
+    """Replay what the renderer logged during the test, and save what it wrote whole when asked.
 
     A no-op for tests that never build one, since nothing is written then. The log is written for the
     lifetime of the process, so only the range this test added is replayed, and pytest shows it with the
-    test that failed rather than in the log of a passing run.
+    test that failed rather than in the log of a passing run. The saved copy is the whole log plus any dump
+    the renderer left beside it, under a directory of this test's own.
+
+    The save runs first so that the artifact holds the log even if the replay cannot print it.
     """
+    # The node ID names both, rather than the node name (``test_alpha[param]``, no test file). The saved
+    # copy is read outside the report that says which file the test came from, so it needs the file, and
+    # naming the replay the same way keeps one test's two records greppable by the same string.
+    label = request.node.nodeid
+
     start = log_size(LOG_PATH)
     yield
-    if section := format_log_section(LOG_PATH, request.node.name, start=start):
+    # The log exists only once the renderer has written to it, while the env var is set for every test in
+    # the run, so a test that never built one has nothing to save.
+    if (directory := os.environ.get(LOG_DIR_ENV_VAR)) and os.path.exists(LOG_PATH):
+        destination = _unused_dir(directory, _slugify(label))
+        # The renderer writes more than its log -- a crash leaves a dump beside it -- so everything in its
+        # directory goes, bar the subdirectories a shared temp directory collects from other processes.
+        for entry in os.scandir(os.path.dirname(LOG_PATH)):
+            with contextlib.suppress(OSError):
+                if entry.is_file():
+                    shutil.copy(entry.path, destination)
+
+    if section := format_log_section(LOG_PATH, label, start=start):
         print(f"\n{section}", end="")

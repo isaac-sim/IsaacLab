@@ -59,6 +59,14 @@ legitimate slow launches.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
+OVRTX_LOG_DIR = "tests/ovrtx-logs"
+"""Where each test's renderer log and dumps are saved whole, relative to the workspace root.
+
+Under ``tests/`` alongside the JUnit reports, because that is what CI collects as a job artifact. The
+reports themselves quote only a bounded tail of the log and nothing else the renderer wrote; this is the
+copy a diagnosis reads when that tail is not enough.
+"""
+
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
@@ -763,7 +771,9 @@ def _run_one_pass(
     # pytest creates the report directory in ``pytest_sessionfinish``, which a crashed run never
     # reaches; without this the journal's first write fails and ``_journal_write`` swallows it.
     os.makedirs(os.path.dirname(journal_file), exist_ok=True)
-    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file}
+    # Absolute for the same reason as the journal: the test process saves its renderer log from inside
+    # a fixture, so a test that changed directory would leave the artifact under the temporary cwd.
+    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file, ovrtx_log.LOG_DIR_ENV_VAR: os.path.abspath(OVRTX_LOG_DIR)}
 
     cmd = [
         sys.executable,
