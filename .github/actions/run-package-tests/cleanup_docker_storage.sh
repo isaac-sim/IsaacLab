@@ -60,8 +60,10 @@ remove_isaacsim_image_pin() {
 
 run_volume_cleanup() {
     # Anonymous volumes left behind by test containers are referenced by nothing
-    # once the container is gone, and no prune path above reclaims them, so they
-    # accumulate for the life of the runner.
+    # once the container is gone, and no image or builder prune reclaims them, so
+    # they accumulate for the life of the runner. A stopped container still counts
+    # as a reference, so this runs after container pruning to also catch the
+    # volumes that prune releases.
     echo "[${CLEANUP_CONTEXT}] Removing Docker volumes no container is using."
     docker volume prune -f || true
 }
@@ -101,6 +103,7 @@ main() {
         pin_isaacsim_image_if_present
         trap remove_isaacsim_image_pin EXIT
         run_conservative_cleanup
+        run_volume_cleanup
         print_docker_storage_usage
         if [ "${FAIL_IF_STILL_HIGH}" = "true" ]; then
             echo "::error::Could not determine Docker storage usage after cleanup. The self-hosted runner needs a measurable Docker storage path before tests can run." >&2
@@ -112,9 +115,6 @@ main() {
     pin_isaacsim_image_if_present
     trap remove_isaacsim_image_pin EXIT
 
-    # Safe on either path: this only removes volumes with no container attached.
-    run_volume_cleanup
-
     if [ "${usage_percent}" -ge "${DOCKER_CLEANUP_THRESHOLD_PERCENT}" ]; then
         echo "[${CLEANUP_CONTEXT}] Docker storage is at ${usage_percent}%, meeting the ${DOCKER_CLEANUP_THRESHOLD_PERCENT}% threshold."
         run_aggressive_cleanup
@@ -122,6 +122,8 @@ main() {
         echo "[${CLEANUP_CONTEXT}] Docker storage is at ${usage_percent}%, below the ${DOCKER_CLEANUP_THRESHOLD_PERCENT}% threshold."
         run_conservative_cleanup
     fi
+
+    run_volume_cleanup
 
     echo "[${CLEANUP_CONTEXT}] Docker storage after cleanup."
     print_docker_storage_usage

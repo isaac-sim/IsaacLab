@@ -152,6 +152,32 @@ def test_cleanup_prunes_unused_volumes_below_threshold(tmp_path: Path):
     assert "volume prune -f" in docker_log
 
 
+def test_cleanup_prunes_unused_volumes_after_stopped_containers_are_removed(tmp_path: Path):
+    result = _run_cleanup(tmp_path, first_usage=91, final_usage=70)
+
+    assert result.returncode == 0, result.stderr
+    docker_calls = (tmp_path / "bin" / "docker.log").read_text(encoding="utf-8").splitlines()
+    assert docker_calls.index("container prune -f --filter until=24h") < docker_calls.index("volume prune -f")
+    volume_prune_position = result.stdout.index("Removing Docker volumes no container is using")
+    final_check_position = result.stdout.index("Docker storage after cleanup")
+    assert volume_prune_position < final_check_position
+
+
+def test_cleanup_prunes_unused_volumes_when_usage_cannot_be_measured(tmp_path: Path):
+    result = _run_cleanup(
+        tmp_path,
+        first_usage=91,
+        final_usage=89,
+        failed_path="/var/lib/docker",
+        docker_root_dir="",
+    )
+
+    assert result.returncode == 1
+    assert "Could not determine Docker storage usage after cleanup" in result.stderr
+    docker_log = (tmp_path / "bin" / "docker.log").read_text(encoding="utf-8")
+    assert "volume prune -f" in docker_log
+
+
 def test_cleanup_fails_early_when_aggressive_pruning_cannot_recover_space(tmp_path: Path):
     result = _run_cleanup(tmp_path, first_usage=91, final_usage=89)
 
