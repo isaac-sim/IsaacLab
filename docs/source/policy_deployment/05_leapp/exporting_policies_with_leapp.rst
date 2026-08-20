@@ -25,16 +25,19 @@ deployment libraries. Isaac Lab can already consume these exports through
 Prerequisites
 -------------
 
-This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6. Install
-the root ``leapp`` optional extra into the same Python environment used by Isaac Lab
-(``--inexact`` keeps existing packages untouched):
+This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6.
+``leapp`` is a specialized optional extra (it is not part of ``--extra all``).
 
-.. code-block:: bash
+Select extras the same way as ``isaaclab train``: add ``--extra leapp`` on every
+``uv run``, and add the backend extra that matches your task. ``--extra`` makes the
+integration available; ``physics=...`` selects it for the task:
 
-   uv sync --inexact --extra leapp
+- **Newton** (kitless): ``--extra leapp`` (no Isaac Sim extra)
+- **OV PhysX**: ``--extra ovphysx,leapp`` with ``physics=ovphysx``
+- **Isaac Sim PhysX**: ``--extra isaacsim,leapp`` with ``physics=isaacsim_physx``
 
-Ensure you have a trained checkpoint for the selected RL library before proceeding. The standard
-Isaac Lab training workflow stores checkpoints under ``logs/<rl_library>/``.
+See :ref:`uv-run-training` and :ref:`installation-optional-extras` for the full
+extras model used by training and play.
 
 
 Why Export with LEAPP
@@ -62,9 +65,20 @@ For a detailed description of LEAPP's generated artifacts and APIs, refer to the
 Exporting a Policy
 ------------------
 
+.. note::
+
+   Export requires a trained checkpoint. Normally you train a policy first — follow
+   :ref:`uv-run-training` and
+   :doc:`/source/overview/reinforcement-learning/rl_existing_scripts` — and the export
+   script then discovers the newest matching local run automatically. To get started
+   without training, RSL-RL can pass ``--checkpoint pretrained`` to download a published
+   policy for a supported core task and backend combination (availability is limited;
+   see :ref:`pretrained-checkpoints`).
+
 Use the export script for the RL library that produced the checkpoint. The available script
 directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``. Export runs headless by default.
-Set the EULA variables in non-interactive shells so Isaac Sim can start without prompting:
+Use the same backend extra and ``physics=...`` selector that you used for training. For Isaac Sim
+Kit launches in non-interactive shells, set the EULA variables so startup does not prompt:
 
 .. tab-set::
    :sync-group: os
@@ -78,17 +92,39 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
 
             .. code-block:: bash
 
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+               # Newton backend (kitless)
+               uv run --extra leapp python \
                    scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-                   --task <TASK_NAME>
+                   --task <TASK_NAME> physics=newton_mjwarp
+
+               # OV PhysX backend
+               uv run --extra ovphysx,leapp python \
+                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+                   --task <TASK_NAME> physics=ovphysx
+
+               # Isaac Sim PhysX backend
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
+                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+                   --task <TASK_NAME> physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code-block:: bash
 
+               # Newton backend (kitless)
+               ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+                   --task <TASK_NAME> physics=newton_mjwarp
+
+               # OV PhysX backend
+               ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+                   --task <TASK_NAME> physics=ovphysx
+
+               # Isaac Sim PhysX backend
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
                    scripts/reinforcement_learning/leapp/<rl_library>/export.py \
-                   --task <TASK_NAME>
+                   --task <TASK_NAME> physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -99,26 +135,44 @@ Set the EULA variables in non-interactive shells so Isaac Sim can start without 
 
             .. code-block:: batch
 
+               :: Newton backend (kitless)
+               uv run --extra leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> physics=newton_mjwarp
+
+               :: OV PhysX backend
+               uv run --extra ovphysx,leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> physics=ovphysx
+
+               :: Isaac Sim PhysX backend
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               uv run --extra leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
-                   --task <TASK_NAME>
+               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code-block:: batch
 
+               :: Newton backend (kitless)
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> physics=newton_mjwarp
+
+               :: OV PhysX backend
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+                   --task <TASK_NAME> physics=ovphysx
+
+               :: Isaac Sim PhysX backend
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
-                   --task <TASK_NAME>
+                   --task <TASK_NAME> physics=isaacsim_physx
 
 When ``--checkpoint`` is omitted, the exporter uses the selected task's agent configuration to
 find the default checkpoint in the newest matching local run. This avoids hardcoding the
 experiment directory or training iteration in the command. Pass ``--checkpoint <PATH_TO_CHECKPOINT>``
 to export a specific model instead.
 
-For example, to export a Humanoid policy trained with RSL-RL:
+For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
 
 .. tab-set::
    :sync-group: os
@@ -132,9 +186,9 @@ For example, to export a Humanoid policy trained with RSL-RL:
 
             .. code-block:: bash
 
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
                    scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Humanoid
+                   --task Isaac-Humanoid physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -142,7 +196,7 @@ For example, to export a Humanoid policy trained with RSL-RL:
 
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
                    scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task Isaac-Humanoid
+                   --task Isaac-Humanoid physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -155,8 +209,8 @@ For example, to export a Humanoid policy trained with RSL-RL:
 
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               uv run --extra leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task Isaac-Humanoid
+               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task Isaac-Humanoid physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -165,7 +219,7 @@ For example, to export a Humanoid policy trained with RSL-RL:
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task Isaac-Humanoid
+                   --task Isaac-Humanoid physics=isaacsim_physx
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.
@@ -344,9 +398,11 @@ LEAPP-exported policies and is useful for validating that the packaged policy st
 correctly when driven through the deployment stack instead of the training stack.
 
 Run the deployment script with the task name and the exported LEAPP ``.yaml`` file.
+Use the same backend extra pattern as training and export.
 
 By default, Isaac Lab launches headless when no visualization option is selected. If you expect
-to see the policy running in a viewport, pass a visualization option such as ``--viz kit``:
+to see the policy running in a viewport, pass a visualization option such as ``--viz newton``
+or ``--viz kit``:
 
 .. tab-set::
    :sync-group: os
@@ -360,21 +416,51 @@ to see the policy running in a viewport, pass a visualization option such as ``-
 
             .. code-block:: bash
 
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra leapp python \
+               # Newton backend (kitless)
+               uv run --extra leapp python \
                    scripts/reinforcement_learning/leapp/deploy.py \
                    --task <TASK_NAME> \
                    --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit
+                   --viz newton physics=newton_mjwarp
+
+               # OV PhysX backend
+               uv run --extra ovphysx,leapp python \
+                   scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit physics=ovphysx
+
+               # Isaac Sim PhysX backend
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
+                   scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code-block:: bash
 
+               # Newton backend (kitless)
+               ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz newton physics=newton_mjwarp
+
+               # OV PhysX backend
+               ./isaaclab.sh -p \
+                   scripts/reinforcement_learning/leapp/deploy.py \
+                   --task <TASK_NAME> \
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+                   --viz kit physics=ovphysx
+
+               # Isaac Sim PhysX backend
                OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
                    scripts/reinforcement_learning/leapp/deploy.py \
                    --task <TASK_NAME> \
                    --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit
+                   --viz kit physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -385,23 +471,49 @@ to see the policy running in a viewport, pass a visualization option such as ``-
 
             .. code-block:: batch
 
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
+               :: Newton backend (kitless)
                uv run --extra leapp python scripts\reinforcement_learning\leapp\deploy.py ^
                    --task <TASK_NAME> ^
                    --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz kit
+                   --viz newton physics=newton_mjwarp
+
+               :: OV PhysX backend
+               uv run --extra ovphysx,leapp python scripts\reinforcement_learning\leapp\deploy.py ^
+                   --task <TASK_NAME> ^
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+                   --viz kit physics=ovphysx
+
+               :: Isaac Sim PhysX backend
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\deploy.py ^
+                   --task <TASK_NAME> ^
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+                   --viz kit physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code-block:: batch
 
+               :: Newton backend (kitless)
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
+                   --task <TASK_NAME> ^
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+                   --viz newton physics=newton_mjwarp
+
+               :: OV PhysX backend
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
+                   --task <TASK_NAME> ^
+                   --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+                   --viz kit physics=ovphysx
+
+               :: Isaac Sim PhysX backend
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
                isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
                    --task <TASK_NAME> ^
                    --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz kit
+                   --viz kit physics=isaacsim_physx
 
 For Direct workflow policies, see the
 :doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.

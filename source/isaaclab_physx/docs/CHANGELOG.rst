@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+5.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``IsaacRtxRendererCfg.enable_scene_partitioning`` and
+  ``IsaacRtxRendererGlobalSettingsCfg.show_all_partitions_by_default`` settings.
+  The latter optionally overrides AppLauncher's visualization-scoped spectator
+  setting and requires spatially separated environments when enabled.
+* Added CUDA graph replay for graphable Newton actuators running on the PhysX
+  backend.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage` to
+  author per-environment scene-partition attributes according to
+  ``IsaacRtxRendererCfg.enable_scene_partitioning``, which defaults to enabled.
+  Set ``IsaacRtxRendererCfg(enable_scene_partitioning=False)`` to preserve the
+  previous unpartitioned behavior.
+* Routed PhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+* Prevented stateful Newton actuators from running inside caller-owned CUDA
+  graph captures; let the PhysX adapter manage their alternating graphs.
+
+Fixed
+^^^^^
+
+* Fixed importing the rigid-object-collection kernels when runtime type annotations include both
+  Warp arrays and PyTorch tensors.
+
+
 5.0.1 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

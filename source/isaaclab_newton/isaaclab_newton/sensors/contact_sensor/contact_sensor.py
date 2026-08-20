@@ -153,12 +153,13 @@ class ContactSensor(BaseContactSensor):
             reset_contact_sensor_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                self.cfg.history_length,
+                self._history_length,
                 num_filter_objects,
                 env_mask,
                 self._data._net_forces_w,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
                 self._data._contact_pos_w,
             ],
             outputs=[
@@ -362,6 +363,8 @@ class ContactSensor(BaseContactSensor):
         force_matrix_shape = force_matrix.shape if force_matrix is not None else (total_sensor_count, 0)
         # Number of filter objects.
         self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
+        # Store effective history length (always >= 1 for consistent buffer shapes across backends).
+        self._history_length = max(self.cfg.history_length, 1)
         if self._num_filter_objects > 0 and force_matrix is None:
             raise RuntimeError("Filter counterparts present but Newton force_matrix is None.")
 
@@ -453,13 +456,16 @@ class ContactSensor(BaseContactSensor):
             update_contact_sensor_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                self.cfg.history_length,
+                self._history_length,
+                self._num_filter_objects,
                 self.cfg.force_threshold,
                 env_mask,
                 self._data._net_forces_w,
+                self._data._force_matrix_w,
                 self._timestamp,
                 self._timestamp_last_update,
                 self._data._net_forces_w_history,
+                self._data._force_matrix_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
                 self._data._last_air_time,

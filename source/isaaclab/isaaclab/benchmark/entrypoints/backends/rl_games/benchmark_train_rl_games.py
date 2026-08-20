@@ -16,6 +16,7 @@ import sys
 import time
 
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
+from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
 from isaaclab_rl.entrypoints import common as _common
 
@@ -372,7 +373,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
             )
 
-            checkpoint_path = None
+            checkpoint_path = _resolve_training_checkpoint_path(run_log_dir, "rl_games")
             video_path = os.path.join(run_log_dir, "videos") if getattr(args_cli, "video", False) else None
 
             bundle = builders.build_training_bundle(
