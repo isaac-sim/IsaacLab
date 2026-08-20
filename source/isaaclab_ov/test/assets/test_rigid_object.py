@@ -716,7 +716,7 @@ def test_rigid_body_no_friction(num_cubes, device):
         # Set the cubes' friction (and restitution) to zero. This test isolates friction, so a zero
         # restitution keeps the resting contact clean instead of letting the cube bounce vertically.
         num_shapes = _num_shapes(cube_object)
-        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
         _write_shape_material(cube_object, cube_materials)
 
         # Let the cube settle onto the plane so the initial ground-penetration transient (a small
@@ -765,7 +765,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
 
         # Set the cubes' static (and, per the PhysX bug, dynamic) friction to mu, restitution zero.
         num_shapes = _num_shapes(cube_object)
-        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
         cube_materials[..., 0] = mu
         cube_materials[..., 1] = mu
         _write_shape_material(cube_object, cube_materials)
@@ -842,7 +842,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
 
             # Frictionless cubes with the matching restitution.
             num_shapes = _num_shapes(cube_object)
-            cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+            cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
             cube_materials[..., 2] = restitution_coefficient
             _write_shape_material(cube_object, cube_materials)
 
