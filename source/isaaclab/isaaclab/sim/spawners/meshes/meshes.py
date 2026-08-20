@@ -481,9 +481,9 @@ def _spawn_mesh_geom_from_mesh(
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
         collision_props_mapping = fragment_mapping(cfg.collision_props)
         if collision_props_mapping is not None:
-            frags = [frag for fragments in cfg.collision_props.values() for frag in fragments]
+            frags = [frag for fragments in collision_props_mapping.values() for frag in fragments]
         else:
-            frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+            frags = [cfg.collision_props]
         if not frags or not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
