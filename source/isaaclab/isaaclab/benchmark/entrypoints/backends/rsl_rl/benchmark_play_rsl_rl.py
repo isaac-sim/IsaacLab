@@ -152,7 +152,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             else:
                 resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
 
-            cfg = capture.run_config_from_presets(remaining)
+            cfg = capture.run_config_from_presets(remaining, env_cfg=env_cfg)
             formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
