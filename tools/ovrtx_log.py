@@ -61,10 +61,6 @@ job artifact. Unset by default, which leaves a local run writing nothing beyond 
 _UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
 """Everything a test node ID may hold that a file name should not, e.g. ``/``, ``::``, and ``[param]``."""
 
-_NAME_LIMIT = 160
-"""Characters kept from a slugged node ID, leaving the numbered suffix room inside a 255-byte file name."""
-
-
 def log_size(path):
     """Return the size of ``path`` in bytes, or 0 when it does not exist yet."""
     try:
