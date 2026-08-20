@@ -414,7 +414,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
             # MujocoRigidBodyCfg fragment in the rigid_props mapping. Treat either as "already set".
             rigid_props_mapping = fragment_mapping(cfg.rigid_props)
             if rigid_props_mapping is not None:
-                rigid_props_list = [fragment for fragments in cfg.rigid_props.values() for fragment in fragments]
+                rigid_props_list = [fragment for fragments in rigid_props_mapping.values() for fragment in fragments]
             else:
                 rigid_props_list = [cfg.rigid_props]
             body_gravcomp_unset = not any(
