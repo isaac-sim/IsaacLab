@@ -291,11 +291,18 @@ def export_sb3_agent(
     try:
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
+            if args_cli.export_method is not None:
+                raise ValueError(
+                    "--export_method is only supported for manager-based environments. For direct environments, "
+                    "set export_with directly in the annotate.output_tensors() call instead."
+                )
             raise NotImplementedError("SB3 LEAPP export currently supports manager-based environments only.")
+
+        export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
 
         policy_node_name = ensure_env_spec_id(env)
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
-        patch_env_for_export(env, export_method=args_cli.export_method, required_obs_groups={"policy"})
+        patch_env_for_export(env, export_method=export_method, required_obs_groups={"policy"})
 
         print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
         agent = _load_agent(checkpoint_path, device=env.unwrapped.device)

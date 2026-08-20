@@ -46,9 +46,9 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
     parser.add_argument(
         "--export_method",
         type=str,
-        default="onnx-dynamo",
-        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-        help="Method to export the policy",
+        default=None,
+        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace", "pt2"],
+        help="Method to export the policy. Defaults to onnx-dynamo.",
     )
     parser.add_argument(
         "--export_save_path",

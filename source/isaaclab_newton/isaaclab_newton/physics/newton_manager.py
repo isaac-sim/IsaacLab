@@ -767,7 +767,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_particles_to_usd(cls) -> None:
-        """Write Newton particle positions to USD/Fabric for Kit viewport rendering.
+        """Write Newton particle positions to USD/Fabric for USD-stage rendering.
 
         Two prim families are synced from ``state_0.particle_q``:
 

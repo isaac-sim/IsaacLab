@@ -276,12 +276,18 @@ class VisualizationMarkers:
             self._ensure_kit_backend()
             return
 
-        # Markers need the Kit (USD) backend to appear in any rendered frame: continuous rendering
-        # (``is_rendering``), headless offscreen video capture (``has_offscreen_render``), or a
-        # Kit-pumping visualizer. Offscreen is excluded from ``is_rendering`` (see
-        # :attr:`~isaaclab.sim.SimulationContext.is_rendering`), so it is checked explicitly here.
+        # Markers need the Kit (USD) backend to appear in any rendered frame: a native GUI window,
+        # RTX sensor rendering, XR, headless offscreen video capture (``has_offscreen_render``), or
+        # a Kit-pumping visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
+        # which is also true for non-Kit visualizers (e.g. ``newton_gl``) that never pump Kit's
+        # ``app.update()``. Standing up the Kit backend for such a visualizer leaves its raw USD
+        # marker writes undigested by Fabric, which desyncs the point-instancer prototype table
+        # (``FabricManager::initializePointInstancer mismatched prototypes``) and can crash the next
+        # PhysX GPU step.
         needs_kit_backend = (
-            sim.is_rendering
+            sim.has_gui
+            or bool(sim.get_setting("/isaaclab/render/rtx_sensors"))
+            or bool(sim.get_setting("/isaaclab/xr/enabled"))
             or getattr(sim, "has_offscreen_render", False)
             or any(
                 viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers

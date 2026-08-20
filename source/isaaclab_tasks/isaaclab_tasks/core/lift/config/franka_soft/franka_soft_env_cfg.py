@@ -16,6 +16,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
@@ -50,7 +51,7 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
 )
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import mdp
@@ -135,6 +136,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
     isaacsim_physx = physx
+    ovphysx = physx
 
     default = newton_mjwarp_vbd_proxy
 
@@ -185,8 +187,9 @@ class PhysicsCfg(PresetCfg):
     )
 
     isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -609,9 +612,10 @@ class FrankaSoftSceneCfg(PresetCfg):
         num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
-    # PhysX does not support replicating physics for deformable objects
+    # Isaac Sim PhysX does not support replicating physics for deformable objects
     physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
+    ovphysx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -625,6 +629,9 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
     )
     physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
+    ovphysx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(
+        num_envs=128, env_spacing=2.0, replicate_physics=True
+    )
     default = newton_mjwarp_vbd_proxy
 
 
@@ -659,6 +666,25 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
+
+        # OVPhysX does not expose a runtime gravity setter.
+        default_events = self.events
+        self.events = preset(
+            default=default_events,
+            physx=default_events,
+            isaacsim_physx=default_events,
+            newton_mjwarp_vbd_proxy=default_events,
+            ovphysx=default_events.replace(variable_gravity=None),
+        )
+        if self.curriculum is not None:
+            default_curriculum = self.curriculum
+            self.curriculum = preset(
+                default=default_curriculum,
+                physx=default_curriculum,
+                isaacsim_physx=default_curriculum,
+                newton_mjwarp_vbd_proxy=default_curriculum,
+                ovphysx=default_curriculum.replace(gravity=None),
+            )
 
         self.viewer.eye = (0.75, 0.25, 0.65)
         self.viewer.lookat = (0.0, 0.75, 0.4)
