@@ -25,19 +25,11 @@ def _render(display: RenderableType, width: int) -> str:
 
 
 @pytest.mark.parametrize(
-    ("terminal_width", "display_width", "logo"),
-    [
-        (4, 4, None),
-        (5, 5, None),
-        (79, 79, None),
-        (80, 80, ".-------."),
-        (119, 80, ".-------."),
-        (120, 120, "██╗"),
-        (140, 120, "██╗"),
-    ],
+    ("terminal_width", "display_width"),
+    [(4, 4), (5, 5), (79, 79), (80, 80), (129, 80), (130, 130), (150, 130)],
 )
-def test_display_reflows_at_responsive_boundaries(terminal_width: int, display_width: int, logo: str | None):
-    screen = loading_screen.LoadingScreen(2, enabled=True)
+def test_display_reflows_at_responsive_boundaries(terminal_width: int, display_width: int):
+    screen = loading_screen.LoadingScreen(2, enabled=True, logo=False)
     screen.summary("Run", {"Task": "Cartpole", "Description": "A long description that wraps cleanly."})
     screen.stage("Loading task")
 
@@ -46,15 +38,9 @@ def test_display_reflows_at_responsive_boundaries(terminal_width: int, display_w
 
     assert max(map(cell_len, lines)) <= display_width
     assert cell_len(lines[-1]) == display_width
-    assert ("Welcome to Isaac Lab!" in output) is (logo is not None)
-    assert (".-------." in output) is (logo == ".-------.")
-    assert ("██╗" in output) is (logo == "██╗")
     if terminal_width >= 79:
         assert "Loading task" in lines[-1]
         assert "cleanly." in output
-    if logo is not None:
-        header = next(line for line in lines if line.startswith("╭"))
-        assert header.index("╭") < header.index("Welcome")
 
 
 def test_live_updates_refresh_after_releasing_state_lock():
@@ -154,3 +140,7 @@ def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirecti
     assert screen._console is original_stdout
     assert loading_screen.sys.stdout is original_stdout
     assert loading_screen.sys.stderr is original_stderr
+
+
+def test_static_logos_omit_the_tagline():
+    assert all("trained" not in logo for logo in loading_screen.LoadingScreen(1)._logos)

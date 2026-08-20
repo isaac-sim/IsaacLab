@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import random
 import shutil
 import sys
 import tempfile
@@ -27,7 +28,7 @@ _ACTIVITY_WIDTH = 24
 _REFRESH_PER_SECOND = 10
 _SUMMARY_WIDTH = 50
 _STANDARD_WIDTH = 80
-_WIDE_WIDTH = 120
+_WIDE_WIDTH = 130
 _COLUMN_GAP = 6
 # Reported steps per stage that fill the stage's slice of the bar, and the share
 # of that slice they may fill. Sub-steps are not known in advance, so a stage
@@ -39,7 +40,7 @@ _BOX = ("╭", "╮", "╰", "╯", "─", "│")
 _ASCII_BOX = ("+", "+", "+", "+", "-", "|")
 _WRAP_CONSOLE = Console(color_system=None, force_terminal=False, width=120)
 
-LOGO = r"""Welcome to Isaac Lab!
+LOGO = r"""Welcome to Isaac Lab 3!
 
        \   /
      .-------.
@@ -48,15 +49,24 @@ LOGO = r"""Welcome to Isaac Lab!
      '-------'"""
 """Greeting drawn beside the run summary. Kept short enough to fit alongside it."""
 
-LOGO_WIDE = r"""Welcome to Isaac Lab!
+LOGO_WIDE = r"""Welcome to Isaac Lab 3!
 
-██╗███████╗ █████╗  █████╗  ██████╗   ██╗      █████╗ ██████╗
-██║██╔════╝██╔══██╗██╔══██╗██╔════╝   ██║     ██╔══██╗██╔══██╗
-██║███████╗███████║███████║██║        ██║     ███████║██████╔╝
-██║╚════██║██╔══██║██╔══██║██║        ██║     ██╔══██║██╔══██╗
-██║███████║██║  ██║██║  ██║╚██████╗   ███████╗██║  ██║██████╔╝
-╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚══════╝╚═╝  ╚═╝╚═════╝"""
-"""Wide greeting used when a 120-column display is available."""
+██╗███████╗ █████╗  █████╗  ██████╗   ██╗      █████╗ ██████╗   ██████╗
+██║██╔════╝██╔══██╗██╔══██╗██╔════╝   ██║     ██╔══██╗██╔══██╗  ╚════██╗
+██║███████╗███████║███████║██║        ██║     ███████║██████╔╝   █████╔╝
+██║╚════██║██╔══██║██╔══██║██║        ██║     ██╔══██║██╔══██╗   ╚═══██╗
+██║███████║██║  ██║██║  ██║╚██████╗   ███████╗██║  ██║██████╔╝  ██████╔╝
+╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚══════╝╚═╝  ╚═════╝   ╚═════╝"""
+"""Wide greeting used when a 130-column display is available."""
+
+LOGO_NVIDIA = "NVIDIA\nIsaac Lab 3"
+"""NVIDIA greeting used on standard-width displays."""
+
+LOGO_NVIDIA_WIDE = "NVIDIA  ·  ISAAC LAB 3"
+"""NVIDIA greeting used when a 130-column display is available."""
+
+_LOGO_PAIRS = ((LOGO, LOGO_WIDE), (LOGO_NVIDIA, LOGO_NVIDIA_WIDE))
+"""Static logo pairs, ordered standard width then wide."""
 
 _active_screen: LoadingScreen | None = None
 
@@ -274,7 +284,7 @@ class LoadingScreen:
                 the run summary. Defaults to True.
         """
         self._num_stages = num_stages
-        self._logos = (LOGO, LOGO_WIDE) if logo else ()
+        self._logos = random.choice(_LOGO_PAIRS) if logo else ()
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout
         self._ascii_only = not _supports_box_drawing(self._console)
