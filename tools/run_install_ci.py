@@ -290,6 +290,26 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         return rc
     print(f"Docker image built: {image_tag}")
 
+    if args.gpu:
+        # Validate the runner/container boundary before spending tens of minutes
+        # creating fresh package environments. The NVIDIA runtime injects
+        # nvidia-smi when the image requests the ``utility`` driver capability.
+        preflight_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--gpus",
+            "all",
+            "--entrypoint",
+            "nvidia-smi",
+            image_tag,
+            "-L",
+        ]
+        preflight = run_cmd(preflight_cmd, check=False, stream=True)
+        if preflight.returncode != 0:
+            print(f"Docker GPU preflight failed (exit {preflight.returncode})", file=sys.stderr)
+            return preflight.returncode
+
     host_results_xml: Path | None = None
     container_name: str | None = None
     container_results_xml = "/tmp/isaaclab-installci-results.xml"
