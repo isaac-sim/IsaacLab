@@ -53,9 +53,7 @@ def test_spawn_and_bind_mdl_material_without_kit(monkeypatch):
     shader = UsdShade.Shader(prim)
     material = UsdShade.Material(stage.GetPrimAtPath("/Looks/MdlMaterial"))
     source_asset = shader.GetSourceAsset("mdl")
-    assert source_asset.path == (
-        f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl"
-    )
+    assert source_asset.path == (f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl")
     assert shader.GetSourceAssetSubIdentifier("mdl") == "Aluminum_Anodized"
     assert shader.GetOutput("out").GetRenderType() == "material"
     assert material.GetSurfaceOutput("mdl").HasConnectedSource()
