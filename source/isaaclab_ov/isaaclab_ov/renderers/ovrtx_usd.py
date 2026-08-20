@@ -15,15 +15,12 @@ from pxr import Sdf, Usd, UsdGeom
 logger = logging.getLogger(__name__)
 
 
-# Render var authored for each supported camera data type, as
-# ``(render_var_path, render_var_name, source_name)``. OVRTX keys the render vars of a frame by
-# ``source_name``, so data types reading the same source (``rgb``/``rgba``, ``depth``/
-# ``distance_to_image_plane``) collapse onto a single authored render var.
+# Maps camera data types to render-var configs. OVRTX frame vars are keyed by source name,
+# so shared sources use one config.
 _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
     "rgb": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
     "rgba": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
-    # Simple shading is not a distinct source: it is ``LdrColor`` rendered while the render product
-    # is in RTX Minimal mode, which is why it cannot share a product with ``rgb``/``rgba``.
+    # Simple shading uses LdrColor in per-product RTX Minimal mode.
     "simple_shading_constant_diffuse": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
     "simple_shading_diffuse_mdl": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
     "simple_shading_full_mdl": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
@@ -31,8 +28,7 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
     "albedo": ("/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"),
     "depth": ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
     "distance_to_image_plane": ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
-    # Distance to camera reads a different source than image-plane depth, so it gets its own prim
-    # instead of reusing ``/Render/Vars/depth``; both can then be authored on one render product.
+    # This source requires a distinct render-var prim.
     "distance_to_camera": ("/Render/Vars/DistanceToCameraSD", "DistanceToCameraSD", "DistanceToCameraSD"),
     "normals": ("/Render/Vars/NormalSD", "NormalSD", "NormalSD"),
     "motion_vectors": ("/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"),
@@ -66,11 +62,12 @@ def _validate_data_type_combination(data_types: list[str]) -> None:
 
     Raises:
         ValueError: If color and simple-shading data types are combined, or if more than one
-            simple-shading data type is requested. Both cases silently retarget the shared
-            ``LdrColor`` render var, leaving the other outputs empty or wrongly shaded.
+            simple-shading data type is requested.
     """
-    simple_shading = [data_type for data_type in data_types if data_type in _SIMPLE_SHADING_DATA_TYPES]
-    color = [data_type for data_type in data_types if data_type in _COLOR_DATA_TYPES]
+    simple_shading = list(
+        dict.fromkeys(data_type for data_type in data_types if data_type in _SIMPLE_SHADING_DATA_TYPES)
+    )
+    color = list(dict.fromkeys(data_type for data_type in data_types if data_type in _COLOR_DATA_TYPES))
 
     if simple_shading and color:
         raise ValueError(
@@ -86,48 +83,31 @@ def _validate_data_type_combination(data_types: list[str]) -> None:
 
 
 def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
-    """Return the primary ``(render_var_path, render_var_name, source_name)`` for ``data_types``.
-
-    The primary render var is the one authored for the first supported entry of ``data_types``. It
-    seeds the single-render-var arguments of :func:`build_render_scope_usd`; use
-    :func:`get_render_var_configs` to author every requested output.
+    """Return the first supported render-var configuration for ``data_types``.
 
     Args:
         data_types: Requested camera data types.
 
     Returns:
-        The primary render var config. Defaults to ``LdrColor`` when no entry is supported.
+        The render-var config, defaulting to ``LdrColor`` when no entry is supported.
     """
     return get_render_var_configs(data_types)[0]
 
 
 def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
-    """Return the render var configs needed to serve every requested data type.
+    """Return render-var configs for the requested camera data types.
 
-    Each config is a ``(render_var_path, render_var_name, source_name)`` tuple. One render var is
-    authored per requested data type, in request order, de-duplicated by config so data types that
-    read the same source (``rgb``/``rgba``, ``depth``/``distance_to_image_plane``) share one entry.
-    Data types OVRTX does not support (e.g. ``instance_id_segmentation_fast``) are logged and
-    skipped; when that leaves nothing, ``LdrColor`` is authored so the render product stays valid.
-
-    The following ID-map render vars are appended when applicable. They carry the metadata that the
-    segmentation AOVs are decoded against rather than pixels of their own:
-
-    * ``SemanticIdMap`` — when ``"semantic_segmentation"`` is requested, so the
-      semantic-ID-to-label mapping can be decoded for ``camera.data.info``.
-    * ``StableIdSemanticIdMap``, ``StableIdMap``, ``SemanticIdMap`` — when
-      ``"instance_segmentation"`` is requested, so the instance-ID-to-prim-path
-      (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be decoded.
+    Shared sources are de-duplicated. Unsupported data types are logged and skipped; if no
+    supported type remains, ``LdrColor`` is used. Segmentation requests also add their ID-map vars.
 
     Args:
         data_types: Requested camera data types.
 
     Returns:
-        The render var configs to author on the render product.
+        Render-var configs to author on the render product.
 
     Raises:
-        ValueError: If ``data_types`` combines outputs one render product cannot serve. See
-            :func:`_validate_data_type_combination`.
+        ValueError: If ``data_types`` contains incompatible outputs.
     """
     data_types = data_types if data_types else ["rgb"]
     _validate_data_type_combination(data_types)

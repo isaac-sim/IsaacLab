@@ -113,9 +113,7 @@ if TYPE_CHECKING:
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-# Depth render var sources mapped to the output buffers each one can populate. Image-plane depth
-# backs both ``depth`` (a legacy alias) and ``distance_to_image_plane``, while ``distance_to_camera``
-# measures euclidean distance, so the two sources cannot substitute for one another.
+# Maps depth render-var sources to compatible output buffers.
 _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
     "DistanceToImagePlaneSD": ("depth", "distance_to_image_plane"),
     "DistanceToCameraSD": ("distance_to_camera",),
