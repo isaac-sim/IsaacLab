@@ -111,7 +111,7 @@ def generate_cubes_scene(
 
     # Create rigid object
     cube_object_cfg = RigidObjectCfg(
-        prim_path="/World/Env_.*/Object",
+        prim_path="/World/Env_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -849,7 +849,7 @@ def test_rigid_body_set_mass(num_cubes, device):
             sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(float(index), 0.0, 1.0))
         cube_object = RigidObject(
             RigidObjectCfg(
-                prim_path="/World/Env_.*/Object",
+                prim_path="/World/Env_[^/]*/Object",
                 spawn=sim_utils.CuboidCfg(
                     size=(0.2, 0.2, 0.2),
                     rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),

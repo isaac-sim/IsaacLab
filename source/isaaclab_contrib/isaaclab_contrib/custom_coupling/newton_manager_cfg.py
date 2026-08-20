@@ -9,18 +9,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab_newton.physics import MJWarpSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg, VBDSolverCfg
 
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelSolverCfg, VBDSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
 
 @configclass
-class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
+class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
     """Configuration for the custom MJWarp and VBD coupling manager."""
 
     class_type: type[NewtonManager] | str = "{DIR}.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"

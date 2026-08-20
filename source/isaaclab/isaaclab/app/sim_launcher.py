@@ -13,6 +13,7 @@ the launcher inputs, then validate and launch.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import logging
 import os
 import sys
@@ -21,7 +22,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -73,15 +74,6 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
     if physics_cfg_str == "newton_vbd":
-        # lazy import: core depends on isaaclab_contrib only when VBD is requested
-        try:
-            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-        except ImportError as err:
-            raise ImportError(
-                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
-                " Install it with `./isaaclab.sh -i contrib`."
-            ) from err
-
         return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
@@ -199,14 +191,20 @@ def _ensure_livestream_kit_visualizer(launcher_args: argparse.Namespace | dict |
 
 def _get_visualizer_intent(cfg) -> dict[str, bool]:
     """Compute upstream visualizer intent from ``cfg.sim.visualizer_cfgs``."""
-    visualizer_cfgs = getattr(getattr(cfg, "sim", None), "visualizer_cfgs", None)
+    # Accept both env_cfg (has .sim.visualizer_cfgs) and a bare SimulationCfg
+    # (has .visualizer_cfgs directly).
+    sim = getattr(cfg, "sim", None)
+    visualizer_cfgs = getattr(sim, "visualizer_cfgs", None) or getattr(cfg, "visualizer_cfgs", None)
     if visualizer_cfgs is None:
-        return {"has_any_visualizers": False, "has_kit_visualizer": False}
+        return {"has_any_visualizers": False, "has_kit_visualizer": False, "has_kit_streaming_view": False}
     cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
     cfgs = [c for c in cfgs if c is not None]
     return {
         "has_any_visualizers": len(cfgs) > 0,
         "has_kit_visualizer": any(getattr(c, "visualizer_type", None) == "kit" for c in cfgs),
+        "has_kit_streaming_view": any(
+            getattr(c, "visualizer_type", None) == "kit" and bool(getattr(c, "streaming_view", False)) for c in cfgs
+        ),
     }
 
 
@@ -533,9 +531,12 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
-    if needs_kit and config_scan.has_kit_camera:
+    if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
         if not _get_arg(launcher_args, "enable_cameras", False):
-            logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
+            logger.info(
+                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
+                "or a Kit visualizer with streaming_view=True."
+            )
             _set_arg(launcher_args, "enable_cameras", True)
 
     # Resolve distributed device early, before AppLauncher or physics init.
@@ -609,6 +610,27 @@ def _ensure_isaac_sim_available() -> None:
             f"  or in your current shell run:\n"
             f"    {source}\n"
         )
+
+    try:
+        installed_version = importlib.metadata.version("isaacsim")
+    except importlib.metadata.PackageNotFoundError:
+        installed_version = None
+
+    if installed_version:
+        logger.error(
+            f"\n[ERROR] Isaac Sim {installed_version} is installed, but its full runtime is unavailable.\n"
+            "\n"
+            "  This environment requires Isaac Sim and Omniverse Kit.\n"
+            "    PhysX backend and Kit visualizer require Isaac Sim.\n"
+            "\n"
+            "  The current Python environment does not expose the SimulationApp API.\n"
+            f"{extra_hint}"
+            "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
+            "    uv run isaaclab -i isaacsim\n"
+            "\n"
+            "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+        )
+        raise SystemExit(1)
 
     logger.error(
         "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"

@@ -319,7 +319,7 @@ def _pick_alternative(
             consumed_selected.add(name)
         if typed_hits is not None:
             # record which typed targets (physics/renderer) this name landed on
-            targets = {t for t in PresetTarget if t.base_classes and isinstance(val, t.base_classes)}
+            targets = {target for target in PresetTarget if target.base_classes and target.matches(val)}
             if targets:
                 typed_hits.setdefault(raw_name, set()).update(targets)
                 typed_hits.setdefault(name, set()).update(targets)
