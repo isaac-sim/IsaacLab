@@ -16,8 +16,9 @@ from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import path as clone_path
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
-from isaaclab_newton.renderers.visual_material import import_builder_visual_materials
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -146,7 +147,8 @@ def _build_source_builder(
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
-    import_builder_visual_materials(builder, stage)
+    replace_newton_builder_shape_colors(builder, stage)
+    import_builder_visual_material_paths(builder, stage)
     return builder
 
 

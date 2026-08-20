@@ -16,15 +16,12 @@ from newton.selection import ArticulationView
 
 from pxr import Usd, UsdGeom, UsdShade
 
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-
 if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
 
-def import_builder_visual_materials(builder: ModelBuilder, stage: Usd.Stage) -> None:
-    """Import static colors and each shape's effective material binding."""
-    replace_newton_builder_shape_colors(builder, stage)
+def import_builder_visual_material_paths(builder: ModelBuilder, stage: Usd.Stage) -> None:
+    """Record each shape's effective material binding."""
     builder.add_custom_attribute(
         ModelBuilder.CustomAttribute(
             name="visual_material_path",

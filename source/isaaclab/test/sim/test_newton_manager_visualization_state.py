@@ -812,6 +812,7 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
+    monkeypatch.setattr(vb, "import_builder_visual_material_paths", lambda *args, **kwargs: None)
     monkeypatch.setattr(vb, "build_source_builders", lambda *args, **kwargs: {})
     monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: None)
     monkeypatch.setattr(vb, "rename_builder_labels", lambda *args, **kwargs: None)

@@ -11,7 +11,7 @@ from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
     VisualShapeColorWriter,
-    import_builder_visual_materials,
+    import_builder_visual_material_paths,
 )
 from newton import ModelBuilder
 
@@ -33,7 +33,7 @@ def _material_model(material_paths: list[str]):
         if material_path:
             material = UsdShade.Material.Define(stage, material_path)
             UsdShade.MaterialBindingAPI.Apply(shape.GetPrim()).Bind(material)
-    import_builder_visual_materials(builder, stage)
+    import_builder_visual_material_paths(builder, stage)
     return builder.finalize(device="cpu")
 
 
@@ -46,9 +46,11 @@ def test_import_captures_effective_material_binding() -> None:
     builder = ModelBuilder()
     builder.add_shape_box(-1, label=str(shape.GetPath()))
 
-    import_builder_visual_materials(builder, stage)
+    colors = tuple(tuple(color) for color in builder.shape_color)
+    import_builder_visual_material_paths(builder, stage)
 
     assert builder.finalize(device="cpu").isaaclab.visual_material_path == ["/World/Looks/robot"]
+    assert tuple(tuple(color) for color in builder.shape_color) == colors
 
 
 def test_import_preserves_binding_to_a_logical_clone_not_yet_on_stage() -> None:
@@ -60,7 +62,7 @@ def test_import_preserves_binding_to_a_logical_clone_not_yet_on_stage() -> None:
     builder = ModelBuilder()
     builder.add_shape_box(-1, label=str(shape.GetPath()))
 
-    import_builder_visual_materials(builder, stage)
+    import_builder_visual_material_paths(builder, stage)
 
     assert builder.finalize(device="cpu").isaaclab.visual_material_path == ["/World/envs/env_1/Materials/robot"]
 

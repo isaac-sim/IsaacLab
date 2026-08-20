@@ -506,7 +506,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
-            mock.patch.object(visualization_builder_module, "import_builder_visual_materials"),
+            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
         ):
             result, (shadow_entities, registry_groups) = (
                 visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
@@ -561,8 +561,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
             mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
             mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
-            mock.patch.object(visualization_builder_module, "import_builder_visual_materials"),
-            mock.patch.object(newton_clone_utils_module, "import_builder_visual_materials"),
+            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
+            mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
+            mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):
             builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan
