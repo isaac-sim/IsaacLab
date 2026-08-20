@@ -138,7 +138,12 @@ def _run_cartpole_camera(env_cfg) -> None:
     try:
         assert env.cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
         env.reset()
-        actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+        # Drive the cart with a constant, deterministic push instead of zero actions. With zero
+        # actions the recorded clip's motion comes entirely from passive dynamics (gravity
+        # acting on the pole), which is occasionally too weak within the 12-frame clip window
+        # to clear _MIN_MOTION_STD (observed in CI as a flaky "no motion detected" failure).
+        # A guaranteed nonzero push gives the temporal-std check a large, consistent margin.
+        actions = torch.ones(env.num_envs, *env.action_space.shape[1:], device=env.device)
         for _ in range(_STEPS):
             env.step(actions)
     finally:
