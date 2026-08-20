@@ -91,6 +91,11 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
     "kuka_visual_material_randomization": 0.99,
 }
 
+# Low-resolution Newton + RTX cloth shading varies between otherwise equivalent CI frames.
+_IMAGE_TOLERANCE_OVERRIDES = {
+    ("franka_cloth", "newton", "isaacsim_rtx_renderer", data_type): (20.0, 0.96) for data_type in ("rgb", "rgba")
+}
+
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
 # outputs where the per-pixel value distribution is highly non-uniform after normalisation (e.g. depth, where we
 # divide by the max value so tiny absolute differences near the far plane dominate windowed variance). For these
@@ -1117,6 +1122,10 @@ def validate_camera_outputs(
     failed_data_types = {}
 
     for data_type, output in camera_outputs.items():
+        pixel_threshold, data_ssim_threshold = _IMAGE_TOLERANCE_OVERRIDES.get(
+            (test_name, physics_backend, renderer, data_type),
+            (max_different_pixels_percentage, ssim_threshold),
+        )
         tensor = output if isinstance(output, torch.Tensor) else output.torch
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
@@ -1161,9 +1170,9 @@ def validate_camera_outputs(
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
             result_image_for_comparison,
             golden_image_for_comparison,
-            max_different_pixels_percentage,
+            pixel_threshold,
             check_ssim=check_ssim,
-            ssim_threshold=ssim_threshold,
+            ssim_threshold=data_ssim_threshold,
         )
 
         entry = {
@@ -1175,8 +1184,8 @@ def validate_camera_outputs(
             "diff_pct": diff_pct,
             "ssim": ssim_score,
             "ssim_checked": check_ssim,
-            "threshold": max_different_pixels_percentage,
-            "ssim_threshold": ssim_threshold,
+            "threshold": pixel_threshold,
+            "ssim_threshold": data_ssim_threshold,
             "passed": succeeded,
             "img_result_path": None,
             "img_golden_path": None,

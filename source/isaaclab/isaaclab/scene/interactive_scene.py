@@ -217,7 +217,8 @@ class InteractiveScene:
         """Flatten user-declared cfgs for :func:`~isaaclab.cloner.make_clone_plan`.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
-        resolves ``{ENV_REGEX_NS}`` macros, and lets an enclosing asset's row own nested materials.
+        resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
+        and orders sensors after the entities they inspect.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
@@ -232,6 +233,7 @@ class InteractiveScene:
                 if hasattr(child, "prim_path"):
                     child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
                 flat_items.append((asset_name, child))
+        flat_items.sort(key=lambda item: isinstance(item[1], SensorBaseCfg))
 
         owner_paths = [
             cfg.prim_path
