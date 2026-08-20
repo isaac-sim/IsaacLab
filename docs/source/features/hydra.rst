@@ -154,11 +154,16 @@ For example, for the configuration of the Cartpole camera environment:
     :end-at: observation_space = [3, 96, 96]
     :emphasize-lines: 12, 43
 
-The configuration declares the single-frame shape. At environment initialization, the default
-``frame_stack=2`` expands it to an effective policy observation shape of ``[6,96,96]``.
-If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the
-single-frame parameter ``env.observation_space=[3,96,128]`` must be updated and given as input as
-well, producing an effective stacked shape of ``[6,96,128]``.
+The configuration declares the single-frame channel count and a default spatial size.
+At environment initialization, ``CartpoleCameraEnv`` rebuilds ``observation_space`` from
+the resolved camera: the default ``frame_stack=2`` expands channels, and height/width are
+taken from ``tiled_camera``. So ``env.tiled_camera.width=128 env.tiled_camera.height=128``
+alone yields an effective stacked shape of ``[6,128,128]`` without also overriding
+``env.observation_space``. The channel entry in ``observation_space`` must still match the
+camera data type (for example ``[1, ...]`` with ``presets=depth``); presets already set this.
+
+Class-body references such as ``observation_space = [3, tiled_camera.height, tiled_camera.width]``
+are evaluated once at import time and do **not** track later Hydra overrides of the camera.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
@@ -310,7 +315,7 @@ Physics backend selection uses the same preset system. A task can define a
 
 .. code-block:: python
 
-    from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
@@ -333,11 +338,10 @@ Physics backend selection uses the same preset system. A task can define a
             num_substeps=1,
         )
         newton_kamino: NewtonCfg = NewtonCfg(
-            solver_cfg=KaminoSolverCfg(
+            solver_cfg=KaminoPADMMSolverCfg(
                 integrator="moreau",
                 use_collision_detector=True,
                 sparse_jacobian=True,
-                padmm_max_iterations=100,
             ),
             num_substeps=1,
             debug_mode=False,
@@ -348,7 +352,7 @@ The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physi
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
 is the solver configuration: ``newton_mjwarp`` uses
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``newton_kamino`` uses
-:class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+:class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
 Newton assets, sensors, renderers, and visualizers are used after the preset is

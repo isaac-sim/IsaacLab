@@ -14,12 +14,16 @@ from rendering_test_utils import (
     make_generate_html_report_fixture,
     make_kitless_rendering_params_lift,
     make_require_ovlibs_install_fixture,
+    make_xfail_rendering_params,
     rendering_test_lift_kuka,
 )
 
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
 
-_RENDERING_PARAMS = make_kitless_rendering_params_lift(include_texture_readiness_xfail=True)
+_RENDERING_PARAMS = make_xfail_rendering_params(
+    make_kitless_rendering_params_lift(),
+    {("legacy", "ovphysx", "ovrtx_renderer", "motion_vectors"): "NVBug 6632495"},
+)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()

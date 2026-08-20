@@ -85,19 +85,16 @@ class SimulationCfg:
     """
 
     use_newton_actuators: bool = False
-    """Use Newton-native actuators instead of IsaacLab explicit actuator models.
+    """Use native actuators for supported explicit actuator configurations.
 
-    When ``True``, explicit actuator configs (e.g. :class:`IdealPDActuatorCfg`,
-    :class:`DCMotorCfg`) are translated into ``NewtonActuator`` USD prims and
-    stepped by the physics engine.  The Lab config values (stiffness, damping,
-    effort_limit, etc.) take precedence: for every joint covered by a Lab
-    actuator config, any existing ``NewtonActuator`` prim targeting that joint
-    is replaced by one synthesised from the config.  Joints that are *not*
-    covered by a Lab config keep their USD-authored actuators (if any).
+    When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
+    and :class:`DCMotorCfg`, author ``NewtonActuator`` USD prims. Newton executes
+    them in its solver. PhysX and OVPhysX execute them through a shared host
+    adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-    :class:`ImplicitActuatorCfg` entries are still instantiated normally and
-    their gains are written to the simulation, so joints that use implicit
-    actuation continue to work as expected.
+    Config values take precedence over existing USD actuators for covered joints.
+    Joints without a config keep their USD-authored actuators. Implicit actuators
+    are unchanged: the solver applies their drive gains.
     """
 
     physics: PhysicsCfg | None = None

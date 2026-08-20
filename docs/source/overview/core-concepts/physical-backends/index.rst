@@ -19,7 +19,7 @@ backend-specific configuration, installation, and limitations.
     ovphysx/index
     direct-api-access/index
     solver-comparison
-    sim-to-sim-policy-transfer
+    joint_and_body_ordering
 
 
 For backend-specific access to native engine data and views, see

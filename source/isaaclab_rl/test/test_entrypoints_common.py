@@ -376,9 +376,9 @@ class _RecordingScreen:
         # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
         (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)", "none"),
         # a run that names no backend reports the ones the task pinned as defaults
-        ([], "default (isaacsim_physx)", "default (isaacsim_rtx)", "none"),
+        ([], "default (newton_mjwarp)", "default (newton_renderer)", "none"),
         # a domain preset has no row of its own
-        (["physics=physx", "presets=depth"], "physx (isaacsim_physx)", "default (isaacsim_rtx)", "depth"),
+        (["physics=physx", "presets=depth"], "physx (ovphysx)", "default (newton_renderer)", "depth"),
     ],
 )
 def test_run_summary_reports_the_backends_the_run_resolves_to(

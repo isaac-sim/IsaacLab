@@ -19,10 +19,14 @@ from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedEnv
 
-    from .pose_commands_cfg import DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
+    from .pose_commands_cfg import (
+        CableUniformPoseCommandCfg,
+        DeformableUniformPoseCommandCfg,
+        ObjectUniformPoseCommandCfg,
+    )
 
 
 class ObjectUniformPoseCommand(CommandTerm):
@@ -90,6 +94,11 @@ class ObjectUniformPoseCommand(CommandTerm):
 
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
+        if self.success_vis_asset is not None:
+            self.success_visualizer.visualize(
+                self._get_success_vis_pos_w(),
+                environment_ids=self._env.scene._ALL_INDICES,
+            )
 
         # adds (optional) cmd kind and element names for leapp export
         # during export, semantic data about this command will be used to annotate the command input
@@ -141,7 +150,11 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
             success_id &= self.metrics["orientation_error"] < 0.5
         if self.success_vis_asset is not None:
-            self.success_visualizer.visualize(self._get_success_vis_pos_w(), marker_indices=success_id.int())
+            self.success_visualizer.visualize(
+                self._get_success_vis_pos_w(),
+                marker_indices=success_id.int(),
+                environment_ids=self._env.scene._ALL_INDICES,
+            )
 
     def _get_success_vis_pos_w(self) -> torch.Tensor:
         """Return the success visualization positions in the world frame."""
@@ -189,22 +202,35 @@ class ObjectUniformPoseCommand(CommandTerm):
         if not self.robot.is_initialized:
             return
         # update the markers
+        environment_ids = self._env.scene._ALL_INDICES
         if not self.cfg.position_only:
             # -- goal pose
-            self.goal_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
+            self.goal_visualizer.visualize(
+                self.pose_command_w[:, :3],
+                self.pose_command_w[:, 3:],
+                environment_ids=environment_ids,
+            )
             # -- current object pose
             obj_pos = self.object.data.root_pos_w.torch
             obj_quat = self.object.data.root_quat_w.torch
-            self.curr_visualizer.visualize(obj_pos, obj_quat)
+            self.curr_visualizer.visualize(obj_pos, obj_quat, environment_ids=environment_ids)
         else:
             obj_pos = self.object.data.root_pos_w.torch
             distance = torch.linalg.norm(self.pose_command_w[:, :3] - obj_pos, dim=1)
             success_id = (distance < 0.05).int()
             # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.
             # -- goal position
-            self.goal_visualizer.visualize(self.pose_command_w[:, :3], marker_indices=success_id + 1)
+            self.goal_visualizer.visualize(
+                self.pose_command_w[:, :3],
+                marker_indices=success_id + 1,
+                environment_ids=environment_ids,
+            )
             # -- current object position
-            self.curr_visualizer.visualize(obj_pos, marker_indices=success_id + 1)
+            self.curr_visualizer.visualize(
+                obj_pos,
+                marker_indices=success_id + 1,
+                environment_ids=environment_ids,
+            )
 
 
 class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
@@ -241,4 +267,65 @@ class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
             return
         # same success radius as the goal markers of the base class
         success_id = (self.metrics["position_error"] < 0.05).int()
-        self.success_visualizer.visualize(self._get_success_vis_pos_w(), marker_indices=success_id)
+        self.success_visualizer.visualize(
+            self._get_success_vis_pos_w(),
+            marker_indices=success_id,
+            environment_ids=self._env.scene._ALL_INDICES,
+        )
+
+
+class CableUniformPoseCommand(ObjectUniformPoseCommand):
+    """Uniform position command tracked by one cable segment."""
+
+    cfg: CableUniformPoseCommandCfg
+    """Configuration for the command generator."""
+
+    object: CableObject
+    """Cable tracked by the command."""
+
+    def __init__(self, cfg: CableUniformPoseCommandCfg, env: ManagerBasedEnv):
+        if not cfg.position_only:
+            raise ValueError("CableUniformPoseCommand only supports position_only commands.")
+        super().__init__(cfg, env)
+        if not 0 <= cfg.segment_index < self.object.num_segments:
+            raise ValueError(f"segment_index must be in [0, {self.object.num_segments}), received {cfg.segment_index}.")
+
+    def _segment_position_w(self) -> torch.Tensor:
+        return self.object.data.segment_pose_w.torch[:, self.cfg.segment_index, :3]
+
+    def _update_metrics(self):
+        self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
+            self.robot.data.root_pos_w.torch,
+            self.robot.data.root_quat_w.torch,
+            self.pose_command_b[:, :3],
+            self.pose_command_b[:, 3:],
+        )
+        segment_pos_w = self._segment_position_w()
+        self.metrics["position_error"] = torch.linalg.norm(self.pose_command_w[:, :3] - segment_pos_w, dim=-1)
+
+        if self.success_vis_asset is None:
+            return
+        success_id = (self.metrics["position_error"] < 0.05).int()
+        self.success_visualizer.visualize(
+            self._get_success_vis_pos_w(),
+            marker_indices=success_id,
+            environment_ids=self._env.scene._ALL_INDICES,
+        )
+
+    def _debug_vis_callback(self, event):
+        if not self.robot.is_initialized:
+            return
+        segment_pos_w = self._segment_position_w()
+        distance = torch.linalg.norm(self.pose_command_w[:, :3] - segment_pos_w, dim=1)
+        marker_indices = (distance < 0.05).int() + 1
+        environment_ids = self._env.scene._ALL_INDICES
+        self.goal_visualizer.visualize(
+            self.pose_command_w[:, :3],
+            marker_indices=marker_indices,
+            environment_ids=environment_ids,
+        )
+        self.curr_visualizer.visualize(
+            segment_pos_w,
+            marker_indices=marker_indices,
+            environment_ids=environment_ids,
+        )

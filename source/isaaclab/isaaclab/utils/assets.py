@@ -13,6 +13,7 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
+import contextlib
 import io
 import json
 import logging
@@ -21,8 +22,11 @@ import posixpath
 import re
 import subprocess
 import tempfile
+import uuid
 from typing import Literal
 from urllib.parse import urlparse
+
+from filelock import FileLock
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +119,10 @@ _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 
 _ANNOUNCED_MIRRORS: set[str] = set()
 """URLs already announced, so an asset consulted repeatedly is logged once."""
+
+_MIRRORED_URLS: dict[str, str] = {}
+"""Source URL per locally cached copy, recorded as the copy is located rather than recovered
+from its path, so a cache path is never inferred from a directory that merely looks like one."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
@@ -218,7 +226,10 @@ def _is_git_remote_path(git_path: str) -> bool:
     Returns:
         True if :paramref:`git_path` is a URL or SSH git path.
     """
-    return bool(urlparse(git_path).scheme) or _GIT_SSH_RE.match(git_path) is not None
+    # ``urlparse`` reports a Windows drive letter as a scheme, so a local checkout such as
+    # ``C:\assets`` would otherwise be taken for a repository to clone. No URL scheme is a
+    # single character.
+    return len(urlparse(git_path).scheme) > 1 or _GIT_SSH_RE.match(git_path) is not None
 
 
 def _get_git_asset_repo_name(git_path: str) -> str:
@@ -302,7 +313,32 @@ def _mirror_path(url: str, download_dir: str) -> str:
         return ""
     # ':' (port separator) is not a valid path character on Windows
     netloc = parsed.netloc.replace(":", "_")
-    return os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
+    mirrored = os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
+    # a host is what distinguishes a remote URL from a Windows drive letter, which ``urlparse``
+    # also reports as a scheme
+    if parsed.netloc:
+        _MIRRORED_URLS[os.path.abspath(mirrored)] = url
+    return mirrored
+
+
+def unmirror_file_path(path: str) -> str:
+    """Maps a locally cached asset copy back to the URL it was downloaded from.
+
+    :func:`retrieve_file_path` hands callers a local copy of a remote asset, so a stage built
+    from one records a path that only resolves on the machine holding the cache. An export of
+    that stage can use this to name the source asset instead.
+
+    Only copies this process located are known, so a locally authored path is never mistaken
+    for a cached copy. A copy mirrored by an earlier run is still recognised, because retrieval
+    walks the whole dependency tree even when every file is already cached.
+
+    Args:
+        path: Local filesystem path, typically an asset path read from a USD layer.
+
+    Returns:
+        The URL the copy was cached from, or ``""`` when this process did not cache it.
+    """
+    return _MIRRORED_URLS.get(os.path.abspath(path), "")
 
 
 def _remote_fingerprint(url: str) -> dict | None:
@@ -415,12 +451,18 @@ def _store_mirror(url: str, data: bytes) -> None:
         return
     try:
         os.makedirs(os.path.dirname(mirrored), exist_ok=True)
-        with open(mirrored, "wb") as f:
-            f.write(data)
+        with FileLock(mirrored + ".lock"):
+            temporary_path = f"{mirrored}.{uuid.uuid4().hex}.partial"
+            try:
+                with open(temporary_path, "wb") as f:
+                    f.write(data)
+                os.replace(temporary_path, mirrored)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temporary_path)
+            _write_mirror_fingerprint(url, mirrored)
     except OSError as exc:
         logger.debug("Unable to cache the asset '%s' locally: %s", url, exc)
-        return
-    _write_mirror_fingerprint(url, mirrored)
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
@@ -515,21 +557,37 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             is_root_asset = local_root is None
-            # an outdated local copy is re-fetched, so a changed remote asset is picked up
-            if force_download or not _usable_mirror(cur_url, download_dir):
-                result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
-                if result != omni.client.Result.OK:
-                    if force_download or is_root_asset:
-                        raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
-                    logger.debug("Skipping unavailable dependency: %s", cur_url)
-                    continue
-                _write_mirror_fingerprint(cur_url, target_path)
+            # Ranks can initialize against the same cold cache concurrently. Serialize a single
+            # mirrored file so no USD parser observes another rank overwriting it mid-read.
+            with FileLock(target_path + ".lock"):
+                # Re-check after acquiring the lock: another rank may have downloaded this asset
+                # while this rank was waiting.
+                if force_download or not _usable_mirror(cur_url, download_dir):
+                    temporary_path = f"{target_path}.{uuid.uuid4().hex}.partial"
+                    try:
+                        result = omni.client.copy(cur_url, temporary_path, omni.client.CopyBehavior.OVERWRITE)
+                        if result != omni.client.Result.OK:
+                            if force_download or is_root_asset:
+                                raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+                            logger.debug("Skipping unavailable dependency: %s", cur_url)
+                            continue
+                        # A reader that does not take this process-local lock must never observe
+                        # a partially copied USD file.
+                        os.replace(temporary_path, target_path)
+                        _write_mirror_fingerprint(cur_url, target_path)
+                    finally:
+                        with contextlib.suppress(OSError):
+                            os.remove(temporary_path)
+
+                # Resolve references while the mirror is stable. Each dependency gets its own
+                # lock below, preserving parallel initialization of unrelated asset trees.
+                references = _find_asset_dependencies(target_path)
 
             if local_root is None:
                 local_root = target_path
 
             # recurse into dependencies (USD references, payloads, MDL textures, etc.)
-            for ref in _find_asset_dependencies(target_path):
+            for ref in references:
                 ref_url = _resolve_reference_url(cur_url, ref)
                 if ref_url and ref_url not in visited:
                     to_visit.append(ref_url)

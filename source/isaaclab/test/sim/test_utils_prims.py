@@ -395,6 +395,16 @@ def test_select_usd_variants():
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
 
+    # A variant the set does not offer must raise: USD would accept the selection and compose the
+    # prim as if nothing were selected, spawning the asset without what the variant carries.
+    with pytest.raises(ValueError, match="does not offer variant"):
+        sim_utils.utils.select_usd_variants("/World", {"colors": "chartreuse"}, stage)
+    assert variant_set.GetVariantSelection() == "red"
+
+    # A variant set the prim does not have stays a warning, so one configuration can spawn assets
+    # that expose different options.
+    sim_utils.utils.select_usd_variants("/World", {"absent_set": "anything"}, stage)
+
 
 def test_select_usd_variants_in_usd_file():
     """Test select_usd_variants() function in USD file."""

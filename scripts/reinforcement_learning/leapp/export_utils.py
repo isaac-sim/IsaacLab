@@ -31,11 +31,11 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         default=agent_default,
         help="Name of the RL agent configuration entry point.",
     )
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
     parser.add_argument(
-        "--use_pretrained_checkpoint",
-        action="store_true",
-        help="Use the pre-trained checkpoint from Nucleus.",
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Checkpoint path, or 'pretrained'. Omit for automatic local discovery.",
     )
     parser.add_argument(
         "--export_task_name",
@@ -46,9 +46,9 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
     parser.add_argument(
         "--export_method",
         type=str,
-        default="onnx-dynamo",
-        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-        help="Method to export the policy",
+        default=None,
+        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace", "pt2"],
+        help="Method to export the policy. Defaults to onnx-dynamo.",
     )
     parser.add_argument(
         "--export_save_path",
@@ -69,6 +69,7 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         help="Disable LEAPP graph visualization during compile_graph().",
     )
     AppLauncher.add_app_launcher_args(parser)
+    parser.add_argument("--limit_cpu_threads", type=int, default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
 
 def finalize_export_args(

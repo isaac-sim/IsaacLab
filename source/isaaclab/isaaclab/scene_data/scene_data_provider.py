@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from pxr import Usd
 
+REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
+    "kit": (True, False),
+    "newton_gl": (False, True),
+    "newton": (False, True),
+    "newton_rtx": (False, True),
+    "rerun": (False, True),
+    "viser": (False, True),
+    "isaac_rtx": (True, False),
+    "newton_warp": (False, True),
+    "ovrtx": (True, True),
+}
+
 
 class SceneDataProvider:
     def __init__(self, backend: SceneDataBackend):

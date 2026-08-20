@@ -88,7 +88,7 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api
+from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -108,7 +108,8 @@ from isaaclab_newton.physics.visualization_deformables import populate_shadow_de
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.actuators import NewtonActuatorAdapter
+    from isaaclab.actuators.newton import NewtonActuatorAdapter
+
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)
@@ -334,7 +335,9 @@ class NewtonManager(PhysicsManager):
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
-    :meth:`_reset_solver_internals`, :meth:`_solver_specific_clear`, and
+    :meth:`_requires_initial_reset_before_graph_capture`,
+    :meth:`_reset_solver_internals`,
+    :meth:`_solver_specific_clear`, :meth:`_check_solver_status`, and
     :meth:`_log_solver_debug`.
 
     Subclasses are selected via :attr:`NewtonSolverCfg.class_type`, which
@@ -764,7 +767,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_particles_to_usd(cls) -> None:
-        """Write Newton particle positions to USD/Fabric for Kit viewport rendering.
+        """Write Newton particle positions to USD/Fabric for USD-stage rendering.
 
         Two prim families are synced from ``state_0.particle_q``:
 
@@ -939,22 +942,38 @@ class NewtonManager(PhysicsManager):
         # Lazy CUDA graph capture
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device:  # type: ignore[union-attr]
+        capture_pending = cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
+        state_reconciled = False
+        if capture_pending and cls._usdrt_stage is None:
+            # Reconcile reset-authored solver resources before standard capture.
+            cls.forward()
+            state_reconciled = True
+
+        if capture_pending:
             NewtonManager._graph_capture_pending = False
-            NewtonManager._graph = cls._capture_relaxed_graph(device)
-            if cls._graph is not None:
-                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                # first step() inside graph capture. Replay once to pin those
-                # memory-pool addresses before any eager solver.reset() call.
-                if isinstance(cls._solver, SolverKamino):
-                    wp.capture_launch(cls._graph)
-                logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
+            if cls._usdrt_stage is None:
+                simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+                with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                    with _paused_gc(), wp.ScopedCapture(device=device, force_module_load=False) as capture:
+                        simulate()
+                NewtonManager._graph = capture.graph
+                logger.info("Newton CUDA graph captured (deferred standard mode)")
             else:
-                logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
+                NewtonManager._graph = cls._capture_relaxed_graph(device)
+                if cls._graph is not None:
+                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                    # first step() inside graph capture. Replay once to pin those
+                    # memory-pool addresses before any eager solver.reset() call.
+                    if isinstance(cls._solver, SolverKamino):
+                        wp.capture_launch(cls._graph)
+                    logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
+                else:
+                    logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
         # Reconcile authored state after any mutating graph warmup and before the requested physics step.
-        cls.forward()
+        if not state_reconciled:
+            cls.forward()
 
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
@@ -986,6 +1005,8 @@ class NewtonManager(PhysicsManager):
         elif cls._particle_visual_prims:
             cls._mark_particles_dirty()
         cls._mark_sensor_state_dirty()
+
+        cls._check_solver_status()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -1522,6 +1543,11 @@ class NewtonManager(PhysicsManager):
         cls._prepare_builder_for_finalize(cls._builder)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
             NewtonManager._model = cls._builder.finalize(device=device)
+            cfg = PhysicsManager._cfg
+            if isinstance(cfg, NewtonCfg) and cfg.soft_contact_cfg is not None:
+                cls._model.soft_contact_ke = float(cfg.soft_contact_cfg.soft_contact_ke)
+                cls._model.soft_contact_kd = float(cfg.soft_contact_cfg.soft_contact_kd)
+                cls._model.soft_contact_mu = float(cfg.soft_contact_cfg.soft_contact_mu)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
@@ -1605,42 +1631,11 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
         """Initialize Fabric curve tags and packed Newton segment mappings."""
-        usd_stage = get_current_stage()
-        cable_shapes: dict[str, dict[int, int]] = {}
-        for shape_id, label in enumerate(cls._model.shape_label):
-            if label is None:
-                continue
-            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
-            if not separator or not suffix.isdigit():
-                continue
-            segment = int(suffix)
-            segments = cable_shapes.setdefault(prim_path, {})
-            if segment in segments:
-                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
-            segments[segment] = shape_id
+        cable_shapes = cls.collect_cable_segment_shape_ids()
 
         shape_ids: list[int] = []
-        for prim_path, segments in cable_shapes.items():
-            usd_prim = usd_stage.GetPrimAtPath(prim_path)
-            if not usd_prim.IsValid() or not usd_prim.IsA(UsdGeom.BasisCurves):
-                continue
-            if not has_deformable_curve_api(usd_prim):
-                continue
-
-            curve = UsdGeom.BasisCurves(usd_prim)
-            counts = curve.GetCurveVertexCountsAttr().Get()
-            if (
-                len(counts) != 1
-                or int(counts[0]) < 2
-                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
-                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
-            ):
-                continue
-
-            segment_count = int(counts[0]) - 1
-            if set(segments) != set(range(segment_count)):
-                raise RuntimeError(f"Cable visualization requires {segment_count} ordered segment shapes.")
-            segment_shape_ids = [segments[segment] for segment in range(segment_count)]
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            segment_count = len(segment_shape_ids)
             prim = stage.GetPrimAtPath(prim_path)
             prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
             usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
@@ -1666,6 +1661,103 @@ class NewtonManager(PhysicsManager):
             cls._model.shape_scale.to("cpu"),
         )
         fabric_hierarchy.update_world_xforms()
+
+    @classmethod
+    def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
+        """Map each renderable cable prim path to its ordered Newton segment shape ids.
+
+        Concrete destination paths and segment order come from Newton ``shape_label`` values
+        ``{curve}_edge_capsule_{N}``. Each returned id is the index of that capsule in Newton's
+        shape arrays after finalization (``shape_body``, ``shape_transform``, ``shape_scale``, …),
+        not the ``_edge_capsule_N`` suffix. Example:
+        ``{"/World/envs/env_0/Cable/geometry/mesh": [42, 43, 44]}`` means segments ``0..2`` came
+        from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
+        indices ``42..44`` after earlier scene shapes.
+
+        When the labeled prim exists on the host USD stage, topology is validated against that
+        ``BasisCurves`` prim. Kit-less replicated destinations often exist only in the render
+        backend; for those paths topology is validated against a source prototype via the active
+        clone plan.
+
+        Returns:
+            Concrete cable prim paths mapped to ordered Newton segment shape ids.
+        """
+        if cls._model is None:
+            return {}
+
+        cable_shapes: dict[str, dict[int, int]] = {}
+        for shape_id, label in enumerate(cls._model.shape_label):
+            if label is None:
+                continue
+            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
+            if not separator or not suffix.isdigit():
+                continue
+            segment = int(suffix)
+            segments = cable_shapes.setdefault(prim_path, {})
+            if segment in segments:
+                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
+            segments[segment] = shape_id
+
+        stage = get_current_stage()
+
+        sim = SimulationContext.instance()
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+
+        # Filter label groups into renderable ordered shape-id lists. Validate topology on the host
+        # destination when present; otherwise use the clone-plan source prototype. Skip unsupported
+        # topology (non-linear / periodic / bad counts); require segment labels to match the curve.
+        ordered: dict[str, list[int]] = {}
+        for prim_path, segments in cable_shapes.items():
+            prim = stage.GetPrimAtPath(prim_path)
+            validation_prim = prim
+
+            # If destination is missing on host USD: validate topology against the clone source prototype.
+            if not prim.IsValid() and clone_plan is not None:
+                from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
+
+                resolved = path_to_source(clone_plan, prim_path)
+                if resolved is not None:
+                    source_path, _, asset_suffix = resolved
+                    validation_prim = stage.GetPrimAtPath(source_path + asset_suffix)
+
+            if not (
+                validation_prim.IsValid()
+                and validation_prim.IsA(UsdGeom.BasisCurves)
+                and has_deformable_curve_api(validation_prim)
+            ):
+                logger.debug(
+                    "Skipping cable '%s': validation prim '%s' is missing, not BasisCurves, or lacks"
+                    " DeformableCurveAPI.",
+                    prim_path,
+                    validation_prim.GetPath().pathString if validation_prim.IsValid() else "<invalid>",
+                )
+                continue
+
+            curve = UsdGeom.BasisCurves(validation_prim)
+            counts = curve.GetCurveVertexCountsAttr().Get()
+            if (
+                len(counts) != 1
+                or int(counts[0]) < 2
+                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
+                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
+            ):
+                logger.debug(
+                    "Skipping cable '%s': unsupported BasisCurves topology (vertex_counts=%s, type=%s, wrap=%s).",
+                    prim_path,
+                    counts,
+                    curve.GetTypeAttr().Get(),
+                    curve.GetWrapAttr().Get(),
+                )
+                continue
+
+            segment_count = int(counts[0]) - 1
+            if set(segments) != set(range(segment_count)):
+                raise RuntimeError(
+                    f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
+                )
+            ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
+
+        return ordered
 
     @staticmethod
     def _initialize_fabric_particle_prims(stage, fabric_hierarchy, usdrt, prim_paths: Iterable[str]) -> None:
@@ -1754,6 +1846,11 @@ class NewtonManager(PhysicsManager):
         return ignore_paths
 
     @classmethod
+    def _get_usd_import_ignore_paths(cls) -> list[str]:
+        """Return solver-specific prim paths excluded from USD import."""
+        return []
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -1795,10 +1892,13 @@ class NewtonManager(PhysicsManager):
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
         hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
+        solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:
             # No env Xforms — flat loading
-            import_result = builder.add_usd(stage, ignore_paths=hf_ignore_paths, schema_resolvers=schema_resolvers)
+            import_result = builder.add_usd(
+                stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
+            )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
@@ -1807,7 +1907,7 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
-            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths
+            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
@@ -1815,7 +1915,10 @@ class NewtonManager(PhysicsManager):
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
             import_result = source_builders[proto_path].add_usd(
-                stage, root_path=proto_path, schema_resolvers=schema_resolvers
+                stage,
+                root_path=proto_path,
+                ignore_paths=solver_ignore_paths,
+                schema_resolvers=schema_resolvers,
             )
             _restore_visible_colliders_without_visual_shapes(
                 source_builders[proto_path], stage, import_result["path_shape_map"]
@@ -2016,6 +2119,14 @@ class NewtonManager(PhysicsManager):
         """
 
     @classmethod
+    def _check_solver_status(cls) -> None:
+        """Raise solver-specific asynchronous failures after stepping.
+
+        Default no-op. Subclasses override when a solver requires a host-side
+        status check after CUDA graph replay.
+        """
+
+    @classmethod
     def _log_solver_debug(cls) -> None:
         """Solver-specific debug logging after stepping.
 
@@ -2102,17 +2213,10 @@ class NewtonManager(PhysicsManager):
         cls._eval_fk(None, None)
         cls._mark_transforms_dirty()
 
-        # Skip the initial graph capture when the Newton actuator fast path is
-        # active. Capturing here would use ``cls._decimation`` (still its default
-        # of 1, because the env's ``set_decimation`` hasn't run yet); a second
-        # capture from ``set_decimation`` then triggers an illegal-memory-access
-        # CUDA fault inside the captured ``_simulate_full`` graph (back-to-back
-        # captures of the contact + actuator pipeline don't survive re-capture
-        # — root cause is in Newton's collision/actuator buffer handling, not
-        # Lab code). For non-Newton-actuator paths this branch is unaffected:
-        # ``set_decimation`` is a no-op for them (``_is_all_graphable`` is False),
-        # so we still need the start-time capture below.
-        if not cls._use_newton_actuators_active:
+        # Fully graphable Newton actuators defer capture until ``set_decimation``
+        # provides the environment's final decimation value. Other paths capture
+        # the solver here; non-graphable actuators otherwise leave it eager.
+        if not cls._is_all_graphable():
             cls._capture_or_defer_graph()
 
     @classmethod
@@ -2123,7 +2227,7 @@ class NewtonManager(PhysicsManager):
         whenever the graph needs to be (re-)captured.
 
         * **No USDRT / headless**: captures immediately via
-          ``wp.ScopedCapture``.
+          ``wp.ScopedCapture`` unless the solver requires reset-dependent setup.
         * **RTX active**: defers capture to the first :meth:`step` call
           via :meth:`_capture_relaxed_graph`, because RTX background
           streams are not yet idle during initialisation.
@@ -2146,7 +2250,7 @@ class NewtonManager(PhysicsManager):
 
         if use_cuda_graph:
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:", activity="Capturing CUDA graph"):
-                if cls._usdrt_stage is None:
+                if cls._usdrt_stage is None and not cls._requires_initial_reset_before_graph_capture():
                     simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
                     with _paused_gc(), wp.ScopedCapture(device=device) as capture:
                         simulate()
@@ -2160,15 +2264,19 @@ class NewtonManager(PhysicsManager):
                     if isinstance(cls._solver, SolverKamino):
                         wp.capture_launch(cls._graph)
                 else:
-                    # RTX is active during initialization — cudaImportExternalMemory and other
-                    # non-capturable RTX ops run on background CUDA streams right now.
-                    # Defer capture to the first step() call, after RTX is fully initialized
-                    # and idle between render frames (clean capture window).
+                    # RTX capture and reset-dependent headless capture both wait until
+                    # the first step. RTX retains its existing relaxed capture path.
                     NewtonManager._graph = None
                     NewtonManager._graph_capture_pending = True
-                    logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
+                    reason = "initial environment reset" if cls._usdrt_stage is None else "RTX active"
+                    logger.info("Newton CUDA graph capture deferred until first step() (%s)", reason)
         else:
             NewtonManager._graph = None
+
+    @classmethod
+    def _requires_initial_reset_before_graph_capture(cls) -> bool:
+        """Return whether graph capture must wait until the initial environment reset."""
+        return False
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
@@ -3105,7 +3213,7 @@ class NewtonManager(PhysicsManager):
             return
         if cls._model is None or not cls._model.actuators:
             return
-        from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+        from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(
@@ -3187,10 +3295,10 @@ class NewtonManager(PhysicsManager):
         is captured as a single CUDA graph.
 
         If a CUDA graph was previously captured, it is automatically
-        re-captured with the new decimation count using the same
-        strategy as :meth:`start_simulation`: standard
-        ``wp.ScopedCapture`` when no USDRT stage is active, or
-        deferred relaxed capture when RTX is running.
+        re-captured with the new decimation count using the same strategy as
+        :meth:`start_simulation`: standard ``wp.ScopedCapture`` when no USDRT
+        stage is active, or deferred relaxed capture when RTX is running.
+        Solvers with reset-dependent topology may also defer standard capture.
         """
         cls._decimation = max(1, decimation)
         if cls._is_all_graphable():
@@ -3251,8 +3359,8 @@ class NewtonManager(PhysicsManager):
             if expr is None:
                 return None
             if isinstance(expr, str):
-                return expr.replace(".*", "*")
-            return [p.replace(".*", "*") for p in expr]
+                return path_expr_to_glob(expr)
+            return [path_expr_to_glob(p) for p in expr]
 
         def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
             """Strip leading path components from *expr* when labels are bare names.

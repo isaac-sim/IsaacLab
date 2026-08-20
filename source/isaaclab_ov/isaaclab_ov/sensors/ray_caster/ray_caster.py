@@ -47,7 +47,7 @@ def _ovphysx_body_glob(body_expr: str) -> str:
     fnmatch glob, so ``{}`` template placeholders and ``.*`` regex segments
     both map to ``*``.
     """
-    return body_expr.replace("{}", "*").replace(".*", "*")
+    return sim_utils.path_expr_to_glob(body_expr.replace("{}", "*"))
 
 
 class _OvPhysxRayCasterMixin:
@@ -189,30 +189,10 @@ class _OvPhysxRayCasterMixin:
 
         if isinstance(target_prim_paths, str):
             target_prim_paths = [target_prim_paths]
-
-        body_paths: list[str] = []
-        for target_prim_path in target_prim_paths:
-            prims = sim_utils.find_matching_prims(target_prim_path)
-            if len(prims) == 0:
-                # ClonePlan-backed targets may not have USD destination prims;
-                # in that case BaseMultiMeshRayCaster forwards the
-                # destination owner-body expression directly.
-                body_paths.append(target_prim_path)
-                continue
-            for prim in prims:
-                body = _find_physics_ancestor(prim)
-                if body is None:
-                    raise RuntimeError(
-                        f"Cannot track non-physics ray-cast target {target_prim_path!r} "
-                        "with OVPhysX. Set track_mesh_transforms=False for static targets, "
-                        "or apply RigidBodyAPI to dynamic targets."
-                    )
-                body_paths.append(body.GetPath().pathString)
-
-        if len(body_paths) == 0:
+        if not target_prim_paths:
             raise RuntimeError(f"No tracked target bodies resolved from: {target_prim_paths}")
 
-        patterns = sorted({_ovphysx_body_glob(path) for path in body_paths})
+        patterns = sorted({_ovphysx_body_glob(path) for path in target_prim_paths})
         if len(patterns) > 1:
             raise NotImplementedError(
                 f"OvPhysxRayCaster v1 supports a single body-type pattern for dynamic targets; "
