@@ -1,0 +1,3 @@
+Test-only change: dropped the single-CPU-thread limit the LEAPP export tests
+applied to work around a race in older OpenUSD releases. No user-facing behavior
+changes, so no changelog entry is warranted.

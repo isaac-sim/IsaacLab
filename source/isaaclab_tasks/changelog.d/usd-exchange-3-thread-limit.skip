@@ -1,0 +1,3 @@
+Test-only change: dropped the OpenUSD work-thread limit that kit-less rendering
+tests set to work around a race in older OpenUSD releases. No user-facing
+behavior changes, so no changelog entry is warranted.
