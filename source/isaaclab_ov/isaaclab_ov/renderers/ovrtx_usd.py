@@ -15,76 +15,139 @@ from pxr import Sdf, Usd, UsdGeom
 logger = logging.getLogger(__name__)
 
 
-def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
-    """Return (render_var_path, render_var_name, source_name) from data_types."""
-    use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types)
-    use_distance_to_camera = "distance_to_camera" in data_types and not any(
-        dt in ["depth", "distance_to_image_plane"] for dt in data_types
-    )
-    use_albedo = "albedo" in data_types
-    use_semantic = "semantic_segmentation" in data_types
-    use_instance_seg = "instance_segmentation" in data_types
-    use_normals = "normals" in data_types
-    use_motion_vectors = "motion_vectors" in data_types
-    use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
-    use_hdr = "rgb_hdr" in data_types
+# Render var authored for each supported camera data type, as
+# ``(render_var_path, render_var_name, source_name)``. OVRTX keys the render vars of a frame by
+# ``source_name``, so data types reading the same source (``rgb``/``rgba``, ``depth``/
+# ``distance_to_image_plane``) collapse onto a single authored render var.
+_RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
+    "rgb": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+    "rgba": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+    # Simple shading is not a distinct source: it is ``LdrColor`` rendered while the render product
+    # is in RTX Minimal mode, which is why it cannot share a product with ``rgb``/``rgba``.
+    "simple_shading_constant_diffuse": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+    "simple_shading_diffuse_mdl": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+    "simple_shading_full_mdl": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+    "rgb_hdr": ("/Render/Vars/HdrColor", "HdrColor", "HdrColor"),
+    "albedo": ("/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"),
+    "depth": ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+    "distance_to_image_plane": ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+    # Distance to camera reads a different source than image-plane depth, so it gets its own prim
+    # instead of reusing ``/Render/Vars/depth``; both can then be authored on one render product.
+    "distance_to_camera": ("/Render/Vars/DistanceToCameraSD", "DistanceToCameraSD", "DistanceToCameraSD"),
+    "normals": ("/Render/Vars/NormalSD", "NormalSD", "NormalSD"),
+    "motion_vectors": ("/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"),
+    "semantic_segmentation": ("/Render/Vars/semantic", "semantic", "SemanticSegmentation"),
+    "instance_segmentation": (
+        "/Render/Vars/NonStableInstanceSegmentation",
+        "NonStableInstanceSegmentation",
+        "NonStableInstanceSegmentation",
+    ),
+}
 
-    if use_depth and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_normals or use_motion_vectors
-    ):
-        source = "DistanceToCameraSD" if use_distance_to_camera else "DistanceToImagePlaneSD"
-        return "/Render/Vars/depth", "depth", source
-    if use_albedo and not (use_rgb or use_semantic or use_instance_seg or use_normals or use_motion_vectors):
-        return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
-    if use_semantic and not (use_rgb or use_albedo or use_normals or use_motion_vectors):
-        return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
-    if use_instance_seg and not (
-        use_rgb or use_albedo or use_semantic or use_normals or use_depth or use_hdr or use_motion_vectors
-    ):
-        return (
-            "/Render/Vars/NonStableInstanceSegmentation",
-            "NonStableInstanceSegmentation",
-            "NonStableInstanceSegmentation",
+# Data types produced by putting the whole render product into RTX Minimal mode.
+_SIMPLE_SHADING_DATA_TYPES = frozenset({
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+})
+
+_COLOR_DATA_TYPES = frozenset({"rgb", "rgba"})
+
+_DEFAULT_RENDER_VAR = _RENDER_VAR_BY_DATA_TYPE["rgb"]
+
+
+def _validate_data_type_combination(data_types: list[str]) -> None:
+    """Reject data type combinations that a single OVRTX render product cannot serve.
+
+    Args:
+        data_types: Requested camera data types.
+
+    Raises:
+        ValueError: If color and simple-shading data types are combined, or if more than one
+            simple-shading data type is requested. Both cases silently retarget the shared
+            ``LdrColor`` render var, leaving the other outputs empty or wrongly shaded.
+    """
+    simple_shading = [data_type for data_type in data_types if data_type in _SIMPLE_SHADING_DATA_TYPES]
+    color = [data_type for data_type in data_types if data_type in _COLOR_DATA_TYPES]
+
+    if simple_shading and color:
+        raise ValueError(
+            f"OVRTX cannot render simple shading {simple_shading} together with {color} on one render product:"
+            " both read the 'LdrColor' render var, and simple shading additionally requires RTX Minimal mode."
+            " Request them from separate cameras."
         )
-    if use_normals and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_motion_vectors
-    ):
-        return "/Render/Vars/NormalSD", "NormalSD", "NormalSD"
-    if use_motion_vectors and not (
-        use_rgb or use_albedo or use_semantic or use_instance_seg or use_depth or use_normals
-    ):
-        return "/Render/Vars/TargetMotionSD", "TargetMotionSD", "TargetMotionSD"
-    if use_hdr and not use_rgb:
-        return "/Render/Vars/HdrColor", "HdrColor", "HdrColor"
-    return "/Render/Vars/LdrColor", "LdrColor", "LdrColor"
+    if len(simple_shading) > 1:
+        raise ValueError(
+            f"OVRTX supports at most one simple shading data type per render product, got {simple_shading}."
+            " RTX Minimal mode is a per-render-product setting. Request them from separate cameras."
+        )
+
+
+def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
+    """Return the primary ``(render_var_path, render_var_name, source_name)`` for ``data_types``.
+
+    The primary render var is the one authored for the first supported entry of ``data_types``. It
+    seeds the single-render-var arguments of :func:`build_render_scope_usd`; use
+    :func:`get_render_var_configs` to author every requested output.
+
+    Args:
+        data_types: Requested camera data types.
+
+    Returns:
+        The primary render var config. Defaults to ``LdrColor`` when no entry is supported.
+    """
+    return get_render_var_configs(data_types)[0]
 
 
 def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
-    """Return render var configs needed for the requested data types.
+    """Return the render var configs needed to serve every requested data type.
 
-    Each config is a ``(render_var_path, render_var_name, source_name)`` tuple as defined by
-    :func:`get_render_var_config`. Always includes the single render var resolved by
-    :func:`get_render_var_config`, plus the following extras when applicable:
+    Each config is a ``(render_var_path, render_var_name, source_name)`` tuple. One render var is
+    authored per requested data type, in request order, de-duplicated by config so data types that
+    read the same source (``rgb``/``rgba``, ``depth``/``distance_to_image_plane``) share one entry.
+    Data types OVRTX does not support (e.g. ``instance_id_segmentation_fast``) are logged and
+    skipped; when that leaves nothing, ``LdrColor`` is authored so the render product stays valid.
 
-    * ``HdrColor`` — when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are requested, so
-      PPISP can consume the HDR AOV alongside the LDR destination on the same render product.
+    The following ID-map render vars are appended when applicable. They carry the metadata that the
+    segmentation AOVs are decoded against rather than pixels of their own:
+
     * ``SemanticIdMap`` — when ``"semantic_segmentation"`` is requested, so the
       semantic-ID-to-label mapping can be decoded for ``camera.data.info``.
     * ``StableIdSemanticIdMap``, ``StableIdMap``, ``SemanticIdMap`` — when
       ``"instance_segmentation"`` is requested, so the instance-ID-to-prim-path
       (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be decoded.
 
-    Other multi-AOV combinations are not supported.
+    Args:
+        data_types: Requested camera data types.
+
+    Returns:
+        The render var configs to author on the render product.
+
+    Raises:
+        ValueError: If ``data_types`` combines outputs one render product cannot serve. See
+            :func:`_validate_data_type_combination`.
     """
     data_types = data_types if data_types else ["rgb"]
-    render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]
-    use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
-    if use_rgb and "rgb_hdr" in data_types:
-        render_vars.append(("/Render/Vars/HdrColor", "HdrColor", "HdrColor"))
-    # Author the ID-to-label map render vars needed to decode the segmentation info dicts. These are keyed off
-    # the requested data types (not the single AOV resolved by get_render_var_config) so they are still authored
-    # when segmentation is combined with other outputs. instance_segmentation needs StableIdSemanticIdMap +
-    # StableIdMap to resolve each pixel to a prim path.
+    _validate_data_type_combination(data_types)
+
+    render_vars: list[tuple[str, str, str]] = []
+    unsupported: list[str] = []
+    for data_type in data_types:
+        config = _RENDER_VAR_BY_DATA_TYPE.get(data_type)
+        if config is None:
+            unsupported.append(data_type)
+        elif config not in render_vars:
+            render_vars.append(config)
+
+    if unsupported:
+        logger.warning(
+            "OVRTX does not support the requested data type(s) %s; no render var is authored for them.", unsupported
+        )
+    if not render_vars:
+        render_vars.append(_DEFAULT_RENDER_VAR)
+
+    # Author the ID-to-label map render vars needed to decode the segmentation info dicts.
+    # instance_segmentation needs StableIdSemanticIdMap + StableIdMap to resolve each pixel to a prim path.
     if "instance_segmentation" in data_types:
         render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
         render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
