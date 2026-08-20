@@ -28,15 +28,18 @@ from .metrics import PerfSmokeError, mapping, positive_int
 #: matrix names. An unrecognised value raises.
 RUNTIME_COMPATIBILITY: dict[str, Any] = {
     "version": 3,
-    "always": ("isaacsim", "torch", "warp"),
+    "always": ("torch", "warp"),
     "by_physics_backend": {
-        "physx": ("ovphysx",),
+        "physx": ("ovphysx", "isaacsim"),
         "newton_mjwarp": ("newton", "mujoco", "mjwarp"),
     },
     "by_render_backend": {
-        # Newton's Warp renderer; ``warp`` is already required by ``always``.
+        
         "newton": (),
-        "rtx": ("ovrtx",),
+        # Kit's RTX renderer, versioned with the Isaac Sim build it ships in.
+        "isaacsim_rtx": ("isaacsim",),
+        # Standalone OV RTX renderer, shipped as its own package.
+        "ovrtx": ("ovrtx",),
     },
 }
 

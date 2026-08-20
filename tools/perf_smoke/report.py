@@ -82,9 +82,10 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     if not reports:
         return "## Performance smoke: no results\n\nNo comparison artifacts were produced.\n"
 
+    order = {PASS: 0, SKIP: 0, ERROR: 1, WARN: 2, FAIL: 3}
     worst = PASS
     for _, report in reports:
-        if report.verdict == FAIL or (report.verdict == WARN and worst != FAIL):
+        if order.get(report.verdict, 0) > order[worst]:
             worst = report.verdict
 
     lines = [
@@ -108,8 +109,9 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         )
     lines += [
         "",
-        f"{len(reports)} combination(s) reported. Combinations whose benchmark failed to run appear as a failed "
-        "job rather than a row here.",
+        f"{len(reports)} combination(s) reported. A 🚫 ERROR row is an error in the gate measurement, not a "
+        "performance result, and never blocks a pull request. Combinations whose benchmark never produced a "
+        "bundle appear as a failed job rather than a row here.",
     ]
     return "\n".join(lines) + "\n"
 

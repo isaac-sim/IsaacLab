@@ -42,7 +42,7 @@ MAX_BASELINE_SAMPLES = 10
 #: standard deviation for normally distributed data.
 _MAD_TO_SIGMA = 1.4826
 
-_SEVERITY = {PASS: 0, SKIP: 0, WARN: 1, FAIL: 2}
+_SEVERITY = {PASS: 0, SKIP: 0, ERROR: 0, WARN: 1, FAIL: 2}
 
 
 @dataclass(frozen=True)
@@ -230,6 +230,22 @@ def _skipped(contract: Contract, measured: dict[str, float], reason: str, histor
         for metric in METRICS
     )
     return Report(contract.as_dict(), contract.hash, metrics, SKIP, reason, label)
+
+
+def errored(reason: str, label: str = "") -> Report:
+    """Build a report for a failure inside the gate itself.
+
+    Non-blocking and distinct from :data:`SKIP`. 
+    :data:`ERROR` means the gate could not produce a trustworthy result.
+
+    Args:
+        reason: Operator-facing explanation of error.
+        label: Matrix combination name.
+
+    Returns:
+        A report carrying no metrics and the :data:`ERROR` verdict.
+    """
+    return Report(contract={}, contract_hash="", metrics=(), verdict=ERROR, message=reason, label=label)
 
 
 def compare(

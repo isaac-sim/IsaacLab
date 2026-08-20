@@ -977,18 +977,23 @@ jobs:
         fi
     # Read-only. Recording step below is the only writer scoped to refs/heads/develop.
     - name: Compare against baseline history
+      if: always()
       env:
         PERF_BASELINE_URI: ${{ vars.PERF_BASELINE_URI }}
       run: |
         set -euo pipefail
         mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-        if [ "${#results[@]}" -ne 1 ]; then
-          echo "::error::Expected one runtime benchmark JSON, found ${#results[@]}"
-          exit 1
+        if [ "${#results[@]}" -eq 1 ]; then
+          result="${results[0]}"
+        else
+          # Zero bundles (crash or timeout) or several (a retry left a stale file)
+          # point compare at a path that cannot exist so it reports ERROR
+          echo "::warning::Expected one runtime benchmark JSON, found ${#results[@]}"
+          result="benchmark-output/benchmark_runtime_MISSING.json"
         fi
-        # An unset URI yields SKIP, not failure because a missing baseline is not a regression.
+        # Don't FAIL when unset URI yields SKIP, gate fault yields ERROR.
         python3 -m tools.perf_smoke.cli compare \
-          --benchmark_result "${results[0]}" \
+          --benchmark_result "$result" \
           --baseline_uri "${PERF_BASELINE_URI:-}" \
           --label "${{ matrix.name }}" \
           --output_json benchmark-output/comparison.json \

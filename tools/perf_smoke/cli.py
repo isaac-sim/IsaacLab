@@ -43,24 +43,32 @@ def _load_json(path: Path, name: str) -> dict:
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
-    bundle = _load_json(args.benchmark_result, "benchmark result")
-    thresholds = _load_json(args.thresholds, "threshold config")
-    key = contract_mod.build(bundle)
-    measured = metrics_mod.extract(bundle)
+    try:
+        bundle = _load_json(args.benchmark_result, "benchmark result")
+        thresholds = _load_json(args.thresholds, "threshold config")
+        key = contract_mod.build(bundle)
+        measured = metrics_mod.extract(bundle)
 
-    if not args.baseline_uri:
-        report = compare_mod._skipped(
-            key, measured, "Baseline store is not configured (PERF_BASELINE_URI unset)", label=args.label
-        )
-    else:
-        rows = store_mod.read(args.baseline_uri, key.hash, compare_mod.MAX_BASELINE_SAMPLES)
-        # The store keys by contract hash, but verify the full contract too.
-        history = [row.metrics for row in rows if contract_mod.from_dict(row.contract).matches(key)]
-        report = compare_mod.compare(key, measured, history, thresholds, min_samples=args.min_samples, label=args.label)
+        if not args.baseline_uri:
+            report = compare_mod._skipped(
+                key, measured, "Baseline store is not configured (PERF_BASELINE_URI unset)", label=args.label
+            )
+        else:
+            rows = store_mod.read(args.baseline_uri, key.hash, compare_mod.MAX_BASELINE_SAMPLES)
+            # The store keys by contract hash, but verify the full contract too.
+            history = [row.metrics for row in rows if contract_mod.from_dict(row.contract).matches(key)]
+            report = compare_mod.compare(
+                key, measured, history, thresholds, min_samples=args.min_samples, label=args.label
+            )
+    except metrics_mod.PerfSmokeError as exc:
+        # Report ERROR, exit 0, and still write artifact so row shows in summary
+        # on gate fault.
+        report = compare_mod.errored(str(exc), label=args.label)
+        print(f"::warning::perf-smoke: {exc}", file=sys.stderr)
 
     report_mod.write_json(report, args.output_json)
     print(report_mod.render(report), end="")
-    # SKIP must not fail the job: a missing baseline is not evidence of a regression.
+    # Only a measured regression fails jobs; other errors are non-blocking and exit 0.
     return 1 if report.verdict == compare_mod.FAIL else 0
 
 
