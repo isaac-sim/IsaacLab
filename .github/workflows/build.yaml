@@ -82,7 +82,9 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      should_run: ${{ steps.detect.outputs.should_run }}
+      # TEMP [CI-DIAG]: force-skip the Docker build and test matrix on this
+      # probe branch so only ci-diag-disk-probe runs. Reverted with the branch.
+      should_run: 'false'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -157,6 +159,55 @@ jobs:
         sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
+
+  # TEMP [CI-DIAG]: runner root-disk occupancy probe. Read-only shell only, no
+  # checkout and no Docker build. Measures how the 2048 GiB runner root splits
+  # between Docker and the job workspace, and whether the instance-store NVMe is
+  # present and unmounted. Deleted together with this branch.
+  ci-diag-disk-probe:
+    name: CI-DIAG disk probe
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 15
+    steps:
+    - name: Instance type
+      shell: bash
+      run: |
+        set -euo pipefail
+        TOKEN=$(curl -fsS -X PUT -H "X-aws-ec2-metadata-token-ttl-seconds: 60" \
+          http://169.254.169.254/latest/api/token)
+        echo "instance-type: $(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" \
+          http://169.254.169.254/latest/meta-data/instance-type)"
+
+    - name: Block devices and mounts
+      shell: bash
+      run: |
+        set -x
+        lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL
+        df -hT
+        grep -E 'nvme|/dev/' /proc/mounts
+
+    - name: Filesystem usage by path
+      shell: bash
+      run: |
+        set -x
+        df -h /
+        df -h /var/lib/docker || true
+        df -h /opt/github-runner/_work || true
+
+    - name: Docker space split
+      shell: bash
+      run: |
+        set -x
+        docker system df
+        echo "--- ten largest image sizes (sizes only) ---"
+        docker images --format '{{.Size}}' | sort -h | tail -10
+
+    - name: Workspace usage
+      shell: bash
+      run: |
+        set -x
+        timeout 300 du -sh /opt/github-runner/_work || echo "du on _work timed out"
+        timeout 300 du -sh --max-depth=2 /opt/github-runner/_work || true
 
   #region build jobs
   build:
