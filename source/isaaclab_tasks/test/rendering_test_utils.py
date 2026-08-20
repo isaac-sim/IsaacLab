@@ -1968,9 +1968,7 @@ def rendering_test_franka_cloth(
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
-        # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
-        # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
-        # numerical precision.
+        # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
 
