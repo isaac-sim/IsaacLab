@@ -6,7 +6,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -118,12 +118,6 @@ class CabinetSimCfg(PresetCfg):
             debug_mode=False,
         ),
     )
-    newton_kamino: SimulationCfg = SimulationCfg(
-        dt=1 / 600,
-        render_interval=1,
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
-        physics=NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64)),
-    )
     default: SimulationCfg = newton_mjwarp
 
 
@@ -139,7 +133,6 @@ class CabinetDecimationCfg(PresetCfg):
     ovphysx: int = isaacsim_physx
     physx: int = isaacsim_physx
     newton_mjwarp: int = 10
-    newton_kamino: int = 10
     default: int = newton_mjwarp
 
 
