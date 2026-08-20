@@ -172,6 +172,10 @@ def _mode_resolves(
         args, remaining = setup_preset_cli(parser, argv)
         sys.argv = [sys.argv[0]] + remaining
         env_cfg, _ = resolve_task_config(args.task, args.agent)
+        # The env constructor validates before it builds anything, and tasks put their
+        # cross-axis rules there -- Reach rejects ``newton_ik`` without Newton physics.
+        # Skipping it reports those combinations legal and fails them at launch instead.
+        env_cfg.validate()
         config_scan = scan(env_cfg, args)
         _validate_runtime(config_scan, _get_kit_runtime_sources(config_scan, args))
         fingerprint = hashlib.sha256(repr(env_cfg.to_dict()).encode()).hexdigest()

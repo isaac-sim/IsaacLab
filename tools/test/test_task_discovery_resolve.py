@@ -59,6 +59,17 @@ def test_a_kit_backed_physics_and_a_kitless_renderer_are_rejected() -> None:
     assert _mode_resolves("Isaac-Cartpole-Camera", "ovphysx", "ovrtx", None) is not None
 
 
+def test_a_cross_axis_rule_the_task_declares_is_enforced() -> None:
+    """Tasks put cross-axis rules in ``validate_config``, which the env constructor runs.
+
+    Reach rejects ``newton_ik`` without Newton physics. Resolving without validating
+    reported those pairings legal, and they died on the first reset instead.
+    """
+    assert _mode_resolves("Isaac-Reach-Franka", "isaacsim_physx", None, "newton_ik") is None
+    assert _mode_resolves("Isaac-Reach-Franka", "ovphysx", None, "newton_ik") is None
+    assert _mode_resolves("Isaac-Reach-Franka", "newton_mjwarp", None, "newton_ik") is not None
+
+
 def test_the_fingerprint_identifies_a_run() -> None:
     """The collapse is only as good as this: stable per run, distinct across runs.
 
