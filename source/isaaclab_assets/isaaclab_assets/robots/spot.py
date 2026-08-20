@@ -162,7 +162,7 @@ SPOT_CFG = ArticulationCfg(
     actuators={
         "spot_hip": DelayedPDActuatorCfg(
             joint_names_expr=[".*_h[xy]"],
-            effort_limit=45.0,
+            actuator_effort_limit=45.0,
             stiffness=60.0,
             damping=1.5,
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
@@ -171,7 +171,7 @@ SPOT_CFG = ArticulationCfg(
         "spot_knee": RemotizedPDActuatorCfg(
             joint_names_expr=[".*_kn"],
             joint_parameter_lookup=joint_parameter_lookup,
-            effort_limit=None,  # torque limits are handled based experimental data (`RemotizedPDActuatorCfg.data`)
+            actuator_effort_limit=None,  # Torque limits are based on experimental data (`RemotizedPDActuatorCfg.data`).
             stiffness=60.0,
             damping=1.5,
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)

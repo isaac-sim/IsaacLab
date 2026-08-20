@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+5.3.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added explicit state-buffer advancement so Newton actuator adapters can be
+  replayed from backend-owned CUDA graphs.
+* Added Newton cable discovery and Fabric curve sync so rendered cable curves follow
+  simulated segment endpoints.
+
+Changed
+^^^^^^^
+
+* Routed Newton articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+* Changed host-adapter execution of Newton actuators on PhysX and OVPhysX to
+  aggregate structurally compatible joints while retaining their per-joint
+  parameters.
+
+Fixed
+^^^^^
+
+* Fixed Newton-native execution with non-graphable actuators to keep solver
+  stepping in a CUDA graph.
+* Fixed :attr:`~isaaclab.sensors.ContactSensorData.force_matrix_w_history` on
+  Newton to retain filtered contact forces across sensor updates like PhysX.
+* Made MPM particle visualization available to non-Kit renderers and visualizers.
+* Fixed the Newton Warp renderer reporting UNLABELLED semantic and instance segmentation for every
+  environment but the prototype when the scene spawns only the prototype
+  (:attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path`) and relies on backend replication. Shapes
+  cloned by the physics backend now resolve their labels through the prototype environment recorded
+  in the clone plan, with the matched ancestor rebased into the cloned environment so instance ids
+  stay distinct per environment.
+
+
 5.2.0 (2026-08-15)
 ~~~~~~~~~~~~~~~~~~
 

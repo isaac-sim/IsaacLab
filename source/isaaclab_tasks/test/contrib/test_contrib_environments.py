@@ -28,7 +28,6 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
 _SKIPPED_TASKS = {
-    "IsaacContrib-Franka-Pour": "Requires an external reset-dataset artifact.",
     "IsaacContrib-AutoMate-Assembly-Direct": "Requires CUDA support outside the standard environment test runner.",
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
 }
