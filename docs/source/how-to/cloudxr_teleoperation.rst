@@ -742,10 +742,11 @@ Start teleoperation
 ^^^^^^^^^^^^^^^^^^^
 
 #. Put on the Manus gloves and headset.
-#. Connect the headset to Isaac Lab: for Meta Quest 3 / Pico 4 Ultra, follow
-   :ref:`connect-quest-pico`; for Apple Vision Pro, follow :ref:`use-apple-vision-pro`. No
-   additional pairing step is required for the gloves once the headset is connected -- Manus
-   tracking data replaces the headset's own hand tracking on the same OpenXR path.
+#. Connect the headset to Isaac Lab: for Meta Quest 3 / Pico 4 Ultra, follow the
+   :ref:`connection steps above <connect-quest-pico>`; for Apple Vision Pro, follow
+   :ref:`the Apple Vision Pro steps <use-apple-vision-pro>`. No additional pairing step is
+   required for the gloves once the headset is connected -- Manus tracking data replaces the
+   headset's own hand tracking on the same OpenXR path.
 #. Send the start command from the headset (Meta Quest 3 / Pico 4 Ultra: the CloudXR.js
    **Connect** button; Apple Vision Pro: the **Play** button in the Isaac XR Teleop Sample
    Client).
