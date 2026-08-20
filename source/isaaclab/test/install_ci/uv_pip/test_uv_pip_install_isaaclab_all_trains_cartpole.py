@@ -16,8 +16,8 @@ Setup:
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
-        presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
-        --task Isaac-Cartpole-Camera-Direct --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
+        physics=ovphysx --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
+        --task Isaac-Cartpole-Camera-Direct --num_envs 16 physics=ovphysx renderer=ovrtx --max_iterations 2
  -> verify state training, camera rendering, and camera training work
 """
 
@@ -76,6 +76,10 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             result = self.run_in_uv_env(
                 [str(self.python), str(cartpole_smoke_script)],
                 cwd=isaaclab_root,
+                env={
+                    "ISAACLAB_CARTPOLE_SMOKE_PHYSICS": "ovphysx",
+                    "ISAACLAB_CARTPOLE_SMOKE_RENDERER": "ovrtx",
+                },
                 timeout=3000,
             )
             assert result.returncode == 0, f"Cartpole smoke failed:\n{result.stdout}\n{result.stderr}"

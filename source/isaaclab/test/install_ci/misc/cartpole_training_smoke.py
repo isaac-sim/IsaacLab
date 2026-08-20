@@ -16,6 +16,9 @@ import os
 import subprocess
 from pathlib import Path
 
+_PHYSICS_PRESET = os.environ.get("ISAACLAB_CARTPOLE_SMOKE_PHYSICS", "newton_mjwarp")
+_RENDERER_PRESET = os.environ.get("ISAACLAB_CARTPOLE_SMOKE_RENDERER", "newton_renderer")
+
 _STATE_TRAIN_CMD = [
     "train",
     "--rl_library",
@@ -24,7 +27,7 @@ _STATE_TRAIN_CMD = [
     "Isaac-Cartpole-Direct",
     "--num_envs",
     "16",
-    "presets=newton_mjwarp",
+    f"physics={_PHYSICS_PRESET}",
     "--max_iterations",
     "5",
 ]
@@ -37,7 +40,8 @@ _CAMERA_TRAIN_CMD = [
     "Isaac-Cartpole-Camera-Direct",
     "--num_envs",
     "16",
-    "presets=newton_mjwarp,newton_renderer",
+    f"physics={_PHYSICS_PRESET}",
+    f"renderer={_RENDERER_PRESET}",
     "--max_iterations",
     "2",
 ]
@@ -87,7 +91,7 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
     from isaaclab_tasks.utils.hydra import resolve_presets
 
-    env_cfg = resolve_presets(CartpoleCameraEnvCfg(), selected={"newton_mjwarp", "newton_renderer"})
+    env_cfg = resolve_presets(CartpoleCameraEnvCfg(), selected={_PHYSICS_PRESET, _RENDERER_PRESET})
     env_cfg.scene.num_envs = 2
     env_cfg.frame_stack = 1
     env = None
