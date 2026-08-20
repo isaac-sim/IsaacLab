@@ -7,10 +7,10 @@ import inspect
 
 from pxr import Sdf, Usd, UsdGeom, UsdShade
 
-from isaaclab.sim.spawners.meshes import meshes
-from isaaclab.sim.spawners.meshes.meshes_cfg import MeshRectangleCfg
 from isaaclab.sim.spawners.materials import visual_materials
 from isaaclab.sim.spawners.materials.visual_materials_cfg import MdlFileCfg, PreviewSurfaceCfg
+from isaaclab.sim.spawners.meshes import meshes
+from isaaclab.sim.spawners.meshes.meshes_cfg import MeshRectangleCfg
 from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.utils.prims import bind_visual_material
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
