@@ -92,6 +92,30 @@ class EnvironmentDocRow:
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
     agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    supports_warp_frontend: bool = False
+
+
+def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
+    """Return whether a task can run through ``--frontend warp``."""
+    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+        return False
+
+    try:
+        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+
+        from isaaclab_tasks.utils.hydra import resolve_presets
+        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+        cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+        cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+        if workflow == "Direct":
+            try:
+                return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
+            except FrontendIncompatibleError:
+                return False
+        return WarpFrontend.check_compatibility(cfg) is None
+    except (ImportError, gym.error.Error):
+        return False
 
 
 def is_training_task(task_id: str) -> bool:
@@ -526,6 +550,7 @@ def collect_environment_doc_rows(
                     for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
                     if agent in spec.kwargs
                 },
+                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
             )
         )
 
@@ -632,6 +657,12 @@ def render_environment_browser_task_rows(
             rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
         if preview_image:
             rendered_values += f", {json.dumps(preview_image)}"
+        if row.supports_warp_frontend:
+            if not row.agent_preset_compatibility and not preview_image:
+                rendered_values += ", {}"
+            if not preview_image:
+                rendered_values += ', ""'
+            rendered_values += ", true"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)

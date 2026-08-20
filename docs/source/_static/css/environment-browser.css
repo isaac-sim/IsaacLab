@@ -53,7 +53,8 @@ html[data-theme="dark"] .environment-browser {
     white-space: nowrap;
 }
 
-.environment-mode-switch {
+.environment-mode-switch,
+.environment-scope-switch {
     display: inline-flex;
     flex: 0 0 auto;
     overflow: hidden;
@@ -61,7 +62,8 @@ html[data-theme="dark"] .environment-browser {
     border-radius: 6px;
 }
 
-.environment-mode-switch button {
+.environment-mode-switch button,
+.environment-scope-switch button {
     min-height: 2.35rem;
     padding: 0.35rem 0.7rem;
     border: 0;
@@ -72,11 +74,13 @@ html[data-theme="dark"] .environment-browser {
     font-weight: 600;
 }
 
-.environment-mode-switch button:last-child {
+.environment-mode-switch button:last-child,
+.environment-scope-switch button:last-child {
     border-right: 0;
 }
 
-.environment-mode-switch button.is-active {
+.environment-mode-switch button.is-active,
+.environment-scope-switch button.is-active {
     color: #1f3300;
     background: #76b900;
 }
@@ -100,6 +104,14 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-task-field {
     flex: 1 1 20rem;
+}
+
+.environment-task-field > span {
+    min-width: 4.75rem;
+}
+
+.environment-scope-switch {
+    margin-left: auto;
 }
 
 .environment-inline-field select,
@@ -185,6 +197,13 @@ html[data-theme="dark"] .environment-browser {
     height: 1rem;
     margin: 0;
     accent-color: var(--pst-color-primary);
+}
+
+.environment-checkpoint-toggle:has(input:disabled) {
+    color: var(--environment-muted);
+    background: color-mix(in srgb, var(--pst-color-background) 55%, transparent);
+    cursor: not-allowed;
+    opacity: 0.65;
 }
 
 .environment-command-output {
