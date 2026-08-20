@@ -129,8 +129,8 @@ def command_build_isaacsim(source_path: str) -> None:
 
     Runs an incremental Isaac Sim build, packages the resulting Python wheels, links them into the
     Isaac Lab repository as ``_isaac_sim_wheels``, points uv at that directory through
-    ``find-links``, pins the ``isaacsim-local`` extra to the version that was built, and re-resolves
-    Isaac Sim from those wheels. Afterwards, run Isaac Lab against the build with
+    ``find-links``, creates and pins the ``isaacsim-local`` extra to the version that was built, and
+    re-resolves Isaac Sim from those wheels. Afterwards, run Isaac Lab against the build with
     ``uv run --extra isaacsim-local``.
 
     The pin is required: source builds produce pre-release local versions that sort below the
@@ -194,7 +194,7 @@ def command_build_isaacsim(source_path: str) -> None:
     # Source builds carry a pre-release local version (``6.0.1rc7+develop.<hash>.local``) that
     # sorts *below* the published release, so an unpinned ``isaacsim-local`` extra always resolves
     # back to the registry. uv only honors a version this specific per conflicting-extra fork when
-    # it is written into the requirement itself, so pin the extra to the version just built.
+    # it is written into the requirement itself, so create and pin the extra to the version just built.
     _pin_isaacsim_local_extra(local_version)
     _add_isaacsim_local_conflicts()
 
@@ -322,7 +322,7 @@ def _set_uv_find_links(find_links: str) -> None:
 
 
 def _pin_isaacsim_local_extra(version: str) -> None:
-    """Pin the ``isaacsim-local`` extra in ``pyproject.toml`` to a locally built Isaac Sim.
+    """Create and pin the ``isaacsim-local`` extra to a locally built Isaac Sim.
 
     Args:
         version: Version of the locally built ``isaacsim`` wheel.
@@ -330,13 +330,31 @@ def _pin_isaacsim_local_extra(version: str) -> None:
     pyproject = ISAACLAB_ROOT / "pyproject.toml"
     text = pyproject.read_text(encoding="utf-8")
     pinned = f'isaacsim-local = ["isaacsim[all,extscache]=={version}"]'
-    updated, count = re.subn(r"^isaacsim-local = \[.*\]$", pinned, text, count=1, flags=re.MULTILINE)
-    if count == 0:
-        print_error(f"Could not find the 'isaacsim-local' extra in {pyproject}.")
+
+    header = re.search(r"^\[project\.optional-dependencies\]$", text, flags=re.MULTILINE)
+    if header is None:
+        print_error(f"Could not find the '[project.optional-dependencies]' table in {pyproject}.")
         raise SystemExit(1)
+    start = header.end()
+    following = re.search(r"^\[", text[start:], flags=re.MULTILINE)
+    end = start + (following.start() if following is not None else len(text) - start)
+    section = text[start:end]
+
+    extra_match = re.search(r"^isaacsim-local\s*=.*$", section, flags=re.MULTILINE)
+    if extra_match is None:
+        isaacsim_match = re.search(r"^isaacsim\s*=.*$", section, flags=re.MULTILINE)
+        insertion = isaacsim_match.end() if isaacsim_match is not None else len(section.rstrip())
+        local_extra = (
+            "\n# Locally built Isaac Sim ('isaaclab --isaacsim_source'). Local-only, do not commit.\n" + pinned
+        )
+        section = section[:insertion] + local_extra + section[insertion:]
+    else:
+        section = section[: extra_match.start()] + pinned + section[extra_match.end() :]
+
+    updated = text[:start] + section + text[end:]
     if updated != text:
         pyproject.write_text(updated, encoding="utf-8")
-    print_info(f"Pinned the 'isaacsim-local' extra to isaacsim=={version}.")
+    print_info(f"Created and pinned the 'isaacsim-local' extra to isaacsim=={version}.")
 
 
 def _add_isaacsim_local_conflicts() -> None:

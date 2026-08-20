@@ -785,9 +785,10 @@ build as wheels, and configures ``uv`` to use those wheels:
    git clone https://github.com/isaac-sim/IsaacSim.git ../IsaacSim
    uv run isaaclab --isaacsim_source ../IsaacSim
 
-The command records the local wheel directory and exact source-build version in ``pyproject.toml``
-and refreshes ``uv.lock``. Those changes describe your machine; do not commit them. To return to
-published Isaac Sim packages, revert both files before committing. Then run Isaac Lab normally:
+The command creates a local-only ``isaacsim-local`` extra, records the wheel directory and exact
+source-build version in ``pyproject.toml``, and refreshes ``uv.lock``. Those changes describe your
+machine; do not commit them. To return to published Isaac Sim packages, revert both files before
+committing. Then run Isaac Lab normally:
 
 .. code-block:: bash
 

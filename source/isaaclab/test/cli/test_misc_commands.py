@@ -118,6 +118,25 @@ def test_build_isaacsim_preserves_multiline_find_links(tmp_path):
     ]
 
 
+def test_build_isaacsim_creates_and_updates_local_extra(tmp_path):
+    """The source-build workflow must generate its local-only optional dependency."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project.optional-dependencies]\nisaacsim = ["isaacsim[all,extscache]==6.0.1.0"]\n\n[tool.uv]\n',
+        encoding="utf-8",
+    )
+
+    with mock.patch.object(misc, "ISAACLAB_ROOT", tmp_path):
+        misc._pin_isaacsim_local_extra("6.0.1rc7+develop.0.local")
+        misc._pin_isaacsim_local_extra("6.0.1rc8+develop.1.local")
+
+    extras = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["optional-dependencies"]
+    assert extras == {
+        "isaacsim": ["isaacsim[all,extscache]==6.0.1.0"],
+        "isaacsim-local": ["isaacsim[all,extscache]==6.0.1rc8+develop.1.local"],
+    }
+
+
 def test_build_isaacsim_adds_local_conflicts_without_duplicates(tmp_path):
     """A local Isaac Sim pin must split from extras using the published wheel."""
     pyproject = tmp_path / "pyproject.toml"
@@ -136,4 +155,3 @@ def test_build_isaacsim_adds_local_conflicts_without_duplicates(tmp_path):
         [{"extra": "isaacsim-local"}, {"extra": "teleop"}],
         [{"extra": "isaacsim-local"}, {"extra": "all"}],
     ]
-
