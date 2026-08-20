@@ -74,9 +74,16 @@ def create_test_articulation(
     data = ArticulationData(mock_view, device)
     data._apply_ordering_maps_after_resolve()
     object.__setattr__(articulation, "_data", data)
-    object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
     articulation._create_buffers()
+
+    from isaaclab.actuators import ActuatorCollection
+
+    from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl
+
+    control = OvPhysxActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view
 

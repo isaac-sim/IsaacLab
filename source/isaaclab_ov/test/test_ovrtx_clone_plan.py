@@ -103,6 +103,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
+    renderer._object_scales = None
+    renderer._object_scales_by_path = {}
     return renderer
 
 

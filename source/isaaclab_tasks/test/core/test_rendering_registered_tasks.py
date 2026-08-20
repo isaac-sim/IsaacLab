@@ -28,6 +28,7 @@ from rendering_test_utils import (  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 
+_SCENE_PARTITION_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -86,9 +87,9 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 
 
 @pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-# TODO: Restore enable_scene_partition after NVBug 6264822 is fixed.
-def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str):
+def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str, monkeypatch: pytest.MonkeyPatch):
     """Test registered tasks rendering correctness."""
+    monkeypatch.delenv(_SCENE_PARTITION_ENV_VAR, raising=False)
     env = None
 
     try:

@@ -5,18 +5,15 @@
 
 """Shared Warp kernels for the Newton actuator fast path."""
 
+from collections.abc import Sequence
+
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorBase, ImplicitActuator
-
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
-# per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`),
-# and a partial scatter for DR gain updates that overwrites only the cells
-# in a (env_ids × joint_ids) sub-grid of a Newton ``Actuator``'s controller
-# parameter array. Used on the PhysX backend (no Newton view available);
-# the Newton backend uses ``ArticulationView.set_actuator_parameter`` instead.
+# and per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`).
+# Parameter reads and writes go through Newton's selection API instead.
 # ---------------------------------------------------------------------------
 
 
@@ -54,100 +51,6 @@ def build_per_dof_env_mask_kernel(
     global_dof = int(indices[i]) - dof_offset
     env = global_dof // num_joints
     out_mask[i] = env_mask[env]
-
-
-@wp.kernel(enable_backward=False)
-def scatter_gain_kernel(
-    src: wp.array(dtype=wp.float32),
-    dst: wp.array(dtype=wp.float32),
-    indices: wp.array(dtype=wp.uint32),
-    dof_offset: int,
-    num_joints: int,
-    env_stride: int,
-):
-    """Scatter per-actuator ``src`` values into a flat per-env-per-DOF ``dst``.
-
-    Used at adapter finalize to snapshot each ``controller.kp`` /
-    ``controller.kd`` into the ``(num_envs, num_joints)`` torch tensor
-    that ``randomize_actuator_gains`` reads as
-    ``actuator.stiffness`` / ``.damping`` for its
-    ``default_joint_stiffness`` / ``default_joint_damping`` baseline.
-
-    The actuator's ``indices`` are global DOF ids laid out env-major with a
-    per-env stride of ``env_stride`` — the *whole model's* per-env DOF count,
-    which on a floating-base articulation exceeds ``num_joints`` (the
-    articulation-local, actuated joint count) by the free-root DOFs. The env
-    index must therefore be decoded with ``env_stride``, not ``num_joints``;
-    the articulation-local joint offset is what remains after removing the
-    env's block and lands in ``[0, num_joints)`` because ``indices`` only ever
-    holds this articulation's joints.
-
-    Args:
-        src: Per-actuator parameter values (e.g. ``controller.kp``).
-        dst: Flat ``(num_envs * num_joints)`` articulation-local snapshot buffer.
-        indices: Actuator's flat env-major global DOF indices.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
-        num_joints: Articulation-local joint count (``dst``'s inner stride).
-        env_stride: Whole-model per-env DOF count (the stride used to build
-            ``indices``).
-    """
-    i = wp.tid()
-    global_dof = int(indices[i]) - dof_offset
-    env = global_dof // env_stride
-    local_dof = global_dof - env * env_stride
-    dst[env * num_joints + local_dof] = src[i]
-
-
-@wp.kernel(enable_backward=False)
-def patch_actuator_param_kernel(
-    indices: wp.array(dtype=wp.uint32),
-    env_id_pos: wp.array(dtype=wp.int32),
-    joint_id_pos: wp.array(dtype=wp.int32),
-    values: wp.array2d(dtype=wp.float32),
-    dof_offset: int,
-    num_joints: int,
-    dst: wp.array(dtype=wp.float32),
-):
-    """Per-actuator scatter for partial DR gain updates.
-
-    For each slot ``i`` in the actuator's flat env-major ``indices``, derive
-    the (env, local-joint) pair, look it up against the dense position
-    arrays, and — when both axes are in the DR sub-grid — overwrite
-    ``dst[i]`` (the controller parameter) with ``values[e_pos, j_pos]``.
-    Cells outside the sub-grid are left untouched.
-
-    Note:
-        This kernel is PhysX-only (the Newton backend patches gains via
-        :meth:`ArticulationView.set_actuator_parameter`). On PhysX every
-        joint's coordinate count equals its DOF count, so the per-env stride
-        used to build ``indices`` equals ``num_joints`` and the ``env`` /
-        ``joint`` split below is exact. Do not reuse this kernel on a layout
-        whose per-env DOF stride exceeds ``num_joints`` (e.g. a floating-base
-        Newton model) without threading the true stride, or the ``joint``
-        split will alias across envs — see :func:`scatter_gain_kernel`.
-
-    Args:
-        indices: Actuator's flat indices into the (env-major) DOF layout.
-        env_id_pos: ``env_id_pos[env]`` gives the row in ``values`` for
-            envs being updated, ``-1`` otherwise. Length ``num_envs``.
-        joint_id_pos: ``joint_id_pos[joint]`` gives the column in
-            ``values`` for joints being updated, ``-1`` otherwise.
-            Length ``num_joints`` (articulation-local).
-        values: New parameter values shaped ``(len(env_ids), len(joint_ids))``.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
-        num_joints: Articulation-local joint count.
-        dst: Per-actuator controller parameter array (e.g. ``controller.kp``).
-    """
-    i = wp.tid()
-    global_dof = int(indices[i]) - dof_offset
-    env = global_dof // num_joints
-    joint = global_dof % num_joints
-    e_pos = env_id_pos[env]
-    j_pos = joint_id_pos[joint]
-    if e_pos >= 0 and j_pos >= 0:
-        dst[i] = values[e_pos, j_pos]
 
 
 # ---------------------------------------------------------------------------
@@ -206,14 +109,20 @@ def sync_torque_telemetry(
 
 
 def build_implicit_dof_mask(
-    actuators: dict[str, ActuatorBase],
+    implicit_joint_indices: "Sequence[slice | torch.Tensor | None]",
     num_joints: int,
     device: str,
 ) -> tuple[wp.array, torch.Tensor]:
     """Per-DOF mask consumed by :func:`sync_torque_telemetry`.
 
-    Entry is ``1`` for DOFs covered by an
-    :class:`~isaaclab.actuators.ImplicitActuator` group, ``0`` otherwise.
+    Entry is ``1`` for DOFs covered by an implicit actuator group, ``0`` otherwise.
+
+    Args:
+        implicit_joint_indices: Joint selectors of the implicit groups, e.g. from
+            :meth:`ActuatorCollection._implicit_group_joint_indices`. ``slice`` or
+            ``None`` selects all joints.
+        num_joints: Articulation joint count.
+        device: Torch/Warp device string.
 
     Returns:
         Tuple of ``(wp_mask, torch_owner)``. ``wp_mask`` is the Warp
@@ -226,10 +135,7 @@ def build_implicit_dof_mask(
         ``wp_mask``'s device pointer will read garbage at replay time.
     """
     modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
-    for actuator in actuators.values():
-        if not isinstance(actuator, ImplicitActuator):
-            continue
-        j_ids = actuator.joint_indices
+    for j_ids in implicit_joint_indices:
         if isinstance(j_ids, slice) or j_ids is None:
             modes[:] = 1
         else:

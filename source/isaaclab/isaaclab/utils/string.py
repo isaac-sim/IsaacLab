@@ -502,6 +502,24 @@ def resolve_matching_names_values(
     return index_list, names_list, values_list
 
 
+def _resolve_matching_values_dense(value: dict[str, float | int] | float | int, names: list[str]) -> tuple[float, ...]:
+    """Expand a scalar or regex-keyed mapping into dense per-name float values.
+
+    Scalars broadcast to every name. Mapping entries resolve through
+    :func:`resolve_matching_names_values`; names not matched by any pattern
+    resolve to zero. This zero fill is the shared contract for actuator
+    configuration values across model parsing, alias comparison, and USD
+    authoring.
+    """
+    if isinstance(value, (float, int)):
+        return (float(value),) * len(names)
+    indices, _, values = resolve_matching_names_values(value, names)
+    resolved_values = [0.0] * len(names)
+    for index, resolved_value in zip(indices, values, strict=True):
+        resolved_values[index] = float(resolved_value)
+    return tuple(resolved_values)
+
+
 def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], bool]) -> str:
     """Find a unique string name based on the predicate function provided.
     The string is appended with "_N", where N is a natural number till the resultant string
