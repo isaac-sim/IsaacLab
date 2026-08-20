@@ -797,10 +797,12 @@ jobs:
           test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
           test_rendering_franka_soft.py,
+          test_rendering_franka_cable.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
+        warp-cache: restore
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
@@ -843,10 +845,12 @@ jobs:
           test_rendering_lift_kuka_homo_kitless.py,
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
+          test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
+        warp-cache: restore
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
@@ -887,6 +891,7 @@ jobs:
           test_rendering_lift_kuka_homo_kitless.py,
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
+          test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}

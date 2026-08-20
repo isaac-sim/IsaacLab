@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
@@ -14,8 +15,75 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
+from ._compat import _limits_equal, _resolve_limit_aliases
+
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
+
+
+def resolve_joint_parameter(
+    cfg_value: float | dict[str, float] | None,
+    default_value: float | torch.Tensor | None,
+    joint_names: list[str],
+    num_envs: int,
+    device: str,
+) -> torch.Tensor:
+    """Resolve one group-shaped joint parameter from configuration and defaults.
+
+    The single source of joint-parameter resolution semantics, shared by the actuator
+    models and by :class:`~isaaclab.actuators.ActuatorCollection` when it resolves the
+    construction-time joint properties.
+
+    Args:
+        cfg_value: The parameter value from the configuration, a scalar or a
+            joint-name-pattern dictionary. If None, then the default value is used.
+        default_value: The default value, a scalar or a ``(num_envs, len(joint_names))``
+            tensor. If it is also None, then an error is raised.
+        joint_names: The group's joint names, defining the column order.
+        num_envs: Number of articulation instances.
+        device: Torch device string.
+
+    Returns:
+        The resolved parameter value, shape ``(num_envs, len(joint_names))``.
+
+    Raises:
+        TypeError: If the parameter or default value is not of the expected type.
+        ValueError: If both values are None, or the default tensor has the wrong shape.
+    """
+    num_joints = len(joint_names)
+    param = torch.zeros(num_envs, num_joints, device=device)
+    if cfg_value is not None:
+        if isinstance(cfg_value, (float, int, dict)):
+            dense_values = string_utils._resolve_matching_values_dense(cfg_value, joint_names)
+            param[:] = torch.tensor(dense_values, dtype=torch.float, device=device)
+        else:
+            raise TypeError(
+                f"Invalid type for parameter value: {type(cfg_value)} for "
+                + f"actuator on joints {joint_names}. Expected float or dict."
+            )
+    elif default_value is not None:
+        if isinstance(default_value, (float, int)):
+            # if float, then use the same value for all joints
+            param[:] = float(default_value)
+        elif isinstance(default_value, torch.Tensor):
+            # if tensor, then use the same tensor for all joints
+            if default_value.shape == (num_envs, num_joints):
+                param = default_value.float()
+            else:
+                raise ValueError(
+                    "Invalid default value tensor shape.\n"
+                    f"Got: {default_value.shape}\n"
+                    f"Expected: {(num_envs, num_joints)}"
+                )
+        else:
+            raise TypeError(
+                f"Invalid type for default value: {type(default_value)} for "
+                + f"actuator on joints {joint_names}. Expected float or Tensor."
+            )
+    else:
+        raise ValueError("The parameter value is None and no default value is provided.")
+
+    return param
 
 
 class ActuatorBase(ABC):
@@ -44,69 +112,27 @@ class ActuatorBase(ABC):
     """
 
     computed_effort: torch.Tensor
-    """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
+    """The computed effort [N or N·m, depending on joint type] for the actuator group.
+
+    Shape is (num_envs, num_joints).
+    """
 
     applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is (num_envs, num_joints).
+    """The applied effort [N or N·m, depending on joint type] for the actuator group.
+
+    Shape is (num_envs, num_joints).
 
     This is the effort obtained after clipping the :attr:`computed_effort` based on the
     actuator characteristics.
     """
 
-    effort_limit: torch.Tensor
-    """The joint effort limit for the actuator group [N or N·m]. Shape is (num_envs, num_joints).
-
-    The actuator's rated force/torque reflected at the joint. It clips explicit-model output and remains
-    available as the model-facing limit for implicit actuators. When configured separately, it is not
-    pushed to the physics solver; that is :attr:`effort_limit_sim`.
-    """
-
-    effort_limit_sim: torch.Tensor
-    """The solver-level effort clamp for the actuator group [N or N·m]. Shape is (num_envs, num_joints).
-
-    Written to the simulation physics solver and resolved independently of :attr:`effort_limit` when both
-    fields are configured.
-    """
-
-    velocity_limit: torch.Tensor
-    """The joint velocity limit for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
+    actuator_velocity_limit: torch.Tensor
+    """The actuator velocity limit [m/s or rad/s, depending on joint type]. Shape is (num_envs, num_joints).
 
     The peak velocity of the actuated joint (the actuator's rated speed reflected at the joint,
     after any gearbox). Feeds the articulation data buffers (e.g. soft joint velocity limits) and
     explicit-model effort clipping; it is not pushed to the physics solver. Defaults to
-    :attr:`velocity_limit_sim` when only the solver clamp is configured.
-    """
-
-    velocity_limit_sim: torch.Tensor
-    """The solver-level velocity clamp for the actuator group [rad/s or m/s]. Shape is (num_envs, num_joints).
-
-    Written to the simulation (PhysX ``maxJointVelocity``); resolved independently of
-    :attr:`velocity_limit`.
-    """
-
-    stiffness: torch.Tensor
-    """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
-
-    damping: torch.Tensor
-    """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
-
-    armature: torch.Tensor
-    """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    friction: torch.Tensor
-    """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    dynamic_friction: torch.Tensor
-    """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    viscous_friction: torch.Tensor
-    """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
-
-    _DEFAULT_MAX_EFFORT_SIM: ClassVar[float] = 1.0e9
-    """The default maximum effort for the actuator joints in the simulation. Defaults to 1.0e9.
-
-    If the :attr:`ActuatorBaseCfg.effort_limit_sim` is not specified and the actuator is an explicit
-    actuator, then this value is used.
+    ``joint_velocity_limit`` when only the solver constraint is configured.
     """
 
     def __init__(
@@ -116,14 +142,10 @@ class ActuatorBase(ABC):
         joint_ids: slice | torch.Tensor,
         num_envs: int,
         device: str,
-        stiffness: torch.Tensor | float = 0.0,
-        damping: torch.Tensor | float = 0.0,
-        armature: torch.Tensor | float = 0.0,
-        friction: torch.Tensor | float = 0.0,
-        dynamic_friction: torch.Tensor | float = 0.0,
-        viscous_friction: torch.Tensor | float = 0.0,
-        effort_limit: torch.Tensor | float = torch.inf,
-        velocity_limit: torch.Tensor | float = torch.inf,
+        actuator_effort_limit: torch.Tensor | float | None = None,
+        actuator_velocity_limit: torch.Tensor | float | None = None,
+        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
+        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         """Initialize the actuator.
 
@@ -131,11 +153,7 @@ class ActuatorBase(ABC):
         are not specified in the configuration, then their values provided in the constructor are used.
 
         .. note::
-            The values in the constructor are typically obtained through the USD values passed from the PhysX API calls
-            corresponding to the joints in the actuator model; these values serve as default values if the parameters
-            are not specified in the cfg.
-
-
+            The constructor defaults are typically read from the backend's authored joint properties.
 
         Args:
             cfg: The configuration of the actuator model.
@@ -144,22 +162,14 @@ class ActuatorBase(ABC):
                 the joints in the articulation are part of the group.
             num_envs: Number of articulations in the view.
             device: Device used for processing.
-            stiffness: The default joint stiffness (P gain). Defaults to 0.0.
+            actuator_effort_limit: Default actuator-model effort clipping limit
+                [N or N·m, depending on joint type]. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
-            damping: The default joint damping (D gain). Defaults to 0.0.
+            actuator_velocity_limit: Default actuator velocity limit
+                [m/s or rad/s, depending on joint type]. Defaults to infinity.
                 If a tensor, then the shape is (num_envs, num_joints).
-            armature: The default joint armature. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            friction: The default joint static friction. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            dynamic_friction: The default joint dynamic friction. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            viscous_friction: The default joint viscous friction. Defaults to 0.0.
-                If a tensor, then the shape is (num_envs, num_joints).
-            effort_limit: The default effort limit. Defaults to infinity.
-                If a tensor, then the shape is (num_envs, num_joints).
-            velocity_limit: The default velocity limit. Defaults to infinity.
-                If a tensor, then the shape is (num_envs, num_joints).
+            effort_limit: Deprecated alias for :paramref:`actuator_effort_limit`.
+            velocity_limit: Deprecated alias for :paramref:`actuator_velocity_limit`.
         """
         # save parameters
         self.cfg = cfg
@@ -167,56 +177,61 @@ class ActuatorBase(ABC):
         self._device = device
         self._joint_names = joint_names
         self._joint_indices = joint_ids
-        self.joint_property_resolution_table: dict[str, list] = {}
-        # For explicit models, we do not want to enforce the effort limit through the solver
-        # (unless it is explicitly set)
-        if not self.is_implicit_model and self.cfg.effort_limit_sim is None:
-            self.cfg.effort_limit_sim = self._DEFAULT_MAX_EFFORT_SIM
-
-        # resolve usd, actuator configuration values
-        # case 1: if usd_value == actuator_cfg_value: all good,
-        # case 2: if usd_value != actuator_cfg_value: we use actuator_cfg_value
-        # case 3: if actuator_cfg_value is None: we use usd_value
-
-        to_check = [
-            ("velocity_limit_sim", velocity_limit),
-            ("effort_limit_sim", effort_limit),
-            ("stiffness", stiffness),
-            ("damping", damping),
-            ("armature", armature),
-            ("friction", friction),
-            ("dynamic_friction", dynamic_friction),
-            ("viscous_friction", viscous_friction),
-        ]
-        for param_name, usd_val in to_check:
-            cfg_val = getattr(self.cfg, param_name)
-            setattr(self, param_name, self._parse_joint_parameter(cfg_val, usd_val))
-            new_val = getattr(self, param_name)
-
-            allclose = (
-                torch.all(new_val == usd_val) if isinstance(usd_val, (float, int)) else torch.allclose(new_val, usd_val)
-            )
-            if cfg_val is None or not allclose:
-                self._record_actuator_resolution(
-                    cfg_val=getattr(self.cfg, param_name),
-                    new_val=new_val[0],  # new val always has the shape of (num_envs, num_joints)
-                    usd_val=usd_val,
-                    joint_names=joint_names,
-                    joint_ids=joint_ids,
-                    actuator_param=param_name,
-                )
-
-        self.velocity_limit = self._parse_joint_parameter(self.cfg.velocity_limit, self.velocity_limit_sim)
-        # Parse effort_limit with special default handling:
-        # - If cfg.effort_limit is None, use the original USD value (effort_limit parameter from constructor)
-        # - Otherwise, use effort_limit_sim as the default
-        # Please refer to the documentation of the effort_limit and effort_limit_sim parameters for more details.
-        effort_default = effort_limit if self.cfg.effort_limit is None else self.effort_limit_sim
-        self.effort_limit = self._parse_joint_parameter(self.cfg.effort_limit, effort_default)
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
         self.applied_effort = torch.zeros_like(self.computed_effort)
+
+        # normalize deprecated configuration aliases for direct construction
+        # TODO: Deprecated. Remove in 4.0.
+        if (
+            self.cfg.effort_limit is not None
+            or self.cfg.effort_limit_sim is not None
+            or self.cfg.velocity_limit is not None
+            or self.cfg.velocity_limit_sim is not None
+        ):
+            _resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
+
+        # normalize deprecated constructor aliases
+        # TODO: Deprecated. Remove in 4.0.
+        if effort_limit is not None:
+            warnings.warn(
+                "The effort_limit constructor argument is deprecated. Use actuator_effort_limit instead; "
+                "effort_limit will be removed in 4.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if actuator_effort_limit is not None and not _limits_equal(actuator_effort_limit, effort_limit):
+                raise ValueError(
+                    "Received conflicting actuator_effort_limit and deprecated effort_limit constructor arguments."
+                )
+            actuator_effort_limit = effort_limit
+        if velocity_limit is not None:
+            warnings.warn(
+                "The velocity_limit constructor argument is deprecated. Use actuator_velocity_limit instead; "
+                "velocity_limit will be removed in 4.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if actuator_velocity_limit is not None and not _limits_equal(actuator_velocity_limit, velocity_limit):
+                raise ValueError(
+                    "Received conflicting actuator_velocity_limit and deprecated velocity_limit constructor arguments."
+                )
+            actuator_velocity_limit = velocity_limit
+
+        # parse the actuator-model limits. Implicit models expose their effort limit as a live
+        # projection of the articulation joint effort limit instead of a local buffer.
+        if not self.is_implicit_model:
+            if actuator_effort_limit is None:
+                actuator_effort_limit = torch.inf
+            self.actuator_effort_limit = resolve_joint_parameter(
+                self.cfg.actuator_effort_limit, actuator_effort_limit, joint_names, num_envs, device
+            )
+        if actuator_velocity_limit is None:
+            actuator_velocity_limit = torch.inf
+        self.actuator_velocity_limit = resolve_joint_parameter(
+            self.cfg.actuator_velocity_limit, actuator_velocity_limit, joint_names, num_envs, device
+        )
 
     def __str__(self) -> str:
         """Returns: A string representation of the actuator group."""
@@ -296,85 +311,63 @@ class ActuatorBase(ABC):
     Helper functions.
     """
 
-    def _record_actuator_resolution(self, cfg_val, new_val, usd_val, joint_names, joint_ids, actuator_param: str):
-        if actuator_param not in self.joint_property_resolution_table:
-            self.joint_property_resolution_table[actuator_param] = []
-        table = self.joint_property_resolution_table[actuator_param]
-
-        ids = joint_ids if isinstance(joint_ids, torch.Tensor) else list(range(len(joint_names)))
-        for idx, name in enumerate(joint_names):
-            cfg_val_log = "Not Specified" if cfg_val is None else float(new_val[idx])
-            default_usd_val = usd_val if isinstance(usd_val, (float, int)) else float(usd_val[0][idx])
-            applied_val_log = default_usd_val if cfg_val is None else float(new_val[idx])
-            table.append([name, int(ids[idx]), default_usd_val, cfg_val_log, applied_val_log])
-
-    def _parse_joint_parameter(
-        self, cfg_value: float | dict[str, float] | None, default_value: float | torch.Tensor | None
-    ) -> torch.Tensor:
-        """Parse the joint parameter from the configuration.
-
-        Args:
-            cfg_value: The parameter value from the configuration. If None, then use the default value.
-            default_value: The default value to use if the parameter is None. If it is also None,
-                then an error is raised.
-
-        Returns:
-            The parsed parameter value.
-
-        Raises:
-            TypeError: If the parameter value is not of the expected type.
-            TypeError: If the default value is not of the expected type.
-            ValueError: If the parameter value is None and no default value is provided.
-            ValueError: If the default value tensor is the wrong shape.
-        """
-        # create parameter buffer
-        param = torch.zeros(self._num_envs, self.num_joints, device=self._device)
-        # parse the parameter
-        if cfg_value is not None:
-            if isinstance(cfg_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(cfg_value)
-            elif isinstance(cfg_value, dict):
-                # if dict, then parse the regular expression
-                indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                # note: need to specify type to be safe (e.g. values are ints, but we want floats)
-                param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
-            else:
-                raise TypeError(
-                    f"Invalid type for parameter value: {type(cfg_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or dict."
-                )
-        elif default_value is not None:
-            if isinstance(default_value, (float, int)):
-                # if float, then use the same value for all joints
-                param[:] = float(default_value)
-            elif isinstance(default_value, torch.Tensor):
-                # if tensor, then use the same tensor for all joints
-                if default_value.shape == (self._num_envs, self.num_joints):
-                    param = default_value.float()
-                else:
-                    raise ValueError(
-                        "Invalid default value tensor shape.\n"
-                        f"Got: {default_value.shape}\n"
-                        f"Expected: {(self._num_envs, self.num_joints)}"
-                    )
-            else:
-                raise TypeError(
-                    f"Invalid type for default value: {type(default_value)} for "
-                    + f"actuator on joints {self.joint_names}. Expected float or Tensor."
-                )
-        else:
-            raise ValueError("The parameter value is None and no default value is provided.")
-
-        return param
-
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         """Clip the desired torques based on the motor limits.
 
         Args:
-            desired_torques: The desired torques to clip.
+            effort: The effort to clip [N or N·m, depending on joint type].
 
         Returns:
-            The clipped torques.
+            The clipped effort [N or N·m, depending on joint type].
         """
-        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
+        return torch.clip(effort, min=-self.actuator_effort_limit, max=self.actuator_effort_limit)
+
+    @property
+    def effort_limit(self) -> torch.Tensor:
+        """Deprecated actuator effort limit [N or N·m, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :attr:`actuator_effort_limit` instead. This alias will be removed in 4.0.
+        """
+        warnings.warn(
+            "ActuatorBase.effort_limit is deprecated. Use actuator_effort_limit instead; "
+            "effort_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.actuator_effort_limit
+
+    @effort_limit.setter
+    def effort_limit(self, value: torch.Tensor) -> None:
+        warnings.warn(
+            "ActuatorBase.effort_limit is deprecated. Use actuator_effort_limit instead; "
+            "effort_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuator_effort_limit = value
+
+    @property
+    def velocity_limit(self) -> torch.Tensor:
+        """Deprecated actuator velocity limit [m/s or rad/s, depending on joint type].
+
+        .. deprecated:: 3.0
+            Use :attr:`actuator_velocity_limit` instead. This alias will be removed in 4.0.
+        """
+        warnings.warn(
+            "ActuatorBase.velocity_limit is deprecated. Use actuator_velocity_limit instead; "
+            "velocity_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.actuator_velocity_limit
+
+    @velocity_limit.setter
+    def velocity_limit(self, value: torch.Tensor) -> None:
+        warnings.warn(
+            "ActuatorBase.velocity_limit is deprecated. Use actuator_velocity_limit instead; "
+            "velocity_limit will be removed in 4.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuator_velocity_limit = value

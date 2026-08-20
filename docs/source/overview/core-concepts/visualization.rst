@@ -208,6 +208,9 @@ worlds visually without changing their simulated poses:
 
 Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
 selection and visual offsets. This includes point-cloud and task-geometry markers.
+For RTX tiled cameras, pass one ``environment_ids`` entry per marker instance to
+:meth:`~isaaclab.markers.VisualizationMarkers.visualize` so global point-instancer
+markers are isolated with their environments.
 
 .. _visualization-common-modes:
 
@@ -457,6 +460,12 @@ Omniverse Visualizer
         enable_markers=True,
         enable_live_plots=True,  # set to False to disable live plots
     )
+
+When Isaac RTX scene partitioning is enabled, :class:`~isaaclab.app.AppLauncher`
+turns on the all-environment spectator view when the Kit viewport is enabled or
+Kit visualization, recording, livestreaming, or XR is requested. Regular headless
+camera-sensor runs retain partition isolation. See :ref:`overview_renderers` for
+configuration and content constraints.
 
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~

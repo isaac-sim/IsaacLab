@@ -18,7 +18,7 @@ import contextlib
 import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -91,6 +91,7 @@ class EnvironmentDocRow:
     workflow: str
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
+    agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 def is_training_task(task_id: str) -> bool:
@@ -520,6 +521,11 @@ def collect_environment_doc_rows(
                 workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
+                agent_preset_compatibility={
+                    agent: tuple(presets)
+                    for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
+                    if agent in spec.kwargs
+                },
             )
         )
 
@@ -559,12 +565,51 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
     return "\n".join(lines)
 
 
-def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
-    """Render concrete core-task selectors for the environment browser."""
-    lines = ["        const taskRows = ["]
-    for row in rows:
-        if not row.task_name.startswith("Isaac-"):
+def collect_environment_preview_images(content: str) -> dict[str, str]:
+    """Map curated environment IDs to the preview images used by their catalog rows."""
+    image_definitions = dict(re.findall(r"^\.\. \|([^|]+)\| image:: \.\./_static/(\S+)$", content, flags=re.MULTILINE))
+    link_definitions = dict(
+        re.findall(r"^\.\. \|([^|]+)\| replace:: .*?`(Isaac(?:Contrib)?-[^ <`]+)", content, flags=re.MULTILINE)
+    )
+
+    preview_images: dict[str, str] = {}
+    current_image: str | None = None
+    for line in content.splitlines():
+        if not line.lstrip().startswith("|"):
             continue
+        substitutions = re.findall(r"\|([A-Za-z0-9_-]+)\|", line)
+        if substitutions and substitutions[0] in image_definitions:
+            current_image = substitutions.pop(0)
+        for substitution in substitutions:
+            if current_image is not None and substitution in link_definitions:
+                preview_images[link_definitions[substitution]] = image_definitions[current_image]
+
+    # Curated prose may list variants beside a table instead of repeating the
+    # shared world image. Their substitution names retain the image prefix.
+    for link_name, task_name in link_definitions.items():
+        if task_name in preview_images:
+            continue
+        link_stem = link_name.removesuffix("-link")
+        matches = [
+            image_name
+            for image_name in image_definitions
+            if link_stem == image_name or link_stem.startswith(f"{image_name}-")
+        ]
+        if matches:
+            preview_images[task_name] = image_definitions[max(matches, key=len)]
+
+    return preview_images
+
+
+def render_environment_browser_task_rows(
+    rows: list[EnvironmentDocRow], preview_images: dict[str, str] | None = None
+) -> str:
+    """Render concrete core and contributed task selectors for the environment browser."""
+    preview_images = preview_images or {}
+    lines = ["        const taskRows = ["]
+    browser_rows = [row for row in rows if row.task_name.startswith(("Isaac-", "IsaacContrib-"))]
+    browser_rows.sort(key=lambda row: row.task_name.startswith("IsaacContrib-"))
+    for row in browser_rows:
         selectors = _selector_names_for_docs(row.presets)
         values = (
             row.task_name,
@@ -574,6 +619,19 @@ def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
             ",".join(sorted(selectors[PresetTarget.DOMAIN])),
         )
         rendered_values = ", ".join(json.dumps(value) for value in values)
+        preview_image = preview_images.get(row.task_name, "")
+        if not preview_image:
+            aliases = [
+                (task_name, image)
+                for task_name, image in preview_images.items()
+                if row.task_name.startswith(f"{task_name}-")
+            ]
+            if aliases:
+                preview_image = max(aliases, key=lambda item: len(item[0]))[1]
+        if row.agent_preset_compatibility or preview_image:
+            rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
+        if preview_image:
+            rendered_values += f", {json.dumps(preview_image)}"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)
