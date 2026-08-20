@@ -1,6 +1,64 @@
 Changelog
 ---------
 
+17.0.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :obj:`Isaac-Cartpole-Camera-Direct` now derives policy observation height and width
+  from :attr:`tiled_camera` at environment initialization. Overriding
+  ``env.tiled_camera.width`` / ``height`` no longer requires a matching
+  ``env.observation_space`` rewrite; channel count still comes from the selected preset.
+* Changed the Unitree Go2 velocity tasks to execute their DC motor actuators
+  through the backend-native path by default
+  (:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is now ``True``).
+  Set ``env.sim.use_newton_actuators=false`` to restore Isaac Lab-side actuator
+  execution.
+* **Breaking:** Renamed the multi-agent pendulum task from
+  ``Isaac-Pendulum-Direct`` to ``Isaac-Pendulum-MARL-Direct``. Update task
+  selections and imports to use :class:`~isaaclab_tasks.core.pendulum.PendulumMARLEnv`
+  and :class:`~isaaclab_tasks.core.pendulum.PendulumMARLEnvCfg`.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to give both agents a shared team
+  reward aligned with upright balancing, including a bonus when both links
+  enter the success cone. Retrain policies created with the previous split
+  per-agent rewards.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to default to ``newton_mjwarp`` and
+  support the ``newton_kamino`` and ``ovphysx`` physics backends. Select the
+  previous Isaac Sim PhysX default with ``physics=isaacsim_physx``.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to use ``0.05 kg m^2`` of armature
+  on the lower pendulum joint, aligning its full-scale ``50 N m`` response
+  between PhysX and MJWarp. Retrain policies created without the armature.
+
+Fixed
+^^^^^
+
+* Fixed reorientation, handover, and lift task-marker instances appearing
+  across environment scene partitions.
+* Used the selected tiled-camera preset when deriving Cartpole camera observation dimensions, restoring direct construction and sensor video recording.
+* Fixed ``physics=`` selectors rejecting physics presets that bundle a complete simulation configuration.
+* :func:`~isaaclab_tasks.utils.setup_preset_cli` now automatically resolves the
+  correct agent entry point from ``agent_preset_compatibility`` when a preset token
+  (e.g. ``presets=box_discrete``) is active and no explicit ``--agent`` flag is
+  given. Previously, skrl training on tasks with multiple space presets (such as
+  ``IsaacContrib-Cartpole-Showcase-Direct``) always loaded the default
+  ``skrl_cfg_entry_point`` regardless of the active preset, causing a shape mismatch
+  crash when a non-box action space was selected.
+* Fixed the Digit velocity and loco-manipulation tasks declaring a ``newton_mjwarp``
+  preset they cannot run. ``LocomotionVelocityRoughEnvCfg`` declares ``events.base_com``
+  with a ``newton_mjwarp`` branch that disables the center-of-mass randomization, since
+  Newton does not support it. Digit is PhysX-only, so that branch named no reachable
+  backend and surfaced as a standalone ``presets=newton_mjwarp`` token that stripped the
+  randomization from a PhysX run. The preset is now collapsed to its default on Digit.
+  ``IsaacContrib-Velocity-Flat-Digit``, ``IsaacContrib-Velocity-Rough-Digit`` and
+  ``IsaacContrib-Tracking-LocoManip-Digit`` no longer accept ``presets=newton_mjwarp``;
+  it was never a backend switch on those tasks, and passing it only removed a
+  randomization. Velocity tasks that do offer Newton are unchanged.
+* Fixed Shadow Hand reorientation scene setup to author only the prototype environment before
+  backend replication while preserving ``{ENV_REGEX_NS}`` for runtime views.
+
+
 16.5.1 (2026-08-19)
 ~~~~~~~~~~~~~~~~~~~
 
