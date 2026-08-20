@@ -59,6 +59,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_sim_cfg", None)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
     object.__setattr__(articulation, "_num_instances", num_instances)
     object.__setattr__(articulation, "_num_bodies", num_bodies)
