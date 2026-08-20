@@ -58,6 +58,14 @@ remove_isaacsim_image_pin() {
     docker rm "${ISAACSIM_IMAGE_PIN_CONTAINER}" >/dev/null 2>&1 || true
 }
 
+run_volume_cleanup() {
+    # Anonymous volumes left behind by test containers are referenced by nothing
+    # once the container is gone, and no prune path above reclaims them, so they
+    # accumulate for the life of the runner.
+    echo "[${CLEANUP_CONTEXT}] Removing Docker volumes no container is using."
+    docker volume prune -f || true
+}
+
 run_conservative_cleanup() {
     echo "[${CLEANUP_CONTEXT}] Running conservative Docker cleanup."
     echo "[${CLEANUP_CONTEXT}] Removing Docker images older than ${DOCKER_CONSERVATIVE_PRUNE_UNTIL}."
@@ -103,6 +111,9 @@ main() {
 
     pin_isaacsim_image_if_present
     trap remove_isaacsim_image_pin EXIT
+
+    # Safe on either path: this only removes volumes with no container attached.
+    run_volume_cleanup
 
     if [ "${usage_percent}" -ge "${DOCKER_CLEANUP_THRESHOLD_PERCENT}" ]; then
         echo "[${CLEANUP_CONTEXT}] Docker storage is at ${usage_percent}%, meeting the ${DOCKER_CLEANUP_THRESHOLD_PERCENT}% threshold."

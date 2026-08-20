@@ -136,6 +136,22 @@ def test_cleanup_keeps_conservative_image_pruning_below_threshold(tmp_path: Path
     assert "builder prune" not in docker_log
 
 
+def test_cleanup_prunes_unused_volumes_above_threshold(tmp_path: Path):
+    result = _run_cleanup(tmp_path, first_usage=91, final_usage=70)
+
+    assert result.returncode == 0, result.stderr
+    docker_log = (tmp_path / "bin" / "docker.log").read_text(encoding="utf-8")
+    assert "volume prune -f" in docker_log
+
+
+def test_cleanup_prunes_unused_volumes_below_threshold(tmp_path: Path):
+    result = _run_cleanup(tmp_path, first_usage=70, final_usage=70)
+
+    assert result.returncode == 0, result.stderr
+    docker_log = (tmp_path / "bin" / "docker.log").read_text(encoding="utf-8")
+    assert "volume prune -f" in docker_log
+
+
 def test_cleanup_fails_early_when_aggressive_pruning_cannot_recover_space(tmp_path: Path):
     result = _run_cleanup(tmp_path, first_usage=91, final_usage=89)
 
