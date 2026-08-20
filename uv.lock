@@ -2115,7 +2115,7 @@ requires-dist = [
     { name = "transformers", specifier = "==4.57.6" },
     { name = "trimesh", specifier = ">=4.6.8" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
-    { name = "usd-exchange", specifier = "==3.0.0rc3" },
+    { name = "usd-exchange", specifier = "==3.0.0" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "warp-lang", specifier = "==1.16.0" },
 ]
@@ -5848,12 +5848,12 @@ wheels = [
 
 [[package]]
 name = "usd-exchange"
-version = "3.0.0rc3"
+version = "3.0.0"
 source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0rc3-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:363e5a0d3a6379fe89b398272209149732dd72ef60b98cb053922cbe16641a1c" },
-    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0rc3-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:e491ac2bb9ebff667177aadca4658b6794e868ea5ad47c71a61de981003183e0" },
-    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0rc3-cp312-cp312-win_amd64.whl", hash = "sha256:a120d1911830cc4c9e0be05868b1f8eee3995291bbe212e4aa3d66df9cb63560" },
+    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:59a3b8ef4bc545c76059f7efc5fec94023e0818c5a714fae40f8e0411de79db5" },
+    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:3d5a3ca9f6153abaf2bb4f8fda6c4026e174b6b050eb904a6e4a5bdf89a52926" },
+    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-win_amd64.whl", hash = "sha256:374499c3d06bd10f4cda2036239935222527f17e1f3ee059fc093aeb9058439b" },
 ]
 
 [[package]]
