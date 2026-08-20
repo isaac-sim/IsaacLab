@@ -654,11 +654,11 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         # Play sim
         sim.reset()
 
-        # Random material per shape: (static_friction, dynamic_friction, restitution), on the sim device.
+        # Random material per shape: (static_friction, dynamic_friction, restitution), on the CPU.
         num_shapes = _num_shapes(cube_object)
-        static_friction = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.4, 0.8)
-        dynamic_friction = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.4, 0.8)
-        restitution = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.0, 0.2)
+        static_friction = torch.empty(num_cubes, num_shapes, 1, device="cpu").uniform_(0.4, 0.8)
+        dynamic_friction = torch.empty(num_cubes, num_shapes, 1, device="cpu").uniform_(0.4, 0.8)
+        restitution = torch.empty(num_cubes, num_shapes, 1, device="cpu").uniform_(0.0, 0.2)
         materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
         # Add friction/restitution to the cubes through the view.
@@ -684,7 +684,7 @@ def test_set_material_properties_via_view(num_cubes, device):
 
         # Generate random material properties: (static_friction, dynamic_friction, restitution).
         num_shapes = _num_shapes(cube_object)
-        materials = torch.empty(num_cubes, num_shapes, 3, device=device).uniform_(0.0, 1.0)
+        materials = torch.empty(num_cubes, num_shapes, 3, device="cpu").uniform_(0.0, 1.0)
         materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])  # dynamic <= static
 
         # Set material properties through the view, simulate, then read back.
