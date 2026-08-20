@@ -183,7 +183,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             else:
                 resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task, env_cfg)
 
-            cfg = capture.run_config_from_presets(remaining_args)
+            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
