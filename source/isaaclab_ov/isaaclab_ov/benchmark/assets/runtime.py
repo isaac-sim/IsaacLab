@@ -53,6 +53,7 @@ def create_test_articulation(
         soft_joint_pos_limit_factor=1.0,
         actuators={},
     )
+    object.__setattr__(articulation, "_sim_cfg", None)
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
     object.__setattr__(articulation, "_prim_deletion_handle", None)
