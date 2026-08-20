@@ -37,9 +37,11 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
+        _OVRTX_RENDER_VARS_KEYED_BY_PRIM_PATH,
         OVRTXRenderData,
         OVRTXRenderer,
         _gpu_side_render_var_sync_enabled,
+        _ovrtx_version_tuple,
         ovrtx_use_ovstage_enabled,
     )
 else:
@@ -49,7 +51,33 @@ else:
     ovrtx_renderer_module = None
     ovrtx_use_ovstage_enabled = None
     _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
+    _OVRTX_RENDER_VARS_KEYED_BY_PRIM_PATH = None
     _gpu_side_render_var_sync_enabled = None
+    _ovrtx_version_tuple = None
+
+
+class _FakeRenderVar:
+    """Stand-in for ``ovrtx.RenderVarOutput`` carrying only the fields the renderer reads."""
+
+    def __init__(self, source_name: str):
+        self.source_name = source_name
+
+    def map(self, *args, **kwargs):
+        raise AssertionError(f"render var {self.source_name!r} must not be mapped")
+
+
+class _FakeFrame:
+    """Frame whose ``render_vars`` follow the key layout of the installed ovrtx version."""
+
+    def __init__(self, render_vars_by_source: dict, prim_paths: dict[str, str] | None = None):
+        prim_paths = prim_paths or {}
+        if _OVRTX_RENDER_VARS_KEYED_BY_PRIM_PATH:
+            self.render_vars = {
+                prim_paths.get(source, f"/Render/Vars/{source}"): var for source, var in render_vars_by_source.items()
+            }
+        else:
+            self.render_vars = dict(render_vars_by_source)
+
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -207,18 +235,64 @@ def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
 def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
     """PPISP owns RGBA output, so OVRTX LdrColor should not pre-fill it."""
 
-    class FailingRenderVar:
-        def map(self, *args, **kwargs):
-            raise AssertionError("PPISP RGBA output must not read OVRTX LdrColor")
-
-    class Frame:
-        render_vars = {"LdrColor": FailingRenderVar()}
+    frame = _FakeFrame({"LdrColor": _FakeRenderVar("LdrColor")})
 
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_render_data()
     render_data.ppisp_pipeline = object()
 
-    renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
+    renderer._process_render_frame(render_data, frame, {"rgba": object()})
+
+
+@pytest.mark.parametrize(
+    "version, expected",
+    [("0.4.1.364340", (0, 4, 1, 364340)), ("0.5.0", (0, 5, 0)), ("0.5.0rc1", (0, 5)), ("", ())],
+)
+def test_ovrtx_version_tuple_parses_leading_numeric_components(version, expected):
+    """Version parsing stops at the first non-numeric component instead of raising."""
+    assert _ovrtx_version_tuple(version) == expected
+
+
+def test_render_vars_keyed_by_prim_path_matches_installed_ovrtx_version():
+    """The render var key layout is selected from the installed ovrtx version, not guessed."""
+    import ovrtx
+
+    assert (_ovrtx_version_tuple(ovrtx.__version__) >= (0, 5)) == _OVRTX_RENDER_VARS_KEYED_BY_PRIM_PATH
+
+
+def test_render_vars_by_source_name_passes_through_ovrtx_04_layout(monkeypatch):
+    """ovrtx 0.4 already keys render vars by source name, so the mapping is used as-is."""
+    monkeypatch.setattr(ovrtx_renderer_module, "_OVRTX_RENDER_VARS_KEYED_BY_PRIM_PATH", False)
+
+    var = _FakeRenderVar("DistanceToImagePlaneSD")
+
+    class Frame:
+        render_vars = {"DistanceToImagePlaneSD": var}
+
+    assert ovrtx_renderer_module._render_vars_by_source_name(Frame()) == {"DistanceToImagePlaneSD": var}
+
+
+def test_render_vars_by_source_name_rekeys_ovrtx_05_prim_paths(monkeypatch):
+    """ovrtx 0.5 keys render vars by prim path, which is not always the source name."""
+    monkeypatch.setattr(ovrtx_renderer_module, "_OVRTX_RENDER_VARS_KEYED_BY_PRIM_PATH", True)
+
+    depth = _FakeRenderVar("DistanceToImagePlaneSD")
+    color = _FakeRenderVar("LdrColor")
+
+    class Frame:
+        # ``/Render/Vars/depth`` sources ``DistanceToImagePlaneSD``: stripping the path prefix would
+        # yield "depth" and the depth AOV would never be found. ``LdrColor0`` is a reserved internal
+        # output keyed by bare name, and must not shadow the authored ``/Render/Vars/LdrColor``.
+        render_vars = {
+            "/Render/Vars/depth": depth,
+            "/Render/Vars/LdrColor": color,
+            "LdrColor0": _FakeRenderVar("LdrColor"),
+        }
+
+    assert ovrtx_renderer_module._render_vars_by_source_name(Frame()) == {
+        "DistanceToImagePlaneSD": depth,
+        "LdrColor": color,
+    }
 
 
 def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
