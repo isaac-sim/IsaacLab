@@ -32,7 +32,7 @@
             ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "newton/franka-mjwarp-vbd-coupling.png"],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "", "", "", {}, "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "", "", "", {}, "tasks/manipulation/franka_open_drawer.jpg"],
-            ["Isaac-Pendulum-Direct", "rl_games,skrl", "", "", "", {}, "tasks/classic/cart_double_pendulum.jpg"],
+            ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", ""],
             ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik,diffik_abs,joint_pos,newton_ik", {}, "tasks/manipulation/franka_reach.jpg"],
             ["Isaac-Reach-Franka-OSC", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik_abs", {}, "tasks/manipulation/franka_reach.jpg"],
             ["Isaac-Reach-UR10", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/ur10_reach.jpg"],

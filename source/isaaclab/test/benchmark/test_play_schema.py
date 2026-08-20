@@ -161,11 +161,13 @@ class _PlayEnv:
     def __init__(self):
         self.unwrapped = self
         self._calls = 0
+        self.inference_mode_enabled = False
 
     def reset(self):
         return torch.zeros(2, 3), {}
 
     def step(self, actions):
+        self.inference_mode_enabled = torch.is_inference_mode_enabled()
         self._calls += 1
         dones = torch.tensor([True, False]) if self._calls == 2 else torch.tensor([False, False])
         extras = {"log": {"Episode_Reward/success": torch.tensor(1.0)}}
@@ -184,3 +186,13 @@ def test_run_play_loop_aggregates_episodes():
     assert reward.mean == pytest.approx(2.0)
     assert ep_length.mean == pytest.approx(2.0)
     assert success_rate == pytest.approx(1.0)
+
+
+def test_run_play_loop_steps_env_in_inference_mode():
+    """run_play_loop keeps environment stepping in inference mode."""
+    from isaaclab.benchmark.stepping import run_play_loop
+
+    env = _PlayEnv()
+    run_play_loop(env, policy=lambda obs: torch.zeros(2, 1), num_steps=1)
+
+    assert env.inference_mode_enabled

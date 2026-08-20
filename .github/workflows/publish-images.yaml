@@ -76,8 +76,8 @@ jobs:
           dockerfile: docker/Dockerfile.kitless
           # Builds on ubuntu, so it takes none of the Isaac Sim build arguments.
           isaacsim_base: "false"
-          # No arm64 GPU runner validates this build yet.
-          platforms: linux/amd64
+          # Ubuntu and the pinned build/runtime artifacts support both architectures.
+          platforms: linux/amd64,linux/arm64
           build_args: --build-arg DOCKER_USER_HOME_ARG=/home/isaaclab
     concurrency:
       group: publish-images-${{ matrix.branch }}-${{ matrix.image.key }}
@@ -217,21 +217,28 @@ jobs:
 
         TAGS=("$MOVING_TAG" "$IMMUTABLE_TAG")
 
-        # Determine if multiarch is supported by inspecting the base image manifest
-        echo "🔵 Checking if base image supports multiarch..."
-        BASE_IMAGE_FULL="${{ steps.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
-        ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
         EXPLICIT_PLATFORMS="${{ matrix.image.platforms }}"
 
         if [ -n "$EXPLICIT_PLATFORMS" ]; then
           # An image that does not build on the Isaac Sim base pins its own
-          # platforms; the probe above does not describe it.
+          # platforms; the Isaac Sim manifest does not describe it.
           BUILD_PLATFORMS="$EXPLICIT_PLATFORMS"
           echo "Using explicit platforms: $BUILD_PLATFORMS"
-        elif [ -z "$ARCHITECTURES" ]; then
-          echo "🟠 Could not inspect base image manifest: $BASE_IMAGE_FULL - defaulting to linux/amd64 only"
-          BUILD_PLATFORMS="linux/amd64"
         else
+          # Inspect the pinned manifest index. Unlike `docker manifest inspect`,
+          # Buildx handles the tag@digest references used for reproducible CI.
+          echo "🔵 Checking if base image supports multiarch..."
+          BASE_IMAGE_FULL="${{ steps.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
+          if ! MANIFEST=$(docker buildx imagetools inspect "$BASE_IMAGE_FULL" --raw); then
+            echo "::error::Could not inspect base image manifest: $BASE_IMAGE_FULL"
+            exit 1
+          fi
+          ARCHITECTURES=$(echo "$MANIFEST" | jq -r '.manifests[]? | select(.platform.os == "linux") | .platform.architecture // empty' | sort -u)
+          if [ -z "$ARCHITECTURES" ]; then
+            echo "::error::Base image manifest contains no Linux platform entries: $BASE_IMAGE_FULL"
+            exit 1
+          fi
+
           echo "Base image architectures found:"
           echo "$ARCHITECTURES" | sed 's/^/  - /'
 
@@ -248,8 +255,8 @@ jobs:
             echo "Base image only supports arm64"
             BUILD_PLATFORMS="linux/arm64"
           else
-            echo "🟠 Unknown architecture support for $BASE_IMAGE_FULL - defaulting to linux/amd64"
-            BUILD_PLATFORMS="linux/amd64"
+            echo "::error::Base image supports neither amd64 nor arm64: $BASE_IMAGE_FULL"
+            exit 1
           fi
         fi
 
