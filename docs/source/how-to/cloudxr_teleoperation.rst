@@ -598,12 +598,21 @@ Prerequisites
      ``install/plugins/manus/manus_hand_plugin`` does not exist in your Isaac Teleop checkout, this
      step has not been completed.
 
-  Clone the repository first:
+  Clone the repository and check out the release branch matching the ``isaacteleop`` version Isaac
+  Lab is pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root
+  ``pyproject.toml``), so the plugin's wire format matches the ``isaacteleop`` package Isaac Lab
+  installs:
 
   .. code-block:: bash
 
      git clone https://github.com/NVIDIA/IsaacTeleop.git
      cd IsaacTeleop
+     git checkout release/1.4.x
+
+  .. note::
+
+     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     branch instead.
 
   Grant the host access to the Manus dongle **once, on the host machine**. Run this outside any
   container -- udev rules are processed by ``systemd-udevd``, which does not run inside Docker, so
