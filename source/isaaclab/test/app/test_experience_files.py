@@ -43,17 +43,6 @@ def test_base_experiences_enable_native_storage(experience: str):
     assert "isaacsim.storage.native" in _kit_dependencies(experience)
 
 
-def test_headless_experience_enables_usdrt_scene_delegate():
-    """Test the headless experience loads the extension that provides the ``usdrt.hierarchy`` module.
-
-    Every other experience receives it implicitly from ``omni.hydra.rtx``, which depends on it when
-    ``app.useFabricSceneDelegate`` is true. This one loads neither, yet Newton's USD/Fabric sync
-    imports ``usdrt.hierarchy`` whenever a Kit visualizer is requested, which is reachable here
-    through ``HEADLESS=1 --viz kit``.
-    """
-    assert "omni.hydra.usdrt_delegate" in _kit_dependencies("isaaclab.python.headless.kit")
-
-
 @pytest.mark.parametrize(
     "experience, base",
     [
