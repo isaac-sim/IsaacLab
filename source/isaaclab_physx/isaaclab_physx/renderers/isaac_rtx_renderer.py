@@ -262,14 +262,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if settings.get("/isaaclab/has_gui"):
                 settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
+            unsupported = []
             if "albedo" in spec.cfg.data_types:
-                logger.warning(
-                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                )
-            if any(dt in SIMPLE_SHADING_MODES for dt in spec.cfg.data_types):
-                logger.warning(
-                    "Simple shading annotators are only supported in Isaac Sim 6.0+."
-                    " The simple shading data types will be ignored."
+                unsupported.append("albedo")
+            unsupported.extend(dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES)
+            if unsupported:
+                raise ValueError(
+                    "Isaac RTX renderer does not support the following requested data types in"
+                    " Isaac Sim versions before 6.0:"
+                    f" {unsupported}."
                 )
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation

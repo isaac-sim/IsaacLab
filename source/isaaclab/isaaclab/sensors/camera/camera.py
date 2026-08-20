@@ -142,7 +142,7 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            ValueError: If the provided data types are not supported by the camera.
+            ValueError: If the provided data types are not supported by the camera or active renderer.
         """
         # perform check on supported data types
         self._check_supported_data_types(cfg)
@@ -652,8 +652,9 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         specs = self._renderer.supported_output_types()
-        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        # Split requested names into known, unknown, and unsupported types.
         known: list[str] = []
+        unknown: list[str] = []
         unsupported: list[str] = []
         for name in self.cfg.data_types:
             try:
@@ -662,13 +663,18 @@ class Camera(SensorBase):
                 else:
                     unsupported.append(name)
             except ValueError:
-                unsupported.append(name)
+                unknown.append(name)
+        errors = []
+        if unknown:
+            errors.append(f"Unknown camera data types: {unknown}.")
         if unsupported:
-            logger.warning(
-                "Renderer %s does not support the following requested data types and will not produce them: %s",
-                type(self._renderer).__name__,
-                unsupported,
+            errors.append(
+                f"Renderer {type(self._renderer).__name__} does not support the following requested data types:"
+                f" {unsupported}."
+                f"\n\tSupported data types: {sorted(str(kind) for kind in specs)}"
             )
+        if errors:
+            raise ValueError("\n".join(errors))
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,

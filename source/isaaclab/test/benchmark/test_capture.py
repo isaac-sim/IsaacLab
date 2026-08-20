@@ -243,6 +243,10 @@ def test_run_config_from_presets_resolves_backend_configuration(monkeypatch):
     assert cfg.physics_backend == "newton_mjwarp"
     assert cfg.rendering_backend == "isaacsim_rtx"
 
+    physx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="PhysXManager")))
+    cfg = run_config_from_presets(["isaacsim_physx"], env_cfg=physx_env_cfg)
+    assert cfg.physics_backend == "physx"
+
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
     # Build a recorder that has mean/std rows but no peak rows.
