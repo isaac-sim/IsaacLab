@@ -101,7 +101,7 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
     normalized = tensor.float()
 
     if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-        normalized = torch.where(torch.isfinite(normalized), normalized, torch.zeros_like(normalized))
+        normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
