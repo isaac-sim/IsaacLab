@@ -30,7 +30,10 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
+    from isaaclab_ov.renderers import (
+        OVRTXRendererCfg,  # noqa: E402
+        ovrtx_mapping,  # noqa: E402
+    )
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
@@ -476,6 +479,77 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
     assert render_var.ordering == [expected]
 
 
+class _RecordingMappedBinding:
+    """Stand-in for an OVRTX attribute binding that records how its mapping is committed."""
+
+    def __init__(self):
+        self.map_calls: list[dict] = []
+        self.unmap_calls: list[dict] = []
+
+    def map(self, *, device, device_id):
+        self.map_calls.append({"device": device, "device_id": device_id})
+        binding = self
+
+        class _Mapping:
+            tensor = object()
+
+            def unmap(self, *, event=None, stream=None):
+                binding.unmap_calls.append({"event": event, "stream": stream})
+
+        return _Mapping()
+
+
+def _patch_warp_device(monkeypatch, *, ordinal: int, cuda_stream: int) -> None:
+    """Fake the current Warp stream; ``ordinal`` documents the device the test pretends to run on."""
+    monkeypatch.setattr(ovrtx_mapping.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=cuda_stream))
+
+
+@pytest.mark.parametrize(("device", "expected"), [("cuda:1", 1), ("cuda", 0)])
+def test_cuda_device_id_parses_the_device_string(device, expected):
+    """The mapping device index is parsed from the string; a bare ``"cuda"`` parses to 0.
+
+    The bare-``"cuda"`` case intentionally preserves pre-existing behavior even though Warp
+    resolves it to its current CUDA device -- see the TODO on ``_cuda_device_id``.
+    """
+    assert ovrtx_mapping._cuda_device_id(device) == expected
+
+
+def test_map_attribute_for_warp_writes_commits_on_the_producer_stream(monkeypatch):
+    """The unmap names the Warp stream that produced the data, so the commit cannot race the fill.
+
+    An unmap without a CUDA sync performs no synchronization at all, so the assertion is on the
+    unmap's ``stream`` argument, not merely on the unmap happening.
+    """
+    sentinel = object()
+    binding = _RecordingMappedBinding()
+    _patch_warp_device(monkeypatch, ordinal=1, cuda_stream=99)
+    monkeypatch.setattr(ovrtx_mapping.wp, "from_dlpack", lambda tensor, dtype: sentinel)
+
+    with ovrtx_mapping.map_attribute_for_warp_writes(binding, "cuda:1", wp.mat44d) as array:
+        assert array is sentinel
+
+    assert binding.map_calls == [{"device": ovrtx_renderer_module.Device.CUDA, "device_id": 1}]
+    assert binding.unmap_calls == [{"event": None, "stream": 99}]
+
+
+def test_map_attribute_for_warp_writes_unmaps_when_the_fill_raises(monkeypatch):
+    """A failed fill must still release the mapping exactly once, with the same stream ordering.
+
+    Skipping the unmap would leak the mapping to OVRTX's ``__del__`` safety net, which commits
+    fire-and-forget without any CUDA sync.
+    """
+    binding = _RecordingMappedBinding()
+    _patch_warp_device(monkeypatch, ordinal=0, cuda_stream=7)
+    monkeypatch.setattr(ovrtx_mapping.wp, "from_dlpack", lambda tensor, dtype: object())
+
+    with pytest.raises(ValueError, match="fill failed"):
+        with ovrtx_mapping.map_attribute_for_warp_writes(binding, "cuda:0", wp.mat44d):
+            raise ValueError("fill failed")
+
+    assert binding.map_calls == [{"device": ovrtx_renderer_module.Device.CUDA, "device_id": 0}]
+    assert binding.unmap_calls == [{"event": None, "stream": 7}]
+
+
 def test_ovrtx_cleanup_releases_only_the_given_render_data():
     """``cleanup`` releases the render data's own buffers and leaves the renderer usable.
 
@@ -535,10 +609,13 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
+    renderer._cable_points_binding = _RecordingBinding(events, "cable")
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
+    renderer._particle_workaround_applied = True
+    renderer._cable_segment_counts = [1]
     renderer._renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -582,6 +659,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_paths_list = "deformable"
     renderer._particle_points_query = "particle"
     renderer._particle_paths_list = "particle"
+    renderer._cable_points_query = "cable"
+    renderer._cable_paths_list = "cable"
     renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
@@ -608,12 +687,15 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:object",
         "unbind:deformable",
         "unbind:particle",
+        "unbind:cable",
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
+    assert renderer._cable_points_binding is None
+    assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
@@ -642,11 +724,15 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_path_list:deformable",
         "release_query:particle",
         "destroy_path_list:particle",
+        "release_query:cable",
+        "destroy_path_list:cable",
         "detach_ovstage",
         "exit_stack_close",
     ]
     assert renderer._camera_xform_query is None
     assert renderer._particle_paths_list is None
+    assert renderer._cable_points_query is None
+    assert renderer._cable_paths_list is None
     assert renderer._object_newton_indices is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
