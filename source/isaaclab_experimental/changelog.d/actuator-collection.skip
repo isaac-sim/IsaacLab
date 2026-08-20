@@ -1,3 +1,0 @@
-Internal-only change: migrated experimental rewards to the actuator collection
-telemetry API. Behavior is unchanged, so no user-facing changelog entry is
-warranted.

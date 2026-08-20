@@ -87,6 +87,7 @@ from .ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
+from .ovrtx_mapping import map_attribute_for_warp_writes
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -349,12 +350,6 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
-
-    @property
-    def _device_id(self) -> int:
-        """CUDA device index extracted from ``self._device`` for OVRTX ``binding.map()`` calls."""
-        parts = self._device.split(":")
-        return int(parts[1]) if len(parts) > 1 else 0
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
@@ -968,8 +963,7 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with self._object_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-            ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+        with map_attribute_for_warp_writes(self._object_xform_binding, self._device, wp.mat44d) as ovrtx_transforms:
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
                 dim=len(self._object_newton_indices),
@@ -1076,9 +1070,8 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
         if self._camera_xform_binding is not None:
-            with self._camera_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-                wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.copy(wp_transforms_view, camera_transforms)
+            with map_attribute_for_warp_writes(self._camera_xform_binding, self._device, wp.mat44d) as transforms_view:
+                wp.copy(transforms_view, camera_transforms)
 
     def read_output(
         self,
@@ -1393,7 +1386,7 @@ class OVRTXRenderer(BaseRenderer):
         # FIXME: OVRTX render var mapping can select a different CUDA device
         # than the camera/output buffers on MGPU systems. Keep this PPISP-only
         # bridge until render var mapping can be constrained like transform
-        # bindings, which use ``device_id=self._device_id``.
+        # bindings, whose maps pin ``device_id`` (see ``ovrtx_mapping``).
         return wp.clone(tiled_data, device=output_device)
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
