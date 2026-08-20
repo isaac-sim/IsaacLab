@@ -635,7 +635,7 @@ Prerequisites
   .. code-block:: bash
 
      cd /path/to/IsaacTeleop
-     ./install/plugins/manus/manus_hand_tracker_printer
+     ./install/bin/manus_hand_tracker_printer
 
   See the `Manus plugin documentation`_ for manual installation without ``install_manus.sh``, the
   full data-path reference (skeleton injection, flex-sensor tensors, haptics), and
