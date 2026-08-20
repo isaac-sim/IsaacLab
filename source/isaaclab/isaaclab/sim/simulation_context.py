@@ -21,12 +21,8 @@ from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
-from isaaclab.physics.scene_data_requirements import (
-    SceneDataRequirement,
-    resolve_scene_data_requirements,
-)
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene_data import SceneDataProvider
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
@@ -192,7 +188,9 @@ class SimulationContext:
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizer_cfgs: list[Any] | None = None
         self._reset_requested: bool = False
-        self._scene_data_requirements = SceneDataRequirement()
+        # Set by the visualizers and renderers in use; read by the scene data provider.
+        self.requires_usd_stage = False
+        self.requires_newton_model = False
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
         # their own backend args. None until a replication session publishes a plan.
@@ -635,13 +633,12 @@ class SimulationContext:
 
         cli_explicit = self._is_cli_visualizer_explicit()
 
-        # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
-        all_visualizer_cfgs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
-        visualizer_types = [
-            cfg.visualizer_type for cfg in all_visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
-        ]
-        requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
-        self._scene_data_requirements = requirements
+        configs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
+        for config in configs:
+            if config.visualizer_type is not None:
+                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[config.visualizer_type]
+                self.requires_usd_stage |= requires_stage
+                self.requires_newton_model |= requires_model
 
         pending_cfgs = []
         new_visualizers = []
@@ -685,14 +682,6 @@ class SimulationContext:
         self._interactive_scene = scene
         if self._scene_data_provider is not None:
             self._scene_data_provider.set_interactive_scene(scene)
-
-    def get_scene_data_requirements(self) -> SceneDataRequirement:
-        """Return scene-data requirements resolved from visualizers/renderers."""
-        return self._scene_data_requirements
-
-    def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:
-        """Update scene-data requirements."""
-        self._scene_data_requirements = requirements
 
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.

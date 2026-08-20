@@ -182,7 +182,6 @@ class LeappDeploymentEnv:
 
         with use_stage(self.sim.stage):
             self.scene = InteractiveScene(cfg.scene)
-            self.scene.initialize_renderers()
         with use_stage(self.sim.stage):
             self.sim.reset()
         self.scene.update(dt=self.physics_dt)

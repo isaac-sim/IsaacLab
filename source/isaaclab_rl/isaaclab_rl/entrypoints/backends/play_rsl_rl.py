@@ -41,7 +41,10 @@ from isaaclab_rl.rsl_rl import (
     export_policy_as_onnx,
     handle_deprecated_rsl_rl_cfg,
 )
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -134,7 +137,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             if args_cli.checkpoint == "pretrained":
-                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
                 if not resume_path:
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:

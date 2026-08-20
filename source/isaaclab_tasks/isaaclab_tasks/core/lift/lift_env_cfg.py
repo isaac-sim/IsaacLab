@@ -510,7 +510,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 @configclass

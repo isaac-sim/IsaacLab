@@ -10,6 +10,9 @@ import importlib
 import json
 import logging
 import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -360,6 +363,50 @@ def test_local_copy_without_a_recorded_revision_is_refetched(asset_cache, monkey
     _serve(monkeypatch, {_REMOTE_URL: current}, payloads={_REMOTE_URL: b"fresh bytes"})
 
     assert assets_utils.read_file(_REMOTE_URL).read() == b"fresh bytes"
+
+
+def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkeypatch):
+    """Test concurrent ranks reuse the mirror populated by the first rank."""
+    import omni.client
+
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+    copy_count = 0
+    active_copies = 0
+    max_active_copies = 0
+    counter_lock = threading.Lock()
+    mirrored = Path(assets_utils._mirror_path(_REMOTE_URL, str(asset_cache)))
+
+    def fake_copy(url, target_path, behavior):
+        nonlocal copy_count, active_copies, max_active_copies
+        assert url == _REMOTE_URL
+        assert behavior == omni.client.CopyBehavior.OVERWRITE
+        assert Path(target_path) != mirrored
+        with counter_lock:
+            copy_count += 1
+            active_copies += 1
+            max_active_copies = max(max_active_copies, active_copies)
+        time.sleep(0.05)
+        Path(target_path).write_bytes(b"#usda 1.0\n")
+        with counter_lock:
+            active_copies -= 1
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_find_asset_dependencies", lambda path: set())
+    start = threading.Barrier(2)
+
+    def retrieve() -> str:
+        start.wait()
+        return assets_utils.retrieve_file_path(_REMOTE_URL, str(asset_cache))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieved = list(executor.map(lambda _: retrieve(), range(2)))
+
+    assert retrieved == [str(mirrored)] * 2
+    assert mirrored.read_bytes() == b"#usda 1.0\n"
+    assert copy_count == 1
+    assert max_active_copies == 1
 
 
 def test_size_and_modification_time_identify_a_revision(asset_cache, monkeypatch):
