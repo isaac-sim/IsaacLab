@@ -6,7 +6,9 @@
 # Stable rendering correctness tests used by post-merge CI.
 rendering-correctness = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-depth]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-depth]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-newton_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-albedo-depth-cartpole]",
   "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-rgb-cartpole]",
@@ -15,11 +17,15 @@ rendering-correctness = [
 rendering-correctness-kitless-legacy = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-newton_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx-depth]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-newton_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-depth]",
 ]
 
 rendering-correctness-kitless-ovstage = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx-depth]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx-depth]",
 ]
