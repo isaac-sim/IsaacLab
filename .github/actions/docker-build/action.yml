@@ -187,8 +187,9 @@ runs:
         set -euo pipefail
         # pip needs root; restore the image's own default user afterwards.
         image_user="$(docker image inspect --format '{{.Config.User}}' "${{ inputs.image-tag }}")"
-        # Dockerfile on stdin (no context to stage). Quoted heredoc so only
-        # Docker expands ${...}; the `${{ }}` tag is substituted before that.
+        # Dockerfile on stdin (no context to stage). Quoted heredoc so the
+        # shell leaves ISAACLAB_PATH and IMAGE_USER for Docker to expand; the
+        # image tag is an action input, substituted before bash ever runs.
         docker build --platform "${{ inputs.platform }}" \
           --build-arg "IMAGE_USER=${image_user:-root}" \
           -t "${{ inputs.image-tag }}" - <<'DOCKERFILE'
