@@ -121,9 +121,19 @@ class UsdReplicateContext:
                     clone_prefix, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
                     source_match = match(src, tmpl)
+                    source_path = Sdf.Path(src)
+                    material_bindings: list[Sdf.Path] = []
+                    if clone_suffix and source_match is not None:
+
+                        def collect_material_binding(path: Sdf.Path) -> None:
+                            if path.IsPropertyPath() and path.name == "material:binding":
+                                material_bindings.append(path)
+
+                        rl.Traverse(source_path, collect_material_binding)
                     for wid in target_envs.tolist():
                         wid = int(wid)
                         dp = tmpl.format(wid)
+                        destination_path = Sdf.Path(dp)
                         Sdf.CreatePrimInLayer(rl, dp)
                         # ``CreatePrimInLayer`` authors missing intermediate ancestors (e.g. the
                         # ``Groceries`` scope in ``env_{}/Groceries/Object``) as ``over`` specs. A
@@ -138,55 +148,19 @@ class UsdReplicateContext:
                             ancestor_spec.specifier = Sdf.SpecifierDef
                             ancestor = ancestor.GetParentPath()
                         if src != dp:
-                            if source_match is None:
-                                Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
-                            else:
+                            Sdf.CopySpec(rl, source_path, rl, destination_path)
+                            if material_bindings:
                                 source_env = Sdf.Path(clone_prefix + source_match.instance)
                                 destination_env = Sdf.Path(clone_prefix + str(wid))
-
-                                def rebase_paths(spec_type, field, source_layer, source_path, *_args):
-                                    material_binding = (
-                                        spec_type == Sdf.SpecTypeRelationship
-                                        and field == "targetPaths"
-                                        and source_path.name == "material:binding"
+                                for source_binding in material_bindings:
+                                    binding = rl.GetRelationshipAtPath(
+                                        source_binding.ReplacePrefix(source_path, destination_path)
                                     )
-                                    connection = spec_type == Sdf.SpecTypeAttribute and field == "connectionPaths"
-                                    if not (material_binding or connection):
-                                        return True
-                                    paths = source_layer.GetObjectAtPath(source_path).GetInfo(field)
-                                    rebased = Sdf.PathListOp()
-                                    changed = False
-                                    items_names = (
-                                        ("explicitItems",)
-                                        if paths.isExplicit
-                                        else (
-                                            "addedItems",
-                                            "prependedItems",
-                                            "appendedItems",
-                                            "deletedItems",
-                                            "orderedItems",
-                                        )
-                                    )
-                                    for items_name in items_names:
-                                        items = getattr(paths, items_name)
-                                        values = [
-                                            path.ReplacePrefix(source_env, destination_env)
-                                            if path.HasPrefix(source_env)
-                                            else path
-                                            for path in items
-                                        ]
-                                        setattr(rebased, items_name, values)
-                                        changed |= values != items
-                                    return (True, rebased) if changed else True
-
-                                Sdf.CopySpec(
-                                    rl,
-                                    Sdf.Path(src),
-                                    rl,
-                                    Sdf.Path(dp),
-                                    rebase_paths,
-                                    lambda *_args: True,
-                                )
+                                    targets = binding.targetPathList
+                                    targets.explicitItems = [
+                                        path.ReplacePrefix(source_env, destination_env)
+                                        for path in targets.GetAppliedItems()
+                                    ]
 
                         # Author positions/quaternions for instance roots only.
                         if is_instance_root and (positions is not None or quaternions is not None):
