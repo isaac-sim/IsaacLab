@@ -60,13 +60,15 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
 from isaaclab_tasks.utils import resolve_presets
 
 TASK = "Isaac-Velocity-Rough-H1"
-LEGACY_CHECKPOINT_TASK = "Isaac-Velocity-Rough-H1-v0"
 RL_LIBRARY = "rsl_rl"
 
 
@@ -90,10 +92,6 @@ class H1RoughDemo:
         loads pre-trained checkpoints, and registers keyboard events."""
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
-        # load the trained policy published under the legacy versioned task name
-        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, LEGACY_CHECKPOINT_TASK)
-        if checkpoint is None:
-            raise FileNotFoundError("No published checkpoint is available for the H1 locomotion demo.")
         # create envionrment
         env_cfg = resolve_presets(H1RoughEnvCfg(), selected=(args_cli.physics,))
         env_cfg.play_mode()
@@ -102,6 +100,11 @@ class H1RoughDemo:
         env_cfg.curriculum = None
         env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         env_cfg.commands.base_velocity.ranges.heading = (-1.0, 1.0)
+        # load the trained jit policy
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
+        if checkpoint is None:
+            raise FileNotFoundError("No published checkpoint is available for the H1 locomotion demo.")
         # wrap around environment for rsl-rl
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device

@@ -1349,7 +1349,7 @@ def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.nda
 
 
 def _capture_visualizer_tiled_camera_rgb(
-    visualizer, *, label: str = "capture", force_recompute: bool = True
+    visualizer, *, label: str = "capture", force_recompute: bool = True, paused: bool = False
 ) -> np.ndarray:
     """Return the visualizer-owned/generated tiled camera RGB frame as an HxWx3 array."""
     camera_sensor = visualizer._camera_sensor
@@ -1367,9 +1367,11 @@ def _capture_visualizer_tiled_camera_rgb(
                 from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
 
                 if NewtonManager._newton_fabric_ready:
-                    _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
+                    if not paused:
+                        _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
                     _update_active_simulation_app()
-                    _force_newton_transforms_resync()
+                    if not paused:
+                        _force_newton_transforms_resync()
                 else:
                     _update_active_simulation_app()
             except Exception:
@@ -1420,10 +1422,10 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
         # Re-render both paused captures: comparing the sensor's cached frame with itself cannot
         # detect a renderer that keeps changing the image after physics stops.  The denoiser residue
         # that motivated caching is handled by the per-channel threshold below (NVBUG 6570125).
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20")
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20", paused=True)
         for _ in range(PAUSE_VIZ_N_STEP):
             env.sim.render()
-        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25")
+        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25", paused=True)
         _save_visualizer_debug_phase_images(
             paused_start_frame,
             paused_end_frame,
@@ -1606,8 +1608,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = copy.deepcopy(AnymalDFlatEnvCfg())
-    preset_key = "newton_mjwarp" if backend_kind == "newton" else "default"
-    env_cfg.sim.physics = getattr(env_cfg.sim.physics, preset_key)
+    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
     env_cfg.scene.num_envs = (
         _ANYMAL_D_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _ANYMAL_D_INTEGRATION_NUM_ENVS
     )
@@ -1861,6 +1862,7 @@ def _make_cartpole_camera_env(
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
+    env_cfg.tiled_camera.default.renderer_cfg = env_cfg.tiled_camera.default.renderer_cfg.isaacsim_rtx
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
     visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs

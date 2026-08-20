@@ -49,11 +49,13 @@ from isaaclab_newton.physics import (
     NewtonMPMManager,
     NewtonShapeCfg,
     NewtonSolverCfg,
+    NewtonVBDManager,
     NewtonXPBDManager,
+    VBDSolverCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
+from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -88,6 +90,14 @@ SOLVER_MATRIX = [
         False,
         True,
         id="xpbd",
+    ),
+    pytest.param(
+        lambda: VBDSolverCfg(),
+        NewtonVBDManager,
+        SolverVBD,
+        False,
+        True,
+        id="vbd",
     ),
     pytest.param(
         lambda: FeatherstoneSolverCfg(),
@@ -125,6 +135,7 @@ SOLVER_MATRIX = [
 
 RIGID_BODY_FORCE_INPUT_SUPPORT = {
     NewtonMJWarpManager: True,
+    NewtonVBDManager: True,
     NewtonXPBDManager: True,
     NewtonFeatherstoneManager: True,
     NewtonKaminoManager: True,
@@ -957,7 +968,14 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
 
 @pytest.mark.parametrize(
     "manager",
-    [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager, NewtonMPMManager],
+    [
+        NewtonMJWarpManager,
+        NewtonXPBDManager,
+        NewtonVBDManager,
+        NewtonFeatherstoneManager,
+        NewtonKaminoManager,
+        NewtonMPMManager,
+    ],
 )
 def test_subclass_of_newton_manager(manager):
     """All concrete managers inherit from :class:`NewtonManager`."""
@@ -977,6 +995,7 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
     for manager in (
         NewtonMJWarpManager,
         NewtonXPBDManager,
+        NewtonVBDManager,
         NewtonFeatherstoneManager,
         NewtonKaminoManager,
         NewtonMPMManager,
@@ -984,20 +1003,42 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
         assert manager._supports_rigid_body_force_input is False
 
 
-def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch):
-    """Viewer force callbacks are registered after capability publication and before capture."""
+@pytest.mark.parametrize(
+    "native_path_active, native_graphable, expected_events",
+    [
+        pytest.param(False, False, ["prepare", "capture"], id="lab_actuators"),
+        pytest.param(True, False, ["prepare", "capture"], id="native_non_graphable"),
+        pytest.param(True, True, ["prepare"], id="native_graphable"),
+    ],
+)
+def test_initialize_solver_prepares_picking_before_graph_capture(
+    monkeypatch, native_path_active, native_graphable, expected_events
+):
+    """Viewer setup precedes initial capture, which only graphable native actuators defer."""
     events: list[str] = []
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
-        device="cuda:0",
+        device="cpu",
         physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        build_solver = NewtonMJWarpManager._build_solver
+
+        def build_solver_with_actuator_mode(cls, model, solver_cfg):
+            build_solver(model, solver_cfg)
+            NewtonManager._use_newton_actuators_active = native_path_active
+            NewtonManager._adapter = SimpleNamespace(is_all_graphable=native_graphable)
+
         builder = sim.physics_manager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
+        monkeypatch.setattr(
+            NewtonMJWarpManager,
+            "_build_solver",
+            classmethod(build_solver_with_actuator_mode),
+        )
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
         monkeypatch.setattr(
             NewtonMJWarpManager,
@@ -1007,7 +1048,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(monkeypatch):
 
         sim.reset()
 
-    assert events == ["prepare", "capture"]
+    assert events == expected_events
 
 
 def test_abstract_build_solver_raises():
@@ -1024,7 +1065,14 @@ def test_abstract_create_solver_raises():
 
 @pytest.mark.parametrize(
     "manager",
-    [NewtonMJWarpManager, NewtonXPBDManager, NewtonFeatherstoneManager, NewtonKaminoManager, NewtonMPMManager],
+    [
+        NewtonMJWarpManager,
+        NewtonXPBDManager,
+        NewtonVBDManager,
+        NewtonFeatherstoneManager,
+        NewtonKaminoManager,
+        NewtonMPMManager,
+    ],
 )
 def test_manager_name_starts_with_newton(manager):
     """The ``"newton"`` prefix is required by :class:`InteractiveScene` and the
@@ -1107,6 +1155,17 @@ def test_initialize_solver_populates_canonical_state(
                 mass=0.01,
                 jitter=0.0,
                 radius_mean=0.02,
+            )
+        elif expected_solver_cls is SolverVBD:
+            builder.add_cloth_mesh(
+                pos=wp.vec3(0.0, 0.0, 0.1),
+                rot=wp.quat_identity(),
+                scale=1.0,
+                vel=wp.vec3(0.0),
+                vertices=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.1, 0.0, 0.0), wp.vec3(0.0, 0.1, 0.0)],
+                indices=[0, 1, 2],
+                density=1.0,
+                particle_radius=0.01,
             )
         else:
             # Pre-populate the builder with a minimal scene so MJCF conversion has

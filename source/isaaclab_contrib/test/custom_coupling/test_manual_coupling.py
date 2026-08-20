@@ -19,7 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 from isaaclab_newton.assets import Articulation, RigidObject
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
@@ -29,7 +29,7 @@ from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
-from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
+from isaaclab_contrib.deformable import DeformableObject
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # isort:skip
 

@@ -65,12 +65,14 @@ jobs:
         # ``rlinf`` and ``mimic`` are outside ``all``, so name them to keep them scanned.
         # No extras conflict, so this is a single resolution -- Isaac Sim no longer needs
         # an imperative install after the sync.
-        uv sync --extra all --extra test --extra rlinf --extra mimic
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+          uv sync --extra all --extra test --extra rlinf --extra mimic
         # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
         # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
         # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license
         # strings unsorted. Cap below 6.0 until 6.x ships stable and is re-reviewed.
-        uv pip install "pip-licenses<6.0" pipdeptree \
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+          uv pip install "pip-licenses<6.0" pipdeptree \
           -r tools/template/requirements.txt
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
@@ -134,15 +136,13 @@ jobs:
 
             # If the package is in the exceptions list
             if [ -n "$EXCEPTION" ]; then
-              # If the license is provided in the exceptions list, check the license
-              EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
-
-              # echo "Comparing licenses for $pkg:"
-              # echo "  EXCEPTION_LICENSE='${EXCEPTION_LICENSE}' (len=${#EXCEPTION_LICENSE})"
-              # echo "  LICENSE='${LICENSE}' (len=${#LICENSE})"
-
-              # If the exceptions list has a license and doesn't match the current license
-              if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
+              # If licenses are provided in the exception, require the primary value or an alias.
+              LICENSE_MATCH=$(echo "$EXCEPTION" | jq -r --arg license "$LICENSE" '
+                (.license == null)
+                or (.license == $license)
+                or any(.license_aliases[]?; . == $license)
+              ')
+              if [ "$LICENSE_MATCH" != "true" ]; then
                 echo "ERROR: $pkg has license: $LICENSE"
                 FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
               fi

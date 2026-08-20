@@ -1,2 +1,0 @@
-Docs-only: updated a test docstring's documentation path after renaming
-sim-to-sim-policy-transfer.rst to joint_and_body_ordering.rst. No behavior change.
