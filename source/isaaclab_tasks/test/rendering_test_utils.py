@@ -1791,9 +1791,6 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
     env_cfg.commands.deformable_pose.debug_vis = False
-    if data_type == "motion_vectors":
-        initial_pos = env_cfg.scene.deformable.init_state.pos
-        env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
     env_cfg.events.reset_deformable.params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
@@ -1807,7 +1804,10 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if renderer != "ovrtx_renderer":
+    is_newton_ovrtx_motion = (
+        physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type == "motion_vectors"
+    )
+    if not is_newton_ovrtx_motion:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     if renderer == "ovrtx_renderer" and data_type == "instance_segmentation":
@@ -1824,6 +1824,9 @@ def rendering_test_franka_cloth(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
+    if is_newton_ovrtx_motion:
+        initial_pos = env_cfg.scene.deformable.init_state.pos
+        env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -1839,7 +1842,7 @@ def rendering_test_franka_cloth(
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
         # TODO: Remove the extra step when NVBug 6565960 is fixed.
-        if data_type == "motion_vectors":
+        if is_newton_ovrtx_motion:
             env.step(zero_actions)
 
         camera = env.scene.sensors["base_camera"]
