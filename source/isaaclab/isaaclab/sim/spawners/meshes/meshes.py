@@ -390,8 +390,9 @@ def _apply_mesh_deformable_slot(prim_path: str, cfg: meshes_cfg.MeshCfg, deforma
         )
     # collision tuning rides the collision family, anchored at the spawn prim so the created
     # sim mesh child is reachable (e.g. {"/sim_mesh": [...]})
-    if isinstance(cfg.collision_props, dict):
-        for pattern, fragments in cfg.collision_props.items():
+    collision_props_mapping = fragment_mapping(cfg.collision_props)
+    if collision_props_mapping is not None:
+        for pattern, fragments in collision_props_mapping.items():
             schemas.apply_collision_properties(
                 props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
             )

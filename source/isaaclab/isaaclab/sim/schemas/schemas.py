@@ -2435,8 +2435,10 @@ def define_deformable_body_properties(
                 raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
             # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
             sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+            # flatten through numpy so USD coerces the flat index run into the Vec3i array the
+            # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
             sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
-                sim_mesh_prim.GetAttribute("faceVertexIndices").Get()
+                np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
             )
         else:
             if not sim_mesh_prim.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI"):

@@ -21,6 +21,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -474,8 +475,10 @@ class PhysxManager(PhysicsManager):
             if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
                 raise RuntimeError(f"Failed to set surface deformable sim API on prim '{sim_mesh_path}'.")
             sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+            # flatten through numpy so USD coerces the flat index run into the Vec3i array the
+            # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
             sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
-                sim_mesh_prim.GetAttribute("faceVertexIndices").Get()
+                np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
             )
         else:
             if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
