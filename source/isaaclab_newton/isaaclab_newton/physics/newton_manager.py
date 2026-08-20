@@ -87,7 +87,6 @@ from isaaclab.scene_data.deformable_vis_remap import (
     launch_batch_volume_vis_remap,
 )
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -106,9 +105,16 @@ from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
+from isaaclab_newton.renderers.visual_material import (
+    VisualMaterialWriter,
+    VisualShapeColorWriter,
+    import_builder_visual_materials,
+)
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
+    from isaaclab.assets import BaseArticulation
+    from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -1886,7 +1892,7 @@ class NewtonManager(PhysicsManager):
                 stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
             )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-            replace_newton_builder_shape_colors(builder, stage)
+            import_builder_visual_materials(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
@@ -1896,7 +1902,7 @@ class NewtonManager(PhysicsManager):
             ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-            replace_newton_builder_shape_colors(builder, stage)
+            import_builder_visual_materials(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
@@ -1909,7 +1915,7 @@ class NewtonManager(PhysicsManager):
             _restore_visible_colliders_without_visual_shapes(
                 source_builders[proto_path], stage, import_result["path_shape_map"]
             )
-            replace_newton_builder_shape_colors(source_builders[proto_path], stage)
+            import_builder_visual_materials(source_builders[proto_path], stage)
             cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
@@ -2496,6 +2502,25 @@ class NewtonManager(PhysicsManager):
         cls._update_sensors(contacts)
 
     # State accessors (used extensively by articulation/rigid object data)
+    @classmethod
+    def create_visual_material_writer(cls, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
+        """Compile material-to-shape addresses for the active Newton model."""
+        return VisualMaterialWriter(cls.get_model(), batches)
+
+    @classmethod
+    def create_visual_shape_color_writer(
+        cls, asset: BaseArticulation, body_names: tuple[str, ...]
+    ) -> VisualShapeColorWriter:
+        """Compile selected articulation-body shape addresses for the active Newton model."""
+        model = cls.get_model()
+        root_expr = asset.cfg.prim_path
+        if asset.cfg.articulation_root_prim_path is None:
+            root_expr += "(?:/.*)?"
+        else:
+            root_expr += asset.cfg.articulation_root_prim_path
+        prim_paths = tuple(path for path in model.articulation_label if re.fullmatch(root_expr, path))
+        return VisualShapeColorWriter(model, prim_paths, body_names)
+
     @classmethod
     def get_model(cls) -> Model:
         """Get the Newton model.

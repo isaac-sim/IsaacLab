@@ -12,7 +12,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .path import split
+from .path import match, split
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
@@ -118,9 +118,9 @@ class UsdReplicateContext:
         for depth in sorted(depth_to_items.keys()):
             with Sdf.ChangeBlock():
                 for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
-                    _, clone_suffix = split(tmpl)
+                    clone_prefix, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
-
+                    source_match = match(src, tmpl)
                     for wid in target_envs.tolist():
                         wid = int(wid)
                         dp = tmpl.format(wid)
@@ -138,7 +138,55 @@ class UsdReplicateContext:
                             ancestor_spec.specifier = Sdf.SpecifierDef
                             ancestor = ancestor.GetParentPath()
                         if src != dp:
-                            Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
+                            if source_match is None:
+                                Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
+                            else:
+                                source_env = Sdf.Path(clone_prefix + source_match.instance)
+                                destination_env = Sdf.Path(clone_prefix + str(wid))
+
+                                def rebase_paths(spec_type, field, source_layer, source_path, *_args):
+                                    material_binding = (
+                                        spec_type == Sdf.SpecTypeRelationship
+                                        and field == "targetPaths"
+                                        and source_path.name == "material:binding"
+                                    )
+                                    connection = spec_type == Sdf.SpecTypeAttribute and field == "connectionPaths"
+                                    if not (material_binding or connection):
+                                        return True
+                                    paths = source_layer.GetObjectAtPath(source_path).GetInfo(field)
+                                    rebased = Sdf.PathListOp()
+                                    changed = False
+                                    items_names = (
+                                        ("explicitItems",)
+                                        if paths.isExplicit
+                                        else (
+                                            "addedItems",
+                                            "prependedItems",
+                                            "appendedItems",
+                                            "deletedItems",
+                                            "orderedItems",
+                                        )
+                                    )
+                                    for items_name in items_names:
+                                        items = getattr(paths, items_name)
+                                        values = [
+                                            path.ReplacePrefix(source_env, destination_env)
+                                            if path.HasPrefix(source_env)
+                                            else path
+                                            for path in items
+                                        ]
+                                        setattr(rebased, items_name, values)
+                                        changed |= values != items
+                                    return (True, rebased) if changed else True
+
+                                Sdf.CopySpec(
+                                    rl,
+                                    Sdf.Path(src),
+                                    rl,
+                                    Sdf.Path(dp),
+                                    rebase_paths,
+                                    lambda *_args: True,
+                                )
 
                         # Author positions/quaternions for instance roots only.
                         if is_instance_root and (positions is not None or quaternions is not None):

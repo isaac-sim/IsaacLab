@@ -60,6 +60,8 @@ __all__ = [
     "randomize_rigid_body_material",
     "randomize_rigid_body_scale",
     "randomize_visual_color",
+    "randomize_visual_material",
+    "randomize_visual_shape",
     "randomize_visual_texture_material",
     "reset_joints_by_offset",
     "reset_joints_by_scale",
@@ -205,7 +207,6 @@ from .events import (
     randomize_rigid_body_mass,
     randomize_rigid_body_material,
     randomize_rigid_body_scale,
-    randomize_visual_color,
     randomize_visual_texture_material,
     reset_joints_by_offset,
     reset_joints_by_scale,
@@ -216,6 +217,7 @@ from .events import (
     reset_root_state_with_random_orientation,
     reset_scene_to_default,
 )
+from .visual_events import randomize_visual_color, randomize_visual_material, randomize_visual_shape
 from .observations import (
     base_ang_vel,
     base_lin_vel,

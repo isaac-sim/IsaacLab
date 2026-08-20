@@ -783,6 +783,42 @@ Material bindings.
 """
 
 
+def resolve_env_material_target(target: str, prim_path: str | Sdf.Path) -> str:
+    """Resolve a material target to the bound prim's environment namespace."""
+    if "{ENV_REGEX_NS}" not in target:
+        return target
+    match = re.match(r"(/World/envs/[^/]+)(?:/|$)", str(prim_path))
+    if match is None:
+        raise ValueError(f"Material target {target!r} requires an environment-scoped prim; got {prim_path!r}.")
+    return target.format(ENV_REGEX_NS=match.group(1))
+
+
+def bind_visual_material_exact(
+    prim_path: str | Sdf.Path,
+    material_path: str | Sdf.Path,
+    stage: Usd.Stage,
+    stronger_than_descendants: bool = True,
+) -> bool:
+    """Author one material binding, including a same-environment target planned to spawn later."""
+    from pxr import UsdShade  # noqa: PLC0415
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Target prim '{prim_path}' does not exist.")
+    prim_env = re.match(r"(/World/envs/[^/]+)(?:/|$)", str(prim_path))
+    material_env = re.match(r"(/World/envs/[^/]+)(?:/|$)", str(material_path))
+    same_env = prim_env is not None and material_env is not None and prim_env.group(1) == material_env.group(1)
+    if not stage.GetPrimAtPath(material_path).IsValid() and not same_env:
+        raise ValueError(f"Visual material '{material_path}' does not exist.")
+    relationship = UsdShade.MaterialBindingAPI.Apply(prim).GetDirectBindingRel()
+    relationship.SetTargets([material_path])
+    strength = (
+        UsdShade.Tokens.strongerThanDescendants if stronger_than_descendants else UsdShade.Tokens.weakerThanDescendants
+    )
+    UsdShade.MaterialBindingAPI.SetMaterialBindingStrength(relationship, strength)
+    return True
+
+
 @apply_nested
 def bind_visual_material(
     prim_path: str | Sdf.Path,
@@ -792,7 +828,8 @@ def bind_visual_material(
 ):
     """Bind a visual material to a prim.
 
-    The binding is authored using the standard OpenUSD :class:`UsdShade.MaterialBindingAPI`.
+    The binding is authored with :class:`UsdShade.MaterialBindingAPI`; same-environment targets
+    may be declared before their material prim is spawned.
 
     .. note::
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
@@ -809,28 +846,11 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    from pxr import UsdShade  # noqa: PLC0415
-
     # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # check if prim and material exists
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        raise ValueError(f"Target prim '{prim_path}' does not exist.")
-    material_prim = stage.GetPrimAtPath(material_path)
-    if not material_prim.IsValid():
-        raise ValueError(f"Visual material '{material_path}' does not exist.")
-
-    # resolve token for weaker than descendants
-    if stronger_than_descendants:
-        binding_strength = UsdShade.Tokens.strongerThanDescendants
-    else:
-        binding_strength = UsdShade.Tokens.weakerThanDescendants
-    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    material = UsdShade.Material(material_prim)
-    return binding_api.Bind(material, bindingStrength=binding_strength)
+    return bind_visual_material_exact(prim_path, material_path, stage, stronger_than_descendants)
 
 
 @apply_nested

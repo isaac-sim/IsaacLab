@@ -32,6 +32,8 @@ from isaaclab.assets import (
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
+    VisualMaterial,
+    VisualMaterialCfg,
 )
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
@@ -148,6 +150,7 @@ class InteractiveScene:
         self._rigid_object_collections = dict()
         self._sensors = dict()
         self._surface_grippers = dict()
+        self._visual_materials = dict()
         self._extras = dict()
         # get stage handle
         self.sim = SimulationContext.instance()
@@ -214,14 +217,15 @@ class InteractiveScene:
         """Flatten user-declared cfgs for :func:`~isaaclab.cloner.make_clone_plan`.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
-        resolves ``{ENV_REGEX_NS}`` macros, and orders sensors after non-sensors.
+        resolves ``{ENV_REGEX_NS}`` macros, and orders materials before their consumers and sensors last.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
         items = [(name, cfg) for name, cfg in self.cfg.__dict__.items() if name not in cfg_fields and cfg is not None]
         self._scene_asset_names = [name for name, _ in items]
-        ordered_items = [item for item in items if not isinstance(item[1], SensorBaseCfg)]
-        ordered_items += [item for item in items if isinstance(item[1], SensorBaseCfg)]
+        ordered_items = sorted(
+            items, key=lambda item: (isinstance(item[1], SensorBaseCfg), not isinstance(item[1], VisualMaterialCfg))
+        )
 
         cfgs: list[Any] = []
         clone_asset_names: list[str] = []
@@ -399,6 +403,11 @@ class InteractiveScene:
     def surface_grippers(self) -> dict[str, SurfaceGripper]:
         """A dictionary of the surface grippers in the scene."""
         return self._surface_grippers
+
+    @property
+    def visual_materials(self) -> dict[str, VisualMaterial]:
+        """Scene-declared runtime-writable visual materials."""
+        return self._visual_materials
 
     @property
     def clone_plan(self) -> cloner.ClonePlan | None:
@@ -707,6 +716,7 @@ class InteractiveScene:
             self._rigid_object_collections,
             self._sensors,
             self._surface_grippers,
+            self._visual_materials,
             self._extras,
         ]:
             all_keys += list(asset_family.keys())
@@ -735,6 +745,7 @@ class InteractiveScene:
             self._rigid_object_collections,
             self._sensors,
             self._surface_grippers,
+            self._visual_materials,
             self._extras,
         ]:
             out = asset_family.get(key)
@@ -768,16 +779,15 @@ class InteractiveScene:
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()
-        # Process non-sensor entities before sensors so that asset prims exist in the template
-        # when sensors (e.g. cameras attached to robot links) need to spawn under them.
+        # Materials must exist before bound assets; sensors must follow the assets they observe.
         all_items = [
             (k, v)
             for k, v in self.cfg.__dict__.items()
             if k not in InteractiveSceneCfg.__dataclass_fields__ and v is not None
         ]
-        ordered_items = [(k, v) for k, v in all_items if not isinstance(v, SensorBaseCfg)] + [
-            (k, v) for k, v in all_items if isinstance(v, SensorBaseCfg)
-        ]
+        ordered_items = sorted(
+            all_items, key=lambda item: (isinstance(item[1], SensorBaseCfg), not isinstance(item[1], VisualMaterialCfg))
+        )
 
         for asset_name, asset_cfg in ordered_items:
             # set spawn_path on spawner if cloning is needed
@@ -861,6 +871,8 @@ class InteractiveScene:
                         )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, VisualMaterialCfg):
+                self._visual_materials[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset (into its clone-plan source env only)
                 if asset_cfg.spawn is not None:

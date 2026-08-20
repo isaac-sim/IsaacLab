@@ -25,6 +25,7 @@ import math
 import os
 import re
 import sys
+import weakref
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
@@ -75,7 +76,7 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
-from isaaclab.cloner.clone_plan import ClonePlan
+from isaaclab.cloner import ClonePlan, UsdReplicateContext
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -101,10 +102,12 @@ from .ovrtx_usd import (
     create_scene_partition_attributes,
     export_stage_to_string,
 )
+from .visual_materials import OVRTXVisualMaterialWriter
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
 
+    from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -369,6 +372,8 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
+        self._clone_groups: tuple[tuple[str, tuple[str, ...]], ...] = ()
+        self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
@@ -392,6 +397,18 @@ class OVRTXRenderer(BaseRenderer):
                 " value. Check that ovrtx is installed correctly and its native dependencies are available."
             )
         logger.info("OVRTX renderer created successfully")
+
+    def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
+        if not self._initialized_scene:
+            raise RuntimeError("OVRTX must ingest its detached scene before material writes are compiled.")
+        writer = OVRTXVisualMaterialWriter(self, batches)
+        self._visual_material_writer_ref = weakref.ref(writer)
+        return writer
+
+    @property
+    def visual_material_writer(self):
+        """Return the detached-scene material-writer factory."""
+        return self._create_visual_material_writer
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
@@ -426,27 +443,61 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         self._clone_plan = SimulationContext.instance().get_clone_plan()
-        if self._clone_plan is None or self._clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment positions is required when preparing OVRTX stage")
+        if self._clone_plan is None or self._clone_plan.env_ids is None or self._clone_plan.positions is None:
+            raise RuntimeError("Clone plan with environment ids and positions is required when preparing OVRTX stage")
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
 
         logger.info("Preparing stage (%d envs)...", num_envs)
-        create_scene_partition_attributes(stage, num_envs)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage)
 
-        # keep_env_roots is False on the ovstage path: ovstage's ``Stage.clone`` requires each target
-        # path to not already exist, so the non-source env roots must be trimmed from the exported
-        # stage for it to recreate them.
+        env_ids = self._clone_plan.env_ids
+        layout = torch.cat((env_ids[:, None], self._clone_plan.clone_mask.T.to(dtype=torch.long)), dim=1).cpu()
+        signatures: dict[tuple[int, ...], list[int]] = {}
+        for column, row in enumerate(layout):
+            signatures.setdefault(tuple(row[1:].tolist()), []).append(column)
+
+        representatives = [columns[0] for columns in signatures.values()]
+        prototype_ids = layout[representatives, 0]
+        prototype_mask = layout[:, 1:].T[:, representatives].to(dtype=torch.bool)
+        env_paths = tuple(f"/World/envs/env_{int(env_id)}" for env_id in layout[:, 0])
+        self._clone_groups = tuple(
+            (env_paths[columns[0]], tuple(env_paths[column] for column in columns[1:]))
+            for columns in signatures.values()
+        )
+
+        # Complete representative environments on a detached compact stage; render preparation
+        # must not add clone rows to the authoritative simulation stage.
+        from pxr import Sdf, Usd  # noqa: PLC0415
+
+        prototype_sources = tuple(
+            dict.fromkeys((*self._clone_plan.sources, *(group[0] for group in self._clone_groups)))
+        )
+        prototype_layer = Sdf.Layer.CreateAnonymous(".usda")
+        prototype_layer.ImportFromString(
+            export_stage_to_string(stage, num_envs, source_paths=prototype_sources, keep_env_roots=True)
+        )
+        prototype_stage = Usd.Stage.Open(prototype_layer)
+        usd = UsdReplicateContext(prototype_stage)
+        usd.queue_mapping(
+            self._clone_plan.sources,
+            self._clone_plan.destinations,
+            prototype_ids,
+            prototype_mask,
+        )
+        usd.replicate()
+        create_scene_partition_attributes(prototype_stage, num_envs)
+
+        # Whole-environment clones require absent targets and natively rebase every internal relationship.
         self._exported_usd_string = export_stage_to_string(
-            stage,
+            prototype_stage,
             num_envs,
-            source_paths=self._clone_plan.sources,
-            keep_env_roots=not self._use_ovstage,
+            source_paths=tuple(source for source, _ in self._clone_groups),
+            keep_env_roots=False,
         )
 
     def _capture_object_scales(self, stage: Any) -> None:
@@ -602,31 +653,19 @@ class OVRTXRenderer(BaseRenderer):
         num_envs = clone_plan.clone_mask.shape[1]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
-        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
-
         num_cloned_sources = 0
-
-        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
-            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
-
-            target_paths = []
-            for env_id in target_env_ids:
-                resolved_destination = destination.format(env_id)
-                if resolved_destination != source:
-                    target_paths.append(resolved_destination)
-
+        for source, target_paths in self._clone_groups:
             if target_paths:
-                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
+                logger.debug("Cloning environment prototype %s -> %d target(s)", source, len(target_paths))
                 try:
-                    self._renderer.clone_usd(source, target_paths)
+                    self._renderer.clone_usd(source, list(target_paths))
                     num_cloned_sources += 1
                 except Exception as e:
-                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
+                    error_msg = f"Failed to clone environment prototype {source}: {e}"
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
         env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
         self._renderer.write_attribute(
@@ -1455,10 +1494,19 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self._renderer is None or len(self._render_product_paths) == 0:
             return
-        products = self._renderer.step(
-            render_products=set(self._render_product_paths),
-            delta_time=1.0 / 60.0,
-        )
+        material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
+        try:
+            if material_writer is not None:
+                material_writer.publish()
+            products = self._renderer.step(
+                render_products=set(self._render_product_paths),
+                delta_time=1.0 / 60.0,
+            )
+        finally:
+            if material_writer is not None:
+                drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
+                with drain_errors:
+                    material_writer.drain()
         product_path = self._render_product_paths[0]
         if product_path in products and len(products[product_path].frames) > 0:
             self._process_render_frame(
@@ -1688,6 +1736,7 @@ class OVRTXRenderer(BaseRenderer):
             self._close_ovstage()
         else:
             self._close_legacy()
+        self._visual_material_writer_ref = None
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -1838,30 +1887,19 @@ class OVRTXRenderer(BaseRenderer):
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
 
         logger.info("Cloning sources in OVRTX...")
-        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
-
         num_cloned_sources = 0
-        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
-            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
-
-            target_paths = []
-            for env_id in target_env_ids:
-                resolved_destination = destination.format(env_id)
-                if resolved_destination != source:
-                    target_paths.append(resolved_destination)
-
+        for source, target_paths in self._clone_groups:
             if target_paths:
-                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
+                logger.debug("Cloning environment prototype %s -> %d target(s)", source, len(target_paths))
                 try:
-                    self._stage.clone(source, target_paths, ordinal=self._current_ordinal)
+                    self._stage.clone(source, list(target_paths), ordinal=self._current_ordinal)
                     num_cloned_sources += 1
                 except Exception as e:
-                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
+                    error_msg = f"Failed to clone environment prototype {source}: {e}"
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
         env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
@@ -2323,9 +2361,18 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self._renderer is None or len(self._render_product_paths) == 0:
             return
-        # Commit all per-frame writes (transforms, geometries, camera) then step.
+        # Commit all per-frame writes (transforms, geometries, camera, materials) then step.
         # advance_write_floor must precede step — the renderer rejects ordinal > write_floor.
-        self._stage.advance_write_floor(ordinal=self._current_ordinal).wait()
+        material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
+        try:
+            if material_writer is not None:
+                material_writer.publish()
+            self._stage.advance_write_floor(ordinal=self._current_ordinal).wait()
+        finally:
+            if material_writer is not None:
+                drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
+                with drain_errors:
+                    material_writer.drain()
         products = self._renderer.step(
             render_products=set(self._render_product_paths),
             delta_time=1.0 / 60.0,
