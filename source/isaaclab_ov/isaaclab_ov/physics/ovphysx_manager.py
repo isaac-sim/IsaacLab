@@ -13,13 +13,14 @@ steps the simulation using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import math
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
-import warp as wp
 import numpy as np
+import warp as wp
 
 from pxr import UsdPhysics
 
@@ -616,6 +617,7 @@ class OvPhysxManager(PhysicsManager):
         cls._ovstage = stage
 
         cls._next_control_ordinal = 2
+
     @classmethod
     def _destroy_ovstage(cls) -> None:
         """Destroy the attached OVStage after PhysX has released its stage."""
@@ -624,6 +626,7 @@ class OvPhysxManager(PhysicsManager):
             cls._ovstage = None
 
         cls._next_control_ordinal = 2
+
     @staticmethod
     def _close_physx_views(physx: Any) -> None:
         """Destroy every cached :class:`~isaaclab_ov.sim.views.OvPhysxView` binding for ``physx``."""
@@ -693,26 +696,17 @@ class OvPhysxManager(PhysicsManager):
 
         import ovstage  # noqa: PLC0415
 
-        paths = ovstage.PathDictionary()
-        path_list = paths.create_path_list_from_strings([cls._sim.cfg.physics_prim_path])
-        query = cls._ovstage.query_from_path_list(path_list)
-        try:
+        with contextlib.ExitStack() as cleanup:
+            paths = cleanup.enter_context(ovstage.PathDictionary(cls._ovstage))
+            path_list = paths.create_path_list_from_strings([cls._sim.cfg.physics_prim_path])
+            cleanup.callback(paths.destroy_path_list, path_list)
+            query = cleanup.enter_context(cls._ovstage.query_from_path_list(path_list))
+            cls._ovstage.write_attribute(query, "physics:gravityDirection", ordinal, direction, is_array=False).wait()
             cls._ovstage.write_attribute(
-                query, "physics:gravityDirection", ordinal, direction, is_array=False
-            ).wait()
-            cls._ovstage.write_attribute(
-                query,
-                "physics:gravityMagnitude",
-                ordinal,
-                np.array([magnitude], dtype=np.float32),
-                is_array=False,
+                query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
             cls._ovstage.advance_write_floor(ordinal=ordinal).wait()
             cls._physx.update_from_ovstage(ordinal, ordinal)
-        finally:
-            cls._ovstage.release_query(query).wait()
-            paths.destroy_path_list(path_list)
-            paths.destroy()
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:

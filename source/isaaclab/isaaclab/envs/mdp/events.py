@@ -1200,11 +1200,13 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
 class randomize_physics_scene_gravity(ManagerTermBase):
     """Randomize gravity by adding, scaling, or setting random values.
 
-    Automatically detects the active physics backend (PhysX or Newton) and applies
+    Automatically detects the active physics backend (PhysX, OvPhysX, or Newton) and applies
     the appropriate gravity randomization strategy:
 
     - **PhysX**: samples a single gravity vector and sets it scene-wide via the PhysX
       simulation view.  All environments share the same gravity.
+    - **OvPhysX**: samples a single gravity vector and applies a sealed OvStage control
+      update. All environments share the same gravity.
     - **Newton**: samples per-environment gravity vectors and writes them in-place to
       the Newton model's per-world gravity array on GPU.
 
@@ -1374,7 +1376,6 @@ class randomize_physics_scene_gravity(ManagerTermBase):
 
 
 class randomize_actuator_gains(ManagerTermBase):
-
     """Randomize the actuator gains in an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the actuator stiffness and damping gains.

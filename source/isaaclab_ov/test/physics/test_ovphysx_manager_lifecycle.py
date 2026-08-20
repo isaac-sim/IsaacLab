@@ -248,12 +248,22 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
     ]
 
 
-def test_set_gravity_writes_a_sealed_ovstage_control_update(monkeypatch, manager_module):
-    """Scene gravity updates must reach the running OvPhysX instance through OvStage."""
+@pytest.mark.parametrize("failure", [None, "query", "write"])
+def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, failure):
+    """Scene gravity updates must seal their ordinal and release resources on every path."""
     manager = manager_module.OvPhysxManager
     calls = []
 
     class FakePathDictionary:
+        def __init__(self, stage):
+            self.stage = stage
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            calls.append(("destroy_dictionary",))
+
         def create_path_list_from_strings(self, paths):
             calls.append(("paths", paths))
             return "physics-scene-paths"
@@ -261,22 +271,24 @@ def test_set_gravity_writes_a_sealed_ovstage_control_update(monkeypatch, manager
         def destroy_path_list(self, paths):
             calls.append(("destroy_paths", paths))
 
+    class FakeQuery:
+        def __enter__(self):
+            return "physics-scene-query"
 
-        def destroy(self):
-            calls.append(("destroy_dictionary",))
+        def __exit__(self, exc_type, exc_value, traceback):
+            calls.append(("release_query", "physics-scene-query"))
+
     class FakeStage:
-
-
         def query_from_path_list(self, paths):
             calls.append(("query", paths))
-            return "physics-scene-query"
+            if failure == "query":
+                raise RuntimeError("query failed")
+            return FakeQuery()
 
         def write_attribute(self, query, attribute, ordinal, tensors, *, is_array):
             calls.append(("write", query, attribute, ordinal, tensors.tolist(), is_array))
-            return SimpleNamespace(wait=lambda: None)
-
-        def release_query(self, query):
-            calls.append(("release_query", query))
+            if failure == "write":
+                raise RuntimeError("write failed")
             return SimpleNamespace(wait=lambda: None)
 
         def advance_write_floor(self, *, ordinal):
@@ -294,19 +306,42 @@ def test_set_gravity_writes_a_sealed_ovstage_control_update(monkeypatch, manager
     monkeypatch.setattr(manager, "_physx", FakePhysX())
     monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene")))
 
-    manager.set_gravity((0.0, 0.0, -9.81))
+    if failure is None:
+        manager.set_gravity((0.0, 0.0, -9.81))
+        expected_calls = [
+            ("paths", ["/World/physicsScene"]),
+            ("query", "physics-scene-paths"),
+            ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
+            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
+            ("seal", 2),
+            ("update", 2, 2),
+            ("release_query", "physics-scene-query"),
+            ("destroy_paths", "physics-scene-paths"),
+            ("destroy_dictionary",),
+        ]
+    else:
+        with pytest.raises(RuntimeError, match=f"{failure} failed"):
+            manager.set_gravity((0.0, 0.0, -9.81))
+        expected_calls = [
+            ("paths", ["/World/physicsScene"]),
+            ("query", "physics-scene-paths"),
+        ]
+        if failure == "write":
+            expected_calls.extend(
+                [
+                    ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
+                    ("release_query", "physics-scene-query"),
+                ]
+            )
+        expected_calls.extend(
+            [
+                ("destroy_paths", "physics-scene-paths"),
+                ("destroy_dictionary",),
+            ]
+        )
 
-    assert calls == [
-        ("paths", ["/World/physicsScene"]),
-        ("query", "physics-scene-paths"),
-        ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
-        ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
-        ("seal", 2),
-        ("update", 2, 2),
-        ("release_query", "physics-scene-query"),
-        ("destroy_paths", "physics-scene-paths"),
-        ("destroy_dictionary",),
-    ]
+    assert calls == expected_calls
+
 
 def _retained_binding_script() -> str:
     return textwrap.dedent(
