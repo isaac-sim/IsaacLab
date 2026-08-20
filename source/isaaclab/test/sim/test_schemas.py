@@ -524,6 +524,31 @@ def test_physx_articulation_root_writes_self_collisions(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+def test_physx_articulation_root_self_collisions_follow_fixed_root(setup_simulation):
+    """Mirrored Newton self-collision properties must follow a relocated articulation root."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    parent = sim_utils.create_prim("/World/arti_fixed", prim_type="Xform")
+    child = sim_utils.create_prim("/World/arti_fixed/base", prim_type="Cube")
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    UsdPhysics.ArticulationRootAPI.Apply(child)
+    child.AddAppliedSchema("NewtonArticulationRootAPI")
+    child.GetAttribute("newton:selfCollisionEnabled").Set(False)
+
+    cfg = PhysxArticulationRootPropertiesCfg(enabled_self_collisions=True, fix_root_link=True)
+    schemas.modify_articulation_root_properties(child.GetPath(), cfg)
+
+    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == [parent]
+    assert parent.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert parent.GetAttribute("newton:selfCollisionEnabled").Get() is True
+    assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
+    assert "NewtonArticulationRootAPI" not in child.GetAppliedSchemas()
+    assert not child.GetAttribute("newton:selfCollisionEnabled").HasAuthoredValue()
+
+
+@pytest.mark.isaacsim_ci
 def test_articulation_root_deprecation_alias(setup_simulation):
     """Instantiating the legacy ``ArticulationRootPropertiesCfg`` name emits exactly one
     ``DeprecationWarning`` whose message references the 5.0 removal target."""
