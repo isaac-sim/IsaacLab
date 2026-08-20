@@ -39,6 +39,12 @@ Changed
 Fixed
 ^^^^^
 
+* Fixed backend applied schemas being stranded on the former root link when a backend relocates
+  an articulation root. Relocation resolved schemas through the USD schema registry, which cannot
+  describe a schema a backend ships as an unregistered token, so the schema and its attributes were
+  left behind. Backends now declare the pairing through
+  :func:`~isaaclab.sim.schemas.register_articulation_root_companion`.
+
 * Fixed :func:`~isaaclab.sim.schemas.apply_rigid_body_properties` and
   :func:`~isaaclab.sim.schemas.apply_mass_properties` only reaching the outermost
   schema-bearing prim on assets with nested rigid-body hierarchies (child links authored
