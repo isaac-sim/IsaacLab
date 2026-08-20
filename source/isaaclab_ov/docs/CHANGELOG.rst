@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+2.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX execution of supported native explicit actuators through the
+  shared host adapter when
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
+* Added OVRTX cable curve point updates driven by Newton segment shapes.
+* Added :func:`~isaaclab_ov.renderers.map_attribute_for_warp_writes`, a context manager that maps
+  an OVRTX attribute binding for CUDA writes and unmaps it with the producing Warp stream as the
+  CUDA sync. Use it instead of ``with binding.map(...)`` for GPU writes: the binding's own context
+  manager unmaps without a CUDA sync, so OVRTX's commit is not ordered against the fill.
+
+Changed
+^^^^^^^
+
+* Routed OVPhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` dropping authored USD scale when syncing
+  Newton body transforms into OVRTX, which rendered scaled assets (for example Shadow Hand) at
+  unit scale.
+* Fixed the OVRTX renderer's GPU transform writes (object and camera ``omni:xform`` mappings)
+  committing without CUDA synchronization against the Warp kernels that fill the mapped buffers.
+  The commit is now ordered on the producing Warp stream, as the OVRTX API contract requires;
+  previously the ordering held only through CUDA legacy default-stream serialization, an
+  implementation detail the contract does not promise.
+
+
 2.0.5 (2026-08-19)
 ~~~~~~~~~~~~~~~~~~
 

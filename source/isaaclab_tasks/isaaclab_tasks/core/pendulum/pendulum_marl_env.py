@@ -17,19 +17,19 @@ from isaaclab.envs import DirectMARLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
-from isaaclab_tasks.core.pendulum.pendulum_env_cfg import PendulumEnvCfg
+from isaaclab_tasks.core.pendulum.pendulum_marl_env_cfg import PendulumMARLEnvCfg
 
 
-class PendulumEnv(DirectMARLEnv):
+class PendulumMARLEnv(DirectMARLEnv):
     """Multi-agent cart-double-pendulum balancing environment.
 
     Two agents (``cart`` and ``pendulum``) cooperate to keep the double pendulum upright. They
-    share a common termination signal but observe and are rewarded independently.
+    share common reward and termination signals while observing independently.
     """
 
-    cfg: PendulumEnvCfg
+    cfg: PendulumMARLEnvCfg
 
-    def __init__(self, cfg: PendulumEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: PendulumMARLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
@@ -38,6 +38,8 @@ class PendulumEnv(DirectMARLEnv):
 
         self.joint_pos = self.robot.data.joint_pos.torch
         self.joint_vel = self.robot.data.joint_vel.torch
+        self._success_required_steps = round(self.cfg.success_duration_s / self.step_dt)
+        self._consecutive_upright_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -92,7 +94,7 @@ class PendulumEnv(DirectMARLEnv):
         return observations
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
-        total_reward = compute_rewards(
+        team_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_cart_vel,
@@ -100,14 +102,24 @@ class PendulumEnv(DirectMARLEnv):
             self.cfg.rew_scale_pole_vel,
             self.cfg.rew_scale_pendulum_pos,
             self.cfg.rew_scale_pendulum_vel,
+            self.cfg.rew_scale_upright,
+            self.cfg.rew_scale_action,
             self.joint_vel[:, self._cart_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
             self.joint_vel[:, self._pole_dof_idx[0]],
             normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]),
             self.joint_vel[:, self._pendulum_dof_idx[0]],
+            links_upright(
+                self.joint_pos[:, self._pole_dof_idx[0]],
+                self.joint_pos[:, self._pendulum_dof_idx[0]],
+                self.cfg.success_upright_angle,
+            ),
+            self.actions["cart"],
+            self.actions["pendulum"],
             math.prod(self.terminated_dict.values()),
+            self.step_dt,
         )
-        return total_reward
+        return {agent: team_reward for agent in self.cfg.possible_agents}
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self.joint_pos = self.robot.data.joint_pos.torch
@@ -119,18 +131,27 @@ class PendulumEnv(DirectMARLEnv):
 
         terminated = {agent: out_of_bounds for agent in self.cfg.possible_agents}
         time_outs = {agent: time_out for agent in self.cfg.possible_agents}
+        upright = links_upright(
+            self.joint_pos[:, self._pole_dof_idx[0]],
+            self.joint_pos[:, self._pendulum_dof_idx[0]],
+            self.cfg.success_upright_angle,
+        )
+        self._consecutive_upright_steps = update_upright_steps(self._consecutive_upright_steps, upright)
         return terminated, time_outs
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
-        # Episode success = timed out without leaving the cart/pole bounds. All agents share
-        # the same termination signal in this task, so reading any agent's flag is fine.
-        # DirectMARLEnv only sets these dicts inside step(), so skip on the initial reset.
-        if hasattr(self, "time_out_dict"):
-            any_agent = next(iter(self.cfg.possible_agents))
-            survived = self.time_out_dict[any_agent][env_ids] & ~self.terminated_dict[any_agent][env_ids]
-            self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
+        if hasattr(self, "_consecutive_upright_steps") and hasattr(self, "time_out_dict"):
+            agent = self.cfg.possible_agents[0]
+            success = compute_success(
+                self.time_out_dict[agent][env_ids],
+                self.terminated_dict[agent][env_ids],
+                self._consecutive_upright_steps[env_ids],
+                self._success_required_steps,
+            )
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean().item()
+            self._consecutive_upright_steps[env_ids] = 0
         super()._reset_idx(env_ids)
 
         joint_pos = self.robot.data.default_joint_pos.torch[env_ids]
@@ -167,6 +188,63 @@ def normalize_angle(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
+def links_upright(
+    pole_pos: torch.Tensor,
+    pendulum_pos: torch.Tensor,
+    max_angle: float,
+) -> torch.Tensor:
+    """Return whether both physical links are within the upright angle limit.
+
+    Args:
+        pole_pos: Upper-link joint angle [rad], shape ``(num_envs,)``, dtype ``torch.float``.
+        pendulum_pos: Lower-link angle relative to the upper link [rad], shape ``(num_envs,)``,
+            dtype ``torch.float``.
+        max_angle: Maximum permitted absolute world-relative link angle [rad].
+
+    Returns:
+        Whether both links are upright, shape ``(num_envs,)``, dtype ``torch.bool``.
+    """
+    upper_upright = normalize_angle(pole_pos).abs() <= max_angle
+    lower_upright = normalize_angle(pole_pos + pendulum_pos).abs() <= max_angle
+    return upper_upright & lower_upright
+
+
+def update_upright_steps(upright_steps: torch.Tensor, upright: torch.Tensor) -> torch.Tensor:
+    """Update per-environment consecutive upright control-step counts.
+
+    Args:
+        upright_steps: Current consecutive upright-step counts, shape ``(num_envs,)``, dtype
+            ``torch.long``.
+        upright: Whether each environment is upright, shape ``(num_envs,)``, dtype ``torch.bool``.
+
+    Returns:
+        Updated consecutive upright-step counts, shape ``(num_envs,)``, dtype ``torch.long``.
+    """
+    return torch.where(upright, upright_steps + 1, torch.zeros_like(upright_steps))
+
+
+def compute_success(
+    time_out: torch.Tensor,
+    terminated: torch.Tensor,
+    upright_steps: torch.Tensor,
+    required_steps: int,
+) -> torch.Tensor:
+    """Return successful episodes from timeout, failure, and upright-window state.
+
+    Args:
+        time_out: Whether each episode reached its time limit, shape ``(num_envs,)``, dtype
+            ``torch.bool``.
+        terminated: Whether each episode terminated before its time limit, shape ``(num_envs,)``,
+            dtype ``torch.bool``.
+        upright_steps: Consecutive upright-step counts, shape ``(num_envs,)``, dtype ``torch.long``.
+        required_steps: Minimum consecutive upright-step count required for success.
+
+    Returns:
+        Whether each episode succeeded, shape ``(num_envs,)``, dtype ``torch.bool``.
+    """
+    return time_out & ~terminated & (upright_steps >= required_steps)
+
+
 @torch.jit.script
 def compute_rewards(
     rew_scale_alive: float,
@@ -176,26 +254,40 @@ def compute_rewards(
     rew_scale_pole_vel: float,
     rew_scale_pendulum_pos: float,
     rew_scale_pendulum_vel: float,
+    rew_scale_upright: float,
+    rew_scale_action: float,
     cart_vel: torch.Tensor,
     pole_pos: torch.Tensor,
     pole_vel: torch.Tensor,
     pendulum_pos: torch.Tensor,
     pendulum_vel: torch.Tensor,
+    upright: torch.Tensor,
+    cart_action: torch.Tensor,
+    pendulum_action: torch.Tensor,
     reset_terminated: torch.Tensor,
-):
-    """Compute the per-agent rewards for the cart-double-pendulum task."""
+    step_dt: float,
+) -> torch.Tensor:
+    lower_angle = normalize_angle(pole_pos + pendulum_pos)
+    lower_velocity = pole_vel + pendulum_vel
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-    rew_pendulum_pos = rew_scale_pendulum_pos * torch.sum(
-        torch.square(pole_pos + pendulum_pos).unsqueeze(dim=1), dim=-1
+    rew_pole_pos = rew_scale_pole_pos * torch.cos(pole_pos)
+    rew_pendulum_pos = rew_scale_pendulum_pos * torch.cos(lower_angle)
+    rew_cart_vel = rew_scale_cart_vel * torch.abs(cart_vel)
+    rew_pole_vel = rew_scale_pole_vel * torch.abs(pole_vel)
+    rew_pendulum_vel = rew_scale_pendulum_vel * torch.abs(lower_velocity)
+    rew_upright = rew_scale_upright * upright.float()
+    rew_action = rew_scale_action * (
+        torch.sum(torch.square(cart_action), dim=1) + torch.sum(torch.square(pendulum_action), dim=1)
     )
-    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-    rew_pendulum_vel = rew_scale_pendulum_vel * torch.sum(torch.abs(pendulum_vel).unsqueeze(dim=1), dim=-1)
-
-    total_reward = {
-        "cart": rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel,
-        "pendulum": rew_alive + rew_termination + rew_pendulum_pos + rew_pendulum_vel,
-    }
-    return total_reward
+    return (
+        rew_alive
+        + rew_termination
+        + rew_pole_pos
+        + rew_pendulum_pos
+        + rew_cart_vel
+        + rew_pole_vel
+        + rew_pendulum_vel
+        + rew_upright
+        + rew_action
+    ) * step_dt
