@@ -267,9 +267,8 @@ def cli() -> None:
         "--isaacsim_source",
         metavar="PATH",
         help=(
-            "Build Isaac Sim from the source checkout at PATH, package it as wheels, and link\n"
-            "them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.\n"
-            "Runs the normal incremental build on every invocation."
+            "Incrementally build the Isaac Sim source checkout at PATH and link its live release\n"
+            "tree as '_isaac_sim'. Python commands keep using the active uv environment."
         ),
     )
 

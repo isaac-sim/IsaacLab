@@ -786,24 +786,24 @@ Choose how to connect the Isaac Sim source build to Isaac Lab:
       :sync: uv
 
       Clone Isaac Sim next to the Isaac Lab checkout. From the Isaac Lab root, run the source-build
-      command. It incrementally builds Isaac Sim, packages the build as wheels, and configures ``uv``
-      to use them:
+      command. It incrementally builds Isaac Sim and links the live release tree as ``_isaac_sim``:
 
       .. code-block:: text
 
          git clone https://github.com/isaac-sim/IsaacSim.git ../IsaacSim
          uv run isaaclab --isaacsim_source ../IsaacSim
 
-      The command creates a local-only ``isaacsim-local`` extra and records the wheel directory,
-      exact source-build version, and current platform in ``pyproject.toml`` before refreshing
-      ``uv.lock``. Those changes describe your machine; do not commit them. Run Isaac Lab against
-      the source build with:
+      Isaac Lab runs the active ``uv`` environment through Isaac Sim's generated Python launcher.
+      This loads Kit and extensions directly from the source build without creating wheels or
+      changing ``pyproject.toml`` and ``uv.lock``. Run Isaac Lab against the source build with:
 
       .. code-block:: text
 
-         uv run --extra isaacsim-local isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=isaacsim_physx
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
-      To return to published Isaac Sim packages, revert ``pyproject.toml`` and ``uv.lock``.
+      After changing Isaac Sim source, run the same ``--isaacsim_source`` command again. The native
+      build is incremental, and the link continues to expose the updated build immediately; no
+      wheel packaging or dependency resolution step is required.
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
       :sync: isaaclab-script

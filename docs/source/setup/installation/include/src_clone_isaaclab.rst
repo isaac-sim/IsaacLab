@@ -56,9 +56,8 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
                                  Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.
            -u [UV], --uv [UV]    Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.
            --isaacsim_source PATH
-                                 Build Isaac Sim from the source checkout at PATH, package it as wheels, and link
-                                 them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.
-                                 Runs the normal incremental build on every invocation.
+                                 Incrementally build the Isaac Sim source checkout at PATH and link its live release
+                                 tree as '_isaac_sim'. Python commands keep using the active uv environment.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -99,6 +98,5 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
                                  Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.
            -u [UV], --uv [UV]    Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.
            --isaacsim_source PATH
-                                 Build Isaac Sim from the source checkout at PATH, package it as wheels, and link
-                                 them as '_isaac_sim_wheels' for 'uv run --extra isaacsim-local'.
-                                 Runs the normal incremental build on every invocation.
+                                 Incrementally build the Isaac Sim source checkout at PATH and link its live release
+                                 tree as '_isaac_sim'. Python commands keep using the active uv environment.
