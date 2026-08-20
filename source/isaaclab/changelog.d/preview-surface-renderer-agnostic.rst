@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Made ``PreviewSurfaceCfg`` author and bind standard OpenUSD materials without requiring Kit.
+* Made preview-surface and MDL visual materials author and bind standard OpenUSD shader networks without requiring Kit.
