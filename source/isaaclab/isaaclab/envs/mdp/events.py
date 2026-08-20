@@ -532,7 +532,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
             return
 
         view = self._material_view
-        # read the current per-shape material [N, S, 3] on the binding's native (sim) device
+        # read the current per-shape material [N, S, 3] on the binding's native CPU device
         materials = wp.to_torch(view.get_attribute(self._material_type))
         num_shapes = materials.shape[1]
 
@@ -1200,11 +1200,13 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
 class randomize_physics_scene_gravity(ManagerTermBase):
     """Randomize gravity by adding, scaling, or setting random values.
 
-    Automatically detects the active physics backend (PhysX or Newton) and applies
+    Automatically detects the active physics backend (PhysX, OvPhysX, or Newton) and applies
     the appropriate gravity randomization strategy:
 
     - **PhysX**: samples a single gravity vector and sets it scene-wide via the PhysX
       simulation view.  All environments share the same gravity.
+    - **OvPhysX**: samples a single gravity vector and applies a sealed OvStage control
+      update. All environments share the same gravity.
     - **Newton**: samples per-environment gravity vectors and writes them in-place to
       the Newton model's per-world gravity array on GPU.
 
@@ -1224,6 +1226,9 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         if "newton" in manager_name:
             self._backend = "newton"
             self._init_newton(cfg, env)
+        elif "ovphysx" in manager_name:
+            self._backend = "ovphysx"
+            self._init_ovphysx(env)
         else:
             self._backend = "physx"
             self._init_physx(env)
@@ -1283,6 +1288,8 @@ class randomize_physics_scene_gravity(ManagerTermBase):
 
         if self._backend == "newton":
             self._call_newton(env, env_ids, operation)
+        elif self._backend == "ovphysx":
+            self._call_ovphysx(env, operation)
         else:
             self._call_physx(env, operation)
 
@@ -1349,6 +1356,23 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         )
         gravity = gravity[0].tolist()
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
+
+    def _init_ovphysx(self, env: ManagerBasedEnv):
+        """Cache the OvPhysX manager for scene-wide gravity updates."""
+        self._ovphysx_manager = env.sim.physics_manager
+
+    def _call_ovphysx(self, env: ManagerBasedEnv, operation: str):
+        """Sample a single gravity vector and apply it scene-wide through OvStage."""
+        gravity = torch.tensor(env.sim.cfg.gravity, device="cpu").unsqueeze(0)
+        gravity = _randomize_prop_by_op(
+            gravity,
+            (self._dist_param_0.cpu(), self._dist_param_1.cpu()),
+            None,
+            slice(None),
+            operation=operation,
+            distribution="uniform",
+        )
+        self._ovphysx_manager.set_gravity(tuple(gravity[0].tolist()))
 
 
 class randomize_actuator_gains(ManagerTermBase):
