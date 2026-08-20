@@ -10,6 +10,15 @@ from dataclasses import MISSING
 from isaaclab.utils.configclass import configclass
 
 
+def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
+    """Return whether an actuator configuration resolves to an implicit actuator class.
+
+    Reads the :attr:`~isaaclab.actuators.ActuatorBase.is_implicit_model` class flag.
+    Lazily resolving string references participate through attribute forwarding.
+    """
+    return bool(getattr(cfg.class_type, "is_implicit_model", False))
+
+
 @configclass
 class ActuatorBaseCfg:
     """Configuration for default actuators in an articulation."""
@@ -27,23 +36,20 @@ class ActuatorBaseCfg:
         This can be a list of joint names or a list of regex expressions (e.g. ".*").
     """
 
-    effort_limit: dict[str, float] | float | None = None
-    """Force/Torque limit of the joints in the group. Defaults to None.
+    actuator_effort_limit: dict[str, float] | float | None = None
+    """Actuator-model effort clipping limit [N or N·m, depending on joint type].
 
-    This is the actuator's rated force/torque reflected at the joint. It clips the output of explicit
-    actuator models and remains available as the model-facing limit for implicit actuators. If None, it
-    uses the value specified in the USD joint prim. An implicit actuator configured with only
-    :attr:`effort_limit_sim` also uses that solver clamp as its model-facing limit.
+    The actuator's rated force/torque reflected at the joint. Explicit actuator models
+    clip their computed effort with it; implicit actuators use it as the model-facing
+    limit for effort telemetry. If None, it defaults to the authored/USD joint effort
+    limit (explicit) or tracks the live solver limit (implicit). It is not a solver
+    limit; that is :attr:`joint_effort_limit`.
 
-    .. attention::
-
-        Use :attr:`effort_limit_sim` for the solver-level clamp. Implicit actuators resolve the two
-        fields independently when both are configured. When only one is configured, it fills both fields
-        for backwards compatibility.
-
+    :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
+    angle-dependent limits in its ``joint_parameter_lookup``.
     """
 
-    velocity_limit: dict[str, float] | float | None = None
+    actuator_velocity_limit: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group. Defaults to None.
 
     This limit is used by the actuator model. If None, the limit is set to the value specified
@@ -51,52 +57,44 @@ class ActuatorBaseCfg:
 
     .. attention::
 
-        This attribute describes the joint's peak velocity, i.e. the actuator's rated speed
-        reflected at the joint (after any gearbox). It populates the articulation data
+        This attribute describes the actuator's peak velocity, i.e. the actuator's rated speed
+        reflected at the joint (after any gearbox). It populates the actuator data
         buffers (e.g. :attr:`~isaaclab.assets.ArticulationData.soft_joint_vel_limits`, read by
-        velocity-limit terminations and rewards) and clips the effort output of explicit
-        actuator models, but it is **not** pushed to the physics solver.
+        velocity-limit terminations and rewards). Explicit models with speed-dependent limits,
+        such as :class:`DCMotor`, also use it to clip effort. It is **not** pushed to the physics
+        solver.
 
-        Use :attr:`velocity_limit_sim` to additionally impose a solver-level hard clamp
-        (PhysX ``maxJointVelocity``). A physical actuator limits joint speed through its
-        torque curve rather than a kinematic clamp, so the two limits are resolved
-        independently. When only :attr:`velocity_limit_sim` is set, it also serves as the
-        joint velocity limit.
+        Use :attr:`joint_velocity_limit` to request a solver-level hard clamp. A physical
+        actuator limits joint speed through its torque curve rather than a kinematic clamp,
+        so the two limits are resolved independently. When only
+        :attr:`joint_velocity_limit` is set, it also serves as the joint velocity limit.
+    """
+
+    joint_effort_limit: dict[str, float] | float | None = None
+    """Construction-time joint solver effort override [N or N·m, depending on joint type].
+
+    The live value is owned by :class:`isaaclab.assets.ArticulationData`.
+    """
+
+    joint_velocity_limit: dict[str, float] | float | None = None
+    """Construction-time requested joint solver velocity limit [m/s or rad/s, depending on joint type].
+
+    The live value is owned by :class:`isaaclab.assets.ArticulationData`; enforcement is
+    backend-dependent.
     """
 
     effort_limit_sim: dict[str, float] | float | None = None
-    """Solver-level effort clamp of the joints in the group. Defaults to None.
+    """Deprecated alias for :attr:`joint_effort_limit`.
 
-    The effort limit is used to constrain the computed joint efforts in the physics engine. If the
-    computed effort exceeds this limit, the physics engine will clip the effort to this value. It is
-    resolved independently of :attr:`effort_limit` when both fields are configured.
-
-    Since explicit actuators (e.g. DC motor), compute and clip the effort in the actuator model, this
-    limit is by default set to a large value to prevent the physics engine from any additional clipping.
-    However, at times, it may be necessary to set this limit to a smaller value as a safety measure.
-
-    If None, the limit is resolved based on the type of actuator model:
-
-    * For implicit actuators, the limit is set to :attr:`effort_limit` when it is configured, otherwise
-      to the value specified in the USD joint prim.
-    * For explicit actuators, the limit is set to 1.0e9.
-
+    .. deprecated:: 3.0
+        Use :attr:`joint_effort_limit` instead. This alias will be removed in 4.0.
     """
 
     velocity_limit_sim: dict[str, float] | float | None = None
-    """Velocity limit of the joints in the group applied to the simulation physics solver. Defaults to None.
+    """Deprecated alias for :attr:`joint_velocity_limit`.
 
-    The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
-    be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
-    faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
-
-    If None, the limit is set to the value specified in the USD joint prim for both implicit and explicit actuators.
-
-    .. tip::
-        If the velocity limit is too tight, the physics engine may have trouble converging to a solution.
-        In such cases, we recommend either keeping this value sufficiently large or tuning the stiffness and
-        damping parameters of the joint to ensure the limits are not violated.
-
+    .. deprecated:: 3.0
+        Use :attr:`joint_velocity_limit` instead. This alias will be removed in 4.0.
     """
 
     stiffness: dict[str, float] | float | None = MISSING
@@ -157,4 +155,21 @@ class ActuatorBaseCfg:
 
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
+    """
+
+    effort_limit: dict[str, float] | float | None = None
+    """Deprecated effort limit [N or N·m, depending on joint type].
+
+    .. deprecated:: 3.0
+        For explicit actuators, use :attr:`actuator_effort_limit`. For implicit
+        actuators, use :attr:`joint_effort_limit`. This alias will be removed in 4.0.
+    """
+
+    velocity_limit: dict[str, float] | float | None = None
+    """Deprecated velocity limit [m/s or rad/s, depending on joint type].
+
+    .. deprecated:: 3.0
+        Use :attr:`actuator_velocity_limit` for the actuator-model limit or
+        :attr:`joint_velocity_limit` for the solver limit. This alias will be
+        removed in 4.0.
     """

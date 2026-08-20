@@ -108,7 +108,8 @@ from isaaclab_newton.physics.visualization_deformables import populate_shadow_de
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.actuators import NewtonActuatorAdapter
+    from isaaclab.actuators.newton import NewtonActuatorAdapter
+
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)
@@ -766,7 +767,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_particles_to_usd(cls) -> None:
-        """Write Newton particle positions to USD/Fabric for Kit viewport rendering.
+        """Write Newton particle positions to USD/Fabric for USD-stage rendering.
 
         Two prim families are synced from ``state_0.particle_q``:
 
@@ -1630,42 +1631,11 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
         """Initialize Fabric curve tags and packed Newton segment mappings."""
-        usd_stage = get_current_stage()
-        cable_shapes: dict[str, dict[int, int]] = {}
-        for shape_id, label in enumerate(cls._model.shape_label):
-            if label is None:
-                continue
-            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
-            if not separator or not suffix.isdigit():
-                continue
-            segment = int(suffix)
-            segments = cable_shapes.setdefault(prim_path, {})
-            if segment in segments:
-                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
-            segments[segment] = shape_id
+        cable_shapes = cls.collect_cable_segment_shape_ids()
 
         shape_ids: list[int] = []
-        for prim_path, segments in cable_shapes.items():
-            usd_prim = usd_stage.GetPrimAtPath(prim_path)
-            if not usd_prim.IsValid() or not usd_prim.IsA(UsdGeom.BasisCurves):
-                continue
-            if not has_deformable_curve_api(usd_prim):
-                continue
-
-            curve = UsdGeom.BasisCurves(usd_prim)
-            counts = curve.GetCurveVertexCountsAttr().Get()
-            if (
-                len(counts) != 1
-                or int(counts[0]) < 2
-                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
-                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
-            ):
-                continue
-
-            segment_count = int(counts[0]) - 1
-            if set(segments) != set(range(segment_count)):
-                raise RuntimeError(f"Cable visualization requires {segment_count} ordered segment shapes.")
-            segment_shape_ids = [segments[segment] for segment in range(segment_count)]
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            segment_count = len(segment_shape_ids)
             prim = stage.GetPrimAtPath(prim_path)
             prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
             usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
@@ -1691,6 +1661,103 @@ class NewtonManager(PhysicsManager):
             cls._model.shape_scale.to("cpu"),
         )
         fabric_hierarchy.update_world_xforms()
+
+    @classmethod
+    def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
+        """Map each renderable cable prim path to its ordered Newton segment shape ids.
+
+        Concrete destination paths and segment order come from Newton ``shape_label`` values
+        ``{curve}_edge_capsule_{N}``. Each returned id is the index of that capsule in Newton's
+        shape arrays after finalization (``shape_body``, ``shape_transform``, ``shape_scale``, …),
+        not the ``_edge_capsule_N`` suffix. Example:
+        ``{"/World/envs/env_0/Cable/geometry/mesh": [42, 43, 44]}`` means segments ``0..2`` came
+        from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
+        indices ``42..44`` after earlier scene shapes.
+
+        When the labeled prim exists on the host USD stage, topology is validated against that
+        ``BasisCurves`` prim. Kit-less replicated destinations often exist only in the render
+        backend; for those paths topology is validated against a source prototype via the active
+        clone plan.
+
+        Returns:
+            Concrete cable prim paths mapped to ordered Newton segment shape ids.
+        """
+        if cls._model is None:
+            return {}
+
+        cable_shapes: dict[str, dict[int, int]] = {}
+        for shape_id, label in enumerate(cls._model.shape_label):
+            if label is None:
+                continue
+            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
+            if not separator or not suffix.isdigit():
+                continue
+            segment = int(suffix)
+            segments = cable_shapes.setdefault(prim_path, {})
+            if segment in segments:
+                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
+            segments[segment] = shape_id
+
+        stage = get_current_stage()
+
+        sim = SimulationContext.instance()
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+
+        # Filter label groups into renderable ordered shape-id lists. Validate topology on the host
+        # destination when present; otherwise use the clone-plan source prototype. Skip unsupported
+        # topology (non-linear / periodic / bad counts); require segment labels to match the curve.
+        ordered: dict[str, list[int]] = {}
+        for prim_path, segments in cable_shapes.items():
+            prim = stage.GetPrimAtPath(prim_path)
+            validation_prim = prim
+
+            # If destination is missing on host USD: validate topology against the clone source prototype.
+            if not prim.IsValid() and clone_plan is not None:
+                from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
+
+                resolved = path_to_source(clone_plan, prim_path)
+                if resolved is not None:
+                    source_path, _, asset_suffix = resolved
+                    validation_prim = stage.GetPrimAtPath(source_path + asset_suffix)
+
+            if not (
+                validation_prim.IsValid()
+                and validation_prim.IsA(UsdGeom.BasisCurves)
+                and has_deformable_curve_api(validation_prim)
+            ):
+                logger.debug(
+                    "Skipping cable '%s': validation prim '%s' is missing, not BasisCurves, or lacks"
+                    " DeformableCurveAPI.",
+                    prim_path,
+                    validation_prim.GetPath().pathString if validation_prim.IsValid() else "<invalid>",
+                )
+                continue
+
+            curve = UsdGeom.BasisCurves(validation_prim)
+            counts = curve.GetCurveVertexCountsAttr().Get()
+            if (
+                len(counts) != 1
+                or int(counts[0]) < 2
+                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
+                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
+            ):
+                logger.debug(
+                    "Skipping cable '%s': unsupported BasisCurves topology (vertex_counts=%s, type=%s, wrap=%s).",
+                    prim_path,
+                    counts,
+                    curve.GetTypeAttr().Get(),
+                    curve.GetWrapAttr().Get(),
+                )
+                continue
+
+            segment_count = int(counts[0]) - 1
+            if set(segments) != set(range(segment_count)):
+                raise RuntimeError(
+                    f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
+                )
+            ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
+
+        return ordered
 
     @staticmethod
     def _initialize_fabric_particle_prims(stage, fabric_hierarchy, usdrt, prim_paths: Iterable[str]) -> None:
@@ -2132,17 +2199,10 @@ class NewtonManager(PhysicsManager):
         cls._eval_fk(None, None)
         cls._mark_transforms_dirty()
 
-        # Skip the initial graph capture when the Newton actuator fast path is
-        # active. Capturing here would use ``cls._decimation`` (still its default
-        # of 1, because the env's ``set_decimation`` hasn't run yet); a second
-        # capture from ``set_decimation`` then triggers an illegal-memory-access
-        # CUDA fault inside the captured ``_simulate_full`` graph (back-to-back
-        # captures of the contact + actuator pipeline don't survive re-capture
-        # — root cause is in Newton's collision/actuator buffer handling, not
-        # Lab code). For non-Newton-actuator paths this branch is unaffected:
-        # ``set_decimation`` is a no-op for them (``_is_all_graphable`` is False),
-        # so we still need the start-time capture below.
-        if not cls._use_newton_actuators_active:
+        # Fully graphable Newton actuators defer capture until ``set_decimation``
+        # provides the environment's final decimation value. Other paths capture
+        # the solver here; non-graphable actuators otherwise leave it eager.
+        if not cls._is_all_graphable():
             cls._capture_or_defer_graph()
 
     @classmethod
@@ -3139,7 +3199,7 @@ class NewtonManager(PhysicsManager):
             return
         if cls._model is None or not cls._model.actuators:
             return
-        from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+        from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(

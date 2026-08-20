@@ -144,7 +144,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.applied_torque.torch[:, asset_cfg.joint_ids]), dim=1)
+    return torch.sum(torch.square(asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_vel_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -249,8 +249,8 @@ def applied_torque_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sc
     # compute out of limits constraints
     # TODO: We need to fix this to support implicit joints.
     out_of_limits = torch.abs(
-        asset.data.applied_torque.torch[:, asset_cfg.joint_ids]
-        - asset.data.computed_torque.torch[:, asset_cfg.joint_ids]
+        asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]
+        - asset.actuators.computed_effort.torch[:, asset_cfg.joint_ids]
     )
     return torch.sum(out_of_limits, dim=1)
 

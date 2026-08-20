@@ -123,11 +123,11 @@ Transferring control behavior
 
 Match the nominal actuator response before tuning the policy:
 
-* distinguish physical ``velocity_limit`` from numerical ``velocity_limit_sim``
-* use per-joint effort, stiffness, damping, friction, and armature
-* preserve ``dt * decimation`` and action hold
-* keep targets away from hard joint stops
-* monitor saturation and consecutive action sign changes
+* distinguish the physical ``actuator_velocity_limit`` from the solver ``joint_velocity_limit``;
+* use per-joint effort, stiffness, damping, friction, and armature;
+* preserve ``dt * decimation`` and action hold;
+* keep targets away from hard joint stops;
+* monitor saturation and consecutive action sign changes.
 
 Increased damping is often necessary to prevent bang-bang control. With too little damping, a
 position policy can alternate saturated commands and exploit one solver's drive integration or
