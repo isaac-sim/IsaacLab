@@ -179,8 +179,7 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-checkpoint-toggle {
     justify-content: center;
-    justify-self: start;
-    width: calc(100% - 0.35rem);
+    width: 100%;
     min-height: 2.4rem;
     padding: 0.35rem 0.6rem;
     border: 1px solid var(--environment-border);
