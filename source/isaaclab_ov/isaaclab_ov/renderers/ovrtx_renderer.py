@@ -26,7 +26,7 @@ import os
 import re
 import sys
 import weakref
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -112,6 +112,14 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+
+# Depth render var sources mapped to the output buffers each one can populate. Image-plane depth
+# backs both ``depth`` (a legacy alias) and ``distance_to_image_plane``, while ``distance_to_camera``
+# measures euclidean distance, so the two sources cannot substitute for one another.
+_DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
+    "DistanceToImagePlaneSD": ("depth", "distance_to_image_plane"),
+    "DistanceToCameraSD": ("distance_to_camera",),
+}
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
 _RTX_MINIMAL_MODES = {
@@ -1349,10 +1357,22 @@ class OVRTXRenderer(BaseRenderer):
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
 
     def _extract_depth_tiles(
-        self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
+        self,
+        render_data: OVRTXRenderData,
+        tiled_depth_data: wp.array,
+        output_buffers: dict,
+        buffer_keys: Sequence[str],
     ) -> None:
-        """Extract per-env depth tiles into output_buffers (single kernel launch)."""
-        for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
+        """Extract per-env depth tiles into the given output buffers (one kernel launch each).
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            tiled_depth_data: Tiled depth data mapped from one depth render var.
+            output_buffers: Destination warp buffers, keyed by data type.
+            buffer_keys: Data types that this depth render var measures. Keys absent from
+                ``output_buffers`` are skipped.
+        """
+        for depth_type in buffer_keys:
             if depth_type in output_buffers:
                 self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
 
@@ -1407,16 +1427,17 @@ class OVRTXRenderer(BaseRenderer):
                 with self._map_render_var_to_dlpack(frame.render_vars["LdrColor"]) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
+        for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
             if depth_var not in frame.render_vars:
+                continue
+            if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
                 continue
             with self._map_render_var_to_dlpack(frame.render_vars[depth_var]) as tiled_depth_data:
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
-                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
-            break
+                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(frame.render_vars["DiffuseAlbedoSD"]) as tiled_albedo_data:
