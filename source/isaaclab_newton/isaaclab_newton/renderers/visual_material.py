@@ -77,6 +77,7 @@ class VisualMaterialWriter:
 
     def __init__(self, model: Model, batches: tuple[VisualMaterialBatch, ...]):
         self._model = model
+        # Newton exposes only shape_color; other channel batches remain available to other render consumers.
         batch = next((batch for batch in batches if batch.channel == "color"), None)
         if batch is None:
             self._colors = None
@@ -148,20 +149,9 @@ def _write_shape_colors(
 class VisualShapeColorWriter:
     """Write one sampled color per selected articulation body and environment."""
 
-    def __init__(self, model: Model, prim_paths: tuple[str, ...], body_names: tuple[str, ...]):
-        self._prim_paths = prim_paths
-        self._body_names = body_names
+    def __init__(self, model: Model, view: ArticulationView, body_names: tuple[str, ...]):
         self.body_count = len(body_names)
-        self.rebind(model)
-
-    @property
-    def model(self) -> Model:
-        return self._model
-
-    def rebind(self, model: Model) -> None:
-        """Compile selected-body shape addresses for a finalized model."""
-        view = ArticulationView(model, list(self._prim_paths), verbose=False)
-        body_rows = {name: row for row, name in enumerate(self._body_names)}
+        body_rows = {name: row for row, name in enumerate(body_names)}
         shape_ids: list[int] = []
         shape_body_rows: list[int] = []
         for body_id, body_name in enumerate(view.body_names):
@@ -169,11 +159,20 @@ class VisualShapeColorWriter:
                 shapes = view.body_shapes[body_id]
                 shape_ids.extend(shapes)
                 shape_body_rows.extend([body_rows[body_name]] * len(shapes))
-        self._model = model
         self.device = torch.device(wp.device_to_torch(model.device))
         self._shape_ids = wp.array(shape_ids, dtype=wp.int32, device=model.device)
         self._body_rows = wp.array(shape_body_rows, dtype=wp.int32, device=model.device)
-        self._shape_colors = view.get_attribute("shape_color", model)[:, 0]
+        self._view = view
+        self.rebind(model)
+
+    @property
+    def model(self) -> Model:
+        return self._view.model
+
+    def rebind(self, model: Model) -> None:
+        """Rebind the shape-color buffer after Newton replaces its model."""
+        self._view.model = model
+        self._shape_colors = self._view.get_attribute("shape_color", model)[:, 0]
 
     def __call__(self, colors: torch.Tensor, env_ids: torch.Tensor) -> None:
         """Write colors shaped ``[len(env_ids), body_count, 3]`` with one launch."""
@@ -192,5 +191,5 @@ class VisualShapeColorWriter:
                         self._body_rows,
                         self._shape_colors,
                     ],
-                    device=self._model.device,
+                    device=self.model.device,
                 )

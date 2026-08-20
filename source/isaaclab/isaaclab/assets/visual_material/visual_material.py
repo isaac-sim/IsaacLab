@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 import torch
 
@@ -17,6 +16,7 @@ from pxr import Sdf, UsdShade
 from isaaclab import cloner
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils import find_matching_prim_paths
 
 from .visual_material_cfg import VisualMaterialCfg
 
@@ -52,15 +52,10 @@ class VisualMaterial(AssetBase):
     cfg: VisualMaterialCfg
 
     def __init__(self, cfg: VisualMaterialCfg):
-        self._clone_cfg_id = id(cfg)
-        if "texture" in cfg.channels:
-            raise NotImplementedError("Runtime texture swaps are not part of the numeric visual-material pipeline.")
-        if len(cfg.texture_pool) > 1:
-            raise NotImplementedError("Runtime texture selection is unsupported; provide at most one static texture.")
         super().__init__(cfg)
         self._render_context = SimulationContext.instance().render_context
-        self._source_material_path = self.cfg.spawn.spawn_path if self.cfg.spawn is not None else None
-        self._source_material_path = self._source_material_path or self.cfg.prim_path
+        source_material_paths = tuple(find_matching_prim_paths(self.cfg.prim_path))
+        self._source_material_path = source_material_paths[0]
         self._is_per_env = self._source_material_path != self.cfg.prim_path
         material = UsdShade.Material(self.stage.GetPrimAtPath(self._source_material_path))
         if not material:
@@ -74,12 +69,6 @@ class VisualMaterial(AssetBase):
         shader = UsdShade.Shader(connected[0].GetPrim())
         self._source_shader_path = str(shader.GetPrim().GetPath())
         channel_specs = _channel_specs(shader)
-        if self.cfg.texture_pool:
-            if "uv_scale" not in channel_specs:
-                raise ValueError("texture_pool is only valid for an OmniPBR material.")
-            shader.CreateInput("diffuse_texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(self.cfg.texture_pool[0]))
-            if "color" in channel_specs:
-                channel_specs["color"] = ("diffuse_tint", (1.0, 1.0, 1.0))
 
         self._input_names: dict[str, str] = {}
         self._initial_values: dict[str, torch.Tensor] = {}
@@ -109,11 +98,6 @@ class VisualMaterial(AssetBase):
         self._offsets: dict[str, int] = {}
 
     @property
-    def material_prim_path(self) -> str:
-        """Source material prim path."""
-        return self._source_material_path
-
-    @property
     def channels(self) -> tuple[str, ...]:
         """Runtime-writable channel names."""
         return tuple(self._input_names)
@@ -122,11 +106,6 @@ class VisualMaterial(AssetBase):
     def is_per_env(self) -> bool:
         """Whether this material owns one clone per environment."""
         return self._is_per_env
-
-    @property
-    def env_material_paths(self) -> tuple[str, ...]:
-        """Final material clone paths in environment order."""
-        return self._material_paths if self._is_per_env else ()
 
     @property
     def num_instances(self) -> int:
@@ -146,17 +125,6 @@ class VisualMaterial(AssetBase):
         if materials:
             materials[0]._render_context.write_visual_materials(materials, channels, env_ids)
 
-    def read_channel(self, channel: str, env_id: int | None = None) -> Any:
-        """Read one buffered channel value; this diagnostic operation synchronizes to the host."""
-        if self._is_per_env:
-            row = 0 if env_id is None else env_id
-        elif env_id is not None:
-            raise ValueError("env_id is only valid for a per-environment material.")
-        else:
-            row = 0
-        value = self._values[channel][row].detach().cpu()
-        return float(value) if value.ndim == 0 else tuple(float(component) for component in value)
-
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         pass
 
@@ -170,16 +138,19 @@ class VisualMaterial(AssetBase):
         plan = SimulationContext.instance().get_clone_plan()
         if self._is_per_env:
             assert plan is not None and plan.env_ids is not None
-            row = plan.cfg_rows[self._clone_cfg_id][0]
-            num_envs = plan.clone_mask.shape[1]
-            if not bool(plan.clone_mask[row].all()):
+            plan_env_ids = plan.env_ids.detach().cpu().tolist()
+            columns = {env_id: column for column, env_id in enumerate(plan_env_ids)}
+            material_paths = [""] * len(plan_env_ids)
+            for source_root, destination, source_path, env_ids in cloner.query.iter_sources(plan, self.cfg.prim_path):
+                for env_id in env_ids:
+                    material_paths[columns[env_id]] = cloner.path.rebase(
+                        source_path, source_root, destination.format(env_id)
+                    )
+            if not all(material_paths):
                 raise ValueError(
                     f"Per-environment material {self._source_material_path!r} must populate every environment."
                 )
-            self._material_paths = tuple(
-                cloner.path.rebase(self._source_material_path, plan.sources[row], plan.destinations[row].format(env_id))
-                for env_id in range(num_envs)
-            )
+            self._material_paths = tuple(material_paths)
             shader_suffix = self._source_shader_path.removeprefix(self._source_material_path)
             self._shader_paths = tuple(path + shader_suffix for path in self._material_paths)
         else:
@@ -192,7 +163,7 @@ class VisualMaterial(AssetBase):
 
 
 def _channel_specs(shader: UsdShade.Shader) -> dict[str, tuple[str, float | tuple[float, ...]]]:
-    if shader.GetImplementationSource() == UsdShade.Tokens.id and shader.GetShaderId() == "UsdPreviewSurface":
+    if shader.GetShaderId() == "UsdPreviewSurface":
         return dict(_PREVIEW_CHANNELS)
     identifier = shader.GetSourceAssetSubIdentifier("mdl")
     if identifier and identifier.startswith("OmniGlass"):

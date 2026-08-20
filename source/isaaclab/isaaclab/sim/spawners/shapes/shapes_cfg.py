@@ -24,14 +24,14 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    A relative path names a material spawned below the shape when :attr:`visual_material` is set.
-    An absolute path, including one with ``{ENV_REGEX_NS}``, binds an existing scene material when
-    :attr:`visual_material` is ``None``.
+    If the path is relative, then it will be relative to the prim's path.
+    This parameter is ignored if `visual_material` is not None.
     """
     visual_material: materials.VisualMaterialCfg | None = None
     """Visual material properties.
 
-    If ``None``, :attr:`visual_material_path` may still bind an existing absolute material path.
+    Note:
+        If None, then no visual material will be added.
     """
 
     physics_material_path: str = "material"

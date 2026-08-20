@@ -71,6 +71,7 @@ from newton import (
     State,
     eval_fk,
 )
+from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
@@ -2517,13 +2518,15 @@ class NewtonManager(PhysicsManager):
     ) -> VisualShapeColorWriter:
         """Compile selected articulation-body shape addresses for the active Newton model."""
         model = cls.get_model()
-        root_expr = asset.cfg.prim_path
-        if asset.cfg.articulation_root_prim_path is None:
-            root_expr += "(?:/.*)?"
-        else:
-            root_expr += asset.cfg.articulation_root_prim_path
-        prim_paths = tuple(path for path in model.articulation_label if re.fullmatch(root_expr, path))
-        return VisualShapeColorWriter(model, prim_paths, body_names)
+        view = asset.root_view
+        if not isinstance(view, ArticulationView):
+            root_expr = asset.cfg.prim_path
+            root_expr += (
+                "(?:/.*)?" if asset.cfg.articulation_root_prim_path is None else asset.cfg.articulation_root_prim_path
+            )
+            prim_paths = [path for path in model.articulation_label if re.fullmatch(root_expr, path)]
+            view = ArticulationView(model, prim_paths, verbose=False)
+        return VisualShapeColorWriter(model, view, body_names)
 
     @classmethod
     def get_model(cls) -> Model:

@@ -302,33 +302,6 @@ class TestRenameCustomAttributes(unittest.TestCase):
 
         self.assertEqual(paths, {index: f"{_DST.format(index)}/Looks/material" for index in range(len(self.worlds))})
 
-    def test_shape_material_paths_rebase_from_sibling_source_environment(self):
-        builder = _make_builder(self.worlds)
-        builder.add_custom_attribute(
-            newton.ModelBuilder.CustomAttribute(
-                name="visual_material_path",
-                namespace="isaaclab",
-                dtype=str,
-                frequency=newton.Model.AttributeFrequency.SHAPE,
-                default="",
-            )
-        )
-        paths = builder.custom_attributes["isaaclab:visual_material_path"].values
-        paths.update({index: "/World/envs/env_0/Materials/robot" for index in range(len(self.worlds))})
-
-        rename_builder_labels(
-            builder,
-            ["/World/envs/env_0/Robot"],
-            ["/World/envs/env_{}/Robot"],
-            self.env_ids,
-            self.mapping,
-        )
-
-        self.assertEqual(
-            paths,
-            {index: f"/World/envs/env_{index}/Materials/robot" for index in range(len(self.worlds))},
-        )
-
     def test_other_shape_attributes_without_world_references_pass_through(self):
         builder = _make_builder(self.worlds)
         builder.add_custom_attribute(

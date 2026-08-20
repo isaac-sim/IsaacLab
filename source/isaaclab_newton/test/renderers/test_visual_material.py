@@ -14,6 +14,7 @@ from isaaclab_newton.renderers.visual_material import (
     import_builder_visual_material_paths,
 )
 from newton import ModelBuilder
+from newton.selection import ArticulationView
 
 from pxr import Sdf, Usd, UsdGeom, UsdShade
 
@@ -58,13 +59,13 @@ def test_import_preserves_binding_to_a_logical_clone_not_yet_on_stage() -> None:
     root = UsdGeom.Xform.Define(stage, "/World/envs/env_1/Robot")
     shape = UsdGeom.Cube.Define(stage, "/World/envs/env_1/Robot/mesh")
     relationship = UsdShade.MaterialBindingAPI.Apply(root.GetPrim()).GetDirectBindingRel()
-    relationship.SetTargets([Sdf.Path("/World/envs/env_1/Materials/robot")])
+    relationship.SetTargets([Sdf.Path("/World/envs/env_1/Robot/material")])
     builder = ModelBuilder()
     builder.add_shape_box(-1, label=str(shape.GetPath()))
 
     import_builder_visual_material_paths(builder, stage)
 
-    assert builder.finalize(device="cpu").isaaclab.visual_material_path == ["/World/envs/env_1/Materials/robot"]
+    assert builder.finalize(device="cpu").isaaclab.visual_material_path == ["/World/envs/env_1/Robot/material"]
 
 
 def test_material_writer_scatters_only_dirty_material_rows(monkeypatch) -> None:
@@ -119,7 +120,7 @@ def _articulation_model(num_envs: int = 3):
 def test_shape_writer_samples_each_body_and_selected_environment_independently() -> None:
     model, paths = _articulation_model()
     original = wp.to_torch(model.shape_color).clone()
-    writer = VisualShapeColorWriter(model, paths, ("base", "link"))
+    writer = VisualShapeColorWriter(model, ArticulationView(model, list(paths), verbose=False), ("base", "link"))
     colors = torch.tensor(
         [
             [[0.1, 0.2, 0.3], [0.3, 0.4, 0.5]],

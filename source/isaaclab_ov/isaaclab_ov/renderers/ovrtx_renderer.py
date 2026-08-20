@@ -76,7 +76,7 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
-from isaaclab.cloner import ClonePlan, UsdReplicateContext
+from isaaclab.cloner import ClonePlan
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -372,7 +372,6 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
-        self._clone_groups: tuple[tuple[str, tuple[str, ...]], ...] = ()
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
         # Selected once at construction so every dispatch method below sees a stable path for the
@@ -445,59 +444,27 @@ class OVRTXRenderer(BaseRenderer):
         self._clone_plan = SimulationContext.instance().get_clone_plan()
         if self._clone_plan is None or self._clone_plan.env_ids is None or self._clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when preparing OVRTX stage")
+        expected_ids = torch.arange(num_envs, device=self._clone_plan.env_ids.device)
+        if not torch.equal(self._clone_plan.env_ids, expected_ids):
+            raise RuntimeError("OVRTX requires ClonePlan environment ids ordered from zero.")
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
 
         logger.info("Preparing stage (%d envs)...", num_envs)
+        create_scene_partition_attributes(stage, num_envs)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage)
 
-        env_ids = self._clone_plan.env_ids
-        layout = torch.cat((env_ids[:, None], self._clone_plan.clone_mask.T.to(dtype=torch.long)), dim=1).cpu()
-        signatures: dict[tuple[int, ...], list[int]] = {}
-        for column, row in enumerate(layout):
-            signatures.setdefault(tuple(row[1:].tolist()), []).append(column)
-
-        representatives = [columns[0] for columns in signatures.values()]
-        prototype_ids = layout[representatives, 0]
-        prototype_mask = layout[:, 1:].T[:, representatives].to(dtype=torch.bool)
-        env_paths = tuple(f"/World/envs/env_{int(env_id)}" for env_id in layout[:, 0])
-        self._clone_groups = tuple(
-            (env_paths[columns[0]], tuple(env_paths[column] for column in columns[1:]))
-            for columns in signatures.values()
-        )
-
-        # Complete representative environments on a detached compact stage; render preparation
-        # must not add clone rows to the authoritative simulation stage.
-        from pxr import Sdf, Usd  # noqa: PLC0415
-
-        prototype_sources = tuple(
-            dict.fromkeys((*self._clone_plan.sources, *(group[0] for group in self._clone_groups)))
-        )
-        prototype_layer = Sdf.Layer.CreateAnonymous(".usda")
-        prototype_layer.ImportFromString(
-            export_stage_to_string(stage, num_envs, source_paths=prototype_sources, keep_env_roots=True)
-        )
-        prototype_stage = Usd.Stage.Open(prototype_layer)
-        usd = UsdReplicateContext(prototype_stage)
-        usd.queue_mapping(
-            self._clone_plan.sources,
-            self._clone_plan.destinations,
-            prototype_ids,
-            prototype_mask,
-        )
-        usd.replicate()
-        create_scene_partition_attributes(prototype_stage, num_envs)
-
-        # Whole-environment clones require absent targets and natively rebase every internal relationship.
+        # The clone plan already identifies every source row. Keep those rows independent so
+        # backend bindings for dynamic assets retain the paths they were compiled against.
         self._exported_usd_string = export_stage_to_string(
-            prototype_stage,
+            stage,
             num_envs,
-            source_paths=tuple(source for source, _ in self._clone_groups),
-            keep_env_roots=False,
+            source_paths=self._clone_plan.sources,
+            keep_env_roots=not self._use_ovstage,
         )
 
     def _capture_object_scales(self, stage: Any) -> None:
@@ -647,21 +614,29 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment positions is required when using OVRTX cloning")
+        if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
+            raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
-        num_envs = clone_plan.clone_mask.shape[1]
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        env_ids = clone_plan.env_ids.detach().cpu()
+        clone_mask = clone_plan.clone_mask.detach().cpu()
+        num_envs = len(env_ids)
+        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
         logger.info("Cloning sources in OVRTX...")
+
         num_cloned_sources = 0
-        for source, target_paths in self._clone_groups:
+        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+            target_paths = [
+                destination.format(int(env_id))
+                for env_id in env_ids[clone_mask[row_idx]].tolist()
+                if destination.format(int(env_id)) != source
+            ]
             if target_paths:
-                logger.debug("Cloning environment prototype %s -> %d target(s)", source, len(target_paths))
+                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
                 try:
-                    self._renderer.clone_usd(source, list(target_paths))
+                    self._renderer.clone_usd(source, target_paths)
                     num_cloned_sources += 1
                 except Exception as e:
-                    error_msg = f"Failed to clone environment prototype {source}: {e}"
+                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 
@@ -1880,22 +1855,30 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_ovstage(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
         clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment positions is required when using OVRTX cloning")
+        if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
+            raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
-        num_envs = clone_plan.clone_mask.shape[1]
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        env_ids = clone_plan.env_ids.detach().cpu()
+        clone_mask = clone_plan.clone_mask.detach().cpu()
+        num_envs = len(env_ids)
+        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
 
         logger.info("Cloning sources in OVRTX...")
+
         num_cloned_sources = 0
-        for source, target_paths in self._clone_groups:
+        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+            target_paths = [
+                destination.format(int(env_id))
+                for env_id in env_ids[clone_mask[row_idx]].tolist()
+                if destination.format(int(env_id)) != source
+            ]
             if target_paths:
-                logger.debug("Cloning environment prototype %s -> %d target(s)", source, len(target_paths))
+                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
                 try:
-                    self._stage.clone(source, list(target_paths), ordinal=self._current_ordinal)
+                    self._stage.clone(source, target_paths, ordinal=self._current_ordinal)
                     num_cloned_sources += 1
                 except Exception as e:
-                    error_msg = f"Failed to clone environment prototype {source}: {e}"
+                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 

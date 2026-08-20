@@ -9,10 +9,9 @@ Five ANYmal-C appearance styles are assigned round-robin by heterogeneous clonin
 robot binds scene-declared :class:`~isaaclab.assets.VisualMaterial` assets for its body, legs, and
 feet, so the three part groups and every environment randomize independently on partial resets.
 
-The textured style keeps one texture loaded and randomizes its tiling. Runtime texture swaps are
-not included because texture asset paths are not part of the numeric GPU channel pipeline. Newton
-currently mirrors material color only, so its demo run leaves texture tiling and glass optics static
-while exercising solid/glass tint and per-shape color writes.
+The surface, glass, and solid styles exercise their numeric shader channels. Newton currently
+mirrors material color only, so its demo run randomizes tint and per-shape colors while leaving the
+other optical channels to RTX renderers.
 
 .. code-block:: bash
 
@@ -52,14 +51,12 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
-_TEXTURE_URL = f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png"
 _LEGS = ("LF", "LH", "RF", "RH")
 
 
@@ -76,46 +73,46 @@ def _bindings(body: str, legs: str, feet: str) -> dict[str, str]:
 class VisualMaterialSceneCfg(InteractiveSceneCfg):
     """One of five styled ANYmal variants per environment and three materials per style."""
 
-    texture_body = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/texture_body",
-        spawn=sim_utils.PbrMdlCfg(project_uvw=True),
-        channels=("uv_scale",),
+    surface_body = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/surface_body",
+        spawn=sim_utils.PreviewSurfaceCfg(),
+        channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
     )
-    texture_leg = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/texture_leg",
-        spawn=sim_utils.PbrMdlCfg(project_uvw=True),
-        channels=("uv_scale",),
+    surface_leg = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/surface_leg",
+        spawn=sim_utils.PreviewSurfaceCfg(),
+        channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
     )
-    texture_foot = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/texture_foot",
-        spawn=sim_utils.PbrMdlCfg(project_uvw=True),
-        channels=("uv_scale",),
+    surface_foot = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/surface_foot",
+        spawn=sim_utils.PreviewSurfaceCfg(),
+        channels=("color", "roughness", "metallic", "emissive_color", "opacity"),
     )
     glass_body = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/glass_body",
+        prim_path="{ENV_REGEX_NS}/Robot/glass_body",
         spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
         channels=("color", "roughness", "ior"),
     )
     glass_leg = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/glass_leg",
+        prim_path="{ENV_REGEX_NS}/Robot/glass_leg",
         spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
         channels=("color", "roughness", "ior"),
     )
     glass_foot = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/glass_foot",
+        prim_path="{ENV_REGEX_NS}/Robot/glass_foot",
         spawn=sim_utils.GlassMdlCfg(glass_color=(0.8, 0.9, 1.0), glass_ior=1.5),
         channels=("color", "roughness", "ior"),
     )
     solid_body = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/solid_body",
+        prim_path="{ENV_REGEX_NS}/Robot/solid_body",
         spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.8, 0.3, 0.1)),
     )
     solid_leg = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/solid_leg",
+        prim_path="{ENV_REGEX_NS}/Robot/solid_leg",
         spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.2, 0.2, 0.7)),
     )
     solid_foot = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/solid_foot",
+        prim_path="{ENV_REGEX_NS}/Robot/solid_foot",
         spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.1, 0.6, 0.2), reflection_roughness_constant=0.9),
     )
 
@@ -126,30 +123,30 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
                 ANYMAL_C_CFG.spawn,
                 ANYMAL_C_CFG.spawn.replace(
                     visual_material_bindings=_bindings(
-                        "{ENV_REGEX_NS}/Materials/texture_body",
-                        "{ENV_REGEX_NS}/Materials/texture_leg",
-                        "{ENV_REGEX_NS}/Materials/texture_foot",
+                        "./surface_body",
+                        "./surface_leg",
+                        "./surface_foot",
                     )
                 ),
                 ANYMAL_C_CFG.spawn.replace(
                     visual_material_bindings=_bindings(
-                        "{ENV_REGEX_NS}/Materials/glass_body",
-                        "{ENV_REGEX_NS}/Materials/glass_leg",
-                        "{ENV_REGEX_NS}/Materials/glass_foot",
+                        "./glass_body",
+                        "./glass_leg",
+                        "./glass_foot",
                     )
                 ),
                 ANYMAL_C_CFG.spawn.replace(
                     visual_material_bindings=_bindings(
-                        "{ENV_REGEX_NS}/Materials/solid_body",
-                        "{ENV_REGEX_NS}/Materials/solid_leg",
-                        "{ENV_REGEX_NS}/Materials/solid_foot",
+                        "./solid_body",
+                        "./solid_leg",
+                        "./solid_foot",
                     )
                 ),
                 ANYMAL_C_CFG.spawn.replace(
                     visual_material_bindings=_bindings(
-                        "{ENV_REGEX_NS}/Materials/texture_body",
-                        "{ENV_REGEX_NS}/Materials/solid_leg",
-                        "{ENV_REGEX_NS}/Materials/glass_foot",
+                        "./surface_body",
+                        "./solid_leg",
+                        "./glass_foot",
                     )
                 ),
             ],
@@ -188,16 +185,22 @@ class ObservationsCfg:
 class EventCfg:
     """Randomize each style's three material assets independently."""
 
-    randomize_texture_style = EventTerm(
+    randomize_surface_style = EventTerm(
         func=mdp.randomize_visual_material,
         mode="reset",
         params={
             "materials": [
-                SceneEntityCfg("texture_body"),
-                SceneEntityCfg("texture_leg"),
-                SceneEntityCfg("texture_foot"),
+                SceneEntityCfg("surface_body"),
+                SceneEntityCfg("surface_leg"),
+                SceneEntityCfg("surface_foot"),
             ],
-            "channels": {"uv_scale": ((0.5, 0.5), (3.0, 3.0))},
+            "channels": {
+                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)},
+                "roughness": (0.0, 1.0),
+                "metallic": (0.0, 1.0),
+                "emissive_color": ((0.0, 0.0, 0.0), (0.25, 0.25, 0.25)),
+                "opacity": (0.5, 1.0),
+            },
         },
     )
     randomize_glass_style = EventTerm(
@@ -258,19 +261,23 @@ def main() -> None:
         visualizers = set(args_cli.visualizer or ())
         newton_only = bool(visualizers) and visualizers <= {"newton_gl", "newton_rtx"}
         if newton_only:
-            env_cfg.events.randomize_texture_style = None
-            for name in ("texture_body", "texture_leg", "texture_foot"):
-                getattr(env_cfg.scene, name).channels = ()
-            for name in ("glass_body", "glass_leg", "glass_foot"):
+            for name in (
+                "surface_body",
+                "surface_leg",
+                "surface_foot",
+                "glass_body",
+                "glass_leg",
+                "glass_foot",
+            ):
                 getattr(env_cfg.scene, name).channels = ("color",)
+            env_cfg.events.randomize_surface_style.params["channels"] = {
+                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+            }
             env_cfg.events.randomize_glass_style.params["channels"] = {
                 "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
             }
         if not newton_only:
             env_cfg.events.randomize_parts_per_env = None
-        texture = retrieve_file_path(_TEXTURE_URL)
-        for name in ("texture_body", "texture_leg", "texture_foot"):
-            getattr(env_cfg.scene, name).texture_pool = (texture,)
 
         env = ManagerBasedEnv(cfg=env_cfg)
         actions = torch.zeros((env.num_envs, env.action_manager.total_action_dim), device=env.device)

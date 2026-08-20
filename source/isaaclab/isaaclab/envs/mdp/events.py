@@ -2723,6 +2723,180 @@ class randomize_visual_texture_material(ManagerTermBase):
             rep.functional.modify.attribute(self.material_prims, "texture_rotate", random_rotations)
 
 
+class randomize_visual_color(ManagerTermBase):
+    """Randomize the visual color of bodies on an asset using Replicator API.
+
+    This function randomizes the visual color of the bodies of the asset using the Replicator API.
+    The function samples random colors from the given colors and applies them to the bodies
+    of the asset.
+
+    The function assumes that the asset follows the prim naming convention as:
+    "{asset_prim_path}/{mesh_name}" where the mesh name is the name of the mesh to
+    which the color is applied. For instance, if the asset has a prim path "/World/asset"
+    and a mesh named "body_0/mesh", the prim path for the mesh would be
+    "/World/asset/body_0/mesh".
+
+    The colors can be specified as a list of tuples of the form ``(r, g, b)`` or as a dictionary
+    with the keys ``r``, ``g``, ``b`` and values as tuples of the form ``(low, high)``.
+    If a dictionary is used, the function will sample random colors from the given ranges.
+
+    .. note::
+        When randomizing the color of individual assets, please make sure to set
+        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
+        parser will parse the individual asset properties separately.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the randomization term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
+        super().__init__(cfg, env)
+
+        # enable replicator extension if not already enabled (local: Kit-only import)
+        sim_utils.enable_extension("omni.replicator.core")
+        # we import the module here since we may not always need the replicator
+        import omni.replicator.core as rep  # noqa: PLC0415
+
+        # read parameters from the configuration
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
+
+        # check to make sure replicate_physics is set to False, else raise error
+        # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
+        #   and the event manager doesn't check in that case.
+        if env.cfg.scene.replicate_physics:
+            raise RuntimeError(
+                "Unable to randomize visual color with scene replication enabled."
+                " For stable USD-level randomization, please disable scene replication"
+                " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
+            )
+
+        # obtain the asset entity
+        asset = env.scene[asset_cfg.name]
+
+        # create the affected prim path
+        # note: Never match the articulation root prim. Authoring on the root (the SetInstanceable
+        #   and material binding below) invalidates the PhysX articulation view, crashing a later
+        #   at-play body-name resolution (root_view.shared_metatype becomes None). So we scope to
+        #   descendant visual prims, mirroring randomize_visual_texture_material.
+        if mesh_name:
+            # explicit mesh override
+            if not mesh_name.startswith("/"):
+                mesh_name = "/" + mesh_name
+            mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        else:
+            # default: the configured bodies' visual meshes
+            body_names = asset_cfg.body_names
+            body_names_regex = "|".join(body_names) if isinstance(body_names, list) else body_names
+            body_names_regex = f"(?:{body_names_regex})" if isinstance(body_names_regex, str) else ".*"
+            pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+            if sim_utils.resolve_matching_prims_from_source(pattern_with_visuals, raise_if_no_matches=False):
+                mesh_prim_path = pattern_with_visuals
+            else:
+                # fall back to any descendant if the asset has no ".../visuals" layout
+                mesh_prim_path = f"{asset.cfg.prim_path}/.*"
+                logging.info(
+                    f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{mesh_prim_path}'"
+                    " for color randomization."
+                )
+        # TODO: Need to make it work for multiple meshes.
+
+        # extract the replicator version
+        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+
+        # use different path for different version of replicator
+        if compare_versions(version, "1.12.4") < 0:
+            colors = cfg.params.get("colors")
+            event_name = cfg.params.get("event_name")
+
+            # parse the colors into replicator format
+            if isinstance(colors, dict):
+                # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
+                color_low = [colors[key][0] for key in ["r", "g", "b"]]
+                color_high = [colors[key][1] for key in ["r", "g", "b"]]
+                colors = rep.distribution.uniform(color_low, color_high)
+            else:
+                colors = list(colors)
+
+            # Create the omni-graph node for the randomization term
+            def rep_color_randomization():
+                prims_group = rep.get.prims(path_pattern=mesh_prim_path)
+                with prims_group:
+                    rep.randomizer.color(colors=colors)
+
+                return prims_group.node
+
+            # Register the event to the replicator
+            with rep.trigger.on_custom_event(event_name=event_name):
+                rep_color_randomization()
+        else:
+            stage = env.sim.stage
+            prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
+
+            num_prims = len(prims_group)
+            self.color_rng = rep.rng.ReplicatorRNG()
+
+            # Create the material first and bind it to the prims
+            for i, prim in enumerate(prims_group):
+                # Disable instancble
+                if prim.IsInstanceable():
+                    prim.SetInstanceable(False)
+
+            # Resolve OmniPBR.mdl to an absolute path so that pxr.Ar.GetResolver().Resolve()
+            # returns a valid path. Kit's omni_usd_resolver intentionally returns "" for builtin
+            # MDL short-names (OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1), which causes Replicator
+            # >= 1.13.0 to pass an empty resolved path into UsdMdl.RegistryUtils, raising a
+            # 'rtx::neuraylib::MdlModuleId' is Invalid error.
+            import carb.tokens  # noqa: PLC0415
+
+            omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
+
+            # TODO: Should we specify the value when creating the material?
+            self.material_prims = rep.functional.create_batch.material(
+                mdl=omni_pbr_mdl, bind_prims=prims_group, count=num_prims, project_uvw=True
+            )
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        event_name: str,
+        asset_cfg: SceneEntityCfg,
+        colors: list[tuple[float, float, float]] | dict[str, tuple[float, float]],
+        mesh_name: str = "",
+    ):
+        # note: This triggers the nodes for all the environments.
+        #   We need to investigate how to make it happen only for a subset based on env_ids.
+
+        # we import the module here since we may not always need the replicator
+        import omni.replicator.core as rep
+
+        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+
+        # use different path for different version of replicator
+        if compare_versions(version, "1.12.4") < 0:
+            rep.utils.send_og_event(event_name)
+        else:
+            colors = colors if colors else self._cfg.params.get("colors")
+
+            # parse the colors into replicator format
+            if isinstance(colors, dict):
+                # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
+                color_low = [colors[key][0] for key in ["r", "g", "b"]]
+                color_high = [colors[key][1] for key in ["r", "g", "b"]]
+                colors = [color_low, color_high]
+            else:
+                colors = list(colors)
+
+            num_prims = len(self.material_prims)
+            random_colors = self.color_rng.generator.uniform(colors[0], colors[1], size=(num_prims, 3))
+
+            rep.functional.modify.attribute(self.material_prims, "diffuse_color_constant", random_colors)
+
+
 """
 Internal helper functions.
 """

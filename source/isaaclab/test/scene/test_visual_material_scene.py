@@ -26,26 +26,21 @@ from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
 
-_USD_CONTEXT = ("isaaclab.cloner:UsdReplicateContext",)
-
 
 @configclass
 class _VisualMaterialSceneCfg(InteractiveSceneCfg):
-    # Deliberately declared first: the scene must still spawn its material dependency first.
-    cube = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(size=(0.2, 0.2, 0.2), visual_material_path="{ENV_REGEX_NS}/Materials/warm"),
-        cloning_contexts=_USD_CONTEXT,
-    )
+    # Deliberately declared first: nested materials must wait for the heterogeneous Robot prototypes.
     warm = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/warm",
+        prim_path="{ENV_REGEX_NS}/Robot/warm",
         spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
-        cloning_contexts=_USD_CONTEXT,
     )
     cool = VisualMaterialCfg(
-        prim_path="{ENV_REGEX_NS}/Materials/cool",
+        prim_path="{ENV_REGEX_NS}/Robot/cool",
         spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.8)),
-        cloning_contexts=_USD_CONTEXT,
+    )
+    shared = VisualMaterialCfg(
+        prim_path="/World/shared",
+        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.8, 0.1)),
     )
     robot = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -54,21 +49,26 @@ class _VisualMaterialSceneCfg(InteractiveSceneCfg):
                 sim_utils.UsdFileCfg(
                     usd_path="",
                     scale=(0.8, 0.8, 0.8),
-                    visual_material_bindings={"body": "{ENV_REGEX_NS}/Materials/warm"},
+                    visual_material_bindings={"body": "warm"},
                 ),
                 sim_utils.UsdFileCfg(
                     usd_path="",
                     scale=(1.2, 1.2, 1.2),
-                    visual_material_bindings={"body": "{ENV_REGEX_NS}/Materials/cool"},
+                    visual_material_bindings={"body": "./cool"},
+                ),
+                sim_utils.UsdFileCfg(
+                    usd_path="",
+                    scale=(1.4, 1.4, 1.4),
+                    visual_material_bindings={"body": "/World/shared"},
                 ),
             ],
             random_choice=False,
         ),
-        cloning_contexts=_USD_CONTEXT,
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
     )
 
 
-def test_scene_clones_material_bindings_round_robin_and_writes_selected_gpu_rows(tmp_path) -> None:
+def test_nested_materials_clone_with_parent_rows_and_write_selected_gpu_rows(tmp_path) -> None:
     asset_path = tmp_path / "visual_material_robot.usda"
     asset_path.write_text(
         """#usda 1.0
@@ -91,24 +91,28 @@ def Xform "Robot"
     with build_simulation_context(
         device="cuda:0", gravity_enabled=False, add_ground_plane=False, auto_add_lighting=False
     ) as sim:
-        cfg = _VisualMaterialSceneCfg(num_envs=10, env_spacing=1.0, replicate_physics=False, filter_collisions=False)
+        cfg = _VisualMaterialSceneCfg(num_envs=12, env_spacing=1.0, replicate_physics=False, filter_collisions=False)
         for variant in cfg.robot.spawn.assets_cfg:
             variant.usd_path = str(asset_path)
 
         scene = InteractiveScene(cfg)
         sim.reset()
 
-        assert scene.num_envs == 10
-        assert scene["warm"].num_instances == scene["cool"].num_instances == 10
+        assert scene.num_envs == 12
+        assert len(scene.clone_plan.sources) == 3
+        assert scene.clone_plan.destinations == ("/World/envs/env_{}/Robot",) * 3
+        assert scene.clone_plan.cfg_rows[id(cfg.robot)] == (0, 1, 2)
+        assert id(cfg.warm) not in scene.clone_plan.cfg_rows
+        assert id(cfg.cool) not in scene.clone_plan.cfg_rows
+        assert scene["warm"].num_instances == scene["cool"].num_instances == 12
+        assert scene["shared"].num_instances == 1
         for env_id in range(scene.num_envs):
             for cloned_material in ("warm", "cool"):
-                assert scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Materials/{cloned_material}").IsValid()
-            cube_binding = UsdShade.MaterialBindingAPI(
-                scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Cube/geometry/mesh")
-            ).GetDirectBindingRel()
-            assert cube_binding.GetTargets() == [Sdf.Path(f"/World/envs/env_{env_id}/Materials/warm")]
-            material_name = "warm" if env_id % 2 == 0 else "cool"
-            material_path = f"/World/envs/env_{env_id}/Materials/{material_name}"
+                assert scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/{cloned_material}").IsValid()
+            material_name = ("warm", "cool", None)[env_id % 3]
+            material_path = (
+                "/World/shared" if material_name is None else f"/World/envs/env_{env_id}/Robot/{material_name}"
+            )
             binding = UsdShade.MaterialBindingAPI(
                 scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/body")
             ).GetDirectBindingRel()
@@ -124,5 +128,5 @@ def Xform "Robot"
         expected = before.clone()
         expected[env_ids] = colors[0]
         torch.testing.assert_close(material.data["color"], expected)
-        shader = UsdShade.Shader(scene.stage.GetPrimAtPath("/World/envs/env_2/Materials/warm/Shader"))
+        shader = UsdShade.Shader(scene.stage.GetPrimAtPath("/World/envs/env_2/Robot/warm/Shader"))
         assert tuple(shader.GetInput("diffuseColor").Get()) == pytest.approx((0.8, 0.1, 0.1))

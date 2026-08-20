@@ -14,8 +14,9 @@ from isaaclab.utils.configclass import configclass
 class VisualMaterialCfg(AssetBaseCfg):
     """A runtime-writable material declared like any other scene asset.
 
-    An absolute :attr:`prim_path` declares one shared material. A path containing
-    ``{ENV_REGEX_NS}`` clones one material per environment and enables partial-reset writes.
+    An absolute :attr:`prim_path` declares one shared material. For independent per-environment
+    values, declare the material below its owning cloned asset and bind it with an asset-relative
+    path through :attr:`isaaclab.sim.spawners.from_files.from_files_cfg.FileCfg.visual_material_bindings`.
     """
 
     class_type: type | str = "{DIR}.visual_material:VisualMaterial"
@@ -28,10 +29,4 @@ class VisualMaterialCfg(AssetBaseCfg):
     Preview Surface supports ``color``, ``roughness``, ``metallic``, ``emissive_color``, and
     ``opacity``. OmniPBR additionally supports ``specular``, ``emissive_intensity``, ``uv_scale``,
     ``uv_offset``, and ``uv_rotate``. OmniGlass supports ``color``, ``roughness``, and ``ior``.
-    """
-    texture_pool: tuple[str, ...] = ()
-    """Optional static texture path.
-
-    At most one texture is accepted and authored before cloning. Runtime texture swaps are not
-    supported by the numeric GPU write path.
     """

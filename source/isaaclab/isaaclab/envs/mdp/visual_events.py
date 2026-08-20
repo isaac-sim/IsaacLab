@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import copy
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -64,18 +63,6 @@ class randomize_visual_material(ManagerTermBase):
         env.sim.render_context.write_visual_materials(self._materials, sampled, env_ids if self._per_env else None)
 
 
-class randomize_visual_color(randomize_visual_material):
-    """Randomize selected materials' ``color`` channel at reset or runtime."""
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        cfg = copy.copy(cfg)
-        cfg.params = {"materials": cfg.params["materials"], "channels": {"color": cfg.params["colors"]}}
-        super().__init__(cfg, env)
-
-    def __call__(self, env, env_ids, materials, colors) -> None:
-        super().__call__(env, env_ids, materials, {"color": colors})
-
-
 class randomize_visual_shape(FactoryBase, ManagerTermBase):
     """Randomize visual channels per selected shape on backends that expose shape storage."""
 
@@ -93,10 +80,7 @@ class randomize_visual_shape(FactoryBase, ManagerTermBase):
 def _compile_distribution(spec: Any, device: str):
     """Compile one public distribution spec into a device sampler."""
     if isinstance(spec, dict) and "choices" in spec:
-        choices = spec["choices"]
-        if choices and isinstance(choices[0], str):
-            raise NotImplementedError("Runtime texture choices are not supported by the numeric GPU pipeline.")
-        values = torch.as_tensor(choices, dtype=torch.float32, device=device)
+        values = torch.as_tensor(spec["choices"], dtype=torch.float32, device=device)
 
         def sample_choices(shape):
             return values[torch.randint(len(values), shape, device=device)]

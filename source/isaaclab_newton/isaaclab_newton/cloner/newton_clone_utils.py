@@ -148,7 +148,8 @@ def _build_source_builder(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
     replace_newton_builder_shape_colors(builder, stage)
-    import_builder_visual_material_paths(builder, stage)
+    if load_visual_shapes:
+        import_builder_visual_material_paths(builder, stage)
     return builder
 
 
@@ -358,14 +359,11 @@ def rename_builder_labels(
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
-        _, asset_suffix = clone_path.split(destination)
-        source_env = source.removesuffix(asset_suffix)
-        env_roots = {world: root.removesuffix(asset_suffix) for world, root in world_roots.items()}
         for attr in custom_attrs:
             if attr.dtype is not str or not attr.values:
                 continue
             if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
-                _rename_pair(attr.values, builder.shape_world, source_env, env_roots)
+                _rename_pair(attr.values, builder.shape_world)
             elif worlds := worlds_by_freq.get(attr.frequency):
                 _rename_pair(attr.values, worlds)
 

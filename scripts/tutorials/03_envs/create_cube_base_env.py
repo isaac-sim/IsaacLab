@@ -54,7 +54,7 @@ import torch
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg, VisualMaterialCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -176,12 +176,6 @@ class MySceneCfg(InteractiveSceneCfg):
     # add terrain
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
 
-    # one global material shared by every cube
-    cube_material = VisualMaterialCfg(
-        prim_path="/World/Materials/cube_material",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-    )
-
     # add cube
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/cube",
@@ -190,7 +184,7 @@ class MySceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material_path="/World/Materials/cube_material",
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     )
@@ -267,13 +261,17 @@ class EventCfg:
         },
     )
 
-    # This event randomizes the one material shared by every cube.
+    # This event term randomizes the visual color of the cube.
+    # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
+    # 'replicate_physics' to be set to False.
     randomize_color = EventTerm(
         func=mdp.randomize_visual_color,
-        mode="reset",
+        mode="prestartup",
         params={
             "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-            "materials": [SceneEntityCfg("cube_material")],
+            "asset_cfg": SceneEntityCfg("cube"),
+            "mesh_name": "geometry/mesh",
+            "event_name": "rep_cube_randomize_color",
         },
     )
 

@@ -16,7 +16,8 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.assets.visual_material.visual_material import VisualMaterial
+from isaaclab.assets.visual_material.visual_material import VisualMaterial, _channel_specs
+from isaaclab.cloner import ClonePlan
 from isaaclab.renderers.render_context import RenderContext
 
 _SOURCE_ROOT = Path(__file__).resolve().parents[3]
@@ -238,25 +239,66 @@ def _identifiers(tree: ast.AST) -> set[str]:
     }
 
 
-def test_material_initialization_batches_clone_plan_rows() -> None:
-    method = _class_method(
-        _PACKAGE_ROOT / "assets" / "visual_material" / "visual_material.py", "VisualMaterial", "_initialize_impl"
-    )
-    identifiers = _identifiers(method)
-    assert {"cfg_rows", "clone_mask", "all", "range"} <= identifiers
-    assert not {"path_env_ids", "path_to_clone", "cpu", "tolist"} & identifiers
-
-
-def test_material_initialization_rejects_partial_prefix_mask(monkeypatch: pytest.MonkeyPatch) -> None:
-    plan = SimpleNamespace(
-        cfg_rows={7: (0,)}, env_ids=torch.arange(4), clone_mask=torch.tensor([[True, True, False, False]])
+def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = ClonePlan(
+        sources=("/World/envs/env_42/Robot", "/World/envs/env_7/Robot"),
+        destinations=("/World/envs/env_{}/Robot",) * 2,
+        env_ids=torch.tensor([19, 42, 7]),
+        clone_mask=torch.tensor([[True, True, False], [False, False, True]]),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
         "isaaclab.assets.visual_material.visual_material.SimulationContext",
         SimpleNamespace(instance=lambda: simulation),
     )
-    material = SimpleNamespace(_is_per_env=True, _clone_cfg_id=7, _source_material_path="/World/envs/env_0/Looks/test")
+    registered = []
+    material = SimpleNamespace(
+        _is_per_env=True,
+        _source_material_path="/World/envs/env_42/Robot/Looks/test",
+        _source_shader_path="/World/envs/env_42/Robot/Looks/test/Shader",
+        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot/Looks/test"),
+        _material_paths=(),
+        _shader_paths=(),
+        _values={},
+        _initial_values={"color": torch.tensor([0.1, 0.2, 0.3])},
+        device="cpu",
+        _render_context=SimpleNamespace(register_visual_material=registered.append),
+    )
+
+    VisualMaterial._initialize_impl(material)
+
+    assert material._material_paths == (
+        "/World/envs/env_19/Robot/Looks/test",
+        "/World/envs/env_42/Robot/Looks/test",
+        "/World/envs/env_7/Robot/Looks/test",
+    )
+    assert material._shader_paths == tuple(path + "/Shader" for path in material._material_paths)
+    assert registered == [material]
+
+
+def test_preview_surface_channels_follow_shader_id() -> None:
+    shader = SimpleNamespace(GetShaderId=lambda: "UsdPreviewSurface")
+
+    assert _channel_specs(shader)["color"] == ("diffuseColor", (0.18, 0.18, 0.18))
+
+
+def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        env_ids=torch.arange(4),
+        clone_mask=torch.tensor([[True, True, False, False]]),
+    )
+    simulation = SimpleNamespace(get_clone_plan=lambda: plan)
+    monkeypatch.setattr(
+        "isaaclab.assets.visual_material.visual_material.SimulationContext",
+        SimpleNamespace(instance=lambda: simulation),
+    )
+    material = SimpleNamespace(
+        _is_per_env=True,
+        _source_material_path="/World/envs/env_0/Robot/Looks/test",
+        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot/Looks/test"),
+    )
 
     with pytest.raises(ValueError, match="must populate every environment"):
         VisualMaterial._initialize_impl(material)
@@ -312,4 +354,7 @@ def test_rejected_visual_material_ownership_does_not_return() -> None:
             for node in tree.body
         ):
             owners.append(path.name)
-    assert owners == ["visual_events.py"]
+    assert owners == ["events.py"]
+    assert "randomize_visual_color" not in _identifiers(
+        ast.parse((_PACKAGE_ROOT / "envs" / "mdp" / "visual_events.py").read_text())
+    )

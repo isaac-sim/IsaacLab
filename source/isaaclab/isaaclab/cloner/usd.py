@@ -12,7 +12,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .path import match, split
+from .path import split
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
@@ -118,22 +118,12 @@ class UsdReplicateContext:
         for depth in sorted(depth_to_items.keys()):
             with Sdf.ChangeBlock():
                 for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
-                    clone_prefix, clone_suffix = split(tmpl)
+                    _, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
-                    source_match = match(src, tmpl)
-                    source_path = Sdf.Path(src)
-                    material_bindings: list[Sdf.Path] = []
-                    if clone_suffix and source_match is not None:
 
-                        def collect_material_binding(path: Sdf.Path) -> None:
-                            if path.IsPropertyPath() and path.name == "material:binding":
-                                material_bindings.append(path)
-
-                        rl.Traverse(source_path, collect_material_binding)
                     for wid in target_envs.tolist():
                         wid = int(wid)
                         dp = tmpl.format(wid)
-                        destination_path = Sdf.Path(dp)
                         Sdf.CreatePrimInLayer(rl, dp)
                         # ``CreatePrimInLayer`` authors missing intermediate ancestors (e.g. the
                         # ``Groceries`` scope in ``env_{}/Groceries/Object``) as ``over`` specs. A
@@ -148,19 +138,7 @@ class UsdReplicateContext:
                             ancestor_spec.specifier = Sdf.SpecifierDef
                             ancestor = ancestor.GetParentPath()
                         if src != dp:
-                            Sdf.CopySpec(rl, source_path, rl, destination_path)
-                            if material_bindings:
-                                source_env = Sdf.Path(clone_prefix + source_match.instance)
-                                destination_env = Sdf.Path(clone_prefix + str(wid))
-                                for source_binding in material_bindings:
-                                    binding = rl.GetRelationshipAtPath(
-                                        source_binding.ReplacePrefix(source_path, destination_path)
-                                    )
-                                    targets = binding.targetPathList
-                                    targets.explicitItems = [
-                                        path.ReplacePrefix(source_env, destination_env)
-                                        for path in targets.GetAppliedItems()
-                                    ]
+                            Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
 
                         # Author positions/quaternions for instance roots only.
                         if is_instance_root and (positions is not None or quaternions is not None):

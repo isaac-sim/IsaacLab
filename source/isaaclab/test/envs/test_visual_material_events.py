@@ -13,11 +13,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import VisualMaterialCfg
-from isaaclab.envs.mdp.visual_events import (
-    randomize_visual_color,
-    randomize_visual_material,
-    randomize_visual_shape,
-)
+from isaaclab.envs.mdp.visual_events import randomize_visual_material, randomize_visual_shape
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.renderers.render_context import RenderContext
 
@@ -73,32 +69,6 @@ def test_all_environment_slice_samples_one_gpu_row_per_material_and_environment(
     assert env_ids is None
     assert channels["color"].shape == (2, 4, 3)
     torch.testing.assert_close(channels["color"], torch.tensor([0.25, 0.5, 0.75]).expand(2, 4, 3))
-
-
-def test_color_wrapper_dispatches_only_the_color_channel() -> None:
-    material = SimpleNamespace(
-        cfg=VisualMaterialCfg(prim_path="/World/envs/env_0/Materials/body", spawn=sim_utils.PreviewSurfaceCfg()),
-        is_per_env=True,
-        channels=("color",),
-    )
-    render_context = _RenderContext()
-    env = SimpleNamespace(
-        scene=_Scene([material, material]),
-        sim=SimpleNamespace(render_context=render_context),
-        device="cpu",
-        num_envs=4,
-    )
-    cfg = EventTermCfg(
-        func=randomize_visual_color,
-        mode="reset",
-        params={"materials": SceneEntityCfg("body"), "colors": ((0.4, 0.5, 0.6), (0.4, 0.5, 0.6))},
-    )
-
-    term = randomize_visual_color(cfg, env)
-    term(env, slice(None), **cfg.params)
-
-    assert tuple(render_context.calls[0][1]) == ("color",)
-    torch.testing.assert_close(render_context.calls[0][1]["color"], torch.tensor([0.4, 0.5, 0.6]).expand(1, 4, 3))
 
 
 def test_shape_backend_follows_only_active_render_consumers() -> None:

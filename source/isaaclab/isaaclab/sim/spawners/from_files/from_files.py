@@ -30,8 +30,8 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.sim.utils.prims import bind_visual_material_exact, resolve_env_material_target
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
@@ -493,21 +493,29 @@ def _spawn_from_usd_file(
             )
 
     # apply visual material
-    visual_material_path = resolve_env_material_target(cfg.visual_material_path, prim_path)
     if cfg.visual_material is not None:
-        material_path = (
-            visual_material_path if visual_material_path.startswith("/") else f"{prim_path}/{visual_material_path}"
-        )
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(prim_path, material_path, stage=stage)
-    elif visual_material_path.startswith("/"):
-        bind_visual_material(prim_path, visual_material_path, stage=stage)
+        if not has_kit():
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
+        else:
+            material_path = (
+                cfg.visual_material_path
+                if cfg.visual_material_path.startswith("/")
+                else f"{prim_path}/{cfg.visual_material_path}"
+            )
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            bind_visual_material(prim_path, material_path, stage=stage)
 
     for part_path, material_path in cfg.visual_material_bindings.items():
+        from pxr import UsdShade  # noqa: PLC0415
+
         target_path = f"{prim_path}/{part_path}"
-        bind_visual_material_exact(target_path, resolve_env_material_target(material_path, prim_path), stage)
+        material_path = (
+            material_path if material_path.startswith("/") else f"{prim_path}/{material_path.removeprefix('./')}"
+        )
+        binding = UsdShade.MaterialBindingAPI.Apply(stage.GetPrimAtPath(target_path))
+        relationship = binding.GetDirectBindingRel()
+        relationship.SetTargets([material_path])
+        UsdShade.MaterialBindingAPI.SetMaterialBindingStrength(relationship, UsdShade.Tokens.strongerThanDescendants)
 
     # apply physics material
     if cfg.physics_material is not None:

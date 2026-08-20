@@ -1816,9 +1816,9 @@ def rendering_test_kuka_visual_material_randomization(
     material_names = tuple(f"link_{index}" for index in range(len(link_paths)))
     bindings = {}
     for material_name, link_path in zip(material_names, link_paths, strict=True):
-        material_path = f"{{ENV_REGEX_NS}}/Materials/{material_name}"
+        material_path = f"{{ENV_REGEX_NS}}/Robot/{material_name}"
         setattr(scene_cfg, material_name, VisualMaterialCfg(prim_path=material_path, spawn=sim_utils.PbrMdlCfg()))
-        bindings[link_path] = material_path
+        bindings[link_path] = f"./{material_name}"
     robot_spawn = KUKA_ALLEGRO_CFG.spawn.replace(activate_contact_sensors=False, visual_material_bindings=bindings)
     scene_cfg.robot = KUKA_ALLEGRO_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",

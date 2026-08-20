@@ -117,22 +117,23 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    A relative path names an override material spawned below the asset when :attr:`visual_material` is set.
-    An absolute path, including one with ``{ENV_REGEX_NS}``, binds an existing scene material when
-    :attr:`visual_material` is ``None``.
+    If the path is relative, then it will be relative to the prim's path.
+    This parameter is ignored if `visual_material` is not None.
     """
 
     visual_material: materials.VisualMaterialCfg | None = None
     """Visual material properties to override the visual material properties in the URDF file.
 
-    If ``None``, :attr:`visual_material_path` may still bind an existing absolute material path.
+    Note:
+        If None, then no visual material will be added.
     """
 
     visual_material_bindings: dict[str, str] = {}
-    """Existing materials bound to asset-relative prim paths.
+    """Visual material bindings for selected asset-relative prims.
 
-    Values may use ``{ENV_REGEX_NS}`` to bind each cloned asset to its own environment's
-    material entity.
+    Keys name prims below the spawned asset. Relative values name materials below that asset,
+    so native clone backends remap their bindings with each clone. Absolute values name global
+    materials shared by every clone.
     """
 
     physics_material_path: str = "material"
