@@ -445,15 +445,6 @@ def test_physx_and_newton_fragments_fix_root_link_keeps_single_root():
     assert not child.GetAttribute("newton:selfCollisionEnabled").HasAuthoredValue()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Root relocation only migrates applied schemas it can resolve through the USD schema"
-        " registry, so an unregistered backend token schema such as 'NewtonArticulationRootAPI'"
-        " is left stranded on the former root link. Migrating it needs a backend-registered"
-        " schema-to-namespace mapping, which the relocation helper does not have."
-    ),
-    strict=False,
-)
 def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     """A pre-authored backend root API (as on URDF/MJCF-imported assets) moves with the root when
     PhysX relocates it, together with its authored attributes.
@@ -461,6 +452,8 @@ def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     Regression: leaving the backend root API behind strands the ``newton:*`` values on the former
     root link, and leaves that prim carrying a root API the relocation was meant to move.
     """
+    import isaaclab_newton.sim.schemas  # noqa: F401  -- registers the Newton root companion
+
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
     sim_utils.create_new_stage()
@@ -481,11 +474,12 @@ def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     roots = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.ArticulationRootAPI)]
     assert len(roots) == 1 and roots[0] == parent
     # the pre-authored backend schema and its value moved with the root
-    assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
+    # a token schema is only visible through the prim type info, not GetAppliedSchemas()
+    assert "NewtonArticulationRootAPI" in parent.GetPrimTypeInfo().GetAppliedAPISchemas()
     assert parent.GetAttribute("newton:selfCollisionEnabled").Get() is True
     # the former root link keeps neither the root anchor nor the stranded backend schema
     assert not child.HasAPI(UsdPhysics.ArticulationRootAPI)
-    assert "NewtonArticulationRootAPI" not in child.GetAppliedSchemas()
+    assert "NewtonArticulationRootAPI" not in child.GetPrimTypeInfo().GetAppliedAPISchemas()
 
 
 def test_physx_fix_root_link_preserves_complete_authored_property_spec():
