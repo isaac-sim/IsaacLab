@@ -184,6 +184,14 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
         spawn=SUPPORT_SPAWN_CFG,
     )
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        # increase franka gripper stiffness
+        self.robot.actuators["panda_hand"].joint_effort_limit = 500.0
+        self.robot.actuators["panda_hand"].stiffness = 2000.0
+        self.robot.actuators["panda_hand"].damping = 100.0
+
 
 @configclass
 class FrankaClothScenePresetCfg(PresetCfg):

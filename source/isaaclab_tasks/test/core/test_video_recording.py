@@ -112,7 +112,7 @@ def _cartpole_camera_cfg_physx(*, num_envs: int = 1):
     cfg.seed = _SEED
     cfg.scene.num_envs = num_envs
     cfg.sim.physics = PhysxCfg()
-    cfg.tiled_camera.renderer_cfg = IsaacRtxRendererCfg()
+    cfg.tiled_camera.default.renderer_cfg.default = IsaacRtxRendererCfg()
     return cfg
 
 
@@ -136,6 +136,7 @@ def _run_cartpole_camera(env_cfg) -> None:
     sim_utils.create_new_stage()
     env = CartpoleCameraEnv(env_cfg)
     try:
+        assert env.cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
         env.reset()
         actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
         for _ in range(_STEPS):

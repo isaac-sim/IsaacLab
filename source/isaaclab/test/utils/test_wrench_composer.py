@@ -1173,8 +1173,9 @@ def test_partial_reset_zeros_only_specified_envs(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_full_reset_clears_active_flag(device: str):
-    """Test that full reset (no args) clears the _active flag."""
+@pytest.mark.parametrize("env_ids", [None, slice(None)], ids=["none", "full_slice"])
+def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
+    """Test that either full-reset selector clears the _active flag."""
     num_envs, num_bodies = 4, 2
 
     mock_asset = create_mock_asset(num_envs, num_bodies, device)
@@ -1186,7 +1187,7 @@ def test_full_reset_clears_active_flag(device: str):
     )
     assert composer.active
 
-    composer.reset()
+    composer.reset(env_ids=env_ids)
     assert not composer.active
     assert not composer._dirty
 
