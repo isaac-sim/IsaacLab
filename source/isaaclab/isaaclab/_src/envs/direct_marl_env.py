@@ -1,0 +1,822 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import inspect
+import logging
+import math
+import sys
+from abc import abstractmethod
+from collections.abc import Sequence
+from dataclasses import MISSING
+from typing import Any, ClassVar
+
+import gymnasium as gym
+import numpy as np
+import torch
+
+from isaaclab._src.managers import EventManager
+from isaaclab._src.scene import InteractiveScene
+from isaaclab._src.sim import SimulationContext
+from isaaclab._src.sim.utils.stage import use_stage
+from isaaclab._src.utils.configclass import resolve_cfg_presets
+from isaaclab._src.utils.noise import NoiseModel
+from isaaclab._src.utils.seed import configure_seed
+from isaaclab._src.utils.timer import Timer
+
+from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, _apply_deprecated_viewer_cfg
+from .direct_marl_env_cfg import DirectMARLEnvCfg
+from .utils.spaces import sample_space, spec_to_gym_space
+from .utils.video_recorder import VideoRecorder
+
+# import logger
+logger = logging.getLogger(__name__)
+
+
+class DirectMARLEnv(gym.Env):
+    """The superclass for the direct workflow to design multi-agent environments.
+
+    This class implements the core functionality for multi-agent reinforcement learning (MARL)
+    environments. It is designed to be used with any RL library. The class is designed
+    to be used with vectorized environments, i.e., the environment is expected to be run
+    in parallel with multiple sub-environments.
+
+    The design of this class is based on the PettingZoo Parallel API.
+    While the environment itself is implemented as a vectorized environment, we do not
+    inherit from :class:`pettingzoo.ParallelEnv` or :class:`gym.vector.VectorEnv`. This is mainly
+    because the class adds various attributes and methods that are inconsistent with them.
+
+    Note:
+        For vectorized environments, it is recommended to **only** call the :meth:`reset`
+        method once before the first call to :meth:`step`, i.e. after the environment is created.
+        After that, the :meth:`step` function handles the reset of terminated sub-environments.
+        This is because the simulator does not support resetting individual sub-environments
+        in a vectorized environment.
+
+    """
+
+    metadata: ClassVar[dict[str, Any]] = {
+        "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
+    }
+    """Metadata for the environment."""
+
+    def __init__(self, cfg: DirectMARLEnvCfg, render_mode: str | None = None, **kwargs):
+        """Initialize the environment.
+
+        Args:
+            cfg: The configuration object for the environment.
+            render_mode: The render mode for the environment. Defaults to None, which
+                is similar to ``"human"``.
+
+        Raises:
+            RuntimeError: If a simulation context already exists. The environment must always create one
+                since it configures the simulation context and controls the simulation.
+        """
+        # The env remains closed until initialization completes.
+        self._is_closed = True
+
+        # check that the config is valid
+        cfg.validate()
+        # Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)
+        # to their default variant so that managers and scene builders see concrete cfg objects.
+        resolve_cfg_presets(cfg)
+        # store inputs to class
+        self.cfg = cfg
+        # store the render mode
+        self.render_mode = render_mode
+        # initialize internal variables
+        self._physics_handles_decimation = False
+
+        # set the seed for the environment
+        if self.cfg.seed is not None:
+            self.cfg.seed = self.seed(self.cfg.seed)
+        else:
+            logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
+
+        # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
+        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        _apply_deprecated_viewer_cfg(self.cfg)
+
+        # create a simulation context to control the simulator
+        if SimulationContext.instance() is None:
+            self.sim: SimulationContext = SimulationContext(self.cfg.sim)
+        else:
+            raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+
+        # From this point on, if __init__ fails we must tear down the SimulationContext
+        # singleton so that callers (tests, training loops) can retry or proceed.
+        try:
+            self._init_sim(render_mode, **kwargs)
+        except Exception:
+            self.sim.clear_instance()
+            raise
+        self._is_closed = False
+
+    def _init_sim(self, render_mode: str | None = None, **kwargs):
+        """Complete environment initialization after the SimulationContext is created.
+
+        Separated from :meth:`__init__` so that the caller can tear down the
+        :class:`SimulationContext` singleton if this method raises.
+        """
+        # make sure torch is running on the correct device
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+
+        # print useful information
+        print("[INFO]: Base environment:")
+        print(f"\tEnvironment device    : {self.device}")
+        print(f"\tEnvironment seed      : {self.cfg.seed}")
+        print(f"\tPhysics step-size     : {self.physics_dt}")
+        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
+        print(f"\tEnvironment step-size : {self.step_dt}")
+
+        if self.cfg.sim.render_interval < self.cfg.decimation:
+            msg = (
+                f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
+                f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
+                "If this is not intended, set the render interval to be equal to the decimation."
+            )
+            logger.warning(msg)
+
+        # generate scene
+        with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
+            # set the stage context for scene creation steps which use the stage
+            with use_stage(self.sim.stage):
+                self.scene = InteractiveScene(self.cfg.scene)
+                self._setup_scene()
+            self.sim.register_interactive_scene(self.scene)
+        print("[INFO]: Scene manager: ", self.scene)
+
+        # create event manager
+        # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
+        #   that must happen before the simulation starts. Example: randomizing mesh scale
+        if self.cfg.events:
+            self.event_manager = EventManager(self.cfg.events, self)
+
+            # apply USD-related randomization events
+            if "prestartup" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="prestartup")
+
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
+
+        # play the simulator to activate physics handles
+        # note: this activates the physics simulation view that exposes TensorAPIs
+        # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.stage):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            # this shouldn't cause an issue since later on, users do a reset over all the environments
+            # so the lazy buffers would be reset.
+            self.scene.update(dt=self.physics_dt)
+        # let the physics backend know about the env decimation so it can
+        # fold the full loop into a single step() when possible
+        self.sim.physics_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
+
+        # check if debug visualization is has been implemented by the environment
+        source_code = inspect.getsource(self._set_debug_vis_impl)
+        self.has_debug_vis_implementation = "NotImplementedError" not in source_code
+        self._debug_vis_handle = None
+
+        # extend UI elements
+        # we need to do this here after all the managers are initialized
+        # this is because they dictate the sensors and commands right now
+        if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
+            self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
+        else:
+            # if no window, then we don't need to store the window
+            self._window = None
+
+        # allocate dictionary to store metrics
+        self.extras = {agent: {} for agent in self.cfg.possible_agents}
+
+        # initialize data and constants
+        # -- counter for simulation steps
+        self._sim_step_counter = 0
+        # -- controls camera/Kit rendering in step().
+        # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
+        # skipped, but standalone visualizers (Newton, Rerun, Viser) continue to update.
+        # This is because Kit bundles camera rendering with its app loop and the two
+        # cannot be separated.  Non-Kit visualizers have independent step() methods
+        # that do not trigger camera or GUI updates, so they remain active.
+        self.render_enabled: bool = True
+        # -- counter for curriculum
+        self.common_step_counter = 0
+        # -- init buffers
+        self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
+
+        # setup the observation, state and action spaces
+        self._configure_env_spaces()
+
+        # setup noise cfg for adding action and observation noise
+        if self.cfg.action_noise_model:
+            self._action_noise_model: dict[AgentID, NoiseModel] = {
+                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                for agent, noise_model in self.cfg.action_noise_model.items()
+                if noise_model is not None
+            }
+        if self.cfg.observation_noise_model:
+            self._observation_noise_model: dict[AgentID, NoiseModel] = {
+                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                for agent, noise_model in self.cfg.observation_noise_model.items()
+                if noise_model is not None
+            }
+
+        # perform events at the start of the simulation
+        if self.cfg.events:
+            # we print it here to make the logging consistent
+            print("[INFO] Event Manager: ", self.event_manager)
+
+            if "startup" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="startup")
+        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
+        # print the environment information
+        print("[INFO]: Completed setting up the environment...")
+
+    def __del__(self, _sys=sys):
+        """Cleanup for the environment."""
+        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
+            self.close()
+
+    """
+    Properties.
+    """
+
+    @property
+    def num_envs(self) -> int:
+        """The number of instances of the environment that are running."""
+        return self.scene.num_envs
+
+    @property
+    def num_agents(self) -> int:
+        """Number of current agents.
+
+        The number of current agents may change as the environment progresses (e.g.: agents can be added or removed).
+        """
+        return len(self.agents)
+
+    @property
+    def max_num_agents(self) -> int:
+        """Number of all possible agents the environment can generate.
+
+        This value remains constant as the environment progresses.
+        """
+        return len(self.possible_agents)
+
+    @property
+    def unwrapped(self) -> DirectMARLEnv:
+        """Get the unwrapped environment underneath all the layers of wrappers."""
+        return self
+
+    @property
+    def physics_dt(self) -> float:
+        """The physics time-step (in s).
+
+        This is the lowest time-decimation at which the simulation is happening.
+        """
+        return self.cfg.sim.dt
+
+    @property
+    def step_dt(self) -> float:
+        """The environment stepping time-step (in s).
+
+        This is the time-step at which the environment steps forward.
+        """
+        return self.cfg.sim.dt * self.cfg.decimation
+
+    @property
+    def device(self):
+        """The device on which the environment is running."""
+        return self.sim.device
+
+    @property
+    def max_episode_length_s(self) -> float:
+        """Maximum episode length in seconds."""
+        return self.cfg.episode_length_s
+
+    @property
+    def max_episode_length(self):
+        """The maximum episode length in steps adjusted from s."""
+        return math.ceil(self.max_episode_length_s / (self.cfg.sim.dt * self.cfg.decimation))
+
+    """
+    Space methods
+    """
+
+    def observation_space(self, agent: AgentID) -> gym.Space:
+        """Get the observation space for the specified agent.
+
+        Returns:
+            The agent's observation space.
+        """
+        return self.observation_spaces[agent]
+
+    def action_space(self, agent: AgentID) -> gym.Space:
+        """Get the action space for the specified agent.
+
+        Returns:
+            The agent's action space.
+        """
+        return self.action_spaces[agent]
+
+    """
+    Operations.
+    """
+
+    def reset(
+        self, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[dict[AgentID, ObsType], dict[AgentID, dict]]:
+        """Resets all the environments and returns observations.
+
+        Args:
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            options: Additional information to specify how the environment is reset. Defaults to None.
+
+                Note:
+                    This argument is used for compatibility with Gymnasium environment definition.
+
+        Returns:
+            A tuple containing the observations and extras (keyed by the agent ID).
+        """
+        # set the seed
+        if seed is not None:
+            self.seed(seed)
+
+        # reset state of scene
+        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        self._reset_idx(indices)
+
+        # update observations and the list of current agents (sorted as in possible_agents)
+        self.obs_dict = self._get_observations()
+        self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
+
+        # return observations
+        return self.obs_dict, self.extras
+
+    def step(self, actions: dict[AgentID, ActionType]) -> EnvStepReturn:
+        """Execute one time-step of the environment's dynamics.
+
+        The environment steps forward at a fixed time-step, while the physics simulation is decimated at a
+        lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
+        independently using the :attr:`DirectMARLEnvCfg.decimation` (number of simulation steps per environment step)
+        and the :attr:`DirectMARLEnvCfg.sim.physics_dt` (physics time-step). Based on these parameters, the environment
+        time-step is computed as the product of the two.
+
+        This function performs the following steps:
+
+        1. Pre-process the actions before stepping through the physics.
+        2. Apply the actions to the simulator and step through the physics in a decimated manner.
+        3. Compute the reward and done signals.
+        4. Reset environments that have terminated or reached the maximum episode length.
+        5. Apply interval events if they are enabled.
+        6. Compute observations.
+
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
+        When ``render_enabled`` is False:
+
+        - The Kit app loop (``app.update()``) is **skipped**, which also disables
+          camera/RTX sensor rendering and GUI viewport updates.  Kit bundles these
+          operations together, so they cannot be separated.
+        - Standalone visualizers (Newton, Rerun, Viser) **continue to update**
+          normally because their ``step()`` methods are independent of the Kit
+          app loop.
+
+        Args:
+            actions: The actions to apply on the environment (keyed by the agent ID).
+                Shape of individual tensors is (num_envs, action_dim).
+
+        Returns:
+            A tuple containing the observations, rewards, resets (terminated and truncated) and
+            extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
+        """
+        actions = {agent: action.to(self.device) for agent, action in actions.items()}
+
+        # add action noise
+        if self.cfg.action_noise_model:
+            for agent, action in actions.items():
+                if agent in self._action_noise_model:
+                    actions[agent] = self._action_noise_model[agent](action)
+        # process actions
+        self._pre_physics_step(actions)
+
+        # check if we need to do rendering within the physics loop
+        # note: uses cached property to avoid settings lookup every step
+        is_rendering = self.sim.is_rendering
+
+        # perform physics stepping
+        if self._physics_handles_decimation:
+            self._sim_step_counter += self.cfg.decimation
+            self._apply_action()
+            self.scene.write_data_to_sim()
+            self.sim.step(render=False)
+            # render only when a render_interval boundary falls within this decimation block,
+            # mirroring the per-sub-step check in the else branch.
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render(skip_app_pumping=not self.render_enabled)
+            self.scene.update(dt=self.step_dt)
+        else:
+            for _ in range(self.cfg.decimation):
+                self._sim_step_counter += 1
+                # set actions into buffers
+                self._apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
+                # simulate
+                self.sim.step(render=False)
+                # render between steps only if the GUI or an RTX sensor needs it.
+                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+                # but standalone visualizers (Newton, Rerun, Viser) still update.
+                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                    self.sim.render(skip_app_pumping=not self.render_enabled)
+                # update buffers at sim dt
+                self.scene.update(dt=self.physics_dt)
+
+        # post-step:
+        # -- update env counters (used for curriculum generation)
+        self.episode_length_buf += 1  # step in current episode (per env)
+        self.common_step_counter += 1  # total step (common for all envs)
+
+        self.terminated_dict, self.time_out_dict = self._get_dones()
+        self.reset_buf[:] = math.prod(self.terminated_dict.values()) | math.prod(self.time_out_dict.values())
+        self.reward_dict = self._get_rewards()
+
+        # -- reset envs that terminated/timed-out and log the episode information
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            # capture the per-agent terminal observation before reset and expose it for Same-Step
+            # autoreset. apply the same observation noise as the returned obs so the bootstrapped
+            # terminal value matches the distribution the policy is trained on.
+            if self.cfg.compute_final_obs:
+                terminal_obs = self._get_observations()
+                if self.cfg.observation_noise_model:
+                    for agent, obs in terminal_obs.items():
+                        if agent in self._observation_noise_model:
+                            terminal_obs[agent] = self._observation_noise_model[agent](obs)
+                for agent, obs in terminal_obs.items():
+                    self.extras[agent]["final_obs"] = obs
+            self._reset_idx(reset_env_ids)
+
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+            if len(reset_env_ids) > 0:
+                not_yet_reset[reset_env_ids] = False
+            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
+            if len(manual_reset_ids) > 0:
+                for agent in self.terminated_dict:
+                    self.terminated_dict[agent][manual_reset_ids] = True
+                self._reset_idx(manual_reset_ids)
+
+        # post-step: step interval event
+        if self.cfg.events:
+            if "interval" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="interval", dt=self.step_dt)
+
+        # advance video recorders (after render, before obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
+        # update observations and the list of current agents (sorted as in possible_agents)
+        self.obs_dict = self._get_observations()
+        self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
+
+        # add observation noise
+        # note: we apply no noise to the state space (since it is used for centralized training or critic networks)
+        if self.cfg.observation_noise_model:
+            for agent, obs in self.obs_dict.items():
+                if agent in self._observation_noise_model:
+                    self.obs_dict[agent] = self._observation_noise_model[agent](obs)
+
+        # return observations, rewards, resets and extras
+        return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras
+
+    def state(self) -> StateType | None:
+        """Returns the state for the environment.
+
+        The state-space is used for centralized training or asymmetric actor-critic architectures. It is configured
+        using the :attr:`DirectMARLEnvCfg.state_space` parameter.
+
+        Returns:
+            The states for the environment, or None if :attr:`DirectMARLEnvCfg.state_space` parameter is zero.
+        """
+        if not self.cfg.state_space:
+            return None
+        # concatenate and return the observations as state
+        # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+            self.state_buf = torch.cat(
+                [self.obs_dict[agent].reshape(self.num_envs, -1) for agent in self.cfg.possible_agents], dim=-1
+            )
+        # compute and return custom environment state
+        else:
+            self.state_buf = self._get_states()
+        return self.state_buf
+
+    @staticmethod
+    def seed(seed: int = -1) -> int:
+        """Set the seed for the environment.
+
+        Args:
+            seed: The seed for random generator. Defaults to -1.
+
+        Returns:
+            The seed used for random generator.
+        """
+        # set seed for replicator
+        try:
+            import omni.replicator.core as rep
+
+            rep.set_global_seed(seed)
+        except ModuleNotFoundError:
+            pass
+        # set seed for torch and other libraries
+        return configure_seed(seed)
+
+    def render(self, recompute: bool = False) -> np.ndarray | None:
+        """Run rendering without stepping through the physics.
+
+        By convention, if mode is:
+
+        - **human**: Render to the current display and return nothing. Usually for human consumption.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
+
+        Args:
+            recompute: Whether to force a render even if the simulator has already rendered the scene.
+                Defaults to False.
+
+        Returns:
+            None.
+
+        Raises:
+            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
+                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
+                or ``RenderMode.FULL_RENDERING``.
+            NotImplementedError: If an unsupported rendering mode is specified.
+        """
+        # run a rendering step of the simulator
+        # if we have rtx sensors, we do not need to render again since step already rendered
+        if not self.has_rtx_sensors and not recompute:
+            self.sim.render()
+        # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
+        if self.render_mode == "human" or self.render_mode is None:
+            return None
+        else:
+            raise NotImplementedError(
+                f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
+            )
+
+    def close(self):
+        """Cleanup for the environment."""
+        if not self._is_closed:
+            # Stop simulation first to allow physics to clean up properly
+            self.sim.stop()
+
+            # Drop cached observation/state tensors so they don't survive close via
+            # gymnasium's wrapper chain.
+            if isinstance(getattr(self, "obs_dict", None), dict):
+                self.obs_dict.clear()
+            self.state_buf = None
+
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
+
+            # close entities related to the environment
+            # note: this is order-sensitive to avoid any dangling references
+            if self.cfg.events:
+                del self.event_manager
+            del self.scene
+
+            self.sim.clear_instance()
+
+            # Drop the per-agent observation/action space objects. gymnasium's wrapper
+            # chain keeps the env referenced past close, so without this they leak — and
+            # for image observations each space holds a large gym.spaces.Box bounds array.
+            self.observation_spaces = None
+            self.action_spaces = None
+            self.state_space = None
+
+            # destroy the window
+            if self._window is not None:
+                self._window = None
+            # update closing status
+            self._is_closed = True
+
+    """
+    Operations - Debug Visualization.
+    """
+
+    def set_debug_vis(self, debug_vis: bool) -> bool:
+        """Toggles the environment debug visualization.
+
+        Args:
+            debug_vis: Whether to visualize the environment debug visualization.
+
+        Returns:
+            Whether the debug visualization was successfully set. False if the environment
+            does not support debug visualization.
+        """
+        # check if debug visualization is supported
+        if not self.has_debug_vis_implementation:
+            return False
+        # toggle debug visualization objects
+        self._set_debug_vis_impl(debug_vis)
+        # toggle debug visualization handles
+        if debug_vis:
+            # create a subscriber for the post update event if it doesn't exist
+            if self._debug_vis_handle is None:
+                self._debug_vis_handle = self.sim.vis_marker_registry.add_debug_vis_callback(self)
+        else:
+            # remove the subscriber if it exists
+            self.sim.vis_marker_registry.clear_debug_vis_callback(self)
+        # return success
+        return True
+
+    """
+    Helper functions.
+    """
+
+    def _configure_env_spaces(self):
+        """Configure the spaces for the environment."""
+        self.agents = self.cfg.possible_agents
+        self.possible_agents = self.cfg.possible_agents
+
+        # show deprecation message and overwrite configuration
+        if self.cfg.num_actions is not None:
+            logger.warning("DirectMARLEnvCfg.num_actions is deprecated. Use DirectMARLEnvCfg.action_spaces instead.")
+            if isinstance(self.cfg.action_spaces, type(MISSING)):
+                self.cfg.action_spaces = self.cfg.num_actions
+        if self.cfg.num_observations is not None:
+            logger.warning(
+                "DirectMARLEnvCfg.num_observations is deprecated. Use DirectMARLEnvCfg.observation_spaces instead."
+            )
+            if isinstance(self.cfg.observation_spaces, type(MISSING)):
+                self.cfg.observation_spaces = self.cfg.num_observations
+        if self.cfg.num_states is not None:
+            logger.warning("DirectMARLEnvCfg.num_states is deprecated. Use DirectMARLEnvCfg.state_space instead.")
+            if isinstance(self.cfg.state_space, type(MISSING)):
+                self.cfg.state_space = self.cfg.num_states
+
+        # set up observation and action spaces
+        self.observation_spaces = {
+            agent: spec_to_gym_space(self.cfg.observation_spaces[agent]) for agent in self.cfg.possible_agents
+        }
+        self.action_spaces = {
+            agent: spec_to_gym_space(self.cfg.action_spaces[agent]) for agent in self.cfg.possible_agents
+        }
+
+        # set up state space
+        if not self.cfg.state_space:
+            self.state_space = None
+        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+            self.state_space = gym.spaces.flatten_space(
+                gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
+            )
+        else:
+            self.state_space = spec_to_gym_space(self.cfg.state_space)
+
+        # instantiate actions (needed for tasks for which the observations computation is dependent on the actions)
+        self.actions = {
+            agent: sample_space(self.action_spaces[agent], self.sim.device, batch_size=self.num_envs, fill_value=0)
+            for agent in self.cfg.possible_agents
+        }
+
+    def _reset_idx(self, env_ids: Sequence[int]):
+        """Reset environments based on specified indices.
+
+        Args:
+            env_ids: List of environment ids which must be reset
+        """
+        self.scene.reset(env_ids)
+
+        # apply events such as randomization for environments that need a reset
+        if self.cfg.events:
+            if "reset" in self.event_manager.available_modes:
+                env_step_count = self._sim_step_counter // self.cfg.decimation
+                self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+
+        # reset noise models
+        if self.cfg.action_noise_model:
+            for noise_model in self._action_noise_model.values():
+                noise_model.reset(env_ids)
+        if self.cfg.observation_noise_model:
+            for noise_model in self._observation_noise_model.values():
+                noise_model.reset(env_ids)
+
+        # reset the episode length buffer
+        self.episode_length_buf[env_ids] = 0
+
+        self.sim.render_context.reset_scene_state_cadence()
+
+    """
+    Implementation-specific functions.
+    """
+
+    def _setup_scene(self):
+        """Setup the scene for the environment.
+
+        This function is responsible for creating the scene objects and setting up the scene for the environment.
+        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
+        directly creating the scene objects and registering them with the scene manager.
+
+        We leave the implementation of this function to the derived classes. If the environment does not require
+        any explicit scene setup, the function can be left empty.
+        """
+        pass
+
+    @abstractmethod
+    def _pre_physics_step(self, actions: dict[AgentID, ActionType]):
+        """Pre-process actions before stepping through the physics.
+
+        This function is responsible for pre-processing the actions before stepping through the physics.
+        It is called before the physics stepping (which is decimated).
+
+        Args:
+            actions: The actions to apply on the environment (keyed by the agent ID).
+                Shape of individual tensors is (num_envs, action_dim).
+        """
+        raise NotImplementedError(f"Please implement the '_pre_physics_step' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _apply_action(self):
+        """Apply actions to the simulator.
+
+        This function is responsible for applying the actions to the simulator. It is called at each
+        physics time-step.
+        """
+        raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _get_observations(self) -> dict[AgentID, ObsType]:
+        """Compute and return the observations for the environment.
+
+        Returns:
+            The observations for the environment (keyed by the agent ID).
+        """
+        raise NotImplementedError(f"Please implement the '_get_observations' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _get_states(self) -> StateType:
+        """Compute and return the states for the environment.
+
+        This method is only called (and therefore has to be implemented) when the :attr:`DirectMARLEnvCfg.state_space`
+        parameter is not a number less than or equal to zero.
+
+        Returns:
+            The states for the environment.
+        """
+        raise NotImplementedError(f"Please implement the '_get_states' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _get_rewards(self) -> dict[AgentID, torch.Tensor]:
+        """Compute and return the rewards for the environment.
+
+        Returns:
+            The rewards for the environment (keyed by the agent ID).
+            Shape of individual tensors is (num_envs,).
+        """
+        raise NotImplementedError(f"Please implement the '_get_rewards' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _get_dones(self) -> tuple[dict[AgentID, torch.Tensor], dict[AgentID, torch.Tensor]]:
+        """Compute and return the done flags for the environment.
+
+        Returns:
+            A tuple containing the done flags for termination and time-out (keyed by the agent ID).
+            Shape of individual tensors is (num_envs,).
+        """
+        raise NotImplementedError(f"Please implement the '_get_dones' method for {self.__class__.__name__}.")
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        """Set debug visualization into visualization objects.
+
+        This function is responsible for creating the visualization objects if they don't exist
+        and input ``debug_vis`` is True. If the visualization objects exist, the function should
+        set their visibility into the stage.
+        """
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")

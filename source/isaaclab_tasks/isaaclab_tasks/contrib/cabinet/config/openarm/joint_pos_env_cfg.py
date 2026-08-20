@@ -7,8 +7,8 @@
 # Pre-defined configs
 ##
 from isaaclab.sensors import FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cabinet import mdp
 

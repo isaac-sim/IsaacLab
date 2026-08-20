@@ -11,6 +11,6 @@ types (keyboard, gamepad, etc.).  This module simply re-exports them so that
 code under ``isaaclab_teleop.deprecated`` can reference them locally.
 """
 
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg  # noqa: F401
+from isaaclab.devices import RetargeterBase, RetargeterCfg  # noqa: F401
 
 __all__ = ["RetargeterBase", "RetargeterCfg"]

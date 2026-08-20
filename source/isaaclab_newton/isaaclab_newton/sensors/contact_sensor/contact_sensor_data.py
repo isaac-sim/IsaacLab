@@ -11,7 +11,7 @@ import math
 
 import warp as wp
 
-from isaaclab.sensors.contact_sensor.base_contact_sensor_data import BaseContactSensorData
+from isaaclab.sensors.contact_sensor import BaseContactSensorData
 from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)

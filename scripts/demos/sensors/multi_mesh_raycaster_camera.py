@@ -59,12 +59,12 @@ import torch
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
 from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCameraCfg, patterns
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs

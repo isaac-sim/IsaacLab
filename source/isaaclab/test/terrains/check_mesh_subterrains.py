@@ -25,7 +25,7 @@ import os
 import trimesh
 
 import isaaclab.terrains.trimesh as mesh_gen
-from isaaclab.terrains.utils import color_meshes_by_height
+from isaaclab.terrains import color_meshes_by_height
 
 
 def test_flat_terrain(difficulty: float, output_dir: str, headless: bool):

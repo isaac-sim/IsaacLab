@@ -11,7 +11,7 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-from isaaclab.scene_data.deformable_discovery import (
+from isaaclab._src.scene_data.deformable_discovery import (
     _matrix4d_to_numpy,
     _transform_points,
     discover_deformables_on_stage,

@@ -16,9 +16,9 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 
+from isaaclab._src.markers.vis_marker_registry import VisMarkerRegistry
+from isaaclab._src.test.env_cfgs import make_empty_direct_marl_env_cfg
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
-from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
 
 pytestmark = pytest.mark.unit
 

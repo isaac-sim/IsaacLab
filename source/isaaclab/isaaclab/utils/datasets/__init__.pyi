@@ -9,6 +9,6 @@ __all__ = [
     "HDF5DatasetFileHandler",
 ]
 
-from .dataset_file_handler_base import DatasetFileHandlerBase
-from .episode_data import EpisodeData
-from .hdf5_dataset_file_handler import HDF5DatasetFileHandler
+from isaaclab._src.utils.datasets.dataset_file_handler_base import DatasetFileHandlerBase
+from isaaclab._src.utils.datasets.episode_data import EpisodeData
+from isaaclab._src.utils.datasets.hdf5_dataset_file_handler import HDF5DatasetFileHandler

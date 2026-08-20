@@ -27,10 +27,10 @@ from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.math import random_orientation
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.math import random_orientation
 
 pytestmark = pytest.mark.integration
 

@@ -128,7 +128,7 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
 
 def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatch):
     """A STOP failure is re-raised only after the remaining context teardown."""
-    import isaaclab.sim.simulation_context as context_module
+    import isaaclab._src.sim.simulation_context as context_module
     from isaaclab.sim import SimulationContext
 
     events = []
@@ -196,7 +196,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
 
 def test_clear_instance_drops_owned_context_references_before_garbage_collection(monkeypatch):
     """The singleton and method-local context references are gone before garbage collection."""
-    import isaaclab.sim.simulation_context as context_module
+    import isaaclab._src.sim.simulation_context as context_module
     from isaaclab.sim import SimulationContext
 
     class Manager:

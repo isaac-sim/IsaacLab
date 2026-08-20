@@ -71,7 +71,7 @@ __all__ = [
     "RigidBodyBaseCfg",
 ]
 
-from .schemas import (
+from isaaclab._src.sim.schemas.schemas import (
     MESH_APPROXIMATION_TOKENS,
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
@@ -104,10 +104,10 @@ from .schemas import (
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
 )
-from .schemas_actuators import (
+from isaaclab._src.sim.schemas.schemas_actuators import (
     define_actuator_properties,
 )
-from .schemas_cfg import (
+from isaaclab._src.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     ArticulationRootFragment,
     BoundingCubePropertiesCfg,

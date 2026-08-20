@@ -5,6 +5,6 @@
 
 """This sub-module contains the MDP functions shared by the locomotion (ant and humanoid) environments."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

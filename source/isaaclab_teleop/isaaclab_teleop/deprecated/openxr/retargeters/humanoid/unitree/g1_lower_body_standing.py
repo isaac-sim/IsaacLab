@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import torch
 
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+from isaaclab.devices import RetargeterBase, RetargeterCfg
 
 
 class G1LowerBodyStandingRetargeter(RetargeterBase):

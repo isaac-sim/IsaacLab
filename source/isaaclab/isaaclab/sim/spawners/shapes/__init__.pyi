@@ -19,5 +19,5 @@ __all__ = [
     "SphereCfg",
 ]
 
-from .shapes import spawn_cable, spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
-from .shapes_cfg import CableCfg, CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, ShapeCfg, SphereCfg
+from isaaclab._src.sim.spawners.shapes.shapes import spawn_cable, spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
+from isaaclab._src.sim.spawners.shapes.shapes_cfg import CableCfg, CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, ShapeCfg, SphereCfg

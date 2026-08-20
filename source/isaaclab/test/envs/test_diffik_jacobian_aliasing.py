@@ -18,8 +18,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
-from isaaclab.utils import math as math_utils
+from isaaclab._src.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
+from isaaclab._src.utils import math as math_utils
 
 pytestmark = pytest.mark.unit
 

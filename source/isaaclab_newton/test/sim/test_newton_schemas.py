@@ -171,8 +171,7 @@ def test_newton_material_fragment_composes_with_usd_physics_fragment(setup_sim):
     both the ``newton:*`` and solver-common ``physics:*`` namespaces on the same material prim."""
     from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_rigid_body_material_from_fragments
 
     prim = spawn_rigid_body_material_from_fragments(
         "/World/newton_mat_frag",

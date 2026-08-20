@@ -12,10 +12,10 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import quat_apply
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_apply
 
 from .humanoid_amp_env_cfg import HumanoidAmpEnvCfg
 from .motions import MotionLoader

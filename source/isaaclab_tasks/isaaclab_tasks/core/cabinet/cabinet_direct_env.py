@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import combine_frame_transforms, matrix_from_quat
 from isaaclab.envs import DirectRLEnv
-from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg

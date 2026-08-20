@@ -6,13 +6,13 @@
 
 import math
 
+from isaaclab._src.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim.spawners.from_files import UsdFileCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.lift import mdp
 from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg

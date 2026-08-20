@@ -78,7 +78,7 @@ def test_apply_video_recording_injects_correct_recorder():
 
 def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
     """video=True without --video_length/--video_interval uses historical CLI cadence."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.envs import VideoRecorderCfg
 
     defaults = VideoRecorderCfg()
     env_cfg = _env_cfg()
@@ -92,7 +92,7 @@ def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
 
 def test_apply_video_recording_patches_existing_recorders():
     """Existing recorders are kept; only video_length and video_interval are overwritten."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.envs import VideoRecorderCfg
 
     existing = VideoRecorderCfg()
     existing.source = "sensor:tiled_camera"

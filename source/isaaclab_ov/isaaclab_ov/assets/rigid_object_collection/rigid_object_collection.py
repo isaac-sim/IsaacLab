@@ -17,11 +17,11 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab._src.utils.wrench_composer import WrenchComposer
+from isaaclab.assets.rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.cloner import queue_replication
-from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
@@ -32,7 +32,7 @@ from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.assets.rigid_object_collection import RigidObjectCollectionCfg
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):

@@ -5,6 +5,6 @@
 
 """MDP utilities for the assemble_trocar task."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

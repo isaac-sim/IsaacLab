@@ -13,8 +13,7 @@ import warp as wp
 
 pytest.importorskip("isaaclab_physx")
 
-from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
-from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
+from isaaclab.sensors.camera import CameraCfg, CameraData, RenderBufferKind, RenderBufferSpec, TiledCameraCfg
 from isaaclab.sim import PinholeCameraCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -172,7 +171,7 @@ def test_newton_warp_wraps_requested_rgb_hdr_output():
     wp.init()
     from isaaclab_newton.renderers.newton_warp_renderer import RenderData
 
-    from isaaclab.utils.warp.proxy_array import ProxyArray
+    from isaaclab.utils.warp import ProxyArray
 
     fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
     render_data = RenderData(fake_sensor, SimpleNamespace(cfg=SimpleNamespace(width=4, height=3, isp_cfg=None)))

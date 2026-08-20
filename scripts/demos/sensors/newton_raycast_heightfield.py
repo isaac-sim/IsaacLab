@@ -37,14 +37,14 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sensors import NewtonRaycastSensor, NewtonRaycastSensorCfg
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
     size=(12.0, 12.0),

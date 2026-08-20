@@ -24,7 +24,7 @@ import os
 import trimesh
 
 import isaaclab.terrains.height_field as hf_gen
-from isaaclab.terrains.utils import color_meshes_by_height
+from isaaclab.terrains import color_meshes_by_height
 
 
 def test_random_uniform_terrain(difficulty: float, output_dir: str, headless: bool):

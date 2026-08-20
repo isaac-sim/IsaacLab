@@ -19,7 +19,7 @@ __all__ = [
     "MeshSphereCfg",
 ]
 
-from .meshes import (
+from isaaclab._src.sim.spawners.meshes.meshes import (
     spawn_mesh_capsule,
     spawn_mesh_cone,
     spawn_mesh_cuboid,
@@ -27,7 +27,7 @@ from .meshes import (
     spawn_mesh_rectangle,
     spawn_mesh_sphere,
 )
-from .meshes_cfg import (
+from isaaclab._src.sim.spawners.meshes.meshes_cfg import (
     MeshCapsuleCfg,
     MeshCfg,
     MeshConeCfg,

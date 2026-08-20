@@ -283,6 +283,28 @@ functions and classes are the ones that are intended to be used internally in th
 Irrespective of the public or private nature of the functions and classes, we follow the Style Guide
 for the code and make sure that the code and documentation are consistent.
 
+Package Layout and Public APIs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The implementation of the core ``isaaclab`` package lives under ``isaaclab._src``. Public package
+names such as ``isaaclab.assets`` and ``isaaclab.sensors.camera`` are API facades: their adjacent
+``.pyi`` stubs explicitly list the supported exports and map them to implementation modules under
+``isaaclab._src``. Code outside the core package must import through these public facades whenever
+the required symbol is exported. Modules below ``isaaclab._src`` are private and may change without
+deprecation.
+
+For example, import an articulation configuration through its public package::
+
+   from isaaclab.assets import ArticulationCfg
+
+Do not import its implementation module directly::
+
+   from isaaclab._src.assets.articulation.articulation_cfg import ArticulationCfg
+
+When adding implementation code, place it in the corresponding ``isaaclab/_src`` directory. Add a
+symbol to the public API only when it is intended for downstream users, and declare it in the
+``.pyi`` stub of the narrowest appropriate public facade.
+
 Similarly, within Python classes, we follow the following structure:
 
 .. code:: python
@@ -358,7 +380,7 @@ truth** for both IDE autocomplete and runtime lazy loading.
 .. code:: python
 
    # mypackage/__init__.py
-   from isaaclab.utils.module import lazy_export
+   from isaaclab._src.utils.module import lazy_export
 
    lazy_export()
 
@@ -369,8 +391,8 @@ With a corresponding type stub adjacent to it:
    # mypackage/__init__.pyi
    __all__ = ["MyClass", "MyOtherClass", "my_function"]
 
-   from .my_module import MyClass, MyOtherClass
-   from .my_other_module import my_function
+   from isaaclab._src.mypackage.my_module import MyClass, MyOtherClass
+   from isaaclab._src.mypackage.my_other_module import my_function
 
 Key rules for ``.pyi`` stubs:
 
@@ -378,9 +400,10 @@ Key rules for ``.pyi`` stubs:
   <https://peps.python.org/pep-0484/#stub-files>`__).
 * Group imports from the same submodule on one line. Use parenthesized multi-line
   imports if the line exceeds 100 characters.
-* Use **relative imports** (``from .something import ...``) for local submodule
-  symbols. Absolute wildcard imports (``from pkg import *``) are only used for
-  cross-package fallbacks (see below).
+* Public facade stubs use **absolute imports** from ``isaaclab._src`` for implementation symbols.
+  Private stubs within ``isaaclab._src`` use relative imports for local symbols.
+* Absolute wildcard imports (``from pkg import *``) are only used for cross-package fallbacks
+  (see below).
 * Include the standard Isaac Lab license header.
 
 **Cross-package fallback** — for modules that re-export names from another package
@@ -403,7 +426,7 @@ with no arguments:
 .. code:: python
 
    # isaaclab_tasks/.../mdp/__init__.py
-   from isaaclab.utils.module import lazy_export
+   from isaaclab._src.utils.module import lazy_export
 
    lazy_export()
 
@@ -455,7 +478,7 @@ You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
    class_type: type[Sensor] | str = "{DIR}.sensor:Sensor"
 
    # Good — fully-qualified path (useful for cross-package references)
-   class_type: type[Sensor] | str = "isaaclab.sensors.my_sensor.sensor:Sensor"
+   class_type: type[Sensor] | str = "isaaclab._src.sensors.my_sensor.sensor:Sensor"
 
    # Bad — eagerly imports the implementation module
    from .sensor import Sensor
@@ -484,18 +507,22 @@ free of heavy runtime imports:
 
 .. code:: text
 
-   my_sensor/
-   ├── __init__.py          # lazy_export()
-   ├── __init__.pyi         # re-exports: SensorCfg, Sensor
-   ├── sensor_cfg.py        # pure data — no runtime deps
-   └── sensor.py            # implementation — may import omni, pxr, etc.
+   isaaclab/
+   ├── sensors/my_sensor/
+   │   ├── __init__.py          # public lazy facade
+   │   └── __init__.pyi         # explicit public exports
+   └── _src/sensors/my_sensor/
+       ├── __init__.py
+       ├── __init__.pyi
+       ├── sensor_cfg.py        # pure data — no runtime deps
+       └── sensor.py            # implementation — may import omni, pxr, etc.
 
 ``__init__.py`` — uses ``lazy_export()`` to lazily load names from the stub:
 
 .. code:: python
 
    # my_sensor/__init__.py
-   from isaaclab.utils.module import lazy_export
+   from isaaclab._src.utils.module import lazy_export
 
    lazy_export()
 
@@ -506,8 +533,8 @@ free of heavy runtime imports:
    # my_sensor/__init__.pyi
    __all__ = ["SensorCfg", "Sensor"]
 
-   from .sensor_cfg import SensorCfg
-   from .sensor import Sensor
+   from isaaclab._src.sensors.my_sensor.sensor_cfg import SensorCfg
+   from isaaclab._src.sensors.my_sensor.sensor import Sensor
 
 ``sensor_cfg.py`` — pure data; references the implementation class by resolvable string
 to avoid importing it:

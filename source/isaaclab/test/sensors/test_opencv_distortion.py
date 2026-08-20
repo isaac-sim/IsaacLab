@@ -44,13 +44,13 @@ if not _MISSING_MODULES:
     from pxr import Gf, Sdf, Usd, UsdGeom
 
     import isaaclab.sim as sim_utils
-    from isaaclab.sensors.camera.camera import Camera
-    from isaaclab.sim.spawners.sensors.sensors import spawn_camera
-    from isaaclab.sim.spawners.sensors.sensors_cfg import (
+    from isaaclab.sensors.camera import Camera
+    from isaaclab.sim.spawners.sensors import (
         FisheyeCameraCfg,
         OpenCvFisheyeDistortionCfg,
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
+        spawn_camera,
     )
 
 

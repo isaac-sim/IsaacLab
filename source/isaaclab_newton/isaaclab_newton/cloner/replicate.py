@@ -18,8 +18,8 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
+from isaaclab._src.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,

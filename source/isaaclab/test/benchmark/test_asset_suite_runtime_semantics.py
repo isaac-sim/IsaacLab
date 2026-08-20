@@ -18,7 +18,7 @@ from isaaclab_newton.benchmark.assets import runtime as newton_runtime
 from isaaclab_ov.benchmark.assets import runtime as ovphysx_runtime
 from isaaclab_physx.benchmark.assets import runtime as physx_runtime
 
-from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
+from isaaclab.benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
 

@@ -21,6 +21,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPro
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
@@ -38,10 +39,9 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import (

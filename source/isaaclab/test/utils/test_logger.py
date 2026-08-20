@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter, configure_logging
+from isaaclab.utils import ColoredFormatter, RateLimitFilter, configure_logging
 
 pytestmark = pytest.mark.unit
 

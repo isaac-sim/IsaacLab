@@ -16,7 +16,7 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
 from isaaclab.cloner import queue_replication
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView

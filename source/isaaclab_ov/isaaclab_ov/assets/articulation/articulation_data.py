@@ -12,12 +12,12 @@ from typing import Any
 import numpy as np
 import warp as wp
 
-from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab._src.assets.articulation import ordering_kernels
+from isaaclab._src.utils.warp.launch_cache import _WarpLaunchCache
+from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets.kernels import (

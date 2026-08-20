@@ -7,8 +7,8 @@
 
 from __future__ import annotations
 
-from .base_visualizer import BaseVisualizer
-from .visualizer import Visualizer
-from .visualizer_cfg import VisualizerCfg
+from isaaclab._src.visualizers.base_visualizer import BaseVisualizer
+from isaaclab._src.visualizers.visualizer import Visualizer
+from isaaclab._src.visualizers.visualizer_cfg import VisualizerCfg
 
 __all__ = ["BaseVisualizer", "Visualizer", "VisualizerCfg"]

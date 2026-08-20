@@ -1,0 +1,531 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import asyncio
+import os
+import weakref
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+from isaaclab._src.sim.utils.stage import resolve_paths
+from isaaclab._src.ui.widgets import ManagerLiveVisualizer
+from isaaclab._src.ui.widgets.ui_visualizer_base import UiVisualizerBase
+from isaaclab._src.utils.version import has_kit
+
+if has_kit():
+    import isaacsim
+    import omni.kit.commands
+
+
+if TYPE_CHECKING:
+    import omni.ui
+
+    from ..manager_based_env import ManagerBasedEnv
+
+
+class BaseEnvWindow:
+    """Window manager for the basic environment.
+
+    This class creates a window that is used to control the environment. The window
+    contains controls for rendering, debug visualization, and other environment-specific
+    UI elements.
+
+    Users can add their own UI elements to the window by using the `with` context manager.
+    This can be done either be inheriting the class or by using the `env.window` object
+    directly from the standalone execution script.
+
+    Example for adding a UI element from the standalone execution script:
+        >>> with env.window.ui_window_elements["main_vstack"]:
+        >>>     ui.Label("My UI element")
+
+    """
+
+    def __init__(self, env: ManagerBasedEnv, window_name: str = "IsaacLab"):
+        """Initialize the window.
+
+        Args:
+            env: The environment object.
+            window_name: The name of the window. Defaults to "IsaacLab".
+        """
+        # store inputs
+        self.env = env
+        # prepare the list of assets that can be followed by the viewport camera
+        # note that the first two options are "World" and "Env" which are special cases
+        self._viewer_assets_options = [
+            "World",
+            "Env",
+            *self.env.scene.rigid_objects.keys(),
+            *self.env.scene.articulations.keys(),
+        ]
+
+        # get stage handle
+        self.stage = env.sim.stage
+
+        # Listeners for environment selection changes
+        self._ui_listeners: list[ManagerLiveVisualizer] = []
+
+        print("Creating window for environment.")
+        # create window for UI
+        self.ui_window = omni.ui.Window(
+            window_name, width=400, height=500, visible=True, dock_preference=omni.ui.DockPreference.RIGHT_TOP
+        )
+        # dock next to properties window
+        asyncio.ensure_future(self._dock_window(window_title=self.ui_window.title))
+
+        # keep a dictionary of stacks so that child environments can add their own UI elements
+        # this can be done by using the `with` context manager
+        self.ui_window_elements = dict()
+        # create main frame
+        self.ui_window_elements["main_frame"] = self.ui_window.frame
+        with self.ui_window_elements["main_frame"]:
+            # create main stack
+            self.ui_window_elements["main_vstack"] = omni.ui.VStack(spacing=5, height=0)
+            with self.ui_window_elements["main_vstack"]:
+                # Live Plots — manager data plots, shown first
+                self._build_debug_vis_frame()
+                with self.ui_window_elements["debug_frame"]:
+                    with self.ui_window_elements["debug_vstack"]:
+                        self._visualize_manager(title="Training Metrics", class_name="episode")
+                        self._visualize_manager(title="Actions", class_name="action_manager")
+                        self._visualize_manager(title="Observations", class_name="observation_manager")
+                # Visualization Markers — scene element debug overlays
+                self._build_vis_markers_frame()
+                # create collapsable frame for simulation
+                self._build_sim_frame()
+                # create collapsable frame for viewer
+                self._build_viewer_frame()
+
+    def __del__(self):
+        """Destructor for the window."""
+        # destroy the window
+        if self.ui_window is not None:
+            self.ui_window.visible = False
+            self.ui_window.destroy()
+            self.ui_window = None
+
+    """
+    Build sub-sections of the UI.
+    """
+
+    def _build_sim_frame(self):
+        """Builds the sim-related controls frame for the UI."""
+        # create collapsable frame for controls
+        self.ui_window_elements["sim_frame"] = omni.ui.CollapsableFrame(
+            title="Simulation Settings",
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with self.ui_window_elements["sim_frame"]:
+            # create stack for controls
+            self.ui_window_elements["sim_vstack"] = omni.ui.VStack(spacing=5, height=0)
+            with self.ui_window_elements["sim_vstack"]:
+                # create rendering mode dropdown if visualizer supports it
+                self._build_render_mode_dropdown()
+
+                # create animation recording box
+                record_animate_cfg = {
+                    "label": "Record Animation",
+                    "type": "state_button",
+                    "a_text": "START",
+                    "b_text": "STOP",
+                    "tooltip": "Record the animation of the scene. Only effective if fabric is disabled.",
+                    "on_clicked_fn": lambda value: self._toggle_recording_animation_fn(value),
+                }
+                self.ui_window_elements["record_animation"] = isaacsim.gui.components.ui_utils.state_btn_builder(
+                    **record_animate_cfg
+                )
+                # disable the button if fabric is not enabled
+                self.ui_window_elements["record_animation"].enabled = not self.env.sim.get_setting(
+                    "/isaaclab/fabric_enabled"
+                )
+
+                # create reset episode button
+                reset_cfg = {
+                    "label": "Reset Episode",
+                    "type": "button",
+                    "text": "RESET",
+                    "tooltip": "Force-reset all environments immediately.",
+                    "on_clicked_fn": lambda: self.env.sim.request_reset(),
+                }
+                self.ui_window_elements["reset_episode"] = isaacsim.gui.components.ui_utils.btn_builder(**reset_cfg)
+
+    def _build_render_mode_dropdown(self):
+        """Build rendering mode dropdown if a visualizer supports it."""
+        # Find first visualizer with render_mode support
+        viz = None
+        RenderMode = None
+        for v in self.env.sim.visualizers:
+            if hasattr(v, "render_mode") and hasattr(v, "set_render_mode"):
+                viz = v
+                # Get RenderMode enum from the visualizer's module
+                RenderMode = type(v.render_mode)
+                break
+
+        if viz is None or RenderMode is None:
+            return
+
+        def on_render_mode_changed(value: str):
+            if viz is not None and hasattr(viz, "set_render_mode"):
+                viz.set_render_mode(RenderMode[value])
+
+        render_mode_cfg = {
+            "label": "Rendering Mode",
+            "type": "dropdown",
+            "default_val": viz.render_mode.value,
+            "items": [member.name for member in RenderMode if member.value >= 0],
+            "tooltip": "Select a rendering mode\n" + (RenderMode.__doc__ or ""),
+            "on_clicked_fn": on_render_mode_changed,
+        }
+        self.ui_window_elements["render_dropdown"] = isaacsim.gui.components.ui_utils.dropdown_builder(
+            **render_mode_cfg
+        )
+
+    def _build_viewer_frame(self):
+        """Build the viewer-related control frame for the UI."""
+        # create collapsable frame for viewer
+        self.ui_window_elements["viewer_frame"] = omni.ui.CollapsableFrame(
+            title="Viewer Settings",
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with self.ui_window_elements["viewer_frame"]:
+            # create stack for controls
+            self.ui_window_elements["viewer_vstack"] = omni.ui.VStack(spacing=5, height=0)
+            with self.ui_window_elements["viewer_vstack"]:
+                # create a number slider to move to environment origin
+                # NOTE: slider is 1-indexed, whereas the env index is 0-indexed
+                _viz = self._get_kit_visualizer()
+                viewport_origin_cfg = {
+                    "label": "Environment Index",
+                    "type": "button",
+                    "default_val": (_viz.cfg.origin_env_index if _viz is not None else 0) + 1,
+                    "min": 1,
+                    "max": self.env.num_envs,
+                    "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
+                }
+                self.ui_window_elements["viewer_env_index"] = isaacsim.gui.components.ui_utils.int_builder(
+                    **viewport_origin_cfg
+                )
+                # create a number slider to move to environment origin
+                self.ui_window_elements["viewer_env_index"].add_value_changed_fn(self._set_viewer_env_index_fn)
+
+                # create a tracker for the camera location
+                viewer_follow_cfg = {
+                    "label": "Follow Mode",
+                    "type": "dropdown",
+                    "default_val": 0,
+                    "items": [name.replace("_", " ").title() for name in self._viewer_assets_options],
+                    "tooltip": "Select the viewport camera following mode.",
+                    "on_clicked_fn": self._set_viewer_origin_type_fn,
+                }
+                self.ui_window_elements["viewer_follow"] = isaacsim.gui.components.ui_utils.dropdown_builder(
+                    **viewer_follow_cfg
+                )
+
+                # add viewer default eye and lookat locations
+                self.ui_window_elements["viewer_eye"] = isaacsim.gui.components.ui_utils.xyz_builder(
+                    label="Camera Eye",
+                    tooltip="Modify the XYZ location of the viewer eye.",
+                    default_val=_viz.cfg.eye if _viz is not None else (4.0, -4.0, 3.0),
+                    step=0.1,
+                    on_value_changed_fn=[self._set_viewer_location_fn] * 3,
+                )
+                self.ui_window_elements["viewer_lookat"] = isaacsim.gui.components.ui_utils.xyz_builder(
+                    label="Camera Target",
+                    tooltip="Modify the XYZ location of the viewer target.",
+                    default_val=_viz.cfg.lookat if _viz is not None else (0.0, 0.0, 0.0),
+                    step=0.1,
+                    on_value_changed_fn=[self._set_viewer_location_fn] * 3,
+                )
+
+    def _build_debug_vis_frame(self):
+        """Builds the Live Plots frame for manager data visualizers."""
+        self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
+            title="Live Plots",
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with self.ui_window_elements["debug_frame"]:
+            self.ui_window_elements["debug_vstack"] = omni.ui.VStack(spacing=5, height=0)
+
+    def _build_vis_markers_frame(self):
+        """Builds the Visualization Markers frame for scene element debug overlays.
+
+        Creates a checkbox per scene element (terrain, rigid objects, articulations, sensors)
+        that has a debug visualization implemented.
+        """
+        self.ui_window_elements["vis_markers_frame"] = omni.ui.CollapsableFrame(
+            title="Visualization Markers",
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with self.ui_window_elements["vis_markers_frame"]:
+            vstack = omni.ui.VStack(spacing=5, height=0)
+            with vstack:
+                elements = [
+                    self.env.scene.terrain,
+                    *self.env.scene.rigid_objects.values(),
+                    *self.env.scene.articulations.values(),
+                    *self.env.scene.sensors.values(),
+                ]
+                names = [
+                    "terrain",
+                    *self.env.scene.rigid_objects.keys(),
+                    *self.env.scene.articulations.keys(),
+                    *self.env.scene.sensors.keys(),
+                ]
+                for elem, name in zip(elements, names):
+                    if elem is not None:
+                        self._create_debug_vis_ui_element(name, elem)
+
+    def _visualize_manager(self, title: str, class_name: str) -> None:
+        """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface.
+
+        Args:
+            title: The title of the manager visualization frame.
+            class_name: The name of the manager to visualize.
+        """
+
+        if hasattr(self.env, "manager_visualizers") and class_name in self.env.manager_visualizers:
+            manager = self.env.manager_visualizers[class_name]
+            if hasattr(manager, "has_content") and not manager.has_content:
+                return
+            if hasattr(manager, "has_debug_vis_implementation"):
+                self._create_debug_vis_ui_element(title, manager)
+            else:
+                print(
+                    f"ManagerLiveVisualizer cannot be created for manager: {class_name}, has_debug_vis_implementation"
+                    " does not exist"
+                )
+        else:
+            print(f"ManagerLiveVisualizer cannot be created for manager: {class_name}, Manager does not exist")
+
+    """
+    Custom callbacks for UI elements.
+    """
+
+    def _toggle_recording_animation_fn(self, value: bool):
+        """Toggles the animation recording."""
+        if value:
+            # log directory to save the recording
+            if not hasattr(self, "animation_log_dir"):
+                # create a new log directory
+                log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                self.animation_log_dir = os.path.join(os.getcwd(), "recordings", log_dir)
+            # start the recording
+            _ = omni.kit.commands.execute(
+                "StartRecording",
+                target_paths=[("/World", True)],
+                live_mode=True,
+                use_frame_range=False,
+                start_frame=0,
+                end_frame=0,
+                use_preroll=False,
+                preroll_frame=0,
+                record_to="FILE",
+                fps=0,
+                apply_root_anim=False,
+                increment_name=True,
+                record_folder=self.animation_log_dir,
+                take_name="TimeSample",
+            )
+        else:
+            # stop the recording
+            _ = omni.kit.commands.execute("StopRecording")
+            # save the current stage
+            source_layer = self.stage.GetRootLayer()
+            # output the stage to a file
+            stage_usd_path = os.path.join(self.animation_log_dir, "Stage.usd")
+            source_prim_path = "/"
+            # creates empty anon layer
+            temp_layer = Sdf.Find(stage_usd_path)
+            if temp_layer is None:
+                temp_layer = Sdf.Layer.CreateNew(stage_usd_path)
+            temp_stage = Usd.Stage.Open(temp_layer)
+            # update stage data
+            UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.GetStageUpAxis(self.stage))
+            UsdGeom.SetStageMetersPerUnit(temp_stage, UsdGeom.GetStageMetersPerUnit(self.stage))
+            # copy the prim
+            Sdf.CreatePrimInLayer(temp_layer, source_prim_path)
+            Sdf.CopySpec(source_layer, source_prim_path, temp_layer, source_prim_path)
+            # set the default prim
+            temp_layer.defaultPrim = Sdf.Path(source_prim_path).name
+            # remove all physics from the stage
+            for prim in temp_stage.TraverseAll():
+                # skip if the prim is an instance
+                if prim.IsInstanceable():
+                    continue
+                # if prim has articulation then disable it
+                if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                    prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+                    prim.RemoveAppliedSchema("PhysxArticulationAPI")
+                # if prim has rigid body then disable it
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+                    prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
+                # if prim is a joint type then disable it
+                if prim.IsA(UsdPhysics.Joint):
+                    prim.GetAttribute("physics:jointEnabled").Set(False)
+            # resolve paths so asset references remain valid from the new location
+            resolve_paths(source_layer.identifier, temp_layer.identifier)
+            # save the stage
+            temp_layer.Save()
+            # print the path to the saved stage
+            print("Recording completed.")
+            print(f"\tSaved recorded stage to    : {stage_usd_path}")
+            print(f"\tSaved recorded animation to: {os.path.join(self.animation_log_dir, 'TimeSample_tk001.usd')}")
+            print("\nTo play the animation, check the instructions in the following link:")
+            print(
+                "\thttps://docs.omniverse.nvidia.com/extensions/latest/ext_animation_stage-recorder.html#using-the-captured-timesamples"
+            )
+            print("\n")
+            # reset the log directory
+            self.animation_log_dir = None
+
+    def _get_kit_visualizer(self):
+        """Return the first KitVisualizer active on the simulation, or None."""
+        try:
+            from isaaclab_visualizers.kit import KitVisualizer
+        except ImportError:
+            return None
+        for viz in self.env.sim._visualizers:
+            if isinstance(viz, KitVisualizer):
+                return viz
+        return None
+
+    def _set_viewer_origin_type_fn(self, value: str):
+        """Sets the origin of the viewport's camera. This is based on the drop-down menu in the UI."""
+        viz = self._get_kit_visualizer()
+        if viz is None:
+            return
+
+        if value == "World":
+            viz.cfg.origin_type = "world"
+        elif value == "Env":
+            viz.cfg.origin_type = "env"
+        else:
+            fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
+            viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
+            viz.cfg.origin_type = "asset"
+            viz.cfg.origin_track_path = viewer_asset_name
+
+        # Reposition the viewport camera immediately so the new origin is reflected
+        # without waiting for the next env.step() call.
+        viz.reapply_origin()
+
+    def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
+        """Sets the viewport camera location based on the UI."""
+
+        viz = self._get_kit_visualizer()
+        if viz is None:
+            return
+        eye = [self.ui_window_elements["viewer_eye"][i].get_value_as_float() for i in range(3)]
+        lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
+        viz.set_camera_view(eye, lookat)
+
+        # Persist the slider values back to cfg so that asset-tracking steps do not
+        # snap the camera back to the previously configured offsets.
+        origin = viz.viewer_origin
+        if origin is not None:
+            origin_np = origin.detach().cpu().numpy()
+            viz.cfg.eye = tuple(float(e - o) for e, o in zip(eye, origin_np))
+            viz.cfg.lookat = tuple(float(lk - o) for lk, o in zip(lookat, origin_np))
+        else:
+            viz.cfg.eye = tuple(float(v) for v in eye)
+            viz.cfg.lookat = tuple(float(v) for v in lookat)
+
+    def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
+        """Sets the environment index and updates the camera if in 'env' origin mode."""
+        viz = self._get_kit_visualizer()
+        env_index = model.as_int - 1
+        if viz is not None:
+            viz.cfg.origin_env_index = env_index
+            # For "env" origin the camera must be repositioned immediately; for asset-tracking
+            # origins reapply_origin() defers the update to the next step() call (asset state
+            # is needed to compute the new position).
+            if viz.cfg.origin_type == "env":
+                viz.reapply_origin()
+        # notify additional listeners
+        for listener in self._ui_listeners:
+            listener.set_env_selection(env_index)
+
+    """
+    Helper functions - UI building.
+    """
+
+    def _create_debug_vis_ui_element(self, name: str, elem: object):
+        """Create a checkbox for toggling debug visualization for the given element."""
+        from omni.kit.window.extensions import SimpleCheckBox
+
+        with omni.ui.HStack():
+            # create the UI element
+            text = (
+                "Toggle debug visualization."
+                if elem.has_debug_vis_implementation
+                else "Debug visualization not implemented."
+            )
+            omni.ui.Label(
+                name.replace("_", " ").title(),
+                width=isaacsim.gui.components.ui_utils.LABEL_WIDTH - 12,
+                alignment=omni.ui.Alignment.LEFT_CENTER,
+                tooltip=text,
+            )
+            has_cfg = hasattr(elem, "cfg") and elem.cfg is not None
+            is_checked = False
+            if has_cfg:
+                is_checked = (hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis) or (
+                    hasattr(elem, "debug_vis") and elem.debug_vis
+                )
+            self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
+                model=omni.ui.SimpleBoolModel(),
+                enabled=elem.has_debug_vis_implementation,
+                checked=is_checked,
+                on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
+            )
+            isaacsim.gui.components.ui_utils.add_line_rect_flourish()
+
+        # Create a panel and listener for UiVisualizerBase subclasses (managers and scalar groups).
+        if isinstance(elem, UiVisualizerBase):
+            if elem.has_vis_frame_implementation:
+                self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
+                if not elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"]):
+                    print(f"Frame failed to set for visualizer: {name}")
+            if elem.has_env_selection_implementation:
+                self._ui_listeners.append(elem)
+
+    async def _dock_window(self, window_title: str):
+        """Docks the custom UI window to the property window."""
+        # wait for the window to be created
+        for _ in range(5):
+            if omni.ui.Workspace.get_window(window_title):
+                break
+            await self.env.sim.app.next_update_async()
+
+        # dock next to properties window
+        custom_window = omni.ui.Workspace.get_window(window_title)
+        property_window = omni.ui.Workspace.get_window("Property")
+        if custom_window and property_window:
+            custom_window.dock_in(property_window, omni.ui.DockPosition.SAME, 1.0)
+            custom_window.focus()

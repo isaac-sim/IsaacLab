@@ -27,8 +27,8 @@ wp.config.enable_backward = False
 import argparse
 from collections.abc import Callable
 
+from isaaclab._src.utils.string import list_intersection, string_to_callable
 from isaaclab.app import AppLauncher
-from isaaclab.utils.string import list_intersection, string_to_callable
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
@@ -120,9 +120,16 @@ from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
     apply_isaac_rtx_global_settings,
 )
 
-from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import (
+    Se3Gamepad,
+    Se3GamepadCfg,
+    Se3Keyboard,
+    Se3KeyboardCfg,
+    Se3SpaceMouse,
+    Se3SpaceMouseCfg,
+    create_teleop_device,
+)
 from isaaclab.devices.openxr import remove_camera_configs
-from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 

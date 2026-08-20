@@ -18,7 +18,7 @@ __all__ = [
     "UniformVelocityCommand",
 ]
 
-from .commands_cfg import (
+from isaaclab._src.envs.mdp.commands.commands_cfg import (
     NormalVelocityCommandCfg,
     NullCommandCfg,
     TerrainBasedPose2dCommandCfg,
@@ -26,7 +26,7 @@ from .commands_cfg import (
     UniformPoseCommandCfg,
     UniformVelocityCommandCfg,
 )
-from .null_command import NullCommand
-from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
-from .pose_command import UniformPoseCommand
-from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
+from isaaclab._src.envs.mdp.commands.null_command import NullCommand
+from isaaclab._src.envs.mdp.commands.pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
+from isaaclab._src.envs.mdp.commands.pose_command import UniformPoseCommand
+from isaaclab._src.envs.mdp.commands.velocity_command import NormalVelocityCommand, UniformVelocityCommand

@@ -16,18 +16,18 @@ from newton import JointType
 from newton import Model as NewtonModel
 from newton.selection import ArticulationView
 
+import isaaclab._src.utils.string as string_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.string as string_utils
 from isaaclab import cloner
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.assets.articulation import BaseArticulation
+from isaaclab.managers import ActionTerm
 
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
+    from isaaclab._src.envs.utils.io_descriptors import GenericActionIODescriptor
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from isaaclab_newton.ik.newton_ik_objectives import NewtonIKPoseObjective
 

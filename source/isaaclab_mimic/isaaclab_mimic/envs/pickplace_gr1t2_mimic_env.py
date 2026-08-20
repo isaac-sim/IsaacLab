@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.utils.math as PoseUtils
+import isaaclab._src.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLMimicEnv
 
 

@@ -18,9 +18,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.views.base_frame_view import BaseFrameView
-from isaaclab.sim.views.usd_frame_view import UsdFrameView
-from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
+from isaaclab.sim.views import BaseFrameView, FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter, UsdFrameView
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.physics import OvPhysxManager

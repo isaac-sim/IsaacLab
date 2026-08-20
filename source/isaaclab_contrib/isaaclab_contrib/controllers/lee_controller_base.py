@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 
 from isaaclab_contrib.utils.math import aggregate_inertia_about_robot_com
 

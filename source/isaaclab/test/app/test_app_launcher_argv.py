@@ -9,7 +9,7 @@ import sys
 
 import pytest
 
-from isaaclab.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
+from isaaclab._src.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
 
 
 def test_sanitize_sys_argv_removes_trailing_pytest_verbosity(monkeypatch):

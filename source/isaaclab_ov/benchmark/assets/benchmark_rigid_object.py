@@ -5,7 +5,7 @@
 
 """Run the combined rigid_object method and data micro-benchmarks for ovphysx."""
 
-from isaaclab.benchmark.asset_suites.cli import run_asset_benchmark_cli
+from isaaclab._src.benchmark.asset_suites.cli import run_asset_benchmark_cli
 
 if __name__ == "__main__":
     run_asset_benchmark_cli("ovphysx", "rigid_object", include_app_launcher_args=False)

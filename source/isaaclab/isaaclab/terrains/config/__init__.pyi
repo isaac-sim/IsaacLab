@@ -7,4 +7,4 @@ __all__ = [
     "ROUGH_TERRAINS_CFG",
 ]
 
-from .rough import ROUGH_TERRAINS_CFG
+from isaaclab._src.terrains.config.rough import ROUGH_TERRAINS_CFG

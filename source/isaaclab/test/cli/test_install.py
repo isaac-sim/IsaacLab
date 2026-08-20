@@ -13,7 +13,7 @@ from unittest import mock
 
 import pytest
 
-from isaaclab.cli.utils import (
+from isaaclab._src.cli.utils import (
     determine_python_version,
     extract_isaacsim_path,
     extract_python_exe,
@@ -270,7 +270,7 @@ class TestEnsureNewton:
 
     def test_installs_pinned_git_build_when_absent(self):
         """When the pinned commit is not installed, uninstall newton then install the git build."""
-        from isaaclab.cli.commands import install
+        from isaaclab._src.cli.commands import install
 
         commit = install._pinned_version("newton")
         calls = []
@@ -295,7 +295,7 @@ class TestEnsureNewton:
 
     def test_skips_when_commit_already_installed(self):
         """When freeze already reports the pinned commit, do not reinstall."""
-        from isaaclab.cli.commands import install
+        from isaaclab._src.cli.commands import install
 
         commit = install._pinned_version("newton")
         calls = []
@@ -361,7 +361,7 @@ class TestPinkIkStack:
 
     def test_stack_derived_from_root_pyproject_pins(self):
         """The derived stack covers every stack package, exactly pinned, markers stripped."""
-        from isaaclab.cli.commands import install
+        from isaaclab._src.cli.commands import install
 
         stack = install._pink_ik_stack()
         assert [install._requirement_name(r) for r in stack] == list(install._PINK_IK_PACKAGES)

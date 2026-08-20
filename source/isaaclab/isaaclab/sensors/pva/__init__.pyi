@@ -11,8 +11,8 @@ __all__ = [
     "PvaData",
 ]
 
-from .base_pva import BasePva
-from .base_pva_data import BasePvaData
-from .pva import Pva
-from .pva_cfg import PvaCfg
-from .pva_data import PvaData
+from isaaclab._src.sensors.pva.base_pva import BasePva
+from isaaclab._src.sensors.pva.base_pva_data import BasePvaData
+from isaaclab._src.sensors.pva.pva import Pva
+from isaaclab._src.sensors.pva.pva_cfg import PvaCfg
+from isaaclab._src.sensors.pva.pva_data import PvaData

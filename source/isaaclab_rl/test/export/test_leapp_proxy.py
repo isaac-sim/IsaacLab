@@ -12,13 +12,12 @@ import warp as wp
 
 pytest.importorskip("leapp")
 
+from isaaclab._src.utils import math as math_utils
+from isaaclab._src.utils.leapp import utils as leapp_utils
+from isaaclab._src.utils.leapp.proxy import _DataProxy, _EnvProxy
 from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
-from isaaclab.utils import math as math_utils
-from isaaclab.utils.leapp import utils as leapp_utils
-from isaaclab.utils.leapp.export_annotator import ExportPatcher
-from isaaclab.utils.leapp.leapp_semantics import InputKindEnum
-from isaaclab.utils.leapp.proxy import _DataProxy, _EnvProxy
+from isaaclab.utils.leapp import ExportPatcher, InputKindEnum
 from isaaclab.utils.warp import ProxyArray
 
 

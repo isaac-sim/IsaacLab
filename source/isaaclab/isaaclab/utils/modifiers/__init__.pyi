@@ -15,6 +15,6 @@ __all__ = [
     "scale",
 ]
 
-from .modifier_cfg import ModifierCfg, DigitalFilterCfg, IntegratorCfg
-from .modifier_base import ModifierBase
-from .modifier import DigitalFilter, Integrator, bias, clip, scale
+from isaaclab._src.utils.modifiers.modifier_cfg import ModifierCfg, DigitalFilterCfg, IntegratorCfg
+from isaaclab._src.utils.modifiers.modifier_base import ModifierBase
+from isaaclab._src.utils.modifiers.modifier import DigitalFilter, Integrator, bias, clip, scale

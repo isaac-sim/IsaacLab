@@ -177,7 +177,7 @@ class TestArticulationProperties:
     def test_data_returns_articulation_data(
         self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
     ):
-        from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+        from isaaclab.assets.articulation import BaseArticulationData
 
         art, _ = articulation_iface
         assert isinstance(art.data, BaseArticulationData)

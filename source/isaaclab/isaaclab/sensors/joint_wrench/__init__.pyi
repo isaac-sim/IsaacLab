@@ -11,8 +11,8 @@ __all__ = [
     "JointWrenchSensorData",
 ]
 
-from .base_joint_wrench_sensor import BaseJointWrenchSensor
-from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
-from .joint_wrench_sensor import JointWrenchSensor
-from .joint_wrench_sensor_cfg import JointWrenchSensorCfg
-from .joint_wrench_sensor_data import JointWrenchSensorData
+from isaaclab._src.sensors.joint_wrench.base_joint_wrench_sensor import BaseJointWrenchSensor
+from isaaclab._src.sensors.joint_wrench.base_joint_wrench_sensor_data import BaseJointWrenchSensorData
+from isaaclab._src.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor
+from isaaclab._src.sensors.joint_wrench.joint_wrench_sensor_cfg import JointWrenchSensorCfg
+from isaaclab._src.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData

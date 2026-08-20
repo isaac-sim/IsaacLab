@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.devices.device_base import DevicesCfg
+from isaaclab._src.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.controllers import DifferentialIKControllerCfg
+from isaaclab.devices import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from . import stack_joint_pos_env_cfg
 

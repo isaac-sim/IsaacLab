@@ -11,9 +11,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import Articulation
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
-from isaaclab.utils.math import (
+from isaaclab._src.utils.math import (
     euler_xyz_from_quat,
     normalize,
     quat_apply,
@@ -21,7 +19,9 @@ from isaaclab.utils.math import (
     scale_transform,
     wrap_to_pi,
 )
-from isaaclab.utils.string import resolve_matching_names_values
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.utils import resolve_matching_names_values
 
 
 class LocomotionDirectEnv(DirectRLEnv):

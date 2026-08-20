@@ -79,22 +79,18 @@ from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
-from isaaclab.scene_data.deformable_vis_remap import (
+from isaaclab._src.scene_data.deformable_vis_remap import (
     VolumeVisRemap,
     launch_batch_particle_slice_copy,
     launch_batch_volume_vis_remap,
 )
+from isaaclab._src.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab._src.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils import checked_apply
-from isaaclab.utils.string import resolve_matching_names
-from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab.sim.utils import get_current_stage, has_deformable_curve_api, path_expr_to_glob
+from isaaclab.utils import Timer, checked_apply, has_kit, resolve_matching_names
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
@@ -522,7 +518,7 @@ class NewtonManager(PhysicsManager):
                 viz_raw = sim.get_setting("/isaaclab/visualizer/types")
                 if isinstance(viz_raw, str):
                     requested = [v for part in viz_raw.split(",") for v in part.split() if v]
-            from isaaclab.app.settings_manager import get_settings_manager
+            from isaaclab.app import get_settings_manager
 
             cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
             cls._clone_physics_only = not has_kit() or ("kit" not in requested and not cameras_enabled)

@@ -65,8 +65,8 @@ class ControllerAimVisualizer:
 
     def __init__(self):
         import isaaclab.sim as sim_utils
+        from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
         from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-        from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
         marker_cfg = VisualizationMarkersCfg(
             prim_path="/Visuals/ControllerAimMarkers",

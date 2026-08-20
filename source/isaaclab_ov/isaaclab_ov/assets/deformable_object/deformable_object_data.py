@@ -11,7 +11,7 @@ import weakref
 
 import warp as wp
 
-from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
+from isaaclab.assets.deformable_object import BaseDeformableObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.warp import ProxyArray
 

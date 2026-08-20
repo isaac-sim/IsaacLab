@@ -7,4 +7,4 @@ __all__ = [
     "LinearInterpolation",
 ]
 
-from .linear_interpolation import LinearInterpolation
+from isaaclab._src.utils.interpolation.linear_interpolation import LinearInterpolation

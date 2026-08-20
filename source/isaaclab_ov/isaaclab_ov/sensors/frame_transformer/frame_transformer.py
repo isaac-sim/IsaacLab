@@ -16,10 +16,10 @@ import warp as wp
 
 from pxr import UsdPhysics
 
+from isaaclab._src.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
-from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
+from isaaclab.sim.utils import path_expr_to_glob, resolve_matching_prims_from_source
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager as SimulationManager

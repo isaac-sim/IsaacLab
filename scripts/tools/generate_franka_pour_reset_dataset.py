@@ -28,8 +28,8 @@ import torch
 import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source
 
+from isaaclab._src.utils import math as math_utils
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.franka_pour.geometry import (

@@ -19,9 +19,9 @@ __all__ = [
     "POSITION_GOAL_MARKER_CFG",
 ]
 
-from .visualization_markers import VisualizationMarkers
-from .visualization_markers_cfg import VisualizationMarkersCfg
-from .config import (
+from isaaclab._src.markers.visualization_markers import VisualizationMarkers
+from isaaclab._src.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab._src.markers.config import (
     RAY_CASTER_MARKER_CFG,
     CONTACT_SENSOR_MARKER_CFG,
     DEFORMABLE_TARGET_MARKER_CFG,

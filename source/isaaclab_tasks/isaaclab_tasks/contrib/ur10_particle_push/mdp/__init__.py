@@ -5,6 +5,6 @@
 
 """MDP terms for the UR10 granular-particle pushing task."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

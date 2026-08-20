@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils import get_isaac_sim_version
 
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 

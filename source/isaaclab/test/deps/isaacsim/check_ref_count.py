@@ -46,8 +46,8 @@ enable_extension("isaacsim.core.experimental.prims")
 
 from isaacsim.core.experimental.prims import Articulation
 
+import isaaclab._src.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.nucleus as nucleus_utils
-import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 # import logger

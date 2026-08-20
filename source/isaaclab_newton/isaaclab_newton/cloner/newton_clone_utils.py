@@ -15,7 +15,7 @@ from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab._src.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:

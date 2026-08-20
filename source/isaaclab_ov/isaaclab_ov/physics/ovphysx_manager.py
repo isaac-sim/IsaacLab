@@ -21,9 +21,7 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import (
+from isaaclab._src.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
     discover_deformables_on_stage,
@@ -31,12 +29,14 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_root_path,
     resolve_deformable_vertex_count,
 )
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 
 if TYPE_CHECKING:
-    from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim import SimulationContext
 
     from .ovphysx_manager_cfg import OvPhysxCfg
 
@@ -271,7 +271,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def points(self) -> SceneDataFormat.Points:
         """Return flattened OVPhysX deformable nodal positions."""
-        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
+        from isaaclab._src.scene_data.geometry_points import pack_body_nodal_slices
 
         if self._merged_points is None or not self._deformable_bindings:
             self._points_data.points = None

@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
 if TYPE_CHECKING:

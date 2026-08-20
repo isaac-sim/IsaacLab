@@ -42,8 +42,8 @@ enable_extension("isaacsim.util.debug_draw")
 
 from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG

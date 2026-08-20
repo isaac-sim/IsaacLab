@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import wrap_to_pi
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import wrap_to_pi
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

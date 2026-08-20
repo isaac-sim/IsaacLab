@@ -12,7 +12,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events

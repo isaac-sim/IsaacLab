@@ -37,8 +37,8 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 
 import argparse
 
+from isaaclab._src.utils.version import standalone_importers_available
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
-from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
 parser.add_argument("input", type=str, help="The path to the input URDF file.")
@@ -96,10 +96,10 @@ if args_cli.require_kit and not AppLauncher.is_available():
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab._src.utils.assets import check_file_path  # noqa: E402
 from isaaclab.physics import PhysicsCfg  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
-from isaaclab.utils.assets import check_file_path  # noqa: E402
-from isaaclab.utils.dict import print_dict  # noqa: E402
+from isaaclab.utils import print_dict  # noqa: E402
 
 
 def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:

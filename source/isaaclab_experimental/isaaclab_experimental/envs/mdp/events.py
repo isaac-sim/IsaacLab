@@ -29,8 +29,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
-from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
+from isaaclab._src.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
+from isaaclab._src.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
 
 from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
 from isaaclab_experimental.managers import SceneEntityCfg

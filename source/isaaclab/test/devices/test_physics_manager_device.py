@@ -7,8 +7,8 @@
 
 from types import SimpleNamespace
 
+from isaaclab._src.physics import physics_manager as physics_manager_module
 from isaaclab.physics import PhysicsManager
-from isaaclab.physics import physics_manager as physics_manager_module
 
 
 def test_initialize_synchronizes_cuda_before_backend_setup(monkeypatch):

@@ -18,15 +18,15 @@ __all__ = [
     "PinkKinematicsConfiguration",
 ]
 
-from .null_space_posture_task import NullSpacePostureTask
-from .pink_ik import PinkIKController
-from .pink_ik_cfg import PinkIKControllerCfg
-from .pink_task_cfg import (
+from isaaclab._src.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
+from isaaclab._src.controllers.pink_ik.pink_ik import PinkIKController
+from isaaclab._src.controllers.pink_ik.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab._src.controllers.pink_ik.pink_task_cfg import (
     DampingTaskCfg,
     FrameTaskCfg,
     LocalFrameTaskCfg,
     NullSpacePostureTaskCfg,
     PinkIKTaskCfg,
 )
-from .pink_tasks import DampingTask, FrameTask, LocalFrameTask
-from .pink_kinematics_configuration import PinkKinematicsConfiguration
+from isaaclab._src.controllers.pink_ik.pink_tasks import DampingTask, FrameTask, LocalFrameTask
+from isaaclab._src.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration

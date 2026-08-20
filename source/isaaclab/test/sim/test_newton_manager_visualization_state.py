@@ -87,7 +87,7 @@ def _make_points_backend(points, geometry_paths: list[str], geometry_counts: lis
     """Build a minimal SceneData backend that exposes flattened geometry points."""
     import warp as wp
 
-    from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
+    from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
     class _PointsBackend(SceneDataBackend):
         def __init__(self):
@@ -547,7 +547,7 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     """
     import warp as wp
 
-    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
     cloth_path = "/World/envs/env_0/Cloth"
     provider = SceneDataProvider(
@@ -583,8 +583,8 @@ def test_update_visualization_state_remaps_volume_vis_positions(monkeypatch):
     import numpy as np
     import warp as wp
 
-    from isaaclab.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap
-    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+    from isaaclab._src.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap
+    from isaaclab.scene_data import SceneDataProvider
 
     soft_path = "/World/envs/env_0/Soft"
     remap = build_volume_vis_barycentric_remap(
@@ -630,7 +630,7 @@ def test_sync_skips_unmapped_deformable_rest_pose(monkeypatch):
     import numpy as np
     import warp as wp
 
-    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
     provider = SceneDataProvider(
         _make_points_backend(
@@ -683,7 +683,7 @@ def test_sync_skips_mismatched_volume_without_remap(monkeypatch):
     import numpy as np
     import warp as wp
 
-    from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
 
     soft_path = "/World/envs/env_0/Soft"
     provider = SceneDataProvider(
@@ -761,7 +761,7 @@ def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
 
     from pxr import Gf, Usd, UsdGeom
 
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+    from isaaclab._src.scene_data.deformable_discovery import DeformableStageEntry
 
     stage = Usd.Stage.CreateInMemory()
     parent = UsdGeom.Xform.Define(stage, "/World/envs/env_0")

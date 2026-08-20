@@ -25,8 +25,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.utils.string as string_utils
-from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
+import isaaclab._src.utils.string as string_utils
+from isaaclab.managers import ManagerTermBaseCfg
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from isaaclab_experimental.utils.warp import is_warp_capturable

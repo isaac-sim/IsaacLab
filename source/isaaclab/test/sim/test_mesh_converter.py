@@ -22,10 +22,10 @@ import pytest
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
-from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 pytestmark = pytest.mark.integration
 

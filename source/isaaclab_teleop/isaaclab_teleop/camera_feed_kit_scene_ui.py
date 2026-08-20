@@ -22,8 +22,8 @@ from omni.kit.scene_view.xr_utils import SpatialSource, UiContainer, UpdatePolic
 from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
 from pxr import Gf, Usd
 
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.array import convert_to_torch
+from isaaclab.sim.utils import get_current_stage
+from isaaclab.utils import convert_to_torch
 
 logger = logging.getLogger(__name__)
 

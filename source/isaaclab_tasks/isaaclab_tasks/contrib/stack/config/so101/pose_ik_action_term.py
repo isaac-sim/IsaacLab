@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
+from isaaclab._src.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 
 from .pose_ik_controller import SO101PoseIKController
 

@@ -14,7 +14,7 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 

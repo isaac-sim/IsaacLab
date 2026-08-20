@@ -30,37 +30,37 @@ class TestPredicates:
         ["rgb", "rgba", "albedo", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl"],
     )
     def test_is_rgb_like_matches(self, data_type):
-        from isaaclab.utils.images import is_rgb_like
+        from isaaclab._src.utils.images import is_rgb_like
 
         assert is_rgb_like(data_type)
 
     @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "normals", "semantic_segmentation"])
     def test_is_rgb_like_rejects_non_rgb(self, data_type):
-        from isaaclab.utils.images import is_rgb_like
+        from isaaclab._src.utils.images import is_rgb_like
 
         assert not is_rgb_like(data_type)
 
     @pytest.mark.parametrize("data_type", ["depth", "depth_linear", "distance_to_camera", "distance_to_plane"])
     def test_is_depth_like_matches(self, data_type):
-        from isaaclab.utils.images import is_depth_like
+        from isaaclab._src.utils.images import is_depth_like
 
         assert is_depth_like(data_type)
 
     @pytest.mark.parametrize("data_type", ["rgb", "albedo", "normals"])
     def test_is_depth_like_rejects(self, data_type):
-        from isaaclab.utils.images import is_depth_like
+        from isaaclab._src.utils.images import is_depth_like
 
         assert not is_depth_like(data_type)
 
     @pytest.mark.parametrize("data_type", ["normals", "normals_object_frame"])
     def test_is_normals_like_matches(self, data_type):
-        from isaaclab.utils.images import is_normals_like
+        from isaaclab._src.utils.images import is_normals_like
 
         assert is_normals_like(data_type)
 
     @pytest.mark.parametrize("data_type", ["rgb", "albedo", "depth", "distance_to_camera"])
     def test_is_normals_like_rejects(self, data_type):
-        from isaaclab.utils.images import is_normals_like
+        from isaaclab._src.utils.images import is_normals_like
 
         assert not is_normals_like(data_type)
 
@@ -71,7 +71,7 @@ class TestNormalizeCameraImageRGBLike:
     @pytest.mark.parametrize("data_type", ["rgb", "albedo", "simple_shading_diffuse_mdl"])
     def test_uint8_routes_to_warp_fast_path(self, device, data_type):
         """uint8 contiguous 4D input produces float32 ``(x/255 - per-image mean)`` output."""
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         torch.manual_seed(0)
         src = torch.randint(0, 255, (2, 8, 8, 3), dtype=torch.uint8, device=device)
@@ -84,7 +84,7 @@ class TestNormalizeCameraImageRGBLike:
 
     def test_uint8_preallocated_output_reused(self, device):
         """``out`` kwarg is forwarded so callers can reuse storage."""
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         src = torch.randint(0, 255, (2, 8, 8, 6), dtype=torch.uint8, device=device)
         out = torch.empty(src.shape, dtype=torch.float32, device=device)
@@ -95,7 +95,7 @@ class TestNormalizeCameraImageRGBLike:
 
     def test_float_input_takes_pytorch_fallback(self, device):
         """Non-uint8 input routes through the PyTorch fallback with equivalent math."""
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         torch.manual_seed(0)
         src_f = torch.randint(0, 255, (2, 8, 8, 3), dtype=torch.uint8, device=device).float()
@@ -108,7 +108,7 @@ class TestNormalizeCameraImageRGBLike:
 
     def test_non_contiguous_uint8_takes_pytorch_fallback(self, device):
         """Strided uint8 input falls back instead of raising in the Warp wrapper."""
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         torch.manual_seed(0)
         base = torch.randint(0, 255, (2, 8, 8, 12), dtype=torch.uint8, device=device)
@@ -122,7 +122,7 @@ class TestNormalizeCameraImageRGBLike:
 
     def test_bchw_uint8_routes_to_warp_fast_path(self, device):
         """``channel_dim=1`` produces a BCHW-correct normalize via the Warp fast path."""
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         torch.manual_seed(0)
         src = torch.randint(0, 255, (2, 3, 8, 8), dtype=torch.uint8, device=device)
@@ -135,7 +135,7 @@ class TestNormalizeCameraImageRGBLike:
 
     def test_bchw_float_input_takes_pytorch_fallback(self, device):
         """Non-uint8 BCHW input routes through the PyTorch fallback with BCHW reduction axes."""
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         torch.manual_seed(0)
         src_f = torch.randint(0, 255, (2, 3, 8, 8), dtype=torch.uint8, device=device).float()
@@ -151,7 +151,7 @@ class TestNormalizeCameraImageDepth:
 
     @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "distance_to_plane"])
     def test_inf_replaced_with_zero_in_place(self, device, data_type):
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         src = torch.tensor([[1.0, float("inf"), 3.0], [float("inf"), 2.0, 4.0]], device=device)
         out = normalize_camera_image(src, data_type)
@@ -164,7 +164,7 @@ class TestNormalizeCameraImageNormals:
     """Normals dispatch: ``[-1, 1] -> [0, 1]``."""
 
     def test_range_remap(self, device):
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         src = torch.tensor([-1.0, -0.5, 0.0, 0.5, 1.0], device=device)
         out = normalize_camera_image(src, "normals")
@@ -177,7 +177,7 @@ class TestNormalizeCameraImagePassthrough:
 
     @pytest.mark.parametrize("data_type", ["semantic_segmentation", "instance_segmentation", "motion_vectors"])
     def test_unknown_type_passthrough(self, device, data_type):
-        from isaaclab.utils.images import normalize_camera_image
+        from isaaclab._src.utils.images import normalize_camera_image
 
         src = torch.ones((2, 4, 4, 3), device=device)
         out = normalize_camera_image(src, data_type)
@@ -188,7 +188,7 @@ class TestNormalizeCameraOutputForDisplay:
     """Display normalization for capture and golden-image workflows."""
 
     def test_rgb_scales_to_unit_range(self, device):
-        from isaaclab.utils.images import normalize_camera_output_for_display
+        from isaaclab._src.utils.images import normalize_camera_output_for_display
 
         src = torch.tensor([[[[0.0, 127.0, 255.0]]]], device=device)
         out = normalize_camera_output_for_display(src, "rgb")
@@ -196,7 +196,7 @@ class TestNormalizeCameraOutputForDisplay:
         torch.testing.assert_close(out, expected)
 
     def test_depth_scales_by_max(self, device):
-        from isaaclab.utils.images import normalize_camera_output_for_display
+        from isaaclab._src.utils.images import normalize_camera_output_for_display
 
         src = torch.tensor([[[[0.0], [2.0], [4.0]]]], device=device)
         out = normalize_camera_output_for_display(src, "distance_to_camera")
@@ -204,7 +204,7 @@ class TestNormalizeCameraOutputForDisplay:
         torch.testing.assert_close(out, expected)
 
     def test_albedo_keeps_rgb_channels(self, device):
-        from isaaclab.utils.images import normalize_camera_output_for_display
+        from isaaclab._src.utils.images import normalize_camera_output_for_display
 
         src = torch.tensor([[[[255.0, 128.0, 64.0, 9.0]]]], device=device)
         out = normalize_camera_output_for_display(src, "albedo")
@@ -212,7 +212,7 @@ class TestNormalizeCameraOutputForDisplay:
         torch.testing.assert_close(out, expected)
 
     def test_motion_vectors_map_uv_to_rgb(self, device):
-        from isaaclab.utils.images import normalize_camera_output_for_display
+        from isaaclab._src.utils.images import normalize_camera_output_for_display
 
         # (u, v) offsets are clamped to [-1, 1], remapped to [0, 1], and packed with a zero B channel.
         # Values outside [-1, 1] saturate (e.g. 4.0 -> 1.0, -2.0 -> 0.0 after remap).
@@ -227,7 +227,7 @@ class TestMakeCameraOutputGrid:
     """Grid composition for multi-env camera capture."""
 
     def test_single_batch_produces_channel_first_grid(self, device):
-        from isaaclab.utils.images import make_camera_output_grid
+        from isaaclab._src.utils.images import make_camera_output_grid
 
         images = torch.ones((1, 2, 3, 3), device=device)
         grid = make_camera_output_grid(images)

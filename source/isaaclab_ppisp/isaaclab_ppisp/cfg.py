@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import field
 from typing import Any
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -353,7 +353,7 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
         A fully-normalised :class:`PpispCfg`, or ``None`` if the batch has no ISP.
     """
     # Local import avoids a top-of-module dep on isaaclab.sensors.
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
+    from isaaclab.sensors.camera import CameraISPMode
 
     if isp_cfg is None:
         return None

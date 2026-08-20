@@ -30,7 +30,7 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 def setup_environment():
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
-    from isaaclab.app.settings_manager import get_settings_manager
+    from isaaclab.app import get_settings_manager
 
     get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 

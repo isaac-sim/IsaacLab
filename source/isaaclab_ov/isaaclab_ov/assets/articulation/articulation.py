@@ -21,19 +21,18 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.articulation.ordering_resolvers import (
+from isaaclab._src.assets.articulation import ordering_kernels
+from isaaclab._src.assets.articulation.ordering_resolvers import (
     _BODY_KIND,
     _JOINT_KIND,
     _canonical_joint_dof_name,
 )
+from isaaclab._src.utils.wrench_composer import WrenchComposer
+from isaaclab.assets.articulation import ArticulationCfg, BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils import resolve_matching_names
 from isaaclab.utils.buffers import TimestampedBufferWarp
-from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
@@ -4357,7 +4356,7 @@ class Articulation(BaseArticulation):
                 try:
                     from pxr import Sdf, Usd
 
-                    from isaaclab.sim.utils.queries import get_all_matching_child_prims
+                    from isaaclab.sim.utils import get_all_matching_child_prims
 
                     layer = Sdf.Layer.CreateAnonymous("isaaclab_ov.usda")
                     if not layer.ImportFromString(stage_usda):
@@ -4561,7 +4560,7 @@ class Articulation(BaseArticulation):
         buffers of the data container. :meth:`write_data_to_sim` then pushes
         ``_applied_torque`` to the ``DOF_ACTUATION_FORCE`` binding in one shot.
         """
-        from isaaclab.utils.types import ArticulationActions
+        from isaaclab.utils import ArticulationActions
 
         for name, act in self.actuators.items():
             joint_ids = self._joint_ids_per_actuator[name]

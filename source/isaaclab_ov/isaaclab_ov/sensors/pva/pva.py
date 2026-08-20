@@ -13,10 +13,10 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
-from isaaclab.sim.utils.queries import path_expr_to_glob
+from isaaclab.sim.utils import path_expr_to_glob
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager as SimulationManager

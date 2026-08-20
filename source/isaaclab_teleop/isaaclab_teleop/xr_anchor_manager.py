@@ -24,7 +24,7 @@ XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRCoreEventType
 
-from isaaclab.sim.utils.prims import create_prim as _create_prim
+from isaaclab.sim.utils import create_prim as _create_prim
 
 logger = logging.getLogger(__name__)
 

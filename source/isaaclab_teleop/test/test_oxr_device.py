@@ -27,10 +27,10 @@ from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrC
 import carb
 
 import isaaclab.sim as sim_utils
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+from isaaclab.devices import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 class NoOpRetargeter(RetargeterBase):
@@ -252,7 +252,7 @@ def test_get_raw_data(empty_env, mock_xrcore):
     raw_data = device._get_raw_data()
 
     # Check that the data structure is as expected
-    from isaaclab.devices.device_base import DeviceBase
+    from isaaclab.devices import DeviceBase
 
     assert DeviceBase.TrackingTarget.HAND_LEFT in raw_data
     assert DeviceBase.TrackingTarget.HAND_RIGHT in raw_data

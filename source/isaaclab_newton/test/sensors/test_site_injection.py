@@ -10,7 +10,7 @@ import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 
-from isaaclab.utils.warp.math_ops import transform_to_vec_quat
+from isaaclab._src.utils.warp.math_ops import transform_to_vec_quat
 
 # ---------------------------------------------------------------------------
 # transform_to_vec_quat

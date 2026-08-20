@@ -15,13 +15,13 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
+from isaaclab._src.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
+from isaaclab.sensors.ray_caster import BaseRayCaster
 
 from isaaclab_physx.physics import PhysxManager
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
+    from isaaclab.sensors.ray_caster import RayCasterCfg
 
 logger = logging.getLogger(__name__)
 

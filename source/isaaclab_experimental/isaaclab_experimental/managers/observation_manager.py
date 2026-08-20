@@ -55,7 +55,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import class_to_dict
 
 from isaaclab_experimental.utils import modifiers, noise

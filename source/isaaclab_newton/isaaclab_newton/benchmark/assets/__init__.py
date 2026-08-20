@@ -5,14 +5,14 @@
 
 """Newton declarations for shared asset micro-benchmark suites."""
 
-from isaaclab.benchmark.asset_suites.adapters import PackageAssetBenchmarkAdapter
-from isaaclab.benchmark.asset_suites.dependencies import (
+from isaaclab._src.benchmark.asset_suites.adapters import PackageAssetBenchmarkAdapter
+from isaaclab._src.benchmark.asset_suites.dependencies import (
     ARTICULATION_DEPENDENCIES,
     BODY_COLLECTION_DEPENDENCIES,
     RIGID_OBJECT_DEPENDENCIES,
 )
-from isaaclab.benchmark.asset_suites.generators import make_item_selector_generators, make_mask_generator
-from isaaclab.benchmark.asset_suites.suites import get_asset_benchmark_suite
+from isaaclab._src.benchmark.asset_suites.generators import make_item_selector_generators, make_mask_generator
+from isaaclab._src.benchmark.asset_suites.suites import get_asset_benchmark_suite
 
 _CAPABILITIES = frozenset({"warp_mask", "tensor_fill", "mask_fill"})
 _COMPONENT_DEFAULTS = {

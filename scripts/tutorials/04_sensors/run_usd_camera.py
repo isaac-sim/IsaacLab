@@ -75,8 +75,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
+from isaaclab.sensors.camera import Camera, CameraCfg, create_pointcloud_from_depth
 from isaaclab.utils import convert_dict_to_backend
 
 

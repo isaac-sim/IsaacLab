@@ -9,5 +9,5 @@ __all__ = [
     "add",
 ]
 
-from .interactive_scene import InteractiveScene
-from .interactive_scene_cfg import InteractiveSceneCfg, add
+from isaaclab._src.scene.interactive_scene import InteractiveScene
+from isaaclab._src.scene.interactive_scene_cfg import InteractiveSceneCfg, add

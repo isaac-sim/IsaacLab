@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.string as string_utils
-from isaaclab.managers.action_manager import ActionTerm
+import isaaclab._src.utils.string as string_utils
+from isaaclab.managers import ActionTerm
 
 if TYPE_CHECKING:
+    from isaaclab._src.envs.utils.io_descriptors import GenericActionIODescriptor
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from isaaclab_contrib.assets import Multirotor
 

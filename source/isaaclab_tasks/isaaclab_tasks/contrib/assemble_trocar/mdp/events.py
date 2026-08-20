@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import quat_apply, quat_mul
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

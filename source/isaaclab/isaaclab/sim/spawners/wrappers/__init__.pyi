@@ -10,5 +10,5 @@ __all__ = [
     "MultiUsdFileCfg",
 ]
 
-from .wrappers import spawn_multi_asset, spawn_multi_usd_file
-from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
+from isaaclab._src.sim.spawners.wrappers.wrappers import spawn_multi_asset, spawn_multi_usd_file
+from isaaclab._src.sim.spawners.wrappers.wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg

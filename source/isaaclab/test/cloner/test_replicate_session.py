@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-import isaaclab.cloner.replicate_session as replicate_session
+import isaaclab._src.cloner.replicate_session as replicate_session
 from isaaclab.cloner import ClonePlan
 from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SimulationContext

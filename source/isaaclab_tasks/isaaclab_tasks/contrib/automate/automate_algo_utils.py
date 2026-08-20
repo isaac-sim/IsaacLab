@@ -16,7 +16,7 @@ print("Python Path:", sys.path)
 base_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "."))
 sys.path.append(base_dir)
 
-from isaaclab.utils.assets import retrieve_file_path
+from isaaclab._src.utils.assets import retrieve_file_path
 
 """
 Util Functions

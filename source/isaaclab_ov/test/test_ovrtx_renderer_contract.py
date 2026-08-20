@@ -14,8 +14,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
+from isaaclab.sensors.camera import CameraCfg, CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")

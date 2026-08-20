@@ -28,9 +28,9 @@ from collections.abc import Generator
 import gymnasium as gym
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
-from isaaclab.envs.manager_based_env import ManagerBasedEnv
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
 
 from isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg

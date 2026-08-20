@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import torch
 
-from isaaclab.utils import math as math_utils
+from isaaclab._src.utils import math as math_utils
 
 
 @dataclass(frozen=True)

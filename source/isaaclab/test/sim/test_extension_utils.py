@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from isaaclab.sim.utils.extensions import disable_extension, enable_extension, get_extension_path
+from isaaclab.sim.utils import disable_extension, enable_extension, get_extension_path
 
 
 def _install_kit_app_module(monkeypatch, extension_manager):

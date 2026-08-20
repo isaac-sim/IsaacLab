@@ -26,7 +26,7 @@ from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
-from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils import resolve_matching_names
 
 from .coupler_cfg import (
     CouplerAdmmCfg,

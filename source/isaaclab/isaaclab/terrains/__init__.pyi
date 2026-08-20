@@ -36,13 +36,13 @@ __all__ = [
     "MeshStarTerrainCfg",
 ]
 
-from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
-from .terrain_generator import TerrainGenerator
-from .terrain_generator_cfg import TerrainGeneratorCfg
-from .terrain_importer import TerrainImporter
-from .terrain_importer_cfg import TerrainImporterCfg
-from .utils import color_meshes_by_height, create_prim_from_mesh
-from .height_field import (
+from isaaclab._src.terrains.sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
+from isaaclab._src.terrains.terrain_generator import TerrainGenerator
+from isaaclab._src.terrains.terrain_generator_cfg import TerrainGeneratorCfg
+from isaaclab._src.terrains.terrain_importer import TerrainImporter
+from isaaclab._src.terrains.terrain_importer_cfg import TerrainImporterCfg
+from isaaclab._src.terrains.utils import color_meshes_by_height, create_prim_from_mesh
+from isaaclab._src.terrains.height_field import (
     HfDiscreteObstaclesTerrainCfg,
     HfInvertedPyramidSlopedTerrainCfg,
     HfInvertedPyramidStairsTerrainCfg,
@@ -53,7 +53,7 @@ from .height_field import (
     HfTerrainBaseCfg,
     HfWaveTerrainCfg,
 )
-from .trimesh import (
+from isaaclab._src.terrains.trimesh import (
     MeshBoxTerrainCfg,
     MeshFloatingRingTerrainCfg,
     MeshGapTerrainCfg,

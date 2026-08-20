@@ -11,7 +11,7 @@ import gc
 
 import pytest
 
-from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
+from isaaclab._src.markers.vis_marker_registry import VisMarkerRegistry
 
 pytestmark = pytest.mark.unit
 

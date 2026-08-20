@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 

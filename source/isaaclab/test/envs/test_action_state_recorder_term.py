@@ -20,11 +20,11 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab._src.test.env_cfgs import make_empty_manager_based_env_cfg
+from isaaclab._src.test.integration_scene_cfgs import ArticulationRigidObjectSceneCfg
+from isaaclab.app import get_settings_manager
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
-from isaaclab.test.integration_scene_cfgs import ArticulationRigidObjectSceneCfg
 
 pytestmark = pytest.mark.integration
 

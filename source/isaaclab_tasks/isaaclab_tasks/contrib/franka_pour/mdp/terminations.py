@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils import math as math_utils
+from isaaclab._src.utils import math as math_utils
 
 from ..geometry import box_center_from_base_pose, oriented_boxes_overlap
 

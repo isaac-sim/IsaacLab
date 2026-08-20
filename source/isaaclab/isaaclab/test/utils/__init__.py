@@ -13,6 +13,6 @@ test is valid on), the runtime is the ``ISAACLAB_TEST_DEVICES`` env var (the
 devices the run may use).
 """
 
-from .devices import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab._src.test.utils.devices import DeviceScope, resolve_test_sim_device, test_devices
 
 __all__ = ["DeviceScope", "resolve_test_sim_device", "test_devices"]

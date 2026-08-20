@@ -78,10 +78,10 @@ def _load_runtime_dependencies() -> None:
     except ImportError:
         RecurrentPPOCls = None
 
+    from isaaclab._src.utils.assets import retrieve_file_path as retrieve_file_path_fn
+    from isaaclab._src.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
-    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
     from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
-    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
 
     from isaaclab_rl.entrypoints.common import (
         CHECKPOINT_SELECTORS as CHECKPOINT_SELECTORS_VALUE,

@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab._src.utils.math import combine_frame_transforms
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
-from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject

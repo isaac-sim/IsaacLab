@@ -11,8 +11,8 @@ __all__ = [
     "RigidObjectCollectionData",
 ]
 
-from .base_rigid_object_collection import BaseRigidObjectCollection
-from .base_rigid_object_collection_data import BaseRigidObjectCollectionData
-from .rigid_object_collection import RigidObjectCollection
-from .rigid_object_collection_cfg import RigidObjectCollectionCfg
-from .rigid_object_collection_data import RigidObjectCollectionData
+from isaaclab._src.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab._src.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
+from isaaclab._src.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
+from isaaclab._src.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+from isaaclab._src.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData

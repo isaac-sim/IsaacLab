@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
-from isaaclab.sim.schemas.schemas_cfg import (
+from isaaclab.sim.schemas import (
     ArticulationRootBaseCfg,
     ArticulationRootFragment,
     CollisionBaseCfg,
@@ -22,8 +22,8 @@ from isaaclab.sim.schemas.schemas_cfg import (
     RigidBodyBaseCfg,
     RigidBodyFragment,
 )
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+from isaaclab.utils import configclass
 
 
 @configclass

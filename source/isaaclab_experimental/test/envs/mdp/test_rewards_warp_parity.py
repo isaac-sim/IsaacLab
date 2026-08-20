@@ -45,7 +45,7 @@ from parity_helpers import (
     run_warp_rew_captured,
 )
 
-import isaaclab.envs.mdp.rewards as stable_rew
+import isaaclab._src.envs.mdp.rewards as stable_rew
 
 # ============================================================================
 # Fixtures
@@ -255,7 +255,7 @@ class TestRewardParity:
     def test_is_terminated_term(self, warp_env, stable_env, term_keys):
         """The warp twin resolves the term selection to a column mask at init, so every
         selection shape is compared against the stable term's per-term lookup."""
-        from isaaclab.managers.manager_term_cfg import RewardTermCfg
+        from isaaclab.managers import RewardTermCfg
 
         params = {"term_keys": term_keys}
         stable_fn = stable_rew.is_terminated_term(

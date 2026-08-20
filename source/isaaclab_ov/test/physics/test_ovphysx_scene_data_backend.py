@@ -640,8 +640,8 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     """Automatic kitless PhysX selection prepares OvPhysX before creating the USD stage."""
     from isaaclab_ov.physics import OvPhysxManager
 
-    import isaaclab.sim.simulation_context as simulation_context_module
-    from isaaclab.app.sim_launcher import make_physics_cfg
+    import isaaclab._src.sim.simulation_context as simulation_context_module
+    from isaaclab.app import make_physics_cfg
     from isaaclab.sim import SimulationCfg, SimulationContext
 
     class StageCreationReached(Exception):
@@ -1035,7 +1035,7 @@ def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
     from isaaclab_ov import tensor_types as TT
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+    from isaaclab._src.scene_data.deformable_discovery import DeformableStageEntry
 
     b = OvPhysxSceneDataBackend()
     captured: dict = {}

@@ -393,7 +393,7 @@ def test_render_skips_app_update_when_visualizer_pumps_it():
     """
     from unittest.mock import MagicMock, patch
 
-    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+    from isaaclab.visualizers import BaseVisualizer
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)

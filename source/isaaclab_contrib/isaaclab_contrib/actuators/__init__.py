@@ -10,6 +10,6 @@ The thruster actuator simulates realistic motor/propeller dynamics including asy
 rise and fall time constants, thrust limits, and dynamic response characteristics.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

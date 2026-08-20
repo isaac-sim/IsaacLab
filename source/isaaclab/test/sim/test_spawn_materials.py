@@ -18,8 +18,8 @@ import pytest
 from pxr import UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import NVIDIA_NUCLEUS_DIR
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 

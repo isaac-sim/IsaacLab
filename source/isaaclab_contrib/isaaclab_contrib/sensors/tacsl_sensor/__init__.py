@@ -5,6 +5,6 @@
 
 """TacSL Tactile Sensor implementation for IsaacLab."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

@@ -10,7 +10,7 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab._src.utils.warp.index_kernel import IndexKernelDispatcher
 
 """
 Articulation-specific warp functions.

@@ -13,11 +13,8 @@ from unittest.mock import patch
 
 import pytest
 
-from isaaclab.renderers.base_renderer import BaseRenderer
-from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.render_context import RenderContext
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.sensors.camera.camera_data import CameraData
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec, RenderContext, RendererCfg
+from isaaclab.sensors.camera import CameraData
 
 pytest.importorskip("isaaclab_physx")
 pytest.importorskip("isaaclab_newton")

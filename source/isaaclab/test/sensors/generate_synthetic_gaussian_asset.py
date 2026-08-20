@@ -32,15 +32,14 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.sensors.camera.camera_isp import CameraISPMode
+from isaaclab.sensors.camera import Camera, CameraCfg, CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from isaaclab.renderers import RendererCfg
     from isaaclab.sim import SimulationCfg, SimulationContext
 
 

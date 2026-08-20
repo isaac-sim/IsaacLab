@@ -32,13 +32,13 @@ from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
-from isaaclab.envs.utils.camera_colorizer import (
+from isaaclab._src.envs.utils.camera_colorizer import (
     SUPPORTED_GT_TYPES,
     CameraFrameColorizer,
     sensor_key_for_gt_type,
     sensor_keys_for_gt_types,
 )
-from isaaclab.envs.utils.camera_view import (
+from isaaclab._src.envs.utils.camera_view import (
     VISUALIZER_TILED_CAMERA_MAX_TILES,
     apply_camera_target_positions,
     camera_gt_batch,
@@ -51,7 +51,7 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
-from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -618,7 +618,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._update_frequency = update_frequency
         self._color_edit3_prefers_sequence: bool | None = None
 
-        from isaaclab.utils.backend_utils import FactoryBase
+        from isaaclab._src.utils.backend_utils import FactoryBase
 
         backend = FactoryBase._get_backend()
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
@@ -689,7 +689,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         self._mpm_particles_all_active = False
         self._live_plots_callback = None
 
-        from isaaclab.utils.backend_utils import FactoryBase
+        from isaaclab._src.utils.backend_utils import FactoryBase
 
         backend = FactoryBase._get_backend()
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)

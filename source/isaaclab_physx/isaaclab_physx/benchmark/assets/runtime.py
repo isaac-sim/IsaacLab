@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
+from isaaclab._src.benchmark.asset_suites.types import AssetBenchmarkTargets
 
 args = SimpleNamespace(no_shape_checks=False)
 
@@ -50,10 +50,10 @@ def _load_runtime_symbols() -> None:
         import torch
         import warp as wp
 
-        from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-        from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-        from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-        from isaaclab.utils.wrench_composer import WrenchComposer
+        from isaaclab._src.utils.wrench_composer import WrenchComposer
+        from isaaclab.assets.articulation import ArticulationCfg
+        from isaaclab.assets.rigid_object import RigidObjectCfg
+        from isaaclab.assets.rigid_object_collection import RigidObjectCollectionCfg
 
         from isaaclab_physx.assets.articulation.articulation import Articulation
         from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
@@ -240,7 +240,7 @@ def create_test_collection(
     _initialize_mock_asset(collection)
 
     # Create a minimal config with dummy rigid objects
-    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+    from isaaclab.assets.rigid_object import RigidObjectCfg
 
     rigid_objects = {name: RigidObjectCfg(prim_path=f"/World/{name}") for name in object_names}
     collection.cfg = RigidObjectCollectionCfg(rigid_objects=rigid_objects)

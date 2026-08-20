@@ -11,20 +11,20 @@ from isaaclab_teleop.xr_cfg import XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab._src.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim.schemas import MassPropertiesCfg
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 
 from . import mdp
 
@@ -104,7 +104,7 @@ def _build_g1_inspire_pickplace_pipeline():
     # DexHand Retargeters (left and right hands)
     # -------------------------------------------------------------------------
     # Resolve dex-retargeting YAML config paths from the Unitree inspire retargeter data directory
-    import isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_dex_retargeting_utils as _dex_utils
+    import isaaclab._src.devices.openxr.retargeters.humanoid.unitree.inspire.g1_dex_retargeting_utils as _dex_utils
 
     _data_dir = os.path.abspath(os.path.join(os.path.dirname(_dex_utils.__file__), "data"))
     _config_dir = os.path.join(_data_dir, "configs", "dex-retargeting")

@@ -12,8 +12,8 @@ import sys
 
 import pytest
 
-from isaaclab.benchmark.entrypoints import multigpu
-from isaaclab.cli.multigpu import build_launch_command, parse_launcher_args
+from isaaclab._src.benchmark.entrypoints import multigpu
+from isaaclab._src.cli.multigpu import build_launch_command, parse_launcher_args
 
 
 @pytest.fixture(autouse=True)

@@ -9,7 +9,7 @@ import warnings
 from collections.abc import Callable
 from typing import ClassVar
 
-from isaaclab.sim.schemas.schemas_cfg import (
+from isaaclab._src.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     ArticulationRootFragment,
     CollisionBaseCfg,
@@ -25,7 +25,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     SpatialTendonFragment,
     _deprecate_field_alias,
 )
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

@@ -12,7 +12,7 @@ import math
 
 import torch
 
-from isaaclab.utils import math as torch_utils
+from isaaclab._src.utils import math as torch_utils
 
 
 def compute_dof_torque(

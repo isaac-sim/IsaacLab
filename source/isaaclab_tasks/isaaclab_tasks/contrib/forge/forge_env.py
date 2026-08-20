@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.math import (
+from isaaclab._src.utils.math import (
     axis_angle_from_quat,
     euler_xyz_from_quat,
     quat_conjugate,

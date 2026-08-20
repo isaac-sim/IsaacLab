@@ -11,8 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from isaaclab.benchmark import MethodBenchmarkRunnerConfig
 from isaaclab.benchmark.asset_suites import AssetBenchmarkRequest, AssetBenchmarkTargets, run_asset_benchmark
-from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
 

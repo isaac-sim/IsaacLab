@@ -17,13 +17,13 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
+from isaaclab._src.utils.math import quat_apply, quat_inv
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sensors import SensorBase
 from isaaclab.sensors.camera import Camera
-from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.math import quat_apply, quat_inv
 
 from .visuotactile_render import GelsightRender
 from .visuotactile_sensor_data import VisuoTactileSensorData

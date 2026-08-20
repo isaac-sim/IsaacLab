@@ -29,11 +29,11 @@ from isaaclab_physx.sim.schemas import (
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.terrains.trimesh.utils import make_plane
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.terrains.utils import create_prim_from_mesh
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.terrains import create_prim_from_mesh
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
 from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg

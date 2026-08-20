@@ -43,12 +43,12 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip

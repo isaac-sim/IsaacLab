@@ -77,7 +77,7 @@ The camera's pose and image resolution can be configured through the
 .. dropdown:: Default parameters of the ViewerCfg class:
     :icon: code
 
-    .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/common.py
+    .. literalinclude:: ../../../source/isaaclab/isaaclab/_src/envs/common.py
         :language: python
         :pyobject: ViewerCfg
 

@@ -91,9 +91,9 @@ def run(argv: list[str]) -> None:
     from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
     from stable_baselines3.common.vec_env import VecNormalize
 
+    from isaaclab._src.utils.seed import configure_seed
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
-    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 

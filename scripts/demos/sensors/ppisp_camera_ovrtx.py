@@ -36,11 +36,11 @@ from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
 from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
 

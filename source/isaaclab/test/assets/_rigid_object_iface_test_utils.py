@@ -15,8 +15,8 @@ from _iface_test_boot import simulation_app
 import numpy as np
 import warp as wp
 
-from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.utils.wrench_composer import WrenchComposer
+from isaaclab.assets.rigid_object import RigidObjectCfg
+from isaaclab._src.utils.wrench_composer import WrenchComposer
 
 BACKENDS: list[str] = []
 

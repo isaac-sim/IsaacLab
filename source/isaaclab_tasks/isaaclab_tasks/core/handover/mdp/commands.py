@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
 from isaaclab_tasks.core.utils import EpisodeErrorRecorder

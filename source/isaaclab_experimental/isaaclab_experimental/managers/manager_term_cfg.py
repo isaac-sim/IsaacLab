@@ -12,7 +12,7 @@ term. At runtime, the adapted term callables still use the Warp-first
 ``func(env, out, **params) -> None`` signature.
 """
 
-from isaaclab.managers.manager_term_cfg import (
+from isaaclab.managers import (
     ActionTermCfg,
     CommandTermCfg,
     CurriculumTermCfg,

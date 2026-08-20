@@ -10,7 +10,7 @@ __all__ = [
     "OperationalSpaceControllerCfg",
 ]
 
-from .differential_ik import DifferentialIKController
-from .differential_ik_cfg import DifferentialIKControllerCfg
-from .operational_space import OperationalSpaceController
-from .operational_space_cfg import OperationalSpaceControllerCfg
+from isaaclab._src.controllers.differential_ik import DifferentialIKController
+from isaaclab._src.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab._src.controllers.operational_space import OperationalSpaceController
+from isaaclab._src.controllers.operational_space_cfg import OperationalSpaceControllerCfg

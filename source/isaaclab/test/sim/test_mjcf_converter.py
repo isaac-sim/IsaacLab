@@ -5,8 +5,8 @@
 
 """Run the converter from the standalone importer wheel when installed; otherwise launch Isaac Sim."""
 
+from isaaclab._src.utils.version import standalone_importers_available
 from isaaclab.app import AppLauncher
-from isaaclab.utils.version import standalone_importers_available
 
 # Prefer kit-less; fall back to Kit when the standalone importers are not usable.
 _USE_KIT = not standalone_importers_available() and AppLauncher.is_available()

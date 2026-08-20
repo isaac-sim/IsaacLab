@@ -29,9 +29,9 @@ import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import NewtonMPMManager
 
+from isaaclab._src.utils import math as math_utils
+from isaaclab._src.utils.assets import retrieve_file_path
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.utils import math as math_utils
-from isaaclab.utils.assets import retrieve_file_path
 
 from .geometry import (
     CUP_GRASP_HEIGHT,

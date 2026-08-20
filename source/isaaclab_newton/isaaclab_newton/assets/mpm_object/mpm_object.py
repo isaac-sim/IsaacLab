@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.assets.deformable_object import BaseDeformableObject
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
 

@@ -56,13 +56,13 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 # undefined symbol from omni.client's native extension.
 import omni.client  # noqa: E402,F401
 
+import isaaclab._src.utils.math as math_utils  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
-import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 

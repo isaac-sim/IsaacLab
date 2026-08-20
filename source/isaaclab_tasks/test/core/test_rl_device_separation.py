@@ -69,7 +69,7 @@ def _create_env(sim_device: str):
     # Create a new stage
     sim_utils.create_new_stage()
     # Reset the rtx sensors setting to False
-    from isaaclab.app.settings_manager import get_settings_manager
+    from isaaclab.app import get_settings_manager
 
     get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
 

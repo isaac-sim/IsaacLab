@@ -176,7 +176,7 @@ def _retrieve_logs(workflow, task):
     repo_path = _get_repo_path()
 
     # Defer Isaac Sim version import to avoid preloading USD before SimulationApp starts.
-    from isaaclab.utils.version import get_isaac_sim_version
+    from isaaclab.utils import get_isaac_sim_version
 
     if get_isaac_sim_version().major < 5:
         repo_path = os.path.join(repo_path, "..")

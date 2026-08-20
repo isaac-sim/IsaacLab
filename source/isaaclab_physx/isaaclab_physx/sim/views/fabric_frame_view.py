@@ -17,12 +17,10 @@ import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
-from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.sim.views.base_frame_view import BaseFrameView
-from isaaclab.sim.views.usd_frame_view import UsdFrameView
-from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
+from isaaclab._src.utils.warp import fabric as fabric_utils
+from isaaclab.app import SettingsManager
+from isaaclab.sim.views import BaseFrameView, FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter, UsdFrameView
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 

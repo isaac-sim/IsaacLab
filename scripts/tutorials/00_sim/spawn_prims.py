@@ -35,7 +35,7 @@ from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 def design_scene():

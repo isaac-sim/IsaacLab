@@ -56,9 +56,8 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.utils import Timer
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils import Timer, configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection

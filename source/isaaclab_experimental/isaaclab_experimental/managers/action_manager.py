@@ -17,9 +17,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab._src.envs.utils.io_descriptors import GenericActionIODescriptor
 from isaaclab.assets import AssetBase
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-from isaaclab.managers.manager_term_cfg import ActionTermCfg
+from isaaclab.managers import ActionTermCfg
 
 from .manager_base import ManagerBase, ManagerTermBase
 

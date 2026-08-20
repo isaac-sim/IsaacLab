@@ -16,9 +16,9 @@ import warp as wp
 
 from pxr import UsdShade
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.assets.asset_base import AssetBase
+from isaaclab.assets import AssetBase
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 

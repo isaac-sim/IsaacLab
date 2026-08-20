@@ -27,12 +27,12 @@ from pxr import Gf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner as lab_cloner
+from isaaclab._src.terrains.trimesh.utils import make_plane
 from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.terrains import create_prim_from_mesh
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 from isaaclab_assets.robots.spot import SPOT_CFG

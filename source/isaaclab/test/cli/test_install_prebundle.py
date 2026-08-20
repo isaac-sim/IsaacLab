@@ -15,7 +15,7 @@ from unittest import mock
 
 import pytest
 
-from isaaclab.cli.commands.install import (
+from isaaclab._src.cli.commands.install import (
     _assert_no_new_dangling_prebundle_symlinks,
     _find_dangling_prebundle_symlinks,
     _torch_first_on_sys_path_is_prebundle,

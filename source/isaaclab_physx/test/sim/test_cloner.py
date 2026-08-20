@@ -20,7 +20,7 @@ import warp as wp
 from isaaclab_physx.cloner import PhysxReplicateContext, physx_replicate
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import (
+from isaaclab._src.cloner import (
     _fabric_notices,
     disabled_fabric_change_notifies,
     sequential,
@@ -622,11 +622,11 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     """
     import time
 
-    import isaaclab.cloner._fabric_notices as fabric_notices_mod
+    import isaaclab._src.cloner._fabric_notices as fabric_notices_mod
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     if fabric_notices_mod.get_bindings() is None:
         pytest.skip("omni::fabric::IFabricUsd unavailable")

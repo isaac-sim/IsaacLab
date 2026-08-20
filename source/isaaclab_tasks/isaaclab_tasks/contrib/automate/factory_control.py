@@ -12,7 +12,7 @@ import math
 
 import torch
 
-from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul
+from isaaclab._src.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul
 
 
 def compute_dof_torque(

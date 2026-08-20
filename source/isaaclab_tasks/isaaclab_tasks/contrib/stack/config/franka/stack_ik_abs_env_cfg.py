@@ -5,9 +5,9 @@
 
 from isaaclab_teleop import IsaacTeleopCfg
 
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab._src.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.controllers import DifferentialIKControllerCfg
+from isaaclab.utils import configclass
 
 # Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
 # environments in the test suite.

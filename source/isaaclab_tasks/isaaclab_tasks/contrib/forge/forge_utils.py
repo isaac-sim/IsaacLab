@@ -5,7 +5,7 @@
 
 import torch
 
-from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
+from isaaclab._src.utils.math import combine_frame_transforms, quat_apply, quat_inv
 
 
 def get_random_prop_gains(default_values, noise_levels, num_envs, device):

@@ -259,9 +259,10 @@ import psutil
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.math import orthogonalize_perspective_depth, unproject_depth
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
-from isaaclab.scene.interactive_scene import InteractiveScene
+from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import (
     Camera,
     CameraCfg,
@@ -269,7 +270,6 @@ from isaaclab.sensors import (
     RayCasterCameraCfg,
     patterns,
 )
-from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
 

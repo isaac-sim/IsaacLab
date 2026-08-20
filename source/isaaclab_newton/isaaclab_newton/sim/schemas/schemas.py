@@ -16,10 +16,9 @@ import dataclasses
 
 from pxr import Sdf, Usd, UsdPhysics, Vt
 
-from isaaclab.sim.schemas.schemas import apply_namespaced
-from isaaclab.sim.utils import change_prim_property, safe_set_attribute_on_usd_prim
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
+from isaaclab.sim.schemas import apply_namespaced
+from isaaclab.sim.utils import change_prim_property, get_current_stage, safe_set_attribute_on_usd_prim
+from isaaclab.utils import to_camel_case
 
 from .schemas_cfg import MujocoCollisionCfg, MujocoFixedTendonCfg, MujocoJointCfg
 

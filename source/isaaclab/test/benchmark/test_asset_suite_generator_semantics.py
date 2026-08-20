@@ -8,14 +8,14 @@
 import pytest
 import torch
 
-from isaaclab.benchmark.asset_suites import generators as asset_generators
+from isaaclab._src.benchmark.asset_suites import generators as asset_generators
+from isaaclab._src.benchmark.asset_suites.generators import build_fill_benchmarks
+from isaaclab.benchmark import MethodBenchmarkRunnerConfig
 from isaaclab.benchmark.asset_suites import (
     get_asset_benchmark_adapter,
     get_asset_benchmark_suite,
     resolve_method_benchmarks,
 )
-from isaaclab.benchmark.asset_suites.generators import build_fill_benchmarks
-from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
 

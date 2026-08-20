@@ -282,7 +282,7 @@ def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, t
 
     from pxr import UsdPhysics
 
-    from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+    from isaaclab.utils import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 
     mesh_types = PRIMITIVE_MESH_TYPES + ["Mesh"]
     mesh_prims = sim_utils.get_all_matching_child_prims(

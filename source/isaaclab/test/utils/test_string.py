@@ -8,8 +8,8 @@ import random
 
 import pytest
 
-import isaaclab.utils.string as string_utils
-from isaaclab.utils.string import _resolve_matching_names_impl
+import isaaclab._src.utils.string as string_utils
+from isaaclab._src.utils.string import _resolve_matching_names_impl
 
 pytestmark = pytest.mark.unit
 

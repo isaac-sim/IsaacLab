@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-import isaaclab.cli.commands.misc as misc
+import isaaclab._src.cli.commands.misc as misc
 
 pytestmark = pytest.mark.unit
 

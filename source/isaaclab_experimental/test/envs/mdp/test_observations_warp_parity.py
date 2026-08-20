@@ -40,7 +40,7 @@ from parity_helpers import (
     run_warp_obs_captured,
 )
 
-import isaaclab.envs.mdp.observations as stable_obs
+import isaaclab._src.envs.mdp.observations as stable_obs
 
 # ============================================================================
 # Fixtures

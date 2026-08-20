@@ -18,14 +18,14 @@ from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.envs.mdp.events import reset_scene_to_default
 from isaaclab.assets import CableObjectCfg, RigidObjectCfg
-from isaaclab.envs.mdp.events import reset_scene_to_default
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import GroundPlaneCfg, SimulationCfg, UsdPhysicsCollisionCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 

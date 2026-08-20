@@ -32,12 +32,12 @@ __all__ = [
     "TerminationManager",
 ]
 
-from .action_manager import ActionManager, ActionTerm
-from .command_manager import CommandManager, CommandTerm
-from .curriculum_manager import CurriculumManager
-from .event_manager import EventManager
-from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import (
+from isaaclab._src.managers.action_manager import ActionManager, ActionTerm
+from isaaclab._src.managers.command_manager import CommandManager, CommandTerm
+from isaaclab._src.managers.curriculum_manager import CurriculumManager
+from isaaclab._src.managers.event_manager import EventManager
+from isaaclab._src.managers.manager_base import ManagerBase, ManagerTermBase
+from isaaclab._src.managers.manager_term_cfg import (
     ActionTermCfg,
     CommandTermCfg,
     CurriculumTermCfg,
@@ -49,13 +49,13 @@ from .manager_term_cfg import (
     RewardTermCfg,
     TerminationTermCfg,
 )
-from .observation_manager import ObservationManager
-from .recorder_manager import (
+from isaaclab._src.managers.observation_manager import ObservationManager
+from isaaclab._src.managers.recorder_manager import (
     DatasetExportMode,
     RecorderManager,
     RecorderManagerBaseCfg,
     RecorderTerm,
 )
-from .reward_manager import RewardManager
-from .scene_entity_cfg import SceneEntityCfg
-from .termination_manager import TerminationManager
+from isaaclab._src.managers.reward_manager import RewardManager
+from isaaclab._src.managers.scene_entity_cfg import SceneEntityCfg
+from isaaclab._src.managers.termination_manager import TerminationManager

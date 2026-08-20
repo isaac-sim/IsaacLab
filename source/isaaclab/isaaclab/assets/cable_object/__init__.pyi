@@ -11,8 +11,8 @@ __all__ = [
     "CableObjectData",
 ]
 
-from .base_cable_object import BaseCableObject
-from .base_cable_object_data import BaseCableObjectData
-from .cable_object import CableObject
-from .cable_object_cfg import CableObjectCfg
-from .cable_object_data import CableObjectData
+from isaaclab._src.assets.cable_object.base_cable_object import BaseCableObject
+from isaaclab._src.assets.cable_object.base_cable_object_data import BaseCableObjectData
+from isaaclab._src.assets.cable_object.cable_object import CableObject
+from isaaclab._src.assets.cable_object.cable_object_cfg import CableObjectCfg
+from isaaclab._src.assets.cable_object.cable_object_data import CableObjectData

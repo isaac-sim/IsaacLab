@@ -69,9 +69,9 @@ __all__ = [
     "get_extension_path",
 ]
 
-from .extensions import disable_extension, enable_extension, get_extension_path
+from isaaclab._src.sim.utils.extensions import disable_extension, enable_extension, get_extension_path
 
-from .legacy import (
+from isaaclab._src.sim.utils.legacy import (
     add_reference_to_stage,
     get_stage_up_axis,
     traverse_stage,
@@ -82,7 +82,7 @@ from .legacy import (
     get_prim_type_name,
     get_next_free_path,
 )
-from .prims import (
+from isaaclab._src.sim.utils.prims import (
     create_prim,
     delete_prim,
     make_uninstanceable,
@@ -99,7 +99,7 @@ from .prims import (
     get_usd_references,
     select_usd_variants,
 )
-from .queries import (
+from isaaclab._src.sim.utils.queries import (
     get_next_free_prim_path,
     get_first_matching_ancestor_prim,
     get_first_matching_child_prim,
@@ -115,14 +115,14 @@ from .queries import (
     has_deformable_body_api,
     has_deformable_curve_api,
 )
-from .semantics import (
+from isaaclab._src.sim.utils.semantics import (
     add_labels,
     get_labels,
     remove_labels,
     check_missing_labels,
     count_total_labels,
 )
-from .stage import (
+from isaaclab._src.sim.utils.stage import (
     resolve_paths,
     create_new_stage,
     is_current_stage_in_memory,
@@ -136,7 +136,7 @@ from .stage import (
     get_current_stage,
     get_current_stage_id,
 )
-from .transforms import (
+from isaaclab._src.sim.utils.transforms import (
     standardize_xform_ops,
     validate_standard_xform_ops,
     resolve_prim_pose,

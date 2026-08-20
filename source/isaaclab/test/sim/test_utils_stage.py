@@ -288,7 +288,7 @@ def test_get_current_stage_id():
 
 def test_resolve_paths():
     """Test resolve_paths helper for asset path resolution."""
-    from isaaclab.sim.utils.stage import resolve_paths
+    from isaaclab.sim.utils import resolve_paths
 
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create a source stage with a sublayer reference
@@ -351,7 +351,7 @@ def test_stage_context_tracking():
 
 def test_is_prim_deletable():
     """Test _is_prim_deletable with various prim types."""
-    from isaaclab.sim.utils.stage import _is_prim_deletable
+    from isaaclab._src.sim.utils.stage import _is_prim_deletable
 
     stage = sim_utils.create_new_stage()
 

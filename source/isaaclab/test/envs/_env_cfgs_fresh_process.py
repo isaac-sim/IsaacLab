@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-from isaaclab.test.env_cfgs import (
+from isaaclab._src.test.env_cfgs import (
     make_empty_direct_marl_env_cfg,
     make_empty_manager_based_env_cfg,
     make_empty_manager_based_rl_env_cfg,

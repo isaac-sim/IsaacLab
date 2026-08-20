@@ -18,10 +18,10 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.terrains.trimesh.utils import make_plane
+from isaaclab._src.utils.math import quat_from_euler_xyz
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.terrains.utils import create_prim_from_mesh
-from isaaclab.utils.math import quat_from_euler_xyz
+from isaaclab.terrains import create_prim_from_mesh
 
 pytestmark = pytest.mark.integration
 

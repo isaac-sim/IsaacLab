@@ -22,8 +22,8 @@ from pxr import Usd
 # The color palette / reserved ids live in core and are unit-tested there
 # (``isaaclab/test/renderers/test_segmentation_colors.py``); here they are only an oracle for the
 # mapper's info-dict keys.
-from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
-from isaaclab.sim.utils.semantics import add_labels
+from isaaclab._src.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
+from isaaclab.sim.utils import add_labels
 
 
 def _cfg(**overrides):
@@ -155,7 +155,7 @@ def test_ancestor_cache_prevents_redundant_get_labels_calls():
     """
     from unittest.mock import patch
 
-    import isaaclab.sim.utils.semantics as _semantics_mod
+    import isaaclab._src.sim.utils.semantics as _semantics_mod
 
     stage, shape_paths = _scene()
     mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg())

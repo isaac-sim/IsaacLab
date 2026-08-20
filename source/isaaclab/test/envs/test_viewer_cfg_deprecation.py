@@ -14,7 +14,7 @@ import warnings
 
 import pytest
 
-from isaaclab.envs.common import ViewerCfg
+from isaaclab.envs import ViewerCfg
 
 
 def test_viewer_cfg_default_no_warning():

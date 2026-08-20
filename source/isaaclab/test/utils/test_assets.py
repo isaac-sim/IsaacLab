@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import isaaclab.utils.assets as assets_utils
+import isaaclab._src.utils.assets as assets_utils
 
 pytestmark = pytest.mark.unit
 

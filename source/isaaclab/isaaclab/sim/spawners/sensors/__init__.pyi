@@ -14,8 +14,8 @@ __all__ = [
     "SensorFrameCfg",
 ]
 
-from .sensors import spawn_camera, spawn_sensor_frame
-from .sensors_cfg import (
+from isaaclab._src.sim.spawners.sensors.sensors import spawn_camera, spawn_sensor_frame
+from isaaclab._src.sim.spawners.sensors.sensors_cfg import (
     FisheyeCameraCfg,
     OpenCvDistortionCfg,
     OpenCvFisheyeDistortionCfg,

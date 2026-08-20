@@ -9,7 +9,7 @@ import numpy as np
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 

@@ -49,8 +49,8 @@ def _author_robot_usd(path: str) -> None:
 
 def _spawn_robot(tmp_path, prim_path: str, **cfg_kwargs):
     """Author the robot asset and spawn it at *prim_path* through the production USD spawn path."""
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+    from isaaclab._src.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files import UsdFileCfg
 
     usd_path = os.path.join(tmp_path, "robot.usda")
     _author_robot_usd(usd_path)
@@ -132,8 +132,8 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
     """
     from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
 
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+    from isaaclab._src.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files import UsdFileCfg
 
     usd_path = os.path.join(tmp_path, "robot.usda")
     _author_robot_usd(usd_path)

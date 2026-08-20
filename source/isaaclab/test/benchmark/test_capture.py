@@ -10,23 +10,25 @@ from typing import Literal
 
 import pytest
 
-import isaaclab.benchmark.capture as capture
-from isaaclab.benchmark.capture import (
+import isaaclab._src.benchmark.capture as capture
+from isaaclab._src.benchmark.capture import (
     capture_hardware,
     capture_resources,
     capture_versions,
     run_config_from_presets,
     synth_run_id,
 )
-from isaaclab.benchmark.interfaces import MeasurementData
-from isaaclab.benchmark.measurements import (
+from isaaclab._src.benchmark.interfaces import MeasurementData
+from isaaclab.benchmark import (
     DictMetadata,
     FloatMetadata,
+    Hardware,
     IntMetadata,
+    Resources,
     SingleMeasurement,
     StringMetadata,
+    Versions,
 )
-from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
 
 class _Rec:

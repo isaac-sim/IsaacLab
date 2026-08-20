@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from isaaclab.app.app_launcher import AppLauncher
+from isaaclab.app import AppLauncher
 
 from isaaclab_rl.entrypoints import multigpu as train_multigpu
 

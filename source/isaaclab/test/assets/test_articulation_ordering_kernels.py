@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.assets.articulation.ordering_kernels import (
+from isaaclab._src.assets.articulation.ordering_kernels import (
     reorder_2d_backend_to_user,
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
@@ -591,7 +591,7 @@ def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> N
 
 def test_directional_reorder_names_alias_the_gather_kernels() -> None:
     """The four direction names are aliases: one kernel body per rank."""
-    from isaaclab.assets.articulation import ordering_kernels as k
+    from isaaclab._src.assets.articulation import ordering_kernels as k
 
     assert k.reorder_2d_backend_to_user is k.gather_2d
     assert k.reorder_2d_user_to_backend is k.gather_2d
@@ -603,7 +603,7 @@ def test_write_2d_wrapper_adapts_torch_vec3_inputs() -> None:
     """The launch wrapper accepts torch tensors and folds trailing vec3 dims."""
     import torch
 
-    from isaaclab.assets.articulation import ordering_kernels as k
+    from isaaclab._src.assets.articulation import ordering_kernels as k
 
     num_envs, num_items = 2, 3
     input_data = torch.arange(num_envs * num_items * 3, dtype=torch.float32, device="cpu").reshape(
@@ -635,7 +635,7 @@ def test_write_float_wrapper_accepts_scalar_input() -> None:
     """The float wrapper passes Python scalars straight to the scalar overload."""
     import torch
 
-    from isaaclab.assets.articulation import ordering_kernels as k
+    from isaaclab._src.assets.articulation import ordering_kernels as k
 
     user_data = torch.zeros((2, 3), dtype=torch.float32, device="cpu")
     backend_data = torch.zeros((2, 3), dtype=torch.float32, device="cpu")

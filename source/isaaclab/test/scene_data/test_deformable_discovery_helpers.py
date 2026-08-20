@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.scene_data.deformable_discovery import (
+from isaaclab._src.scene_data.deformable_discovery import (
     DeformableStageEntry,
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,

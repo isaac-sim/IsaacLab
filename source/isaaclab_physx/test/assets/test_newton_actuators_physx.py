@@ -29,9 +29,9 @@ from isaaclab_physx.assets import Articulation
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
 
@@ -667,7 +667,7 @@ class _MockEnv:
 
 
 def _build_dr_term(env, asset_name, joint_ids=None):
-    from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
+    from isaaclab._src.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
     from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
 
     asset_cfg = SceneEntityCfg(asset_name)
@@ -1080,7 +1080,7 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
 
     @classmethod
     def setUpClass(cls):
-        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+        from isaaclab.actuators import RemotizedPDActuatorCfg  # noqa: PLC0415
 
         cls.actuators = {
             "hips": IdealPDActuatorCfg(
@@ -1109,7 +1109,7 @@ class TestRemotizedPDFunctional(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+        from isaaclab.actuators import RemotizedPDActuatorCfg  # noqa: PLC0415
 
         cls.result = _run_simulation(
             {
@@ -1211,7 +1211,7 @@ class TestNeuralMLPFunctional(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from isaaclab.actuators.actuator_net_cfg import ActuatorNetMLPCfg  # noqa: PLC0415
+        from isaaclab.actuators import ActuatorNetMLPCfg  # noqa: PLC0415
 
         cls.mlp_path = _make_dummy_mlp_checkpoint()
         cls.result = _run_simulation(
@@ -1255,7 +1255,7 @@ class TestNeuralLSTMFunctional(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg  # noqa: PLC0415
+        from isaaclab.actuators import ActuatorNetLSTMCfg  # noqa: PLC0415
 
         cls.lstm_path = _make_dummy_lstm_checkpoint()
         cls.result = _run_simulation(

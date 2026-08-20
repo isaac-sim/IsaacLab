@@ -9,9 +9,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.sim.spawners.materials.visual_materials_cfg import VisualMaterialCfg
-from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim.spawners import SpawnerCfg
+from isaaclab.sim.spawners.materials import VisualMaterialCfg
+from isaaclab.utils import configclass
 
 
 @configclass

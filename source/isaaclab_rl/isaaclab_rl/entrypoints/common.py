@@ -27,11 +27,11 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
+from isaaclab._src.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.app import AppLauncher, LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.dict import print_dict
-from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
+from isaaclab.renderers import RendererCfg
+from isaaclab.utils import print_dict
 from isaaclab.utils.io import dump_yaml
 
 # Preset selectors whose values name a preset, and the preset names that resolved
@@ -316,7 +316,7 @@ def resolve_play_checkpoint(
         FileNotFoundError: If no explicit or published checkpoint is available.
     """
     if checkpoint:
-        from isaaclab.utils.assets import retrieve_file_path
+        from isaaclab._src.utils.assets import retrieve_file_path
 
         return retrieve_file_path(checkpoint)
 
@@ -879,7 +879,7 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             "Remove --video or switch to --frontend torch."
         )
 
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.envs import VideoRecorderCfg
 
     existing: list = getattr(env_cfg, "video_recorders", []) or []
     if not existing:

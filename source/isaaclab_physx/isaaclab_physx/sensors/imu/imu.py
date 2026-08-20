@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.sensors.imu import BaseImu
-from isaaclab.sim.utils.queries import path_expr_to_glob
+from isaaclab.sim.utils import path_expr_to_glob
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 

@@ -116,7 +116,7 @@ def test_compute_returns_joint_targets_shape():
 def test_action_cfg_points_at_custom_action_and_controller():
     """The action cfg wires the custom action class and the SO-101 controller cfg."""
     pytest.importorskip("pxr")  # the action term imports UsdPhysics at module load
-    from isaaclab.utils.string import string_to_callable
+    from isaaclab.utils import string_to_callable
 
     from isaaclab_tasks.contrib.stack.config.so101.pose_ik_action import SO101PoseIKActionCfg
     from isaaclab_tasks.contrib.stack.config.so101.pose_ik_action_term import SO101PoseIKAction

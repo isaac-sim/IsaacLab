@@ -26,11 +26,11 @@ import omni.replicator.core as rep
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.terrains.trimesh.utils import make_plane
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.terrains import create_prim_from_mesh
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 

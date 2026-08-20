@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils import math as torch_utils
+from isaaclab._src.utils import math as torch_utils
 
 
 def get_keypoint_offsets(num_keypoints, device):

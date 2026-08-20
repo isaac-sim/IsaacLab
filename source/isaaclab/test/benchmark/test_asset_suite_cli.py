@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import isaaclab.benchmark.asset_suites.cli as cli
+import isaaclab._src.benchmark.asset_suites.cli as cli
 
 
 def test_script_cli_builds_one_combined_request(monkeypatch, tmp_path) -> None:

@@ -10,13 +10,13 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.devices.device_base import DevicesCfg
+from isaaclab._src.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
+from isaaclab.devices import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
-from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils.presets import (
@@ -29,7 +29,7 @@ from . import stack_joint_pos_env_cfg
 ##
 # Pre-defined configs
 ##
-from isaaclab.controllers.config.rmp_flow import (  # isort: skip
+from isaaclab._src.controllers.config.rmp_flow import (  # isort: skip
     GALBOT_LEFT_ARM_RMPFLOW_CFG,
     GALBOT_RIGHT_ARM_RMPFLOW_CFG,
 )

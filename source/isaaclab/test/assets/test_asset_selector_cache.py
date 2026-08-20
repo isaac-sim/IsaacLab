@@ -9,7 +9,7 @@ from typing import Any
 
 import torch
 
-from isaaclab.assets.asset_base import AssetBase
+from isaaclab.assets import AssetBase
 from isaaclab.utils.warp import ProxyArray
 
 

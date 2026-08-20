@@ -9,8 +9,8 @@ This module provides configurations for humanoid robot pink IK controllers,
 including both fixed base and mobile configurations for upper body manipulation.
 """
 
+from isaaclab._src.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.controllers.pink_ik import LocalFrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
-from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 
 ##
 # Pink IK Controller Configuration for G1

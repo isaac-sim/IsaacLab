@@ -40,9 +40,9 @@ import gymnasium as gym
 import torch
 from policy import Policy
 
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab._src.utils.math import convert_quat
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
-from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv

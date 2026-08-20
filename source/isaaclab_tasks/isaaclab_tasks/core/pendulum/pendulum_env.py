@@ -12,10 +12,10 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import sample_uniform
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import sample_uniform
 
 from isaaclab_tasks.core.pendulum.pendulum_env_cfg import PendulumEnvCfg
 

@@ -41,6 +41,6 @@ Example:
     - :mod:`isaaclab_contrib.mdp.actions`: Thrust action terms for RL
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

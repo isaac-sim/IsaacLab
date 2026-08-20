@@ -22,9 +22,9 @@ from curobo.util.usd_helper import UsdHelper
 from curobo.util_file import load_yaml
 from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, MotionGenPlanConfig
 
-import isaaclab.utils.math as PoseUtils
+import isaaclab._src.utils.math as PoseUtils
 from isaaclab.assets import Articulation
-from isaaclab.envs.manager_based_env import ManagerBasedEnv
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim.spawners.materials import PreviewSurfaceCfg
 from isaaclab.sim.spawners.meshes import MeshSphereCfg, spawn_mesh_sphere

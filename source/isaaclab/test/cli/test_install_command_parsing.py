@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from isaaclab.cli.commands.install import (
+from isaaclab._src.cli.commands.install import (
     CORE_ISAACLAB_SUBMODULES,
     MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,

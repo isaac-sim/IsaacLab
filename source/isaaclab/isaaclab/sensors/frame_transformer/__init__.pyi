@@ -12,8 +12,8 @@ __all__ = [
     "FrameTransformerData",
 ]
 
-from .base_frame_transformer import BaseFrameTransformer
-from .base_frame_transformer_data import BaseFrameTransformerData
-from .frame_transformer import FrameTransformer
-from .frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from .frame_transformer_data import FrameTransformerData
+from isaaclab._src.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
+from isaaclab._src.sensors.frame_transformer.base_frame_transformer_data import BaseFrameTransformerData
+from isaaclab._src.sensors.frame_transformer.frame_transformer import FrameTransformer
+from isaaclab._src.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
+from isaaclab._src.sensors.frame_transformer.frame_transformer_data import FrameTransformerData

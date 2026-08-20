@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import warp as wp
 
-from isaaclab.sensors.ray_caster.ray_caster_data import RayCasterData
+from isaaclab.sensors.ray_caster import RayCasterData
 from isaaclab.utils.leapp import leapp_tensor_semantics
 from isaaclab.utils.warp import ProxyArray
 

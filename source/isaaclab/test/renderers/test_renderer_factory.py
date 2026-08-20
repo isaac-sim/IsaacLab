@@ -9,8 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from isaaclab.renderers import Renderer
-from isaaclab.renderers.base_renderer import BaseRenderer
+from isaaclab.renderers import BaseRenderer, Renderer
 
 pytest.importorskip("isaaclab_physx")
 pytest.importorskip("isaaclab_newton")

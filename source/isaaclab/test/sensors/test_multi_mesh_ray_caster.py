@@ -12,8 +12,8 @@ import torch
 import trimesh
 import warp as wp
 
-from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
-from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh
+from isaaclab._src.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh
 
 pytestmark = pytest.mark.integration
 

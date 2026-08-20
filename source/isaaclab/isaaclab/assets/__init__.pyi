@@ -38,7 +38,7 @@ __all__ = [
     "DeformableObjectData",
 ]
 
-from .articulation import (
+from isaaclab._src.assets.articulation import (
     BaseArticulation,
     BaseArticulationData,
     Articulation,
@@ -50,30 +50,30 @@ from .articulation import (
     parse_articulation_ordering_convention,
     get_articulation_name_ordering,
 )
-from .asset_base import AssetBase
-from .asset_base_cfg import AssetBaseCfg
-from .cable_object import (
+from isaaclab._src.assets.asset_base import AssetBase
+from isaaclab._src.assets.asset_base_cfg import AssetBaseCfg
+from isaaclab._src.assets.cable_object import (
     BaseCableObject,
     BaseCableObjectData,
     CableObject,
     CableObjectCfg,
     CableObjectData,
 )
-from .rigid_object import (
+from isaaclab._src.assets.rigid_object import (
     BaseRigidObject,
     BaseRigidObjectData,
     RigidObject,
     RigidObjectCfg,
     RigidObjectData,
 )
-from .rigid_object_collection import (
+from isaaclab._src.assets.rigid_object_collection import (
     BaseRigidObjectCollection,
     BaseRigidObjectCollectionData,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
     RigidObjectCollectionData,
 )
-from .deformable_object import (
+from isaaclab._src.assets.deformable_object import (
     BaseDeformableObject,
     BaseDeformableObjectData,
     DeformableObject,

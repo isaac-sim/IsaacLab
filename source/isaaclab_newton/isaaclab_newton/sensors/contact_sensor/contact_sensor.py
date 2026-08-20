@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 import warp as wp
 from newton.sensors import SensorContact as NewtonContactSensor
 
-import isaaclab.utils.string as string_utils
-from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
+import isaaclab._src.utils.string as string_utils
+from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager
@@ -31,7 +31,7 @@ from .contact_sensor_kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
+    from isaaclab.sensors.contact_sensor import ContactSensorCfg as BaseContactSensorCfg
 
     from .contact_sensor_cfg import ContactSensorCfg
 
@@ -64,7 +64,7 @@ class ContactSensor(BaseContactSensor):
         Args:
             cfg: The configuration parameters.
         """
-        from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
+        from isaaclab.sensors.contact_sensor import ContactSensorCfg as BaseContactSensorCfg
 
         from .contact_sensor_cfg import ContactSensorCfg
 

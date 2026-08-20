@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.benchmark.asset_suites import dispatch as asset_dispatch
+from isaaclab._src.benchmark.asset_suites import dispatch as asset_dispatch
 from isaaclab.benchmark.asset_suites import get_asset_benchmark_adapter
 
 pytestmark = pytest.mark.benchmark

@@ -113,7 +113,7 @@ class TestRigidObjectProperties:
     @_default_dims
     @_default_devices
     def test_data_returns_rigid_object_data(self, backend, num_instances, device, rigid_object_iface):
-        from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
+        from isaaclab.assets.rigid_object import BaseRigidObjectData
 
         obj, _ = rigid_object_iface
         assert isinstance(obj.data, BaseRigidObjectData)

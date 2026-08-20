@@ -40,7 +40,7 @@ from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonVisualizer
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
+from isaaclab._src.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv

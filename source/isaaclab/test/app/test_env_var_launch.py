@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-import isaaclab.app.app_launcher as app_launcher_module
+import isaaclab._src.app.app_launcher as app_launcher_module
 from isaaclab.app import AppLauncher
 
 pytestmark = pytest.mark.integration
@@ -23,7 +23,7 @@ def test_livestream_launch_with_env_vars(mocker):
     app_launcher = AppLauncher()
     app = app_launcher.app
 
-    from isaaclab.app.settings_manager import get_settings_manager
+    from isaaclab.app import get_settings_manager
 
     settings = get_settings_manager()
     assert settings.get("/app/window/enabled") is False

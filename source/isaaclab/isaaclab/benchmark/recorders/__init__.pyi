@@ -10,7 +10,7 @@ __all__ = [
     "VersionInfoRecorder",
 ]
 
-from .record_cpu_info import CPUInfoRecorder
-from .record_gpu_info import GPUInfoRecorder
-from .record_memory_info import MemoryInfoRecorder
-from .record_version_info import VersionInfoRecorder
+from isaaclab._src.benchmark.recorders.record_cpu_info import CPUInfoRecorder
+from isaaclab._src.benchmark.recorders.record_gpu_info import GPUInfoRecorder
+from isaaclab._src.benchmark.recorders.record_memory_info import MemoryInfoRecorder
+from isaaclab._src.benchmark.recorders.record_version_info import VersionInfoRecorder

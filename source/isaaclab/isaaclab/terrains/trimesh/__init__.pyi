@@ -19,7 +19,7 @@ __all__ = [
     "MeshStarTerrainCfg",
 ]
 
-from .mesh_terrains_cfg import (
+from isaaclab._src.terrains.trimesh.mesh_terrains_cfg import (
     MeshBoxTerrainCfg,
     MeshFloatingRingTerrainCfg,
     MeshGapTerrainCfg,

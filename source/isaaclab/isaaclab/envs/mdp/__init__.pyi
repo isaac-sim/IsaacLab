@@ -147,7 +147,7 @@ __all__ = [
     "time_out",
 ]
 
-from .actions import (
+from isaaclab._src.envs.mdp.actions import (
     AbsBinaryJointPositionAction,
     AbsBinaryJointPositionActionCfg,
     BinaryJointAction,
@@ -177,7 +177,7 @@ from .actions import (
     SurfaceGripperBinaryAction,
     SurfaceGripperBinaryActionCfg,
 )
-from .commands import (
+from isaaclab._src.envs.mdp.commands import (
     NormalVelocityCommand,
     NormalVelocityCommandCfg,
     NullCommand,
@@ -191,8 +191,8 @@ from .commands import (
     UniformVelocityCommand,
     UniformVelocityCommandCfg,
 )
-from .curriculums import modify_env_param, modify_reward_weight, modify_term_cfg
-from .events import (
+from isaaclab._src.envs.mdp.curriculums import modify_env_param, modify_reward_weight, modify_term_cfg
+from isaaclab._src.envs.mdp.events import (
     apply_external_force_torque,
     push_by_setting_velocity,
     randomize_actuator_gains,
@@ -216,7 +216,7 @@ from .events import (
     reset_root_state_with_random_orientation,
     reset_scene_to_default,
 )
-from .observations import (
+from isaaclab._src.envs.mdp.observations import (
     base_ang_vel,
     base_lin_vel,
     base_pos_z,
@@ -246,7 +246,7 @@ from .observations import (
     root_pos_w,
     root_quat_w,
 )
-from .recorders import (
+from isaaclab._src.envs.mdp.recorders import (
     ActionStateRecorderManagerCfg,
     InitialStateRecorder,
     InitialStateRecorderCfg,
@@ -259,7 +259,7 @@ from .recorders import (
     PreStepFlatPolicyObservationsRecorder,
     PreStepFlatPolicyObservationsRecorderCfg,
 )
-from .rewards import (
+from isaaclab._src.envs.mdp.rewards import (
     action_l2,
     action_rate_l2,
     ang_vel_xy_l2,
@@ -287,7 +287,7 @@ from .rewards import (
     track_lin_vel_xy_exp,
     undesired_contacts,
 )
-from .terminations import (
+from isaaclab._src.envs.mdp.terminations import (
     bad_orientation,
     command_resample,
     illegal_contact,

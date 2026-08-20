@@ -12,7 +12,7 @@ import scipy.spatial.transform as scipy_tf
 import torch
 import torch.utils.benchmark as benchmark
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit

@@ -27,8 +27,8 @@ from isaaclab_newton.sim.spawners.materials import (
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 

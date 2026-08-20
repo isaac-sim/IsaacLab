@@ -10,5 +10,5 @@ __all__ = [
     "SceneDataProvider",
 ]
 
-from .scene_data_backend import SceneDataBackend, SceneDataFormat
-from .scene_data_provider import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
+from isaaclab._src.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
+from isaaclab._src.scene_data.scene_data_provider import REQUIRES_STAGE_AND_MODEL, SceneDataProvider

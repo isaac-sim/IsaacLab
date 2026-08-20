@@ -12,9 +12,8 @@ from datetime import datetime
 
 import pytest
 
-from isaaclab.benchmark import formatters
-from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
-from isaaclab.benchmark.schema import (
+from isaaclab._src.benchmark import formatters
+from isaaclab.benchmark import (
     GpuDeviceInfo,
     Hardware,
     MeanStd,
@@ -23,7 +22,10 @@ from isaaclab.benchmark.schema import (
     RunIdentity,
     Runtime,
     RuntimeBundle,
+    SingleMeasurement,
     StartupTime,
+    StringMetadata,
+    TestPhase,
     Versions,
 )
 

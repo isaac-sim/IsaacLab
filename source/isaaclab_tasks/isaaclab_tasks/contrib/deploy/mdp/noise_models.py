@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
+from isaaclab._src.utils.math import quat_from_euler_xyz, quat_mul
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModel, NoiseModelCfg
 
 if TYPE_CHECKING:

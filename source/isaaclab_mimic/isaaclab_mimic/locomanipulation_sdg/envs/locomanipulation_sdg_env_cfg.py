@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import isaaclab.envs.mdp as base_mdp
-from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab._src.managers.recorder_manager import RecorderTermCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.managers.recorder_manager import RecorderTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

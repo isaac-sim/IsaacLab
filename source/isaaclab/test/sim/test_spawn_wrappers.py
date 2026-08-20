@@ -16,8 +16,8 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 

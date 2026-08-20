@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import quat_apply_inverse
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_apply_inverse
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject

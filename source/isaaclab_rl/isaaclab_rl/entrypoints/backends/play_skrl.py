@@ -21,9 +21,9 @@ import skrl
 import torch
 from packaging import version
 
+from isaaclab._src.utils.seed import configure_seed
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,

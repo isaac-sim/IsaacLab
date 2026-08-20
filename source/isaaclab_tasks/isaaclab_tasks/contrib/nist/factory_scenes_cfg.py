@@ -12,7 +12,7 @@ Each scene class inherits from :class:`FactorySceneBase` and specifies the
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist import factory_assets_cfg as assets
 from isaaclab_tasks.utils import PresetCfg, preset

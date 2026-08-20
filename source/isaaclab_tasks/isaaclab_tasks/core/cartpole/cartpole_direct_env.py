@@ -12,10 +12,10 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import sample_uniform, wrap_to_pi
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg

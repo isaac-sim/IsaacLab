@@ -21,7 +21,7 @@ import isaaclab.sim.utils as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.timer import Timer
+from isaaclab.utils import Timer
 
 from isaaclab_assets import ANYMAL_D_CFG, CARTPOLE_CFG
 

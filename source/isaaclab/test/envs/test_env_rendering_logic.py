@@ -29,7 +29,7 @@ from isaaclab.envs import (
 )
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 

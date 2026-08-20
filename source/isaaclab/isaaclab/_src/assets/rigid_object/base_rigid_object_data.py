@@ -1,0 +1,821 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import warnings
+from abc import ABC, abstractmethod
+
+import warp as wp
+
+from isaaclab._src.utils.leapp import (
+    POSE6_ELEMENT_NAMES,
+    POSE7_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
+    XYZ_ELEMENT_NAMES,
+    InputKindEnum,
+    body_pose6_resolver,
+    body_pose_resolver,
+    body_quat_resolver,
+    body_xyz_resolver,
+    leapp_tensor_semantics,
+)
+from isaaclab._src.utils.warp import ProxyArray
+from isaaclab._src.utils.warp.launch_cache import _WarpLaunchCache
+
+
+class BaseRigidObjectData(ABC):
+    """Data container for a rigid object.
+
+    This class contains the data for a rigid object in the simulation. The data includes the state of
+    the root rigid body and the state of all the bodies in the object. The data is stored in the simulation
+    world frame unless otherwise specified.
+
+    For a rigid body, there are two frames of reference that are used:
+
+    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+      with the rigid body schema.
+    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
+    Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.
+    This needs to be taken into account when interpreting the data.
+
+    The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
+    when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
+    is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
+    """
+
+    def __init__(self, root_view, device: str):
+        """Initializes the rigid object data.
+
+        Args:
+            root_view: The root rigid body view.
+            device: The device used for processing.
+        """
+        # Set the parameters
+        self.device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
+
+    @abstractmethod
+    def update(self, dt: float) -> None:
+        """Updates the data for the rigid object.
+
+        Args:
+            dt: The time step for the update. This must be a positive value.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Invalidate cached pose-dependent quantities after a pose write to the simulation.
+
+        Backends implement this to mark the affected pose buffers stale (and trigger any
+        forward-kinematics refresh) so the next read recomputes from the freshly written state.
+
+        Args:
+            from_link: Set ``True`` when the root link pose was written so the derived
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False``
+                when the center-of-mass pose was written directly so it is not clobbered.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Invalidate cached velocity-dependent quantities after a velocity write to the simulation.
+
+        Backends implement this to mark the affected velocity buffers stale (and trigger any
+        forward-kinematics refresh) so the next read recomputes from the freshly written state.
+
+        Args:
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the
+                link velocity was written directly so it is not clobbered.
+        """
+        raise NotImplementedError()
+
+    ##
+    # Names.
+    ##
+
+    body_names: list[str] | None = None
+    """Body names in the order parsed by the simulation view."""
+
+    ##
+    # Defaults.
+    ##
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(const=True)
+    def default_root_pose(self) -> ProxyArray:
+        """Default root pose ``[pos, quat]`` in local environment frame.
+
+        The position and quaternion are of the rigid body's actor frame.
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(const=True)
+    def default_root_vel(self) -> ProxyArray:
+        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame.
+
+        The linear and angular velocities are of the rigid body's center of mass frame.
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def default_root_state(self) -> ProxyArray:
+        """Deprecated, same as :attr:`default_root_pose` and :attr:`default_root_vel`."""
+        raise NotImplementedError()
+
+    ##
+    # Root state properties.
+    ##
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    def root_link_pose_w(self) -> ProxyArray:
+        """Root link pose ``[pos, quat]`` in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+
+        This quantity is the pose of the actor frame of the root rigid body relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    def root_link_vel_w(self) -> ProxyArray:
+        """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
+
+        This quantity contains the linear and angular velocities of the actor frame of the root
+        rigid body relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    def root_com_pose_w(self) -> ProxyArray:
+        """Root center of mass pose ``[pos, quat]`` in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+
+        This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    def root_com_vel_w(self) -> ProxyArray:
+        """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
+
+        This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
+        relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/state")
+    def root_state_w(self) -> ProxyArray:
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/link_state")
+    def root_link_state_w(self) -> ProxyArray:
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/com_state")
+    def root_com_state_w(self) -> ProxyArray:
+        """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
+        raise NotImplementedError()
+
+    ##
+    # Body state properties.
+    ##
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    def body_link_pose_w(self) -> ProxyArray:
+        """Body link pose ``[pos, quat]`` in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.transformf.
+        In torch this resolves to (num_instances, 1, 7).
+
+        This quantity is the pose of the actor frame of the rigid body relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    def body_link_vel_w(self) -> ProxyArray:
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, 1, 6).
+
+        This quantity contains the linear and angular velocities of the actor frame of the root
+        rigid body relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    def body_com_pose_w(self) -> ProxyArray:
+        """Body center of mass pose ``[pos, quat]`` in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.transformf.
+        In torch this resolves to (num_instances, 1, 7).
+
+        This quantity is the pose of the center of mass frame of the rigid body relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    def body_com_vel_w(self) -> ProxyArray:
+        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, 1, 6).
+
+        This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
+        relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/state")
+    def body_state_w(self) -> ProxyArray:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/link_state")
+    def body_link_state_w(self) -> ProxyArray:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/com_state")
+    def body_com_state_w(self) -> ProxyArray:
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
+    def body_com_acc_w(self) -> ProxyArray:
+        """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, 1, 6).
+
+        This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    def body_com_pose_b(self) -> ProxyArray:
+        """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
+
+        Shape is (num_instances, 1), dtype = wp.transformf.
+        In torch this resolves to (num_instances, 1, 7).
+
+        This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(const=True)
+    def body_mass(self) -> ProxyArray:
+        """Mass of all bodies in the simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1).
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(const=True)
+    def body_inertia(self) -> ProxyArray:
+        """Inertia of all bodies in the simulation world frame.
+
+        Shape is (num_instances, 1, 9), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1, 9).
+        """
+        raise NotImplementedError()
+
+    ##
+    # Derived Properties.
+    ##
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def projected_gravity_b(self) -> ProxyArray:
+        """Projection of the gravity direction on base frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="state/body/heading")
+    def heading_w(self) -> ProxyArray:
+        """Yaw heading of the base frame (in radians).
+
+        Shape is (num_instances,), dtype = wp.float32. In torch this resolves to (num_instances,).
+
+        .. note::
+            This quantity is computed by assuming that the forward-direction of the base
+            frame is along x-direction, i.e. :math:`(1, 0, 0)`.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_link_lin_vel_b(self) -> ProxyArray:
+        """Root link linear velocity in base frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
+        rigid body's actor frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_link_ang_vel_b(self) -> ProxyArray:
+        """Root link angular velocity in base frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
+        rigid body's actor frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_com_lin_vel_b(self) -> ProxyArray:
+        """Root center of mass linear velocity in base frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
+        rigid body's actor frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_com_ang_vel_b(self) -> ProxyArray:
+        """Root center of mass angular velocity in base frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
+        rigid body's actor frame.
+        """
+        raise NotImplementedError()
+
+    ##
+    # Sliced properties.
+    ##
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    def root_link_pos_w(self) -> ProxyArray:
+        """Root link position in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the position of the actor frame of the root rigid body relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def root_link_quat_w(self) -> ProxyArray:
+        """Root link orientation (x, y, z, w) in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
+
+        This quantity is the orientation of the actor frame of the root rigid body.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_link_lin_vel_w(self) -> ProxyArray:
+        """Root linear velocity in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_link_ang_vel_w(self) -> ProxyArray:
+        """Root link angular velocity in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    def root_com_pos_w(self) -> ProxyArray:
+        """Root center of mass position in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the position of the center of mass frame of the root rigid body relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def root_com_quat_w(self) -> ProxyArray:
+        """Root center of mass orientation (x, y, z, w) in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
+
+        This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_com_lin_vel_w(self) -> ProxyArray:
+        """Root center of mass linear velocity in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_com_ang_vel_w(self) -> ProxyArray:
+        """Root center of mass angular velocity in simulation world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+
+        This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    def body_link_pos_w(self) -> ProxyArray:
+        """Positions of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f.  In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the position of the rigid bodies' actor frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    def body_link_quat_w(self) -> ProxyArray:
+        """Orientation (x, y, z, w) of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
+
+        This quantity is the orientation of the rigid bodies' actor frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    def body_link_lin_vel_w(self) -> ProxyArray:
+        """Linear velocity of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the linear velocity of the rigid bodies' actor frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    def body_link_ang_vel_w(self) -> ProxyArray:
+        """Angular velocity of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the angular velocity of the rigid bodies' actor frame relative to the world.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    def body_com_pos_w(self) -> ProxyArray:
+        """Positions of all bodies' center of mass in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the position of the rigid bodies' center of mass frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    def body_com_quat_w(self) -> ProxyArray:
+        """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
+
+        This quantity is the orientation of the rigid bodies' principal axes of inertia.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    def body_com_lin_vel_w(self) -> ProxyArray:
+        """Linear velocity of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the linear velocity of the rigid bodies' center of mass frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    def body_com_ang_vel_w(self) -> ProxyArray:
+        """Angular velocity of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the angular velocity of the rigid bodies' center of mass frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    def body_com_lin_acc_w(self) -> ProxyArray:
+        """Linear acceleration of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the linear acceleration of the rigid bodies' center of mass frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    def body_com_ang_acc_w(self) -> ProxyArray:
+        """Angular acceleration of all bodies in simulation world frame.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the angular acceleration of the rigid bodies' center of mass frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    def body_com_pos_b(self) -> ProxyArray:
+        """Center of mass position of all of the bodies in their respective link frames.
+
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+
+        This quantity is the center of mass location relative to its body's link frame.
+        """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    def body_com_quat_b(self) -> ProxyArray:
+        """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
+        respective link frames.
+
+        Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
+
+        This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
+        """
+        raise NotImplementedError()
+
+    def _create_buffers(self) -> None:
+        self._read_launch_cache.clear()
+        # -- Default mass and inertia (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
+
+    """
+    Shorthands for commonly used properties.
+    """
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    def root_pose_w(self) -> ProxyArray:
+        """Shorthand for :attr:`root_link_pose_w`."""
+        return self.root_link_pose_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    def root_pos_w(self) -> ProxyArray:
+        """Shorthand for :attr:`root_link_pos_w`."""
+        return self.root_link_pos_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    def root_quat_w(self) -> ProxyArray:
+        """Shorthand for :attr:`root_link_quat_w`."""
+        return self.root_link_quat_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    def root_vel_w(self) -> ProxyArray:
+        """Shorthand for :attr:`root_com_vel_w`."""
+        return self.root_com_vel_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_lin_vel_w(self) -> ProxyArray:
+        """Shorthand for :attr:`root_com_lin_vel_w`."""
+        return self.root_com_lin_vel_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_ang_vel_w(self) -> ProxyArray:
+        """Shorthand for :attr:`root_com_ang_vel_w`."""
+        return self.root_com_ang_vel_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_lin_vel_b(self) -> ProxyArray:
+        """Shorthand for :attr:`root_com_lin_vel_b`."""
+        return self.root_com_lin_vel_b
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    def root_ang_vel_b(self) -> ProxyArray:
+        """Shorthand for :attr:`root_com_ang_vel_b`."""
+        return self.root_com_ang_vel_b
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    def body_pose_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_link_pose_w`."""
+        return self.body_link_pose_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    def body_pos_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_link_pos_w`."""
+        return self.body_link_pos_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    def body_quat_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_link_quat_w`."""
+        return self.body_link_quat_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    def body_vel_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_vel_w`."""
+        return self.body_com_vel_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    def body_lin_vel_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_lin_vel_w`."""
+        return self.body_com_lin_vel_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    def body_ang_vel_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_ang_vel_w`."""
+        return self.body_com_ang_vel_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
+    def body_acc_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_acc_w`."""
+        return self.body_com_acc_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    def body_lin_acc_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_lin_acc_w`."""
+        return self.body_com_lin_acc_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    def body_ang_acc_w(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_ang_acc_w`."""
+        return self.body_com_ang_acc_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    def com_pos_b(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_pos_b`."""
+        return self.body_com_pos_b
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    def com_quat_b(self) -> ProxyArray:
+        """Shorthand for :attr:`body_com_quat_b`."""
+        return self.body_com_quat_b
+
+    """
+    Removed - Default values are no longer stored.
+    """
+
+    @property
+    @leapp_tensor_semantics(const=True)
+    def default_mass(self) -> ProxyArray:
+        """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
+        warnings.warn(
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_mass is None:
+            self._default_mass = wp.clone(self.body_mass.warp, self.device)
+        return ProxyArray(self._default_mass)
+
+    @property
+    @leapp_tensor_semantics(const=True)
+    def default_inertia(self) -> ProxyArray:
+        """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
+        warnings.warn(
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_inertia is None:
+            self._default_inertia = wp.clone(self.body_inertia.warp, self.device)
+        return ProxyArray(self._default_inertia)

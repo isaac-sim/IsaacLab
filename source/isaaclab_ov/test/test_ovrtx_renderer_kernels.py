@@ -13,7 +13,7 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
 )
 
-from isaaclab.renderers.segmentation_colors import pack_rgba, random_color_from_id
+from isaaclab._src.renderers.segmentation_colors import pack_rgba, random_color_from_id
 
 DEVICE = "cuda:0"
 

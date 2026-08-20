@@ -12,8 +12,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from isaaclab._src.envs.mdp import events as events_module
 from isaaclab.assets import BaseArticulation
-from isaaclab.envs.mdp import events as events_module
 
 _NUM_SHAPES_PER_BACKEND_BODY = (1, 2, 3)
 _NUM_ENVS = 2

@@ -12,7 +12,7 @@ from unittest import mock
 import pytest
 
 import isaaclab.cli as cli
-from isaaclab.benchmark.microbenchmark import MicrobenchmarkFactory, run_microbenchmark_cli
+from isaaclab.benchmark import MicrobenchmarkFactory, run_microbenchmark_cli
 
 
 @pytest.mark.parametrize(

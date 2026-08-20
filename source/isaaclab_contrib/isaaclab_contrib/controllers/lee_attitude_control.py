@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 
 from .lee_controller_base import LeeControllerBase
 from .lee_controller_utils import compute_body_torque, yaw_rate_to_body_angvel

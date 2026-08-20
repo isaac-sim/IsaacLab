@@ -84,8 +84,8 @@ simulation_app = app_launcher.app
 
 import os
 
+from isaaclab._src.sim.schemas import schemas_cfg
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg, UrdfConverter, UrdfConverterCfg
-from isaaclab.sim.schemas import schemas_cfg
 
 
 def main():

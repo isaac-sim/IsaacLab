@@ -16,7 +16,7 @@ from __future__ import annotations
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.markers import VisualizationMarkersCfg
 
 from ...keyboards.keyboard_labels import _FONT_5X7
 

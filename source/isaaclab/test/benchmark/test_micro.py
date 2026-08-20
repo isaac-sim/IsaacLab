@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.benchmark.micro import (
+from isaaclab.benchmark import (
     LatencyBenchmarkRunner,
     add_latency_measurements,
     measure_latency,

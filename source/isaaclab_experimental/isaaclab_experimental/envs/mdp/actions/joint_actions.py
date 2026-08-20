@@ -11,15 +11,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 
-import isaaclab.utils.string as string_utils
+import isaaclab._src.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 
 from isaaclab_experimental.managers.action_manager import ActionTerm
 from isaaclab_experimental.utils.warp import resolve_1d_mask, zero_masked_2d
 
 if TYPE_CHECKING:
+    from isaaclab._src.envs.utils.io_descriptors import GenericActionIODescriptor
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
 

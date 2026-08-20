@@ -15,8 +15,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim.spawners.from_files import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp

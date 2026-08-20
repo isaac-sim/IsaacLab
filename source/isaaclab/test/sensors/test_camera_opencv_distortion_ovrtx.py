@@ -43,18 +43,18 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
     import isaaclab.sim as sim_utils
+    from isaaclab._src.utils.math import create_rotation_matrix_from_view, quat_from_matrix
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sensors import Camera, CameraCfg
     from isaaclab.sim import SimulationCfg
-    from isaaclab.sim.spawners.sensors.sensors_cfg import (
+    from isaaclab.sim.spawners.sensors import (
         OpenCvDistortionCfg,
         OpenCvFisheyeDistortionCfg,
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
-    from isaaclab.utils.configclass import configclass
-    from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+    from isaaclab.utils import configclass
 
 SIM_DT = 1.0 / 60.0
 WIDTH, HEIGHT = 640, 480

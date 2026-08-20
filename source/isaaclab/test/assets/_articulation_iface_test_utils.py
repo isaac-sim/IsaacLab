@@ -15,8 +15,8 @@ from _iface_test_boot import simulation_app
 import numpy as np
 import warp as wp
 
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.utils.wrench_composer import WrenchComposer
+from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab._src.utils.wrench_composer import WrenchComposer
 
 BACKENDS: list[str] = []
 BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}

@@ -5,6 +5,6 @@
 
 """Sub-package for MDP (Markov Decision Process) components contributed by the community."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

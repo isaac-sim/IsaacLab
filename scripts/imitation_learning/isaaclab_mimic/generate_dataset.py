@@ -11,8 +11,8 @@ Main data generation script.
 
 import argparse
 
+from isaaclab._src.utils.string import list_intersection, string_to_callable
 from isaaclab.app import AppLauncher
-from isaaclab.utils.string import list_intersection, string_to_callable
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")

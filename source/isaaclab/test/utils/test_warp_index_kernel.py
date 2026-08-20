@@ -10,8 +10,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab._src.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 
 @wp.kernel

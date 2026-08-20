@@ -7,8 +7,8 @@ import math
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors.frame_transformer import FrameTransformerCfg, OffsetCfg
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 from isaaclab_tasks.contrib.deploy.reach.reach_env_cfg import ReachEnvCfg

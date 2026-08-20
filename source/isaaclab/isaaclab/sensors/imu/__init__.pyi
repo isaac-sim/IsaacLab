@@ -11,8 +11,8 @@ __all__ = [
     "ImuData",
 ]
 
-from .base_imu import BaseImu
-from .base_imu_data import BaseImuData
-from .imu import Imu
-from .imu_cfg import ImuCfg
-from .imu_data import ImuData
+from isaaclab._src.sensors.imu.base_imu import BaseImu
+from isaaclab._src.sensors.imu.base_imu_data import BaseImuData
+from isaaclab._src.sensors.imu.imu import Imu
+from isaaclab._src.sensors.imu.imu_cfg import ImuCfg
+from isaaclab._src.sensors.imu.imu_data import ImuData

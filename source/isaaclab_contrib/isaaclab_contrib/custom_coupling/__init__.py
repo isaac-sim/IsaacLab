@@ -8,6 +8,6 @@
 Import :mod:`isaaclab_contrib.custom_coupling.tasks` to register the example task.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

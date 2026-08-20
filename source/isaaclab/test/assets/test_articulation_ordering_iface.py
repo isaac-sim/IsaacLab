@@ -16,8 +16,8 @@ import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
+from isaaclab._src.utils.wrench_composer import WrenchComposer
 from isaaclab.utils.buffers import TimestampedBufferWarp
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:

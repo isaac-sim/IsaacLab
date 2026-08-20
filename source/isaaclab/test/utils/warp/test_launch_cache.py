@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import isaaclab.utils.warp.launch_cache as launch_cache
-from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
+import isaaclab._src.utils.warp.launch_cache as launch_cache
+from isaaclab._src.utils.warp.launch_cache import _WarpLaunchCache
 
 
 def test_warp_launch_cache(monkeypatch):

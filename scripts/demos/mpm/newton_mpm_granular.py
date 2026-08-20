@@ -129,7 +129,7 @@ def create_scene_cfg():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def collider_cfg(prim_path: str, center, half_extents, orientation, friction: float = 0.1) -> AssetBaseCfg:
         return AssetBaseCfg(

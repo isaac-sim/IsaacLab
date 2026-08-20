@@ -64,7 +64,7 @@ import isaaclab.sim as sim_utils
 ##
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
 from isaaclab.physics import PhysicsCfg  # isort:skip
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject

@@ -57,7 +57,7 @@ from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_rel_retargete
     Se3RelRetargeterCfg,
 )
 
-from isaaclab.devices.device_base import DeviceBase
+from isaaclab.devices import DeviceBase
 
 # Mock dex retargeting utils
 with patch.dict(

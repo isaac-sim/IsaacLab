@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.utils.types import ArticulationActions
+from isaaclab.utils import ArticulationActions
 
 pytestmark = pytest.mark.integration
 

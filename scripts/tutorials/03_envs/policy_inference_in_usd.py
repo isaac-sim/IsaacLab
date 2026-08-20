@@ -41,9 +41,9 @@ import os
 
 import torch
 
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, read_file
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, read_file
 
 from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
 

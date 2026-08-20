@@ -1,0 +1,598 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import logging
+import os
+import tempfile
+from contextlib import nullcontext
+from typing import TYPE_CHECKING
+
+from filelock import FileLock
+
+from isaaclab._src.sim import converters, schemas
+from isaaclab._src.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
+from isaaclab._src.sim.spawners.materials.physics_materials import spawn_physics_material
+from isaaclab._src.sim.utils import (
+    add_labels,
+    bind_physics_material,
+    bind_visual_material,
+    change_prim_property,
+    clone,
+    create_prim,
+    get_current_stage,
+    get_first_matching_child_prim,
+    has_deformable_body_api,
+    make_uninstanceable,
+    select_usd_variants,
+    set_prim_visibility,
+)
+from isaaclab._src.utils.assets import check_file_path, retrieve_file_path
+from isaaclab._src.utils.version import has_kit
+
+if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
+
+    from . import from_files_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
+
+
+@clone
+def spawn_from_usd(
+    prim_path: str,
+    cfg: from_files_cfg.UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn an asset from a USD file and override the settings with the given config.
+
+    In the case of a USD file, the asset is spawned at the default prim specified in the USD file.
+    If a default prim is not specified, then the asset is spawned at the root prim.
+
+    In case a prim already exists at the given prim path, then the function does not create a new prim
+    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides
+    the settings with the given config.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
+    """
+    # spawn asset from the given usd file
+    return _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+
+
+@clone
+def spawn_from_urdf(
+    prim_path: str,
+    cfg: from_files_cfg.UrdfFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn an asset from a URDF file and override the settings with the given config.
+
+    It uses the :class:`UrdfConverter` class to create a USD file from URDF. This file is then imported
+    at the specified prim path.
+
+    In case a prim already exists at the given prim path, then the function does not create a new prim
+    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides
+    the settings with the given config.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the generated USD file is used.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the generated USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the URDF file does not exist at the given path.
+    """
+    # urdf loader to convert urdf to usd
+    urdf_loader = converters.UrdfConverter(cfg)
+    # spawn asset from the generated usd file
+    return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
+
+
+@clone
+def spawn_from_mjcf(
+    prim_path: str,
+    cfg: from_files_cfg.MjcfFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    """Spawn an asset from a MJCF file and override the settings with the given config.
+
+    It uses the :class:`MjcfConverter` class to create a USD file from MJCF. This file is then imported
+    at the specified prim path.
+
+    In case a prim already exists at the given prim path, then the function does not create a new prim
+    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides
+    the settings with the given config.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the generated USD file is used.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the generated USD file is used.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the MJCF file does not exist at the given path.
+    """
+    # mjcf loader to convert mjcf to usd
+    mjcf_loader = converters.MjcfConverter(cfg)
+    # spawn asset from the generated usd file
+    return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
+
+
+def spawn_ground_plane(
+    prim_path: str,
+    cfg: from_files_cfg.GroundPlaneCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawns a ground plane into the scene.
+
+    This function loads the USD file containing the grid plane asset from Isaac Sim. It may
+    not work with other assets for ground planes. In those cases, please use the `spawn_from_usd`
+    function.
+
+    Note:
+        This function takes keyword arguments to be compatible with other spawners. However, it does not
+        use any of the kwargs.
+
+    Args:
+        prim_path: The path to spawn the asset at.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        ValueError: If the prim path already exists.
+    """
+    # Obtain current stage
+    stage = get_current_stage()
+
+    # Spawn Ground-plane
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
+    else:
+        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+
+    # Create physics material
+    if cfg.physics_material is not None:
+        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
+        # Apply physics material to ground plane
+        collision_prim = get_first_matching_child_prim(
+            prim_path,
+            predicate=lambda _prim: _prim.GetTypeName() == "Plane",
+            stage=stage,
+        )
+        if collision_prim is None:
+            raise ValueError(f"No collision prim found at path: '{prim_path}'.")
+        # bind physics material to the collision prim
+        collision_prim_path = str(collision_prim.GetPath())
+        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial", stage=stage)
+
+    # Obtain environment prim
+    environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
+    # Scale only the mesh
+    # Warning: This is specific to the default grid plane asset.
+    if environment_prim.IsValid():
+        # compute scale from size
+        scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
+        # apply scale to the mesh
+        environment_prim.GetAttribute("xformOp:scale").Set(scale)
+
+    # Change the color of the plane
+    # Warning: This is specific to the default grid plane asset.
+    if cfg.color is not None:
+        from pxr import Gf, Sdf  # noqa: PLC0415
+
+        # change the color
+        change_prim_property(
+            prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
+            value=Gf.Vec3f(*cfg.color),
+            stage=stage,
+            type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+        )
+    # Remove the light from the ground plane (USD API, works without Kit/Newton)
+    # It isn't bright enough and messes up with the user's lighting settings
+    light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
+    if light_prim.IsValid():
+        from pxr import UsdGeom  # noqa: PLC0415
+
+        imageable = UsdGeom.Imageable(light_prim)
+        imageable.MakeInvisible()
+
+    prim = stage.GetPrimAtPath(prim_path)
+    # Apply semantic tags
+    if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
+        # note: taken from replicator scripts.utils.utils.py
+        for semantic_type, semantic_value in cfg.semantic_tags:
+            # deal with spaces by replacing them with underscores
+            semantic_type_sanitized = semantic_type.replace(" ", "_")
+            semantic_value_sanitized = semantic_value.replace(" ", "_")
+            # add labels to the prim
+            add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
+
+    # Apply visibility
+    set_prim_visibility(prim, cfg.visible)
+
+    # return the prim
+    return prim
+
+
+"""
+Helper functions.
+"""
+
+
+def _spawn_from_usd_file(
+    prim_path: str,
+    usd_path: str,
+    cfg: from_files_cfg.FileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn an asset from a USD file and override the settings with the given config.
+
+    In case a prim already exists at the given prim path, then the function does not create a new prim
+    or throw an error that the prim already exists. Instead, it just takes the existing prim and overrides
+    the settings with the given config.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        usd_path: The path to the USD file to spawn the asset from.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the generated USD file is used.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the generated USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
+    """
+    # In distributed training, serialize asset download and USD stage composition
+    # across ranks to prevent file I/O races. Concurrent mmap reads/writes on
+    # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.
+    _world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
+
+    file_status = check_file_path(usd_path)
+    if file_status == 0:
+        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
+
+    if _world_size > 1:
+        lock = FileLock(os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock"))
+    else:
+        lock = nullcontext()
+    with lock:
+        if file_status == 2:
+            usd_path = retrieve_file_path(usd_path, force_download=False)
+        stage = get_current_stage()
+        if not stage.GetPrimAtPath(prim_path).IsValid():
+            create_prim(
+                prim_path,
+                usd_path=usd_path,
+                translation=translation,
+                orientation=orientation,
+                scale=cfg.scale,
+                stage=stage,
+            )
+        else:
+            logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
+
+    # modify variants
+    if hasattr(cfg, "variants") and cfg.variants is not None:
+        select_usd_variants(prim_path, cfg.variants)
+
+    # make instance proxies editable before any override tries to author properties on them
+    if getattr(cfg, "make_uninstanceable", False):
+        make_uninstanceable(prim_path, stage=stage)
+
+    # modify rigid body properties
+    if cfg.rigid_props is not None:
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
+        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags)
+        else:
+            schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
+    # modify collision properties
+    if cfg.collision_props is not None:
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
+        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
+            schemas.apply_collision_properties(prim_path, coll_frags)
+        else:
+            schemas.modify_collision_properties(prim_path, cfg.collision_props)
+    # modify mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> modify_*)
+    if cfg.mass_props is not None:
+        # normalize a single fragment to a list so the convenience form routes like a list
+        mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
+        if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
+            schemas.apply_mass_properties(prim_path, mass_frags)
+        else:
+            schemas.modify_mass_properties(prim_path, cfg.mass_props)
+
+    # modify articulation root properties
+    # ``fix_root_link`` is a spawner-level topology flag (not a schema property); it is honored on the
+    # fragment path independently of whether any articulation schema properties were supplied.
+    articulation_props = cfg.articulation_props
+    articulation_fix_root_link = cfg.fix_root_link
+    # transition shim, remove later: route a legacy single cfg (a dataclass, not a fragment) to the
+    # legacy writer -- it owns its own ``fix_root_link`` field; everything else goes to the fragment
+    # writer, routing by type so an empty list is still a valid (topology-only) fragment collection
+    # rather than being mis-sent to the legacy writer.
+    if (
+        articulation_props is not None
+        and not isinstance(articulation_props, (list, tuple))
+        and not isinstance(articulation_props, schemas.SchemaFragment)
+    ):
+        if articulation_fix_root_link is not None:
+            logger.warning(
+                f"Ignoring the spawner-level 'fix_root_link={articulation_fix_root_link}' because"
+                " 'articulation_props' is a legacy cfg, which owns its own 'fix_root_link' field. Set"
+                " it on that cfg instead."
+            )
+        schemas.modify_articulation_root_properties(prim_path, articulation_props)
+    else:
+        articulation_frags = (
+            list(articulation_props)
+            if isinstance(articulation_props, (list, tuple))
+            else ([articulation_props] if isinstance(articulation_props, schemas.SchemaFragment) else [])
+        )
+        if articulation_frags or articulation_fix_root_link is not None:
+            schemas.apply_articulation_root_properties(
+                prim_path, articulation_frags, fix_root_link=articulation_fix_root_link
+            )
+    # modify tendon properties
+    if cfg.fixed_tendons_props is not None:
+        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*
+        # normalize a single fragment to a list so the convenience form (and an empty list) route like a list
+        fixed_tendon_frags = (
+            [cfg.fixed_tendons_props]
+            if isinstance(cfg.fixed_tendons_props, schemas.SchemaFragment)
+            else cfg.fixed_tendons_props
+        )
+        if isinstance(fixed_tendon_frags, (list, tuple)) and all(
+            isinstance(f, schemas.SchemaFragment) for f in fixed_tendon_frags
+        ):
+            schemas.apply_fixed_tendon_properties(prim_path, fixed_tendon_frags)
+        else:
+            schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
+    if cfg.spatial_tendons_props is not None:
+        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*
+        # normalize a single fragment to a list so the convenience form (and an empty list) route like a list
+        spatial_tendon_frags = (
+            [cfg.spatial_tendons_props]
+            if isinstance(cfg.spatial_tendons_props, schemas.SchemaFragment)
+            else cfg.spatial_tendons_props
+        )
+        if isinstance(spatial_tendon_frags, (list, tuple)) and all(
+            isinstance(f, schemas.SchemaFragment) for f in spatial_tendon_frags
+        ):
+            schemas.apply_spatial_tendon_properties(prim_path, spatial_tendon_frags)
+        else:
+            schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
+    # define drive API on the joints
+    # note: these are only for setting low-level simulation properties. all others should be set or are
+    #  and overridden by the articulation/actuator properties.
+    if cfg.joint_drive_props is not None:
+        # transition shim, remove later: a fragment list -> apply_joint_drive_properties (the
+        # MujocoJointCfg fragment handles its own body-gravcomp coupling in apply_mujoco_joint, so
+        # the fragment path adds no backend coupling here); a legacy single cfg -> the pre-existing
+        # gravcomp auto-enable + modify_joint_drive_properties below.
+        joint_frags = (
+            cfg.joint_drive_props if isinstance(cfg.joint_drive_props, (list, tuple)) else [cfg.joint_drive_props]
+        )
+        if joint_frags and all(isinstance(f, schemas.SchemaFragment) for f in joint_frags):
+            schemas.apply_joint_drive_properties(prim_path, joint_frags, ensure_drives_exist=cfg.ensure_drives_exist)
+        else:
+            # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested
+            # without it — actuatorgravcomp has no effect since there are no forces to route.
+            # Only auto-populates when the user did not already set ``gravcomp`` themselves;
+            # an explicit ``MujocoRigidBodyPropertiesCfg(gravcomp=0.5)`` is preserved as-is.
+            from isaaclab_newton.sim.schemas.schemas_cfg import (
+                MujocoJointDrivePropertiesCfg,
+                MujocoRigidBodyCfg,
+                MujocoRigidBodyPropertiesCfg,
+            )
+
+            # gravcomp may be authored either via the legacy MujocoRigidBodyPropertiesCfg or via a
+            # MujocoRigidBodyCfg fragment in a rigid_props list. Treat either as "already set".
+            rigid_props_list = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+            body_gravcomp_unset = not any(
+                isinstance(f, (MujocoRigidBodyPropertiesCfg, MujocoRigidBodyCfg)) and f.gravcomp is not None
+                for f in rigid_props_list
+            )
+            if (
+                isinstance(cfg.joint_drive_props, MujocoJointDrivePropertiesCfg)
+                and cfg.joint_drive_props.actuatorgravcomp
+                and body_gravcomp_unset
+            ):
+                logger.info(
+                    "Joint-level actuator gravity compensation requires body-level gravcomp."
+                    " Auto-setting MujocoRigidBodyPropertiesCfg(gravcomp=1.0)."
+                )
+                schemas.modify_rigid_body_properties(prim_path, MujocoRigidBodyPropertiesCfg(gravcomp=1.0))
+            schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
+
+    # define deformable body properties, or modify if deformable body API is present (PhysX only)
+    if cfg.deformable_props is not None:
+        prim = stage.GetPrimAtPath(prim_path)
+        deformable_type = (
+            "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
+        )
+        if has_deformable_body_api(prim):
+            schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
+        else:
+            schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
+        if cfg.mass_props is not None:
+            raise ValueError(
+                """MassPropertiesCfg are not supported for deformable bodies
+                and should be set through deformable_props with mass=<value>."""
+            )
+
+    # apply visual material
+    if cfg.visual_material is not None:
+        if not has_kit():
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
+        else:
+            if not cfg.visual_material_path.startswith("/"):
+                material_path = f"{prim_path}/{cfg.visual_material_path}"
+            else:
+                material_path = cfg.visual_material_path
+            # create material
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            # apply material
+            bind_visual_material(prim_path, material_path, stage=stage)
+
+    # apply physics material
+    if cfg.physics_material is not None:
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{prim_path}/{cfg.physics_material_path}"
+        )
+        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
+        # apply material
+        bind_physics_material(prim_path, material_path, stage=stage)
+
+    # return the prim
+    return stage.GetPrimAtPath(prim_path)
+
+
+@clone
+def spawn_from_usd_with_compliant_contact_material(
+    prim_path: str,
+    cfg: from_files_cfg.UsdFileWithCompliantContactCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn an asset from a USD file and apply physics material to specified prims.
+
+    This function extends the :meth:`spawn_from_usd` function by allowing application of compliant contact
+    physics materials to specified prims within the spawned asset. This is useful for configuring
+    contact behavior of specific parts within the asset.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance containing the USD file path and physics material settings.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The prim of the spawned asset with the physics material applied to the specified prims.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
+    """
+
+    prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    stiff = cfg.compliant_contact_stiffness
+    damp = cfg.compliant_contact_damping
+    if cfg.physics_material_prim_path is None:
+        logger.warning("No physics material prim path specified. Skipping physics material application.")
+        return prim
+
+    if isinstance(cfg.physics_material_prim_path, str):
+        prim_paths = [cfg.physics_material_prim_path]
+    else:
+        prim_paths = cfg.physics_material_prim_path
+
+    if stiff is not None or damp is not None:
+        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
+
+        material_kwargs = {}
+        if stiff is not None:
+            material_kwargs["compliant_contact_stiffness"] = stiff
+        if damp is not None:
+            material_kwargs["compliant_contact_damping"] = damp
+        material_cfg = PhysxRigidBodyMaterialCfg(**material_kwargs)
+
+        for path in prim_paths:
+            if not path.startswith("/"):
+                rigid_body_prim_path = f"{prim_path}/{path}"
+            else:
+                rigid_body_prim_path = path
+
+            material_path = f"{rigid_body_prim_path}/compliant_material"
+
+            # spawn physics material
+            material_cfg.func(material_path, material_cfg)
+
+            bind_physics_material(
+                rigid_body_prim_path,
+                material_path,
+            )
+            logger.info(
+                f"Applied physics material to prim: {rigid_body_prim_path} with compliance stiffness: {stiff} and"
+                f" compliance damping: {damp}."
+            )
+
+    return prim

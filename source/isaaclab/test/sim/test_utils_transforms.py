@@ -20,8 +20,8 @@ import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 
 pytestmark = pytest.mark.integration
 

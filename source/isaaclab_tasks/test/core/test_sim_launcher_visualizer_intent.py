@@ -11,7 +11,7 @@ import argparse
 import sys
 import types
 
-import isaaclab.app.sim_launcher as sim_launcher
+import isaaclab._src.app.sim_launcher as sim_launcher
 
 
 def _force_kitless(monkeypatch):

@@ -23,7 +23,7 @@ from typing import TypeAlias
 import numpy as np
 import warp as wp
 
-from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, unpack_rgba
+from isaaclab._src.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, unpack_rgba
 
 from .ovrtx_renderer_kernels import generate_random_colors_from_ids_kernel
 

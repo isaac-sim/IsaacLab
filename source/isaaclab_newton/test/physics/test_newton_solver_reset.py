@@ -21,10 +21,10 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton.solvers import SolverMuJoCo
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 def _generate_single_joint_articulations(num_articulations: int, device: str) -> Articulation:

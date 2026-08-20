@@ -20,7 +20,7 @@ from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 
-from isaaclab.utils.math import (  # isort:skip
+from isaaclab._src.utils.math import (  # isort:skip
     compute_pose_error,
     matrix_from_quat,
     quat_inv,

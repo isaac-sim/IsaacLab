@@ -10,8 +10,8 @@ from collections.abc import Sequence
 import numpy as np
 import torch
 
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.math import quat_from_angle_axis, quat_mul
+import isaaclab._src.utils.math as math_utils
+from isaaclab._src.utils.math import quat_from_angle_axis, quat_mul
 
 
 class EpisodeErrorRecorder:

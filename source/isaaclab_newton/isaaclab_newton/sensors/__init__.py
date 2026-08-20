@@ -5,6 +5,6 @@
 
 """Sub-package containing Newton-specific sensor implementations."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

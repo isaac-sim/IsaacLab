@@ -159,7 +159,7 @@ def create_scene_cfg():
 
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,

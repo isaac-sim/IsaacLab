@@ -13,9 +13,9 @@ from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.envs.mdp as mdp
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab._src.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.controllers import DifferentialIKControllerCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 from isaaclab_tasks.utils import PresetCfg, preset

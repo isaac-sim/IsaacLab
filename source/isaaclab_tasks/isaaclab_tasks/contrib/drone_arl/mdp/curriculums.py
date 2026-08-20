@@ -17,8 +17,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.managers.manager_term_cfg import CurriculumTermCfg
+from isaaclab.managers import CurriculumTermCfg, ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

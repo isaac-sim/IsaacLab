@@ -16,6 +16,6 @@
     :mod:`isaaclab_teleop.xr_anchor_utils`.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

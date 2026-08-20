@@ -37,7 +37,7 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
-from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
+from isaaclab.sensors.camera import TiledCameraCfg
 
 wp.init()
 

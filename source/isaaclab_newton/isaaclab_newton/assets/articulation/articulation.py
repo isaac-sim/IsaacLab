@@ -23,19 +23,23 @@ from prettytable import PrettyTable
 
 from pxr import UsdPhysics
 
+from isaaclab._src.assets.articulation import ordering_kernels
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
-from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.assets.articulation import BaseArticulation
+from isaaclab.sim.utils import path_expr_to_glob, resolve_matching_prims_from_source
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
+from isaaclab._src.utils.wrench_composer import WrenchComposer
 from isaaclab.physics import PhysicsEvent
-from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
-from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils import (
+    ArticulationActions,
+    get_isaac_sim_version,
+    has_kit,
+    resolve_matching_names,
+    resolve_matching_names_values,
+)
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
@@ -44,7 +48,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+    from isaaclab.assets.articulation import ArticulationCfg
 
 
 # import logger

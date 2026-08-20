@@ -16,22 +16,20 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
-    from isaaclab.sensors.camera.camera import Camera
-    from isaaclab.sensors.camera.tiled_camera import TiledCamera
-    from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
-    from isaaclab.sensors.ray_caster.ray_caster_camera import RayCasterCamera
+    from isaaclab.sensors.camera import Camera, TiledCamera
+    from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, RayCasterCamera
 
     from isaaclab_contrib.assets import Multirotor
 
-from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab._src.envs.utils.io_descriptors import generic_io_descriptor, record_shape
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 """
 State.

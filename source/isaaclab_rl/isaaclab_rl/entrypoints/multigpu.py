@@ -22,7 +22,7 @@ from pathlib import Path  # noqa: E402
 
 from torch.distributed.elastic.multiprocessing.errors import record  # noqa: E402
 
-from isaaclab.cli.multigpu import (  # noqa: E402
+from isaaclab._src.cli.multigpu import (  # noqa: E402
     SKRL_JAX_ARGS,
     SKRL_JAX_TORCHRUN_ONLY_ARGS,
     TORCHRUN_ARGS,

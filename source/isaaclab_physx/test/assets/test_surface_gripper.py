@@ -24,6 +24,7 @@ import warp as wp
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import (
     Articulation,
@@ -32,8 +33,7 @@ from isaaclab.assets import (
     RigidObjectCfg,
 )
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView
 

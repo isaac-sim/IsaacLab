@@ -28,7 +28,7 @@ class TestProxyArrayBasic:
 
     def test_warp_returns_original(self, device):
         """Test that .warp returns the original warp array."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -36,7 +36,7 @@ class TestProxyArrayBasic:
 
     def test_torch_returns_tensor(self, device):
         """Test that .torch returns a torch.Tensor."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -44,7 +44,7 @@ class TestProxyArrayBasic:
 
     def test_torch_is_cached(self, device):
         """Test that .torch returns the same tensor object on repeated access."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -54,7 +54,7 @@ class TestProxyArrayBasic:
 
     def test_torch_shares_memory(self, device):
         """Test that .torch provides a zero-copy view (shares memory with warp)."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -67,7 +67,7 @@ class TestProxyArrayBasic:
 
     def test_immutable_warp_cannot_be_reassigned(self, device):
         """ProxyArray._warp cannot be reassigned; callers must construct a new wrapper."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -79,7 +79,7 @@ class TestProxyArrayBasic:
 
     def test_immutable_allows_internal_torch_cache(self, device):
         """Lazy .torch caching still works — only _torch_cache is allowed as a post-init write."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -91,7 +91,7 @@ class TestProxyArrayBasic:
 
     def test_cuda_array_interface(self):
         """Test that __cuda_array_interface__ delegates to the underlying warp array."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device="cuda:0")
         ta = ProxyArray(arr)
@@ -103,7 +103,7 @@ class TestProxyArrayBasic:
 
     def test_cuda_array_interface_not_on_cpu(self):
         """Test that __cuda_array_interface__ raises AttributeError on CPU arrays."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device="cpu")
         ta = ProxyArray(arr)
@@ -112,7 +112,7 @@ class TestProxyArrayBasic:
 
     def test_wp_launch_accepts_proxy_array(self):
         """Test that wp.launch() can consume a ProxyArray via __cuda_array_interface__."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         @wp.kernel
         def _add_one(src: wp.array(dtype=wp.float32), dst: wp.array(dtype=wp.float32)):
@@ -132,7 +132,7 @@ class TestProxyArrayStructuredTypes:
 
     def test_vec3f_shape(self, device):
         """Test that vec3f arrays produce (N, 3) torch tensors."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(8, dtype=wp.vec3f, device=device)
         ta = ProxyArray(arr)
@@ -140,7 +140,7 @@ class TestProxyArrayStructuredTypes:
 
     def test_quatf_shape(self, device):
         """Test that quatf arrays produce (N, 4) torch tensors."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(8, dtype=wp.quatf, device=device)
         ta = ProxyArray(arr)
@@ -148,7 +148,7 @@ class TestProxyArrayStructuredTypes:
 
     def test_transformf_shape(self, device):
         """Test that transformf arrays produce (N, 7) torch tensors."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(8, dtype=wp.transformf, device=device)
         ta = ProxyArray(arr)
@@ -156,7 +156,7 @@ class TestProxyArrayStructuredTypes:
 
     def test_spatial_vectorf_shape(self, device):
         """Test that spatial_vectorf arrays produce (N, 6) torch tensors."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(8, dtype=wp.spatial_vectorf, device=device)
         ta = ProxyArray(arr)
@@ -164,7 +164,7 @@ class TestProxyArrayStructuredTypes:
 
     def test_2d_vec3f_shape(self, device):
         """Test that 2D vec3f arrays produce (N, M, 3) torch tensors."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros((4, 5), dtype=wp.vec3f, device=device)
         ta = ProxyArray(arr)
@@ -176,7 +176,7 @@ class TestProxyArrayQuatfTorchAccessWarning:
 
     def test_default_no_warning(self, device, monkeypatch):
         """No env var → quatf .torch access is silent."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         monkeypatch.delenv("WARN_ON_TORCH_QUATF_ACCESS", raising=False)
         ta = ProxyArray(wp.zeros(4, dtype=wp.quatf, device=device))
@@ -187,7 +187,7 @@ class TestProxyArrayQuatfTorchAccessWarning:
 
     def test_env_set_warns_on_quatf(self, device, monkeypatch):
         """WARN_ON_TORCH_QUATF_ACCESS=1 → quatf .torch read emits a UserWarning at the call site."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         monkeypatch.setenv("WARN_ON_TORCH_QUATF_ACCESS", "1")
         ta = ProxyArray(wp.zeros(4, dtype=wp.quatf, device=device))
@@ -204,7 +204,7 @@ class TestProxyArrayQuatfTorchAccessWarning:
 
     def test_env_set_does_not_warn_on_non_quatf(self, device, monkeypatch):
         """The detector only fires for wp.quatf — float32 / vec3f / transformf are silent."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         monkeypatch.setenv("WARN_ON_TORCH_QUATF_ACCESS", "1")
         for dtype in (wp.float32, wp.vec3f, wp.transformf, wp.spatial_vectorf):
@@ -216,7 +216,7 @@ class TestProxyArrayQuatfTorchAccessWarning:
 
     def test_env_zero_does_not_warn(self, device, monkeypatch):
         """WARN_ON_TORCH_QUATF_ACCESS=0 → silent (only ``"1"`` enables the detector)."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         monkeypatch.setenv("WARN_ON_TORCH_QUATF_ACCESS", "0")
         ta = ProxyArray(wp.zeros(4, dtype=wp.quatf, device=device))
@@ -231,7 +231,7 @@ class TestProxyArrayConvenienceProperties:
 
     def test_shape(self, device):
         """Test that .shape returns the warp array shape."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros((3, 4), dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -239,7 +239,7 @@ class TestProxyArrayConvenienceProperties:
 
     def test_dtype(self, device):
         """Test that .dtype returns the warp dtype."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -247,7 +247,7 @@ class TestProxyArrayConvenienceProperties:
 
     def test_device(self, device):
         """Test that .device returns the warp device string."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(10, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -255,7 +255,7 @@ class TestProxyArrayConvenienceProperties:
 
     def test_len(self, device):
         """Test that len() returns the first dimension size."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros((7, 3), dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -263,7 +263,7 @@ class TestProxyArrayConvenienceProperties:
 
     def test_repr(self, device):
         """Test that repr() contains ProxyArray and key info."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.zeros(5, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -277,13 +277,13 @@ class TestProxyArrayDeprecationBridge:
 
     def setup_method(self):
         """Reset the deprecation warning flag before each test."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = False
 
     def test_torch_function_works_and_warns(self, device):
         """Test that __torch_function__ enables torch ops and emits a deprecation warning."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.ones(5, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -298,7 +298,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_torch_cat_works_and_warns(self, device):
         """Test that torch.cat works with ProxyArray and emits a deprecation warning."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         a1 = wp.ones(3, dtype=wp.float32, device=device)
         a2 = wp.ones(4, dtype=wp.float32, device=device)
@@ -313,7 +313,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_arithmetic_operators_work_and_warn(self, device):
         """Test that arithmetic operators work and emit deprecation warnings."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.ones(5, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -329,7 +329,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_warns_only_once(self, device):
         """Test that the deprecation warning is emitted only once per session."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.ones(5, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -344,7 +344,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_tensor_plus_proxy_array(self, device):
         """Test that torch.Tensor + ProxyArray works via __torch_function__."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = wp.ones(5, dtype=wp.float32, device=device)
         ta = ProxyArray(arr)
@@ -370,7 +370,7 @@ class TestProxyArrayDeprecationBridge:
     )
     def test_binary_operators(self, op, scalar, expected):
         """Test forward binary operators: +, -, *, /, **."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         ta = ProxyArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))  # noqa: F841
@@ -389,7 +389,7 @@ class TestProxyArrayDeprecationBridge:
     )
     def test_reflected_operators(self, op, scalar, expected):
         """Test reflected binary operators: scalar op ProxyArray."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         ta = ProxyArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))  # noqa: F841
@@ -398,7 +398,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_proxy_array_op_proxy_array(self):
         """Test binary operations between two ProxyArray instances."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         ta1 = ProxyArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
@@ -417,7 +417,7 @@ class TestProxyArrayDeprecationBridge:
     )
     def test_unary_operators(self, op, values, expected):
         """Test unary operators: -, +, abs."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         ta = ProxyArray(wp.array(values, dtype=wp.float32, device="cpu"))  # noqa: F841
@@ -437,7 +437,7 @@ class TestProxyArrayDeprecationBridge:
     )
     def test_comparison_operators(self, op, expected):
         """Test comparison operators: ==, !=, <, <=, >, >=."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         ta = ProxyArray(wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"))  # noqa: F841
@@ -446,7 +446,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_getitem_1d(self):
         """Test 1D indexing via __getitem__."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         ta = ProxyArray(wp.array([10.0, 20.0, 30.0], dtype=wp.float32, device="cpu"))
@@ -456,7 +456,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_getitem_nd(self):
         """Test multi-dimensional indexing via __getitem__ with structured types."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         wp_arr = wp.zeros((3, 4), dtype=wp.vec3f, device="cpu")
@@ -469,7 +469,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_setitem_writes_through(self):
         """Test __setitem__ writes through to shared warp memory."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = True
         wp_arr = wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu")
@@ -479,7 +479,7 @@ class TestProxyArrayDeprecationBridge:
 
     def test_getitem_warns(self):
         """Test __getitem__ emits deprecation warning."""
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         ProxyArray._deprecation_warned = False
         ta = ProxyArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
@@ -510,7 +510,7 @@ class TestWpToTorchShim:
     def test_proxy_array_returns_torch_with_warning(self):
         """``wp.to_torch(ProxyArray)`` returns the cached .torch view and warns once."""
         import isaaclab.utils.warp as iw  # noqa: F401  # ensure shim is installed
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         # Reset the module-level one-shot flag so the warning fires in this test.
         iw._WP_TO_TORCH_WARNED = False
@@ -531,7 +531,7 @@ class TestWpToTorchShim:
     def test_proxy_array_warning_is_one_shot(self):
         """Repeated ``wp.to_torch(ProxyArray)`` calls must not spam warnings."""
         import isaaclab.utils.warp as iw
-        from isaaclab.utils.warp.proxy_array import ProxyArray
+        from isaaclab.utils.warp import ProxyArray
 
         iw._WP_TO_TORCH_WARNED = True  # pretend the warning already fired
 

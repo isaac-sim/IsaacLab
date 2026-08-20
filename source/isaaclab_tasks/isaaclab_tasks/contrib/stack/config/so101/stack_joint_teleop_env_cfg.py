@@ -8,7 +8,7 @@ from dataclasses import MISSING
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 

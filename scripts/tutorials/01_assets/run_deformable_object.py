@@ -46,8 +46,8 @@ args_cli.physics = args_cli.backend
 
 import torch
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.physics import PhysicsCfg
 
 if TYPE_CHECKING:

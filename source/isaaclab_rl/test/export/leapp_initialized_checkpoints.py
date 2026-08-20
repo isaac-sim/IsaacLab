@@ -349,7 +349,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     app_launcher = AppLauncher(headless=True, limit_cpu_threads=1)
     simulation_app = app_launcher.app
 
-    from isaaclab.app.settings_manager import get_settings_manager
+    from isaaclab.app import get_settings_manager
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 

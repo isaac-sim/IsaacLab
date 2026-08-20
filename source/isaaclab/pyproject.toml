@@ -40,3 +40,7 @@ include = ["isaaclab", "isaaclab.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab._src.controllers.config" = ["data/*.urdf"]
+"isaaclab._src.devices.openxr.retargeters.humanoid.fourier" = ["data/configs/dex-retargeting/*.yml"]
+"isaaclab._src.devices.openxr.retargeters.humanoid.unitree.inspire" = ["data/configs/dex-retargeting/*.yml"]
+"isaaclab._src.devices.openxr.retargeters.humanoid.unitree.trihand" = ["data/configs/dex-retargeting/*.yml"]

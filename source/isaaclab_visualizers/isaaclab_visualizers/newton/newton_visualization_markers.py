@@ -18,8 +18,8 @@ from newton import Axis, Mesh
 from newton.viewer import ViewerBase
 
 import isaaclab.sim as sim_utils
-from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.utils.math import quat_apply
+from isaaclab._src.utils.math import quat_apply
+from isaaclab.markers import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +379,7 @@ def _load_usd_mesh(usd_path: str) -> Mesh | None:
     try:
         from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-        from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+        from isaaclab._src.utils.assets import retrieve_file_path  # noqa: PLC0415
 
         local_path = retrieve_file_path(usd_path)
         stage = Usd.Stage.Open(local_path)

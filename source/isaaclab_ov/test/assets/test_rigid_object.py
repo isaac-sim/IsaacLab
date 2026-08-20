@@ -43,11 +43,8 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.assets import RigidObjectCfg  # noqa: E402
-from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.sim.spawners import materials  # noqa: E402
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
-from isaaclab.utils.math import (  # noqa: E402
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
+from isaaclab._src.utils.math import (  # noqa: E402
     combine_frame_transforms,
     default_orientation,
     quat_apply_inverse,
@@ -56,6 +53,9 @@ from isaaclab.utils.math import (  # noqa: E402
     quat_rotate,
     random_orientation,
 )
+from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.sim.spawners import materials  # noqa: E402
 
 wp.init()
 

@@ -7,8 +7,8 @@
 
 from typing import Any, Literal
 
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.renderers import RendererCfg
+from isaaclab.utils import configclass
 
 
 @configclass

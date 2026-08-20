@@ -14,7 +14,7 @@ from typing import Any
 import omni.usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.app import SettingsManager, get_settings_manager
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
@@ -265,7 +265,7 @@ def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
     if not bool(sim.get_setting("/isaaclab/video/enabled")):
         return
 
-    from isaaclab.utils.version import has_kit
+    from isaaclab.utils import has_kit
 
     if not has_kit():
         return

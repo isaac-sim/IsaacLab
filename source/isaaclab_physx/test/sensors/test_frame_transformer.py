@@ -23,14 +23,14 @@ from isaaclab_physx.sensors.frame_transformer import frame_transformer as frame_
 from isaaclab_physx.sensors.frame_transformer.frame_transformer import FrameTransformer
 from isaaclab_physx.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
 
+import isaaclab._src.utils.math as math_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs

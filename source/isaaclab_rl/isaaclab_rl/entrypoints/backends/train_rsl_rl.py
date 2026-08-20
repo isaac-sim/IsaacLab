@@ -71,7 +71,7 @@ def _check_rsl_rl_version() -> str:
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RSL-RL training arguments."""
-    from isaaclab.utils.string import list_intersection, string_to_callable
+    from isaaclab._src.utils.string import list_intersection, string_to_callable
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -116,10 +116,10 @@ def _run(args_cli: argparse.Namespace) -> None:
     """Execute RSL-RL training with parsed arguments."""
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+    from isaaclab._src.utils.assets import retrieve_file_path
+    from isaaclab._src.utils.seed import configure_seed
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
-    from isaaclab.utils.assets import retrieve_file_path
-    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 

@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils import math as math_utils
+from isaaclab._src.utils.math import combine_frame_transforms, compute_pose_error
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import math as math_utils
-from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject

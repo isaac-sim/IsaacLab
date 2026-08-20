@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from typing import Any
 
 import torch
 import warp as wp
 
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab._src.utils.warp.index_kernel import IndexKernelDispatcher
 
 
 @wp.kernel

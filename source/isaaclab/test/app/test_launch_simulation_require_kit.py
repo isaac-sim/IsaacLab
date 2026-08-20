@@ -19,7 +19,7 @@ import argparse
 
 import pytest
 
-import isaaclab.app.sim_launcher as sim_launcher
+import isaaclab._src.app.sim_launcher as sim_launcher
 import isaaclab.utils as isaaclab_utils
 from isaaclab.app import launch_simulation
 from isaaclab.physics import PhysicsCfg

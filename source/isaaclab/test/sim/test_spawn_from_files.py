@@ -18,9 +18,9 @@ import omni.kit.app
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 
 pytestmark = pytest.mark.integration
 

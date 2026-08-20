@@ -9,7 +9,7 @@ import argparse
 
 import pytest
 
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
+from isaaclab._src.benchmark._cli import parse_non_negative_int, parse_positive_int, validate_warmup_steps
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 

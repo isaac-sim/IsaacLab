@@ -9,7 +9,7 @@ import signal
 import sys
 import types
 
-from isaaclab.app.app_launcher import AppLauncher
+from isaaclab.app import AppLauncher
 
 
 def _make_lifecycle(close_fn):

@@ -28,7 +28,7 @@ import torch
 import warp as wp
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
+from isaaclab.assets.deformable_object import DeformableObjectData
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401

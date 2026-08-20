@@ -28,8 +28,8 @@ from dataclasses import MISSING
 import numpy as np
 import torch
 
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
 DEFAULT_PARTICLES_PER_CELL = 1.2
@@ -442,7 +442,7 @@ def create_scene_cfg():
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.utils import clone
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     container_pos, container_rot, _ = container_pose_at_time(0.0)
     container_vertices, container_faces = load_container_mesh(args_cli.container_usd)

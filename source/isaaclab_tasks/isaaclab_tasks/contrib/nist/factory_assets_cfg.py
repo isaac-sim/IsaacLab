@@ -6,11 +6,11 @@
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
+from isaaclab._src.actuators.actuator_cfg import ImplicitActuatorCfg
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
 from isaaclab_tasks.utils import PresetCfg, preset

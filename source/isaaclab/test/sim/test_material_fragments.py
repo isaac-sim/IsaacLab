@@ -28,7 +28,7 @@ pytestmark = pytest.mark.integration
 
 def test_rigid_body_material_fragment_metadata_defaults():
     from isaaclab.sim.schemas import SchemaFragment
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import (
+    from isaaclab.sim.spawners.materials import (
         RigidBodyMaterialFragment,
         UsdPhysicsRigidBodyMaterialCfg,
     )
@@ -44,7 +44,7 @@ def test_rigid_body_material_fragment_metadata_defaults():
 def test_physx_material_fragment_metadata_defaults():
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialFragment
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialFragment
 
     cfg = PhysxMaterialCfg(compliant_contact_stiffness=100.0)
     assert isinstance(cfg, RigidBodyMaterialFragment)
@@ -61,8 +61,7 @@ def test_physx_material_fragment_metadata_defaults():
 def test_spawn_rigid_body_material_from_fragments_composes_namespaces():
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_rigid_body_material_from_fragments
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -87,8 +86,7 @@ def test_spawn_rigid_body_material_from_fragments_composes_namespaces():
 
 
 def test_spawn_rigid_body_material_from_fragments_accepts_single_fragment():
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_rigid_body_material_from_fragments
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -106,8 +104,7 @@ def test_spawn_physics_material_dispatches_fragments_and_legacy():
     cfg carrying its own ``func``."""
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_physics_material
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -149,11 +146,11 @@ def test_fragment_writer_validates_inputs_before_authoring():
     """Direct and dispatched fragment calls share one validation contract and do not leave prims."""
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import (
+    from isaaclab.sim.spawners.materials import (
+        UsdPhysicsRigidBodyMaterialCfg,
         spawn_physics_material,
         spawn_rigid_body_material_from_fragments,
     )
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -176,8 +173,7 @@ def test_fragment_writer_validates_inputs_before_authoring():
 
 
 def test_spawn_rigid_body_material_from_fragments_leaves_none_fields_unwritten():
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_rigid_body_material_from_fragments
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -198,8 +194,7 @@ def test_spawn_rigid_body_material_from_fragments_leaves_none_fields_unwritten()
 def test_usd_physics_rigid_body_material_density_round_trips():
     """``physics:density`` participates in mass computation via material binding; it must author
     the same as the other ``UsdPhysics.MaterialAPI`` friction/restitution fields."""
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg, spawn_rigid_body_material_from_fragments
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -216,8 +211,8 @@ def test_usd_physics_rigid_body_material_fragment_matches_material_api_schema():
     restitution, density). Catches drift if the schema gains/loses an attribute."""
     import dataclasses
 
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-    from isaaclab.utils.string import to_camel_case
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.utils import to_camel_case
 
     fragment_fields = {f.name for f in dataclasses.fields(UsdPhysicsRigidBodyMaterialCfg) if f.name != "func"}
     schema_attr_names = {name.split(":", 1)[1] for name in UsdPhysics.MaterialAPI.GetSchemaAttributeNames()}
@@ -233,7 +228,7 @@ def test_usd_physics_rigid_body_material_fragment_matches_material_api_schema():
 def test_physx_material_fragment_authors_damping_combine_mode_and_acceleration_spring():
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -257,8 +252,8 @@ def test_spawn_mesh_with_rigid_props_accepts_fragment_list_physics_material():
     """Regression test: the rigid-vs-deformable material guard in the mesh spawner used to reject
     a fragment / fragment-list ``physics_material`` outright. A rigid-body fragment list must spawn
     and bind successfully."""
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCuboidCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -287,8 +282,8 @@ def test_spawn_mesh_with_rigid_props_accepts_fragment_list_physics_material():
 
 
 def test_spawn_ground_plane_accepts_fragment_list_physics_material():
-    from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.sim.spawners.from_files import GroundPlaneCfg
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -325,7 +320,7 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_physx_rigid_body_material():
     :func:`~isaaclab.sim.spawners.materials.spawn_physics_material` accepts it."""
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
-    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCuboidCfg
+    from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -353,7 +348,7 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_newton_material():
     PhysX ``RigidBodyMaterialCfg`` alias) and must not be rejected by the mesh guard."""
     from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
 
-    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCuboidCfg
+    from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -410,8 +405,8 @@ def test_create_prim_from_mesh_accepts_fragment_list():
     import trimesh
     from isaaclab_newton.sim.spawners.materials.physics_materials_cfg import NewtonMaterialCfg
 
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-    from isaaclab.terrains.utils import create_prim_from_mesh
+    from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.terrains import create_prim_from_mesh
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -434,8 +429,7 @@ def test_legacy_base_cfg_authors_density():
     ``UsdPhysics.MaterialAPI`` defines four properties; explicitly set values must be available
     through both interfaces, including material density read by Newton's importer.
     """
-    from isaaclab.sim.spawners.materials import spawn_rigid_body_material
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigid_body_material
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -448,9 +442,9 @@ def test_legacy_base_cfg_authors_density():
 
 def test_public_default_material_types_remain_core_importable():
     """Default rigid materials must not require importing a physics-backend package."""
-    from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-    from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
+    from isaaclab.sim.spawners.from_files import GroundPlaneCfg
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+    from isaaclab.terrains import TerrainImporterCfg
 
     defaults = (
         SimulationCfg().physics_material,
@@ -471,8 +465,8 @@ def test_physx_fragment_and_legacy_cfg_match_material_api_schema():
 
     from pxr import PhysxSchema
 
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-    from isaaclab.utils.string import to_camel_case
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+    from isaaclab.utils import to_camel_case
 
     def fields(cls):
         return {f.name for f in dataclasses.fields(cls) if f.name != "func"}
@@ -497,11 +491,11 @@ def test_material_slot_unions_match_spawner_kind():
     import sys
     import typing
 
-    from isaaclab.sim.spawners.from_files.from_files_cfg import FileCfg, GroundPlaneCfg
-    from isaaclab.sim.spawners.materials import physics_materials_cfg as mats
-    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCfg
-    from isaaclab.sim.spawners.shapes.shapes_cfg import ShapeCfg
-    from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
+    from isaaclab._src.sim.spawners.from_files.from_files_cfg import FileCfg, GroundPlaneCfg
+    from isaaclab._src.sim.spawners.materials import physics_materials_cfg as mats
+    from isaaclab.sim.spawners.meshes import MeshCfg
+    from isaaclab.sim.spawners.shapes import ShapeCfg
+    from isaaclab.terrains import TerrainImporterCfg
 
     def union_args(cls):
         # typing.get_type_hints(cls) resolves annotations across the whole MRO, including the

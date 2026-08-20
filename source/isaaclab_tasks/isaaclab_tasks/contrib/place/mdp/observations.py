@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:

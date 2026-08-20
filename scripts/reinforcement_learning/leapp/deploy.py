@@ -36,7 +36,7 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
+from isaaclab._src.envs.leapp_deployment_env import LeappDeploymentEnv
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config

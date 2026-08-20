@@ -13,7 +13,7 @@ import pytest
 import torch
 from gymnasium.spaces import Box, Dict, Discrete, MultiDiscrete, Tuple
 
-from isaaclab.envs.utils.spaces import (
+from isaaclab._src.envs.utils.spaces import (
     deserialize_space,
     replace_strings_with_env_cfg_spaces,
     sample_space,

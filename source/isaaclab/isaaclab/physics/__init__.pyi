@@ -11,5 +11,5 @@ __all__ = [
     "PhysxAutoCfg",
 ]
 
-from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
-from .physics_manager_cfg import PhysicsCfg, PhysxAutoCfg
+from isaaclab._src.physics.physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab._src.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg

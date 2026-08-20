@@ -41,10 +41,10 @@ from typing import Any
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab._src.utils.math import project_points, unproject_depth
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.utils import convert_dict_to_backend
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import project_points, unproject_depth
 
 
 def define_sensor() -> RayCasterCamera:

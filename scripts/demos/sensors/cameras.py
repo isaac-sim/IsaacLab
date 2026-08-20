@@ -59,12 +59,12 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
+from isaaclab.terrains.config import ROUGH_TERRAINS_CFG  # isort:skip
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 

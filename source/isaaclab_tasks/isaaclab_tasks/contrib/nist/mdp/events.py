@@ -10,18 +10,18 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab._src.utils import math as math_utils
 from isaaclab.controllers import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.utils import math as math_utils
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
 from isaaclab_tasks.contrib.nist.assembly_profile_cfg import AssemblyProfileCfg
 
 if TYPE_CHECKING:
+    from isaaclab._src.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 
     from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 

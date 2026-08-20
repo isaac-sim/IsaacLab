@@ -10,7 +10,7 @@ from typing import Any
 import warp as wp
 
 # Segmentation colorization is shared across renderer backends to keep colors visually consistent.
-from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
+from isaaclab._src.renderers.segmentation_colors import random_color_from_id_wp
 
 
 @wp.kernel

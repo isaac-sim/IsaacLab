@@ -18,8 +18,8 @@ from unittest import mock
 
 import pytest
 
-import isaaclab.cli.commands.install as install_cmd
-from isaaclab.cli.commands.install import (
+import isaaclab._src.cli.commands.install as install_cmd
+from isaaclab._src.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
     _install_isaacsim,

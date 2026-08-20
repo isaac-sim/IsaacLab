@@ -9,6 +9,6 @@ This package forwards all stable MDP terms from :mod:`isaaclab.envs.mdp`, but ov
 functions with Warp-first implementations from :mod:`isaaclab_experimental.envs.mdp.rewards`.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

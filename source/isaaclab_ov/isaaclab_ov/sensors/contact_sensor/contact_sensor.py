@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
+from isaaclab.sim.utils import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ov.tensor_types as TT

@@ -78,7 +78,7 @@ Asset Configuration
 
 Given that you have the asset file for your robot and other assets such as environment objects based on the task, the next step is to import them into Isaac Lab. Isaac Lab uses asset configuration classes to spawn various objects (or prims) into the scene using Python. The first step is to write a configuration class to define the properties for the assets needed to complete the task. For example, a simple go-to-goal task for a mobile robot will include the robot asset, an object like cubes to signify the goal pose visually, lights, ground plane, etc. Isaac Lab understands these assets using the configuration classes. Isaac Lab provides various sim-ready assets such as physically accurate
 3D objects that encompass accurate physical properties and behavior. It also provides connected data streams to represent the real world in simulated digital worlds such as `robots <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab_assets/isaaclab_assets>`__
-like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as `sensors <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab/isaaclab/sensors>`__. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.
+like ANYbotics Anymal, Unitree H1 Humanoid, etc. as well as `sensors <https://github.com/isaac-sim/IsaacLab/tree/main/source/isaaclab/isaaclab/_src/sensors>`__. We provide these assets configuration classes. Users can also define their own assets using the configuration classes.
 
 Follow the tutorial on `how to write an Articulation and ArticulationCfg class <https://isaac-sim.github.io/IsaacLab/main/source/how-to/write_articulation_cfg.html>`__.
 

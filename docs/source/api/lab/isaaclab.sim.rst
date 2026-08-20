@@ -23,7 +23,7 @@ isaaclab.sim
 
   .. autosummary::
 
-    simulation_context.build_simulation_context
+    build_simulation_context
 
 Simulation Context
 ------------------
@@ -43,7 +43,7 @@ Simulation Configuration
 Simulation Context Builder
 --------------------------
 
-.. automethod:: simulation_context.build_simulation_context
+.. autofunction:: build_simulation_context
 
 Additional Public Classes
 -------------------------

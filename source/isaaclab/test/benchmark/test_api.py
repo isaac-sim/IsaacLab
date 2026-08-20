@@ -14,7 +14,7 @@ import pytest
 
 import isaaclab
 import isaaclab.benchmark as benchmark
-from isaaclab.benchmark import (
+from isaaclab._src.benchmark import (
     BenchmarkLauncherConfig,
     BenchmarkOutputConfig,
     BenchmarkPlayRequest,
@@ -27,8 +27,8 @@ from isaaclab.benchmark import (
     TrainingBundle,
     dispatch,
 )
-from isaaclab.benchmark.entrypoints import startup
-from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
+from isaaclab._src.benchmark.entrypoints import startup
+from isaaclab._src.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 
 
 def test_training_request_builds_complete_cli() -> None:

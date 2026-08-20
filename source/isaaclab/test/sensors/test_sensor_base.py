@@ -25,7 +25,7 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 

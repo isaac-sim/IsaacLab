@@ -15,6 +15,6 @@ pull in runtime managers that depend on a running simulator. This mirrors the
 stable :mod:`isaaclab.managers` package.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

@@ -12,8 +12,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import get_current_stage
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils import get_all_matching_child_prims, get_current_stage, resolve_matching_prims_from_source
 
 
 class RigidObjectHasher:

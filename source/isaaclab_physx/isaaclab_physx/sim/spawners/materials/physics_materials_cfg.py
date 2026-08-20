@@ -9,13 +9,13 @@ import warnings
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
-from isaaclab.sim.spawners.materials.physics_materials_cfg import (
+from isaaclab.sim.spawners.materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -89,7 +89,7 @@ class PhysxDeformableBodyMaterialCfg(
 ):
     """PhysX-specific physics material parameters for deformable bodies."""
 
-    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+    func: Callable | str = "isaaclab._src.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
 
 @configclass
@@ -103,7 +103,7 @@ class PhysxSurfaceDeformableBodyMaterialCfg(
     _usd_namespace: ClassVar[str | None] = "physxDeformableMaterial"
     _usd_applied_schema: ClassVar[str | None] = "PhysxSurfaceDeformableMaterialAPI"
 
-    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+    func: Callable | str = "isaaclab._src.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
     bend_damping: float = 0.0
     """Damping acting against bend-resistance forces [1/s]. Defaults to 0.0."""

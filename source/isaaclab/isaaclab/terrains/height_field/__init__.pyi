@@ -15,7 +15,7 @@ __all__ = [
     "HfWaveTerrainCfg",
 ]
 
-from .hf_terrains_cfg import (
+from isaaclab._src.terrains.height_field.hf_terrains_cfg import (
     HfDiscreteObstaclesTerrainCfg,
     HfInvertedPyramidSlopedTerrainCfg,
     HfInvertedPyramidStairsTerrainCfg,

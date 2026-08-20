@@ -14,8 +14,8 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
-from isaaclab.sim.utils.transforms import resolve_prim_pose
+from isaaclab._src.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
+from isaaclab.sim.utils import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,

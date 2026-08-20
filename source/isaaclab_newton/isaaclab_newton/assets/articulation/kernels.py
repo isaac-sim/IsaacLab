@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from isaaclab._src.assets.articulation.ordering_kernels import resolve_backend_index
+from isaaclab._src.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.assets.kernels import pack_body_wrench_to_world
 

@@ -5,7 +5,7 @@
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 
 
 def transform_mul(transform_a: torch.Tensor, transform_b: torch.Tensor) -> torch.Tensor:

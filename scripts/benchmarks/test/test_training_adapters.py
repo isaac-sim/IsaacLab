@@ -10,14 +10,14 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.benchmark import dispatch
-from isaaclab.benchmark.entrypoints.backends.rl_games import benchmark_play_rl_games as play_rl_games
-from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_play_rsl_rl as play_rsl_rl
-from isaaclab.benchmark.entrypoints.backends.rsl_rl import benchmark_train_rsl_rl as train_rsl_rl
-from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_play_sb3 as play_sb3
-from isaaclab.benchmark.entrypoints.backends.sb3 import benchmark_train_sb3 as train_sb3
-from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_play_skrl as play_skrl
-from isaaclab.benchmark.entrypoints.backends.skrl import benchmark_train_skrl as train_skrl
+from isaaclab._src.benchmark import dispatch
+from isaaclab._src.benchmark.entrypoints.backends.rl_games import benchmark_play_rl_games as play_rl_games
+from isaaclab._src.benchmark.entrypoints.backends.rsl_rl import benchmark_play_rsl_rl as play_rsl_rl
+from isaaclab._src.benchmark.entrypoints.backends.rsl_rl import benchmark_train_rsl_rl as train_rsl_rl
+from isaaclab._src.benchmark.entrypoints.backends.sb3 import benchmark_play_sb3 as play_sb3
+from isaaclab._src.benchmark.entrypoints.backends.sb3 import benchmark_train_sb3 as train_sb3
+from isaaclab._src.benchmark.entrypoints.backends.skrl import benchmark_play_skrl as play_skrl
+from isaaclab._src.benchmark.entrypoints.backends.skrl import benchmark_train_skrl as train_skrl
 
 
 @pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])

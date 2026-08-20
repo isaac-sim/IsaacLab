@@ -593,7 +593,7 @@ def test_articulation_fragment_and_legacy_cfg_match_physx_schema():
 
     from pxr import PhysxSchema
 
-    from isaaclab.utils.string import to_camel_case
+    from isaaclab.utils import to_camel_case
 
     def fields(cls):
         return {field.name for field in dataclasses.fields(cls) if field.name != "func"}
@@ -660,8 +660,8 @@ def _author_articulation_usd(path: str) -> None:
 @pytest.mark.parametrize("articulation_props", [None, []], ids=["none", "empty"])
 def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articulation_props):
     """None and an empty fragment collection both honor the independent topology flag."""
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+    from isaaclab._src.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files import UsdFileCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -682,8 +682,8 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
     from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+    from isaaclab._src.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files import UsdFileCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))

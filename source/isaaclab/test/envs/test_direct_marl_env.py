@@ -20,8 +20,8 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.test.env_cfgs import make_empty_direct_marl_env_cfg
 from isaaclab.envs import DirectMARLEnv
-from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
 
 pytestmark = pytest.mark.integration
 

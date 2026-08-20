@@ -33,8 +33,8 @@ from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 PARENT_POS = (0.0, 0.0, 1.0)

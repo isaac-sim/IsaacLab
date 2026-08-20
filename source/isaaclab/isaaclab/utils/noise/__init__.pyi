@@ -17,7 +17,7 @@ __all__ = [
     "uniform_noise",
 ]
 
-from .noise_cfg import (
+from isaaclab._src.utils.noise.noise_cfg import (
     ConstantNoiseCfg,
     GaussianNoiseCfg,
     NoiseCfg,
@@ -25,7 +25,7 @@ from .noise_cfg import (
     NoiseModelWithAdditiveBiasCfg,
     UniformNoiseCfg,
 )
-from .noise_model import (
+from isaaclab._src.utils.noise.noise_model import (
     NoiseModel,
     NoiseModelWithAdditiveBias,
     constant_noise,

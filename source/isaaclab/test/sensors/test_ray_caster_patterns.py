@@ -16,7 +16,7 @@ import math
 import pytest
 import torch
 
-from isaaclab.sensors.ray_caster.patterns import patterns, patterns_cfg
+from isaaclab._src.sensors.ray_caster.patterns import patterns, patterns_cfg
 
 pytestmark = pytest.mark.integration
 

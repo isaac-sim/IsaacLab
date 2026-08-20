@@ -17,9 +17,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from isaaclab.envs.common import ViewerCfg
-from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
-from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab._src.envs.utils.video_recorder import VideoRecorder, _parse_source
+from isaaclab.envs import VideoRecorderCfg, ViewerCfg
 
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
@@ -338,7 +337,7 @@ def _make_env_cfg(eye=(7.5, 7.5, 7.5)):
 
 
 def test_apply_deprecated_viewer_sets_visualizer_cfg():
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+    from isaaclab._src.envs.common import _apply_deprecated_viewer_cfg
 
     env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
     _apply_deprecated_viewer_cfg(env_cfg)
@@ -347,7 +346,7 @@ def test_apply_deprecated_viewer_sets_visualizer_cfg():
 
 
 def test_apply_deprecated_viewer_noop_when_defaults():
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+    from isaaclab._src.envs.common import _apply_deprecated_viewer_cfg
 
     env_cfg = _make_env_cfg()
     _apply_deprecated_viewer_cfg(env_cfg)
@@ -361,7 +360,7 @@ def test_apply_deprecated_viewer_noop_when_defaults():
 
 def test_apply_deprecated_viewer_asset_root_migration():
     """origin_type='asset_root' → origin_type='asset' + origin_track_path=asset_name."""
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+    from isaaclab._src.envs.common import _apply_deprecated_viewer_cfg
 
     env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
     env_cfg.viewer.origin_type = "asset_root"
@@ -375,7 +374,7 @@ def test_apply_deprecated_viewer_asset_root_migration():
 
 def test_apply_deprecated_viewer_asset_body_migration():
     """origin_type='asset_body' → origin_type='asset' + origin_track_path='asset/body'."""
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+    from isaaclab._src.envs.common import _apply_deprecated_viewer_cfg
 
     env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
     env_cfg.viewer.origin_type = "asset_body"
@@ -397,7 +396,7 @@ def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set()
     """If sim.default_visualizer_cfg is already set, the shim logs and returns without overwriting."""
     from unittest.mock import MagicMock
 
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
+    from isaaclab._src.envs.common import _apply_deprecated_viewer_cfg
 
     existing_cfg = MagicMock()
     env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))

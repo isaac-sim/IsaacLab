@@ -594,8 +594,8 @@ def make_pose_command_term(
     Returns:
         The command term, whose ``pose_command_b`` is the (num_envs, 7) command buffer.
     """
-    from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
-    from isaaclab.envs.mdp.commands.pose_command import UniformPoseCommand
+    from isaaclab._src.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
+    from isaaclab._src.envs.mdp.commands.pose_command import UniformPoseCommand
 
     rng = np.random.RandomState(seed)
     data = articulation.data

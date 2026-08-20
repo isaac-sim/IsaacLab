@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_positive_int
+from isaaclab._src.benchmark._cli import parse_positive_int
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the OVPhysX FrameTransformer update path.")
@@ -45,7 +45,7 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 wp.init()
 

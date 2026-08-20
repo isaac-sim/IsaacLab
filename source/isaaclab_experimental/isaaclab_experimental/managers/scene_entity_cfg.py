@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg as _SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene

@@ -87,10 +87,10 @@ def _load_runtime_dependencies() -> None:
     from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
     from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
 
+    from isaaclab._src.utils.assets import retrieve_file_path as retrieve_file_path_fn
+    from isaaclab._src.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
-    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
     from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
-    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper as RslRlVecEnvWrapperCls
     from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg as handle_deprecated_rsl_rl_cfg_fn

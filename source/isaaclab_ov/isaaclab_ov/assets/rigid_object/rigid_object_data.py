@@ -13,10 +13,10 @@ import warnings
 import torch
 import warp as wp
 
-from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
+from isaaclab._src.utils.math import normalize
+from isaaclab.assets.rigid_object import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
-from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov import tensor_types as TT

@@ -18,14 +18,14 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -189,7 +189,7 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
     lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
     need any cleanup hook here.
     """
-    import isaaclab.cloner.replicate_session as replicate_session_module
+    import isaaclab._src.cloner.replicate_session as replicate_session_module
 
     captured: list = []
 
@@ -263,7 +263,7 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
 
 def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.MonkeyPatch):
     """AssetBaseCfg.cloning_contexts replaces the backend default stack for that asset."""
-    import isaaclab.cloner.replicate_session as replicate_session_module
+    import isaaclab._src.cloner.replicate_session as replicate_session_module
     from isaaclab.cloner import REPLICATION_QUEUE
 
     # keep the queue for inspection: the fake drain does not clear it

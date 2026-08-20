@@ -530,10 +530,10 @@ def test_query_agrees_across_duplicate_source_rows():
 
 def test_query_and_path_are_real_modules():
     """``cloner.path``/``cloner.query`` import as modules, not just package attributes."""
-    import isaaclab.cloner.path  # noqa: PLC0415
-    import isaaclab.cloner.query  # noqa: PLC0415
-    from isaaclab.cloner.path import under  # noqa: PLC0415
-    from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
+    import isaaclab._src.cloner.path  # noqa: PLC0415
+    import isaaclab._src.cloner.query  # noqa: PLC0415
+    from isaaclab._src.cloner.path import under  # noqa: PLC0415
+    from isaaclab._src.cloner.query import path_to_source  # noqa: PLC0415
 
     assert isaaclab.cloner.path.__name__ == "isaaclab.cloner.path"
     assert isaaclab.cloner.query.__name__ == "isaaclab.cloner.query"

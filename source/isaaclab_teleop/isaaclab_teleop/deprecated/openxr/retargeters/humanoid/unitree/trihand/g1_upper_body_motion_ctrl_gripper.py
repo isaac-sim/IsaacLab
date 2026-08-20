@@ -10,9 +10,8 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
-import isaaclab.utils.math as PoseUtils
-from isaaclab.devices.device_base import DeviceBase
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+import isaaclab._src.utils.math as PoseUtils
+from isaaclab.devices import DeviceBase, RetargeterBase, RetargeterCfg
 
 
 class G1TriHandUpperBodyMotionControllerGripperRetargeter(RetargeterBase):

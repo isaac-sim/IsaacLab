@@ -5,7 +5,7 @@
 
 """Tests for backend module resolution."""
 
-from isaaclab.utils.backend_utils import FactoryBase
+from isaaclab._src.utils.backend_utils import FactoryBase
 
 
 def test_get_module_name_routes_ovphysx_to_isaaclab_ov(monkeypatch):

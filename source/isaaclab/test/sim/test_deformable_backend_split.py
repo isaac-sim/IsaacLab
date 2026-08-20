@@ -26,8 +26,8 @@ from isaaclab_physx.sim.spawners.materials import (
     PhysxSurfaceDeformableBodyMaterialCfg,
 )
 
+import isaaclab._src.sim.spawners.materials.physics_materials_cfg as core_materials_cfg
 import isaaclab.sim.schemas as schemas
-import isaaclab.sim.spawners.materials.physics_materials_cfg as core_materials_cfg
 from isaaclab.sim.schemas import DeformableBodyPropertiesBaseCfg
 from isaaclab.sim.spawners.materials import (
     DeformableBodyMaterialBaseCfg,
@@ -84,7 +84,7 @@ def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     assert not hasattr(props, "modify_func")
     assert physx_schemas.define_deformable_body_properties is schemas.define_deformable_body_properties
     assert physx_schemas.modify_deformable_body_properties is schemas.modify_deformable_body_properties
-    assert str(material.func) == "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+    assert str(material.func) == "isaaclab._src.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
     assert str(surface_material.func) == str(material.func)
     _assert_no_property_prefix_field(type(props))
     _assert_no_property_prefix_field(type(material))
@@ -118,7 +118,7 @@ def test_newton_deformable_cfgs_use_core_schema_and_material_functions():
     assert not hasattr(props, "modify_func")
     assert NewtonDeformableBodyPropertiesCfg._usd_namespace == "newton"
     assert NewtonDeformableBodyPropertiesCfg._usd_applied_schema is None
-    assert str(material.func) == "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+    assert str(material.func) == "isaaclab._src.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
     assert str(surface_material.func) == str(material.func)
     _assert_no_property_prefix_field(type(props))
     _assert_no_property_prefix_field(type(material))

@@ -15,10 +15,9 @@ from typing import Any, ClassVar
 import pytest
 import torch
 
-from isaaclab.utils.configclass import _field_module_dir, configclass
-from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
+from isaaclab._src.utils.configclass import _field_module_dir, configclass
+from isaaclab.utils import ResolvableString, class_to_dict, dict_to_md5_hash, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
-from isaaclab.utils.string import ResolvableString
 
 pytestmark = pytest.mark.unit
 

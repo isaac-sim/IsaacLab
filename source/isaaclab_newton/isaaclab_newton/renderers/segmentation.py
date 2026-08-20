@@ -28,8 +28,8 @@ import warp as wp
 
 # Colorization (host ``random_color_from_id`` / ``pack_rgba``) and the reserved BACKGROUND / UNLABELLED
 # ids are shared with the RTX and OVRTX renderers to keep colorized segmentation visually consistent.
-from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
-from isaaclab.utils.timer import Timer
+from isaaclab._src.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
+from isaaclab.utils import Timer
 
 if TYPE_CHECKING:
     import newton
@@ -319,7 +319,7 @@ class NewtonSegmentationMapper:
         # Paths visited this traversal that were not already in the cache; back-filled at the end.
         traversed: list[str] = []
         if self._stage is not None and prim_path.startswith("/"):
-            from isaaclab.sim.utils.semantics import get_labels  # noqa: PLC0415
+            from isaaclab.sim.utils import get_labels  # noqa: PLC0415
 
             prim = self._stage.GetPrimAtPath(prim_path)
             while prim is not None and prim.IsValid() and prim.GetPath().pathString != "/":

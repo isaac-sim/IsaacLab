@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 import warp as wp
 
 # Reuse the descriptor dataclass from the stable package.
-from isaaclab.envs.utils.io_descriptors import GenericObservationIODescriptor
+from isaaclab._src.envs.utils.io_descriptors import GenericObservationIODescriptor
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation import Articulation

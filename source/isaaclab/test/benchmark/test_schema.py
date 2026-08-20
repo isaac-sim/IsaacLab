@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from isaaclab.benchmark.schema import (
+from isaaclab.benchmark import (
     SCHEMA_VERSION,
     CProfileFunction,
     EnvironmentStepTiming,
@@ -31,8 +31,8 @@ from isaaclab.benchmark.schema import (
     StartupTime,
     TrainingBundle,
     Versions,
+    write_bundle_file,
 )
-from isaaclab.benchmark.serialize import write_bundle_file
 
 pytestmark = pytest.mark.benchmark
 
@@ -302,7 +302,7 @@ def test_run_identity_rejects_negative_duration():
 def test_package_reexports_match_schema_module():
     """Every schema symbol exported from the package is the same object as in schema.py."""
     import isaaclab.benchmark as pkg
-    from isaaclab.benchmark import schema
+    from isaaclab._src.benchmark import schema
 
     schema_names = {n for n in dir(schema) if not n.startswith("_")}
     checked = [n for n in getattr(pkg, "__all__", []) if n in schema_names]
@@ -313,7 +313,7 @@ def test_package_reexports_match_schema_module():
 
 def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
     """A failure mid-serialise must not clobber an existing good file."""
-    import isaaclab.benchmark.serialize as serialize
+    import isaaclab._src.benchmark.serialize as serialize
 
     path = os.path.join(tmp_path, "training.json")
     write_bundle_file(_minimal_training_bundle(), path)

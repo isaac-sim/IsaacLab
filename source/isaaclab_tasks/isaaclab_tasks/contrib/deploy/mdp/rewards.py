@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import combine_frame_transforms, quat_apply, quat_mul
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
+    from isaaclab.sensors.frame_transformer import FrameTransformer
 
     from .events import randomize_gear_type
 

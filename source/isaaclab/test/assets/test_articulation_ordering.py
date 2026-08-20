@@ -13,14 +13,14 @@ import pytest
 
 from pxr import Sdf, Usd
 
-import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
-from isaaclab.assets.articulation.ordering import (
+import isaaclab._src.assets.articulation.ordering_resolvers as ordering_resolvers
+from isaaclab._src.assets.articulation.ordering import (
     ArticulationOrderingConvention,
     apply_articulation_ordering_preset,
     build_articulation_name_map,
     parse_articulation_ordering_convention,
 )
-from isaaclab.assets.articulation.ordering_resolvers import (
+from isaaclab._src.assets.articulation.ordering_resolvers import (
     _resolve_articulation_convention_name_ordering,
     _resolve_articulation_ordering_names,
     get_articulation_name_ordering,
@@ -62,9 +62,7 @@ _inserted_asset_base_stub = "isaaclab.assets.asset_base" not in sys.modules
 sys.modules.setdefault("isaaclab.assets.asset_base", asset_base_stub)
 
 
-from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab.assets.articulation import ArticulationCfg, BaseArticulation, BaseArticulationData
 
 if _inserted_sim_stub:
     sys.modules.pop("isaaclab.sim", None)
@@ -1335,8 +1333,7 @@ def test_build_articulation_name_map_returns_none_for_identity() -> None:
 
 def test_ordering_state_lives_only_on_data() -> None:
     """No mirrored ordering flags or maps exist on the asset or data classes."""
-    from isaaclab.assets.articulation.base_articulation import BaseArticulation
-    from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+    from isaaclab.assets.articulation import BaseArticulation, BaseArticulationData
 
     for owner, names in (
         (BaseArticulation, ("_cache_ordering_maps", "_reset_and_cache_ordering_maps")),

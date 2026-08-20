@@ -15,8 +15,8 @@ import math
 import pytest
 import torch
 
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.math import quat_error_magnitude
+import isaaclab._src.utils.math as math_utils
+from isaaclab._src.utils.math import quat_error_magnitude
 
 from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints, cube_keypoints_from_quat

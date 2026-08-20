@@ -22,9 +22,8 @@ from packaging import version
 
 import carb
 
-from isaaclab.devices.device_base import DeviceBase, DeviceCfg
-from isaaclab.devices.retargeter_base import RetargeterBase
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.devices import DeviceBase, DeviceCfg, RetargeterBase
+from isaaclab.utils import get_isaac_sim_version
 
 from .common import HAND_JOINT_NAMES
 from .xr_cfg import XrCfg

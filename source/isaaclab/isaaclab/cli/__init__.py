@@ -7,15 +7,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from .commands.envs import command_setup_conda, command_setup_uv
-from .commands.format import command_format
-from .commands.install import (
+from isaaclab._src.cli.commands.envs import command_setup_conda, command_setup_uv
+from isaaclab._src.cli.commands.format import command_format
+from isaaclab._src.cli.commands.install import (
     CORE_ISAACLAB_SUBMODULES,
     OPTIONAL_ISAACLAB_SUBMODULES,
     VALID_EXTRA_FEATURES,
     command_install,
 )
-from .commands.misc import (
+from isaaclab._src.cli.commands.misc import (
     command_build_docs,
     command_new,
     command_run_docker,
@@ -23,7 +23,7 @@ from .commands.misc import (
     command_test,
     command_vscode_settings,
 )
-from .utils import (
+from isaaclab._src.cli.utils import (
     ISAACLAB_ROOT,
     is_windows,
     run_python_command,

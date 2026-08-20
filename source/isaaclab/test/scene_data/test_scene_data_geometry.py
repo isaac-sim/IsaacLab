@@ -10,8 +10,7 @@ from __future__ import annotations
 import numpy as np
 import warp as wp
 
-from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 
 
 class _PointsBackend(SceneDataBackend):

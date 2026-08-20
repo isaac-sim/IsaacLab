@@ -16,7 +16,7 @@ HDR scene-linear AOV to LDR RGBA at the end of a render tick. Renderer backends
 
 import importlib.metadata
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 try:
     __version__ = importlib.metadata.version("isaaclab_ppisp")

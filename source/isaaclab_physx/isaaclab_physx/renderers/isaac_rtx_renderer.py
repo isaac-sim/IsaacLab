@@ -20,14 +20,13 @@ from packaging import version
 
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab._src.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+from isaaclab._src.utils.warp.kernels import reshape_tiled_image
+from isaaclab._src.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
+from isaaclab.app import get_settings_manager
+from isaaclab.renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim.utils import enable_extension
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
-from isaaclab.utils.version import get_isaac_sim_version
-from isaaclab.utils.warp.kernels import reshape_tiled_image
-from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
+from isaaclab.utils import get_isaac_sim_version
 
 from .isaac_rtx_renderer_utils import (
     apply_isaac_rtx_determinism_settings,
@@ -43,7 +42,7 @@ if TYPE_CHECKING:
 
     from omni.replicator.core.scripts.utils.viewport_manager import HydraTexture
 
-    from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.sensors.camera import CameraData
     from isaaclab.utils.warp import ProxyArray
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
@@ -251,7 +250,7 @@ class IsaacRtxRenderer(BaseRenderer):
         from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom
 
-        from isaaclab.sim.utils.stage import get_current_stage
+        from isaaclab.sim.utils import get_current_stage
 
         settings = get_settings_manager()
         isaac_sim_version = get_isaac_sim_version()

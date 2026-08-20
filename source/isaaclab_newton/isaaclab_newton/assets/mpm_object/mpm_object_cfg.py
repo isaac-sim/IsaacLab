@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.assets.deformable_object.deformable_object_cfg import DeformableObjectCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.assets.deformable_object import DeformableObjectCfg
+from isaaclab.utils import configclass
 
 from isaaclab_newton.sim.spawners.mpm import MPMParticleSpawnerCfg
 

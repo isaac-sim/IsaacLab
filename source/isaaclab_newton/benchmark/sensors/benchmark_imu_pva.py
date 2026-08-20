@@ -39,7 +39,7 @@ from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
 from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ImuCfg, PvaCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

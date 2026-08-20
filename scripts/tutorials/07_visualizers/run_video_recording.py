@@ -54,7 +54,7 @@ with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.envs import VideoRecorderCfg
 
 from isaaclab_tasks.utils import setup_preset_cli
 

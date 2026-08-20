@@ -18,13 +18,13 @@ __all__ = [
     "save_images_to_file",
 ]
 
-from .camera import Camera
-from .camera_cfg import CameraCfg
-from .camera_data import CameraData, RenderBufferKind, RenderBufferSpec
-from .camera_isp import CameraISPMode
-from .tiled_camera import TiledCamera
-from .tiled_camera_cfg import TiledCameraCfg
-from .utils import (
+from isaaclab._src.sensors.camera.camera import Camera
+from isaaclab._src.sensors.camera.camera_cfg import CameraCfg
+from isaaclab._src.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
+from isaaclab._src.sensors.camera.camera_isp import CameraISPMode
+from isaaclab._src.sensors.camera.tiled_camera import TiledCamera
+from isaaclab._src.sensors.camera.tiled_camera_cfg import TiledCameraCfg
+from isaaclab._src.sensors.camera.utils import (
     transform_points,
     create_pointcloud_from_depth,
     create_pointcloud_from_rgbd,

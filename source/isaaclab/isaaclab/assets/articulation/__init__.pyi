@@ -16,15 +16,15 @@ __all__ = [
     "get_articulation_name_ordering",
 ]
 
-from .base_articulation import BaseArticulation
-from .base_articulation_data import BaseArticulationData
-from .articulation import Articulation
-from .articulation_cfg import ArticulationCfg
-from .articulation_data import ArticulationData
-from .ordering import (
+from isaaclab._src.assets.articulation.base_articulation import BaseArticulation
+from isaaclab._src.assets.articulation.base_articulation_data import BaseArticulationData
+from isaaclab._src.assets.articulation.articulation import Articulation
+from isaaclab._src.assets.articulation.articulation_cfg import ArticulationCfg
+from isaaclab._src.assets.articulation.articulation_data import ArticulationData
+from isaaclab._src.assets.articulation.ordering import (
     ArticulationOrderingConvention,
     ArticulationNameMap,
     apply_articulation_ordering_preset,
     parse_articulation_ordering_convention,
 )
-from .ordering_resolvers import get_articulation_name_ordering
+from isaaclab._src.assets.articulation.ordering_resolvers import get_articulation_name_ordering

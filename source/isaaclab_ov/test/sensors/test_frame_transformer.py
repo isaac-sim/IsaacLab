@@ -39,14 +39,14 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
+import isaaclab._src.utils.math as math_utils  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
-import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 

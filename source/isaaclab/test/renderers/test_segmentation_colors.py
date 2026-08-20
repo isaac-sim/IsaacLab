@@ -11,7 +11,7 @@ pytest.importorskip("warp")
 
 import warp as wp
 
-from isaaclab.renderers.segmentation_colors import (
+from isaaclab._src.renderers.segmentation_colors import (
     BACKGROUND_ID,
     UNLABELLED_ID,
     color_hash,

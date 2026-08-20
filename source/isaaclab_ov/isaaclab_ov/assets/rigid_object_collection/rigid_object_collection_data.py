@@ -11,10 +11,10 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
+from isaaclab._src.utils.math import normalize
+from isaaclab.assets.rigid_object_collection import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
-from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov import tensor_types as TT

@@ -19,10 +19,10 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
-from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 

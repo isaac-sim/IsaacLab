@@ -15,11 +15,13 @@ import newton
 import torch
 import warp as wp
 
-from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab._src.utils.warp.warp_math import (
+    convert_camera_frame_orientation_convention_wp,
+    replace_background_depth_wp,
+)
+from isaaclab.renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
 from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
@@ -28,7 +30,7 @@ from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
 
-    from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.sensors.camera import CameraData
     from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)

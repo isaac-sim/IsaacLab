@@ -9,6 +9,6 @@ This package provides helper functions for creating benchmark inputs
 specific to PhysX-based assets (Articulation, RigidObject, etc.).
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

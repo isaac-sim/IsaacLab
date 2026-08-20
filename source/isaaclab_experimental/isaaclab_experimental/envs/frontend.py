@@ -44,7 +44,7 @@ import gymnasium as gym
 import torch
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSceneEntityCfg
+from isaaclab.managers import SceneEntityCfg as _StableSceneEntityCfg
 
 logger = logging.getLogger(__name__)
 
@@ -702,7 +702,7 @@ class WarpFrontend:
         cfg layouts (extra observation groups, new nesting, etc.) are picked up
         automatically as long as their terms subclass one of the term base cfgs.
         """
-        from isaaclab.managers.manager_term_cfg import ActionTermCfg, ManagerTermBaseCfg
+        from isaaclab.managers import ActionTermCfg, ManagerTermBaseCfg
 
         if isinstance(node, (ManagerTermBaseCfg, ActionTermCfg)):
             yield path, node  # a term: yield and stop; never descend into params/func

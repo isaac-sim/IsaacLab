@@ -79,7 +79,7 @@ __all__ = [
     "write_bundle_file",
 ]
 
-from .api import (
+from isaaclab._src.benchmark.api import (
     BenchmarkBundle,
     BenchmarkFormatter,
     BenchmarkLauncherConfig,
@@ -99,15 +99,15 @@ from .api import (
     run_training_benchmark,
 )
 
-from .benchmark_core import BaseIsaacLabBenchmark, get_default_output_filename
-from .benchmark_monitor import BenchmarkMonitor
-from .dispatch import run_benchmark_cli, run_play_cli, run_training_cli
-from .method_benchmark import (
+from isaaclab._src.benchmark.benchmark_core import BaseIsaacLabBenchmark, get_default_output_filename
+from isaaclab._src.benchmark.benchmark_monitor import BenchmarkMonitor
+from isaaclab._src.benchmark.dispatch import run_benchmark_cli, run_play_cli, run_training_cli
+from isaaclab._src.benchmark.method_benchmark import (
     MethodBenchmarkDefinition,
     MethodBenchmarkRunner,
     MethodBenchmarkRunnerConfig,
 )
-from .micro import (
+from isaaclab._src.benchmark.micro import (
     LatencyBenchmarkRunner,
     LatencySample,
     LatencyStatistics,
@@ -115,8 +115,8 @@ from .micro import (
     measure_latency,
     summarize_latency,
 )
-from .microbenchmark import MicrobenchmarkCommand, MicrobenchmarkFactory, run_microbenchmark_cli
-from .measurements import (
+from isaaclab._src.benchmark.microbenchmark import MicrobenchmarkCommand, MicrobenchmarkFactory, run_microbenchmark_cli
+from isaaclab._src.benchmark.measurements import (
     BooleanMeasurement,
     DictMeasurement,
     DictMetadata,
@@ -130,7 +130,7 @@ from .measurements import (
     StringMetadata,
     TestPhase,
 )
-from .schema import (
+from isaaclab._src.benchmark.schema import (
     SCHEMA_VERSION,
     CProfileFunction,
     EnvironmentStepTiming,
@@ -157,4 +157,4 @@ from .schema import (
     TrainingBundle,
     Versions,
 )
-from .serialize import write_bundle_file
+from isaaclab._src.benchmark.serialize import write_bundle_file

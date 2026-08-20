@@ -25,10 +25,8 @@ import warp as wp
 from isaaclab_physx.assets import RigidObjectCollection
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.sim import build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import (
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab._src.utils.math import (
     combine_frame_transforms,
     default_orientation,
     quat_apply_inverse,
@@ -38,6 +36,8 @@ from isaaclab.utils.math import (
     random_orientation,
     subtract_frame_transforms,
 )
+from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.sim import build_simulation_context
 
 
 def generate_cubes_scene(

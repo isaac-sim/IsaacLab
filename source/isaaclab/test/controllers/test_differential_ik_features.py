@@ -15,8 +15,7 @@ import math
 import pytest
 import torch
 
-from isaaclab.controllers.differential_ik import DifferentialIKController
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 
 pytestmark = pytest.mark.integration
 

@@ -27,7 +27,7 @@ import sys
 import types
 from unittest.mock import patch
 
-import isaaclab.app.sim_launcher as sim_launcher
+import isaaclab._src.app.sim_launcher as sim_launcher
 
 # ---------------------------------------------------------------------------
 # Helpers

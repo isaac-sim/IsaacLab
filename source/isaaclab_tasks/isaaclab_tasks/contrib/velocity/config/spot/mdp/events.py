@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import sample_uniform
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

@@ -31,8 +31,8 @@ __all__ = [
     "target_frame_xyz_resolver",
 ]
 
-from .export_annotator import ExportPatcher, patch_env_for_export
-from .leapp_semantics import (
+from isaaclab._src.utils.leapp.export_annotator import ExportPatcher, patch_env_for_export
+from isaaclab._src.utils.leapp.leapp_semantics import (
     InputKindEnum,
     OutputKindEnum,
     POSE6_ELEMENT_NAMES,
@@ -54,7 +54,7 @@ from .leapp_semantics import (
     target_frame_quat_resolver,
     target_frame_xyz_resolver,
 )
-from .utils import (
+from isaaclab._src.utils.leapp.utils import (
     build_command_connection,
     build_state_connection,
     build_write_connection,

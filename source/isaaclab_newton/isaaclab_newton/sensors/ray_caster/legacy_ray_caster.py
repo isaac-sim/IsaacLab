@@ -16,11 +16,13 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
-from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
-from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster.base_ray_caster_camera import BaseRayCasterCamera
-from isaaclab.sensors.ray_caster.kernels import copy_mesh_poses_to_table_kernel
+from isaaclab._src.sensors.ray_caster.kernels import copy_mesh_poses_to_table_kernel
+from isaaclab.sensors.ray_caster import (
+    BaseMultiMeshRayCaster,
+    BaseMultiMeshRayCasterCamera,
+    BaseRayCaster,
+    BaseRayCasterCamera,
+)
 
 from isaaclab_newton.physics import NewtonManager
 

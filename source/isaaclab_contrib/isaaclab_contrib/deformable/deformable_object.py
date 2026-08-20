@@ -16,7 +16,7 @@ import warp as wp
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.assets.deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
@@ -71,7 +71,7 @@ class DeformableRegistryEntry:
 
 
 if TYPE_CHECKING:
-    from isaaclab.assets.deformable_object.deformable_object_cfg import DeformableObjectCfg
+    from isaaclab.assets.deformable_object import DeformableObjectCfg
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +190,7 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
 
     import usdrt
 
-    from isaaclab.sim.utils.stage import get_current_stage
+    from isaaclab.sim.utils import get_current_stage
 
     if SimulationManager._usdrt_stage is None:
         SimulationManager._usdrt_stage = get_current_stage(fabric=True)

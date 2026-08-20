@@ -10,7 +10,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from types import SimpleNamespace
 
-from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
+from isaaclab._src.benchmark.asset_suites.types import AssetBenchmarkTargets
 
 args = SimpleNamespace(no_shape_checks=False)
 
@@ -18,9 +18,9 @@ args = SimpleNamespace(no_shape_checks=False)
 def _load_runtime_symbols() -> None:
     global ArticulationCfg, MockOvPhysxBindingSet, RigidObjectCfg, RigidObjectCollectionCfg
 
-    from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-    from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.assets.articulation import ArticulationCfg
+    from isaaclab.assets.rigid_object import RigidObjectCfg
+    from isaaclab.assets.rigid_object_collection import RigidObjectCollectionCfg
 
     from isaaclab_ov.test.fixtures import MockOvPhysxBindingSet
 
@@ -129,7 +129,7 @@ def create_test_collection(
     device: str = "cuda:0",
 ):
     """Create a test RigidObjectCollection instance with mocked dependencies."""
-    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+    from isaaclab.assets.rigid_object import RigidObjectCfg
 
     from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
     from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData

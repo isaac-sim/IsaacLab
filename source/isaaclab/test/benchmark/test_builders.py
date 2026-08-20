@@ -11,8 +11,8 @@ import statistics
 
 import pytest
 
-from isaaclab.benchmark import builders
-from isaaclab.benchmark.schema import (
+from isaaclab._src.benchmark import builders
+from isaaclab.benchmark import (
     GpuDeviceInfo,
     Hardware,
     MeanStd,
@@ -21,8 +21,8 @@ from isaaclab.benchmark.schema import (
     StartupTime,
     TrainingBundle,
     Versions,
+    write_bundle_file,
 )
-from isaaclab.benchmark.serialize import write_bundle_file
 
 
 def _versions():

@@ -13,6 +13,6 @@ pure-data action config classes does not eagerly pull in the runtime action term
 implementations (which depend on a running simulator).
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

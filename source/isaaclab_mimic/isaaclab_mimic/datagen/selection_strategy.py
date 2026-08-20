@@ -12,7 +12,7 @@ import abc  # for abstract base class definitions
 
 import torch
 
-import isaaclab.utils.math as PoseUtils
+import isaaclab._src.utils.math as PoseUtils
 
 # Global dictionary for remembering name to class mappings.
 REGISTERED_SELECTION_STRATEGIES = {}

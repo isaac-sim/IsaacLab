@@ -7,7 +7,7 @@
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 
 
 def compute_desired_orientation(

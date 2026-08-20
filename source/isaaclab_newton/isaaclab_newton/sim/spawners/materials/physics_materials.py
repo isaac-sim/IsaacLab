@@ -5,6 +5,6 @@
 
 """Newton-compatible deformable physics material spawning exports."""
 
-from isaaclab.sim.spawners.materials.physics_materials import spawn_deformable_body_material
+from isaaclab.sim.spawners.materials import spawn_deformable_body_material
 
 __all__ = ["spawn_deformable_body_material"]

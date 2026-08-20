@@ -49,7 +49,7 @@ def test_discover_deformable_geometry_publishes_discovered_roots(monkeypatch):
     from isaaclab_physx.physics import physx_manager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+    from isaaclab._src.scene_data.deformable_discovery import DeformableStageEntry
 
     class _FakeDeformableView:
         _backend = object()

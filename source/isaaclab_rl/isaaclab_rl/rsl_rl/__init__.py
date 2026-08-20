@@ -15,6 +15,6 @@ The following example shows how to wrap an environment for RSL-RL:
 
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

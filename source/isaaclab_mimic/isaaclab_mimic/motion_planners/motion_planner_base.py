@@ -9,7 +9,7 @@ from typing import Any
 import torch
 
 from isaaclab.assets import Articulation
-from isaaclab.envs.manager_based_env import ManagerBasedEnv
+from isaaclab.envs import ManagerBasedEnv
 
 
 class MotionPlannerBase(ABC):

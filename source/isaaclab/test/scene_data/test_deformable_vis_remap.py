@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.scene_data.deformable_vis_remap import (
+from isaaclab._src.scene_data.deformable_vis_remap import (
     build_volume_vis_barycentric_remap,
     launch_volume_vis_remap,
 )

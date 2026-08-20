@@ -23,14 +23,14 @@ import torch
 
 import omni.kit.app
 
-from isaaclab.controllers.utils import (
+from isaaclab._src.controllers.utils import (
     change_revolute_to_fixed,
     change_revolute_to_fixed_regex,
     convert_usd_to_urdf,
     resolve_rmpflow_path,
 )
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.io.torchscript import load_torchscript_model
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.io import load_torchscript_model
 
 pytestmark = pytest.mark.integration
 
@@ -221,7 +221,7 @@ def test_resolve_rmpflow_path_uses_installed_motion_generation_extension(monkeyp
 
 def test_franka_rmpflow_config_resolves_motion_generation_path():
     """Test that the trimmed app resolves Franka RMPFlow config files from the disabled extension."""
-    from isaaclab.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG
+    from isaaclab._src.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
     assert not extension_manager.is_extension_enabled("isaacsim.robot_motion.motion_generation")

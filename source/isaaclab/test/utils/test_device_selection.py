@@ -14,9 +14,9 @@ pytest from collecting it when imported under its public name.
 
 import pytest
 
-from isaaclab.test.utils import devices as devices_mod
-from isaaclab.test.utils.devices import DeviceScope, resolve_test_sim_device
-from isaaclab.test.utils.devices import test_devices as resolve_devices
+from isaaclab._src.test.utils import devices as devices_mod
+from isaaclab._src.test.utils.devices import DeviceScope, resolve_test_sim_device
+from isaaclab._src.test.utils.devices import test_devices as resolve_devices
 
 # Representative hosts, in mask order (cpu first, then cuda:0, cuda:1, ...).
 SINGLE_GPU = ["cpu", "cuda:0"]

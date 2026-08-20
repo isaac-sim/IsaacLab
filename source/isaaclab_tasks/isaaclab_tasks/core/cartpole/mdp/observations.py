@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.images import is_rgb_like, normalize_camera_image
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

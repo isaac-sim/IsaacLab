@@ -67,10 +67,10 @@ import torch
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab import cloner as lab_cloner
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.terrains.terrain_importer import TerrainImporter
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.terrains import TerrainImporter
+from isaaclab.terrains.config import ROUGH_TERRAINS_CFG
 
 
 def main():

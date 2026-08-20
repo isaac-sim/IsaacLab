@@ -11,8 +11,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.benchmark import MethodBenchmarkRunnerConfig
 from isaaclab.benchmark.asset_suites import get_asset_benchmark_suite, resolve_method_benchmarks
-from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
 

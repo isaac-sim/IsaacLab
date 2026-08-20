@@ -14,9 +14,9 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
-from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
+from isaaclab._src.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+from isaaclab._src.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
+from isaaclab.sensors.ray_caster import BaseRayCaster
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager

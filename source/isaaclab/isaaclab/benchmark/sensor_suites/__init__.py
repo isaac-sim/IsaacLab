@@ -5,10 +5,10 @@
 
 """Shared infrastructure for backend sensor micro-benchmarks."""
 
-from .cli import add_sensor_benchmark_args
-from .contact import create_contact_sensor_scene_cfg, run_contact_sensor_workload
-from .ray_caster import rough_terrain_size
-from .timing import SensorLatencySamples, add_sensor_latency_measurements, collect_sensor_latency_samples
+from isaaclab._src.benchmark.sensor_suites.cli import add_sensor_benchmark_args
+from isaaclab._src.benchmark.sensor_suites.contact import create_contact_sensor_scene_cfg, run_contact_sensor_workload
+from isaaclab._src.benchmark.sensor_suites.ray_caster import rough_terrain_size
+from isaaclab._src.benchmark.sensor_suites.timing import SensorLatencySamples, add_sensor_latency_measurements, collect_sensor_latency_samples
 
 __all__ = [
     "SensorLatencySamples",

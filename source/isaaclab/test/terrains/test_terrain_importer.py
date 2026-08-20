@@ -25,10 +25,10 @@ from pxr import UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab import cloner as lab_cloner
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, build_simulation_context, get_first_matching_child_prim
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.terrains.config import ROUGH_TERRAINS_CFG
 
 pytestmark = pytest.mark.integration
 

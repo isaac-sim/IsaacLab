@@ -93,10 +93,10 @@ simulation_app = app_launcher.app
 import os
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.sim.schemas import schemas_cfg
+from isaaclab._src.utils.assets import check_file_path
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
-from isaaclab.sim.schemas import schemas_cfg
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.dict import print_dict
+from isaaclab.utils import print_dict
 
 collision_approximation_map = {
     "convexDecomposition": schemas_cfg.ConvexDecompositionPropertiesCfg,

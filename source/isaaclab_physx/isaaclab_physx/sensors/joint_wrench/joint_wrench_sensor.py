@@ -17,7 +17,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.sim.utils import path_expr_to_glob, resolve_matching_prims_from_source
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 

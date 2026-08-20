@@ -21,7 +21,7 @@ import time
 
 import pytest
 
-from isaaclab.cli import multigpu
+from isaaclab._src.cli import multigpu
 
 pytestmark = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
 

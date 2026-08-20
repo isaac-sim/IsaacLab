@@ -34,7 +34,7 @@ __all__ = [
     "SurfaceGripperBinaryAction",
 ]
 
-from .actions_cfg import (
+from isaaclab._src.envs.mdp.actions.actions_cfg import (
     AbsBinaryJointPositionActionCfg,
     BinaryJointActionCfg,
     BinaryJointPositionActionCfg,
@@ -51,19 +51,19 @@ from .actions_cfg import (
     RelativeJointPositionActionCfg,
     SurfaceGripperBinaryActionCfg,
 )
-from .binary_joint_actions import (
+from isaaclab._src.envs.mdp.actions.binary_joint_actions import (
     AbsBinaryJointPositionAction,
     BinaryJointAction,
     BinaryJointPositionAction,
     BinaryJointVelocityAction,
 )
-from .joint_actions import (
+from isaaclab._src.envs.mdp.actions.joint_actions import (
     JointAction,
     JointEffortAction,
     JointPositionAction,
     JointVelocityAction,
     RelativeJointPositionAction,
 )
-from .joint_actions_to_limits import EMAJointPositionToLimitsAction, JointPositionToLimitsAction
-from .non_holonomic_actions import NonHolonomicAction
-from .surface_gripper_actions import SurfaceGripperBinaryAction
+from isaaclab._src.envs.mdp.actions.joint_actions_to_limits import EMAJointPositionToLimitsAction, JointPositionToLimitsAction
+from isaaclab._src.envs.mdp.actions.non_holonomic_actions import NonHolonomicAction
+from isaaclab._src.envs.mdp.actions.surface_gripper_actions import SurfaceGripperBinaryAction

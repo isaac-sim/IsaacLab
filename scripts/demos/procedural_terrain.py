@@ -74,12 +74,11 @@ import isaaclab.sim as sim_utils
 ##
 # Pre-defined configs
 ##
-from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.terrains.sub_terrain_cfg import FlatPatchSamplingCfg
-from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
+from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporterCfg
 
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
+from isaaclab.terrains.config import ROUGH_TERRAINS_CFG  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBase

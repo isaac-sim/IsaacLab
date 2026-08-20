@@ -18,10 +18,10 @@ import trimesh
 # Import after app launch
 import warp as wp
 
-from isaaclab.sensors.ray_caster.kernels import quat_yaw_only as _quat_yaw_only_func
-from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation, yaw_quat
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
-from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
+from isaaclab._src.sensors.ray_caster.kernels import quat_yaw_only as _quat_yaw_only_func
+from isaaclab._src.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation, yaw_quat
+from isaaclab._src.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
 
 pytestmark = pytest.mark.integration
 
@@ -262,9 +262,9 @@ def test_raycaster_offset_does_not_affect_pos_w():
     and breaking height-scan observations during training.
     """
     import isaaclab.sim as sim_utils
+    from isaaclab._src.terrains.trimesh.utils import make_plane
     from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
-    from isaaclab.terrains.trimesh.utils import make_plane
-    from isaaclab.terrains.utils import create_prim_from_mesh
+    from isaaclab.terrains import create_prim_from_mesh
 
     sim_utils.create_new_stage()
 

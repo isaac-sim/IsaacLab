@@ -15,6 +15,8 @@ import torch
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab._src.test.env_cfgs import EmptyManagerCfg
+from isaaclab._src.test.integration_scene_cfgs import CartpoleTestSceneCfg
 from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -22,9 +24,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.test.env_cfgs import EmptyManagerCfg
-from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 

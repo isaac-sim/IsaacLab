@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.images import is_rgb_like, normalize_camera_image
 from isaaclab.assets import Articulation
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 

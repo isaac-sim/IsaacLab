@@ -19,10 +19,10 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from isaaclab._src.utils.assets import retrieve_file_path
+from isaaclab._src.utils.seed import configure_seed
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,

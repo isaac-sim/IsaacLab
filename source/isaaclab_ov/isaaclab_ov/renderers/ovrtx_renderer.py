@@ -75,10 +75,10 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.4.1.364340')."
     ) from exc
 
-from isaaclab.cloner.clone_plan import ClonePlan
+from isaaclab._src.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
+from isaaclab.cloner import ClonePlan
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from .ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
@@ -103,10 +103,10 @@ from .ovrtx_usd import (
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
 
-    from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.sensors.camera import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers import CameraRenderSpec
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
 _RTX_MINIMAL_MODES = {

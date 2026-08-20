@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
 from .curriculums import get_obstacle_curriculum_term

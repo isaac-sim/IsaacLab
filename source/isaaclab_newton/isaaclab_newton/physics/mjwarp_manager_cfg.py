@@ -10,7 +10,7 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .newton_manager_cfg import NewtonSolverCfg
 

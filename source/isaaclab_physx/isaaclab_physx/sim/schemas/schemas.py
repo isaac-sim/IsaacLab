@@ -18,13 +18,12 @@ import math
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim.schemas.schemas import (
+from isaaclab.sim.schemas import (
     define_deformable_body_properties,
     modify_deformable_body_properties,
 )
-from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
+from isaaclab.sim.utils import get_current_stage, safe_set_attribute_on_usd_prim
+from isaaclab.utils import to_camel_case
 
 from .schemas_cfg import PhysxFixedTendonCfg, PhysxSpatialTendonCfg
 

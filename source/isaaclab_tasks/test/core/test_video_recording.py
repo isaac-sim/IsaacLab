@@ -50,7 +50,7 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.envs import VideoRecorderCfg
 
 pytestmark = pytest.mark.isaacsim_ci
 

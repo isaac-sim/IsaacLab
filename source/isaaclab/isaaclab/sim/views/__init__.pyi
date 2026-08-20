@@ -14,9 +14,9 @@ __all__ = [
     "XformPrimView",
 ]
 
-from .base_frame_view import BaseFrameView
-from .usd_frame_view import UsdFrameView
-from .frame_view import FrameView
-from .xform_space_writer import FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter, FrameViewLocalSpaceWriter
+from isaaclab._src.sim.views.base_frame_view import BaseFrameView
+from isaaclab._src.sim.views.usd_frame_view import UsdFrameView
+from isaaclab._src.sim.views.frame_view import FrameView
+from isaaclab._src.sim.views.xform_space_writer import FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter, FrameViewLocalSpaceWriter
 # Deprecated alias
-from .xform_prim_view import XformPrimView
+from isaaclab._src.sim.views.xform_prim_view import XformPrimView

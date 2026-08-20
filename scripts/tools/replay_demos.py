@@ -15,8 +15,8 @@ wp.config.enable_backward = False
 
 import argparse
 
+from isaaclab._src.utils.string import list_intersection, string_to_callable
 from isaaclab.app import AppLauncher
-from isaaclab.utils.string import list_intersection, string_to_callable
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")

@@ -15,8 +15,8 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.cloner.clone_plan import ClonePlan
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.cloner import ClonePlan
+from isaaclab.renderers import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import PinholeCameraCfg
 

@@ -111,7 +111,7 @@ Offscreen rendering is selected automatically when a camera task runs without a 
 Event term distribution configuration
 -------------------------------------
 
-Some of the event functions in `events.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab/isaaclab/envs/mdp/events.py>`_
+Some of the event functions in `events.py <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab/isaaclab/_src/envs/mdp/events.py>`_
 accepted a ``distribution`` parameter and a ``range`` to sample from. In an effort to support arbitrary distributions,
 we have renamed the input argument ``AAA_range`` to ``AAA_distribution_params`` for these functions.
 Therefore, event term configurations whose functions have a ``distribution`` argument should be updated. For example,

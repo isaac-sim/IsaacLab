@@ -8,4 +8,4 @@ __all__ = [
     "HaplyDeviceCfg",
 ]
 
-from .se3_haply import HaplyDevice, HaplyDeviceCfg
+from isaaclab._src.devices.haply.se3_haply import HaplyDevice, HaplyDeviceCfg

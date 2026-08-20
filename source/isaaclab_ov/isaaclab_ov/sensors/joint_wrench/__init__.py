@@ -5,6 +5,6 @@
 
 """Sub-module for the OVPhysX joint-wrench sensor."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

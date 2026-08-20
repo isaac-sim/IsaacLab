@@ -59,9 +59,9 @@ from parity_helpers import (
     mutate_body_data,
 )
 
-import isaaclab.envs.mdp.rewards as stable_rew
-import isaaclab.envs.mdp.terminations as stable_term
-from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
+import isaaclab._src.envs.mdp.rewards as stable_rew
+import isaaclab._src.envs.mdp.terminations as stable_term
+from isaaclab.managers import RewardTermCfg, TerminationTermCfg
 
 import isaaclab_tasks.core.locomotion.mdp.rewards as stable_loco_rew
 

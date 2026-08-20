@@ -17,11 +17,11 @@ from isaaclab_newton.sim.schemas import schemas_cfg as newton_cfg
 from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
 from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 
+import isaaclab._src.sim.schemas.schemas_cfg as schemas_cfg_submodule
+import isaaclab._src.sim.spawners.materials.physics_materials_cfg as materials_cfg_submodule
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
-import isaaclab.sim.schemas.schemas_cfg as schemas_cfg_submodule
 import isaaclab.sim.spawners.materials as materials
-import isaaclab.sim.spawners.materials.physics_materials_cfg as materials_cfg_submodule
 
 pytestmark = pytest.mark.integration
 

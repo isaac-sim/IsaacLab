@@ -44,13 +44,13 @@ from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab import cloner as lab_cloner
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.terrains.terrain_importer import TerrainImporter
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.timer import Timer
+from isaaclab.terrains import TerrainImporter
+from isaaclab.terrains.config import ROUGH_TERRAINS_CFG
+from isaaclab.utils import Timer
 
 # import logger
 logger = logging.getLogger(__name__)

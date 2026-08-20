@@ -22,10 +22,10 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-import isaaclab.app.sim_launcher as sim_launcher_module
+import isaaclab._src.app.sim_launcher as sim_launcher_module
 import isaaclab.utils as isaaclab_utils
+from isaaclab._src.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.app import scan
-from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401

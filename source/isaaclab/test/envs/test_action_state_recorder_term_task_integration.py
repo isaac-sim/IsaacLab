@@ -26,8 +26,8 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.app import get_settings_manager
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

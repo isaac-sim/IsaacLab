@@ -16,7 +16,7 @@ from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim import SimulationContext
 
 
 class NewtonVBDManager(NewtonManager):

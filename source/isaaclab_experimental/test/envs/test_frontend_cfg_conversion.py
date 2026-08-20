@@ -234,7 +234,7 @@ def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
 
 def _iter_obs_terms(cfg):
     """Yield (name, term cfg) for every observation term that carries a noise slot."""
-    from isaaclab.managers.manager_term_cfg import ObservationGroupCfg
+    from isaaclab.managers import ObservationGroupCfg
 
     for group in vars(cfg.observations).values():
         if not isinstance(group, ObservationGroupCfg):

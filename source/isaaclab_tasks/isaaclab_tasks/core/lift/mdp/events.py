@@ -16,8 +16,8 @@ from tqdm import tqdm
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import quat_apply, random_orientation, sample_uniform
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 

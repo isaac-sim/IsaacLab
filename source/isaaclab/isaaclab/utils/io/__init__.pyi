@@ -9,5 +9,5 @@ __all__ = [
     "load_yaml",
 ]
 
-from .torchscript import load_torchscript_model
-from .yaml import dump_yaml, load_yaml
+from isaaclab._src.utils.io.torchscript import load_torchscript_model
+from isaaclab._src.utils.io.yaml import dump_yaml, load_yaml

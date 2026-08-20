@@ -28,7 +28,7 @@ import enum
 import functools
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.renderers import RendererCfg
 
 
 class PresetTarget(enum.Enum):

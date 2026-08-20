@@ -5,7 +5,7 @@
 
 from collections.abc import Sequence
 
-import isaaclab.utils.math as PoseUtils
+import isaaclab._src.utils.math as PoseUtils
 
 from .franka_stack_ik_abs_mimic_env import FrankaCubeStackIKAbsMimicEnv
 

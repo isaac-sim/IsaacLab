@@ -119,10 +119,10 @@ def _run(args_cli: argparse.Namespace) -> None:
     """Execute SKRL training with parsed arguments."""
     import skrl
 
+    from isaaclab._src.utils.assets import retrieve_file_path
+    from isaaclab._src.utils.seed import configure_seed
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
-    from isaaclab.utils.assets import retrieve_file_path
-    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 

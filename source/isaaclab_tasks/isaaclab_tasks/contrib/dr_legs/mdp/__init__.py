@@ -9,6 +9,6 @@ Re-exports the stock Isaac Lab manager-based MDP terms and adds the few
 DR-Legs-specific terms that have no stock equivalent.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

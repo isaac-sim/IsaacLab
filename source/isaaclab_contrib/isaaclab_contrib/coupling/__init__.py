@@ -11,6 +11,6 @@ Each sub-solver declares its model ownership as a named entry, and coupling
 interfaces refer to those entries by name.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

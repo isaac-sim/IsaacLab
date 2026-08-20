@@ -259,7 +259,7 @@ def _run_export_batch(task_names: list[str]) -> None:
     simulation_app = app_launcher.app
 
     import isaaclab.sim as sim_utils
-    from isaaclab.app.settings_manager import get_settings_manager
+    from isaaclab.app import get_settings_manager
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 

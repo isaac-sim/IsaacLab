@@ -57,9 +57,9 @@ __all__ = [
     "patterns",
 ]
 
-from .sensor_base import SensorBase
-from .sensor_base_cfg import SensorBaseCfg
-from .camera import (
+from isaaclab._src.sensors.sensor_base import SensorBase
+from isaaclab._src.sensors.sensor_base_cfg import SensorBaseCfg
+from isaaclab._src.sensors.camera import (
     Camera,
     CameraCfg,
     CameraData,
@@ -72,14 +72,14 @@ from .camera import (
     create_pointcloud_from_rgbd,
     save_images_to_file,
 )
-from .contact_sensor import (
+from isaaclab._src.sensors.contact_sensor import (
     BaseContactSensor,
     BaseContactSensorData,
     ContactSensor,
     ContactSensorCfg,
     ContactSensorData,
 )
-from .frame_transformer import (
+from isaaclab._src.sensors.frame_transformer import (
     BaseFrameTransformer,
     BaseFrameTransformerData,
     FrameTransformer,
@@ -87,16 +87,16 @@ from .frame_transformer import (
     OffsetCfg,
     FrameTransformerData,
 )
-from .imu import BaseImu, BaseImuData, Imu, ImuCfg, ImuData
-from .joint_wrench import (
+from isaaclab._src.sensors.imu import BaseImu, BaseImuData, Imu, ImuCfg, ImuData
+from isaaclab._src.sensors.joint_wrench import (
     BaseJointWrenchSensor,
     BaseJointWrenchSensorData,
     JointWrenchSensor,
     JointWrenchSensorCfg,
     JointWrenchSensorData,
 )
-from .pva import BasePva, BasePvaData, Pva, PvaCfg, PvaData
-from .ray_caster import (
+from isaaclab._src.sensors.pva import BasePva, BasePvaData, Pva, PvaCfg, PvaData
+from isaaclab._src.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
     MultiMeshRayCasterCameraCfg,

@@ -42,7 +42,7 @@ you can override or inspect these by using the Stage Recorder extension directly
 .. dropdown:: Settings used in base_env_window.py
   :icon: code
 
-  .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/ui/base_env_window.py
+  .. literalinclude:: ../../../source/isaaclab/isaaclab/_src/envs/ui/base_env_window.py
     :language: python
     :linenos:
     :pyobject: BaseEnvWindow._toggle_recording_animation_fn

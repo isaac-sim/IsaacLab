@@ -13,7 +13,7 @@ import logging
 import torch
 import torch.nn.functional
 
-from isaaclab.utils.math import matrix_from_quat
+from isaaclab._src.utils.math import matrix_from_quat
 
 # import logger
 logger = logging.getLogger(__name__)

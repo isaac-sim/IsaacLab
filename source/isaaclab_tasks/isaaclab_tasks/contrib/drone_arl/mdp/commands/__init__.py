@@ -5,6 +5,6 @@
 
 """Various command terms that can be used in the environment."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

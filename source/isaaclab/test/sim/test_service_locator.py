@@ -7,7 +7,7 @@
 
 import pytest
 
-from isaaclab.sim.service_locator import ServiceLocator
+from isaaclab._src.sim.service_locator import ServiceLocator
 
 pytestmark = pytest.mark.integration
 

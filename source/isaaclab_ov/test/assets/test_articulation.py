@@ -60,8 +60,7 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab.test.utils import test_devices
-from isaaclab.test.utils.articulation_ordering import (
+from isaaclab._src.test.utils.articulation_ordering import (
     ANYMAL_C_PHYSX_JOINT_NAMES,
     BRANCHING_MJWARP_BODY_NAMES,
     BRANCHING_MJWARP_JOINT_NAMES,
@@ -69,6 +68,7 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
 )
+from isaaclab.test.utils import test_devices
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -79,18 +79,18 @@ from isaaclab_ov.assets import Articulation  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
+import isaaclab._src.utils.math as math_utils  # noqa: E402
+import isaaclab._src.utils.string as string_utils  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
-import isaaclab.utils.math as math_utils  # noqa: E402
-import isaaclab.utils.string as string_utils  # noqa: E402
+from isaaclab._src.assets.articulation import ordering_kernels  # noqa: E402
+from isaaclab._src.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
+from isaaclab._src.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
-from isaaclab.assets.articulation import ordering_kernels  # noqa: E402
-from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
 from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
-from isaaclab.utils.version import get_isaac_sim_version, has_kit  # noqa: E402
-from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
+from isaaclab.utils import get_isaac_sim_version, has_kit  # noqa: E402
 
 ##
 # Pre-defined configs

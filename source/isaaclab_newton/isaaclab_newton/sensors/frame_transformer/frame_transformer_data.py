@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import warp as wp
 
-from isaaclab.sensors.frame_transformer.base_frame_transformer_data import BaseFrameTransformerData
+from isaaclab._src.utils.warp.math_ops import transform_to_vec_quat
+from isaaclab.sensors.frame_transformer import BaseFrameTransformerData
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
 
 class FrameTransformerData(BaseFrameTransformerData):

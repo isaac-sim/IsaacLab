@@ -408,7 +408,7 @@ def run_visualizer_golden_cartpole(
         # Reseed immediately before reset so other stochastic env parameters (cart pos,
         # velocity noise) remain reproducible regardless of how many CUDA RNG samples
         # prior tests consumed.
-        from isaaclab.utils.seed import configure_seed
+        from isaaclab._src.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
@@ -467,7 +467,7 @@ def run_visualizer_golden_shadow_hand(
         env = _viz_utils._make_shadow_hand_env(visualizer_type, physics_backend, tiled_camera=tiled)
         _viz_utils._configure_sim_for_visualizer_test(env)  # type: ignore[arg-type]
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        from isaaclab.utils.seed import configure_seed
+        from isaaclab._src.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
@@ -543,7 +543,7 @@ def run_visualizer_golden_anymal_d(
         env = _viz_utils._make_anymal_d_env(visualizer_type, physics_backend, tiled_camera=tiled)
         _viz_utils._configure_sim_for_visualizer_test(env)  # type: ignore[arg-type]
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        from isaaclab.utils.seed import configure_seed
+        from isaaclab._src.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
@@ -618,7 +618,7 @@ def run_visualizer_golden_franka_cloth(
         env = _viz_utils._make_franka_cloth_env(visualizer_type, tiled_camera=tiled)
         _viz_utils._configure_sim_for_visualizer_test(env)  # type: ignore[arg-type]
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        from isaaclab.utils.seed import configure_seed
+        from isaaclab._src.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
         env.reset()
@@ -638,7 +638,7 @@ def make_determinism_fixture():
 
     @pytest.fixture(autouse=True)
     def _determinism_fixture():
-        from isaaclab.utils.seed import configure_seed
+        from isaaclab._src.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
 

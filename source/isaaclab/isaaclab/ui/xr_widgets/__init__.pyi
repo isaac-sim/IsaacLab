@@ -14,6 +14,6 @@ __all__ = [
     "TeleopVisualizationManager",
 ]
 
-from .instruction_widget import hide_instruction, show_instruction, update_instruction
-from .scene_visualization import DataCollector, TriggerType, VisualizationManager, XRVisualization
-from .teleop_visualization_manager import TeleopVisualizationManager
+from isaaclab._src.ui.xr_widgets.instruction_widget import hide_instruction, show_instruction, update_instruction
+from isaaclab._src.ui.xr_widgets.scene_visualization import DataCollector, TriggerType, VisualizationManager, XRVisualization
+from isaaclab._src.ui.xr_widgets.teleop_visualization_manager import TeleopVisualizationManager

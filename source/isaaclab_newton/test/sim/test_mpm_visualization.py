@@ -12,8 +12,8 @@ from isaaclab_newton.sim.spawners.mpm.visualization import create_mpm_particle_v
 
 from pxr import Gf, Usd, UsdGeom, UsdShade
 
+import isaaclab._src.utils.version as version_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.version as version_utils
 
 
 def _create_visualization(monkeypatch, visual_material, *, has_kit: bool):

@@ -12,7 +12,7 @@ import tempfile
 import pytest
 from mimic_test_utils import run_script
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen")
 NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(

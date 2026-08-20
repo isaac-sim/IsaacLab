@@ -16,9 +16,9 @@ The following configuration is available:
 """
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import NEWTON_ASSET_DIR, retrieve_git_asset_path
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import NEWTON_ASSET_DIR, retrieve_git_asset_path
 
 _DR_LEGS_USD_PATH = retrieve_git_asset_path(NEWTON_ASSET_DIR, "disneyresearch/dr_legs/usd/dr_legs.usda")
 

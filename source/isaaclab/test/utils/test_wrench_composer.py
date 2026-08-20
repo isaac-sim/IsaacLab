@@ -10,9 +10,9 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab._src.utils.wrench_composer import WrenchComposer
 from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 pytestmark = pytest.mark.unit
 

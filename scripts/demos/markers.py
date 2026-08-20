@@ -32,14 +32,14 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab._src.utils.math import quat_from_angle_axis
 
 ##
 # Pre-defined configs
 ##
-from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import quat_from_angle_axis
 
 if TYPE_CHECKING:
     from isaaclab.markers import VisualizationMarkers

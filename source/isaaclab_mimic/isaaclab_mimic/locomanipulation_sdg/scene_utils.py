@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim.views import FrameView
 

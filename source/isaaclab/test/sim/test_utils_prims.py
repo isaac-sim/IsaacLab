@@ -22,8 +22,8 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab._src.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -686,7 +686,7 @@ def test_to_tuple_mixed_sequences():
 
 def test_to_tuple_precision():
     """Test _to_tuple() maintains numerical precision."""
-    from isaaclab.sim.utils.prims import _to_tuple
+    from isaaclab._src.sim.utils.prims import _to_tuple
 
     # Test with high precision values
     high_precision = [1.123456789, 2.987654321, 3.141592653]

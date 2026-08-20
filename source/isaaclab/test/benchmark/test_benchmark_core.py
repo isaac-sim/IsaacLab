@@ -11,10 +11,10 @@ from dataclasses import replace
 
 import pytest
 
-from isaaclab.benchmark import benchmark_core as benchmark_core_module
-from isaaclab.benchmark import formatters
-from isaaclab.benchmark.benchmark_core import BaseIsaacLabBenchmark, _runtime_measurements
-from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata
+from isaaclab._src.benchmark import benchmark_core as benchmark_core_module
+from isaaclab._src.benchmark import formatters
+from isaaclab._src.benchmark.benchmark_core import BaseIsaacLabBenchmark, _runtime_measurements
+from isaaclab.benchmark import SingleMeasurement, StringMetadata
 from isaaclab.sim import utils as sim_utils
 
 pytestmark = pytest.mark.benchmark
@@ -32,7 +32,7 @@ def reset_formatters():
 
 
 def _minimal_runtime_bundle():
-    from isaaclab.benchmark.schema import (
+    from isaaclab.benchmark import (
         GpuDeviceInfo,
         Hardware,
         MeanStd,
@@ -101,7 +101,7 @@ def _minimal_runtime_bundle():
 
 
 def _minimal_training_bundle():
-    from isaaclab.benchmark.schema import Learning, LearningCurve, TrainingBundle
+    from isaaclab.benchmark import Learning, LearningCurve, TrainingBundle
 
     bundle = _minimal_runtime_bundle()
     return TrainingBundle(
@@ -120,7 +120,7 @@ def _minimal_training_bundle():
 
 
 def _minimal_startup_bundle():
-    from isaaclab.benchmark.schema import CProfileFunction, StartupBundle, StartupConfig, StartupPhase
+    from isaaclab.benchmark import CProfileFunction, StartupBundle, StartupConfig, StartupPhase
 
     bundle = _minimal_runtime_bundle()
     return StartupBundle(
@@ -142,7 +142,7 @@ def _minimal_startup_bundle():
 
 
 def _minimal_play_bundle():
-    from isaaclab.benchmark.schema import MeanStd, PlayBundle
+    from isaaclab.benchmark import MeanStd, PlayBundle
 
     bundle = _minimal_runtime_bundle()
     return PlayBundle(
@@ -327,7 +327,7 @@ def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
 
 
 def test_environment_step_timing_flat_labels_describe_measurement_mode():
-    from isaaclab.benchmark.schema import EnvironmentStepTiming, MeanStd
+    from isaaclab.benchmark import EnvironmentStepTiming, MeanStd
 
     bundle = _minimal_runtime_bundle()
     host_return = EnvironmentStepTiming(

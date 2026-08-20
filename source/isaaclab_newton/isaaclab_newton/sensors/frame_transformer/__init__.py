@@ -5,6 +5,6 @@
 
 """Sub-module for frame transformer sensor based on Newton physics engine."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

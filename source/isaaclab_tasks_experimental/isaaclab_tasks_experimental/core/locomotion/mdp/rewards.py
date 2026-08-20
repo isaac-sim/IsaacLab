@@ -19,7 +19,7 @@ from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers.manager_base import ManagerTermBase
 from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
 
-import isaaclab.utils.string as string_utils
+import isaaclab._src.utils.string as string_utils
 
 if TYPE_CHECKING:
     from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg

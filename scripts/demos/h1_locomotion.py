@@ -55,9 +55,9 @@ from omni.kit.viewport.utility import get_viewport_from_window_name
 from omni.kit.viewport.utility.camera_state import ViewportCameraState
 from pxr import Gf, Sdf
 
+from isaaclab._src.utils.math import quat_apply
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.math import quat_apply
+from isaaclab.sim.utils import get_current_stage
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import (

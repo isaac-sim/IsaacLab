@@ -6,8 +6,8 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.assets.asset_base_cfg import AssetBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .surface_gripper import SurfaceGripper

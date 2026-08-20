@@ -55,7 +55,7 @@ import trimesh
 import warp as wp
 from trimesh.exchange.load import load
 
-from isaaclab.utils.assets import retrieve_file_path
+from isaaclab._src.utils.assets import retrieve_file_path
 
 """
 Simulation-Aware Policy Update (SAPU)

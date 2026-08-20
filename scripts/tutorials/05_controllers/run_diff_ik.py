@@ -40,15 +40,15 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab._src.utils.math import subtract_frame_transforms
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.math import subtract_frame_transforms
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs

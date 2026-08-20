@@ -17,16 +17,16 @@ from newton import ModelBuilder
 
 from pxr import Usd
 
-from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import (
+from isaaclab._src.scene_data.deformable_discovery import (
     DeformableStageEntry,
     discover_deformables_on_stage,
     path_to_env_regex,
     path_to_env_wildcard,
     sort_deformable_entries_for_geometry_sync,
 )
-from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
-from isaaclab.sim.utils.transforms import resolve_prim_pose
+from isaaclab._src.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
+from isaaclab.cloner import ClonePlan
+from isaaclab.sim.utils import resolve_prim_pose
 
 logger = logging.getLogger(__name__)
 

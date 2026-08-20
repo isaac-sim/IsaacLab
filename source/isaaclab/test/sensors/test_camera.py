@@ -1094,14 +1094,13 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
     """Test Camera warns once and drops data types its renderer cannot produce."""
     import logging
 
-    from isaaclab.renderers import Renderer
-    from isaaclab.renderers.base_renderer import BaseRenderer
+    from isaaclab.renderers import BaseRenderer, Renderer
 
     sim, camera_cfg, dt = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgba", "depth", "normals"]
 
-    from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
+    from isaaclab.sensors.camera import RenderBufferKind, RenderBufferSpec
 
     class _PartialRenderer(BaseRenderer):
         """Publishes only ``rgba`` in its supported-output contract."""

@@ -18,10 +18,10 @@ import warp as wp
 
 import omni.physics.tensors as physx
 
-from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.app import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
+from isaaclab.sim.utils import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager

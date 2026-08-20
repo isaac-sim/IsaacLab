@@ -7,18 +7,18 @@
 from isaaclab_physx.assets import SurfaceGripperCfg
 from isaaclab_teleop import IsaacTeleopCfg
 
+from isaaclab._src.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
+from isaaclab._src.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.sim.spawners.from_files import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.stack import mdp

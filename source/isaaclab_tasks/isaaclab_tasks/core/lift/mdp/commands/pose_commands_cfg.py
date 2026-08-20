@@ -7,10 +7,10 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .pose_commands import CableUniformPoseCommand, DeformableUniformPoseCommand, ObjectUniformPoseCommand

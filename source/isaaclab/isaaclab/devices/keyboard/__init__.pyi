@@ -10,7 +10,7 @@ __all__ = [
     "Se3KeyboardCfg",
 ]
 
-from .se2_keyboard import Se2Keyboard
-from .se2_keyboard_cfg import Se2KeyboardCfg
-from .se3_keyboard import Se3Keyboard
-from .se3_keyboard_cfg import Se3KeyboardCfg
+from isaaclab._src.devices.keyboard.se2_keyboard import Se2Keyboard
+from isaaclab._src.devices.keyboard.se2_keyboard_cfg import Se2KeyboardCfg
+from isaaclab._src.devices.keyboard.se3_keyboard import Se3Keyboard
+from isaaclab._src.devices.keyboard.se3_keyboard_cfg import Se3KeyboardCfg

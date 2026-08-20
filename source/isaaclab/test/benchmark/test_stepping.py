@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.benchmark.stepping import (
+from isaaclab._src.benchmark.stepping import (
     EnvironmentStepTimingRecorder,
     run_runtime_loop,
     run_runtime_warmup,

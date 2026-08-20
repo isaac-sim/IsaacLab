@@ -12,14 +12,14 @@ import warp as wp
 wp.config.quiet = True
 wp.init()
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()
 
 # Avoid a circular import at module load: `.proxy_array` imports warp, which is
 # already loaded above. Importing it here ensures the class is available inside
 # the shim.
-from .proxy_array import ProxyArray  # noqa: E402
+from isaaclab._src.utils.warp.proxy_array import ProxyArray  # noqa: E402
 
 _WP_TO_TORCH_ORIGINAL = wp.to_torch
 _WP_TO_TORCH_WARNED = False

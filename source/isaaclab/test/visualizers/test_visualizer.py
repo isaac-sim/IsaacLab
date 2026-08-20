@@ -13,10 +13,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
-from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer import Visualizer
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab._src.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
+from isaaclab.visualizers import BaseVisualizer, Visualizer, VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 

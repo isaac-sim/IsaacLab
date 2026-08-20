@@ -12,9 +12,9 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import scale_transform
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.sensors import Camera
-from isaaclab.utils.math import scale_transform
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints

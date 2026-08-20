@@ -20,10 +20,10 @@ import pytest
 import omni.kit.app
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab._src.test.env_cfgs import make_empty_manager_based_rl_env_cfg
+from isaaclab.app import get_settings_manager
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
-from isaaclab.test.env_cfgs import make_empty_manager_based_rl_env_cfg
 
 pytestmark = pytest.mark.integration
 

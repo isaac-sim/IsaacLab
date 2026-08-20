@@ -16,14 +16,13 @@ import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
-from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs.utils.camera_colorizer import (
+from isaaclab._src.envs.utils.camera_colorizer import (
     SUPPORTED_GT_TYPES,
     CameraFrameColorizer,
     sensor_key_for_gt_type,
     sensor_keys_for_gt_types,
 )
-from isaaclab.envs.utils.camera_view import (
+from isaaclab._src.envs.utils.camera_view import (
     VISUALIZER_TILED_CAMERA_MAX_TILES,
     apply_camera_target_positions,
     camera_gt_batch,
@@ -35,9 +34,10 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
-from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
-from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab._src.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab._src.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+from isaaclab.app import get_settings_manager
+from isaaclab.visualizers import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
@@ -231,7 +231,7 @@ class KitVisualizer(BaseVisualizer):
         self._teardown_backend_menubar_label()
         self._restore_env_visibility()
         if self._streaming_camera_key is not None:
-            from isaaclab.envs.utils.camera_view import evict_visualizer_camera
+            from isaaclab._src.envs.utils.camera_view import evict_visualizer_camera
 
             evict_visualizer_camera(self._streaming_camera_key)
             self._streaming_camera_key = None
@@ -379,8 +379,8 @@ class KitVisualizer(BaseVisualizer):
             env_idx: Environment index to sample each step.  Defaults to ``0``.
         """
         super().add_live_plots(managers, scalars=scalars, term_names=term_names, env_idx=env_idx)
-        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots
-        from isaaclab.ui.widgets.manager_live_visualizer import (
+        from isaaclab._src.ui.live_plots.manager_live_plots import DirectScalarLivePlots
+        from isaaclab._src.ui.widgets.manager_live_visualizer import (
             DirectScalarLiveVisualizer,
             ManagerLiveVisualizer,
             ManagerLiveVisualizerCfg,

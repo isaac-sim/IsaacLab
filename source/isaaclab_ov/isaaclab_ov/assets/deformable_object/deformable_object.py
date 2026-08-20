@@ -19,7 +19,7 @@ import warp as wp
 from pxr import UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.assets.deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
@@ -38,7 +38,7 @@ from .kernels import (
 from .views import OvPhysxDeformableBodyView
 
 if TYPE_CHECKING:
-    from isaaclab.assets.deformable_object.deformable_object_cfg import DeformableObjectCfg
+    from isaaclab.assets.deformable_object import DeformableObjectCfg
 
 logger = logging.getLogger(__name__)
 

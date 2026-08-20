@@ -58,14 +58,14 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.seed import configure_seed
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
 from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.seed import configure_seed
+from isaaclab.utils import configclass
 
 _ROUGH_TERRAIN_SEED = 0
 _ENV_SPACING = 2.0

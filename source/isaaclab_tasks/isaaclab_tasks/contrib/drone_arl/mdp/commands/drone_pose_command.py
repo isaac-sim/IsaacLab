@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.envs.mdp.commands.pose_command import UniformPoseCommand
-from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
+from isaaclab._src.envs.mdp.commands.pose_command import UniformPoseCommand
+from isaaclab._src.utils.math import combine_frame_transforms, compute_pose_error
 
 
 class DroneUniformPoseCommand(UniformPoseCommand):

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 
 from isaaclab_contrib.utils.types import MultiRotorActions
 

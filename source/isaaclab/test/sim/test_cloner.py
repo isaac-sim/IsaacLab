@@ -24,6 +24,7 @@ from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.sim.utils import queries
 from isaaclab.cloner import (
     REPLICATION_QUEUE,
     ClonePlan,
@@ -36,7 +37,6 @@ from isaaclab.cloner import (
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
-from isaaclab.sim.utils import queries
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -166,7 +166,7 @@ def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatc
     """Fabric notice suspension no-ops when Carbonite bindings exist but ``usdrt`` does not."""
     import builtins
 
-    from isaaclab.cloner import _fabric_notices
+    from isaaclab._src.cloner import _fabric_notices
 
     class _FakeBindings:
         def validate_with(self, fabric_id: int) -> bool:
@@ -218,7 +218,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     """usd_replicate must not call Sdf.CopySpec when source and destination paths are identical."""
     from unittest.mock import patch
 
-    import isaaclab.cloner.usd as _cloner_mod
+    import isaaclab._src.cloner.usd as _cloner_mod
 
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")

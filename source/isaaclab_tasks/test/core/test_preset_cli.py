@@ -47,7 +47,7 @@ def test_preset_target_carries_base_classes():
     should bucket to them. DOMAIN carries no base classes (it's the
     catch-all)."""
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from isaaclab.renderers import RendererCfg
 
     from isaaclab_tasks.utils.preset_target import PresetTarget
 
@@ -181,7 +181,7 @@ def test_setup_preset_cli_does_not_leak_into_app_launcher_sim_app_intersection(m
 def test_intersection_preserves_typed_selection():
     """A typed selector present in both the remainder and the callback return
     survives ``list_intersection`` verbatim; a callback-owned flag is dropped."""
-    from isaaclab.utils.string import list_intersection
+    from isaaclab._src.utils.string import list_intersection
 
     main_remainder = ["physics=newton_mjwarp", "--my_callback_flag=42", "env.lr=3e-4"]
     callback_remainder = ["physics=newton_mjwarp", "env.lr=3e-4"]
@@ -247,8 +247,8 @@ def test_bucket_variants_routes_by_base_class_isinstance():
     instances route to RENDERER, and everything else falls into DOMAIN.
     """
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.renderers import RendererCfg
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
     from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -368,8 +368,8 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
     are deliberate.
     """
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.renderers.renderer_cfg import RendererCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.renderers import RendererCfg
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.utils.hydra import preset
 

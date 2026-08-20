@@ -10,7 +10,7 @@ __all__ = [
     "Se3GamepadCfg",
 ]
 
-from .se2_gamepad import Se2Gamepad
-from .se2_gamepad_cfg import Se2GamepadCfg
-from .se3_gamepad import Se3Gamepad
-from .se3_gamepad_cfg import Se3GamepadCfg
+from isaaclab._src.devices.gamepad.se2_gamepad import Se2Gamepad
+from isaaclab._src.devices.gamepad.se2_gamepad_cfg import Se2GamepadCfg
+from isaaclab._src.devices.gamepad.se3_gamepad import Se3Gamepad
+from isaaclab._src.devices.gamepad.se3_gamepad_cfg import Se3GamepadCfg

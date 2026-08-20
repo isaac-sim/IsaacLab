@@ -29,10 +29,10 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab._src.envs.mdp.events import _RandomizeRigidBodyMaterialOvPhysx  # noqa: E402
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
-from isaaclab.envs.mdp.events import _RandomizeRigidBodyMaterialOvPhysx  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 wp.init()
 

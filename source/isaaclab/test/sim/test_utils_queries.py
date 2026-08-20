@@ -22,8 +22,8 @@ import pytest
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import queries
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab._src.sim.utils import queries
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 
-from isaaclab.benchmark.entrypoints.startup import run
+from isaaclab._src.benchmark.entrypoints.startup import run
 
 if __name__ == "__main__":
     run(sys.argv[1:])

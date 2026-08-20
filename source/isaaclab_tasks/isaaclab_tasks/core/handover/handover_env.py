@@ -12,11 +12,18 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import (
+    quat_conjugate,
+    quat_mul,
+    sample_uniform,
+    saturate,
+    scale_transform,
+    unscale_transform,
+)
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
 from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg

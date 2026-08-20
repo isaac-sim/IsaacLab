@@ -23,9 +23,9 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
-from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab._src.markers.vis_marker_registry import VisMarkerRegistry
+from isaaclab.sim import SimulationContext
+from isaaclab.visualizers import VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 

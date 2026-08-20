@@ -10,7 +10,7 @@ __all__ = [
     "ViewportCameraController",
 ]
 
-from .base_env_window import BaseEnvWindow
-from .empty_window import EmptyWindow
-from .manager_based_rl_env_window import ManagerBasedRLEnvWindow
-from .viewport_camera_controller import ViewportCameraController
+from isaaclab._src.envs.ui.base_env_window import BaseEnvWindow
+from isaaclab._src.envs.ui.empty_window import EmptyWindow
+from isaaclab._src.envs.ui.manager_based_rl_env_window import ManagerBasedRLEnvWindow
+from isaaclab._src.envs.ui.viewport_camera_controller import ViewportCameraController

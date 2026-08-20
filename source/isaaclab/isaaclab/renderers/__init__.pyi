@@ -13,9 +13,9 @@ __all__ = [
     "RenderContext",
 ]
 
-from .base_renderer import BaseRenderer
-from .camera_render_spec import CameraRenderSpec
-from .output_contract import RenderBufferKind, RenderBufferSpec
-from .renderer import Renderer
-from .renderer_cfg import RendererCfg
-from .render_context import RenderContext
+from isaaclab._src.renderers.base_renderer import BaseRenderer
+from isaaclab._src.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab._src.renderers.output_contract import RenderBufferKind, RenderBufferSpec
+from isaaclab._src.renderers.renderer import Renderer
+from isaaclab._src.renderers.renderer_cfg import RendererCfg
+from isaaclab._src.renderers.render_context import RenderContext

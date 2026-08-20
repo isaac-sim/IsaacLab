@@ -9,12 +9,12 @@ import logging
 import pytest
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 
+import isaaclab._src.app.app_launcher as app_launcher_module
+import isaaclab._src.app.sim_launcher as sim_launcher
 import isaaclab.app as app_module
-import isaaclab.app.app_launcher as app_launcher_module
-import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
+from isaaclab._src.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _get_kit_runtime_sources
 from isaaclab.app import AppLauncher
-from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _get_kit_runtime_sources
 
 pytestmark = pytest.mark.integration
 
@@ -569,7 +569,7 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
 
 
 def test_has_gui_reads_published_setting():
-    from isaaclab.app.settings_manager import get_settings_manager
+    from isaaclab.app import get_settings_manager
 
     settings = get_settings_manager()
     original = settings.get("/isaaclab/has_gui")

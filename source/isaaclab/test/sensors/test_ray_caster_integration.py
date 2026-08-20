@@ -32,7 +32,8 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.clone_plan import ClonePlan
+from isaaclab._src.terrains.trimesh.utils import make_plane
+from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -42,8 +43,7 @@ from isaaclab.sensors.ray_caster import (
     RayCasterCfg,
     patterns,
 )
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.terrains import create_prim_from_mesh
 
 pytestmark = pytest.mark.integration
 
@@ -470,7 +470,7 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
     """
     sim = sim_ground
 
-    from isaaclab.utils.math import quat_from_euler_xyz
+    from isaaclab._src.utils.math import quat_from_euler_xyz
 
     # 90 deg yaw quaternion in xyzw
     yaw90 = quat_from_euler_xyz(torch.tensor([0.0]), torch.tensor([0.0]), torch.tensor([torch.pi / 2]))

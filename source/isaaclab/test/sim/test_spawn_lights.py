@@ -19,7 +19,7 @@ from pxr import Usd, UsdLux
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.string import to_camel_case
+from isaaclab.utils import to_camel_case
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 

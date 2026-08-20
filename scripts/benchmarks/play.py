@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.benchmark.entrypoints.play import main
+from isaaclab._src.benchmark.entrypoints.play import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

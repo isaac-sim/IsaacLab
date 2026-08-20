@@ -11,12 +11,12 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.envs.utils.camera_colorizer import (
+from isaaclab._src.envs.utils.camera_colorizer import (
     CameraFrameColorizer,
     sensor_key_for_gt_type,
     sensor_keys_for_gt_types,
 )
-from isaaclab.envs.utils.camera_view import _best_streaming_cols, compose_streaming_grid
+from isaaclab._src.envs.utils.camera_view import _best_streaming_cols, compose_streaming_grid
 
 # ---------------------------------------------------------------------------
 # CameraFrameColorizer
@@ -210,7 +210,7 @@ def test_shadow_hand_num_envs_override():
 
 
 def test_streaming_cfg_fields_on_visualizer_cfg():
-    from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+    from isaaclab.visualizers import VisualizerCfg
 
     cfg = VisualizerCfg()
     cfg.streaming_view = True
@@ -300,7 +300,7 @@ def test_colorize_normals_right_is_red():
 
 def test_normals_in_supported_gt_types():
     """'normals' must be in SUPPORTED_GT_TYPES."""
-    from isaaclab.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES
+    from isaaclab._src.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES
 
     assert "normals" in SUPPORTED_GT_TYPES
 

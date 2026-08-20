@@ -65,7 +65,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene

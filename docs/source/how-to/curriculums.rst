@@ -17,7 +17,7 @@ object to enable dynamic modification of reward weights and environment paramete
 .. dropdown:: Full source for curriculum utilities
    :icon: code
 
-   .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
+   .. literalinclude:: ../../../source/isaaclab/isaaclab/_src/envs/mdp/curriculums.py
       :language: python
 
 
@@ -27,7 +27,7 @@ Modifying Reward Weights
 The function :func:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
 steps. This can be passed directly as the ``func`` in a ``CurriculumTermCfg``.
 
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
+.. literalinclude:: ../../../source/isaaclab/isaaclab/_src/envs/mdp/curriculums.py
    :language: python
    :pyobject: modify_reward_weight
 
@@ -57,7 +57,7 @@ dotted attribute path in the environment and apply a user-supplied function to c
 handles nested attributes, dictionary keys, list or tuple indexing, and respects a ``NO_CHANGE`` sentinel if no update
 is desired.
 
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
+.. literalinclude:: ../../../source/isaaclab/isaaclab/_src/envs/mdp/curriculums.py
    :language: python
    :pyobject: modify_env_param
 
@@ -95,7 +95,7 @@ Modify Term Configuration
 The subclass :class:`modify_term_cfg` provides a more concise style address syntax, using consistent with hydra config
 syntax. It otherwise behaves identically to :class:`modify_env_param`.
 
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
+.. literalinclude:: ../../../source/isaaclab/isaaclab/_src/envs/mdp/curriculums.py
    :language: python
    :pyobject: modify_term_cfg
 

@@ -79,8 +79,8 @@ __all__ = [
     "MultiUsdFileCfg",
 ]
 
-from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
-from .from_files import (
+from isaaclab._src.sim.spawners.spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
+from isaaclab._src.sim.spawners.from_files import (
     spawn_from_mjcf,
     spawn_from_urdf,
     spawn_from_usd,
@@ -92,7 +92,7 @@ from .from_files import (
     UsdFileCfg,
     UsdFileWithCompliantContactCfg,
 )
-from .lights import (
+from isaaclab._src.sim.spawners.lights import (
     spawn_light,
     CylinderLightCfg,
     DiskLightCfg,
@@ -101,7 +101,7 @@ from .lights import (
     LightCfg,
     SphereLightCfg,
 )
-from .materials import (
+from isaaclab._src.sim.spawners.materials import (
     spawn_rigid_body_material,
     spawn_deformable_body_material,
     CableMaterialCfg,
@@ -118,7 +118,7 @@ from .materials import (
     PreviewSurfaceCfg,
     VisualMaterialCfg,
 )
-from .meshes import (
+from isaaclab._src.sim.spawners.meshes import (
     spawn_mesh_capsule,
     spawn_mesh_cone,
     spawn_mesh_cuboid,
@@ -133,7 +133,7 @@ from .meshes import (
     MeshRectangleCfg,
     MeshSphereCfg,
 )
-from .sensors import (
+from isaaclab._src.sim.spawners.sensors import (
     spawn_camera,
     spawn_sensor_frame,
     FisheyeCameraCfg,
@@ -143,7 +143,7 @@ from .sensors import (
     PinholeCameraCfg,
     SensorFrameCfg,
 )
-from .shapes import (
+from isaaclab._src.sim.spawners.shapes import (
     spawn_cable,
     spawn_capsule,
     spawn_cone,
@@ -158,4 +158,4 @@ from .shapes import (
     ShapeCfg,
     SphereCfg,
 )
-from .wrappers import spawn_multi_asset, spawn_multi_usd_file, MultiAssetSpawnerCfg, MultiUsdFileCfg
+from isaaclab._src.sim.spawners.wrappers import spawn_multi_asset, spawn_multi_usd_file, MultiAssetSpawnerCfg, MultiUsdFileCfg

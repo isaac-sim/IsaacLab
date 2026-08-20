@@ -15,7 +15,7 @@ import math
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.schemas.schemas import create_world_fixed_joint
+from isaaclab._src.sim.schemas.schemas import create_world_fixed_joint
 
 
 def _make_root_prim(stage: Usd.Stage, path: str, translation: tuple[float, float, float]) -> Usd.Prim:

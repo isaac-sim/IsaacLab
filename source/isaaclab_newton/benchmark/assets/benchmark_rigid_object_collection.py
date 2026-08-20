@@ -5,7 +5,7 @@
 
 """Run the combined rigid_object_collection method and data micro-benchmarks for newton."""
 
-from isaaclab.benchmark.asset_suites.cli import run_asset_benchmark_cli
+from isaaclab._src.benchmark.asset_suites.cli import run_asset_benchmark_cli
 
 if __name__ == "__main__":
     run_asset_benchmark_cli("newton_mjwarp", "rigid_object_collection", include_app_launcher_args=False)

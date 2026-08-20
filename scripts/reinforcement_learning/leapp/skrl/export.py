@@ -92,13 +92,13 @@ def _load_runtime_dependencies() -> None:
     from packaging import version as version_module
     from skrl.utils.runner.torch import Runner as RunnerCls
 
+    from isaaclab._src.utils.assets import retrieve_file_path as retrieve_file_path_fn
+    from isaaclab._src.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
+    from isaaclab._src.utils.seed import configure_seed as configure_seed_fn
     from isaaclab.envs import DirectMARLEnvCfg as DirectMARLEnvCfgCls
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.envs import multi_agent_to_single_agent as multi_agent_to_single_agent_fn
-    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
     from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
-    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
-    from isaaclab.utils.seed import configure_seed as configure_seed_fn
 
     _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if _leapp_scripts_dir not in sys.path:

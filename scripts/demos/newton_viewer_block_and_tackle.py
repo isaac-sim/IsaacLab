@@ -27,7 +27,7 @@ import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 MECHANICAL_ADVANTAGE = 4
 LOAD_MASS = 5.0

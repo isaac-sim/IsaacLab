@@ -30,7 +30,7 @@ from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCa
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2

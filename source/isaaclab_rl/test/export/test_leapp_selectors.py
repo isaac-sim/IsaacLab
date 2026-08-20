@@ -13,8 +13,8 @@ import warp as wp
 
 pytest.importorskip("leapp")
 
-from isaaclab.utils.leapp.export_annotator import ExportPatcher
-from isaaclab.utils.leapp.leapp_semantics import select_element_names
+from isaaclab._src.utils.leapp.leapp_semantics import select_element_names
+from isaaclab.utils.leapp import ExportPatcher
 
 
 def _make_warp_selector():

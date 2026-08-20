@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.math as math_utils
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 
 from isaaclab_tasks.contrib.automate import factory_control as fc

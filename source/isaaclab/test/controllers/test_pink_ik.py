@@ -26,7 +26,7 @@ from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
+from isaaclab._src.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg

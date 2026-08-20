@@ -242,7 +242,7 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
 
 
 def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
+    from isaaclab.sensors.camera import CameraISPMode
 
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")

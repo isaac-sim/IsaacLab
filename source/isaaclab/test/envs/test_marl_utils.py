@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import gymnasium as gym
 import torch
 
-from isaaclab.envs.utils.marl import multi_agent_to_single_agent
+from isaaclab.envs import multi_agent_to_single_agent
 
 
 class _FakeMultiAgentEnv:

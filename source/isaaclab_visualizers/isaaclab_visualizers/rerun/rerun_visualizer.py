@@ -22,7 +22,7 @@ import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
 
-from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import (
@@ -487,7 +487,7 @@ class RerunVisualizer(BaseVisualizer):
                 self._viewer = None
 
         if self._camera_sensor is not None and self._camera_is_owned:
-            from isaaclab.envs.utils.camera_view import evict_visualizer_camera, remove_generated_prims
+            from isaaclab._src.envs.utils.camera_view import evict_visualizer_camera, remove_generated_prims
 
             evict_visualizer_camera(self._streaming_camera_key)
             remove_generated_prims(self._generated_camera_prim_paths)
@@ -517,8 +517,8 @@ class RerunVisualizer(BaseVisualizer):
 
     def _setup_streaming_view(self, num_envs: int) -> None:
         """Resolve or create the streaming camera sensor."""
-        from isaaclab.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES, sensor_keys_for_gt_types
-        from isaaclab.envs.utils.camera_view import (
+        from isaaclab._src.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES, sensor_keys_for_gt_types
+        from isaaclab._src.envs.utils.camera_view import (
             VISUALIZER_TILED_CAMERA_MAX_TILES,
             create_visualizer_camera,
             find_camera_by_prim_path,
@@ -599,7 +599,7 @@ class RerunVisualizer(BaseVisualizer):
         """Position the auto-created streaming camera using the cfg target prim and eye offset."""
         if not self._camera_is_owned or self._camera_sensor is None:
             return
-        from isaaclab.envs.utils.camera_view import apply_camera_target_positions, prim_world_positions
+        from isaaclab._src.envs.utils.camera_view import apply_camera_target_positions, prim_world_positions
         from isaaclab.sim import get_current_stage
 
         try:
@@ -619,8 +619,8 @@ class RerunVisualizer(BaseVisualizer):
         ``_last_streaming_composite`` but does **not** log the image to Rerun.
         Call :meth:`_push_streaming_frame` to compose *and* log in a single pass.
         """
-        from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
-        from isaaclab.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
+        from isaaclab._src.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
+        from isaaclab._src.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
 
         if self._camera_sensor is None:
             return
@@ -750,7 +750,7 @@ class RerunVisualizer(BaseVisualizer):
         # manager groups all their terms together.  For DirectScalarLivePlots (e.g. episode
         # metrics), each scalar gets its own view so they have independent Y axes — otherwise
         # episode_length (~160) and mean_reward (~0-1) share an axis, hiding the smaller one.
-        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots
+        from isaaclab._src.ui.live_plots.manager_live_plots import DirectScalarLivePlots
 
         names = []
         for source in self._live_plot_sources:

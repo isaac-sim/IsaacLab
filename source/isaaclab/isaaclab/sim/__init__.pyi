@@ -231,7 +231,7 @@ __all__ = [
     "XformPrimView",
 ]
 
-from .converters import (
+from isaaclab._src.sim.converters import (
     AssetConverterBase,
     AssetConverterBaseCfg,
     MeshConverter,
@@ -241,7 +241,7 @@ from .converters import (
     UrdfConverter,
     UrdfConverterCfg,
 )
-from .schemas import (
+from isaaclab._src.sim.schemas import (
     MESH_APPROXIMATION_TOKENS,
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
@@ -307,8 +307,8 @@ from .schemas import (
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
 )
-from .simulation_cfg import SimulationCfg
-from .simulation_context import SimulationContext, build_simulation_context
+from isaaclab._src.sim.simulation_cfg import SimulationCfg
+from isaaclab._src.sim.simulation_context import SimulationContext, build_simulation_context
 
 # Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
 MujocoJointDrivePropertiesCfg = ...
@@ -320,7 +320,7 @@ NewtonMaterialPropertiesCfg = ...
 NewtonMeshCollisionPropertiesCfg = ...
 NewtonRigidBodyPropertiesCfg = ...
 NewtonSDFCollisionPropertiesCfg = ...
-from .spawners import (
+from isaaclab._src.sim.spawners import (
     CableCfg,
     CableMaterialCfg,
     CapsuleCfg,
@@ -395,7 +395,7 @@ from .spawners import (
     spawn_sensor_frame,
     spawn_sphere,
 )
-from .utils import (
+from isaaclab._src.sim.utils import (
     add_labels,
     add_reference_to_stage,
     add_usd_reference,
@@ -460,7 +460,7 @@ from .utils import (
     use_stage,
     validate_standard_xform_ops,
 )
-from .views import (
+from isaaclab._src.sim.views import (
     BaseFrameView,
     FrameView,
     UsdFrameView,

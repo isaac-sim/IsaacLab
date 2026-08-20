@@ -31,7 +31,7 @@ _RR_HAS_TRANSFORM_AXES = hasattr(rr, "TransformAxes3D")
 
 from curobo.types.state import JointState
 
-import isaaclab.utils.math as PoseUtils
+import isaaclab._src.utils.math as PoseUtils
 
 # Import psutil for process management
 try:

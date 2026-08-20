@@ -17,12 +17,12 @@ import warp as wp
 import omni.physics.tensors as physx
 from pxr import UsdPhysics
 
+import isaaclab._src.utils.string as string_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.string as string_utils
-from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab._src.utils.wrench_composer import WrenchComposer
+from isaaclab.assets.rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.cloner import queue_replication
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -31,7 +31,7 @@ from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.assets.rigid_object_collection import RigidObjectCollectionCfg
 
 # import logger
 logger = logging.getLogger(__name__)

@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils import math as math_utils
 from isaaclab.managers import ManagerTermBase, TerminationTermCfg
-from isaaclab.utils import math as math_utils
 
 from .observations import _nearest_grasp_to_tcp_quat
 

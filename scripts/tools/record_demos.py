@@ -42,9 +42,10 @@ import argparse
 import contextlib
 from typing import TYPE_CHECKING
 
+from isaaclab._src.utils.string import list_intersection, string_to_callable
+
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
-from isaaclab.utils.string import list_intersection, string_to_callable
 
 if TYPE_CHECKING:
     from isaaclab_teleop import XrCameraFeedSession
@@ -178,11 +179,10 @@ from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
 
 import omni.ui as ui
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg, create_teleop_device
 from isaaclab.devices.openxr import remove_camera_configs
-from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
 from isaaclab.managers import DatasetExportMode
 

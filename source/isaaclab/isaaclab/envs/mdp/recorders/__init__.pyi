@@ -17,14 +17,14 @@ __all__ = [
     "PreStepFlatPolicyObservationsRecorderCfg",
 ]
 
-from .recorders import (
+from isaaclab._src.envs.mdp.recorders.recorders import (
     InitialStateRecorder,
     PostStepProcessedActionsRecorder,
     PostStepStatesRecorder,
     PreStepActionsRecorder,
     PreStepFlatPolicyObservationsRecorder,
 )
-from .recorders_cfg import (
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import (
     ActionStateRecorderManagerCfg,
     InitialStateRecorderCfg,
     PostStepProcessedActionsRecorderCfg,

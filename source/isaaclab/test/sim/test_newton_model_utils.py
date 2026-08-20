@@ -17,7 +17,7 @@ import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
-from isaaclab.sim.utils.newton_model_utils import (
+from isaaclab._src.sim.utils.newton_model_utils import (
     _OMNIPBR_DEFAULTS,
     _UNBOUND_DEFAULT_FALLBACK_GRAY,
     _get_omnipbr_albedo,

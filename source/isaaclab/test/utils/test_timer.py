@@ -10,7 +10,7 @@ import warp as wp
 
 wp.init()
 
-from isaaclab.utils.timer import Timer, TimerError
+from isaaclab._src.utils.timer import Timer, TimerError
 
 pytestmark = pytest.mark.unit
 

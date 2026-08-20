@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration

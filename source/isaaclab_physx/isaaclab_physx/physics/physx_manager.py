@@ -33,9 +33,7 @@ import omni.usd
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import (
+from isaaclab._src.scene_data.deformable_discovery import (
     build_deformable_root_path_lookup,
     build_deformable_vertex_count_lookup,
     discover_deformables_on_stage,
@@ -43,10 +41,12 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_root_path,
     resolve_deformable_vertex_count,
 )
-from isaaclab.utils.string import to_camel_case
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
-    from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.sim import SimulationContext
 
     from .physx_cfg import PhysxCfg
 
@@ -298,7 +298,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     def _refresh_merged_points(self) -> None:
         """Merge volume and surface deformable nodal positions into :attr:`points`."""
-        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
+        from isaaclab._src.scene_data.geometry_points import pack_body_nodal_slices
 
         self._discover_deformable_geometry()
         if self._merged_points is None:
@@ -422,7 +422,7 @@ class PhysxManager(PhysicsManager):
         _subscribe_to_simulation_manager_enable()
         _patch_isaacsim_simulation_manager()
 
-        from isaaclab.sim.utils.stage import get_current_stage_id
+        from isaaclab.sim.utils import get_current_stage_id
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
@@ -826,7 +826,7 @@ class PhysxManager(PhysicsManager):
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material
         if physics_material is None:
-            from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+            from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 
             physics_material = RigidBodyMaterialBaseCfg()
         mat_path = f"{sim_cfg.physics_prim_path}/defaultMaterial"
@@ -929,7 +929,7 @@ class PhysxManager(PhysicsManager):
             return
 
         # Get stage ID first (needed for both warmup and view creation)
-        from isaaclab.sim.utils.stage import get_current_stage_id
+        from isaaclab.sim.utils import get_current_stage_id
 
         stage_id = get_current_stage_id()
 
@@ -998,7 +998,7 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:
-        from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
+        from isaaclab.sim.utils import get_current_stage, get_current_stage_id
 
         # Guard against stage open events when stage is not yet valid
         stage = get_current_stage()

@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from isaaclab.sim.spawners.materials.visual_materials_cfg import VisualMaterialCfg
+from isaaclab.sim.spawners.materials import VisualMaterialCfg
 
 
 def create_mpm_particle_visualization(
@@ -54,7 +54,7 @@ def create_mpm_particle_visualization(
             points.CreateWidthsAttr(widths_vt)
             points.CreateDisplayColorAttr(color_vt)
 
-    from isaaclab.utils.version import has_kit  # noqa: PLC0415
+    from isaaclab.utils import has_kit  # noqa: PLC0415
 
     if visual_material is not None and has_kit():
         UsdGeom.Scope.Define(stage, f"{prim_path}/Looks")

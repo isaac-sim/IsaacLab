@@ -12,7 +12,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.utils.string import resolve_matching_names_values
+from isaaclab.utils import resolve_matching_names_values
 
 
 @wp.func

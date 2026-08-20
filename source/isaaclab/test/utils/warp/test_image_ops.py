@@ -36,7 +36,7 @@ class TestNormalizeImageUint8:
 
     def test_matches_pytorch_reference_constant_input(self, device):
         """A constant-valued uint8 input must normalize to all zeros (mean equals every pixel)."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.full((2, 4, 4, 6), 128, dtype=torch.uint8, device=device)
         out = normalize_image_uint8(src)
@@ -44,7 +44,7 @@ class TestNormalizeImageUint8:
 
     def test_matches_pytorch_reference_random_input(self, device):
         """Output must match the pure-PyTorch reference on randomized input."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         torch.manual_seed(0)
         src = torch.randint(0, 255, (3, 16, 16, 6), dtype=torch.uint8, device=device)
@@ -54,7 +54,7 @@ class TestNormalizeImageUint8:
 
     def test_matches_pytorch_reference_disjoint_channel_slices(self, device):
         """Two frames concatenated along C must each normalize independently per-channel-slice."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         torch.manual_seed(1)
         c = 3
@@ -67,7 +67,7 @@ class TestNormalizeImageUint8:
 
     def test_preallocated_output_reused(self, device):
         """When ``out`` is passed in, the wrapper writes into it and returns the same object."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.randint(0, 255, (2, 8, 8, 6), dtype=torch.uint8, device=device)
         out = torch.empty(src.shape, dtype=torch.float32, device=device)
@@ -84,7 +84,7 @@ class TestNormalizeImageUint8:
 
     def test_rejects_non_uint8_input(self, device):
         """Float input is a programming error and must raise."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.zeros((2, 4, 4, 3), dtype=torch.float32, device=device)
         with pytest.raises(ValueError, match="4D uint8"):
@@ -92,7 +92,7 @@ class TestNormalizeImageUint8:
 
     def test_rejects_wrong_ndim(self, device):
         """3D uint8 input is rejected (kernel expects (B, H, W, C))."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.zeros((4, 4, 3), dtype=torch.uint8, device=device)
         with pytest.raises(ValueError, match="4D uint8"):
@@ -100,7 +100,7 @@ class TestNormalizeImageUint8:
 
     def test_rejects_non_contiguous_input(self, device):
         """Non-contiguous src is rejected."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         base = torch.randint(0, 255, (2, 8, 8, 12), dtype=torch.uint8, device=device)
         src = base[..., ::2]
@@ -110,7 +110,7 @@ class TestNormalizeImageUint8:
 
     def test_rejects_out_shape_mismatch(self, device):
         """A pre-allocated ``out`` of the wrong shape must raise."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.zeros((2, 4, 4, 6), dtype=torch.uint8, device=device)
         bad_out = torch.empty((2, 4, 4, 3), dtype=torch.float32, device=device)
@@ -119,7 +119,7 @@ class TestNormalizeImageUint8:
 
     def test_rejects_out_dtype_mismatch(self, device):
         """A pre-allocated ``out`` of the wrong dtype must raise."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.zeros((2, 4, 4, 6), dtype=torch.uint8, device=device)
         bad_out = torch.empty(src.shape, dtype=torch.float16, device=device)
@@ -128,7 +128,7 @@ class TestNormalizeImageUint8:
 
     def test_bchw_matches_pytorch_reference(self, device):
         """``channel_dim=1`` (BCHW) must match a BCHW-layout PyTorch reference."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         torch.manual_seed(2)
         src = torch.randint(0, 255, (3, 6, 16, 16), dtype=torch.uint8, device=device)
@@ -137,7 +137,7 @@ class TestNormalizeImageUint8:
 
     def test_bchw_negative_index_equivalent_to_positive(self, device):
         """``channel_dim=-3`` must produce the same output as ``channel_dim=1`` for 4D input."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         torch.manual_seed(3)
         src = torch.randint(0, 255, (2, 4, 8, 8), dtype=torch.uint8, device=device)
@@ -147,7 +147,7 @@ class TestNormalizeImageUint8:
 
     def test_bhwc_explicit_positive_index_matches_default(self, device):
         """``channel_dim=3`` and the default ``channel_dim=-1`` must agree on BHWC input."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         torch.manual_seed(4)
         src = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
@@ -157,7 +157,7 @@ class TestNormalizeImageUint8:
 
     def test_bchw_disjoint_channel_slices(self, device):
         """K frames concatenated along C in BCHW must each normalize independently per-channel."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         torch.manual_seed(5)
         c = 3
@@ -171,7 +171,7 @@ class TestNormalizeImageUint8:
     @pytest.mark.parametrize("bad_dim", [0, 2, 4, -2, -4, -5])
     def test_rejects_invalid_channel_dim(self, device, bad_dim):
         """Only ``channel_dim`` resolving to 1 or 3 is accepted for 4D input."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.zeros((2, 4, 4, 3), dtype=torch.uint8, device=device)
         with pytest.raises(ValueError, match="channel_dim must resolve to 1 .BCHW. or 3 .BHWC."):
@@ -179,7 +179,7 @@ class TestNormalizeImageUint8:
 
     def test_multi_tile_h_axis(self, device):
         """H > tile_size must produce NUM_TILES > 1 partial sums and reduce correctly."""
-        from isaaclab.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
 
         # H = 2 * TILE forces NUM_TILES=2 (evenly split).
         h = 2 * _UINT8_SUM_TILE_HW
@@ -190,7 +190,7 @@ class TestNormalizeImageUint8:
 
     def test_non_divisible_h_last_tile_clamps(self, device):
         """H not divisible by tile_size: last tile's row range must clamp via ``wp.min``."""
-        from isaaclab.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
 
         # H = 2*TILE + 1 forces a 3rd tile with a single row.
         h = 2 * _UINT8_SUM_TILE_HW + 1
@@ -201,7 +201,7 @@ class TestNormalizeImageUint8:
 
     def test_bchw_multi_tile_h_axis(self, device):
         """H > tile_size on BCHW (H at axis 2) must reduce correctly across multiple tiles."""
-        from isaaclab.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import _UINT8_SUM_TILE_HW, normalize_image_uint8
 
         h = 2 * _UINT8_SUM_TILE_HW + 1
         torch.manual_seed(6)
@@ -211,7 +211,7 @@ class TestNormalizeImageUint8:
 
     def test_bchw_constant_input(self, device):
         """A constant-valued BCHW uint8 input must normalize to all zeros."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.full((2, 6, 4, 4), 128, dtype=torch.uint8, device=device)
         out = normalize_image_uint8(src, channel_dim=1)
@@ -219,7 +219,7 @@ class TestNormalizeImageUint8:
 
     def test_bchw_preallocated_output_reused(self, device):
         """``out`` kwarg on the BCHW path is written-into and the same object is returned."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
+        from isaaclab._src.utils.warp.ops import normalize_image_uint8
 
         src = torch.randint(0, 255, (2, 6, 8, 8), dtype=torch.uint8, device=device)
         out = torch.empty(src.shape, dtype=torch.float32, device=device)
@@ -236,7 +236,7 @@ class TestNormalizeImageUint8:
 
     def test_partials_cache_keyed_by_channel_dim(self, device):
         """BCHW and BHWC inputs of identical shape must land in separate cache slots."""
-        from isaaclab.utils.warp import ops as warp_ops
+        from isaaclab._src.utils.warp import ops as warp_ops
 
         shape = (2, 6, 8, 8)  # ambiguous shape: works as both BHWC (B=2,H=6,W=8,C=8) and BCHW (B=2,C=6,H=8,W=8)
         src_bhwc = torch.randint(0, 255, shape, dtype=torch.uint8, device=device)
@@ -255,7 +255,7 @@ class TestNormalizeImageUint8:
 
     def test_partials_cache_reuses_scratch_across_calls(self, device):
         """Repeat calls with the same shape must hit the partials cache, not grow it."""
-        from isaaclab.utils.warp import ops as warp_ops
+        from isaaclab._src.utils.warp import ops as warp_ops
 
         shape = (2, warp_ops._UINT8_SUM_TILE_HW + 4, 8, 6)
         src_a = torch.randint(0, 255, shape, dtype=torch.uint8, device=device)

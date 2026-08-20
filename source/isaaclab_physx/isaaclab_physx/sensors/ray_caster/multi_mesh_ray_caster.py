@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
+from isaaclab.sensors.ray_caster import BaseMultiMeshRayCaster
 
 from .ray_caster import _PhysXRayCasterMixin
 

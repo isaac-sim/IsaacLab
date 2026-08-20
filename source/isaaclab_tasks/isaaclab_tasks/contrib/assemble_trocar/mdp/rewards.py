@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import quat_apply
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import quat_apply
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
@@ -297,7 +297,7 @@ def get_trocar_tip_position(
     """
     from pxr import Gf, Usd, UsdGeom
 
-    import isaaclab.utils.math as math_utils
+    import isaaclab._src.utils.math as math_utils
 
     # Cache the tip offset to avoid recalculating every step.
     # The local offset from root to tip is a static geometric property of the USD

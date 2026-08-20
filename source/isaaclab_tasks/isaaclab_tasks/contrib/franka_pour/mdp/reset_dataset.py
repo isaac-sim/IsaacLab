@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import CurriculumTermCfg
-from isaaclab.managers.manager_base import ManagerTermBase
+from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
 from ..reset_sampler import ResetDatasetSamplerCfg, _ResetDatasetSampler
 

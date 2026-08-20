@@ -8,8 +8,8 @@ import random
 
 import pytest
 
-import isaaclab.utils.dict as dict_utils
-import isaaclab.utils.string as string_utils
+import isaaclab._src.utils.dict as dict_utils
+import isaaclab._src.utils.string as string_utils
 
 pytestmark = pytest.mark.unit
 

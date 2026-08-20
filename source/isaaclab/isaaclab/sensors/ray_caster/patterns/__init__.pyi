@@ -15,8 +15,8 @@ __all__ = [
     "PinholeCameraPatternCfg",
 ]
 
-from .patterns import bpearl_pattern, grid_pattern, lidar_pattern, pinhole_camera_pattern
-from .patterns_cfg import (
+from isaaclab._src.sensors.ray_caster.patterns.patterns import bpearl_pattern, grid_pattern, lidar_pattern, pinhole_camera_pattern
+from isaaclab._src.sensors.ray_caster.patterns.patterns_cfg import (
     BpearlPatternCfg,
     GridPatternCfg,
     LidarPatternCfg,

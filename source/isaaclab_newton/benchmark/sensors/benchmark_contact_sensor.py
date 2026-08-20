@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab._src.benchmark._cli import parse_non_negative_int, parse_positive_int
 from isaaclab.benchmark.sensor_suites import (
     add_sensor_benchmark_args,
     create_contact_sensor_scene_cfg,

@@ -44,7 +44,7 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-from isaaclab.assets.rigid_object.rigid_object_data import RigidObjectData
+from isaaclab.assets.rigid_object import RigidObjectData
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg

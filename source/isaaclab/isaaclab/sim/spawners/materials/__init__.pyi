@@ -25,13 +25,13 @@ __all__ = [
     "VisualMaterialCfg",
 ]
 
-from .physics_materials import (
+from isaaclab._src.sim.spawners.materials.physics_materials import (
     spawn_deformable_body_material,
     spawn_physics_material,
     spawn_rigid_body_material,
     spawn_rigid_body_material_from_fragments,
 )
-from .physics_materials_cfg import (
+from isaaclab._src.sim.spawners.materials.physics_materials_cfg import (
     CableMaterialCfg,
     DeformableBodyMaterialBaseCfg,
     DeformableBodyMaterialCfg,
@@ -42,5 +42,5 @@ from .physics_materials_cfg import (
     SurfaceDeformableBodyMaterialCfg,
     UsdPhysicsRigidBodyMaterialCfg,
 )
-from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
-from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg
+from isaaclab._src.sim.spawners.materials.visual_materials import spawn_from_mdl_file, spawn_preview_surface
+from isaaclab._src.sim.spawners.materials.visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg

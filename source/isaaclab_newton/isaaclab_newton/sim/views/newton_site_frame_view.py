@@ -17,9 +17,8 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.views.base_frame_view import BaseFrameView
-from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
-from isaaclab.utils.string import resolve_matching_names
+from isaaclab.sim.views import BaseFrameView, FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
+from isaaclab.utils import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics.newton_manager import NewtonManager

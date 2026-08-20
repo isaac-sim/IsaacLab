@@ -47,7 +47,7 @@ Height fields
 All sub-terrains must inherit from the :class:`HfTerrainBaseCfg` class which contains the common
 parameters for all terrains generated from height fields.
 
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg
+.. autoclass:: isaaclab.terrains.height_field.HfTerrainBaseCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -55,9 +55,7 @@ parameters for all terrains generated from height fields.
 Random Uniform Terrain
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.height_field.hf_terrains.random_uniform_terrain
-
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfRandomUniformTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -65,14 +63,12 @@ Random Uniform Terrain
 Pyramid Sloped Terrain
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.height_field.hf_terrains.pyramid_sloped_terrain
-
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfPyramidSlopedTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
 
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfInvertedPyramidSlopedTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -80,14 +76,12 @@ Pyramid Sloped Terrain
 Pyramid Stairs Terrain
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.height_field.hf_terrains.pyramid_stairs_terrain
-
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
 
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfInvertedPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -95,9 +89,7 @@ Pyramid Stairs Terrain
 Discrete Obstacles Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.height_field.hf_terrains.discrete_obstacles_terrain
-
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfDiscreteObstaclesTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -105,9 +97,7 @@ Discrete Obstacles Terrain
 Wave Terrain
 ^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.height_field.hf_terrains.wave_terrain
-
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfWaveTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -115,9 +105,7 @@ Wave Terrain
 Stepping Stones Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.height_field.hf_terrains.stepping_stones_terrain
-
-.. autoclass:: isaaclab.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg
+.. autoclass:: isaaclab.terrains.height_field.HfSteppingStonesTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -131,9 +119,7 @@ Trimesh terrains
 Flat terrain
 ^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.flat_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshPlaneTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -141,9 +127,7 @@ Flat terrain
 Pyramid terrain
 ^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.pyramid_stairs_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -151,9 +135,7 @@ Pyramid terrain
 Inverted pyramid terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.inverted_pyramid_stairs_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshInvertedPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -161,9 +143,7 @@ Inverted pyramid terrain
 Random grid terrain
 ^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.random_grid_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshRandomGridTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -171,9 +151,7 @@ Random grid terrain
 Rails terrain
 ^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.rails_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshRailsTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -181,9 +159,7 @@ Rails terrain
 Pit terrain
 ^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.pit_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshPitTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -191,9 +167,7 @@ Pit terrain
 Box terrain
 ^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.box_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshBoxTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -201,9 +175,7 @@ Box terrain
 Gap terrain
 ^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.gap_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshGapTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -211,9 +183,7 @@ Gap terrain
 Floating ring terrain
 ^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.floating_ring_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshFloatingRingTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -221,9 +191,7 @@ Floating ring terrain
 Star terrain
 ^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.star_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshStarTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
@@ -231,34 +199,20 @@ Star terrain
 Repeated Objects Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.repeated_objects_terrain
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshRepeatedPyramidsTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
 
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshRepeatedBoxesTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
 
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg
+.. autoclass:: isaaclab.terrains.trimesh.MeshRepeatedCylindersTerrainCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, function
-
-.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg
-    :members:
-    :show-inheritance:
-    :exclude-members: __init__, function
-
-Utilities
----------
-
-.. automodule:: isaaclab.terrains.utils
-    :members:
-    :undoc-members:
 
 Additional Public Classes
 -------------------------

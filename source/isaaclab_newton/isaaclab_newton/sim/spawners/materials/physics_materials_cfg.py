@@ -8,12 +8,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import ClassVar
 
-from isaaclab.sim.spawners.materials.physics_materials_cfg import (
+from isaaclab.sim.spawners.materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -42,7 +42,7 @@ class NewtonDeformableBodyMaterialCfg(DeformableBodyMaterialBaseCfg, NewtonDefor
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+    func: Callable | str = "isaaclab._src.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
     k_mu: float = 1e5
     """First Lame material parameter [Pa]. Defaults to 1e5 Pa."""
@@ -62,7 +62,7 @@ class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCf
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+    func: Callable | str = "isaaclab._src.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
     tri_ke: float = 1e4
     """Triangle area-preserving stiffness [Pa]. Used by Newton backend for cloth meshes."""

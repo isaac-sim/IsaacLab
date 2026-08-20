@@ -18,13 +18,13 @@ from newton.selection import ArticulationView
 
 from pxr import UsdPhysics
 
+import isaaclab._src.utils.string as string_utils
 import isaaclab.sim as sim_utils
-import isaaclab.utils.string as string_utils
-from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab._src.utils.wrench_composer import WrenchComposer
+from isaaclab.assets.rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -32,7 +32,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.assets.rigid_object_collection import RigidObjectCollectionCfg
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):

@@ -323,7 +323,7 @@ class TestCollectionProperties:
     @_default_bodies
     @_default_devices
     def test_data_returns_collection_data(self, backend, num_instances, num_bodies, device, collection_iface):
-        from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import (
+        from isaaclab.assets.rigid_object_collection import (
             BaseRigidObjectCollectionData,
         )
 

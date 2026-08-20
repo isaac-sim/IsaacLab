@@ -29,15 +29,15 @@ from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
-from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.app import get_settings_manager
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.sim.utils import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Custom helper classes.

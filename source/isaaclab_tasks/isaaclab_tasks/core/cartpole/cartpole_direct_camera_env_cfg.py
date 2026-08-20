@@ -10,7 +10,7 @@ import math
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg

@@ -22,13 +22,13 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-import isaaclab.utils.assets as _al_assets
-import isaaclab.utils.math as math_utils
+import isaaclab._src.utils.assets as _al_assets
+import isaaclab._src.utils.math as math_utils
+from isaaclab._src.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.assets import Articulation, RigidObjectCfg
-from isaaclab.envs.manager_based_env import ManagerBasedEnv
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.from_files import UsdFileCfg
 
 ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
 

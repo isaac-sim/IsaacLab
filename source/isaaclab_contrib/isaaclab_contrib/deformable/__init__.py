@@ -8,6 +8,6 @@
 This package contains contributed code that depends on Isaac Lab's public API but is not required for core functionality. This includes implementations of Newton solvers for deformables.
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

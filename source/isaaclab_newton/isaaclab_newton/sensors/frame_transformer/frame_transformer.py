@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
-from isaaclab.sim.utils.queries import split_path_expr
+from isaaclab.sensors.frame_transformer import BaseFrameTransformer
+from isaaclab.sim.utils import split_path_expr
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -19,7 +19,7 @@ from .frame_transformer_data import FrameTransformerData
 from .frame_transformer_kernels import compose_target_world_kernel, copy_from_newton_kernel
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
+    from isaaclab.sensors.frame_transformer import FrameTransformerCfg
 
 logger = logging.getLogger(__name__)
 

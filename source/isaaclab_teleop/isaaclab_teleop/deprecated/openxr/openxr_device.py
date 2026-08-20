@@ -26,8 +26,7 @@ import carb
 # import logger
 logger = logging.getLogger(__name__)
 
-from isaaclab.devices.device_base import DeviceBase, DeviceCfg
-from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.devices import DeviceBase, DeviceCfg, RetargeterBase
 
 from .common import HAND_JOINT_NAMES
 from .xr_anchor_utils import XrAnchorSynchronizer

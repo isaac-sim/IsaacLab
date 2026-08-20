@@ -9,8 +9,7 @@ from dataclasses import dataclass
 
 import torch
 
-from isaaclab.devices.device_base import DeviceBase
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+from isaaclab.devices import DeviceBase, RetargeterBase, RetargeterCfg
 from isaaclab.sim import SimulationContext
 
 

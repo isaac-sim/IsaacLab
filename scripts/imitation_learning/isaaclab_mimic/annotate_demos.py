@@ -10,8 +10,8 @@ Script to add mimic annotations to demos to be used as source demos for mimic da
 import argparse
 import math
 
+from isaaclab._src.utils.string import list_intersection, string_to_callable
 from isaaclab.app import AppLauncher
-from isaaclab.utils.string import list_intersection, string_to_callable
 
 # Launching Isaac Sim Simulator first.
 
@@ -71,10 +71,10 @@ import isaaclab_mimic.envs  # noqa: F401
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
     from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
+from isaaclab._src.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs import ManagerBasedRLMimicEnv
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401

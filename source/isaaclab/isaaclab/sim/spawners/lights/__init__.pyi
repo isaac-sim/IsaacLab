@@ -13,8 +13,8 @@ __all__ = [
     "SphereLightCfg",
 ]
 
-from .lights import spawn_light
-from .lights_cfg import (
+from isaaclab._src.sim.spawners.lights.lights import spawn_light
+from isaaclab._src.sim.spawners.lights.lights_cfg import (
     CylinderLightCfg,
     DiskLightCfg,
     DistantLightCfg,

@@ -25,9 +25,9 @@ from isaaclab_newton.physics import NewtonMPMManager
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab._src.utils.math import quat_apply
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import quat_apply
 
 from . import mdp
 from .reset_randomization import (

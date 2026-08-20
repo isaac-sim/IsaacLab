@@ -7,7 +7,7 @@
 
 import pytest
 
-from isaaclab.envs.mdp.events import _is_all_body_selection
+from isaaclab._src.envs.mdp.events import _is_all_body_selection
 
 
 @pytest.mark.parametrize(

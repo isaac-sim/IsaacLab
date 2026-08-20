@@ -48,8 +48,8 @@ from parity_helpers import (
     run_warp_term_captured,
 )
 
-import isaaclab.envs.mdp.terminations as stable_term
-from isaaclab.managers.manager_term_cfg import TerminationTermCfg
+import isaaclab._src.envs.mdp.terminations as stable_term
+from isaaclab.managers import TerminationTermCfg
 
 # ============================================================================
 # Fixtures

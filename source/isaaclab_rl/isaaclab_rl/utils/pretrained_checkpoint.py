@@ -13,10 +13,10 @@ import json
 import os
 import posixpath
 
+from isaaclab._src.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 

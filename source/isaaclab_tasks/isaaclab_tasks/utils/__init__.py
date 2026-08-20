@@ -5,6 +5,6 @@
 
 """Sub-package with utilities, data collectors and environment wrappers."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

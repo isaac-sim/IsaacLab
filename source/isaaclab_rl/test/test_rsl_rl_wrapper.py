@@ -20,7 +20,7 @@ import torch
 from tensordict import TensorDict
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.app import get_settings_manager
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper

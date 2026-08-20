@@ -5,6 +5,6 @@
 
 """Sub-module for contact sensor based on :class:`newton.SensorContact`."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

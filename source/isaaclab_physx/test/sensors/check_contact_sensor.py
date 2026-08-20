@@ -41,7 +41,7 @@ from isaaclab import cloner as lab_cloner
 from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.timer import Timer
+from isaaclab.utils import Timer
 
 ##
 # Pre-defined configs

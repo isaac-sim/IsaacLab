@@ -42,9 +42,9 @@ For more information about the workflow design patterns, see the `Task Design Wo
 .. _`Task Design Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 """
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
-from .common import ViewerCfg  # noqa: F401  # deprecated — kept for backwards compatibility
-from .utils.video_recorder_cfg import VideoRecorderCfg  # noqa: F401
+from isaaclab._src.envs.common import ViewerCfg  # noqa: F401  # deprecated — kept for backwards compatibility
+from isaaclab._src.envs.utils.video_recorder_cfg import VideoRecorderCfg  # noqa: F401
 
 lazy_export()

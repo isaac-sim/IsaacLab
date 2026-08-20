@@ -84,10 +84,10 @@ def run(argv: list[str]) -> None:
     from rl_games.common.algo_observer import IsaacAlgoObserver
     from rl_games.torch_runner import Runner
 
+    from isaaclab._src.utils.assets import retrieve_file_path
+    from isaaclab._src.utils.seed import configure_seed
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
-    from isaaclab.utils.assets import retrieve_file_path
-    from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 

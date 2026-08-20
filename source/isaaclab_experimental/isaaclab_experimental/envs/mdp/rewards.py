@@ -29,7 +29,7 @@ from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.managers.manager_term_cfg import RewardTermCfg
+    from isaaclab.managers import RewardTermCfg
 
 
 """

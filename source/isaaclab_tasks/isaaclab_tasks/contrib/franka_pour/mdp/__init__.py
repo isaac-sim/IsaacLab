@@ -5,6 +5,6 @@
 
 """MDP terms for the Franka pour task (grasp a dynamic cup of MPM media and pour)."""
 
-from isaaclab.utils.module import lazy_export
+from isaaclab._src.utils.module import lazy_export
 
 lazy_export()

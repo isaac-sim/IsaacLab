@@ -12,7 +12,7 @@ import pytest
 from rich.cells import cell_len
 from rich.console import Console, RenderableType
 
-from isaaclab.app import loading_screen
+from isaaclab._src.app import loading_screen
 
 _ALT_SCREEN_ON = "\x1b[?1049h"
 _ALT_SCREEN_OFF = "\x1b[?1049l"

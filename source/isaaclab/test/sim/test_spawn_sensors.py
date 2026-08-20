@@ -18,9 +18,12 @@ import pytest
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.sim.spawners.sensors.sensors import (
+    CUSTOM_FISHEYE_CAMERA_ATTRIBUTES,
+    CUSTOM_PINHOLE_CAMERA_ATTRIBUTES,
+)
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
-from isaaclab.utils.string import to_camel_case
+from isaaclab.utils import to_camel_case
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 

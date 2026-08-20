@@ -40,10 +40,10 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigid_body_material
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.string import to_camel_case
+from isaaclab.utils import to_camel_case
 
 pytestmark = pytest.mark.integration
 

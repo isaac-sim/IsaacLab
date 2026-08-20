@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab._src.utils.math import quat_apply
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.math import quat_apply
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

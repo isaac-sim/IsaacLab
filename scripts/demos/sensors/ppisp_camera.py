@@ -25,8 +25,8 @@ import argparse
 import os
 from typing import Any
 
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.app import AppLauncher
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # add argparse arguments
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
@@ -139,7 +139,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

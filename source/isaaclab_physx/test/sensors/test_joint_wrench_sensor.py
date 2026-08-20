@@ -26,6 +26,8 @@ from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWr
 from pxr import Gf, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab._src.utils import math as math_utils
+from isaaclab._src.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -33,9 +35,7 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import math as math_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.ant import ANT_CFG
 

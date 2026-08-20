@@ -23,8 +23,8 @@ from newton.solvers import SolverMuJoCo
 
 from pxr import Usd, UsdGeom
 
+from isaaclab._src.scene_data.deformable_discovery import DeformableStageEntry
 from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
 _VIS_LABEL_SUFFIXES = {
     "body_label": "Body",
