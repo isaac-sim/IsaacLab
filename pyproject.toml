@@ -74,7 +74,8 @@ dependencies = [
     # Standalone URDF/MJCF importers, so conversion works without Isaac Sim. They install
     # alongside it without displacing it: Kit serves ``isaacsim.asset`` from its extension
     # roots when the runtime is present, and the standalone packages serve it otherwise.
-    "isaacsim-asset-isolated>=6.0,<6.1",
+    # 6.1 is the first line where ``merge_fixed_joints`` keeps ``package://`` meshes resolvable.
+    "isaacsim-asset-isolated>=6.1,<6.2",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----

@@ -64,5 +64,5 @@ def test_standalone_importers_ship_as_base_dependencies():
     with (_repo_root() / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
-    assert "isaacsim-asset-isolated>=6.0,<6.1" in pyproject["project"]["dependencies"]
+    assert "isaacsim-asset-isolated>=6.1,<6.2" in pyproject["project"]["dependencies"]
     assert "importers" not in pyproject["project"]["optional-dependencies"]
