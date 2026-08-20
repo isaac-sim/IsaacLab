@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Real-backend tests for OvPhysX scene gravity updates."""
+"""Real-backend tests for OvPhysX scene gravity randomization."""
+
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -11,15 +13,17 @@ import torch
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
+from isaaclab.managers import EventTermCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 
-def test_live_gravity_update_changes_rigid_body_motion():
-    """Sealed OvStage gravity updates must change motion in the running solver."""
+def test_gravity_event_changes_rigid_body_motion():
+    """The gravity event must dispatch through OvStage and change motion in OvPhysX."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0)
     with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
         cube = RigidObject(
@@ -38,18 +42,33 @@ def test_live_gravity_update_changes_rigid_body_motion():
         dt = sim.get_physics_dt()
         cube.update(dt)
 
+        env = SimpleNamespace(device=sim.device, sim=sim)
+        event_cfg = EventTermCfg(
+            func=randomize_physics_scene_gravity,
+            params={"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"},
+        )
+        gravity_event = randomize_physics_scene_gravity(event_cfg, env)
+
         def step(count: int) -> None:
             for _ in range(count):
                 cube.write_data_to_sim()
                 sim.step()
                 cube.update(dt)
 
-        OvPhysxManager.set_gravity((0.0, 0.0, 0.0))
+        def set_gravity(gravity: tuple[float, float, float]) -> None:
+            gravity_event(
+                env,
+                env_ids=None,
+                gravity_distribution_params=(gravity, gravity),
+                operation="abs",
+            )
+
+        set_gravity((0.0, 0.0, 0.0))
         initial_height = cube.data.root_pos_w.torch[0, 2].item()
         step(30)
         zero_gravity_height = cube.data.root_pos_w.torch[0, 2].item()
 
-        OvPhysxManager.set_gravity((0.0, 0.0, -9.81))
+        set_gravity((0.0, 0.0, -9.81))
         # Changing scene gravity does not wake sleeping PhysX actors. Reset terms
         # write body state after gravity randomization, so mirror that wake-up here.
         root_velocity = torch.zeros((1, 6), device=sim.device)
