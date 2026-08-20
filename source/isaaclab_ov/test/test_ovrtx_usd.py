@@ -228,6 +228,13 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color():
     assert get_render_var_configs(["simple_shading_diffuse_mdl"]) == [("/Render/Vars/LdrColor", "LdrColor", "LdrColor")]
 
 
+def test_ovrtx_duplicate_simple_shading_data_types_collapse():
+    """Repeated identical simple-shading requests share one LdrColor render var."""
+    assert get_render_var_configs(["simple_shading_full_mdl", "simple_shading_full_mdl"]) == [
+        ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+    ]
+
+
 def test_render_product_initially_targets_only_the_resolvable_source_camera():
     """Multi-environment RenderProducts initially target env zero while retaining tiled resolution."""
     render_product, render_product_path = build_render_product_as_string(
