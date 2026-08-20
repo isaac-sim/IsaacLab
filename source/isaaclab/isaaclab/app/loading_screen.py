@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import random
+import re
 import shutil
 import sys
 import tempfile
@@ -59,10 +60,31 @@ LOGO_WIDE = r"""Welcome to Isaac Lab 3!
 ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚══════╝╚═╝  ╚═════╝   ╚═════╝"""
 """Wide greeting used when a 130-column display is available."""
 
-LOGO_NVIDIA = "NVIDIA\nIsaac Lab 3"
+LOGO_NVIDIA = (
+    "\x1b[0m         \x1b[0m\x1b[38;2;118;185;0m▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\x1b[0m\n"
+    "\x1b[0m      \x1b[0m\x1b[38;2;118;185;0m▄▄▄▛▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m             \x1b[0m\n"
+    "\x1b[0m  \x1b[0m\x1b[38;2;118;185;0m▗▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▄▄▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m        \x1b[0m\n"  # noqa: E501
+    "\x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▚▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▙▖\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m      \x1b[0m\n"  # noqa: E501
+    "\x1b[0m\x1b[38;2;118;185;0m▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▖▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙\x1b[0m  \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▙▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▘▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\n"  # noqa: E501
+    "\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▀▚▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▘\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▝▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\n"  # noqa: E501
+    "\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m     \x1b[0m\x1b[38;2;118;185;0m▛▀▀▗▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m    \x1b[0m\n"  # noqa: E501
+    "\x1b[0m      \x1b[0m\x1b[38;2;118;185;0m▀▀▀▙▄▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m          \x1b[0m\n"
+    "\x1b[0m         \x1b[0m\x1b[38;2;118;185;0m▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\x1b[0m\n"
+)
 """NVIDIA greeting used on standard-width displays."""
 
-LOGO_NVIDIA_WIDE = "NVIDIA  ·  ISAAC LAB 3"
+LOGO_NVIDIA_WIDE = (
+    "\x1b[0m              \x1b[0m                        \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m         \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m               \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m    \x1b[0m\x1b[38;2;118;185;0m▄▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▙▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m          \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m     \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▀▄▄▟▛▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;52;84;0m╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▐\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▀\x1b[0m \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙▖▗\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m      \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m      \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╔╝\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m    \x1b[0m\x1b[38;2;118;185;0m▛▘▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m      \x1b[38;2;52;84;0m╚═══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m  \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▙▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▘\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▗▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m    \x1b[0m\x1b[38;2;118;185;0m▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▛▀▀▀▚▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;52;84;0m╚═╝╚══════╝╚═════╝\x1b[0m \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m         \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m               \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m                        \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+)
 """NVIDIA greeting used when a 130-column display is available."""
 
 _LOGO_PAIRS = ((LOGO, LOGO_WIDE), (LOGO_NVIDIA, LOGO_NVIDIA_WIDE))
@@ -152,9 +174,13 @@ def _format_header(
     return summary, display_width
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+"""Colour escapes, which occupy no columns and must not be measured as if they did."""
+
+
 def _block_width(block: str) -> int:
     """Return the width of the widest line in a multiline text block."""
-    return max((cell_len(line) for line in block.splitlines()), default=0)
+    return max((cell_len(_ANSI.sub("", line)) for line in block.splitlines()), default=0)
 
 
 def _join_columns(left: str, right: str, gap: int = _COLUMN_GAP) -> str:
@@ -473,7 +499,7 @@ class LoadingScreen:
                 ascii_only=self._ascii_only,
             )
             if header:
-                renderables.extend((Text(""), Text(header, no_wrap=True, overflow="crop")))
+                renderables.extend((Text(""), Text.from_ansi(header, no_wrap=True, overflow="crop")))
         if self._show_progress:
             if renderables:
                 renderables.append(Text(""))

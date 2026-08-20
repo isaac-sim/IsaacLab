@@ -144,3 +144,9 @@ def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirecti
 
 def test_static_logos_omit_the_tagline():
     assert all("trained" not in logo for logo in loading_screen.LoadingScreen(1)._logos)
+
+
+def test_static_nvidia_logo_uses_artwork(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(loading_screen.random, "choice", lambda pairs: pairs[1])
+
+    assert "▄▄" in loading_screen.LoadingScreen(1)._logos[0]
