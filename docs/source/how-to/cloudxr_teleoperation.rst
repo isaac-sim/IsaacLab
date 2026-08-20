@@ -659,6 +659,28 @@ Prerequisites
   full data-path reference (skeleton injection, flex-sensor tensors, haptics), and
   troubleshooting.
 
+* **A Meta Quest 3 or Pico 4 Ultra controller per hand**, required for wrist positioning. Each
+  MANUS glove has a Universal Mount on the back of the wrist strap; clip the controller into it
+  so the controller's grip pose drives wrist placement while the glove tracks the fingers. See
+  `Wrist Positioning -- Controllers vs Optical Hand Tracking`_ in the Manus plugin documentation
+  for how the plugin selects between controller and optical wrist tracking.
+
+  .. list-table::
+     :widths: 50 50
+
+     * - .. figure:: ../_static/setup/manus_controller_mount_left.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the left MANUS glove's Universal Mount
+
+            Left glove
+       - .. figure:: ../_static/setup/manus_controller_mount_right.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the right MANUS glove's Universal Mount
+
+            Right glove
+
 Run the simulation
 ^^^^^^^^^^^^^^^^^^
 
@@ -882,3 +904,4 @@ For a fully headless experience, replace ``--visualizer kit`` with ``--visualize
 .. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
 .. _`CloudXR.js`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
 .. _`Manus plugin documentation`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html
+.. _`Wrist Positioning -- Controllers vs Optical Hand Tracking`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking
