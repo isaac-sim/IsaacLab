@@ -216,8 +216,8 @@
 
     const selectedTask = () => tasks.find((task) => task.task === state.task) || tasks[0];
 
-    const tasksForScope = () => tasks.filter((task) => (
-        state.scope === "warp" ? task.supportsWarpFrontend : task.scope === state.scope
+    const tasksForScope = (scope = state.scope) => tasks.filter((task) => (
+        scope === "warp" ? task.supportsWarpFrontend : task.scope === scope
     ));
 
     const previewImageFor = (task) => {
@@ -272,7 +272,8 @@
     const updateTaskControls = () => {
         const task = selectedTask();
         populateSelect(fields.rl, task.rl, [fields.rl.value, "rsl_rl", "rl_games", "skrl", "sb3"]);
-        populateSelect(fields.physics, task.physics, [fields.physics.value, "newton_mjwarp", "isaacsim_physx", "ovphysx", "newton_kamino"]);
+        const physics = state.scope === "warp" ? ["newton_mjwarp"] : task.physics;
+        populateSelect(fields.physics, physics, [fields.physics.value, "newton_mjwarp", "isaacsim_physx", "ovphysx", "newton_kamino"]);
         const preferredRenderer = fields.physics.value.startsWith("newton") ? "newton_renderer" : "isaacsim_rtx";
         populateSelect(fields.renderer, task.renderer, [fields.renderer.value, preferredRenderer, "ovrtx"]);
         populateSelect(fields.presets, task.presets, [fields.presets.value, "joint", "ik", "rgb", "cube", "single_camera"]);
@@ -668,14 +669,19 @@
         });
     }
     for (const button of scopeButtons) {
+        button.disabled = tasksForScope(button.dataset.taskScope).length === 0;
         button.addEventListener("click", () => {
-            state.scope = button.dataset.taskScope;
+            const scope = button.dataset.taskScope;
+            const scopedTasks = tasksForScope(scope);
+            if (scopedTasks.length === 0) {
+                return;
+            }
+            state.scope = scope;
             for (const scopeButton of scopeButtons) {
                 const isActive = scopeButton === button;
                 scopeButton.classList.toggle("is-active", isActive);
                 scopeButton.setAttribute("aria-pressed", String(isActive));
             }
-            const scopedTasks = tasksForScope();
             if (!scopedTasks.some((task) => task.task === state.task)) {
                 state.task = scopedTasks[0].task;
             }

@@ -85,6 +85,12 @@ html[data-theme="dark"] .environment-browser {
     background: #76b900;
 }
 
+.environment-scope-switch button:disabled {
+    color: var(--environment-muted);
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
 .environment-inline-field,
 .environment-selector,
 .environment-checkpoint-toggle {
