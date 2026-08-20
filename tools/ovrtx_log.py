@@ -61,6 +61,7 @@ job artifact. Unset by default, which leaves a local run writing nothing beyond 
 _UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
 """Everything a test node ID may hold that a file name should not, e.g. ``/``, ``::``, and ``[param]``."""
 
+
 def log_size(path):
     """Return the size of ``path`` in bytes, or 0 when it does not exist yet."""
     try:
@@ -102,10 +103,10 @@ def format_log_section(path, label, start=0, limit=LOG_LIMIT_BYTES):
 
 
 def _slugify(name):
-    """Return ``name`` as a file name, keeping its tail when it is too long.
+    """Return ``name`` as a file name.
 
-    Names here are test node IDs, whose leading directories repeat across a run while the test name and
-    its parameters at the end are what tell two saved logs apart.
+    Names here are test node IDs, which carry the path separators and parameter brackets a file name
+    cannot.
     """
     return _UNSAFE_NAME_CHARS.sub("_", name).strip("_")
 
