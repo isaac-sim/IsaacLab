@@ -581,7 +581,14 @@ class NewtonWarpRenderer(BaseRenderer):
         NewtonManager.get_state()
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            NewtonManager._register_sensor_task(render_data.sensor_task_name, lambda: self._launch_render(render_data))
+            # The Vulkan render signals a CUDA external semaphore, which a conditional CUDA graph
+            # body forbids; register it as non-capturable so it runs eagerly and leaves the main
+            # solver and ray-cast sensor graphs captured.
+            NewtonManager._register_sensor_task(
+                render_data.sensor_task_name,
+                lambda: self._launch_render(render_data),
+                graph_capturable=False,
+            )
         NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination

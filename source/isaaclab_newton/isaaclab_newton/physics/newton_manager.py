@@ -420,6 +420,9 @@ class NewtonManager(PhysicsManager):
 
     # Newton scene-query scheduling and graph execution.
     _sensor_tasks: dict[str, Callable[[], None]] = {}
+    # Sensor tasks that cannot be traced into a conditional CUDA graph body (e.g. Vulkan
+    # rendering, which signals a CUDA external semaphore) and therefore run eagerly.
+    _eager_sensor_tasks: dict[str, Callable[[], None]] = {}
     _sensor_graph: wp.Graph | None = None
     _sensor_flags: wp.array | None = None
     _sensor_flags_host: np.ndarray | None = None
@@ -1091,6 +1094,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._sensor_tasks = {}
+        NewtonManager._eager_sensor_tasks = {}
         NewtonManager._invalidate_sensor_graph()
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
@@ -2462,21 +2466,34 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _register_sensor_task(
-        cls, name: str, update_fn: Callable[[], None], *, include_collision_shapes: bool = False
+        cls,
+        name: str,
+        update_fn: Callable[[], None],
+        *,
+        include_collision_shapes: bool = False,
+        graph_capturable: bool = True,
     ) -> None:
-        """Register a graph-capturable scene-query task.
+        """Register a scene-query task run by :meth:`_update_sensor_tasks`.
 
         Args:
             name: Unique task name.
-            update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
+            update_fn: Callable run by :meth:`_update_sensor_tasks`.
             include_collision_shapes: Whether the task must see collision-only
                 geometry. Newton builds the shape BVH over visible shapes, which is
                 what renderers want; the first ray-cast sensor rebuilds it with
                 collision shapes added, since those must be hit even when they carry
                 no visual representation.
+            graph_capturable: Whether the task can be traced into the conditional
+                sensor CUDA graph. Pass ``False`` for tasks that emit operations a
+                CUDA conditional graph body forbids (e.g. Vulkan rendering, which
+                signals a CUDA external semaphore); such tasks run eagerly and do not
+                affect the main solver graph.
         """
-        if name in cls._sensor_tasks:
+        if name in cls._sensor_tasks or name in cls._eager_sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
+        if not graph_capturable:
+            cls._eager_sensor_tasks[name] = update_fn
+            return
         model = cls.get_model()
         state = cls.get_state_0()
         if model is None or state is None:
@@ -2497,6 +2514,8 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _unregister_sensor_task(cls, name: str) -> None:
         """Remove a scene-query task, ignoring unknown names."""
+        if cls._eager_sensor_tasks.pop(name, None) is not None:
+            return
         if cls._sensor_tasks.pop(name, None) is not None:
             cls._invalidate_sensor_graph()
 
@@ -2504,8 +2523,17 @@ class NewtonManager(PhysicsManager):
     def _update_sensor_tasks(cls, *names: str) -> None:
         """Refit the shape and particle BVHs and run the requested scene-query tasks."""
         for name in names:
-            if name not in cls._sensor_tasks:
+            if name not in cls._sensor_tasks and name not in cls._eager_sensor_tasks:
                 raise KeyError(f"Newton sensor task '{name}' is not registered.")
+
+        # Tasks that cannot join the conditional sensor graph run eagerly, outside any capture.
+        for name in names:
+            if name in cls._eager_sensor_tasks:
+                cls._eager_sensor_tasks[name]()
+        graph_names = [name for name in names if name in cls._sensor_tasks]
+        if not graph_names:
+            return
+        names = tuple(graph_names)
 
         state = cls.get_state_0()
         if state is not cls._sensor_state:
