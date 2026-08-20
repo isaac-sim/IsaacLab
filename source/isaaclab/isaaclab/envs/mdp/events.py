@@ -532,7 +532,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
             return
 
         view = self._material_view
-        # read the current per-shape material [N, S, 3] on the binding's native (sim) device
+        # read the current per-shape material [N, S, 3] on the binding's native CPU device
         materials = wp.to_torch(view.get_attribute(self._material_type))
         num_shapes = materials.shape[1]
 
