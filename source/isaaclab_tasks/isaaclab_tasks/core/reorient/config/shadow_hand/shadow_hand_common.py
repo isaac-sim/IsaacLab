@@ -155,7 +155,7 @@ class ShadowHandManagerEventPresetCfg(PresetCfg):
 @configclass
 class ShadowHandRobotCfg(PresetCfg):
     physx = SHADOW_HAND_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SHADOW_HAND_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
@@ -168,7 +168,7 @@ class ShadowHandRobotCfg(PresetCfg):
     # uses its default gains. The handover task consumes the same asset cfg and overrides
     # only the finger gains.
     newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
     ovphysx = SHADOW_HAND_CFG.replace(
