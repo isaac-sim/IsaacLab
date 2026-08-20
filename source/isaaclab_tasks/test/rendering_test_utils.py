@@ -176,29 +176,22 @@ _DEFAULT_SENSOR_DATA_TYPES = (
 _STATIC_AOV_GROUP = "static"
 _TEMPORAL_AOV_GROUP = "temporal"
 
-# These outputs must keep their normal per-test setup and cleanup boundaries. The depth aliases
-# do not preserve their standalone background values when attached alongside the larger static
-# bundle, while each simple-shading output selects a different render-product-wide RTX mode.
-_ISOLATED_SENSOR_DATA_TYPES = {
-    "depth",
-    "distance_to_camera",
-    "distance_to_image_plane",
-    *_MINIMAL_SENSOR_DATA_TYPES,
-}
+# Each simple-shading output selects a different render-product-wide RTX mode, so these outputs
+# must keep their normal per-test setup and cleanup boundaries.
+_ISOLATED_SENSOR_DATA_TYPES = set(_MINIMAL_SENSOR_DATA_TYPES)
 
 
-def _aov_capture_group(renderer: str, data_type: str) -> str:
+def _aov_capture_group(data_type: str) -> str:
     """Return the name of the capture group ``data_type`` belongs to.
 
     Args:
-        renderer: Renderer preset selected by the parameter.
         data_type: The camera data type to classify.
 
     Returns:
         The group name. Data types sharing a name share a pytest node. Outputs that require an
         independent render product return their data type as the group name.
     """
-    if data_type in _ISOLATED_SENSOR_DATA_TYPES and renderer != "newton_renderer":
+    if data_type in _ISOLATED_SENSOR_DATA_TYPES:
         return data_type
     if data_type in _TEMPORAL_SENSOR_DATA_TYPES:
         return _TEMPORAL_AOV_GROUP
@@ -321,11 +314,11 @@ def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
     """Group camera data types that share a rendering configuration, capture group, and pytest marks.
 
     All supported renderers can produce the compatible AOVs of one capture group together, so those
-    AOVs share a pytest node. Ordinary static AOVs are captured from one environment. Depth-family
-    and RTX Minimal outputs retain independent render products and pytest lifecycle boundaries.
-    Temporal AOVs stay isolated so the environment can be stepped without moving the static goldens.
-    Parameters with different pytest marks also remain in separate groups so skips, retries, and
-    expected failures keep their scope.
+    AOVs share a pytest node. Static AOVs are captured from one environment. RTX Minimal outputs
+    retain independent render products and pytest lifecycle boundaries. Temporal AOVs stay isolated
+    so the environment can be stepped without moving the static goldens. Parameters with different
+    pytest marks also remain in separate groups so skips, retries, and expected failures keep their
+    scope.
 
     Args:
         params: Rendering parameters whose final value is the camera data type.
@@ -337,7 +330,7 @@ def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
     for param in params:
         data_type = param.values[-1]
         marks_key = tuple((mark.name, tuple(mark.args), tuple(sorted(mark.kwargs.items()))) for mark in param.marks)
-        key = (*param.values[:-1], _aov_capture_group(param.values[-2], data_type), marks_key)
+        key = (*param.values[:-1], _aov_capture_group(data_type), marks_key)
         if key not in grouped:
             grouped[key] = ([], list(param.marks), param.id)
         grouped[key][0].append(data_type)

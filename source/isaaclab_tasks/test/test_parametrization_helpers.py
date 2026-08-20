@@ -48,7 +48,7 @@ def test_group_rendering_params_groups_static_data_types_with_matching_marks() -
     assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["xfail"]]
 
 
-def test_group_rendering_params_isolates_temporal_depth_and_minimal_data_types() -> None:
+def test_group_rendering_params_isolates_temporal_and_minimal_data_types() -> None:
     """AOVs requiring distinct capture or render-product state should stay isolated."""
     flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
     params = [
@@ -71,17 +71,13 @@ def test_group_rendering_params_isolates_temporal_depth_and_minimal_data_types()
     grouped = group_rendering_params(params)
 
     assert [tuple(param.values) for param in grouped] == [
-        ("physx", "isaacsim_rtx_renderer", ["rgb"]),
-        ("physx", "isaacsim_rtx_renderer", ["depth"]),
-        ("physx", "isaacsim_rtx_renderer", ["distance_to_image_plane"]),
+        ("physx", "isaacsim_rtx_renderer", ["rgb", "depth", "distance_to_image_plane"]),
         ("physx", "isaacsim_rtx_renderer", ["motion_vectors"]),
         ("physx", "isaacsim_rtx_renderer", ["simple_shading_diffuse_mdl"]),
         ("physx", "isaacsim_rtx_renderer", ["simple_shading_full_mdl"]),
     ]
     assert [param.id for param in grouped] == [
-        "physx-rtx-rgb",
-        "physx-rtx-depth",
-        "physx-rtx-distance_to_image_plane",
+        "physx-isaacsim_rtx_renderer-static",
         "physx-rtx-motion",
         "physx-rtx-diffuse_mdl",
         "physx-rtx-full_mdl",
@@ -259,14 +255,12 @@ def test_franka_factory_marks_only_unsupported_instance_segmentation() -> None:
             "rgb",
             "albedo",
             "semantic_segmentation",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
             "normals",
         ]
         assert [mark.name for mark in valid_static.marks] == ["flaky"]
-
-        for data_type in ("depth", "distance_to_camera", "distance_to_image_plane"):
-            isolated = grouped[f"{variant}-newton-ovrtx-{data_type}"]
-            assert isolated.values[-1] == [data_type]
-            assert [mark.name for mark in isolated.marks] == ["flaky"]
 
         unsupported = grouped[f"{variant}-newton-ovrtx-instance_segmentation"]
         assert unsupported.values[-1] == ["instance_segmentation"]
