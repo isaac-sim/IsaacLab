@@ -625,15 +625,24 @@ Prerequisites
      # then unplug and replug the Manus dongle
 
   Then, inside the environment you build in (devcontainer, Isaac ROS container, or bare host),
-  download the Manus SDK and build and install the plugin:
+  install ``clang-format-14`` -- a missing ``clang-format-14`` is the most common cause of a
+  failed build, because the root ``CMakeLists.txt`` enforces the format check by default on
+  Linux and ``install_manus.sh`` does not install it for you:
+
+  .. code-block:: bash
+
+     sudo apt-get update
+     sudo apt-get install -y clang-format-14
+
+  Then download the Manus SDK and build and install the plugin:
 
   .. code-block:: bash
 
      cd /path/to/IsaacTeleop/src/plugins/manus
      ./install_manus.sh
 
-  The script installs the required system packages, downloads the Manus SDK, and builds and
-  installs the plugin and its diagnostic CLI tool. The plugin is installed to
+  The script installs the remaining required system packages, downloads the Manus SDK, and builds
+  and installs the plugin and its diagnostic CLI tool. The plugin is installed to
   ``<IsaacTeleop>/install/plugins/manus/manus_hand_plugin``. Every later command in this section
   runs from the Isaac Teleop checkout root; substitute your own path for ``/path/to/IsaacTeleop``.
 
