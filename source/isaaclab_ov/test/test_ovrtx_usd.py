@@ -225,9 +225,7 @@ def test_ovrtx_rejects_multiple_simple_shading_data_types():
 
 def test_ovrtx_simple_shading_alone_uses_ldr_color():
     """A lone simple shading request still reads LdrColor, shaded by RTX Minimal mode."""
-    assert get_render_var_configs(["simple_shading_diffuse_mdl"]) == [
-        ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
-    ]
+    assert get_render_var_configs(["simple_shading_diffuse_mdl"]) == [("/Render/Vars/LdrColor", "LdrColor", "LdrColor")]
 
 
 def test_render_product_initially_targets_only_the_resolvable_source_camera():

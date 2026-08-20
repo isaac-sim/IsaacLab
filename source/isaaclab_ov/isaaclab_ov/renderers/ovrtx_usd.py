@@ -45,11 +45,13 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
 }
 
 # Data types produced by putting the whole render product into RTX Minimal mode.
-_SIMPLE_SHADING_DATA_TYPES = frozenset({
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
-})
+_SIMPLE_SHADING_DATA_TYPES = frozenset(
+    {
+        "simple_shading_constant_diffuse",
+        "simple_shading_diffuse_mdl",
+        "simple_shading_full_mdl",
+    }
+)
 
 _COLOR_DATA_TYPES = frozenset({"rgb", "rgba"})
 

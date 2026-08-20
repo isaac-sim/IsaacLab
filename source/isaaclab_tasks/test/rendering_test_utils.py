@@ -51,6 +51,7 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
+    "franka_cable": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -456,7 +457,13 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
     """Create kitless Franka rendering parameters."""
-    return make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    instance_segmentation_skips = {
+        tuple(param.values): "instance_segmentation crashes with the OVRTX renderer on Franka tasks (NVBUG#6463802)."
+        for param in params
+        if param.values[2] == "ovrtx_renderer" and param.values[3] == "instance_segmentation"
+    }
+    return make_skip_rendering_params(params, instance_segmentation_skips)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -806,6 +813,66 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
+
+
+def _rendering_gif_step_count() -> int | None:
+    """Return the GIF capture step count when ``ISAAC_LAB_SAVE_RENDERING_GIF`` enables recording.
+
+    Unset, empty, or ``0`` disables recording. A positive integer is used as the step count; any
+    other non-empty value falls back to 60 steps.
+    """
+    raw = os.environ.get("ISAAC_LAB_SAVE_RENDERING_GIF")
+    if raw is None:
+        return None
+    stripped = raw.strip()
+    if stripped == "" or stripped == "0":
+        return None
+    try:
+        steps = int(stripped)
+    except ValueError:
+        return 60
+    return steps if steps > 0 else None
+
+
+def _camera_outputs_to_pil_image(camera_outputs: dict[str, ProxyArray]) -> Image.Image:
+    """Convert camera AOVs to an RGB PIL image using the same display path as golden validation."""
+    assert len(camera_outputs) > 0, "No camera outputs available for GIF capture."
+    data_type, output = next(iter(camera_outputs.items()))
+    tensor = output if isinstance(output, torch.Tensor) else output.torch
+    condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
+    corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
+    normalized = normalize_camera_output_for_display(corrected, data_type)
+    grid = make_camera_output_grid(normalized)
+    ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+    return Image.fromarray(ndarr).convert("RGB")
+
+
+def save_rendering_gif(
+    frames: list[Image.Image],
+    test_name: str,
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+) -> str:
+    """Write captured camera frames as a GIF in the current working directory."""
+    if not frames:
+        raise ValueError("Cannot write a rendering GIF with no captured frames.")
+
+    safe_test_name = test_name.replace("/", "_")
+    out_path = os.path.join(
+        os.getcwd(),
+        f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}.gif",
+    )
+    frames[0].save(
+        out_path,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=50,
+        loop=0,
+    )
+    logger.info("[ISAAC_LAB_SAVE_RENDERING_GIF] wrote %s (%d frames)", out_path, len(frames))
+    return out_path
 
 
 def _format_bcompare_command(actual_path: str, golden_path: str) -> str:
@@ -1906,8 +1973,8 @@ def rendering_test_lift_kuka(
             env = None
 
 
-def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_types: list[str]) -> None:
-    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
+def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[str]) -> None:
+    """Shrink the scene and force image-only observations for Franka golden AOV tests."""
     from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -1935,6 +2002,11 @@ def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_types: list[str]) -
     env_cfg.scene.env_spacing = 3.0
     env_cfg.scene.base_camera.data_types = data_types
     env_cfg.observations = TestFrankaCameraObservationsCfg()
+
+
+def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_types: list[str]) -> None:
+    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
+    _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
     env_cfg.commands.deformable_pose.debug_vis = False
     env_cfg.events.reset_deformable.params["position_range"] = {
         "x": (0.0, 0.0),
@@ -2082,6 +2154,100 @@ def rendering_test_franka_soft(
             env.step(actions)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage={
+                data_type: _max_different_pixels_percentage(test_name, renderer, data_type) for data_type in data_types
+            },
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def rendering_test_franka_cable(
+    physics_backend: str,
+    renderer: str,
+    data_types: list[str],
+    comparison_scores: list[dict],
+) -> None:
+    """Golden-image AOV coverage for the Franka cable camera env.
+
+    Newton cables under CouplerProxy have no PhysX preset; unsupported backends skip via
+    ``_skip_if_physics_preset_unsupported``. Settle with zero actions so the cable drapes
+    deterministically before capture. OVRTX may still cull animated BasisCurves after large
+    motion; these goldens intentionally exercise the cable binding surface.
+
+    When ``ISAAC_LAB_SAVE_RENDERING_GIF`` is set, skip golden validation and instead step the
+    env while capturing camera frames, then write a GIF to the current working directory.
+    """
+    if renderer == "ovrtx_renderer" and "instance_segmentation" in data_types:
+        pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cable (NVBUG#6463802).")
+
+    if _run_per_render_product(
+        lambda batch: rendering_test_franka_cable(physics_backend, renderer, batch, comparison_scores),
+        data_types,
+    ):
+        return
+
+    for data_type in data_types:
+        _skip_if_newton_motion_vectors(physics_backend, data_type)
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_cable_env_cfg import FrankaCableCameraEnvCfg
+
+    env_cfg = FrankaCableCameraEnvCfg()
+
+    physics_preset_name = _physics_preset_name_deformable(physics_backend)
+    _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
+
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
+    env_cfg.events.reset_cable.params["position_range"] = {
+        "x": (0.0, 0.0),
+        "y": (0.0, 0.0),
+        "z": (0.0, 0.0),
+    }
+
+    # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
+    # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
+    if env_cfg.curriculum is not None:
+        env_cfg.curriculum.gravity = None
+
+    _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
+
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
+
+    test_name = "franka_cable"
+    env = None
+    gif_steps = _rendering_gif_step_count()
+
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
+
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+
+        if gif_steps is not None:
+            frames: list[Image.Image] = []
+            for _ in range(gif_steps):
+                env.step(zero_actions)
+                frames.append(_camera_outputs_to_pil_image(env.scene.sensors["base_camera"].data.output))
+            save_rendering_gif(frames, test_name, physics_backend, renderer, data_types[0])
+            return
+
+        # Let the cable settle under gravity so golden frames are not first-frame spawn poses.
+        env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,

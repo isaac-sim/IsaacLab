@@ -239,13 +239,35 @@ def test_lift_factory_retains_retries_without_native_crash_skips() -> None:
     assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
 
 
-def test_franka_factory_has_no_cloth_motion_xfail() -> None:
-    """OVRTX 0.4.1 cloth motion vectors should run without an xfail."""
+def test_franka_factory_marks_only_unsupported_instance_segmentation() -> None:
+    """Franka OVRTX grouping should isolate unsupported instance segmentation from valid AOVs."""
     params = {param.id: param for param in make_kitless_rendering_params_franka()}
 
     for variant in ("legacy", "ovstage"):
-        motion_id = f"{variant}-newton-ovrtx-motion_vectors"
-        assert "xfail" not in [mark.name for mark in params[motion_id].marks]
+        for physics_backend in ("newton", "ovphysx"):
+            motion_id = f"{variant}-{physics_backend}-ovrtx-motion_vectors"
+            assert "xfail" not in [mark.name for mark in params[motion_id].marks]
+
+            instance_id = f"{variant}-{physics_backend}-ovrtx-instance_segmentation"
+            assert [mark.name for mark in params[instance_id].marks] == ["skip"]
+
+    grouped = {param.id: param for param in group_rendering_params(list(params.values()))}
+    for variant in ("legacy", "ovstage"):
+        valid_static = grouped[f"{variant}-newton-ovrtx_renderer-static"]
+        assert valid_static.values[-1] == [
+            "rgb",
+            "albedo",
+            "semantic_segmentation",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+        ]
+        assert [mark.name for mark in valid_static.marks] == ["flaky"]
+
+        unsupported = grouped[f"{variant}-newton-ovrtx-instance_segmentation"]
+        assert unsupported.values[-1] == ["instance_segmentation"]
+        assert [mark.name for mark in unsupported.marks] == ["skip"]
 
 
 def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:
