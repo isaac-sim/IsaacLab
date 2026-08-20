@@ -6,7 +6,7 @@
 name: Publish Docker Images
 
 on:
-  # Nightly build + publish from develop. No push triggers — workflow_dispatch
+  # Nightly build + publish from develop and release/3.0.0. No push triggers — workflow_dispatch
   # also accepts any publishable branch. main is intentionally excluded: main images are built
   # by postmerge-ci.yml on push instead.
   schedule:
@@ -27,7 +27,7 @@ permissions:
 # purpose (it builds on the public isaac-sim base via postmerge-ci.yml).
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  CRON_BRANCHES: develop
+  CRON_BRANCHES: develop,release/3.0.0
 
 jobs:
   resolve-branches:
