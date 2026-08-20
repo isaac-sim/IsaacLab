@@ -133,13 +133,14 @@ _NEWTON_MOTION_VECTORS_SKIP_MARK = pytest.mark.skip(
     reason="Motion-vector golden-image comparison is unreliable with Newton physics (NVBUG#6267975)."
 )
 
-# Expand this tuple to test additional camera sensor data types
-_DEFAULT_SENSOR_DATA_TYPES = (
+# Camera sensor data types grouped by what capturing them requires. Data types in the same group
+# are rendered together from one environment (see :func:`group_rendering_params`); data types in
+# different groups cannot share an environment.
+
+# Captured from the first frame after reset, with the scene still at rest.
+_STATIC_SENSOR_DATA_TYPES = (
     "rgb",
     "albedo",
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
     "semantic_segmentation",
     "depth",
     "distance_to_camera",
@@ -147,8 +148,51 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "normals",
     "instance_segmentation",
     "instance_id_segmentation_fast",
-    "motion_vectors",
 )
+
+# Encode inter-frame motion, so the environment is stepped before capture (see
+# :func:`maybe_step_env_for_motion`). Stepping moves the scene away from the pose the static
+# golden images were captured at, which is why these cannot share an environment with them.
+_TEMPORAL_SENSOR_DATA_TYPES = ("motion_vectors",)
+
+# Produced by putting the whole render product into RTX Minimal mode. Minimal mode is a
+# per-render-product setting, so each of these needs a render product of its own: OVRTX rejects
+# two simple-shading types, or one alongside ``rgb``/``rgba``, on the same product.
+_MINIMAL_SENSOR_DATA_TYPES = (
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+)
+
+# Expand the tuples above to test additional camera sensor data types
+_DEFAULT_SENSOR_DATA_TYPES = (
+    *_STATIC_SENSOR_DATA_TYPES,
+    *_TEMPORAL_SENSOR_DATA_TYPES,
+    *_MINIMAL_SENSOR_DATA_TYPES,
+)
+
+# Group names used to key :func:`group_rendering_params`.
+_STATIC_AOV_GROUP = "static"
+_TEMPORAL_AOV_GROUP = "temporal"
+_MINIMAL_AOV_GROUP = "minimal"
+
+
+def _aov_capture_group(data_type: str) -> str:
+    """Return the name of the capture group ``data_type`` belongs to.
+
+    Args:
+        data_type: The camera data type to classify.
+
+    Returns:
+        The group name. Data types sharing a name share a pytest node. Minimal-mode types share
+        the ``minimal`` node, then :func:`_render_product_batches` splits them onto separate
+        render products because RTX Minimal mode is a per-product setting.
+    """
+    if data_type in _TEMPORAL_SENSOR_DATA_TYPES:
+        return _TEMPORAL_AOV_GROUP
+    if data_type in _MINIMAL_SENSOR_DATA_TYPES:
+        return _MINIMAL_AOV_GROUP
+    return _STATIC_AOV_GROUP
 
 
 # Data types the Newton Warp renderer (``newton_renderer``) supports. Expand this tuple as the
@@ -264,10 +308,14 @@ def make_kitless_rendering_params(params: list[pytest.param]) -> list[pytest.par
 
 
 def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
-    """Group camera data types that share the same rendering configuration and pytest marks.
+    """Group camera data types that share a rendering configuration, capture group, and pytest marks.
 
-    All supported renderers can produce their AOVs together. Parameters with different pytest marks
-    remain in separate groups so skips, retries, and expected failures keep their scope.
+    All supported renderers can produce the AOVs of one capture group together, so those AOVs share
+    a pytest node. Static AOVs are captured from one environment. Minimal-mode AOVs share the
+    ``minimal`` node, then :func:`_render_product_batches` captures each on its own render product
+    because RTX Minimal mode is a per-product setting. Temporal AOVs stay isolated so the
+    environment can be stepped without moving the static goldens. Parameters with different pytest
+    marks also remain in separate groups so skips, retries, and expected failures keep their scope.
 
     Args:
         params: Rendering parameters whose final value is the camera data type.
@@ -279,20 +327,63 @@ def group_rendering_params(params: list[pytest.param]) -> list[pytest.param]:
     for param in params:
         data_type = param.values[-1]
         marks_key = tuple((mark.name, tuple(mark.args), tuple(sorted(mark.kwargs.items()))) for mark in param.marks)
-        key = (*param.values[:-1], marks_key)
+        key = (*param.values[:-1], _aov_capture_group(data_type), marks_key)
         if key not in grouped:
             grouped[key] = ([], list(param.marks), param.id)
         grouped[key][0].append(data_type)
 
     result = []
     for key, (data_types, marks, first_id) in grouped.items():
-        values = key[:-1]
+        values = key[:-2]
+        group = key[-2]
         if len(data_types) == 1:
             param_id = first_id
         else:
-            param_id = "-".join(str(value) for value in values) + "-combined"
+            param_id = "-".join(str(value) for value in values) + f"-{group}"
         result.append(pytest.param(*values, data_types, id=param_id, marks=marks))
     return result
+
+
+def _render_product_batches(data_types: list[str]) -> list[list[str]]:
+    """Split ``data_types`` into batches that one render product can serve.
+
+    RTX Minimal mode is a per-product setting, so each simple-shading data type is captured from
+    its own product. Every other data type shares one product.
+
+    Args:
+        data_types: Camera data types requested by one pytest node.
+
+    Returns:
+        One or more batches. A single-item result means the caller can capture ``data_types`` as-is.
+    """
+    rest: list[str] = []
+    batches: list[list[str]] = []
+    for data_type in data_types:
+        if data_type in _MINIMAL_SENSOR_DATA_TYPES:
+            batches.append([data_type])
+        else:
+            rest.append(data_type)
+    if rest:
+        batches.insert(0, rest)
+    return batches or [data_types]
+
+
+def _run_per_render_product(run_batch, data_types: list[str]) -> bool:
+    """Call ``run_batch`` once per incompatible render product.
+
+    Args:
+        run_batch: Callback invoked with one capture batch.
+        data_types: Camera data types requested by one pytest node.
+
+    Returns:
+        ``True`` if ``run_batch`` was dispatched and the caller should return, otherwise ``False``.
+    """
+    batches = _render_product_batches(data_types)
+    if len(batches) <= 1:
+        return False
+    for batch in batches:
+        run_batch(batch)
+    return True
 
 
 def _make_sensor_data_type_params(
@@ -1161,10 +1252,10 @@ def validate_camera_outputs(
         # We want to keep the record in the test artifact so that we can have a chance to see whether
         # test cases that appear successful is a false positive or not, e.g. image diff threshold is set
         # 8%, if the result image is 7% different from the golden, it is considered a pass
-        if diff_pct > 0:
-            prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
-            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
-            entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
+        # if diff_pct > 0:
+        prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
+        entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
+        entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
 
         comparison_scores.append(entry)
 
@@ -1372,6 +1463,12 @@ def rendering_test_shadow_hand(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
+    if _run_per_render_product(
+        lambda batch: rendering_test_shadow_hand(physics_backend, renderer, batch, comparison_scores),
+        data_types,
+    ):
+        return
+
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1524,6 +1621,14 @@ def rendering_test_cartpole(
     *,
     compare_golden: bool = False,
 ) -> None:
+    if _run_per_render_product(
+        lambda batch: rendering_test_cartpole(
+            physics_backend, renderer, batch, comparison_scores, compare_golden=compare_golden
+        ),
+        data_types,
+    ):
+        return
+
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1671,6 +1776,14 @@ def rendering_test_lift_kuka(
     setup_homogeneous_envs: bool,
     comparison_scores: list[dict],
 ) -> None:
+    if _run_per_render_product(
+        lambda batch: rendering_test_lift_kuka(
+            physics_backend, renderer, batch, setup_homogeneous_envs, comparison_scores
+        ),
+        data_types,
+    ):
+        return
+
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1836,6 +1949,12 @@ def rendering_test_franka_cloth(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
+    if _run_per_render_product(
+        lambda batch: rendering_test_franka_cloth(physics_backend, renderer, batch, comparison_scores),
+        data_types,
+    ):
+        return
+
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1920,6 +2039,12 @@ def rendering_test_franka_soft(
     # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
     if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and "depth" in data_types:
         pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
+
+    if _run_per_render_product(
+        lambda batch: rendering_test_franka_soft(physics_backend, renderer, batch, comparison_scores),
+        data_types,
+    ):
+        return
 
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)

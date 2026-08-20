@@ -23,13 +23,12 @@ from rendering_test_utils import (
 )
 
 
-def test_group_rendering_params_groups_all_data_types_with_matching_marks() -> None:
-    """All AOVs with the same rendering configuration and marks should share a case."""
+def test_group_rendering_params_groups_static_data_types_with_matching_marks() -> None:
+    """Static AOVs with the same rendering configuration and marks should share a case."""
     flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
     params = [
         pytest.param("physx", "isaacsim_rtx_renderer", "albedo", id="physx-rtx-albedo", marks=flaky),
         pytest.param("physx", "isaacsim_rtx_renderer", "normals", id="physx-rtx-normals", marks=flaky),
-        pytest.param("physx", "isaacsim_rtx_renderer", "motion_vectors", id="physx-rtx-motion", marks=flaky),
         pytest.param(
             "physx",
             "isaacsim_rtx_renderer",
@@ -42,10 +41,50 @@ def test_group_rendering_params_groups_all_data_types_with_matching_marks() -> N
     grouped = group_rendering_params(params)
 
     assert [tuple(param.values) for param in grouped] == [
-        ("physx", "isaacsim_rtx_renderer", ["albedo", "normals", "motion_vectors"]),
+        ("physx", "isaacsim_rtx_renderer", ["albedo", "normals"]),
         ("physx", "isaacsim_rtx_renderer", ["instance_segmentation"]),
     ]
+    assert [param.id for param in grouped] == ["physx-isaacsim_rtx_renderer-static", "physx-rtx-instance"]
     assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["xfail"]]
+
+
+def test_group_rendering_params_isolates_temporal_and_groups_minimal_data_types() -> None:
+    """Motion vectors stay isolated; simple-shading AOVs share one ``minimal`` node."""
+    flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
+    params = [
+        pytest.param("physx", "isaacsim_rtx_renderer", "rgb", id="physx-rtx-rgb", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "depth", id="physx-rtx-depth", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "motion_vectors", id="physx-rtx-motion", marks=flaky),
+        pytest.param(
+            "physx", "isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", id="physx-rtx-diffuse_mdl", marks=flaky
+        ),
+        pytest.param("physx", "isaacsim_rtx_renderer", "simple_shading_full_mdl", id="physx-rtx-full_mdl", marks=flaky),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("physx", "isaacsim_rtx_renderer", ["rgb", "depth"]),
+        ("physx", "isaacsim_rtx_renderer", ["motion_vectors"]),
+        ("physx", "isaacsim_rtx_renderer", ["simple_shading_diffuse_mdl", "simple_shading_full_mdl"]),
+    ]
+    assert [param.id for param in grouped] == [
+        "physx-isaacsim_rtx_renderer-static",
+        "physx-rtx-motion",
+        "physx-isaacsim_rtx_renderer-minimal",
+    ]
+
+
+def test_render_product_batches_split_minimal_modes() -> None:
+    """Each simple-shading data type needs its own render product."""
+    assert rendering_test_utils._render_product_batches(["rgb", "depth"]) == [["rgb", "depth"]]
+    assert rendering_test_utils._render_product_batches(
+        ["simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"]
+    ) == [
+        ["simple_shading_constant_diffuse"],
+        ["simple_shading_diffuse_mdl"],
+        ["simple_shading_full_mdl"],
+    ]
 
 
 def test_group_rendering_params_groups_each_renderer() -> None:
