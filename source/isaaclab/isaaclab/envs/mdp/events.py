@@ -1224,6 +1224,9 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         if "newton" in manager_name:
             self._backend = "newton"
             self._init_newton(cfg, env)
+        elif "ovphysx" in manager_name:
+            self._backend = "ovphysx"
+            self._init_ovphysx(env)
         else:
             self._backend = "physx"
             self._init_physx(env)
@@ -1283,6 +1286,8 @@ class randomize_physics_scene_gravity(ManagerTermBase):
 
         if self._backend == "newton":
             self._call_newton(env, env_ids, operation)
+        elif self._backend == "ovphysx":
+            self._call_ovphysx(env, operation)
         else:
             self._call_physx(env, operation)
 
@@ -1350,8 +1355,26 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         gravity = gravity[0].tolist()
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
 
+    def _init_ovphysx(self, env: ManagerBasedEnv):
+        """Cache the OvPhysX manager for scene-wide gravity updates."""
+        self._ovphysx_manager = env.sim.physics_manager
+
+    def _call_ovphysx(self, env: ManagerBasedEnv, operation: str):
+        """Sample a single gravity vector and apply it scene-wide through OvStage."""
+        gravity = torch.tensor(env.sim.cfg.gravity, device="cpu").unsqueeze(0)
+        gravity = _randomize_prop_by_op(
+            gravity,
+            (self._dist_param_0.cpu(), self._dist_param_1.cpu()),
+            None,
+            slice(None),
+            operation=operation,
+            distribution="uniform",
+        )
+        self._ovphysx_manager.set_gravity(tuple(gravity[0].tolist()))
+
 
 class randomize_actuator_gains(ManagerTermBase):
+
     """Randomize the actuator gains in an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the actuator stiffness and damping gains.

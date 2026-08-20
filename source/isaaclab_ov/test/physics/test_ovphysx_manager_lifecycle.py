@@ -46,6 +46,7 @@ def manager_module(monkeypatch):
         "_physx": None,
         "_ovstage": None,
         "_stage_usda": None,
+        "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
         "_locked_device": None,
@@ -246,6 +247,66 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
         "destroy_stage",
     ]
 
+
+def test_set_gravity_writes_a_sealed_ovstage_control_update(monkeypatch, manager_module):
+    """Scene gravity updates must reach the running OvPhysX instance through OvStage."""
+    manager = manager_module.OvPhysxManager
+    calls = []
+
+    class FakePathDictionary:
+        def create_path_list_from_strings(self, paths):
+            calls.append(("paths", paths))
+            return "physics-scene-paths"
+
+        def destroy_path_list(self, paths):
+            calls.append(("destroy_paths", paths))
+
+
+        def destroy(self):
+            calls.append(("destroy_dictionary",))
+    class FakeStage:
+
+
+        def query_from_path_list(self, paths):
+            calls.append(("query", paths))
+            return "physics-scene-query"
+
+        def write_attribute(self, query, attribute, ordinal, tensors, *, is_array):
+            calls.append(("write", query, attribute, ordinal, tensors.tolist(), is_array))
+            return SimpleNamespace(wait=lambda: None)
+
+        def release_query(self, query):
+            calls.append(("release_query", query))
+            return SimpleNamespace(wait=lambda: None)
+
+        def advance_write_floor(self, *, ordinal):
+            calls.append(("seal", ordinal))
+            return SimpleNamespace(wait=lambda: None)
+
+    class FakePhysX:
+        def update_from_ovstage(self, start_ordinal, end_ordinal):
+            calls.append(("update", start_ordinal, end_ordinal))
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.PathDictionary = FakePathDictionary
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+    monkeypatch.setattr(manager, "_ovstage", FakeStage())
+    monkeypatch.setattr(manager, "_physx", FakePhysX())
+    monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene")))
+
+    manager.set_gravity((0.0, 0.0, -9.81))
+
+    assert calls == [
+        ("paths", ["/World/physicsScene"]),
+        ("query", "physics-scene-paths"),
+        ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
+        ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
+        ("seal", 2),
+        ("update", 2, 2),
+        ("release_query", "physics-scene-query"),
+        ("destroy_paths", "physics-scene-paths"),
+        ("destroy_dictionary",),
+    ]
 
 def _retained_binding_script() -> str:
     return textwrap.dedent(
