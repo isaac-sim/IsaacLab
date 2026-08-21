@@ -105,3 +105,22 @@ def test_runtime_nucleus_access_inside_fixture_is_rejected(tmp_path: Path) -> No
 
     assert result.returncode != 0
     assert "forbidden Nucleus asset used by Newton rigid-asset test" in result.stdout + result.stderr
+
+
+def test_runtime_app_launcher_import_inside_fixture_is_rejected(tmp_path: Path) -> None:
+    """The guard must reject AppLauncher imports reached only while a fixture helper executes."""
+    source_target = _ASSET_TEST_DIR / "test_rigid_object.py"
+    mutated_target = tmp_path / source_target.name
+    mutated_target.write_text(
+        source_target.read_text(encoding="utf-8").replace(
+            '    """Author two local dynamic cuboids and return their Newton asset."""',
+            '    """Author two local dynamic cuboids and return their Newton asset."""\n'
+            "    from isaaclab.app import AppLauncher",
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_monitored_target(mutated_target, "test_rigid_object_real_newton_seams[cpu]", tmp_path)
+
+    assert result.returncode != 0
+    assert "forbidden kit dependency imported: isaaclab.app.app_launcher" in result.stdout + result.stderr
