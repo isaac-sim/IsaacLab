@@ -310,6 +310,62 @@ def test_abnormal_termination_report_quotes_bounded_renderer_log(
     assert "OVRTX renderer log" not in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("returncode", "kill_reason", "expected_result"),
+    [(-11, "", "CRASHED"), (-9, "timeout", "TIMEOUT")],
+)
+def test_abnormal_termination_saves_the_renderer_log_of_the_blamed_test(
+    monkeypatch, tmp_path: Path, returncode: int, kill_reason: str, expected_result: str
+) -> None:
+    """The test a crash or a hang killed is the one test whose renderer output nothing else saves.
+
+    ``tools/ovrtx_log.py`` saves from a fixture, so every test that reaches teardown leaves its output in
+    the directory CI uploads -- and the test that took the process down, the only one anybody is going to
+    read, leaves nothing. Both reports quote a bounded tail of the log instead, which is not the same
+    thing: a hang that logs nothing after the render is diagnosed by what came before it, and that is the
+    part a cap counted back from the end of the file drops first.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_alpha():\n    pass\n\n\ndef test_beta():\n    pass\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    alpha, beta = f"{test_file}::test_alpha", f"{test_file}::test_beta"
+
+    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
+        Path(log_path).write_text("alpha-line\nbeta-line\n", encoding="utf-8")
+        journal_file = env[orchestrator.JOURNAL_ENV_VAR]
+        _append_journal(journal_file, [{"event": "collected", "node_ids": [alpha, beta]}])
+        _append_journal(journal_file, _journaled_test(alpha, "passed"))
+        # Dies inside test_beta, so the teardown that would have saved its output never runs.
+        _append_journal(journal_file, [{"event": "start", "node_id": beta}])
+        return returncode, b"", b"", kill_reason, 12.0, ""
+
+    log_path = str(tmp_path / "ovrtx_renderer.log")
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", log_path)
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    _report, status, _was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert status["result"] == expected_result
+    # Named after the test alone, as the fixture names the directories of the tests that saved their own,
+    # so the run that died is read beside the tests that survived it rather than somewhere else.
+    saved = tmp_path / orchestrator.OVRTX_LOG_DIR / "test_beta.0" / "ovrtx_renderer.log"
+    assert saved.read_text(encoding="utf-8") == "alpha-line\nbeta-line\n"
+
+
 def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path) -> None:
     """A process SIGKILLed for hanging in shutdown had already written its report, so its tests still count.
 

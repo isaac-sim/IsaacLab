@@ -248,7 +248,8 @@ def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path)
     """With the artifact directory named, each test's log is saved under a directory of its own name.
 
     This is the copy that survives the caps: the replay and the crash report both quote a bounded tail,
-    so a run whose renderer log outgrows the cap is only diagnosable from the saved file.
+    so a run whose renderer log outgrows the cap is only diagnosable from the saved file. What is saved
+    is that test's own range of a log the renderer keeps appending to for the lifetime of the process.
     """
     save_dir = tmp_path / "ovrtx-logs"
 
@@ -273,6 +274,11 @@ def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path)
     # The saved copy is unbounded where the replay is capped, and the replay still happens alongside it.
     assert (save_dir / "test_alpha.0" / "ovrtx_renderer.log").read_bytes().count(b"alpha-line") == 40
     assert output.count(b"alpha-line") == 40
+    # Saving the file whole instead would credit beta with alpha's output, and every test after them
+    # with both -- an artifact that grows as the square of a run whose logs are already the large part.
+    beta_log = (save_dir / "test_beta.0" / "ovrtx_renderer.log").read_bytes()
+    assert beta_log.count(b"beta-line") == 1
+    assert b"alpha-line" not in beta_log
 
 
 def test_dumps_written_beside_the_log_are_saved_with_it(tmp_path: Path) -> None:
@@ -324,6 +330,39 @@ def test_nothing_is_saved_for_a_test_that_never_builds_a_renderer(tmp_path: Path
 
     assert b"1 passed" in output
     assert not save_dir.exists()
+
+
+def test_nothing_is_saved_for_a_test_that_adds_nothing_to_an_existing_log(tmp_path: Path) -> None:
+    """Once one test has built a renderer, the tests after it still save only what they wrote themselves.
+
+    The log outlives the test that wrote it, so finding it there says nothing about the test now running.
+    Saving on its existence alone gave a directory to every test that followed the first renderer --
+    skips included, which is most of a run parametrized over backends a task does not support.
+    """
+    save_dir = tmp_path / "ovrtx-logs"
+
+    _run_inner_pytest(
+        tmp_path,
+        _FAKE_RENDERER,
+        """
+        import pytest
+
+
+        def test_alpha():
+            render("alpha")
+
+
+        def test_beta_skipped():
+            pytest.skip("no renderer for this backend")
+
+
+        def test_gamma_builds_no_renderer():
+            assert True
+        """,
+        save_dir=save_dir,
+    )
+
+    assert sorted(path.name for path in save_dir.iterdir()) == ["test_alpha.0"]
 
 
 def test_log_left_behind_by_a_previous_owner_is_discarded(tmp_path: Path) -> None:

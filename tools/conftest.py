@@ -335,6 +335,7 @@ def _make_crash_pass_result(
     if rebuilt is None:
         report = _create_error_report(prefix, pass_file_label, message, details)
         counters = {"errors": 1, "failures": 0, "skipped": 0, "tests": 1, "time_elapsed": fallback_time_elapsed}
+        culprit = None
         logger.warning(f"🔎 {pass_file_label}: no crash journal, reporting a single {prefix} entry")
     else:
         report, counters, culprit = rebuilt
@@ -343,6 +344,14 @@ def _make_crash_pass_result(
             f" ({counters['failures']} failed, {counters['skipped']} not run);"
             f" blamed {culprit or 'session shutdown (all tests completed teardown)'}"
         )
+
+    # The blamed test died before the fixture that saves its renderer output could run, leaving the one
+    # test in the run whose output is worth reading as the one missing from the artifact. Named after the
+    # test alone, as the fixture names its own, so the two sit together. Saved whole because the per-test
+    # offsets went with the process, and suppressed because a report matters more than an artifact.
+    blamed = culprit.rpartition("::")[2] if culprit else pass_file_label
+    with contextlib.suppress(OSError):
+        ovrtx_log.save_output(os.path.abspath(OVRTX_LOG_DIR), blamed)
 
     report.write(report_file)
     return (
