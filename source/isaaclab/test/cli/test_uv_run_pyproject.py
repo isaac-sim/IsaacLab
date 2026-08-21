@@ -59,6 +59,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
+        "ray",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -103,6 +104,7 @@ def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
     # has to be classified deliberately -- into ``all`` or into this list.
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "ray",
         "mimic",
         "teleop",
         "tetrahedralization",
@@ -110,6 +112,11 @@ def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
         "leapp",
         "test",
     }
+
+    assert any(dep.startswith("ray[default,tune]") for dep in optional["ray"])
+    assert any(dep.startswith("optuna") for dep in optional["ray"])
+    assert "mlflow" in optional["ray"]
+    assert "kubernetes" in optional["ray"]
 
 
 def test_tetrahedralization_is_explicit_extra_only():

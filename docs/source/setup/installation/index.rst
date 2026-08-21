@@ -227,7 +227,7 @@ before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
 any combination resolves into one environment. The ``--extra all`` shortcut installs a
 curated set of backends, RL libraries, and visualizers. It does not include the specialized
-extras ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp``;
+extras ``ray``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp``;
 request them by name:
 
 .. code-block:: bash

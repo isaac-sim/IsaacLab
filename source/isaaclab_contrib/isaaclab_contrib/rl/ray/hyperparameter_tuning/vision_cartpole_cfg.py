@@ -2,19 +2,14 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import pathlib
-import sys
 from typing import Any
 
-# Allow for import of items from the ray workflow.
-CUR_DIR = pathlib.Path(__file__).parent
-UTIL_DIR = CUR_DIR.parent
-sys.path.extend([str(UTIL_DIR), str(CUR_DIR)])
-import util
-import vision_cfg
 from ray import tune
 from ray.tune.progress_reporter import CLIReporter
 from ray.tune.stopper import Stopper
+
+from isaaclab_contrib.rl.ray import util
+from isaaclab_contrib.rl.ray.hyperparameter_tuning import vision_cfg
 
 
 class CartpoleRGBNoTuneJobCfg(vision_cfg.CameraJobCfg):
