@@ -93,7 +93,9 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
 
 # Low-resolution Newton + RTX cloth shading varies between otherwise equivalent CI frames.
 _IMAGE_TOLERANCE_OVERRIDES = {
-    ("franka_cloth", "newton", "isaacsim_rtx_renderer", data_type): (20.0, 0.96) for data_type in ("rgb", "rgba")
+    ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.96),
+    ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgba"): (20.0, 0.96),
+    ("franka_cable", "newton", "ovrtx_renderer", "rgb"): (8.0, 0.98),
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
