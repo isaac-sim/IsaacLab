@@ -13,7 +13,7 @@ import warp as wp
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.assets.articulation.articulation import _configure_builder_joint_target_modes
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton import JointTargetMode, Model, ModelBuilder
+from newton import JointTargetMode, JointType, Model, ModelBuilder
 
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.actuators.newton.adapter import resolve_actuator_component
@@ -36,34 +36,112 @@ def _target_mode_builder() -> ModelBuilder:
     return builder
 
 
-def test_builder_target_modes_align_sparse_gains_by_joint_name(monkeypatch) -> None:
-    """Sparse gain dictionaries must select modes by physical joint name before model finalization."""
-    cfg = ArticulationCfg(
-        prim_path="/World/Robot",
-        actuators={
-            "joints": ImplicitActuatorCfg(
+@pytest.mark.parametrize(
+    ("actuator_cfg", "imported_ke", "imported_kd", "initial_modes", "joint_types", "expected_modes"),
+    [
+        pytest.param(
+            ImplicitActuatorCfg(joint_names_expr=[".*_joint"], stiffness=None, damping=None),
+            [8.0, 0.0],
+            [0.0, 3.0],
+            [0, 0],
+            None,
+            [1, 2],
+            id="imported-none-gains",
+        ),
+        pytest.param(
+            ImplicitActuatorCfg(joint_names_expr=[".*_joint"], stiffness=0.0, damping=0.0),
+            [8.0, 8.0],
+            [3.0, 3.0],
+            [2, 2],
+            None,
+            [4, 4],
+            id="zero-gains",
+        ),
+        pytest.param(
+            ImplicitActuatorCfg(joint_names_expr=[".*_joint"], stiffness=8.0, damping=3.0),
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0, 0],
+            None,
+            [3, 3],
+            id="both-gains",
+        ),
+        pytest.param(
+            IdealPDActuatorCfg(joint_names_expr=[".*_joint"], stiffness=8.0, damping=3.0),
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0, 0],
+            None,
+            [4, 4],
+            id="explicit-effort",
+        ),
+        pytest.param(
+            ImplicitActuatorCfg(joint_names_expr=[".*_joint"], stiffness=8.0, damping=3.0),
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [1, 2],
+            [JointType.FREE, JointType.FIXED],
+            [1, 2],
+            id="free-fixed-excluded",
+        ),
+        pytest.param(
+            ImplicitActuatorCfg(joint_names_expr=["left_joint"], stiffness=8.0, damping=0.0),
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0, 2],
+            None,
+            [1, 2],
+            id="unconfigured-dof-unchanged",
+        ),
+        pytest.param(
+            ImplicitActuatorCfg(
                 joint_names_expr=[".*_joint"],
                 stiffness={"left_joint": 10.0},
                 damping={"right_joint": 2.0},
-            )
-        },
-    )
+            ),
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0, 0],
+            None,
+            [1, 2],
+            id="sparse-position-velocity",
+        ),
+    ],
+)
+def test_builder_target_modes_cover_all_adaptation_branches(
+    monkeypatch,
+    actuator_cfg,
+    imported_ke: list[float],
+    imported_kd: list[float],
+    initial_modes: list[int],
+    joint_types,
+    expected_modes: list[int],
+) -> None:
+    """Every builder branch must assign literal modes without changing excluded or unmatched DOFs."""
+    cfg = ArticulationCfg(prim_path="/World/Robot", actuators={"joints": actuator_cfg})
     monkeypatch.setattr(
         "isaaclab_newton.assets.articulation.articulation._resolve_articulation_root_prim_path_expr",
         lambda _cfg: "/World/Robot",
     )
     builder = _target_mode_builder()
+    builder.joint_target_ke = imported_ke
+    builder.joint_target_kd = imported_kd
+    builder.joint_target_mode = initial_modes
+    if joint_types is not None:
+        builder.joint_type = joint_types
 
     _configure_builder_joint_target_modes(builder, cfg)
 
-    assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
+    assert builder.joint_target_mode == expected_modes
 
 
 def test_prepare_native_actuators_activates_only_explicit_groups_without_gain_writes(monkeypatch) -> None:
     """Newton adaptation must select explicit groups without clobbering imported solver gains."""
     articulation = SimpleNamespace(_sim_cfg=SimpleNamespace(use_newton_actuators=True))
     activations = []
-    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", classmethod(lambda cls: activations.append(1)))
+    monkeypatch.setattr(
+        SimulationManager, "activate_newton_actuator_path", classmethod(lambda cls: activations.append(1))
+    )
 
     groups = NewtonActuatorControl(articulation).prepare_native_actuators(
         collection=None,
@@ -112,7 +190,9 @@ def test_native_actuator_reset_delegates_selected_environments_to_adapter(monkey
     reset_calls = []
     control = object.__new__(NewtonActuatorControl)
     control._native_actuator_path_active = True
-    monkeypatch.setattr(SimulationManager, "_adapter", SimpleNamespace(reset=lambda env_ids: reset_calls.append(env_ids)))
+    monkeypatch.setattr(
+        SimulationManager, "_adapter", SimpleNamespace(reset=lambda env_ids: reset_calls.append(env_ids))
+    )
     env_ids = [1]
 
     control.reset_native_actuators(env_ids)

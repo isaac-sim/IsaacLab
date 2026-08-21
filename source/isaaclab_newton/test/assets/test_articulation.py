@@ -19,6 +19,8 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
+from source.isaaclab_newton.test.articulation_test_utils import author_fixed_spatial_chain, build_newton_context
+
 pytestmark = pytest.mark.integration
 
 
@@ -176,6 +178,37 @@ def test_articulation_real_newton_seams(monkeypatch) -> None:
         torch.testing.assert_close(
             articulation.data.root_com_lin_vel_w.torch[0], initial_velocity[0], atol=1e-6, rtol=0
         )
+
+
+def test_fixed_base_articulation_real_newton_seams() -> None:
+    """Exercise fixed-root state, moving-link velocity, and dynamics data on a local chain."""
+    with build_newton_context() as sim:
+        articulation = author_fixed_spatial_chain()
+        sim.reset()
+
+        assert articulation.is_initialized
+        assert articulation.is_fixed_base
+        assert articulation.num_instances == 1
+        assert articulation.num_bodies == 7
+        assert articulation.num_joints == 6
+        initial_root_pose = articulation.data.root_link_pose_w.torch.clone()
+        target = articulation.data.joint_pos.torch.clone()
+        target[:, 0] = 0.05
+        articulation.actuators.target_command.set_position_index(value=target)
+
+        for _ in range(12):
+            articulation.write_data_to_sim()
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        torch.testing.assert_close(articulation.data.root_link_pose_w.torch, initial_root_pose, atol=1e-6, rtol=0)
+        assert torch.linalg.vector_norm(articulation.data.body_link_vel_w.torch[0, -1]) > 1e-3
+        jacobians = articulation.data.body_link_jacobian_w.torch
+        mass_matrix = articulation.data.mass_matrix.torch
+        assert jacobians.shape == (1, 6, 6, 6)
+        assert mass_matrix.shape == (1, 6, 6)
+        assert torch.isfinite(jacobians).all()
+        assert torch.isfinite(mass_matrix).all()
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")

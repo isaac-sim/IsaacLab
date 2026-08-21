@@ -18,9 +18,18 @@ _TARGETS = (
     ("test_rigid_object_collection.py", "test_rigid_object_collection_real_newton_seams"),
     ("test_articulation.py", "test_articulation_real_newton_seams"),
     ("test_newton_actuators_newton.py", "test_newton_actuator_real_equivalence"),
+    ("../controllers/test_newton_task_space_controllers.py", "test_differential_ik_tracks_local_newton_chain"),
+    (
+        "../controllers/test_newton_task_space_controllers.py",
+        "test_operational_space_consumes_newton_jacobian_mass_and_gravity",
+    ),
+    (
+        "../controllers/test_newton_task_space_controllers.py",
+        "test_operational_space_gravity_compensation_holds_static_chain",
+    ),
 )
 
-_TARGET_FILENAMES = tuple(target for target, _ in _TARGETS)
+_TARGET_FILENAMES = tuple(Path(target).name for target, _ in _TARGETS) + ("articulation_test_utils.py",)
 
 
 def _run_monitored_target(target: Path, node: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:

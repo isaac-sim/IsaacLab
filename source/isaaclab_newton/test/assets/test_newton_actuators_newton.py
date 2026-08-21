@@ -8,6 +8,7 @@
 import torch
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from pxr import Gf, UsdPhysics
 
@@ -61,7 +62,7 @@ def _author_two_link_articulations() -> Articulation:
     return Articulation(articulation_cfg)
 
 
-def _run_actuator_path(*, use_newton_actuators: bool) -> dict[str, list[torch.Tensor] | torch.Tensor]:
+def _run_actuator_path(*, use_newton_actuators: bool) -> dict[str, object]:
     """Run the local articulation through one actuator execution path."""
     sim_cfg = SimulationCfg(
         device="cpu",
@@ -73,10 +74,20 @@ def _run_actuator_path(*, use_newton_actuators: bool) -> dict[str, list[torch.Te
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         articulation = _author_two_link_articulations()
         sim.reset()
+        adapter = SimulationManager._adapter
+        execution_state = {
+            "has_newton_actuators": articulation._has_newton_actuators,
+            "native_path_active": articulation._actuator_control.native_actuator_path_active,
+            "manager_path_active": SimulationManager._use_newton_actuators_active,
+            "adapter_bound": adapter is not None and articulation.newton_actuator_adapter is adapter,
+            "model_actuator_count": len(SimulationManager.get_model().actuators),
+            "adapter_actuator_count": 0 if adapter is None else len(adapter.actuators),
+            "adapter_state_count": 0 if adapter is None else len(adapter._states_a),
+        }
         initial_position = articulation.data.joint_pos.torch.clone()
         target_position = initial_position + torch.tensor([[0.10], [-0.15]])
-        articulation.set_joint_position_target_index(target=target_position)
-        articulation.set_joint_velocity_target_index(target=torch.zeros_like(target_position))
+        articulation.actuators.target_command.set_position_index(value=target_position)
+        articulation.actuators.target_command.set_velocity_index(value=torch.zeros_like(target_position))
 
         joint_position = []
         joint_velocity = []
@@ -92,6 +103,8 @@ def _run_actuator_path(*, use_newton_actuators: bool) -> dict[str, list[torch.Te
             applied_effort.append(articulation.actuators.applied_effort.torch.clone())
 
         return {
+            "execution_state": execution_state,
+            "initial_position": initial_position,
             "target_position": target_position,
             "joint_position": joint_position,
             "joint_velocity": joint_velocity,
@@ -105,7 +118,34 @@ def test_newton_actuator_real_equivalence() -> None:
     lab_result = _run_actuator_path(use_newton_actuators=False)
     newton_result = _run_actuator_path(use_newton_actuators=True)
 
+    assert lab_result["execution_state"] == {
+        "has_newton_actuators": False,
+        "native_path_active": False,
+        "manager_path_active": False,
+        "adapter_bound": False,
+        "model_actuator_count": 0,
+        "adapter_actuator_count": 0,
+        "adapter_state_count": 0,
+    }
+    assert newton_result["execution_state"] == {
+        "has_newton_actuators": True,
+        "native_path_active": True,
+        "manager_path_active": True,
+        "adapter_bound": True,
+        "model_actuator_count": 1,
+        "adapter_actuator_count": 1,
+        "adapter_state_count": 1,
+    }
     torch.testing.assert_close(newton_result["target_position"], lab_result["target_position"])
     for key in ("joint_position", "joint_velocity", "computed_effort", "applied_effort"):
         for newton_value, lab_value in zip(newton_result[key], lab_result[key], strict=True):
             torch.testing.assert_close(newton_value, lab_value, atol=1e-5, rtol=1e-5)
+
+    for result in (lab_result, newton_result):
+        assert max(value.abs().max() for value in result["computed_effort"]) > 1e-3
+        assert max(value.abs().max() for value in result["applied_effort"]) > 1e-3
+        initial_error = (result["target_position"] - result["initial_position"]).abs()
+        final_error = (result["target_position"] - result["joint_position"][-1]).abs()
+        joint_motion = (result["joint_position"][-1] - result["initial_position"]).abs()
+        assert torch.all(joint_motion > 1e-5)
+        assert torch.all(final_error < initial_error)

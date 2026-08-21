@@ -63,7 +63,10 @@ def test_post_step_publish_refreshes_joint_and_body_shadows_in_public_order() ->
 def test_clear_callbacks_unregisters_only_the_articulation_post_step_hook(monkeypatch) -> None:
     """Clearing one articulation must remove its ordered publish hook without leaking it globally."""
     articulation = object.__new__(Articulation)
-    callback = lambda: None
+
+    def callback() -> None:
+        pass
+
     articulation._model_init_handle = None
     articulation._physics_ready_handle = None
     articulation._post_step_callback = callback
