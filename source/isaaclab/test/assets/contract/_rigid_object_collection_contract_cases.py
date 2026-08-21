@@ -826,7 +826,7 @@ _BODY_POSE_METHODS = ["body_pose", "body_link_pose", "body_com_pose"]
 _BODY_VEL_METHODS = ["body_velocity", "body_com_velocity", "body_link_velocity"]
 
 
-_production_backends = contract_backend("data")
+_production_backends = contract_backend("writes")
 
 
 class TestCollectionCacheInvalidation:

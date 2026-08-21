@@ -742,7 +742,7 @@ _ROOT_POSE_METHODS = ["root_pose", "root_link_pose", "root_com_pose"]
 _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
 
-_production_backends = contract_backend("data")
+_production_backends = contract_backend("writes")
 
 
 class TestRigidObjectCacheInvalidation:

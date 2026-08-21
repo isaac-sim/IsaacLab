@@ -26,6 +26,9 @@ from ._articulation_contract_cases import (  # noqa: F401
 )
 from ._articulation_contract_cases import TestArticulationWritersRoot as _ArticulationWriteContract
 from ._articulation_ordering_contract_cases import TestArticulationOrderingAllocation as _ArticulationOrderingContract
+from ._rigid_object_collection_contract_cases import (
+    TestCollectionCacheInvalidation as _CollectionCacheInvalidationContract,
+)
 from ._rigid_object_collection_contract_cases import (  # noqa: F401
     TestCollectionFinderReturnModes,
     TestCollectionFinders,
@@ -33,6 +36,7 @@ from ._rigid_object_collection_contract_cases import (  # noqa: F401
     TestCollectionProperties,
     collection_iface,
 )
+from ._rigid_object_contract_cases import TestRigidObjectCacheInvalidation as _RigidObjectCacheInvalidationContract
 from ._rigid_object_contract_cases import (  # noqa: F401
     TestRigidObjectFinderReturnModes,
     TestRigidObjectFinders,
@@ -135,6 +139,8 @@ def test_installed_backend_packages_cannot_remain_silently_unavailable() -> None
     [
         (_ArticulationDataContract.test_root_link_pose_w, "data"),
         (_ArticulationWriteContract.test_write_root_pose_to_sim_index, "writes"),
+        (_RigidObjectCacheInvalidationContract.test_pose_write_invalidates_pose_dependent_caches, "writes"),
+        (_CollectionCacheInvalidationContract.test_pose_write_invalidates_pose_dependent_caches, "writes"),
         (_ArticulationOrderingContract.test_backends_allocate_shadows_only_for_nonidentity_ordering, "ordering"),
         (_ArticulationTendonDataContract.test_fixed_tendon_stiffness, "fixed_tendons"),
         (_ArticulationTendonDataContract.test_spatial_tendon_stiffness, "spatial_tendons"),
