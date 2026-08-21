@@ -37,6 +37,8 @@ def merge_datasets():
                     episode_idx += 1
 
                 if copy_attributes:
+                    if "format_version" in input.attrs:
+                        output.attrs["format_version"] = input.attrs["format_version"]
                     output["data"].attrs["env_args"] = input["data"].attrs["env_args"]
                     copy_attributes = False
 
