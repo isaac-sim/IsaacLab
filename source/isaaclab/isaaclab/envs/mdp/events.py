@@ -1210,8 +1210,9 @@ class randomize_physics_scene_gravity(ManagerTermBase):
     - **Newton**: samples per-environment gravity vectors and writes them in-place to
       the Newton model's per-world gravity array on GPU.
 
-    The distribution parameters are tuples of two lists with three floats each,
-    representing the lower and upper bounds for the x, y, and z gravity components [m/s^2].
+    The distribution parameters are tuples of two lists with three floats each for the x, y,
+    and z gravity components [m/s^2]. They represent lower and upper bounds for uniform and
+    log-uniform sampling, or mean and standard deviation for Gaussian sampling.
 
     Args:
         cfg: The configuration of the event term.
@@ -1234,6 +1235,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             self._init_physx(env)
 
         distribution = cfg.params.get("distribution", "uniform")
+        self._distribution = distribution
         if distribution == "uniform":
             self._dist_fn = math_utils.sample_uniform
         elif distribution == "log_uniform":
@@ -1352,7 +1354,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             None,
             slice(None),
             operation=operation,
-            distribution="uniform",
+            distribution=self._distribution,
         )
         gravity = gravity[0].tolist()
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
@@ -1370,7 +1372,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             None,
             slice(None),
             operation=operation,
-            distribution="uniform",
+            distribution=self._distribution,
         )
         self._ovphysx_manager.set_gravity(tuple(gravity[0].tolist()))
 
