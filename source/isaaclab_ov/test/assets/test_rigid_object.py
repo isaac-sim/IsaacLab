@@ -13,6 +13,7 @@ import warp as wp
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
@@ -68,13 +69,33 @@ def test_rigid_object_real_ovphysx_seams() -> None:
         torch.testing.assert_close(rigid_object.data.root_link_pose_w.torch[1:2], target_pose)
         torch.testing.assert_close(rigid_object.data.root_link_pose_w.torch[0:1], initial_pose[0:1])
 
+        raw_mass_before = wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_MASS)).clone()
         rigid_object.set_masses_index(masses=wp.array([[3.0]], dtype=wp.float32, device="cpu"), env_ids=[1])
+        expected_raw_mass = raw_mass_before.clone()
+        expected_raw_mass[1] = 3.0
+        torch.testing.assert_close(
+            wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_MASS)), expected_raw_mass
+        )
+
+        raw_com_before = wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_COM_POSE)).clone()
         coms = rigid_object.data.body_com_pose_b.torch[1:2].clone()
         coms[0, 0, :3] = torch.tensor([0.01, -0.02, 0.03])
         rigid_object.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf), env_ids=[1])
+        expected_raw_com = raw_com_before.clone()
+        expected_raw_com[1] = coms[0, 0]
+        torch.testing.assert_close(
+            wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_COM_POSE)), expected_raw_com
+        )
+
+        raw_inertia_before = wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_INERTIA)).clone()
         inertias = rigid_object.data.body_inertia.torch[1:2].clone()
         inertias[0, 0, 0] *= 1.5
         rigid_object.set_inertias_index(inertias=wp.from_torch(inertias, dtype=wp.float32), env_ids=[1])
+        expected_raw_inertia = raw_inertia_before.clone()
+        expected_raw_inertia[1] = inertias[0, 0]
+        torch.testing.assert_close(
+            wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_INERTIA)), expected_raw_inertia
+        )
         torch.testing.assert_close(rigid_object.data.body_mass.torch[:, 0], torch.tensor([1.0, 3.0]))
         torch.testing.assert_close(rigid_object.data.body_com_pose_b.torch[1:2], coms)
         torch.testing.assert_close(rigid_object.data.body_inertia.torch[1:2], inertias)

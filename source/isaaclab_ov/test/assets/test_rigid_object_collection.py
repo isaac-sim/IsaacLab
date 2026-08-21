@@ -83,22 +83,41 @@ def test_rigid_object_collection_real_ovphysx_seams() -> None:
         torch.testing.assert_close(collection.data.body_link_pose_w.torch[:, 1], initial_pose[:, 1])
 
         initial_mass = collection.data.body_mass.torch.clone()
+        raw_mass_before = wp.to_torch(collection.root_view.get_attribute(TT.BODY_MASS)).reshape(3, 2).T.clone()
         masses = torch.tensor([[5.0, 6.0], [7.0, 8.0]])
         collection.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+        expected_raw_mass = raw_mass_before.clone()
+        expected_raw_mass[env_ids[:, None], body_ids[None, :]] = masses
+        raw_mass = wp.to_torch(collection.root_view.get_attribute(TT.BODY_MASS)).reshape(3, 2).T
+        torch.testing.assert_close(raw_mass, expected_raw_mass)
         torch.testing.assert_close(collection.data.body_mass.torch[env_ids][:, body_ids], masses)
         torch.testing.assert_close(collection.data.body_mass.torch[:, 1], initial_mass[:, 1])
 
+        raw_com_before = (
+            wp.to_torch(collection.root_view.get_attribute(TT.BODY_COM_POSE)).reshape(3, 2, 7).transpose(0, 1).clone()
+        )
         coms = collection.data.body_com_pose_b.torch[env_ids][:, body_ids].clone()
         coms[..., :3] = torch.tensor(
             [[[0.01, 0.02, 0.03], [-0.01, 0.03, 0.02]], [[0.02, -0.01, 0.01], [0.03, 0.01, -0.02]]]
         )
         collection.set_coms_index(coms=coms, env_ids=env_ids, body_ids=body_ids)
+        expected_raw_com = raw_com_before.clone()
+        expected_raw_com[env_ids[:, None], body_ids[None, :]] = coms
+        raw_com = wp.to_torch(collection.root_view.get_attribute(TT.BODY_COM_POSE)).reshape(3, 2, 7).transpose(0, 1)
+        torch.testing.assert_close(raw_com, expected_raw_com)
         torch.testing.assert_close(collection.data.body_com_pose_b.torch[env_ids][:, body_ids], coms)
 
+        raw_inertia_before = (
+            wp.to_torch(collection.root_view.get_attribute(TT.BODY_INERTIA)).reshape(3, 2, 9).transpose(0, 1).clone()
+        )
         inertias = collection.data.body_inertia.torch[env_ids][:, body_ids].clone()
         inertias[..., 0] *= 1.2
         inertias[..., 4] *= 1.3
         collection.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+        expected_raw_inertia = raw_inertia_before.clone()
+        expected_raw_inertia[env_ids[:, None], body_ids[None, :]] = inertias
+        raw_inertia = wp.to_torch(collection.root_view.get_attribute(TT.BODY_INERTIA)).reshape(3, 2, 9).transpose(0, 1)
+        torch.testing.assert_close(raw_inertia, expected_raw_inertia)
         torch.testing.assert_close(collection.data.body_inertia.torch[env_ids][:, body_ids], inertias)
 
         materials = torch.tensor(

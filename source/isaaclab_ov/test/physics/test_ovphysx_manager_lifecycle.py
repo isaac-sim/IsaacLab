@@ -12,6 +12,7 @@ import sys
 import textwrap
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -80,6 +81,36 @@ def test_cpu_runtime_construction_does_not_enable_sticky_cpu_mode(manager_module
     manager._create_physx_instance(_fake_ovphysx_module(lambda: None), "cpu", 0)
 
     assert _FakePhysX.cpu_mode_calls == []
+
+
+def test_cpu_stage_warmup_does_not_call_gpu_warmup(monkeypatch, manager_module):
+    """Attaching a CPU stage must not invoke the runtime's GPU-only warmup."""
+    from isaaclab.physics import PhysicsManager
+
+    manager = manager_module.OvPhysxManager
+    physx = SimpleNamespace(warmup_gpu=Mock())
+    scene_backend = SimpleNamespace(setup=Mock())
+    sim = SimpleNamespace(
+        stage=Usd.Stage.CreateInMemory(),
+        cfg=SimpleNamespace(physics_prim_path="/World/physicsScene"),
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    monkeypatch.setattr(PhysicsManager, "_cfg", None)
+    monkeypatch.setattr(manager, "_physx", physx)
+    monkeypatch.setattr(manager, "_scene_data_backend", scene_backend)
+    monkeypatch.setattr(manager, "_rearm_pending_clones", lambda: None)
+    monkeypatch.setattr(manager, "_serialize_selected_stage", lambda stage: "#usda 1.0")
+    monkeypatch.setattr(manager, "_prepare_physx_for_stage_reuse", lambda: None)
+    monkeypatch.setattr(manager, "_attach_ovstage", lambda stage_usda: None)
+    monkeypatch.setattr(manager, "_replay_pending_clones", lambda runtime, requires_full_stage: None)
+    monkeypatch.setattr(manager, "dispatch_event", lambda event, payload=None: None)
+
+    manager._warmup_and_load()
+
+    physx.warmup_gpu.assert_not_called()
+    scene_backend.setup.assert_called_once_with(physx, sim.stage, "cpu")
+    assert manager._warmup_done
 
 
 @pytest.mark.parametrize(

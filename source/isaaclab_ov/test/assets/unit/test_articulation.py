@@ -9,13 +9,14 @@ from unittest.mock import Mock
 
 import torch
 import warp as wp
+from isaaclab_ov import tensor_types as TT
+from isaaclab_ov.assets import Articulation
+from isaaclab_ov.assets.articulation.articulation_data import ArticulationData
+
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
-from isaaclab_ov import tensor_types as TT
-from isaaclab_ov.assets import Articulation
-from isaaclab_ov.assets.articulation.articulation_data import ArticulationData
 
 
 def test_joint_dof_sign_resolution_traverses_instance_proxies() -> None:

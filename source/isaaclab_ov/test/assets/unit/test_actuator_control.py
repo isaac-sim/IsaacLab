@@ -9,11 +9,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import warp as wp
-
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets.articulation import actuator_control as actuator_control_module
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl
+
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 
 
 class _RecordingView:
@@ -172,6 +172,19 @@ def test_native_compute_refreshes_owned_state_before_controller() -> None:
         call.refresh_velocity(),
         call.compute(collection, 0.01),
     ]
+
+
+def test_native_reset_delegates_exact_environment_selector() -> None:
+    """Selective reset must pass the caller's environment selector unchanged."""
+    runtime = Mock()
+    env_ids = wp.array([1, 0], dtype=wp.int32, device="cpu")
+    control = object.__new__(OvPhysxActuatorControl)
+    control._native_actuator_path_active = True
+    control._actuator_runtime = runtime
+
+    control.reset_native_actuators(env_ids)
+
+    runtime.reset.assert_called_once_with(env_ids)
 
 
 def test_stage_user_command_converts_partial_environment_selector_to_sim_indices() -> None:

@@ -21,6 +21,7 @@ from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import (
 from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection_data import (  # noqa: E402
     RigidObjectCollectionData,
 )
+
 from isaaclab.utils.buffers.timestamped_buffer_warp import TimestampedBufferWarp  # noqa: E402
 
 
@@ -81,9 +82,7 @@ def test_instance_major_vector_layout_round_trips_through_body_major_binding(lib
     fused_warp = wp.from_torch(fused, dtype=wp.float32) if isinstance(fused, torch.Tensor) else fused
     restored = data._reshape_view_to_data_3d(fused_warp, 2)
 
-    expected_fused = torch.tensor(
-        [[0.0, 0.5], [10.0, 10.5], [1.0, 1.5], [11.0, 11.5], [2.0, 2.5], [12.0, 12.5]]
-    )
+    expected_fused = torch.tensor([[0.0, 0.5], [10.0, 10.5], [1.0, 1.5], [11.0, 11.5], [2.0, 2.5], [12.0, 12.5]])
     torch.testing.assert_close(wp.to_torch(fused_warp), expected_fused)
     torch.testing.assert_close(wp.to_torch(restored), public_torch)
 
