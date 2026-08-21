@@ -136,12 +136,19 @@ def bpearl_pattern(cfg: patterns_cfg.BpearlPatternCfg, device: str) -> tuple[tor
 def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
     """Lidar sensor pattern for ray casting.
 
+    Horizontal angles start at ``horizontal_fov_range[0]`` and advance by the configured
+    ``horizontal_res``. For partial scans, ``horizontal_fov_range[1]`` is included only when it lies on that
+    resolution grid. Full 360-degree scans exclude the duplicate terminal direction.
+
     Args:
         cfg: The configuration instance for the pattern.
         device: The device to create the pattern on.
 
     Returns:
         The starting positions and directions of the rays.
+
+    Raises:
+        ValueError: If ``horizontal_res`` is less than or equal to 0.
     """
     # Vertical angles
     vertical_angles = torch.linspace(
