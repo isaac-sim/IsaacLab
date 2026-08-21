@@ -91,7 +91,7 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
-   source/refs/reference_architecture/index
+   source/migration/migrating_to_isaaclab_3-0
 
 
 .. toctree::
@@ -99,6 +99,7 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/actuators
 
 
 .. toctree::
@@ -158,17 +159,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Migration Guides
-   :titlesonly:
-
-   source/migration/migrating_to_isaaclab_3-0
-   source/migration/migrating_deformables
-   source/migration/migrating_from_isaacgymenvs
-   source/migration/migrating_from_omniisaacgymenvs
-   source/migration/migrating_from_orbit
-
-.. toctree::
-   :maxdepth: 1
    :caption: Source API
 
    source/api/index
@@ -181,7 +171,6 @@ Table of Contents
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
-   source/refs/migration
    source/refs/issues
    source/refs/release_notes
    source/refs/changelog

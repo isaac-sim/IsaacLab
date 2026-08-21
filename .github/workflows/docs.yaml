@@ -7,8 +7,8 @@ name: Docs
 
 on:
   # Pushes and PRs still build current-docs (build-latest-docs). The expensive
-  # multi-version deploy is owned by the nightly cron (registered on main); see
-  # the trigger-deploy gate below — develop / release pushes no longer deploy here.
+  # multi-version deploy is owned by the nightly cron on the repository default
+  # branch; develop / release pushes no longer deploy here.
   push:
     branches:
       - main
@@ -41,10 +41,9 @@ jobs:
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-      # Multi-version deploy is owned by the nightly cron (registered on main).
-      # schedule / workflow_dispatch only fire from the default branch (main), so on
-      # this branch these are always false: develop / release / feature pushes and PRs
-      # build current-docs only and never deploy here.
+      # Multi-version deploy is owned by the nightly cron on the repository
+      # default branch. Develop / release / feature pushes and PRs build
+      # current-docs only and never deploy here.
       if: "${{ github.repository == env.REPO_NAME && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
@@ -68,7 +67,7 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Build current version docs
@@ -101,24 +100,36 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra test
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv sync --extra test
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Generate multi-version docs
       working-directory: ./docs
       env:
         # "deploy" branches build the full set of versions so every page
-        # has a complete version dropdown: main, develop, tags >= v2.0.0
-        # (including pre-release suffixes like -beta or -rc1). v1.x tags and
-        # most release/ branches are excluded; release/3.0.0-beta2 is included
-        # explicitly to surface it in the version switcher.
-        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0-beta2)$'
+        # has a complete version dropdown: main, develop, release/3.0.0, and
+        # tags >= v2.0.0 (including pre-release suffixes like -beta or -rc1).
+        # v1.x tags and other release branches are excluded.
+        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0)$'
         SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
         git for-each-ref --format="%(refname:short)" refs/heads/ | xargs -r git branch -D
         make multi-docs
+
+    - name: Set default docs version
+      working-directory: ./docs
+      env:
+        DOCS_DEFAULT_REF: v3.0.0-beta2
+      run: |
+        test -n "$DOCS_DEFAULT_REF"
+        test -f "_build/$DOCS_DEFAULT_REF/index.html" || {
+          echo "::error::Default docs ref '$DOCS_DEFAULT_REF' was not built"
+          exit 1
+        }
+        sed "s|url=\./[^\"]*/index.html|url=./$DOCS_DEFAULT_REF/index.html|" \
+          _redirect/index.html > _build/index.html
 
     - name: Upload GitHub Pages artifact
       uses: actions/upload-pages-artifact@v4

@@ -21,8 +21,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -314,7 +314,6 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
 
 def test_collect_asset_cfgs_orders_sensors_last():
     """Non-sensor cfgs precede sensor cfgs in _collect_asset_cfgs output."""
-    from isaaclab.sensors import ContactSensorCfg
 
     scene = object.__new__(InteractiveScene)
     sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
@@ -327,33 +326,6 @@ def test_collect_asset_cfgs_orders_sensors_last():
 
     # Sensors come after non-sensor entities so they can bind to spawned bodies.
     assert cfgs.index(body) < cfgs.index(sensor)
-
-
-def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
-    """Scene aggregation must OR visualizer and sensor-renderer requirements onto sim context.
-
-    Replaces the old test that asserted a clone-time visualizer hook was installed from
-    requirements. The hook is gone; the only remaining behavior is publishing the merged
-    :class:`SceneDataRequirement` to the simulation context.
-    """
-    scene = object.__new__(InteractiveScene)
-    scene.physics_backend = "physx"
-    scene.stage = object()
-    scene._sensors = {
-        "cam": SimpleNamespace(cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="newton_warp")))
-    }
-
-    posted: list = []
-    scene.sim = SimpleNamespace(
-        get_scene_data_requirements=lambda: SceneDataRequirement(),
-        update_scene_data_requirements=posted.append,
-    )
-
-    scene._aggregate_scene_data_requirements({"rerun"})
-
-    assert len(posted) == 1
-    merged = posted[0]
-    assert merged.requires_newton_model
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

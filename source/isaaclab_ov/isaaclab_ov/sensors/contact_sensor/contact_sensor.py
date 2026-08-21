@@ -409,6 +409,7 @@ class ContactSensor(BaseContactSensor):
                 self._data._net_forces_w,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
             ],
             outputs=[
                 self._data._current_air_time,

@@ -751,6 +751,23 @@ def test_get_attribute_cpu_only_property_returns_cpu_buffer_on_gpu_sim():
     assert str(buf.device) == "cpu"
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        name
+        for name in ("articulation_shape_friction_and_restitution", "rigid_body_shape_friction_and_restitution")
+        if hasattr(TensorType, name.upper())
+    ],
+)
+def test_shape_material_property_returns_cpu_buffer_on_gpu_sim(name: str):
+    """Shape material properties must use their CPU-native bindings on GPU simulations."""
+    view = _make_view(n=3, device="cuda:0")
+
+    buf = view.get_attribute(name)
+
+    assert str(buf.device) == "cpu"
+
+
 def test_binding_for_is_idempotent_and_unguarded():
     view = _make_view(n=3)
     # Returns a binding even for a read-only attribute (raw access bypasses the write guard)...
