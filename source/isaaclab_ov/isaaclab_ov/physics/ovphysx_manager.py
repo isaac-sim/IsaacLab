@@ -37,6 +37,7 @@ from isaaclab.scene_data.deformable_discovery import (
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
+from isaaclab_ov.stage import create_ovstage
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -596,7 +597,7 @@ class OvPhysxManager(PhysicsManager):
         """Populate an OVStage from USDA text and attach it to the runtime."""
         import ovstage  # noqa: PLC0415
 
-        stage = ovstage.Stage("isaaclab")
+        stage = create_ovstage("isaaclab")
         try:
             ovstage.population.open_usd_from_string(
                 stage,

@@ -12,13 +12,19 @@ from pxr import Sdf, Usd, UsdShade
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
 
 
 @clone
-def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfaceCfg) -> Usd.Prim:
+def spawn_preview_surface(
+    prim_path: str,
+    cfg: visual_materials_cfg.PreviewSurfaceCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
     """Create a preview surface prim and override the settings with the given config.
 
     A preview surface is a physically-based surface that handles simple shaders while supporting
@@ -44,43 +50,26 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # get stage handle
+    del translation, orientation
     stage = get_current_stage()
-
-    # spawn material if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        material = UsdShade.Material.Define(stage, prim_path)
-        shader = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")
-        shader.CreateIdAttr("UsdPreviewSurface")
-        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f)
-        shader.CreateInput("emissiveColor", Sdf.ValueTypeNames.Color3f)
-        shader.CreateInput("roughness", Sdf.ValueTypeNames.Float)
-        shader.CreateInput("metallic", Sdf.ValueTypeNames.Float)
-        shader.CreateInput("opacity", Sdf.ValueTypeNames.Float)
-        surface = shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
-        displacement = shader.CreateOutput("displacement", Sdf.ValueTypeNames.Token)
-        material.CreateSurfaceOutput().ConnectToSource(surface)
-        material.CreateDisplacementOutput().ConnectToSource(displacement)
-    else:
+    if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
-    # obtain prim
-    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
-    # check prim is valid
-    if not prim.IsValid():
-        raise ValueError(f"Failed to create preview surface material at path: '{prim_path}'.")
-    # apply properties
-    cfg = cfg.to_dict()  # type: ignore
-    del cfg["func"]
-    for attr_name, attr_value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=True)
-
-    return prim
+    material = UsdShade.Material.Define(stage, prim_path)
+    shader = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")
+    shader.CreateIdAttr("UsdPreviewSurface")
+    material.CreateSurfaceOutput().ConnectToSource(shader.CreateOutput("surface", Sdf.ValueTypeNames.Token))
+    material.CreateDisplacementOutput().ConnectToSource(shader.CreateOutput("displacement", Sdf.ValueTypeNames.Token))
+    _author_cfg_inputs(shader.GetPrim(), cfg, camel_case=True)
+    return shader.GetPrim()
 
 
 @clone
 def spawn_from_mdl_file(
-    prim_path: str, cfg: visual_materials_cfg.MdlFileCfg | visual_materials_cfg.GlassMdlCfg
+    prim_path: str,
+    cfg: visual_materials_cfg.MdlFileCfg | visual_materials_cfg.GlassMdlCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
 ) -> Usd.Prim:
     """Load a material from its MDL file and override the settings with the given config.
 
@@ -107,35 +96,31 @@ def spawn_from_mdl_file(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # get stage handle
+    del translation, orientation
     stage = get_current_stage()
-
-    # spawn material if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        # extract material name from path
-        material_name = cfg.mdl_path.split("/")[-1].split(".")[0]
-        mdl_url = cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR)
-        material = UsdShade.Material.Define(stage, prim_path)
-        shader = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")
-        shader.SetSourceAsset(Sdf.AssetPath(mdl_url), "mdl")
-        shader.SetSourceAssetSubIdentifier(material_name, "mdl")
-        shader_out = shader.CreateOutput("out", Sdf.ValueTypeNames.Token)
-        shader_out.SetRenderType("material")
-        material.CreateSurfaceOutput("mdl").ConnectToSource(shader_out)
-        material.CreateDisplacementOutput("mdl").ConnectToSource(shader_out)
-        material.CreateVolumeOutput("mdl").ConnectToSource(shader_out)
-    else:
+    if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-    # obtain prim
-    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
-    # check prim is valid
-    if not prim.IsValid():
-        raise ValueError(f"Failed to create MDL material at path: '{prim_path}'.")
-    # apply properties
-    cfg = cfg.to_dict()  # type: ignore
-    del cfg["func"]
-    del cfg["mdl_path"]
-    for attr_name, attr_value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=False)
-    # return prim
-    return prim
+
+    material_name = cfg.mdl_path.rsplit("/", 1)[-1].removesuffix(".mdl")
+    material = UsdShade.Material.Define(stage, prim_path)
+    shader = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")
+    shader.SetSourceAsset(Sdf.AssetPath(cfg.mdl_path.format(NVIDIA_NUCLEUS_DIR=NVIDIA_NUCLEUS_DIR)), "mdl")
+    shader.SetSourceAssetSubIdentifier(material_name, "mdl")
+    output = shader.CreateOutput("out", Sdf.ValueTypeNames.Token)
+    output.SetRenderType("material")
+    material.CreateSurfaceOutput("mdl").ConnectToSource(output)
+    material.CreateDisplacementOutput("mdl").ConnectToSource(output)
+    material.CreateVolumeOutput("mdl").ConnectToSource(output)
+    _author_cfg_inputs(shader.GetPrim(), cfg, camel_case=False, ignored=("mdl_path",))
+    return shader.GetPrim()
+
+
+def _author_cfg_inputs(prim: Usd.Prim, cfg, *, camel_case: bool, ignored: tuple[str, ...] = ()) -> None:
+    """Author material-specific config fields as shader inputs."""
+    ignored = (*ignored, "func", "visible", "semantic_tags", "copy_from_source", "spawn_path")
+    for name, value in cfg.to_dict().items():
+        if name not in ignored and value is not None:
+            input_name = to_camel_case(name, to="cC") if camel_case else name
+            if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:
+                prim.CreateAttribute(f"inputs:{input_name}", Sdf.ValueTypeNames.Color3f)
+            safe_set_attribute_on_usd_prim(prim, f"inputs:{name}", value, camel_case=camel_case)

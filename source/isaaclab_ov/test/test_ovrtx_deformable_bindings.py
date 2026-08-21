@@ -27,6 +27,9 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+
+    # ovstage is an unconditional dependency of isaaclab_ov, so it is importable here.
+    import ovstage  # noqa: E402
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
@@ -546,3 +549,44 @@ def test_update_geometries_writes_one_slice_per_cable(monkeypatch: pytest.Monkey
     # only guard against that -- the downgrade does not raise, it just renders from a stale copy.
     assert renderer._cable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert renderer._cable_points_binding.write_kwargs["cuda_stream"] == 1234
+
+
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="requires a CUDA device")
+def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
+    """The ovstage points write hands ``particle_q`` slices to ovstage as CUDA DLTensors, without a host copy."""
+    renderer, _backend = _make_renderer_without_backend(device="cuda:0")
+    particle_q = wp.array(
+        [
+            wp.vec3f(-1.0, -1.0, -1.0),
+            wp.vec3f(1.0, 2.0, 3.0),
+            wp.vec3f(4.0, 5.0, 6.0),
+            wp.vec3f(7.0, 8.0, 9.0),
+        ],
+        dtype=wp.vec3f,
+        device="cuda:0",
+    )
+    writes: list[dict] = []
+
+    def _write(query, attribute, **kwargs):
+        writes.append({"query": query, "attribute": attribute, **kwargs})
+        return SimpleNamespace(wait=lambda: None)
+
+    renderer._stage = SimpleNamespace(write_attribute=_write)
+    renderer._current_ordinal = 7
+
+    renderer._write_particle_q_slices_ovstage("points_query", particle_q, [1], [3])
+
+    assert len(writes) == 1
+    assert writes[0]["attribute"] == "points"
+    assert writes[0]["is_array"] is True
+    # The slices alias ``particle_q``, so ovstage is handed the producing Warp stream to order its
+    # read against, rather than the caller blocking the host on a device synchronize.
+    assert writes[0]["cuda_stream"] == wp.get_stream("cuda:0").cuda_stream
+    tensors = writes[0]["tensors"]
+    assert len(tensors) == 1
+    # A zero-copy device view: the descriptor points straight at the slice's own CUDA buffer with
+    # the trailing component axis folded into point3f's three lanes.
+    assert tensors[0].device.device_type.value == ovstage.DLDeviceType.kDLCUDA
+    assert tensors[0].data == particle_q[1:4].ptr
+    assert tensors[0].shape_tuple == (3,)
+    assert tensors[0].dtype.lanes == 3

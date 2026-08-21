@@ -34,6 +34,7 @@ from .isaac_rtx_renderer_utils import (
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
 )
+from .visual_material import FabricVisualMaterialWriter
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,11 @@ class IsaacRtxRenderer(BaseRenderer):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    @property
+    def visual_material_writer(self):
+        """Write material channels directly through Fabric."""
+        return FabricVisualMaterialWriter
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.

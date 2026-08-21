@@ -15,13 +15,10 @@ From IsaacGymEnvs
 
 `IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.
 As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through
-the key differences between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview
-Release and Isaac Sim.
-
-.. note::
-
-  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
-  in the future releases.
+the key differences between IsaacGymEnvs and the current Isaac Lab APIs, as well as differences between Isaac Gym
+Preview Release and Isaac Sim. The maintained
+:isaaclab-source:`Cartpole direct environment <source/isaaclab_tasks/isaaclab_tasks/core/cartpole>` is the canonical
+complete example for the patterns used in this guide.
 
 
 Task Config Setup
@@ -37,18 +34,21 @@ Below is an example skeleton of a task config class:
 
 .. code-block:: python
 
+   from isaaclab.assets import ArticulationCfg
    from isaaclab.envs import DirectRLEnvCfg
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sim import SimulationCfg
+   from isaaclab.utils.configclass import configclass
+   from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
    @configclass
    class MyEnvCfg(DirectRLEnvCfg):
       # simulation
       sim: SimulationCfg = SimulationCfg()
       # robot
-      robot_cfg: ArticulationCfg = ArticulationCfg()
+      robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
       # scene
-      scene: InteractiveSceneCfg = InteractiveSceneCfg()
+      scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0)
       # env
       decimation = 2
       episode_length_s = 5.0
@@ -73,22 +73,24 @@ at ``1/60`` seconds. The ``decimation`` parameter is a task parameter that contr
 take for each task (or RL) step, replacing the ``controlFrequencyInv`` parameter in IsaacGymEnvs.
 Thus, the same setup in Isaac Lab will become ``dt=1/120`` and ``decimation=2``.
 
-In Isaac Sim, physx simulation parameters such as ``num_position_iterations``, ``num_velocity_iterations``,
-``contact_offset``, ``rest_offset``, ``bounce_threshold_velocity``, ``max_depenetration_velocity`` can all
-be specified on a per-actor basis. These parameters have been moved from the physx simulation config
-to each individual articulation and rigid body config.
+In Isaac Lab, actor-specific PhysX parameters such as solver iteration counts, ``contact_offset``, ``rest_offset``,
+and ``max_depenetration_velocity`` belong to the articulation or rigid-body schema configuration. Scene-wide settings,
+including ``bounce_threshold_velocity``, solver-iteration clamps, and GPU buffer sizes, remain on
+:class:`~isaaclab_physx.physics.PhysxCfg`.
 
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~isaaclab.sim.PhysxCfg` class provides access for
-setting the GPU buffer dimensions.
+and the number of actors in the environment. The :class:`~isaaclab_physx.physics.PhysxCfg` class provides access for
+setting the GPU buffer dimensions. Use :class:`~isaaclab_physx.physics.PhysxCfg` directly for a PhysX-only parity
+port. For an environment that supports more than one backend, place the backend configurations in a
+:class:`~isaaclab_tasks.utils.PresetCfg` and assign that preset to ``SimulationCfg.physics``.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
 |.. code-block:: yaml                                          |.. code-block:: python                                             |
 |                                                              |                                                                   |
-|  # IsaacGymEnvs                                              | # IsaacLab                                                        |
+|  # IsaacGymEnvs                                              | # Isaac Lab                                                       |
 |  sim:                                                        | sim: SimulationCfg = SimulationCfg(                               |
 |                                                              |    device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>"   |
 |    dt: 0.0166 # 1/60 s                                       |    dt=1 / 120,                                                    |
@@ -96,7 +98,7 @@ setting the GPU buffer dimensions.
 |    up_axis: "z"                                              |    # up axis will always be Z in isaac sim                        |
 |    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    # use_gpu_pipeline is deduced from the device                  |
 |    gravity: [0.0, 0.0, -9.81]                                |    gravity=(0.0, 0.0, -9.81),                                     |
-|    physx:                                                    |    physx: PhysxCfg = PhysxCfg(                                    |
+|    physx:                                                    |    physics=PhysxCfg(                                              |
 |      num_threads: ${....num_threads}                         |        # num_threads is no longer needed                          |
 |      solver_type: ${....solver_type}                         |        solver_type=1,                                             |
 |      use_gpu: ${contains:"cuda",${....sim_device}}           |        # use_gpu is deduced from the device                       |
@@ -113,6 +115,33 @@ setting the GPU buffer dimensions.
 |                                                              | ))                                                                |
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 
+The maintained Cartpole configuration demonstrates the current multi-backend preset pattern. The PhysX variants
+preserve the natural first migration target from Isaac Gym, while the Newton variants can be selected after the task
+has been validated for those solvers:
+
+.. code-block:: python
+
+   from isaaclab.physics import PhysxAutoCfg
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ov.physics import OvPhysxCfg
+   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
+
+   @configclass
+   class CartpolePhysicsCfg(PresetCfg):
+       isaacsim_physx: PhysxCfg = PhysxCfg()
+       ovphysx: OvPhysxCfg = OvPhysxCfg()
+       physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+       newton_mjwarp: NewtonCfg = NewtonCfg(
+           solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
+       )
+       default = newton_mjwarp
+
+   sim: SimulationCfg = SimulationCfg(dt=1 / 120, physics=CartpolePhysicsCfg())
+
+Select a validated physics preset when launching the task, for example ``physics=physx`` or
+``physics=newton_mjwarp``. A preset name is available only when the environment defines it.
+
 Scene Config
 ------------
 
@@ -124,7 +153,7 @@ such as the number of environments and the spacing between environments. Each ta
 |                                                              |                                                                   |
 |.. code-block:: yaml                                          |.. code-block:: python                                             |
 |                                                              |                                                                   |
-|  # IsaacGymEnvs                                              | # IsaacLab                                                        |
+|  # IsaacGymEnvs                                              | # Isaac Lab                                                       |
 |  env:                                                        | scene: InteractiveSceneCfg = InteractiveSceneCfg(                 |
 |    numEnvs: ${resolve_default:512,${...num_envs}}            |    num_envs=512,                                                  |
 |    envSpacing: 4.0                                           |    env_spacing=4.0)                                               |
@@ -169,7 +198,7 @@ they should be moved to the RL config file in Isaac Lab.
 +--------------------------+----------------------------+
 |.. code-block:: yaml      |.. code-block:: yaml        |
 |                          |                            |
-|  # IsaacGymEnvs          | # IsaacLab                 |
+|  # IsaacGymEnvs          | # Isaac Lab                |
 |  env:                    | params:                    |
 |    clipObservations: 5.0 |   env:                     |
 |    clipActions: 1.0      |     clip_observations: 5.0 |
@@ -199,10 +228,11 @@ adding any other optional objects into the scene, such as lights.
 |   def create_sim(self):                                                      |   def _setup_scene(self):                                              |
 |     # set the up axis to be z-up                                             |     self.cartpole = Articulation(self.cfg.robot_cfg)                   |
 |     self.up_axis = self.cfg["sim"]["up_axis"]                                |     # add ground plane                                                 |
-|                                                                              |     spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg() |
-|     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # clone, filter, and replicate                                     |
-|                                     self.physics_engine, self.sim_params)    |     # assets are built inside ReplicateSession                         |
-|     self._create_ground_plane()                                              |     self.scene.filter_collisions(global_prim_paths=[])                 |
+|                                                                              |     spawn_ground_plane(                                                |
+|                                                                              |         prim_path="/World/ground", cfg=GroundPlaneCfg())               |
+|     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # create and apply a clone plan                                    |
+|                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(...)                           |
+|     self._create_ground_plane()                                              |     cloner.replicate(plan, stage=self.scene.stage)                     |
 |     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
@@ -214,36 +244,17 @@ adding any other optional objects into the scene, such as lights.
 Ground Plane
 ------------
 
-In Isaac Lab, most of the environment creation process has been simplified into configs with the :class:`~isaaclab.utils.configclass` module.
-
-The ground plane can be defined using the :class:`~terrains.TerrainImporterCfg` class.
+For a simple plane, spawn the ground directly in ``_setup_scene()``:
 
 .. code-block:: python
 
-   from isaaclab.terrains import TerrainImporterCfg
-
-   terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-    )
-
-The terrain can then be added to the scene in ``_setup_scene(self)`` by referencing the ``TerrainImporterCfg`` object:
-
-.. code-block::python
+   from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 
    def _setup_scene(self):
-      ...
-      self.cfg.terrain.num_envs = self.scene.cfg.num_envs
-      self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
-      self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
+       spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+
+Use :class:`~terrains.TerrainImporterCfg` instead when the task needs generated or imported terrain rather than a
+single plane.
 
 
 Actors
@@ -257,53 +268,20 @@ Each Articulation and Rigid Body actor can also have its own config class. The
 :class:`~isaaclab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
 including file path, simulation parameters, actuator properties, and initial states.
 
-.. code-block::python
+.. code-block:: python
 
-   from isaaclab.actuators import ImplicitActuatorCfg
    from isaaclab.assets import ArticulationCfg
+   from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
-   CARTPOLE_CFG = ArticulationCfg(
-       spawn=sim_utils.UsdFileCfg(
-           usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
-           rigid_props=sim_utils.RigidBodyPropertiesCfg(
-               rigid_body_enabled=True,
-               max_linear_velocity=1000.0,
-               max_angular_velocity=1000.0,
-               max_depenetration_velocity=100.0,
-               enable_gyroscopic_forces=True,
-           ),
-           articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-               enabled_self_collisions=False,
-               solver_position_iteration_count=4,
-               solver_velocity_iteration_count=0,
-               sleep_threshold=0.005,
-               stabilization_threshold=0.001,
-           ),
-       ),
-       init_state=ArticulationCfg.InitialStateCfg(
-           pos=(0.0, 0.0, 2.0), joint_pos={"slider_to_cart": 0.0, "cart_to_pole": 0.0}
-       ),
-       actuators={
-           "cart_actuator": ImplicitActuatorCfg(
-               joint_names_expr=["slider_to_cart"],
-               joint_effort_limit=400.0,
-               joint_velocity_limit=100.0,
-               stiffness=0.0,
-               damping=10.0,
-           ),
-           "pole_actuator": ImplicitActuatorCfg(
-               joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, joint_velocity_limit=100.0, stiffness=0.0, damping=0.0
-           ),
-       },
-   )
+   robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene by
-specifying the path to the robot file. In addition, :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg` can
-be used to specify simulation properties for the rigid bodies in the articulation.
-Similarly, the :class:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify
-simulation properties for the articulation. Joint properties are now specified as part of the ``actuators``
-dictionary using :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped into
-regex expressions or provided as a list of names or expressions.
+specifying the path to the robot file. Reuse an existing asset configuration when one is available, as shown above.
+For a custom asset, use backend-portable schema base classes from :mod:`isaaclab.sim.schemas` for common properties
+and backend-specific schema classes from :mod:`isaaclab_physx.sim.schemas` or
+:mod:`isaaclab_newton.sim.schemas` only for solver-specific settings. See :ref:`schema-cfgs` for the current class
+mapping. Joint properties are specified in the ``actuators`` dictionary, for example with
+:class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped using regular expressions.
 
 Actors are added to the scene by simply calling ``self.cartpole = Articulation(self.cfg.robot_cfg)``,
 where ``self.cfg.robot_cfg`` is an :class:`~assets.ArticulationCfg` object. Once initialized, they should also
@@ -369,24 +347,31 @@ please refer to the :ref:`migrating-from-isaacgymenvs-comparing-simulation` sect
 Cloner
 ------
 
-Isaac Sim introduced a concept of ``Cloner``, which is a class designed for replication during the scene creation process.
+Isaac Lab provides :mod:`isaaclab.cloner` for replication during the scene creation process.
 In IsaacGymEnvs, scenes had to be created by looping through the number of environments.
 Within each iteration, actors were added to each environment and their handles had to be cached.
-Isaac Lab eliminates the need for looping through the environments by using the ``Cloner`` APIs.
+Isaac Lab eliminates the need for that loop by building one source environment and applying a clone plan.
 The scene creation process is as follow:
 
 #. Construct a single environment (what the scene would look like if number of environments = 1)
-#. Use ``cloner.ReplicateSession`` to replicate the single environment
-#. Call ``filter_collisions()`` to filter out collision between environments (if required)
+#. Create a plan with :func:`isaaclab.cloner.clone_plan_from_env_0` and apply it with
+   :func:`isaaclab.cloner.replicate`
+#. Call ``filter_collisions()`` for PhysX environments when collision filtering is required
 
 
 .. code-block:: python
 
-   # construct and replicate a single environment with the Cartpole robot
-   with cloner.ReplicateSession():
-       self.cartpole = Articulation(self.cfg.robot_cfg)
-   # filter collisions
-   self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
+   self.cartpole = Articulation(self.cfg.robot_cfg)
+
+   src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+   positions = cloner.grid_transforms(
+       self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device
+   )[0]
+   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, positions)
+   cloner.replicate(plan, stage=self.scene.stage)
+
+   if "physx" in self.scene.physics_backend:
+       self.scene.filter_collisions(global_prim_paths=[])
 
 
 Accessing States from Simulation
@@ -405,8 +390,9 @@ This approach eliminates the need of retrieving body handles to slice states for
    self._object = RigidObject(self.cfg.object_cfg)
 
 
-We have also removed ``acquire`` and ``refresh`` APIs in Isaac Lab. Physics states can be directly applied or retrieved
-using APIs defined for the articulations and rigid objects.
+Isaac Lab removes the ``acquire`` and ``refresh`` calls. Physics states are read from asset data objects and written
+through APIs on the articulation or rigid object. Tensor-valued data fields are
+:class:`~isaaclab.utils.warp.ProxyArray` objects; select the framework view explicitly with ``.torch`` or ``.warp``.
 
 APIs provided in Isaac Lab no longer require explicit wrapping and un-wrapping of underlying buffers.
 APIs can now work with tensors directly for reading and writing data.
@@ -416,30 +402,27 @@ APIs can now work with tensors directly for reading and writing data.
 +------------------------------------------------------------------+-----------------------------------------------------------------+
 |.. code-block:: python                                            |.. code-block:: python                                           |
 |                                                                  |                                                                 |
-|   dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim) |   self.joint_pos = self._robot.data.joint_pos                   |
-|   self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)        |   self.joint_vel = self._robot.data.joint_vel                   |
+|   dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim) |   self.joint_pos = self._robot.data.joint_pos.torch             |
+|   self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)        |   self.joint_vel = self._robot.data.joint_vel.torch             |
 |   self.gym.refresh_dof_state_tensor(self.sim)                    |                                                                 |
 +------------------------------------------------------------------+-----------------------------------------------------------------+
 
 Note some naming differences between APIs in Isaac Gym Preview Release and Isaac Lab. Most ``dof`` related APIs have been
 named to ``joint`` in Isaac Lab.
-APIs in Isaac Lab also no longer follow the explicit ``_tensors`` or ``_tensor_indexed`` suffixes in naming.
-Indexed versions of APIs now happen implicitly through the optional ``indices`` parameter.
-
-Most APIs in Isaac Lab also provide
-the option to specify an ``indices`` parameter, which can be used when reading or writing data for a subset
-of environments. Note that when setting states with the ``indices`` parameter, the shape of the states buffer
-should match with the dimension of the ``indices`` list.
+Write and target APIs make selection explicit. Use an ``_index`` method with ``env_ids`` and optional ``joint_ids``
+for integer selection, or the corresponding ``_mask`` method for boolean selection. The leading dimension of the
+value buffer must match the selected environments. Position and velocity writes can be issued independently, which
+avoids reading or rewriting state components that did not change.
 
 +---------------------------------------------------------------------------+---------------------------------------------------------------+
 | IsaacGymEnvs                                                              | Isaac Lab                                                     |
 +---------------------------------------------------------------------------+---------------------------------------------------------------+
 |.. code-block:: python                                                     |.. code-block:: python                                         |
 |                                                                           |                                                               |
-|   env_ids_int32 = env_ids.to(dtype=torch.int32)                           |   self._robot.write_joint_state_to_sim(joint_pos, joint_vel,  |
-|   self.gym.set_dof_state_tensor_indexed(self.sim,                         |                                    joint_ids, env_ids)        |
-|       gymtorch.unwrap_tensor(self.dof_state),                             |                                                               |
-|       gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))          |                                                               |
+|   env_ids_int32 = env_ids.to(dtype=torch.int32)                           |   self._robot.write_joint_position_to_sim_index(              |
+|   self.gym.set_dof_state_tensor_indexed(self.sim,                         |       position=joint_pos, env_ids=env_ids)                    |
+|       gymtorch.unwrap_tensor(self.dof_state),                             |   self._robot.write_joint_velocity_to_sim_index(              |
+|       gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))          |       velocity=joint_vel, env_ids=env_ids)                    |
 +---------------------------------------------------------------------------+---------------------------------------------------------------+
 
 Quaternion Convention
@@ -483,8 +466,8 @@ ordering for the joints in a given kinematic tree.
 However, Isaac Gym Preview Release assumed a depth-first ordering for joints in the kinematic tree.
 This means that indexing joints based on their ordering may be different in IsaacGymEnvs and Isaac Lab.
 
-In Isaac Lab, the list of joint names can be retrieved with ``Articulation.data.joint_names``, which will
-also correspond to the ordering of the joints in the Articulation.
+In Isaac Lab, retrieve the ordered names from ``Articulation.joint_names`` and resolve task joints by name with
+:meth:`~assets.Articulation.find_joints`. Do not carry positional joint indices over from IsaacGymEnvs.
 
 
 Creating a New Environment
@@ -497,36 +480,35 @@ Each environment in Isaac Lab should be in its own directory following this stru
     my_environment/
         - agents/
             - __init__.py
-            - rl_games_ppo_cfg.py
+            - rl_games_ppo_cfg.yaml
         - __init__.py
-        my_env.py
+        - my_env.py
+        - my_env_cfg.py
 
 * ``my_environment`` is the root directory of the task.
 * ``my_environment/agents`` is the directory containing all RL config files for the task. Isaac Lab supports multiple RL libraries that can each have its own individual config file.
-* ``my_environment/__init__.py`` is the main file that registers the environment with the Gymnasium interface. This allows the training and inferencing scripts to find the task by its name. The content of this file should be as follow:
+* ``my_environment/__init__.py`` registers the environment with Gymnasium so training and inference commands can
+  find the task by name. Register the environment and configuration by module path so importing the package does not
+  eagerly import the implementation:
 
 .. code-block:: python
 
    import gymnasium as gym
 
    from . import agents
-   from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
-
-   ##
-   # Register Gym environments.
-   ##
-
    gym.register(
-       id="Isaac-Cartpole-Direct",
-       entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
+       id="Isaac-My-Task-Direct",
+       entry_point=f"{__name__}.my_env:MyEnv",
        disable_env_checker=True,
        kwargs={
-           "env_cfg_entry_point": CartpoleEnvCfg,
-           "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml"
+           "env_cfg_entry_point": f"{__name__}.my_env_cfg:MyEnvCfg",
+           "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+           "default_agent": "rl_games",
        },
    )
 
-* ``my_environment/my_env.py`` is the main python script that implements the task logic and task config class for the environment.
+* ``my_environment/my_env.py`` implements the environment logic.
+* ``my_environment/my_env_cfg.py`` defines the environment, simulation preset, scene, and asset configurations.
 
 
 Task Logic
@@ -553,11 +535,11 @@ By default, Isaac Lab follows the following flow in logic:
 |                                  |     |-- _get_observations()      |
 +----------------------------------+----------------------------------+
 
-In Isaac Lab, we also separate the ``pre_physics_step`` API for processing actions from the policy with
-the ``apply_action`` API, which sets the actions into the simulation. This provides more flexibility in controlling
+In Isaac Lab, ``_pre_physics_step()`` processes actions from the policy and ``_apply_action()`` writes targets into
+the simulation. This provides more flexibility in controlling
 when actions should be written to simulation when ``decimation`` is used.
-``pre_physics_step`` will be called once per step before stepping simulation.
-``apply_actions`` will be called ``decimation`` number of times for each RL step, once before each simulation step call.
+``_pre_physics_step()`` is called once per environment step.
+``_apply_action()`` is called ``decimation`` times for each environment step, once before each simulation step.
 
 With this approach, resets are performed based on actions from the current step instead of the previous step.
 Observations will also be computed with the correct states after resets.
@@ -570,13 +552,16 @@ We have also performed some renamings of APIs:
 * ``compute_observations(self)`` --> ``_get_observations(self)`` - ``_get_observations()`` should now return a dictionary ``{"policy": obs}``
 * ``compute_reward(self)`` --> ``_get_rewards(self)`` - ``_get_rewards()`` should now return the reward buffer
 * ``post_physics_step(self)`` --> moved to the base class
-* In addition, Isaac Lab requires the implementation of ``_is_done(self)``, which should return two buffers: the ``reset`` buffer and the ``time_out`` buffer.
+* In addition, Isaac Lab requires ``_get_dones(self)``, which returns the ``terminated`` and ``time_out`` buffers.
 
 
 Putting It All Together
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The Cartpole environment is shown here in completion to fully show the comparison between the IsaacGymEnvs implementation and the Isaac Lab implementation.
+The following sections compare the IsaacGymEnvs Cartpole with the current Isaac Lab implementation. For the complete,
+executable source, use the maintained
+:isaaclab-source:`Cartpole environment configuration <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py>`
+and :isaaclab-source:`Cartpole environment <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py>`.
 
 Task Config
 -----------
@@ -590,15 +575,17 @@ Task Config
 | name: Cartpole                                         | class CartpoleEnvCfg(DirectRLEnvCfg):                               |
 |                                                        |                                                                     |
 | physics_engine: ${..physics_engine}                    |     # simulation                                                    |
-|                                                        |     sim: SimulationCfg = SimulationCfg(dt=1 / 120)                  |
+|                                                        |     sim: SimulationCfg = SimulationCfg(                             |
+|                                                        |         dt=1 / 120, physics=CartpolePhysicsCfg())                   |
 | # if given, will override the device setting in gym.   |     # robot                                                         |
 | env:                                                   |     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(              |
-|   numEnvs: ${resolve_default:512,${...num_envs}}       |         prim_path="/World/envs/env_.*/Robot")                       |
+|   numEnvs: ${resolve_default:512,${...num_envs}}       |         prim_path="{ENV_REGEX_NS}/Robot")                           |
 |   envSpacing: 4.0                                      |     cart_dof_name = "slider_to_cart"                                |
 |   resetDist: 3.0                                       |     pole_dof_name = "cart_to_pole"                                  |
 |   maxEffort: 400.0                                     |     # scene                                                         |
 |                                                        |     scene: InteractiveSceneCfg = InteractiveSceneCfg(               |
-|   clipObservations: 5.0                                |         num_envs=4096, env_spacing=4.0, replicate_physics=True)     |
+|   clipObservations: 5.0                                |         num_envs=4096, env_spacing=4.0, replicate_physics=True,     |
+|                                                        |         clone_in_fabric=True)                                       |
 |   clipActions: 1.0                                     |     # env                                                           |
 |                                                        |     decimation = 2                                                  |
 |   asset:                                               |     episode_length_s = 5.0                                          |
@@ -608,19 +595,19 @@ Task Config
 |   enableCameraSensors: False                           |     state_space = 0                                                 |
 |                                                        |     # reset                                                         |
 | sim:                                                   |     max_cart_pos = 3.0                                              |
-|   dt: 0.0166 # 1/60 s                                  |     initial_pole_angle_range = [-0.25, 0.25]                        |
-|   substeps: 2                                          |     # reward scales                                                 |
+|   dt: 0.0166 # 1/60 s                                  |     initial_cart_position_range = (-1.0, 1.0)  # [m]                |
+|   substeps: 2                                          |     initial_cart_velocity_range = (-0.5, 0.5)  # [m/s]              |
 |   up_axis: "z"                                         |     rew_scale_alive = 1.0                                           |
 |   use_gpu_pipeline: ${eq:${...pipeline},"gpu"}         |     rew_scale_terminated = -2.0                                     |
 |   gravity: [0.0, 0.0, -9.81]                           |     rew_scale_pole_pos = -1.0                                       |
 |   physx:                                               |     rew_scale_cart_vel = -0.01                                      |
 |     num_threads: ${....num_threads}                    |     rew_scale_pole_vel = -0.005                                     |
-|     solver_type: ${....solver_type}                    |                                                                     |
-|     use_gpu: ${contains:"cuda",${....sim_device}}      |                                                                     |
+|     solver_type: ${....solver_type}                    |     initial_pole_angle_range = (                                    |
+|     use_gpu: ${contains:"cuda",${....sim_device}}      |         -0.25 * math.pi, 0.25 * math.pi)  # [rad]                   |
 |     num_position_iterations: 4                         |                                                                     |
-|     num_velocity_iterations: 0                         |                                                                     |
+|     num_velocity_iterations: 0                         |     initial_pole_velocity_range = (                                 |
 |     contact_offset: 0.02                               |                                                                     |
-|     rest_offset: 0.001                                 |                                                                     |
+|     rest_offset: 0.001                                 |         -0.25 * math.pi, 0.25 * math.pi)  # [rad/s]                 |
 |     bounce_threshold_velocity: 0.2                     |                                                                     |
 |     max_depenetration_velocity: 100.0                  |                                                                     |
 |     default_buffer_size_multiplier: 2.0                |                                                                     |
@@ -655,8 +642,8 @@ It is also no longer necessary to ``wrap`` and ``unwrap`` tensors.
 |                                                                         |             self.cfg.pole_dof_name)                         |
 |         self.cfg["env"]["numObservations"] = 4                          |         self.action_scale = self.cfg.action_scale           |
 |         self.cfg["env"]["numActions"] = 1                               |                                                             |
-|                                                                         |         self.joint_pos = self.cartpole.data.joint_pos       |
-|         super().__init__(config=self.cfg,                               |         self.joint_vel = self.cartpole.data.joint_vel       |
+|                                                                         |         self.joint_pos = self.cartpole.data.joint_pos.torch |
+|         super().__init__(config=self.cfg,                               |         self.joint_vel = self.cartpole.data.joint_vel.torch |
 |            rl_device=rl_device, sim_device=sim_device,                  |                                                             |
 |            graphics_device_id=graphics_device_id, headless=headless,    |                                                             |
 |            virtual_screen_capture=virtual_screen_capture,               |                                                             |
@@ -689,55 +676,55 @@ the need to set simulation parameters for actors in the task implementation.
 |     self.up_axis = self.cfg["sim"]["up_axis"]                          |     # add ground plane                                              |
 |                                                                        |     spawn_ground_plane(prim_path="/World/ground",                   |
 |     self.sim = super().create_sim(self.device_id,                      |         cfg=GroundPlaneCfg())                                       |
-|         self.graphics_device_id, self.physics_engine,                  |     # clone, filter, and replicate                                  |
-|         self.sim_params)                                               |     # assets are built inside ReplicateSession                      |
-|     self._create_ground_plane()                                        |                                                                     |
-|     self._create_envs(self.num_envs,                                   |     self.scene.filter_collisions(                                   |
-|         self.cfg["env"]['envSpacing'],                                 |         global_prim_paths=[])                                       |
-|         int(np.sqrt(self.num_envs)))                                   |     # add articulation to scene                                     |
-|                                                                        |     self.scene.articulations["cartpole"] = self.cartpole            |
-| def _create_ground_plane(self):                                        |     # add lights                                                    |
-|     plane_params = gymapi.PlaneParams()                                |     light_cfg = sim_utils.DomeLightCfg(                             |
-|     # set the normal force to be z dimension                           |         intensity=2000.0, color=(0.75, 0.75, 0.75))                 |
-|     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |     light_cfg.func("/World/Light", light_cfg)                       |
-|         if self.up_axis == 'z'                                         |                                                                     |
-|         else gymapi.Vec3(0.0, 1.0, 0.0))                               | CARTPOLE_CFG = ArticulationCfg(                                     |
-|     self.gym.add_ground(self.sim, plane_params)                        |     spawn=sim_utils.UsdFileCfg(                                     |
-|                                                                        |         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/.../cartpole.usd",        |
-| def _create_envs(self, num_envs, spacing, num_per_row):                |         rigid_props=sim_utils.RigidBodyPropertiesCfg(               |
-|     # define plane on which environments are initialized               |             rigid_body_enabled=True,                                |
-|     lower = (gymapi.Vec3(0.5 * -spacing, -spacing, 0.0)                |             max_linear_velocity=1000.0,                             |
-|         if self.up_axis == 'z'                                         |             max_angular_velocity=1000.0,                            |
-|         else gymapi.Vec3(0.5 * -spacing, 0.0, -spacing))               |             max_depenetration_velocity=100.0,                       |
-|     upper = gymapi.Vec3(0.5 * spacing, spacing, spacing)               |             enable_gyroscopic_forces=True,                          |
-|                                                                        |         ),                                                          |
-|     asset_root = os.path.join(os.path.dirname(                         |         articulation_props=sim_utils.ArticulationRootPropertiesCfg( |
-|         os.path.abspath(__file__)), "../../assets")                    |             enabled_self_collisions=False,                          |
-|     asset_file = "urdf/cartpole.urdf"                                  |             solver_position_iteration_count=4,                      |
-|                                                                        |             solver_velocity_iteration_count=0,                      |
-|     if "asset" in self.cfg["env"]:                                     |             sleep_threshold=0.005,                                  |
-|         asset_root = os.path.join(os.path.dirname(                     |             stabilization_threshold=0.001,                          |
-|             os.path.abspath(__file__)),                                |         ),                                                          |
-|             self.cfg["env"]["asset"].get("assetRoot", asset_root))     |     ),                                                              |
-|         asset_file = self.cfg["env"]["asset"].get(                     |     init_state=ArticulationCfg.InitialStateCfg(                     |
-|             "assetFileName", asset_file)                               |         pos=(0.0, 0.0, 2.0),                                        |
-|                                                                        |         joint_pos={"slider_to_cart": 0.0, "cart_to_pole": 0.0}      |
-|     asset_path = os.path.join(asset_root, asset_file)                  |     ),                                                              |
-|     asset_root = os.path.dirname(asset_path)                           |     actuators={                                                     |
-|     asset_file = os.path.basename(asset_path)                          |         "cart_actuator": ImplicitActuatorCfg(                       |
-|                                                                        |             joint_names_expr=["slider_to_cart"],                    |
-|     asset_options = gymapi.AssetOptions()                              |             joint_effort_limit=400.0,                               |
-|     asset_options.fix_base_link = True                                 |             joint_velocity_limit=100.0,                             |
-|     cartpole_asset = self.gym.load_asset(self.sim,                     |             stiffness=0.0,                                          |
-|         asset_root, asset_file, asset_options)                         |             damping=10.0,                                           |
-|     self.num_dof = self.gym.get_asset_dof_count(                       |         ),                                                          |
-|         cartpole_asset)                                                |         "pole_actuator": ImplicitActuatorCfg(                       |
-|                                                                        |             joint_names_expr=["cart_to_pole"],                      |
-|     pose = gymapi.Transform()                                          |             joint_effort_limit=400.0, joint_velocity_limit=100.0,   |
-|     if self.up_axis == 'z':                                            |             stiffness=0.0, damping=0.0                              |
-|         pose.p.z = 2.0                                                 |         ),                                                          |
-|         pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)                       |     },                                                              |
-|     else:                                                              | )                                                                   |
+|         self.graphics_device_id, self.physics_engine,                  |     src, dest = "/World/envs/env_0", "/World/envs/env_{}"           |
+|         self.sim_params)                                               |     positions = cloner.grid_transforms(                             |
+|     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing,            |
+|     self._create_envs(self.num_envs,                                   |         device=self.device)[0]                                      |
+|         self.cfg["env"]['envSpacing'],                                 |     plan = cloner.clone_plan_from_env_0(                            |
+|         int(np.sqrt(self.num_envs)))                                   |         src, dest, self.scene.num_envs, self.device, positions)     |
+|                                                                        |     cloner.replicate(plan, stage=self.scene.stage)                  |
+| def _create_ground_plane(self):                                        |     if "physx" in self.scene.physics_backend:                       |
+|     plane_params = gymapi.PlaneParams()                                |         self.scene.filter_collisions(global_prim_paths=[])          |
+|     # set the normal force to be z dimension                           |     self.scene.articulations["cartpole"] = self.cartpole            |
+|     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |     light_cfg = sim_utils.DistantLightCfg(                          |
+|         if self.up_axis == 'z'                                         |         intensity=2000.0, color=(1.0, 1.0, 1.0))                    |
+|         else gymapi.Vec3(0.0, 1.0, 0.0))                               |     light_cfg.func("/World/Light", light_cfg)                       |
+|     self.gym.add_ground(self.sim, plane_params)                        |                                                                     |
+|                                                                        | # In CartpoleEnvCfg:                                                |
+| def _create_envs(self, num_envs, spacing, num_per_row):                | robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(                  |
+|     # define plane on which environments are initialized               |     prim_path="{ENV_REGEX_NS}/Robot")                               |
+|     lower = (gymapi.Vec3(0.5 * -spacing, -spacing, 0.0)                | scene: InteractiveSceneCfg = InteractiveSceneCfg(                   |
+|         if self.up_axis == 'z'                                         |     num_envs=4096,                                                  |
+|         else gymapi.Vec3(0.5 * -spacing, 0.0, -spacing))               |     env_spacing=4.0,                                                |
+|     upper = gymapi.Vec3(0.5 * spacing, spacing, spacing)               |     replicate_physics=True,                                         |
+|                                                                        |     clone_in_fabric=True,                                           |
+|     asset_root = os.path.join(os.path.dirname(                         | )                                                                   |
+|         os.path.abspath(__file__)), "../../assets")                    |                                                                     |
+|     asset_file = "urdf/cartpole.urdf"                                  |                                                                     |
+|                                                                        |                                                                     |
+|     if "asset" in self.cfg["env"]:                                     |                                                                     |
+|         asset_root = os.path.join(os.path.dirname(                     |                                                                     |
+|             os.path.abspath(__file__)),                                |                                                                     |
+|             self.cfg["env"]["asset"].get("assetRoot", asset_root))     |                                                                     |
+|         asset_file = self.cfg["env"]["asset"].get(                     |                                                                     |
+|             "assetFileName", asset_file)                               |                                                                     |
+|                                                                        |                                                                     |
+|     asset_path = os.path.join(asset_root, asset_file)                  |                                                                     |
+|     asset_root = os.path.dirname(asset_path)                           |                                                                     |
+|     asset_file = os.path.basename(asset_path)                          |                                                                     |
+|                                                                        |                                                                     |
+|     asset_options = gymapi.AssetOptions()                              |                                                                     |
+|     asset_options.fix_base_link = True                                 |                                                                     |
+|     cartpole_asset = self.gym.load_asset(self.sim,                     |                                                                     |
+|         asset_root, asset_file, asset_options)                         |                                                                     |
+|     self.num_dof = self.gym.get_asset_dof_count(                       |                                                                     |
+|         cartpole_asset)                                                |                                                                     |
+|                                                                        |                                                                     |
+|     pose = gymapi.Transform()                                          |                                                                     |
+|     if self.up_axis == 'z':                                            |                                                                     |
+|         pose.p.z = 2.0                                                 |                                                                     |
+|         pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)                       |                                                                     |
+|     else:                                                              |                                                                     |
 |         pose.p.y = 2.0                                                 |                                                                     |
 |         pose.r = gymapi.Quat(                                          |                                                                     |
 |             -np.sqrt(2)/2, 0.0, 0.0, np.sqrt(2)/2)                     |                                                                     |
@@ -776,32 +763,32 @@ collecting states, computing dones, calculating rewards, performing resets, and 
 This workflow is done automatically by the framework such that a ``post_physics_step`` API is not required in the task.
 However, individual tasks can override the ``step()`` API to control the workflow.
 
-+-------------------------------------------------------+--------------------------------------------------------------+
-| IsaacGymEnvs                                          | IsaacLab                                                     |
-+-------------------------------------------------------+--------------------------------------------------------------+
-|.. code-block:: python                                 |.. code-block:: python                                        |
-|                                                       |                                                              |
-| def pre_physics_step(self, actions):                  | def _pre_physics_step(self, actions: torch.Tensor) -> None:  |
-|     actions_tensor = torch.zeros(                     |     self.actions = self.action_scale * actions               |
-|         self.num_envs * self.num_dof,                 |                                                              |
-|         device=self.device, dtype=torch.float)        | def _apply_action(self) -> None:                             |
-|     actions_tensor[::self.num_dof] = actions.to(      |     self.cartpole.actuators.target_command.set_effort_index( |
-|         self.device).squeeze() * self.max_push_effort |         value=self.actions, joint_ids=self._cart_dof_idx)    |
-|     forces = gymtorch.unwrap_tensor(actions_tensor)   |                                                              |
-|     self.gym.set_dof_actuation_force_tensor(          |                                                              |
-|         self.sim, forces)                             |                                                              |
-|                                                       |                                                              |
-| def post_physics_step(self):                          |                                                              |
-|     self.progress_buf += 1                            |                                                              |
-|                                                       |                                                              |
-|     env_ids = self.reset_buf.nonzero(                 |                                                              |
-|         as_tuple=False).squeeze(-1)                   |                                                              |
-|     if len(env_ids) > 0:                              |                                                              |
-|         self.reset_idx(env_ids)                       |                                                              |
-|                                                       |                                                              |
-|     self.compute_observations()                       |                                                              |
-|     self.compute_reward()                             |                                                              |
-+-------------------------------------------------------+--------------------------------------------------------------+
++------------------------------------------------------------------+-------------------------------------------------------------+
+| IsaacGymEnvs                                                     | Isaac Lab                                                   |
++------------------------------------------------------------------+-------------------------------------------------------------+
+|.. code-block:: python                                            |.. code-block:: python                                       |
+|                                                                  |                                                             |
+| def pre_physics_step(self, actions):                             | def _pre_physics_step(self, actions: torch.Tensor) -> None: |
+|     actions_tensor = torch.zeros(                                |     self.actions = self.action_scale * actions.clone()      |
+|         self.num_envs * self.num_dof,                            |                                                             |
+|         device=self.device, dtype=torch.float)                   | def _apply_action(self) -> None:                            |
+|     actions_tensor[::self.num_dof] = actions.to(                 |     self.cartpole.set_joint_effort_target_index(            |
+|         self.device).squeeze() * self.max_push_effort            |         target=self.actions, joint_ids=self._cart_dof_idx)  |
+|     forces = gymtorch.unwrap_tensor(actions_tensor)              |                                                             |
+|     self.gym.set_dof_actuation_force_tensor(                     |                                                             |
+|         self.sim, forces)                                        |                                                             |
+|                                                                  |                                                             |
+| def post_physics_step(self):                                     |                                                             |
+|     self.progress_buf += 1                                       |                                                             |
+|                                                                  |                                                             |
+|     env_ids = self.reset_buf.nonzero(                            |                                                             |
+|         as_tuple=False).squeeze(-1)                              |                                                             |
+|     if len(env_ids) > 0:                                         |                                                             |
+|         self.reset_idx(env_ids)                                  |                                                             |
+|                                                                  |                                                             |
+|     self.compute_observations()                                  |                                                             |
+|     self.compute_reward()                                        |                                                             |
++------------------------------------------------------------------+-------------------------------------------------------------+
 
 
 Dones and Resets
@@ -817,16 +804,16 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 |.. code-block:: python                                                 |.. code-block:: python                                                     |
 |                                                                       |                                                                           |
 | def reset_idx(self, env_ids):                                         | def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:                |
-|     positions = 0.2 * (torch.rand((len(env_ids), self.num_dof),       |     self.joint_pos = self.cartpole.data.joint_pos                         |
-|         device=self.device) - 0.5)                                    |     self.joint_vel = self.cartpole.data.joint_vel                         |
+|     positions = 0.2 * (torch.rand((len(env_ids), self.num_dof),       |     self.joint_pos = self.cartpole.data.joint_pos.torch                   |
+|         device=self.device) - 0.5)                                    |     self.joint_vel = self.cartpole.data.joint_vel.torch                   |
 |     velocities = 0.5 * (torch.rand((len(env_ids), self.num_dof),      |                                                                           |
-|         device=self.device) - 0.5)                                    |     time_out = self.episode_length_buf >= self.max_episode_length - 1     |
+|         device=self.device) - 0.5)                                    |     time_out = self.episode_length_buf >= self.max_episode_length         |
 |                                                                       |     out_of_bounds = torch.any(torch.abs(                                  |
 |     self.dof_pos[env_ids, :] = positions[:]                           |         self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos,   |
 |     self.dof_vel[env_ids, :] = velocities[:]                          |         dim=1)                                                            |
-|                                                                       |     out_of_bounds = out_of_bounds | torch.any(                            |
-|     env_ids_int32 = env_ids.to(dtype=torch.int32)                     |         torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2,   |
-|     self.gym.set_dof_state_tensor_indexed(self.sim,                   |         dim=1)                                                            |
+|                                                                       |                                                                           |
+|     env_ids_int32 = env_ids.to(dtype=torch.int32)                     |                                                                           |
+|     self.gym.set_dof_state_tensor_indexed(self.sim,                   |                                                                           |
 |         gymtorch.unwrap_tensor(self.dof_state),                       |     return out_of_bounds, time_out                                        |
 |         gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))    |                                                                           |
 |     self.reset_buf[env_ids] = 0                                       | def _reset_idx(self, env_ids: Sequence[int] | None):                      |
@@ -834,26 +821,33 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 |                                                                       |         env_ids = self.cartpole._ALL_INDICES                              |
 |                                                                       |     super()._reset_idx(env_ids)                                           |
 |                                                                       |                                                                           |
-|                                                                       |     joint_pos = self.cartpole.data.default_joint_pos[env_ids]             |
+|                                                                       |     joint_pos = self.cartpole.data.default_joint_pos.torch[               |
+|                                                                       |         env_ids].clone()                                                  |
 |                                                                       |     joint_pos[:, self._pole_dof_idx] += sample_uniform(                   |
-|                                                                       |         self.cfg.initial_pole_angle_range[0] * math.pi,                   |
-|                                                                       |         self.cfg.initial_pole_angle_range[1] * math.pi,                   |
+|                                                                       |         self.cfg.initial_pole_angle_range[0],                             |
+|                                                                       |         self.cfg.initial_pole_angle_range[1],                             |
 |                                                                       |         joint_pos[:, self._pole_dof_idx].shape,                           |
 |                                                                       |         joint_pos.device,                                                 |
 |                                                                       |     )                                                                     |
-|                                                                       |     joint_vel = self.cartpole.data.default_joint_vel[env_ids]             |
+|                                                                       |     joint_vel = self.cartpole.data.default_joint_vel.torch[               |
+|                                                                       |         env_ids].clone()                                                  |
 |                                                                       |                                                                           |
-|                                                                       |     default_root_state = self.cartpole.data.default_root_state[env_ids]   |
-|                                                                       |     default_root_state[:, :3] += self.scene.env_origins[env_ids]          |
+|                                                                       |     default_root_pose = self.cartpole.data.default_root_pose.torch[       |
+|                                                                       |         env_ids].clone()                                                  |
+|                                                                       |     default_root_pose[:, :3] += self.scene.env_origins[env_ids]           |
+|                                                                       |     default_root_vel = self.cartpole.data.default_root_vel.torch[         |
+|                                                                       |         env_ids].clone()                                                  |
 |                                                                       |                                                                           |
 |                                                                       |     self.joint_pos[env_ids] = joint_pos                                   |
 |                                                                       |                                                                           |
-|                                                                       |     self.cartpole.write_root_pose_to_sim(                                 |
-|                                                                       |         default_root_state[:, :7], env_ids)                               |
-|                                                                       |     self.cartpole.write_root_velocity_to_sim(                             |
-|                                                                       |         default_root_state[:, 7:], env_ids)                               |
-|                                                                       |     self.cartpole.write_joint_state_to_sim(                               |
-|                                                                       |         joint_pos, joint_vel, None, env_ids)                              |
+|                                                                       |     self.cartpole.write_root_pose_to_sim_index(                           |
+|                                                                       |         root_pose=default_root_pose, env_ids=env_ids)                     |
+|                                                                       |     self.cartpole.write_root_velocity_to_sim_index(                       |
+|                                                                       |         root_velocity=default_root_vel, env_ids=env_ids)                  |
+|                                                                       |     self.cartpole.write_joint_position_to_sim_index(                      |
+|                                                                       |         position=joint_pos, env_ids=env_ids)                              |
+|                                                                       |     self.cartpole.write_joint_velocity_to_sim_index(                      |
+|                                                                       |         velocity=joint_vel, env_ids=env_ids)                              |
 +-----------------------------------------------------------------------+---------------------------------------------------------------------------+
 
 
@@ -870,15 +864,17 @@ For asymmetric policies, the dictionary should also include a ``critic`` key tha
 |.. code-block:: python                                                    |.. code-block:: python                                                                 |
 |                                                                          |                                                                                       |
 | def compute_observations(self, env_ids=None):                            | def _get_observations(self) -> dict:                                                  |
-|     if env_ids is None:                                                  |     obs = torch.cat(                                                                  |
-|         env_ids = np.arange(self.num_envs)                               |         (                                                                             |
-|                                                                          |             self.joint_pos[:, self._pole_dof_idx[0]],                                 |
-|     self.gym.refresh_dof_state_tensor(self.sim)                          |             self.joint_vel[:, self._pole_dof_idx[0]],                                 |
-|                                                                          |             self.joint_pos[:, self._cart_dof_idx[0]],                                 |
-|     self.obs_buf[env_ids, 0] = self.dof_pos[env_ids, 0]                  |             self.joint_vel[:, self._cart_dof_idx[0]],                                 |
-|     self.obs_buf[env_ids, 1] = self.dof_vel[env_ids, 0]                  |         ),                                                                            |
-|     self.obs_buf[env_ids, 2] = self.dof_pos[env_ids, 1]                  |         dim=-1,                                                                       |
-|     self.obs_buf[env_ids, 3] = self.dof_vel[env_ids, 1]                  |     )                                                                                 |
+|     if env_ids is None:                                                  |     joint_pos_rel = self.joint_pos - (                                                |
+|         env_ids = np.arange(self.num_envs)                               |         self.cartpole.data.default_joint_pos.torch)                                   |
+|                                                                          |     joint_vel_rel = self.joint_vel - (                                                |
+|     self.gym.refresh_dof_state_tensor(self.sim)                          |         self.cartpole.data.default_joint_vel.torch)                                   |
+|                                                                          |     obs = torch.cat(                                                                  |
+|     self.obs_buf[env_ids, 0] = self.dof_pos[env_ids, 0]                  |         (                                                                             |
+|     self.obs_buf[env_ids, 1] = self.dof_vel[env_ids, 0]                  |             joint_pos_rel[:, self._cart_dof_idx[0]].unsqueeze(1),                     |
+|     self.obs_buf[env_ids, 2] = self.dof_pos[env_ids, 1]                  |             joint_pos_rel[:, self._pole_dof_idx[0]].unsqueeze(1),                     |
+|     self.obs_buf[env_ids, 3] = self.dof_vel[env_ids, 1]                  |             joint_vel_rel[:, self._cart_dof_idx[0]].unsqueeze(1),                     |
+|                                                                          |             joint_vel_rel[:, self._pole_dof_idx[0]].unsqueeze(1),                     |
+|                                                                          |         ), dim=-1)                                                                    |
 |                                                                          |     observations = {"policy": obs}                                                    |
 |     return self.obs_buf                                                  |     return observations                                                               |
 +--------------------------------------------------------------------------+---------------------------------------------------------------------------------------+
@@ -905,9 +901,9 @@ by adding the ``@torch.jit.script`` annotation.
 |                                                                          |         self.cfg.rew_scale_pole_vel,                                                   |
 |     self.rew_buf[:], self.reset_buf[:] = compute_cartpole_reward(        |         self.joint_pos[:, self._pole_dof_idx[0]],                                      |
 |         pole_angle, pole_vel, cart_vel, cart_pos,                        |         self.joint_vel[:, self._pole_dof_idx[0]],                                      |
-|         self.reset_dist, self.reset_buf,                                 |         self.joint_pos[:, self._cart_dof_idx[0]],                                      |
-|         self.progress_buf, self.max_episode_length                       |         self.joint_vel[:, self._cart_dof_idx[0]],                                      |
-|     )                                                                    |         self.reset_terminated,                                                         |
+|         self.reset_dist, self.reset_buf,                                 |         self.joint_vel[:, self._cart_dof_idx[0]],                                      |
+|         self.progress_buf, self.max_episode_length                       |         self.reset_terminated,                                                         |
+|     )                                                                    |         self.step_dt,                                                                  |
 |                                                                          |     )                                                                                  |
 | @torch.jit.script                                                        |     return total_reward                                                                |
 | def compute_cartpole_reward(pole_angle, pole_vel,                        |                                                                                        |
@@ -920,20 +916,21 @@ by adding the ``@torch.jit.script`` annotation.
 |         0.005 * torch.abs(pole_vel))                                     |     rew_scale_pole_vel: float,                                                         |
 |                                                                          |     pole_pos: torch.Tensor,                                                            |
 |     # adjust reward for reset agents                                     |     pole_vel: torch.Tensor,                                                            |
-|     reward = torch.where(torch.abs(cart_pos) > reset_dist,               |     cart_pos: torch.Tensor,                                                            |
-|         torch.ones_like(reward) * -2.0, reward)                          |     cart_vel: torch.Tensor,                                                            |
-|     reward = torch.where(torch.abs(pole_angle) > np.pi / 2,              |     reset_terminated: torch.Tensor,                                                    |
+|     reward = torch.where(torch.abs(cart_pos) > reset_dist,               |     cart_vel: torch.Tensor,                                                            |
+|         torch.ones_like(reward) * -2.0, reward)                          |     reset_terminated: torch.Tensor,                                                    |
+|     reward = torch.where(torch.abs(pole_angle) > np.pi / 2,              |     step_dt: float,                                                                    |
 |         torch.ones_like(reward) * -2.0, reward)                          | ):                                                                                     |
+|                                                                          |     pole_pos = wrap_to_pi(pole_pos)                                                    |
 |                                                                          |     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())                     |
 |     reset = torch.where(torch.abs(cart_pos) > reset_dist,                |     rew_termination = rew_scale_terminated * reset_terminated.float()                  |
 |         torch.ones_like(reset_buf), reset_buf)                           |     rew_pole_pos = rew_scale_pole_pos * torch.sum(                                     |
-|     reset = torch.where(torch.abs(pole_angle) > np.pi / 2,               |         torch.square(pole_pos), dim=-1)                                                |
+|     reset = torch.where(torch.abs(pole_angle) > np.pi / 2,               |         torch.square(pole_pos).unsqueeze(dim=1), dim=-1)                               |
 |         torch.ones_like(reset_buf), reset_buf)                           |     rew_cart_vel = rew_scale_cart_vel * torch.sum(                                     |
-|     reset = torch.where(progress_buf >= max_episode_length - 1,          |         torch.abs(cart_vel), dim=-1)                                                   |
+|     reset = torch.where(progress_buf >= max_episode_length - 1,          |         torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)                                  |
 |         torch.ones_like(reset_buf), reset)                               |     rew_pole_vel = rew_scale_pole_vel * torch.sum(                                     |
-|                                                                          |         torch.abs(pole_vel), dim=-1)                                                   |
+|                                                                          |         torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)                                  |
 |                                                                          |     total_reward = (rew_alive + rew_termination                                        |
-|                                                                          |                      + rew_pole_pos + rew_cart_vel + rew_pole_vel)                     |
+|                                                                          |                      + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt           |
 |                                                                          |     return total_reward                                                                |
 +--------------------------------------------------------------------------+----------------------------------------------------------------------------------------+
 
@@ -950,18 +947,18 @@ To launch a training in Isaac Lab, use the command:
 
       .. code-block:: bash
 
-         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct
+         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct
+         ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
 
-Launching Inferencing
-~~~~~~~~~~~~~~~~~~~~~
+Running Inference
+~~~~~~~~~~~~~~~~~
 
-To launch inferencing in Isaac Lab, use the command:
+To run a trained policy in Isaac Lab, use the command:
 
 .. tab-set::
 
@@ -969,14 +966,16 @@ To launch inferencing in Isaac Lab, use the command:
 
       .. code-block:: bash
 
-         uv run isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+         uv run isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
+             --checkpoint=<path/to/checkpoint> physics=physx
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-         ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 --checkpoint=<path/to/checkpoint>
+         ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
+             --checkpoint=<path/to/checkpoint> physics=physx
 
 
 Additional Resources
