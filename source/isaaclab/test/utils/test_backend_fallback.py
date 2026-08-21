@@ -11,7 +11,7 @@ from isaaclab.utils.backend_utils import FactoryBase
 pytestmark = pytest.mark.unit
 
 
-def test_factory_backend_falls_back_to_physx_without_simulation_context(monkeypatch):
+def test_factory_backend_falls_back_to_newton_without_simulation_context(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", None)
 
-    assert FactoryBase._get_backend() == "physx"
+    assert FactoryBase._get_backend() == "newton"
