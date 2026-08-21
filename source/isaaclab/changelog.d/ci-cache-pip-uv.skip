@@ -1,0 +1,5 @@
+# No changelog entry / version bump: CI-only change. Enables the pip cache in
+# actions/setup-python and the uv cache in astral-sh/setup-uv across the
+# workflows that install Python packages, so an index outage no longer fails a
+# job once with-python-package-retries.sh exhausts its retries. No source
+# package or published wheel is affected.
