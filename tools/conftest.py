@@ -1081,10 +1081,10 @@ def _read_test_content(test_file: str) -> str:
         return ""
 
 
-def _is_parallel_safe_test(test_file: str) -> bool:
-    """Return whether a test path is explicitly approved for concurrent execution."""
-    normalized = os.path.normpath(test_file).replace("\\", "/")
-    return any(normalized.endswith(path) for path in test_settings.PARALLEL_SAFE_TESTS)
+def _is_parallel_safe_test(test_file: str, workspace_root: str) -> bool:
+    """Return whether a test's repository-relative path is approved for concurrent execution."""
+    relative_path = os.path.relpath(os.path.abspath(test_file), os.path.abspath(workspace_root)).replace("\\", "/")
+    return relative_path in test_settings.PARALLEL_SAFE_TESTS
 
 
 def _run_individual_test_file(
@@ -1201,8 +1201,11 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         parallel_files = []
         sequential_files = _queued_files(queue_path)
     elif parallel_workers > 1:
-        parallel_files = [test_file for test_file in test_files if _is_parallel_safe_test(test_file)]
-        sequential_files = [test_file for test_file in test_files if not _is_parallel_safe_test(test_file)]
+        parallel_files = []
+        sequential_files = []
+        for test_file in test_files:
+            target = parallel_files if _is_parallel_safe_test(test_file, workspace_root) else sequential_files
+            target.append(test_file)
     else:
         parallel_files = []
         sequential_files = test_files

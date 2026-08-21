@@ -528,6 +528,49 @@ def test_parallel_safe_files_keep_process_isolation_and_complete_once(monkeypatc
     assert reports == ["test_a.py", "test_b.py", "test_sequential.py"]
 
 
+def test_parallel_safe_file_matching_uses_the_exact_repository_path(monkeypatch, tmp_path: Path) -> None:
+    """A path ending in an approved path must not inherit its classification."""
+    orchestrator = _load_orchestrator_module()
+    approved_path = "source/isaaclab_tasks/test/core/test_approved.py"
+    monkeypatch.setattr(orchestrator.test_settings, "PARALLEL_SAFE_TESTS", {approved_path})
+
+    assert orchestrator._is_parallel_safe_test(str(tmp_path / approved_path), str(tmp_path))
+    assert not orchestrator._is_parallel_safe_test(str(tmp_path / f"prefix-{approved_path}"), str(tmp_path))
+
+
+def test_individual_file_runner_retains_the_configured_timeout(monkeypatch, tmp_path: Path) -> None:
+    """Extracting the per-file runner must preserve its configured hard timeout."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_custom_timeout.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    monkeypatch.setitem(orchestrator.test_settings.PER_TEST_TIMEOUTS, test_file.name, 123)
+    observed_timeouts: list[int] = []
+
+    def _run_one_pass(context, **_kwargs):
+        observed_timeouts.append(context.timeout)
+        status = {
+            "errors": 0,
+            "failures": 0,
+            "skipped": 0,
+            "tests": 1,
+            "result": "passed",
+            "time_elapsed": 0.01,
+            "wall_time": 0.01,
+        }
+        return None, status, False
+
+    monkeypatch.setattr(orchestrator, "_run_one_pass", _run_one_pass)
+
+    failed, status, reports = orchestrator._run_individual_test_file(
+        str(test_file), str(tmp_path), None, {}, None, test_file.read_text(encoding="utf-8"), False
+    )
+
+    assert observed_timeouts == [123]
+    assert not failed
+    assert status["result"] == "passed"
+    assert reports == []
+
+
 def test_parallel_safe_task_files_do_not_require_exclusive_runner_features() -> None:
     """The explicit parallel set must stay free of camera startup and device-split handling."""
     orchestrator = _load_orchestrator_module()

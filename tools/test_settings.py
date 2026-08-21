@@ -155,8 +155,15 @@ PARALLEL_SAFE_TESTS = {
 }
 """Task test files safe to run concurrently in independent subprocesses.
 
-These files do not launch Kit, request the cold renderer cache allowance, or use
-the CPU/GPU device-split mechanism. Keep unclassified tests sequential.
+Each entry was audited to confirm that it does not launch Kit, request the cold
+renderer cache allowance, use the CPU/GPU device-split mechanism, or write to a
+shared repository path. The orchestrator regression tests guard the detectable
+renderer and device-split requirements. Keep unclassified tests sequential.
+
+This remains a file-level list because the existing ``core`` and ``contrib``
+directories contain tests with different runtime requirements. A directory-level
+classification would either serialize lightweight tests or run simulation tests
+concurrently.
 """
 
 TEST_RL_ENVS = [
