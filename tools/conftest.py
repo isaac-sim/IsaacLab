@@ -646,9 +646,17 @@ def _retry_failed_test_in_fresh_process(
             with contextlib.suppress(FileNotFoundError):
                 os.remove(stale_file)
 
-        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+        (
+            returncode,
+            stdout_data,
+            stderr_data,
+            kill_reason,
+            retry_wall_time,
+            pre_kill_diag,
+        ) = capture_test_output_with_timeout(
             cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
         )
+        wall_time += retry_wall_time
         if not os.path.exists(report_file):
             # The attempt died before pytest wrote its report; the caller rebuilds the result from
             # this attempt's journal.
@@ -861,6 +869,7 @@ def _run_one_pass(
     # -- Run with retry on startup hang or hard timeout -----------------
     returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
     wall_time, pre_kill_diag = 0.0, ""
+    total_wall_time = 0.0
     startup_hang_attempts = 0
     timeout_attempts = 0
     while True:
@@ -873,6 +882,7 @@ def _run_one_pass(
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
             cmd, ctx.timeout, pass_env, startup_deadline=ctx.startup_deadline, report_file=report_file
         )
+        total_wall_time += wall_time
 
         has_report = os.path.exists(report_file)
 
@@ -912,6 +922,8 @@ def _run_one_pass(
             logger.info(diag)
             continue
         break
+
+    wall_time = total_wall_time
 
     # -- Resolve result from kill_reason and report file ----------------
     has_report = os.path.exists(report_file)
