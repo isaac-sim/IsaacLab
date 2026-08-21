@@ -53,8 +53,9 @@ option is required for camera tasks.
 .. warning::
 
    When XR is enabled and no device is supplied explicitly, :class:`AppLauncher` currently selects the CPU
-   device. For XR workflows that also render camera sensors, pass ``--device cuda:0`` (or the equivalent
-   ``device="cuda:0"`` launcher argument) explicitly so the camera workload does not unintentionally run on CPU.
+   device. For XR workflows that also render camera sensors, pass ``--device cuda:0`` on the command line so
+   the camera workload does not unintentionally run on CPU. A direct ``device="cuda:0"`` keyword alone is not
+   treated as an explicit device override by the current XR device-resolution path.
 
 
 To set the environment variables, one can use the following command in the terminal:
