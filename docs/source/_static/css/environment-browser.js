@@ -178,6 +178,7 @@
         [...builder.querySelectorAll("[data-environment-field]")].map((field) => [field.dataset.environmentField, field])
     );
     const commandOutput = builder.querySelector("[data-command-output]");
+    const nonRlNote = builder.querySelector("[data-non-rl-note]");
     const copyButton = builder.querySelector("[data-copy-command]");
     const copyStatus = builder.querySelector("[data-copy-status]");
     const modeButtons = [...builder.querySelectorAll("[data-command-mode]")];
@@ -280,7 +281,15 @@
     };
 
     const updateModeControls = () => {
-        const supportsPretrainedCheckpoint = state.scope === "core";
+        const supportsRl = selectedTask().rl.length > 0;
+        for (const modeButton of modeButtons) {
+            modeButton.disabled = !supportsRl;
+            const isActive = supportsRl && modeButton.dataset.commandMode === state.mode;
+            modeButton.classList.toggle("is-active", isActive);
+            modeButton.setAttribute("aria-pressed", String(isActive));
+        }
+        nonRlNote.hidden = supportsRl;
+        const supportsPretrainedCheckpoint = supportsRl && state.scope === "core";
         fields.checkpoint.disabled = !supportsPretrainedCheckpoint;
         if (!supportsPretrainedCheckpoint) {
             fields.checkpoint.checked = false;
@@ -307,12 +316,13 @@
         for (const extra of extras) {
             parts.push("--extra", extra);
         }
-        parts.push("isaaclab", state.mode);
-        if (fields.rl.value) {
+        const task = selectedTask();
+        const supportsRl = task.rl.length > 0;
+        parts.push("isaaclab", supportsRl ? state.mode : "zero_agent");
+        if (supportsRl && fields.rl.value) {
             parts.push("--rl_library", fields.rl.value);
         }
         parts.push("--task", state.task);
-        const task = selectedTask();
         const selectedAgent = Object.entries(task.agentPresetCompatibility).find(([agent, presets]) => (
             agent.startsWith(`${fields.rl.value}_`) && presets.includes(fields.presets.value)
         ))?.[0];
@@ -327,7 +337,7 @@
                 parts.push(`${selector}=${fields[selector].value}`);
             }
         }
-        if (fields.checkpoint.checked) {
+        if (supportsRl && fields.checkpoint.checked) {
             parts.push("--checkpoint", "pretrained");
         }
         return parts.join(" ");
@@ -357,8 +367,11 @@
             previewImage.hidden = false;
         }
         preview.querySelector("[data-preview-task]").textContent = state.task;
-        preview.querySelector("[data-preview-mode]").textContent = state.mode === "train" ? "Train" : "Play";
-        preview.querySelector("[data-preview-rl]").textContent = fields.rl.value || "Default";
+        const supportsRl = selectedTask().rl.length > 0;
+        preview.querySelector("[data-preview-mode]").textContent = supportsRl
+            ? (state.mode === "train" ? "Train" : "Play")
+            : "Zero agent";
+        preview.querySelector("[data-preview-rl]").textContent = supportsRl ? fields.rl.value : "Not supported";
         preview.querySelector("[data-preview-physics]").textContent = fields.physics.value || "Default";
         preview.querySelector("[data-preview-renderer]").textContent = fields.renderer.value || "Default";
         preview.querySelector("[data-preview-presets]").textContent = fields.presets.value || "Default";
@@ -379,6 +392,7 @@
     const updateSelection = () => {
         fields.task.value = state.task;
         updateTaskControls();
+        updateModeControls();
         commandOutput.textContent = currentCommand();
         updatePreview();
         for (const row of taskList.querySelectorAll("[data-task-name]")) {
@@ -409,7 +423,10 @@
             button.querySelector(".environment-task-name").textContent = task.task;
             const meta = button.querySelector(".environment-task-meta");
             const workflow = task.task.includes("Direct") ? "Direct" : "Manager based";
-            meta.replaceChildren(...[workflow, `${task.rl.length} RL ${task.rl.length === 1 ? "library" : "libraries"}`].map((label) => {
+            const rlSupport = task.rl.length
+                ? `${task.rl.length} RL ${task.rl.length === 1 ? "library" : "libraries"}`
+                : "RL not supported";
+            meta.replaceChildren(...[workflow, rlSupport].map((label) => {
                 const badge = document.createElement("span");
                 badge.textContent = label;
                 return badge;

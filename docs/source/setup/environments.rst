@@ -55,6 +55,11 @@ Command Builder
            <span>Use Pre-trained Checkpoint</span>
          </label>
        </div>
+       <p class="environment-non-rl-note" data-non-rl-note role="status" hidden>
+         <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+         This environment does not support RL training or playback. The command runs it with the
+         zero-action agent instead. <a href="../overview/simple_agents.html#dummy-agents">Learn about simple agents</a>.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">

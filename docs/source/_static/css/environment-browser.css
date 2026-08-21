@@ -85,6 +85,7 @@ html[data-theme="dark"] .environment-browser {
     background: #76b900;
 }
 
+.environment-mode-switch button:disabled,
 .environment-scope-switch button:disabled {
     color: var(--environment-muted);
     cursor: not-allowed;
@@ -209,6 +210,25 @@ html[data-theme="dark"] .environment-browser {
     background: color-mix(in srgb, var(--pst-color-background) 55%, transparent);
     cursor: not-allowed;
     opacity: 0.65;
+}
+
+.environment-non-rl-note {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin: 1rem 0 0;
+    padding: 0.65rem 0.8rem;
+    border-left: 3px solid var(--pst-color-info);
+    color: var(--pst-color-text-base);
+    background: color-mix(in srgb, var(--pst-color-info) 8%, transparent);
+}
+
+.environment-non-rl-note[hidden] {
+    display: none;
+}
+
+.environment-non-rl-note i {
+    color: var(--pst-color-info);
 }
 
 .environment-command-output {
