@@ -356,7 +356,7 @@ class SimulationContext:
 
     @property
     def render_context(self) -> RenderContext:
-        """Shared :class:`~isaaclab.renderers.render_context.RenderContext` for camera renderers."""
+        """Shared rendering state for camera backends and visual materials."""
         return self._render_context
 
     @property
@@ -765,6 +765,7 @@ class SimulationContext:
             viz.reset(soft)
         # Initialize visualizers not prepared by a backend-specific pre-capture hook.
         self.initialize_visualizers()
+        self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
         self._is_playing = True

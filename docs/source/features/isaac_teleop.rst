@@ -375,7 +375,10 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, configure, build, and install. To target a specific Python version, pass
+  Then clone, check out the release branch matching the ``isaacteleop`` version Isaac Lab is
+  pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  plugin's wire format matches the ``isaacteleop`` package Isaac Lab installs), configure, build,
+  and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
   version needs its own build directory if building multiple at once:
 
@@ -383,10 +386,16 @@ Prerequisites
 
      git clone https://github.com/NVIDIA/IsaacTeleop.git
      cd IsaacTeleop
+     git checkout release/1.4.x
 
      cmake -B build                       # configure (default: Python 3.11)
      cmake --build build --parallel       # build
      cmake --install build                # install into ./install
+
+  .. note::
+
+     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     branch instead.
 
   The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
   Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
