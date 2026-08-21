@@ -57,6 +57,11 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # Newton GL tiled output differs by 0.64% between the L40S CI runner and the golden.
     # Keep this narrow 1.0% tolerance paired with an SSIM guard for scene regressions.
     "anymal_d-newton-tiled": 1.0,
+    # Golden captured on a non-L40S GPU after the ground-plane size fix (newton-physics/newton#3977);
+    # observed 6.25% (newton physics) and 8.38% (physx) on the L40S CI runner. SSIM ~0.927 for both,
+    # well above wrong-pose regressions (~0.85), so this is cross-GPU rasterization variance, not a
+    # scene regression.
+    "anymal_d-newton-viewport": 10.0,
     # RTX PRO 6000 Blackwell differs by up to 6.5% while preserving the expected pose.
     "shadow_hand-kit-tiled": 7.0,
     "shadow_hand-kit-viewport": 2.0,
@@ -84,6 +89,10 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # The L40S comparison reaches SSIM 0.9883; retain a structural threshold well above
     # known pose regressions while accepting this cross-GPU rasterization variation.
     "anymal_d-newton-tiled": 0.980,
+    # Golden captured on a non-L40S GPU after the ground-plane size fix; observed SSIM 0.9267
+    # (newton physics) and 0.9270 (physx) on the L40S CI runner. Wrong-pose regressions drop
+    # SSIM below 0.90.
+    "anymal_d-newton-viewport": 0.900,
     # Cross-GPU RTX variation; observed SSIM 0.941 on RTX PRO 6000 Blackwell vs L40S goldens.
     # Wrong-pose regressions drop SSIM below 0.90.
     "shadow_hand-kit-tiled": 0.935,
