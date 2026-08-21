@@ -38,6 +38,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          # Pin the cache key to the dependency source of truth. Without this the
+          # action keys off its `**/requirements.txt` default, which here matches
+          # only the unrelated tools/template/requirements.txt.
+          cache-dependency-path: pyproject.toml
 
       # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
       # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the

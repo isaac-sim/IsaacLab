@@ -135,6 +135,11 @@ jobs:
         with:
           python-version: "3.12"
           architecture: x64
+          cache: pip
+          # Pin the cache key to the dependency source of truth. Without this the
+          # action keys off its `**/requirements.txt` default, which here matches
+          # only the unrelated tools/template/requirements.txt.
+          cache-dependency-path: pyproject.toml
 
       # Compose Docker-image-style metadata for the artifact. The artifact
       # name is what QA sees in `gh run download`, so we make it scannable:
