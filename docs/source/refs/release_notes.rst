@@ -4,6 +4,30 @@ Release Notes
 The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
 We summarize the release notes here for convenience.
 
+v3.0.0-beta2.patch1
+===================
+
+This patch updated Isaac Lab 3.0 Beta 2 for Isaac Sim 6.0.1 and included dependency,
+container-compatibility, and streaming-crash fixes. See the
+`complete v3.0.0-beta2.patch1 notes <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta2.patch1>`_.
+
+v3.0.0-beta2
+============
+
+Isaac Lab 3.0 Beta 2 stabilized the multi-backend architecture across PhysX, Newton,
+OvPhysX, Isaac RTX, OVRTX, and kit-less workflows. It expanded Newton physics and sensors,
+introduced PPISP, strengthened visualizers and scene-data providers, and added unified
+``train`` and ``play`` entry points. See the
+`complete v3.0.0-beta2 notes <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta2>`_.
+
+v3.0.0-beta
+===========
+
+Isaac Lab 3.0 Beta introduced factory-dispatched physics backends, pluggable renderers and
+visualizers, kit-less Newton execution, Warp-native data access, and environment presets.
+It also changed quaternion ordering to XYZW and introduced the 2.x-to-3.0 migration path.
+See the `complete v3.0.0-beta notes <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta>`_.
+
 v2.3.2
 ======
 
@@ -1972,7 +1996,7 @@ Welcome to the first official release of Isaac Lab!
 
 Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated
 the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_.
-This allows users to choose a suitable :ref:`task-design approach <ref_arch>`
+This allows users to choose a suitable :ref:`task-design approach <feature-workflows>`
 for their applications.
 
 While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with

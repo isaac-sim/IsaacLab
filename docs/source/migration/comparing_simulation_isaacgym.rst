@@ -12,6 +12,11 @@ are equivalent in the eyes of PhysX is to record a simulation trace of both setu
 them by inspecting them side-by-side. This approach works because PhysX is the same underlying
 engine for both Isaac Gym and Isaac Lab, albeit with different versions.
 
+.. important::
+
+   This comparison is specific to the Isaac Sim PhysX backend. Newton and OvPhysX do not use
+   the Isaac Sim OmniPVD recording workflow described on this page.
+
 
 Recording to PXD2 in Isaac Gym Preview Release
 ----------------------------------------------
@@ -40,25 +45,15 @@ arguments. It is important that the ``omniPvdOvdRecordingDirectory`` variable is
 
 .. code-block:: bash
 
-    uv run isaaclab benchmark runtime --task <task_name> \
+    uv run --extra isaacsim isaaclab benchmark runtime --task <task_name> \
+        --visualizer kit physics=isaacsim_physx \
         --kit_args="--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/myovds/ \
         --/physics/omniPvdOutputEnabled=true"
 
 This example outputs a series of OVD files to the ``/tmp/myovds/`` directory.
 
-If the ``--kit_args`` argument does not work in your particular setup, you can set the Kit arguments
-manually by editing the following file directly within the Isaac Sim source code:
-
-.. code-block:: text
-
-    source/extensions/isaacsim.simulation_app/isaacsim/simulation_app/simulation_app.py
-
-Append the following lines after the ``args = []`` block:
-
-.. code-block:: python
-
-    args.append("--/persistent/physics/omniPvdOvdRecordingDirectory=/path/to/output/ovds/")
-    args.append("--/physics/omniPvdOutputEnabled=true")
+Do not edit Isaac Sim's installed ``SimulationApp`` sources to set these values. Pass them through
+``--kit_args`` so the command remains reproducible across Isaac Sim installations.
 
 
 Inspecting PXD2 and OVD Files
