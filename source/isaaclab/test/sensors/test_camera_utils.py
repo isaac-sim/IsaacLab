@@ -24,6 +24,15 @@ def test_create_pointcloud_from_rgbd_constant_color(rgb):
     assert torch.equal(colors, expected)
 
 
+def test_create_pointcloud_from_rgbd_rejects_invalid_constant_color_width():
+    """Constant colors must contain exactly RGB components."""
+    depth = torch.ones((2, 2), dtype=torch.float32)
+    intrinsic_matrix = torch.eye(3, dtype=torch.float32)
+
+    with pytest.raises(ValueError, match="exactly three components"):
+        create_pointcloud_from_rgbd(intrinsic_matrix, depth, rgb=[255, 0], device="cpu")
+
+
 def test_create_pointcloud_from_rgbd_default_color():
     """Missing RGB data should use the documented black fallback without raising."""
     depth = torch.ones((2, 2), dtype=torch.float32)
