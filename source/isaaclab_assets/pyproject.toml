@@ -20,11 +20,15 @@ requires-python = ">=3.12"
 dependencies = [
     "isaaclab",
     "isaaclab_contrib",
+    "isaaclab_physx",
+    "isaaclab_newton",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 isaaclab_contrib = { path = "../isaaclab_contrib", editable = true }
+isaaclab_physx = { path = "../isaaclab_physx", editable = true }
+isaaclab_newton = { path = "../isaaclab_newton", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
