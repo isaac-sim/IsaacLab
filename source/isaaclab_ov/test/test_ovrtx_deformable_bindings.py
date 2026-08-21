@@ -590,3 +590,56 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
     assert tensors[0].data == particle_q[1:4].ptr
     assert tensors[0].shape_tuple == (3,)
     assert tensors[0].dtype.lanes == 3
+
+
+def test_update_transforms_writes_caller_owned_buffer(monkeypatch: pytest.MonkeyPatch):
+    """Object xforms fill a persistent GPU buffer and blocking ASYNC write, not map/unmap."""
+    renderer, _ = _make_renderer_without_backend()
+    buffer = object()
+    renderer._object_xform_binding = _FakePointsBinding("omni:xform")
+    renderer._object_newton_indices = [0, 1]
+    renderer._object_scales = object()
+    renderer._object_transform_buffer = buffer
+
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(body_q=object())))
+    launch_kwargs: dict = {}
+
+    def _capture_launch(*args, **kwargs):
+        launch_kwargs.update(kwargs)
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
+
+    renderer.update_transforms()
+
+    assert launch_kwargs["inputs"][0] is buffer
+    assert launch_kwargs["dim"] == 2
+    assert renderer._object_xform_binding.written is buffer
+    assert renderer._object_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._object_xform_binding.write_kwargs["cuda_stream"] == 99
+
+
+def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
+    """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
+    renderer, _ = _make_renderer_without_backend()
+    renderer._camera_xform_binding = _FakePointsBinding("omni:xform")
+    camera_transforms = []
+
+    monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", lambda *args, **kwargs: object())
+
+    def _fake_zeros(*args, **kwargs):
+        arr = object()
+        camera_transforms.append(arr)
+        return arr
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", _fake_zeros)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=7))
+
+    positions = SimpleNamespace(shape=(2,), warp=object())
+    renderer.update_camera(object(), positions, SimpleNamespace(warp=object()), object())
+
+    assert renderer._camera_xform_binding.written is camera_transforms[0]
+    assert renderer._camera_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._camera_xform_binding.write_kwargs["cuda_stream"] == 7
