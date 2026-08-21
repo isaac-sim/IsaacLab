@@ -10,7 +10,15 @@ import sys
 import pytest
 
 from isaaclab.app.app_launcher import AppLauncher, _sanitize_sys_argv_for_kit
+from isaaclab.utils import renderers
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+
+
+@pytest.fixture(autouse=True)
+def _isolate_scene_partition_default(monkeypatch):
+    """Keep the process-wide scene-partitioning default from leaking between tests."""
+    monkeypatch.setattr(renderers, "_scene_partition_default", True)
+    monkeypatch.delenv("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", raising=False)
 
 
 def test_sanitize_sys_argv_removes_trailing_pytest_verbosity(monkeypatch):
@@ -125,6 +133,9 @@ def test_spectator_view_follows_visual_output_intent(launcher_state, expected_en
 
     spectator_arg = f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true"
     assert (spectator_arg in launcher._kit_args) is expected_enabled
+    # The pinned Kit ignores the spectator setting, so a spectator launch must also stop authoring
+    # partitions; otherwise the untokened viewport and XR views lose the partitioned environments.
+    assert renderers.isaac_rtx_per_env_scene_partition_enabled() is not expected_enabled
 
 
 def test_explicit_spectator_setting_overrides_visualizer_default(monkeypatch):
@@ -139,3 +150,16 @@ def test_explicit_spectator_setting_overrides_visualizer_default(monkeypatch):
 
     assert explicit_arg in launcher._kit_args
     assert f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true" not in launcher._kit_args
+
+
+def test_explicit_scene_partition_env_var_survives_spectator_launch(monkeypatch):
+    """An explicit partitioning opt-in should survive a spectator launch."""
+    monkeypatch.setattr(sys, "argv", ["script.py"])
+    monkeypatch.setenv("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", "1")
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._cli_visualizer_explicit = True
+    launcher._cli_visualizer_types = ["kit"]
+
+    launcher._resolve_kit_args({})
+
+    assert renderers.isaac_rtx_per_env_scene_partition_enabled() is True
