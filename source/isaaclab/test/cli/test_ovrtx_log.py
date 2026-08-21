@@ -186,9 +186,9 @@ def test_replayed_log_is_free_of_nul_blocks_and_attributed_per_test(tmp_path: Pa
     )
 
     assert b"\x00" not in output
-    # Reported against the node ID, the same string the saved copy is named after.
-    assert b"----- OVRTX renderer log: test_inner.py::test_alpha -----" in output
-    assert b"----- OVRTX renderer log: test_inner.py::test_beta -----" in output
+    # Reported against the test's name, the same string the saved copy is named after.
+    assert b"----- OVRTX renderer log: test_alpha -----" in output
+    assert b"----- OVRTX renderer log: test_beta -----" in output
     # Replayed once each: a repeat would mean one test was credited with another's output.
     assert output.count(b"alpha-line") == 40
     assert output.count(b"beta-line") == 1
@@ -245,7 +245,7 @@ def test_replay_caps_a_long_log_and_reports_what_it_dropped(tmp_path: Path) -> N
 
 
 def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path) -> None:
-    """With the artifact directory named, each test's log is saved under a directory of its own node ID.
+    """With the artifact directory named, each test's log is saved under a directory of its own name.
 
     This is the copy that survives the caps: the replay and the crash report both quote a bounded tail,
     so a run whose renderer log outgrows the cap is only diagnosable from the saved file.
@@ -269,9 +269,9 @@ def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path)
     )
 
     saved = sorted(path.name for path in save_dir.iterdir())
-    assert saved == ["test_inner.py_test_alpha.0", "test_inner.py_test_beta.0"]
+    assert saved == ["test_alpha.0", "test_beta.0"]
     # The saved copy is unbounded where the replay is capped, and the replay still happens alongside it.
-    assert (save_dir / "test_inner.py_test_alpha.0" / "ovrtx_renderer.log").read_bytes().count(b"alpha-line") == 40
+    assert (save_dir / "test_alpha.0" / "ovrtx_renderer.log").read_bytes().count(b"alpha-line") == 40
     assert output.count(b"alpha-line") == 40
 
 
@@ -299,7 +299,7 @@ def test_dumps_written_beside_the_log_are_saved_with_it(tmp_path: Path) -> None:
         save_dir=save_dir,
     )
 
-    saved = {path.name for path in (save_dir / "test_inner.py_test_crashing.0").iterdir()}
+    saved = {path.name for path in (save_dir / "test_crashing.0").iterdir()}
     assert {"ovrtx_renderer.log", "ovrtx_crash.dmp"} <= saved
     assert "somebody_elses_tree" not in saved
 

@@ -59,7 +59,7 @@ job artifact. Unset by default, which leaves a local run writing nothing beyond 
 """
 
 _UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
-"""Everything a test node ID may hold that a file name should not, e.g. ``/``, ``::``, and ``[param]``."""
+"""Everything a test name may hold that a file name should not, e.g. the ``[param]`` of a parametrization."""
 
 
 def log_size(path):
@@ -105,8 +105,7 @@ def format_log_section(path, label, start=0, limit=LOG_LIMIT_BYTES):
 def _slugify(name):
     """Return ``name`` as a file name.
 
-    Names here are test node IDs, which carry the path separators and parameter brackets a file name
-    cannot.
+    Names here are test names, and a parametrized one carries whatever its parameters are spelled with.
     """
     return _UNSAFE_NAME_CHARS.sub("_", name).strip("_")
 
@@ -150,10 +149,7 @@ def _echo_ovrtx_log(request):
 
     The save runs first so that the artifact holds the log even if the replay cannot print it.
     """
-    # The node ID names both, rather than the node name (``test_alpha[param]``, no test file). The saved
-    # copy is read outside the report that says which file the test came from, so it needs the file, and
-    # naming the replay the same way keeps one test's two records greppable by the same string.
-    label = request.node.nodeid
+    label = request.node.name
 
     start = log_size(LOG_PATH)
     yield
