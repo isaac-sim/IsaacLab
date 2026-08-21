@@ -1,0 +1,38 @@
+name: Apply Windows shell documentation fix
+
+on:
+  push:
+    branches:
+      - docs/windows-command-prompt
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/windows-command-prompt
+      - name: Apply focused documentation patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/source/setup/installation/index.rst")
+          text = path.read_text()
+          anchor = "Choose an installation path\n---------------------------\n"
+          note = """.. note::\n\n   On Windows, command blocks marked ``batch`` use Command Prompt (``cmd.exe``) syntax.\n   Run those commands in Command Prompt unless a section explicitly asks for PowerShell.\n\n"""
+          if text.count(anchor) != 1:
+              raise RuntimeError("Unexpected installation page structure")
+          text = text.replace(anchor, note + anchor, 1)
+          path.write_text(text)
+          PY
+          git rm .github/workflows/apply-windows-shell-docs.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/source/setup/installation/index.rst
+          git commit -m "Clarify Windows installation shell"
+          git push origin HEAD:docs/windows-command-prompt
