@@ -124,7 +124,7 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     )
     cam_prim_path_changed = getattr(viewer, "cam_prim_path", _defaults.cam_prim_path) != _defaults.cam_prim_path
 
-    if not (eye_changed or lookat_changed or origin_changed or resolution_changed):
+    if not (eye_changed or lookat_changed or origin_changed or resolution_changed or cam_prim_path_changed):
         return
 
     if cam_prim_path_changed:
@@ -256,8 +256,7 @@ EnvStepReturn = tuple[
 ]
 """The environment signals processed at the end of each step.
 
-The tuple contains batched information for each sub-environment (keyed by the agent ID).
-The information is stored in the following order:
+The tuple contains batched information for each sub-environment (keyed by the agent ID). The information is stored in the following order:
 
 1. **Observations**: The observations from the environment.
 2. **Rewards**: The rewards from the environment.
