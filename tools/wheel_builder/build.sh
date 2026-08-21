@@ -90,6 +90,8 @@ python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/../../pyproject.toml" "$BUILD_DI
 
 # 4. Build the wheel
 cd "$BUILD_DIR"
+export PIP_RETRIES="${PIP_RETRIES:-12}"
+export UV_HTTP_RETRIES="${UV_HTTP_RETRIES:-12}"
 # Prefer --user to avoid polluting system Python; fall back to --break-system-packages
 # for environments where --user is unsupported (e.g. Docker, ephemeral CI runners).
 python3 -m pip install --user build wheel 2>/dev/null || python3 -m pip install --break-system-packages build wheel

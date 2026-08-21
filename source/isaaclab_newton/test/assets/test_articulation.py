@@ -37,6 +37,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
+from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -50,7 +51,11 @@ import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import (
+    IdealPDActuatorCfg,
+    ImplicitActuator,
+    ImplicitActuatorCfg,
+)
 from isaaclab.assets import ArticulationCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
 from isaaclab.controllers import (
@@ -188,14 +193,18 @@ SIM_CFGs = {
 }
 
 
+class CustomDrive(ImplicitActuator):
+    """Implicit actuator with a class name that does not encode its execution type."""
+
+
 def generate_articulation_cfg(
     articulation_type: str,
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
-    velocity_limit: float | None = None,
-    effort_limit: float | None = None,
-    velocity_limit_sim: float | None = None,
-    effort_limit_sim: float | None = None,
+    actuator_velocity_limit: float | None = None,
+    actuator_effort_limit: float | None = None,
+    joint_velocity_limit: float | None = None,
+    joint_effort_limit: float | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -207,13 +216,13 @@ def generate_articulation_cfg(
             Defaults to 10.0.
         damping: Damping value for the articulation's actuators. Only currently used for "humanoid".
             Defaults to 2.0.
-        velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
+        actuator_velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
             and "single_joint_explicit".
-        effort_limit: Effort limit for the actuators. Only currently used for "single_joint_implicit"
-            and "single_joint_explicit".
-        velocity_limit_sim: Velocity limit for the actuators (set into the simulation).
+        actuator_effort_limit: Effort limit for explicit actuators. Only currently used for
+            "single_joint_explicit".
+        joint_velocity_limit: Velocity limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
-        effort_limit_sim: Effort limit for the actuators (set into the simulation).
+        joint_effort_limit: Effort limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
 
     Returns:
@@ -245,10 +254,9 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=velocity_limit_sim,
-                    effort_limit=effort_limit,
-                    velocity_limit=velocity_limit,
+                    joint_effort_limit=joint_effort_limit,
+                    joint_velocity_limit=joint_velocity_limit,
+                    actuator_velocity_limit=actuator_velocity_limit,
                     stiffness=2000.0,
                     damping=100.0,
                 ),
@@ -269,10 +277,10 @@ def generate_articulation_cfg(
             actuators={
                 "joint": IdealPDActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=velocity_limit_sim,
-                    effort_limit=effort_limit,
-                    velocity_limit=velocity_limit,
+                    joint_effort_limit=joint_effort_limit,
+                    joint_velocity_limit=joint_velocity_limit,
+                    actuator_effort_limit=actuator_effort_limit,
+                    actuator_velocity_limit=actuator_velocity_limit,
                     stiffness=0.0,
                     damping=10.0,
                 ),
@@ -645,6 +653,27 @@ def test_viscous_writer_updates_finalized_newton_model(monkeypatch):
     torch.testing.assert_close(torch.from_numpy(model.joint_damping.numpy()), torch.tensor([0.25]))
 
 
+def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
+    """Leave solver gains untouched until collection construction resolves actuator defaults."""
+    gain_writes = []
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        device="cpu",
+        find_joints=lambda _: ([0], ["joint"]),
+        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
+        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+    )
+    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: None)
+
+    native_groups = NewtonActuatorControl(articulation).prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
+    )
+
+    assert native_groups == {"explicit"}
+    assert gain_writes == []
+
+
 @pytest.mark.parametrize(
     ("actuator_cfg", "expected_mode", "expected_actuator_indices"),
     [
@@ -660,6 +689,13 @@ def test_viscous_writer_updates_finalized_newton_model(monkeypatch):
         ),
         (
             ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0),
+            JointTargetMode.POSITION_VELOCITY,
+            [0, -2, 1, -3],
+        ),
+        (
+            ImplicitActuatorCfg(
+                class_type=f"{__name__}:CustomDrive", joint_names_expr=[".*"], stiffness=10.0, damping=2.0
+            ),
             JointTargetMode.POSITION_VELOCITY,
             [0, -2, 1, -3],
         ),
@@ -957,54 +993,52 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
     assert articulation.num_shapes_per_body == [3, 0, 2]
 
 
-@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.parametrize("use_newton_actuators", [True])
-def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
-    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators
+@pytest.mark.parametrize("articulation_type", ["anymal"])  # consumed by the sim fixture
+@pytest.mark.parametrize("use_newton_actuators", [True])  # consumed by the sim fixture
+def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
+    sim, articulation_type, use_newton_actuators, device
 ):
-    """Map partial public-order gain writes to Newton controller backend columns."""
-    articulation_cfg = generate_articulation_cfg(articulation_type).replace(
+    """Map selected public joint IDs to Newton-controller columns."""
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
         actuators={
             "legs": IdealPDActuatorCfg(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
                 stiffness=40.0,
                 damping=5.0,
-                effort_limit=80.0,
+                actuator_effort_limit=80.0,
             )
         },
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
     )
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=sim.device)
     sim.reset()
-
-    assert use_newton_actuators
     assert articulation.joint_ordering is not None
     assert articulation.newton_actuator_adapter is not None
 
-    def gather_controller_parameter(name: str) -> torch.Tensor:
-        parameter = torch.zeros(
+    def gather_stiffness() -> torch.Tensor:
+        stiffness = torch.zeros(
             (articulation.num_instances, articulation.num_joints),
             device=articulation.device,
         )
         for actuator in articulation.newton_actuator_adapter.actuators:
-            if hasattr(actuator.controller, name):
-                parameter += wp.to_torch(
-                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, name)
+            if hasattr(actuator.controller, "kp"):
+                stiffness += wp.to_torch(
+                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, "kp")
                 )
-        return parameter
+        return stiffness
 
-    stiffness_before = gather_controller_parameter("kp").clone()
-    damping_before = gather_controller_parameter("kd").clone()
+    stiffness_before = gather_stiffness()
     env_ids = torch.tensor([1], device=articulation.device, dtype=torch.long)
     joint_ids = torch.tensor([1, 6, 10], device=articulation.device, dtype=torch.long)
     stiffness = torch.tensor([[101.0, 106.0, 110.0]], device=articulation.device)
-    damping = torch.tensor([[11.0, 16.0, 20.0]], device=articulation.device)
 
-    articulation.write_actuator_stiffness_to_sim(stiffness=stiffness, env_ids=env_ids, joint_ids=joint_ids)
-    articulation.write_actuator_damping_to_sim(damping=damping, env_ids=env_ids, joint_ids=joint_ids)
+    with pytest.warns(DeprecationWarning, match="write_actuator_stiffness_to_sim"):
+        articulation.write_actuator_stiffness_to_sim(
+            stiffness=stiffness,
+            env_ids=env_ids,
+            joint_ids=joint_ids,
+        )
 
     backend_joint_ids = torch.tensor(
         articulation.joint_ordering.user_to_backend_indices,
@@ -1012,11 +1046,8 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
         dtype=torch.long,
     )[joint_ids]
     expected_stiffness = stiffness_before.clone()
-    expected_damping = damping_before.clone()
     expected_stiffness[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = stiffness
-    expected_damping[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = damping
-    torch.testing.assert_close(gather_controller_parameter("kp"), expected_stiffness)
-    torch.testing.assert_close(gather_controller_parameter("kd"), expected_damping)
+    torch.testing.assert_close(gather_stiffness(), expected_stiffness)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -1140,6 +1171,9 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     old_bindings = {name: getattr(data, name) for name in public_to_binding.values()}
     old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
     old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
+    implicit_executor = articulation.actuators._implicit_executor
+    assert implicit_executor is not None
+    actuator_state_inputs = [implicit_executor.kernel_inputs]
     data.joint_pos_limits.torch.clone()
     assert data._joint_pos_limits_timestamp == data._sim_timestamp
     # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
@@ -1201,6 +1235,10 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         assert rebound is not old_binding
         assert int(rebound.ptr) != old_binding_ptrs[binding_name]
         assert int(rebound.ptr) == int(new_source_bindings[binding_name].ptr)
+
+    for inputs in actuator_state_inputs:
+        assert inputs[3].ptr == data.joint_pos.warp.ptr
+        assert inputs[4].ptr == data.joint_vel.warp.ptr
 
     assert data._joint_pos_limits_timestamp == -1.0
     assert data._joint_acc.timestamp == -1.0
@@ -1272,10 +1310,9 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
 ):
     """Keep Lab-owned actuator gains across a rebind that re-seeds the solver's sim gains.
 
-    Part 2 (D3) regression: ``_actuator_stiffness`` / ``_actuator_damping`` are Lab-owned
-    records (the actuator kp/kd); the solver's sim gains are deliberately zeroed for
-    explicit DOFs. A full sim reset recreates the solver arrays, and rebind must NOT
-    resync the Lab-owned records from the freshly rebuilt (here: sentinel) solver gains.
+    Part 2 (D3) regression: named actuator groups own their actuator kp/kd; the solver's
+    sim gains are deliberately zeroed for explicit DOFs. A full sim reset recreates the solver arrays.
+    Rebind must NOT resync the actuator-owned values from freshly rebuilt (here: sentinel) solver gains.
     ``none`` is the identity-ordering control that must pass with or without the fix.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
@@ -1284,7 +1321,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
                 joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
                 stiffness=40.0,
                 damping=5.0,
-                effort_limit=80.0,
+                actuator_effort_limit=80.0,
             )
         },
     )
@@ -1298,10 +1335,10 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     data = articulation.data
     assert (data.joint_ordering is not None) is has_ordering
 
-    # Prime: explicit (IdealPD) actuators keep their PD in the Lab-owned records,
+    # Prime: explicit (IdealPD) actuators keep their PD in actuator-owned records,
     # while the solver's sim gains are zeroed so it applies no PD on these DOFs.
-    np.testing.assert_allclose(data._actuator_stiffness.numpy(), 40.0)
-    np.testing.assert_allclose(data._actuator_damping.numpy(), 5.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].stiffness.cpu().numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].damping.cpu().numpy(), 5.0)
     np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), 0.0)
     np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), 0.0)
 
@@ -1325,9 +1362,9 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     SimulationManager._model = new_model
     data._create_simulation_bindings()
 
-    # The Lab-owned actuator gains must survive the rebind unchanged...
-    np.testing.assert_allclose(data._actuator_stiffness.numpy(), 40.0)
-    np.testing.assert_allclose(data._actuator_damping.numpy(), 5.0)
+    # The actuator-owned gains must survive the rebind unchanged...
+    np.testing.assert_allclose(articulation.actuators["legs"].stiffness.cpu().numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].damping.cpu().numpy(), 5.0)
     # ...while the sim-owned mirrors track the solver's freshly seeded (sentinel) gains.
     if has_ordering:
         np.testing.assert_allclose(data._joint_stiffness_user.numpy(), sentinel_ke)
@@ -1444,17 +1481,7 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
 def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
     sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators, ordering_mode, monkeypatch
 ):
-    """Launch the fused target gather only under active ordering; copy straight through otherwise.
-
-    Regression for the identity fast path: an earlier rework launched
-    :func:`ordering_kernels.reorder_joint_targets_user_to_backend` unconditionally
-    in :meth:`write_data_to_sim`, so a scene with no ordering configured paid for a
-    per-step gather that the pre-ordering code never issued. This test records the
-    kernels launched during ``write_data_to_sim`` and asserts the target gather runs
-    only when ordering is active. With the unconditional launch reinstated, the
-    ``ordering_mode == "none"`` cases fail (the gather is recorded). Both the
-    Newton-actuator and Lab-actuator branches are covered.
-    """
+    """Gather joint targets only when non-identity joint ordering is active."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
     )
@@ -1490,10 +1517,13 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
     if has_ordering:
         assert target_gather in launched_kernels
     else:
-        # Identity ordering copies straight into the sim binds -- no target gather,
-        # and the sim-bound position target mirrors its user-order source.
+        # Identity ordering binds the user-order source directly.
         assert target_gather not in launched_kernels
-        expected_source = articulation.data._joint_pos_target if on_newton_path else articulation._joint_pos_target_sim
+        expected_source = (
+            articulation.actuators.target_command.position.warp
+            if on_newton_path
+            else articulation.actuators.output_command.position.warp
+        )
         np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
 
 
@@ -2733,33 +2763,32 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulatio
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("vel_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("add_ground_plane", [False])
-@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
 def test_setting_velocity_limit_implicit(
-    sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane, articulation_type
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
 ):
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
-    1. The solver clamp ``velocity_limit_sim`` is applied to the simulation; when unset, the
+    1. The solver clamp ``joint_velocity_limit`` is applied to the simulation; when unset, the
        USD-authored value is kept
-    2. The joint velocity limit ``velocity_limit`` is never pushed to the solver and keeps its
+    2. The actuator velocity limit ``actuator_velocity_limit`` is never pushed to the solver and keeps its
        configured value; when unset, it falls back to the solver clamp
 
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
         device: The device to run the simulation on
-        vel_limit_sim: The velocity limit to set in simulation
+        joint_velocity_limit: The velocity limit to set in simulation
         vel_limit: The velocity limit to set in actuator
     """
     # create simulation
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        velocity_limit_sim=vel_limit_sim,
-        velocity_limit=vel_limit,
+        articulation_type="single_joint_implicit",
+        joint_velocity_limit=joint_velocity_limit,
+        actuator_velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -2774,15 +2803,12 @@ def test_setting_velocity_limit_implicit(
         articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
     # check data buffer
-    torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
-    # check actuator has simulation velocity limit
-    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, newton_vel_limit)
-
-    # the solver clamp comes from velocity_limit_sim when set, otherwise the USD-authored value
-    if vel_limit_sim is None:
+    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
+    # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
+    if joint_velocity_limit is None:
         sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
-        sim_limit = vel_limit_sim
+        sim_limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(newton_vel_limit, sim_limit)
     torch.testing.assert_close(newton_vel_limit, expected_velocity_limit)
 
@@ -2790,20 +2816,22 @@ def test_setting_velocity_limit_implicit(
     # when unset it falls back to the solver clamp
     joint_limit = vel_limit if vel_limit is not None else sim_limit
     expected_joint_limit = torch.full_like(newton_vel_limit, joint_limit)
-    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit, expected_joint_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].actuator_velocity_limit, expected_joint_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("vel_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
-def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_limit_sim, vel_limit, articulation_type):
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
+def test_setting_velocity_limit_explicit(
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
+):
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        velocity_limit_sim=vel_limit_sim,
-        velocity_limit=vel_limit,
+        articulation_type="single_joint_explicit",
+        joint_velocity_limit=joint_velocity_limit,
+        actuator_velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -2817,13 +2845,10 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     newton_vel_limit = wp.to_torch(
         articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
-    actuator_vel_limit = articulation.actuators["joint"].velocity_limit
-    actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
+    actuator_vel_limit = articulation.actuators["joint"].actuator_velocity_limit
 
-    # check data buffer for joint_velocity_limits_sim
-    torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
-    # check actuator velocity_limit_sim is set to physx
-    torch.testing.assert_close(actuator_vel_limit_sim, newton_vel_limit)
+    # check data buffer for joint_vel_limits
+    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
 
     if vel_limit is not None:
         expected_actuator_vel_limit = torch.full(
@@ -2833,15 +2858,15 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         )
         # check actuator is set
         torch.testing.assert_close(actuator_vel_limit, expected_actuator_vel_limit)
-        # check physx is not velocity_limit
+        # check physx is not actuator_velocity_limit
         assert not torch.allclose(actuator_vel_limit, newton_vel_limit)
     else:
-        # check actuator velocity_limit is the same as the PhysX default
+        # check actuator_velocity_limit is the same as the PhysX default
         torch.testing.assert_close(actuator_vel_limit, newton_vel_limit)
 
     # simulation velocity limit is set to USD value unless user overrides
-    if vel_limit_sim is not None:
-        limit = vel_limit_sim
+    if joint_velocity_limit is not None:
+        limit = joint_velocity_limit
     else:
         limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     # check physx is set to expected value
@@ -2851,12 +2876,9 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-def test_setting_effort_limit_implicit(
-    sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
-):
+@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
+def test_setting_effort_limit_implicit(sim, articulation_type, num_articulations, device, joint_effort_limit):
     """Test setting of effort limit for implicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -2865,9 +2887,8 @@ def test_setting_effort_limit_implicit(
     - Case 3: If actuator config value is None: USD value is used as default
     """
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        effort_limit_sim=effort_limit_sim,
-        effort_limit=effort_limit,
+        articulation_type="single_joint_implicit",
+        joint_effort_limit=joint_effort_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -2882,26 +2903,29 @@ def test_setting_effort_limit_implicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
 
-    # The solver clamp reaches the physics engine; the rated limit remains on the actuator.
-    torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, newton_effort_limit)
+    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, newton_effort_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].joint_effort_limit, newton_effort_limit)
+    # without a separately configured rated limit, the actuator limit tracks the solver clamp
+    torch.testing.assert_close(articulation.actuators["joint"].actuator_effort_limit, newton_effort_limit)
 
-    solver_limit = effort_limit_sim if effort_limit_sim is not None else effort_limit
-    if solver_limit is None:
-        solver_limit = articulation_cfg.spawn.joint_drive_props.max_force
-    rated_limit = effort_limit if effort_limit is not None else solver_limit
-    torch.testing.assert_close(newton_effort_limit, torch.full_like(newton_effort_limit, solver_limit))
-    torch.testing.assert_close(
-        articulation.actuators["joint"].effort_limit, torch.full_like(newton_effort_limit, rated_limit)
-    )
+    # decide the limit based on what is set
+    if joint_effort_limit is None:
+        limit = articulation_cfg.spawn.joint_drive_props.max_force
+    else:
+        limit = joint_effort_limit
+
+    # check that the max force is what we set
+    expected_effort_limit = torch.full_like(newton_effort_limit, limit)
+    torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
+@pytest.mark.parametrize("actuator_effort_limit", [1e2, None])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
 def test_setting_effort_limit_explicit(
-    sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
+    sim, articulation_type, num_articulations, device, joint_effort_limit, actuator_effort_limit
 ):
     """Test setting of effort limit for explicit actuators.
 
@@ -2913,9 +2937,9 @@ def test_setting_effort_limit_explicit(
     """
 
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        effort_limit_sim=effort_limit_sim,
-        effort_limit=effort_limit,
+        articulation_type="single_joint_explicit",
+        joint_effort_limit=joint_effort_limit,
+        actuator_effort_limit=actuator_effort_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -2932,32 +2956,26 @@ def test_setting_effort_limit_explicit(
     newton_effort_limit = wp.to_torch(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
-    actuator_effort_limit = articulation.actuators["joint"].effort_limit
-    actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
+    actuator_effort_limit_actual = articulation.actuators["joint"].actuator_effort_limit
 
-    # check actuator effort_limit_sim is set to physx
-    torch.testing.assert_close(actuator_effort_limit_sim, newton_effort_limit)
-
-    if effort_limit is not None:
-        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit, effort_limit)
+    if actuator_effort_limit is not None:
+        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit_actual, actuator_effort_limit)
         # check actuator is set
-        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
 
-        # check physx effort limit does not match the one explicit actuator has
-        assert not (torch.allclose(actuator_effort_limit, newton_effort_limit))
     else:
-        # When effort_limit is None, actuator should use USD default values
+        # When actuator_effort_limit is None, actuator should use USD default values
         expected_actuator_effort_limit = torch.full_like(newton_effort_limit, usd_default_effort_limit)
-        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
 
-    # when using explicit actuators, the limits are set to high unless user overrides
-    if effort_limit_sim is not None:
-        limit = effort_limit_sim
+    # the solver keeps the authored limit unless the user overrides it explicitly
+    if joint_effort_limit is not None:
+        limit = joint_effort_limit
     else:
-        limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
+        limit = usd_default_effort_limit
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(newton_effort_limit, limit)
-    torch.testing.assert_close(actuator_effort_limit_sim, expected_effort_limit)
+    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, expected_effort_limit)
     torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 

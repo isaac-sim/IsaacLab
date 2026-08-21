@@ -7,7 +7,7 @@
 
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg, ObjectCfg
+from isaaclab_tasks.core.handover.handover_env_cfg import BALL_CFG, HandoverEnvCfg
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
@@ -20,4 +20,4 @@ def test_handover_isaacsim_physx_resolves_physx_assets() -> None:
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert env_cfg.right_robot_cfg.spawn.usd_path == SHADOW_HAND_CFG.spawn.usd_path
     assert env_cfg.left_robot_cfg.spawn.usd_path == SHADOW_HAND_CFG.spawn.usd_path
-    assert env_cfg.object_cfg == ObjectCfg().physx
+    assert env_cfg.object_cfg == BALL_CFG

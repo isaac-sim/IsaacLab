@@ -100,6 +100,7 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/actuators
 
 
 .. toctree::
