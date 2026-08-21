@@ -73,15 +73,14 @@ class FactoryBase:
     def _get_backend(cls, *args, **kwargs) -> str:
         """Return active backend name for this factory.
 
-        Falls back to ``"physx"`` for backward compatibility when no simulation
-        context is initialized yet.
+        Falls back to ``"newton"`` when no simulation context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
         from isaaclab.sim.simulation_context import SimulationContext
 
         sim_context = SimulationContext.instance()
         if sim_context is None:
-            return "physx"
+            return "newton"
 
         manager_name = sim_context.physics_manager.__name__.lower()
         if manager_name.startswith("newton"):
