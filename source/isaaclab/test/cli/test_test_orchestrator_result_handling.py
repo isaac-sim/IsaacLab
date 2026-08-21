@@ -341,6 +341,44 @@ def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path
     assert not was_failure
 
 
+def test_startup_retry_wall_time_includes_every_attempt(monkeypatch, tmp_path: Path) -> None:
+    """The reported wall time must include startup attempts discarded by a successful retry."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    attempts = 0
+
+    def _capture(*_args, report_file: str, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return -1, b"", b"", "startup_hang", 8.0, ""
+        _write_partial_junit_report(report_file)
+        return 0, b"", b"", "", 2.0, ""
+
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", str(tmp_path / "ovrtx_renderer.log"))
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    _report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert attempts == 2
+    assert status["wall_time"] == 10.0
+    assert not was_failure
+
+
 def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
     """The journal path handed to the test subprocess must not depend on the current directory.
 
@@ -450,6 +488,7 @@ def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch,
     assert status["errors"] == 1
     assert status["failures"] == 0
     assert status["tests"] == 2
+    assert status["wall_time"] == pytest.approx(0.3)
     assert was_failure
 
     cases = {case.get("name"): case for case in ElementTree.parse(report_paths[1]).getroot().iter("testcase")}
