@@ -497,6 +497,7 @@ class SimulationContext:
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""
         return bool(self.get_setting("/isaaclab/visualizer/explicit"))
+
     def _is_cli_visualizer_disable_all(self) -> bool:
         """Return ``True`` when CLI requested ``--viz none`` semantics."""
         return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
