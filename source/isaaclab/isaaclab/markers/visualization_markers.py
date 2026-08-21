@@ -261,7 +261,9 @@ class VisualizationMarkers:
         # Kit-pumping visualizer. Offscreen is excluded from ``is_rendering`` (see
         # :attr:`~isaaclab.sim.SimulationContext.is_rendering`), so it is checked explicitly here.
         needs_kit_backend = (
-            sim.is_rendering
+            sim.has_gui
+            or sim.get_setting("/isaaclab/render/rtx_sensors")
+            or sim.get_setting("/isaaclab/xr/enabled")
             or getattr(sim, "has_offscreen_render", False)
             or any(
                 viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
