@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -141,7 +142,7 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            ValueError: If the provided data types are not supported by the camera.
+            ValueError: If the provided data types are not supported by the camera or active renderer.
         """
         # perform check on supported data types
         self._check_supported_data_types(cfg)
@@ -226,17 +227,24 @@ class Camera(SensorBase):
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
 
-    def __del__(self):
-        """Unsubscribes from callbacks and cleans up renderer resources."""
+    def __del__(self, _sys=sys):
+        """Unsubscribes from callbacks and cleans up renderer resources.
+
+        Skips cleanup during interpreter shutdown so destructor-time imports or renderer teardown
+        cannot raise ``ImportError: sys.meta_path is None`` and mask the original exception.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         # unsubscribe callbacks
         super().__del__()
-        # release the frame view's backend state
-        if self._view is not None:
+
+        # release the frame view's backend state, getattr covers partial initialization
+        if getattr(self, "_view", None) is not None:
             self._view.close()
             self._view = None
         # cleanup render resources (renderer may be None if never initialized)
-        if self._renderer is not None:
-            self._renderer.cleanup(self._render_data)
+        if getattr(self, "_renderer", None) is not None:
+            self._renderer.cleanup(getattr(self, "_render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -644,8 +652,9 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         specs = self._renderer.supported_output_types()
-        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        # Split requested names into known, unknown, and unsupported types.
         known: list[str] = []
+        unknown: list[str] = []
         unsupported: list[str] = []
         for name in self.cfg.data_types:
             try:
@@ -654,13 +663,18 @@ class Camera(SensorBase):
                 else:
                     unsupported.append(name)
             except ValueError:
-                unsupported.append(name)
+                unknown.append(name)
+        errors = []
+        if unknown:
+            errors.append(f"Unknown camera data types: {unknown}.")
         if unsupported:
-            logger.warning(
-                "Renderer %s does not support the following requested data types and will not produce them: %s",
-                type(self._renderer).__name__,
-                unsupported,
+            errors.append(
+                f"Renderer {type(self._renderer).__name__} does not support the following requested data types:"
+                f" {unsupported}."
+                f"\n\tSupported data types: {sorted(str(kind) for kind in specs)}"
             )
+        if errors:
+            raise ValueError("\n".join(errors))
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,

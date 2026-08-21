@@ -8,15 +8,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
+from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils.configclass import configclass
 
 
 @configclass
-class VisualMaterialCfg:
+class VisualMaterialCfg(SpawnerCfg):
     """Configuration parameters for creating a visual material."""
-
-    func: Callable = MISSING
-    """The function to use for creating the material."""
 
 
 @configclass
@@ -80,6 +78,18 @@ class MdlFileCfg(VisualMaterialCfg):
 
     If None, then the default setting in the MDL material will be used.
     """
+
+
+@configclass
+class PbrMdlCfg(MdlFileCfg):
+    """Configuration parameters for the OmniPBR MDL material."""
+
+    mdl_path: str = "OmniPBR.mdl"
+    """Path to the OmniPBR material definition."""
+    diffuse_color_constant: tuple[float, float, float] = (0.18, 0.18, 0.18)
+    """Constant linear RGB albedo."""
+    reflection_roughness_constant: float | None = None
+    """Constant surface roughness. The material default is used when None."""
 
 
 @configclass

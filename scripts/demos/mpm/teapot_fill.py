@@ -423,16 +423,6 @@ def create_sim_cfg():
     )
 
 
-def preview_material(color):
-    """Return a preview-surface material for Kit runs; Kit-less runs spawn no USD materials."""
-    if "kit" not in (args_cli.visualizer or []):
-        return None
-
-    import isaaclab.sim as sim_utils
-
-    return sim_utils.PreviewSurfaceCfg(diffuse_color=color)
-
-
 def create_scene_cfg():
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
     from isaaclab_newton.assets import MPMObjectCfg
@@ -475,7 +465,7 @@ def create_scene_cfg():
                     dynamic_friction=TABLE_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=preview_material(TABLE_COLOR),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=TABLE_COLOR),
                 visual_material_path="visualMaterial",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(
@@ -498,7 +488,7 @@ def create_scene_cfg():
                     dynamic_friction=BOWL_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=preview_material(BOWL_COLOR),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BOWL_COLOR),
                 visual_material_path="visualMaterial",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
@@ -529,7 +519,7 @@ def create_scene_cfg():
                     dynamic_friction=CONTAINER_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=preview_material(CONTAINER_COLOR),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=CONTAINER_COLOR),
                 visual_material_path="visualMaterial",
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=container_pos, rot=container_rot),
@@ -549,10 +539,10 @@ def create_scene_cfg():
                     tensile_yield_ratio=5.0,
                 ),
                 visual_color=WATER_COLOR,
-                visual_material=sim_utils.GlassMdlCfg(
-                    glass_color=WATER_COLOR,
-                    glass_ior=1.333,
-                    thin_walled=False,
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=WATER_COLOR,
+                    roughness=0.1,
+                    opacity=0.7,
                 ),
             ),
             init_state=MPMObjectCfg.InitialStateCfg(pos=container_pos),

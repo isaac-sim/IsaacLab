@@ -382,6 +382,7 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
                 "rsl_rl_cfg_entry_point": ("rgb",),
                 "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
             },
+            supports_warp_frontend=True,
         ),
         EnvironmentDocRow(
             task_name="IsaacContrib-Cartpole",
@@ -391,7 +392,13 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
         ),
     ]
     rows.reverse()
-    rendered = render_environment_browser_task_rows(rows, {"IsaacContrib-Cartpole": "tasks/classic/cartpole.jpg"})
+    rendered = render_environment_browser_task_rows(
+        rows,
+        {
+            "Isaac-Cartpole": "tasks/classic/cartpole.jpg",
+            "IsaacContrib-Cartpole": "tasks/classic/cartpole.jpg",
+        },
+    )
     original = (
         f"        {ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
         "        const taskRows = [];\n"
@@ -410,6 +417,7 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert '"IsaacContrib-Cartpole"' in updated
     assert '"ovphysx"' in updated
     assert '"tasks/classic/cartpole.jpg"' in updated
+    assert '"tasks/classic/cartpole.jpg", true' in updated
     assert updated.index('"Isaac-Cartpole"') < updated.index('"IsaacContrib-Cartpole"')
     assert "const preserved = true;" in updated
 

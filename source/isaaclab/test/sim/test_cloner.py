@@ -230,9 +230,9 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     copy_calls: list[tuple[str, str]] = []
     real_copy_spec = _cloner_mod.Sdf.CopySpec
 
-    def capturing_copy_spec(src_layer, src_path, dst_layer, dst_path):
+    def capturing_copy_spec(src_layer, src_path, dst_layer, dst_path, *args):
         copy_calls.append((str(src_path), str(dst_path)))
-        return real_copy_spec(src_layer, src_path, dst_layer, dst_path)
+        return real_copy_spec(src_layer, src_path, dst_layer, dst_path, *args)
 
     with patch.object(_cloner_mod.Sdf, "CopySpec", capturing_copy_spec):
         usd_replicate(
