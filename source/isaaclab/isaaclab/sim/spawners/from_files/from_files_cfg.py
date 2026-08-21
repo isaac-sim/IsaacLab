@@ -128,6 +128,14 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no visual material will be added.
     """
 
+    visual_material_bindings: dict[str, str] = {}
+    """Visual material bindings for selected asset-relative prims.
+
+    Keys name prims below the spawned asset. Relative values name materials below that asset,
+    so native clone backends remap their bindings with each clone. Absolute values name global
+    materials shared by every clone.
+    """
+
     physics_material_path: str = "material"
     """Path to the physics material to use for the prim. Defaults to "material".
 

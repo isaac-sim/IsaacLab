@@ -9,6 +9,8 @@
 
     AssetBase
     AssetBaseCfg
+    VisualMaterial
+    VisualMaterialCfg
     BaseCableObject
     BaseCableObjectData
     CableObject
@@ -51,6 +53,20 @@ Asset Base
 
 .. autoclass:: AssetBaseCfg
     :members:
+    :exclude-members: __init__, class_type, InitialStateCfg
+
+Visual Material
+---------------
+
+.. autoclass:: VisualMaterial
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: VisualMaterialCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
     :exclude-members: __init__, class_type, InitialStateCfg
 
 Rigid Object
