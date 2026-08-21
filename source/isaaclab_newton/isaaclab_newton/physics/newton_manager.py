@@ -483,6 +483,7 @@ class NewtonManager(PhysicsManager):
     _shadow_deformable_remap_batches: list | None = None
     _shadow_deformable_copy_batch: tuple | None = None
     _shadow_deformable_batch_sync_key: tuple | None = None
+    _visualization_stop_callback: CallbackHandle | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -1062,6 +1063,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
+        callback = NewtonManager._visualization_stop_callback
+        NewtonManager._visualization_stop_callback = None
+        if callback is not None:
+            callback.deregister()
         NewtonManager._use_fabric_gpu_hierarchy = None
         NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
@@ -2829,6 +2834,12 @@ class NewtonManager(PhysicsManager):
             cls._model.num_envs = cls._num_envs
             NewtonManager._deformable_registry = []
             populate_shadow_deformable_registry(cls, registry_groups)
+            NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
+                lambda _payload: NewtonManager.clear(),
+                PhysicsEvent.STOP,
+                name="newton_visualization_state",
+                wrap_weak_ref=False,
+            )
 
         except Exception:
             logger.exception(
