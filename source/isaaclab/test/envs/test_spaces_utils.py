@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 import torch
@@ -106,28 +108,38 @@ def test_space_serialization_deserialization():
     space = [1, 2, 3, 4, 5]
     output = deserialize_space(serialize_space(space))
     assert space == output
-    space = Box(low=-1.0, high=1.0, shape=(1, 2))
+    space = Box(
+        low=np.array([[-1.0, -1.0]], dtype=np.float64),
+        high=np.array([[1.0, 1.0]], dtype=np.float64),
+        dtype=np.float64,
+    )
     output = deserialize_space(serialize_space(space))
     assert isinstance(output, Box)
     assert (space.low == output.low).all()
     assert (space.high == output.high).all()
     assert space.shape == output.shape
+    assert space.dtype == output.dtype
     # Discrete
     space = {2}
     output = deserialize_space(serialize_space(space))
     assert space == output
-    space = Discrete(2)
+    space = Discrete(2, start=3)
     output = deserialize_space(serialize_space(space))
     assert isinstance(output, Discrete)
     assert space.n == output.n
+    assert space.start == output.start
     # MultiDiscrete
     space = [{1}, {2}, {3}]
     output = deserialize_space(serialize_space(space))
     assert space == output
-    space = MultiDiscrete(np.array([1, 2, 3]))
+    space = MultiDiscrete(
+        np.array([1, 2, 3], dtype=np.int32), start=np.array([0, 1, 2], dtype=np.int32), dtype=np.int32
+    )
     output = deserialize_space(serialize_space(space))
     assert isinstance(output, MultiDiscrete)
     assert (space.nvec == output.nvec).all()
+    assert (space.start == output.start).all()
+    assert space.dtype == output.dtype
     # composite spaces
     # Tuple
     space = ([1, 2, 3, 4, 5], {2}, [{1}, {2}, {3}])
@@ -149,6 +161,22 @@ def test_space_serialization_deserialization():
     assert len(output) == 2
     assert isinstance(output["box"], Box)
     assert isinstance(output["discrete"], Discrete)
+
+
+def test_deserialize_legacy_gym_space_payloads():
+    """Gymnasium payloads created before metadata fields were added should retain previous defaults."""
+    box_payload = json.dumps(
+        {"type": "gymnasium", "space": "Box", "low": [-1.0], "high": [1.0], "shape": [1]}
+    )
+    assert deserialize_space(box_payload).dtype == np.dtype("float32")
+
+    discrete_payload = json.dumps({"type": "gymnasium", "space": "Discrete", "n": 3})
+    assert deserialize_space(discrete_payload).start == 0
+
+    multi_discrete_payload = json.dumps({"type": "gymnasium", "space": "MultiDiscrete", "nvec": [2, 3]})
+    multi_discrete = deserialize_space(multi_discrete_payload)
+    assert multi_discrete.dtype == np.dtype("int64")
+    assert np.array_equal(multi_discrete.start, np.zeros(2, dtype=np.int64))
 
 
 def test_replace_strings_with_env_cfg_spaces_preserves_unserialized_marl_spaces():
