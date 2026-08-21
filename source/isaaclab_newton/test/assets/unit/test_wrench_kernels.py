@@ -71,3 +71,78 @@ def test_update_wrench_array_ordered_rotates_and_scatters_to_backend_order() -> 
         np.asarray([[[3.0, 0.0, 0.0, 4.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 2.0, 0.0]]], dtype=np.float32),
         atol=1e-6,
     )
+
+
+def test_update_wrench_array_preserves_false_mask_entries() -> None:
+    """False environment and body mask entries must leave destination wrenches untouched."""
+    forces = wp.array(
+        np.asarray([[[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]]]),
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    torques = wp.array(
+        np.asarray([[[10.0, 0.0, 0.0], [20.0, 0.0, 0.0]], [[30.0, 0.0, 0.0], [40.0, 0.0, 0.0]]]),
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    poses = np.zeros((2, 2, 7), dtype=np.float32)
+    poses[..., 6] = 1.0
+    body_link_pose_w = wp.array(poses, dtype=wp.transformf, device="cpu")
+    initial_wrench = np.full((2, 2, 6), -7.0, dtype=np.float32)
+    wrench = wp.array(initial_wrench, dtype=wp.spatial_vectorf, device="cpu")
+
+    wp.launch(
+        shared_kernels.update_wrench_array_with_force_and_torque,
+        dim=(2, 2),
+        inputs=[
+            forces,
+            torques,
+            body_link_pose_w,
+            wrench,
+            wp.array([True, False], dtype=wp.bool, device="cpu"),
+            wp.array([False, True], dtype=wp.bool, device="cpu"),
+        ],
+        device="cpu",
+    )
+
+    expected = initial_wrench.copy()
+    expected[0, 1] = [2.0, 0.0, 0.0, 20.0, 0.0, 0.0]
+    np.testing.assert_allclose(wrench.numpy(), expected)
+
+
+def test_update_wrench_array_ordered_preserves_false_masks_while_scattering() -> None:
+    """Ordered packing must apply both masks before scattering the selected public body."""
+    forces = wp.array(
+        np.asarray([[[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]]]),
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    torques = wp.array(
+        np.asarray([[[10.0, 0.0, 0.0], [20.0, 0.0, 0.0]], [[30.0, 0.0, 0.0], [40.0, 0.0, 0.0]]]),
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    poses = np.zeros((2, 2, 7), dtype=np.float32)
+    poses[..., 6] = 1.0
+    body_link_pose_w = wp.array(poses, dtype=wp.transformf, device="cpu")
+    initial_wrench = np.full((2, 2, 6), -7.0, dtype=np.float32)
+    wrench = wp.array(initial_wrench, dtype=wp.spatial_vectorf, device="cpu")
+
+    wp.launch(
+        articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
+        dim=(2, 2),
+        inputs=[
+            forces,
+            torques,
+            body_link_pose_w,
+            wp.array([1, 0], dtype=wp.int32, device="cpu"),
+            wrench,
+            wp.array([False, True], dtype=wp.bool, device="cpu"),
+            wp.array([True, False], dtype=wp.bool, device="cpu"),
+        ],
+        device="cpu",
+    )
+
+    expected = initial_wrench.copy()
+    expected[1, 1] = [3.0, 0.0, 0.0, 30.0, 0.0, 0.0]
+    np.testing.assert_allclose(wrench.numpy(), expected)

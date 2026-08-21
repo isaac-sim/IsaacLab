@@ -13,12 +13,14 @@ from pathlib import Path
 import pytest
 
 _ASSET_TEST_DIR = Path(__file__).resolve().parents[1]
-_TARGETS = ("test_rigid_object.py", "test_rigid_object_collection.py")
+_TARGETS = (
+    ("test_rigid_object.py", "test_rigid_object_real_newton_seams[cpu]"),
+    ("test_rigid_object_collection.py", "test_rigid_object_collection_real_newton_seams"),
+)
 
 
-@pytest.mark.parametrize("target", _TARGETS)
-def test_rigid_asset_module_collects_without_kit_isaacsim_or_nucleus(target: str, tmp_path: Path) -> None:
-    """Collect each real module while rejecting Kit, IsaacSim, and Nucleus access."""
+def _run_monitored_target(target: Path, node: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """Run a target under import and Nucleus sentinels."""
     sitecustomize = tmp_path / "sitecustomize.py"
     sitecustomize.write_text(
         """
@@ -67,13 +69,39 @@ assets.ISAACLAB_NUCLEUS_DIR = _ForbiddenNucleusPath(assets.ISAACLAB_NUCLEUS_DIR)
         encoding="utf-8",
     )
     env = os.environ | {"PYTHONPATH": str(tmp_path)}
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", str(_ASSET_TEST_DIR / target), "--collect-only", "-q"],
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", f"{target}::{node}", "-q"],
         cwd=_ASSET_TEST_DIR,
         env=env,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=60,
     )
 
+
+@pytest.mark.parametrize(("target", "node"), _TARGETS)
+def test_rigid_asset_cpu_seam_runs_without_kit_isaacsim_or_nucleus(target: str, node: str, tmp_path: Path) -> None:
+    """Run each real CPU seam while rejecting Kit, IsaacSim, and Nucleus access."""
+    result = _run_monitored_target(_ASSET_TEST_DIR / target, node, tmp_path)
+
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_runtime_nucleus_access_inside_fixture_is_rejected(tmp_path: Path) -> None:
+    """The guard must execute fixture helpers instead of stopping after collection."""
+    source_target = _ASSET_TEST_DIR / "test_rigid_object.py"
+    mutated_target = tmp_path / source_target.name
+    mutated_target.write_text(
+        source_target.read_text(encoding="utf-8").replace(
+            '    """Author two local dynamic cuboids and return their Newton asset."""',
+            '    """Author two local dynamic cuboids and return their Newton asset."""\n'
+            "    from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR\n"
+            '    _ = ISAAC_NUCLEUS_DIR + "/forbidden.usd"',
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_monitored_target(mutated_target, "test_rigid_object_real_newton_seams[cpu]", tmp_path)
+
+    assert result.returncode != 0
+    assert "forbidden Nucleus asset used by Newton rigid-asset test" in result.stdout + result.stderr

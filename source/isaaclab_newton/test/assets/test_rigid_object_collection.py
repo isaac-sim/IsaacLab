@@ -67,7 +67,7 @@ def _spawn_collection() -> RigidObjectCollection:
     )
 
 
-def test_rigid_object_collection_real_newton_seams() -> None:
+def test_rigid_object_collection_real_newton_seams(monkeypatch) -> None:
     """Exercise exact model selection, partial state/property writes, and live gravity."""
     device = "cpu"
     with _newton_sim_context(device) as sim:
@@ -82,6 +82,15 @@ def test_rigid_object_collection_real_newton_seams() -> None:
         assert collection.data.body_com_pos_b.shape == (2, 2)
         assert collection.data.body_inertia.shape == (2, 2, 9)
 
+        model_changes = []
+        add_model_change = SimulationManager.add_model_change
+
+        def record_model_change(change: ModelFlags) -> None:
+            model_changes.append(change)
+            add_model_change(change)
+
+        monkeypatch.setattr(SimulationManager, "add_model_change", staticmethod(record_model_change))
+
         env_ids = torch.tensor([1], dtype=torch.int32, device=device)
         body_ids = torch.tensor([1], dtype=torch.int32, device=device)
         initial_pose = collection.data.body_link_pose_w.torch.clone()
@@ -95,15 +104,36 @@ def test_rigid_object_collection_real_newton_seams() -> None:
 
         torch.testing.assert_close(collection.data.body_link_pose_w.torch[env_ids][:, body_ids], target_pose)
         torch.testing.assert_close(collection.data.body_link_pose_w.torch[0], initial_pose[0])
+        torch.testing.assert_close(collection.data.body_link_pose_w.torch[1, :1], initial_pose[1, :1])
 
+        initial_mass = collection.data.body_mass.torch.clone()
+        initial_inv_mass = wp.to_torch(collection.data._sim_bind_body_inv_mass).clone()
         masses = torch.tensor([[5.0]], device=device)
         collection.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
         torch.testing.assert_close(collection.data.body_mass.torch[env_ids][:, body_ids], masses)
         torch.testing.assert_close(
             wp.to_torch(collection.data._sim_bind_body_inv_mass)[env_ids][:, body_ids], masses.reciprocal()
         )
+        torch.testing.assert_close(collection.data.body_mass.torch[0], initial_mass[0])
+        torch.testing.assert_close(collection.data.body_mass.torch[1, :1], initial_mass[1, :1])
+        torch.testing.assert_close(wp.to_torch(collection.data._sim_bind_body_inv_mass)[0], initial_inv_mass[0])
+        torch.testing.assert_close(wp.to_torch(collection.data._sim_bind_body_inv_mass)[1, :1], initial_inv_mass[1, :1])
+        assert model_changes == [ModelFlags.BODY_INERTIAL_PROPERTIES]
 
+        model_changes.clear()
         model = SimulationManager.get_model()
+        material_mu = collection.root_view.get_attribute("shape_material_mu", model)
+        initial_material_mu = wp.to_torch(material_mu).clone()
+        material_values = wp.full(material_mu.shape, value=0.65, dtype=wp.float32, device=device)
+        material_mask = wp.array([[False, False], [False, True]], dtype=wp.bool, device=device)
+        collection.root_view.set_attribute("shape_material_mu", model, material_values, material_mask)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+        expected_material_mu = initial_material_mu.clone()
+        expected_material_mu[1, 1] = 0.65
+        torch.testing.assert_close(wp.to_torch(material_mu), expected_material_mu)
+        assert model_changes == [ModelFlags.SHAPE_PROPERTIES]
+
+        model_changes.clear()
         model_gravity = model.gravity[: model.world_count]
         new_gravity = torch.tensor([[0.0, 0.0, -2.0], [0.0, -3.0, -4.0]], device=device)
         wp.to_torch(model_gravity).copy_(new_gravity)
@@ -113,3 +143,4 @@ def test_rigid_object_collection_real_newton_seams() -> None:
         torch.testing.assert_close(collection.data.GRAVITY_VEC_W.torch, new_gravity)
         expected_projected = torch.nn.functional.normalize(new_gravity, dim=-1).unsqueeze(1).expand(-1, 2, -1)
         torch.testing.assert_close(collection.data.projected_gravity_b.torch, expected_projected, atol=1e-6, rtol=1e-6)
+        assert model_changes == [ModelFlags.MODEL_PROPERTIES]
