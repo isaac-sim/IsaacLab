@@ -18,7 +18,7 @@ import pytest
 import torch
 import warp as wp
 from ._rigid_object_collection_contract_utils import BACKENDS, get_rigid_object_collection
-from .capabilities import contract_backend
+from .capabilities import contract_backend, require_backend_capability
 
 @pytest.fixture
 def collection_iface(request):
@@ -168,6 +168,30 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
     for i in selected:
         mask_np[i] = True
     return wp.array(mask_np, dtype=wp.bool, device=device)
+
+
+def _read_collection_root_poses(
+    backend: str, raw_backend, num_instances: int, num_bodies: int
+) -> np.ndarray:
+    """Read collection root poses in public ``(env, body)`` order."""
+    if backend == "physx":
+        return raw_backend.get_transforms().numpy().reshape(num_bodies, num_instances, 7).transpose(1, 0, 2)
+    if backend == "newton":
+        return raw_backend.get_root_transforms(None).numpy().reshape(num_instances, num_bodies, 7)
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.LINK_POSE]._data.copy()
+
+
+def _read_collection_masses(backend: str, raw_backend, num_instances: int, num_bodies: int) -> np.ndarray:
+    """Read collection masses in public ``(env, body)`` order."""
+    if backend == "physx":
+        return raw_backend.get_masses().numpy().reshape(num_bodies, num_instances).transpose(1, 0)
+    if backend == "newton":
+        return raw_backend.get_attribute("body_mass", None).numpy().reshape(num_instances, num_bodies)
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.BODY_MASS]._data.copy()
 
 
 # ---------------------------------------------------------------------------
@@ -912,6 +936,37 @@ _backends = contract_backend("writes")
 class TestCollectionWritersPose:
     """Test body pose/velocity writers with all input combinations."""
 
+    @_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_body_pose_write_preserves_unselected_backend_cells(self, backend, selection):
+        num_instances, num_bodies = 2, 3
+        obj, raw_backend = get_rigid_object_collection(backend, num_instances, num_bodies, "cpu")
+        before = torch.from_numpy(
+            _read_collection_root_poses(backend, raw_backend, num_instances, num_bodies)
+        ).clone()
+        body_poses = torch.zeros((num_instances, num_bodies, 7), dtype=torch.float32)
+        body_poses[..., 6] = 1.0
+        body_poses[0, 1, :3] = torch.tensor([71.0, 72.0, 73.0])
+        body_poses[1, 1, :3] = torch.tensor([81.0, 82.0, 83.0])
+
+        if selection == "index":
+            obj.write_body_pose_to_sim_index(
+                body_poses=body_poses[0:1, 1:2],
+                env_ids=_make_env_ids("cpu", True),
+                body_ids=_make_body_ids("cpu", [1]),
+            )
+        else:
+            obj.write_body_pose_to_sim_mask(
+                body_poses=body_poses,
+                env_mask=_make_env_mask(num_instances, "cpu", True),
+                body_mask=_make_item_mask(num_bodies, [1], "cpu"),
+            )
+        after = torch.from_numpy(_read_collection_root_poses(backend, raw_backend, num_instances, num_bodies))
+
+        torch.testing.assert_close(after[0, 1], body_poses[0, 1], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[0, 0], before[0, 0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1, 1], before[1, 1], rtol=0.0, atol=0.0)
+
     # -- index variants for pose --
 
     @_backends
@@ -1113,6 +1168,32 @@ class TestCollectionWritersBody:
     """Test body property writers/setters with all input combinations."""
 
     @_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_mass_write_preserves_unselected_backend_cells(self, backend, selection):
+        num_instances, num_bodies = 2, 3
+        obj, raw_backend = get_rigid_object_collection(backend, num_instances, num_bodies, "cpu")
+        before = torch.from_numpy(_read_collection_masses(backend, raw_backend, num_instances, num_bodies)).clone()
+        masses = torch.tensor([[91.0, 92.0, 93.0], [101.0, 102.0, 103.0]], dtype=torch.float32)
+
+        if selection == "index":
+            obj.set_masses_index(
+                masses=masses[0:1, 1:2],
+                env_ids=_make_env_ids("cpu", True),
+                body_ids=_make_body_ids("cpu", [1]),
+            )
+        else:
+            obj.set_masses_mask(
+                masses=masses,
+                env_mask=_make_env_mask(num_instances, "cpu", True),
+                body_mask=_make_item_mask(num_bodies, [1], "cpu"),
+            )
+        after = torch.from_numpy(_read_collection_masses(backend, raw_backend, num_instances, num_bodies))
+
+        torch.testing.assert_close(after[0, 1], masses[0, 1], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[0, 0], before[0, 0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1, 1], before[1, 1], rtol=0.0, atol=0.0)
+
+    @_backends
     @_default_dims
     @_default_bodies
     @_default_devices
@@ -1124,8 +1205,8 @@ class TestCollectionWritersBody:
     def test_body_writer_index(
         self, backend, num_instances, num_bodies, device, collection_iface, method_base, kwarg, wp_dtype, trailing
     ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
+        if method_base == "set_coms":
+            require_backend_capability(backend, "com_orientation_write")
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"{method_base}_index")
@@ -1191,8 +1272,8 @@ class TestCollectionWritersBody:
     def test_body_writer_mask(
         self, backend, num_instances, num_bodies, device, collection_iface, method_base, kwarg, wp_dtype, trailing
     ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
+        if method_base == "set_coms":
+            require_backend_capability(backend, "com_orientation_write")
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
         method = getattr(obj, f"{method_base}_mask")

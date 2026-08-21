@@ -11,6 +11,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import warp as wp
+from _imports import import_physx_module
 from isaaclab_physx.assets.articulation.kernels import (
     extract_friction_properties,
     write_joint_friction_data_to_buffer,
@@ -18,7 +19,7 @@ from isaaclab_physx.assets.articulation.kernels import (
     write_joint_state_data_kernel,
 )
 
-from ._imports import import_physx_module
+pytestmark = pytest.mark.unit
 
 
 def _selector(values: list[int], dtype: type) -> wp.array:

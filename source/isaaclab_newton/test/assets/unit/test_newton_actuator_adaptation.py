@@ -20,6 +20,8 @@ from isaaclab.actuators.newton.adapter import resolve_actuator_component
 from isaaclab.actuators.newton.kernels import sync_torque_telemetry
 from isaaclab.assets import ArticulationCfg
 
+pytestmark = pytest.mark.unit
+
 
 def _target_mode_builder() -> ModelBuilder:
     builder = ModelBuilder()

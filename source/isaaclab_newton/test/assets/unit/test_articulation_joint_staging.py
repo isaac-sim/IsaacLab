@@ -8,6 +8,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
@@ -16,6 +17,8 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import ModelBuilder, ModelFlags
 
 from isaaclab.utils.warp.proxy_array import ProxyArray
+
+pytestmark = pytest.mark.unit
 
 
 def test_partial_joint_property_stages_user_and_backend_order_and_notifies(monkeypatch) -> None:

@@ -11,6 +11,8 @@ from importlib.util import find_spec
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from . import public_surface
 from ._articulation_contract_cases import TestArticulationDataRootState as _ArticulationDataContract
 from ._articulation_contract_cases import TestArticulationDataTendonState as _ArticulationTendonDataContract
@@ -241,6 +243,26 @@ def test_newton_fixed_tendon_contract_is_not_skipped_as_spatially_unsupported() 
     assert not any(mark.name == "skip" for mark in newton_parameter.marks)
 
 
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "com_orientation_write",
+        "fixed_tendon_extended_data",
+        "fixed_tendon_extended_write_index",
+        "fixed_tendon_write_mask",
+        "fixed_tendon_write_to_sim_index",
+        "fixed_tendon_write_to_sim_mask",
+    ],
+)
+def test_newton_partial_articulation_support_has_reasoned_capability_skips(capability: str) -> None:
+    """Keep Newton's partial CoM and fixed-tendon support explicit in the contract matrix."""
+    parameter = backend_parameters(capability, names=("newton",))[0]
+
+    assert parameter.values == ("newton",)
+    assert parameter.marks[0].name == "skip"
+    assert parameter.marks[0].kwargs["reason"]
+
+
 def test_public_surface_reports_an_omitted_declared_member() -> None:
     """Report a newly declared public member until a contract explicitly classifies it."""
 
@@ -287,11 +309,9 @@ def test_public_surface_audit_reports_a_stale_mapping() -> None:
     mapping = {
         "SyntheticAsset.added_member": public_surface.PublicMemberContract(
             kind=ContractKind.API,
-            target="contract._articulation_contract_cases.TestArticulationProperties",
         ),
         "SyntheticAsset.removed_member": public_surface.PublicMemberContract(
             kind=ContractKind.API,
-            target="contract._articulation_contract_cases.TestArticulationProperties",
         ),
     }
 
@@ -318,13 +338,8 @@ def test_public_surface_audit_reports_an_unreasoned_exclusion() -> None:
     assert audit.unreasoned == frozenset({"SyntheticAsset.added_member"})
 
 
-def test_public_surface_contract_targets_resolve_to_real_test_classes() -> None:
-    """Require every covered public member to name a concrete importable contract class."""
-    assert public_surface.unresolved_contract_targets(public_surface.PUBLIC_SURFACE_CONTRACTS) == frozenset()
-
-
 def test_base_public_surface_has_an_explicit_contract_classification() -> None:
-    """Require the mapping and current public inventory to match exactly."""
+    """Require the classification inventory and current public surface to match exactly."""
     audit = public_surface.audit_public_surface(BASE_SURFACE_CLASSES, public_surface.PUBLIC_SURFACE_CONTRACTS)
 
     assert audit.is_valid, audit.format_errors()

@@ -20,7 +20,7 @@ import pytest
 import torch
 import warp as wp
 from ._articulation_contract_utils import BACKENDS, get_articulation
-from .capabilities import backend_parameters, contract_backend
+from .capabilities import backend_parameters, contract_backend, require_backend_capability
 
 @pytest.fixture
 def articulation_iface(request):
@@ -645,8 +645,6 @@ class TestArticulationDataBodyState:
     @_default_dims
     @_default_devices
     def test_body_com_pose_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
-        if backend == "newton":
-            pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -926,8 +924,6 @@ class TestArticulationDataBodyState:
     @_default_dims
     @_default_devices
     def test_body_com_quat_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
-        if backend == "newton":
-            pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -1201,6 +1197,24 @@ class TestArticulationDataDefaults:
         assert soft_joint_vel_limits_data.warp.ptr == art.actuators._soft_joint_vel_limits.ptr
         assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
+    @_production_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 4, 5)])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_bind_actuator_collection_exposes_collection_buffers(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
+        art, _ = articulation_iface
+
+        art.data.bind_actuator_collection(art.actuators)
+
+        assert art.data._actuator_collection is art.actuators
+        with pytest.warns(DeprecationWarning):
+            assert art.data.joint_pos_target is art.actuators.target_command.position
+            assert art.data.joint_vel_target is art.actuators.target_command.velocity
+            assert art.data.joint_effort_target is art.actuators.target_command.effort
+            assert art.data.computed_torque is art.actuators.computed_effort
+            assert art.data.applied_torque is art.actuators.applied_effort
+
 
 # ---------------------------------------------------------------------------
 # Writer/setter test helpers
@@ -1315,6 +1329,39 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
     return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
+def _read_articulation_root_pose(backend: str, art, raw_backend) -> np.ndarray:
+    """Read articulation root poses from backend storage."""
+    if backend == "physx":
+        return raw_backend.get_root_transforms().numpy().reshape(art.num_instances, 7)
+    if backend == "newton":
+        return raw_backend.get_root_transforms(None).numpy().reshape(art.num_instances, -1, 7)[:, 0]
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.ROOT_POSE]._data.copy()
+
+
+def _read_articulation_joint_positions(backend: str, art, raw_backend) -> np.ndarray:
+    """Read articulation joint positions from backend storage."""
+    if backend == "physx":
+        return raw_backend.get_dof_positions().numpy()
+    if backend == "newton":
+        return art.data._sim_bind_joint_pos.numpy().reshape(art.num_instances, art.num_joints)
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.DOF_POSITION]._data.copy()
+
+
+def _read_articulation_masses(backend: str, art, raw_backend) -> np.ndarray:
+    """Read articulation masses from backend storage."""
+    if backend == "physx":
+        return raw_backend.get_masses().numpy()
+    if backend == "newton":
+        return art.data._sim_bind_body_mass.numpy().reshape(art.num_instances, art.num_bodies)
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.BODY_MASS]._data.copy()
+
+
 # ---------------------------------------------------------------------------
 # Tests: Articulation operations
 # ---------------------------------------------------------------------------
@@ -1333,6 +1380,27 @@ _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
 class TestArticulationWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
+
+    @_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_root_pose_write_preserves_unselected_backend_row(self, backend, selection):
+        art, raw_backend = get_articulation(
+            backend, num_instances=2, num_joints=3, num_bodies=4, device="cpu"
+        )
+        before = torch.from_numpy(_read_articulation_root_pose(backend, art, raw_backend)).clone()
+        root_pose = torch.tensor(
+            [[111.0, 112.0, 113.0, 0.0, 0.0, 0.0, 1.0], [121.0, 122.0, 123.0, 0.0, 0.0, 0.0, 1.0]],
+            dtype=torch.float32,
+        )
+
+        if selection == "index":
+            art.write_root_link_pose_to_sim_index(root_pose=root_pose[0:1], env_ids=_make_env_ids("cpu", True))
+        else:
+            art.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=_make_env_mask(2, "cpu", True))
+        after = torch.from_numpy(_read_articulation_root_pose(backend, art, raw_backend))
+
+        torch.testing.assert_close(after[0], root_pose[0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1], before[1], rtol=0.0, atol=0.0)
 
     @_production_backends
     @pytest.mark.parametrize(
@@ -1606,6 +1674,54 @@ _JOINT_METHODS = [
 class TestArticulationWritersJoint:
     """Test joint writers/setters with all input combinations."""
 
+    def test_deprecated_friction_writer_forwards_to_canonical_method(self):
+        from isaaclab.assets.articulation import BaseArticulation
+
+        forwarded = []
+
+        class Recorder:
+            def write_joint_friction_coefficient_to_sim(self, joint_friction, joint_ids=None, env_ids=None):
+                forwarded.append((joint_friction, joint_ids, env_ids))
+
+        joint_friction = torch.tensor([[0.25, 0.5]], dtype=torch.float32)
+        joint_ids = [1, 3]
+        env_ids = torch.tensor([0], dtype=torch.long)
+
+        with pytest.warns(DeprecationWarning, match="write_joint_friction_coefficient_to_sim"):
+            BaseArticulation.write_joint_friction_to_sim(
+                Recorder(), joint_friction=joint_friction, joint_ids=joint_ids, env_ids=env_ids
+            )
+
+        assert len(forwarded) == 1
+        assert forwarded[0][0] is joint_friction
+        assert forwarded[0][1] is joint_ids
+        assert forwarded[0][2] is env_ids
+
+    @_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_joint_position_write_preserves_unselected_backend_cells(self, backend, selection):
+        art, raw_backend = get_articulation(
+            backend, num_instances=2, num_joints=3, num_bodies=4, device="cpu"
+        )
+        before = torch.from_numpy(_read_articulation_joint_positions(backend, art, raw_backend)).clone()
+        position = torch.tensor([[131.0, 132.0, 133.0], [141.0, 142.0, 143.0]], dtype=torch.float32)
+
+        if selection == "index":
+            art.write_joint_position_to_sim_index(
+                position=position[0:1, 1:2], env_ids=_make_env_ids("cpu", True), joint_ids=[1]
+            )
+        else:
+            art.write_joint_position_to_sim_mask(
+                position=position,
+                env_mask=_make_env_mask(2, "cpu", True),
+                joint_mask=_make_item_mask(3, [1], "cpu"),
+            )
+        after = torch.from_numpy(_read_articulation_joint_positions(backend, art, raw_backend))
+
+        torch.testing.assert_close(after[0, 1], position[0, 1], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[0, 0], before[0, 0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1, 1], before[1, 1], rtol=0.0, atol=0.0)
+
     @_backends
     @_default_dims
     @_default_devices
@@ -1740,6 +1856,31 @@ class TestArticulationWritersBody:
     """Test body property writers/setters with all input combinations."""
 
     @_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_mass_write_preserves_unselected_backend_cells(self, backend, selection):
+        art, raw_backend = get_articulation(
+            backend, num_instances=2, num_joints=3, num_bodies=4, device="cpu"
+        )
+        before = torch.from_numpy(_read_articulation_masses(backend, art, raw_backend)).clone()
+        masses = torch.tensor(
+            [[151.0, 152.0, 153.0, 154.0], [161.0, 162.0, 163.0, 164.0]], dtype=torch.float32
+        )
+
+        if selection == "index":
+            art.set_masses_index(masses=masses[0:1, 1:2], env_ids=_make_env_ids("cpu", True), body_ids=[1])
+        else:
+            art.set_masses_mask(
+                masses=masses,
+                env_mask=_make_env_mask(2, "cpu", True),
+                body_mask=_make_item_mask(4, [1], "cpu"),
+            )
+        after = torch.from_numpy(_read_articulation_masses(backend, art, raw_backend))
+
+        torch.testing.assert_close(after[0, 1], masses[0, 1], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[0, 0], before[0, 0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1, 1], before[1, 1], rtol=0.0, atol=0.0)
+
+    @_backends
     @_default_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -1760,8 +1901,8 @@ class TestArticulationWritersBody:
         wp_dtype,
         trailing,
     ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton only stores CoM position, not orientation")
+        if method_base == "set_coms":
+            require_backend_capability(backend, "com_orientation_write")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_index")
@@ -1844,8 +1985,8 @@ class TestArticulationWritersBody:
         wp_dtype,
         trailing,
     ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton only stores CoM position, not orientation")
+        if method_base == "set_coms":
+            require_backend_capability(backend, "com_orientation_write")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_mask")
@@ -2210,8 +2351,7 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton does not implement fixed-tendon limit stiffness")
+        require_backend_capability(backend, "fixed_tendon_extended_data")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -2235,8 +2375,7 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton does not implement fixed-tendon rest length")
+        require_backend_capability(backend, "fixed_tendon_extended_data")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -2260,8 +2399,7 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton does not implement fixed-tendon offset")
+        require_backend_capability(backend, "fixed_tendon_extended_data")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -2285,8 +2423,7 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton does not expose fixed-tendon position limits")
+        require_backend_capability(backend, "fixed_tendon_extended_data")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         from isaaclab.utils.warp import ProxyArray
@@ -2448,8 +2585,8 @@ class TestArticulationWritersFixedTendon:
         wp_dtype,
         accepts_float,
     ):
-        if backend == "newton" and method_base not in {"set_fixed_tendon_stiffness", "set_fixed_tendon_damping"}:
-            pytest.xfail(f"Newton does not implement {method_base}")
+        if method_base not in {"set_fixed_tendon_stiffness", "set_fixed_tendon_damping"}:
+            require_backend_capability(backend, "fixed_tendon_extended_write_index")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2515,8 +2652,7 @@ class TestArticulationWritersFixedTendon:
         wp_dtype,
         accepts_float,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton fixed-tendon mask writers are not implemented")
+        require_backend_capability(backend, "fixed_tendon_write_mask")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2714,8 +2850,7 @@ class TestArticulationWritersTendonToSim:
         device,
         articulation_iface,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton fixed-tendon write-to-sim does not resolve a default environment selector")
+        require_backend_capability(backend, "fixed_tendon_write_to_sim_index")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2740,8 +2875,7 @@ class TestArticulationWritersTendonToSim:
         device,
         articulation_iface,
     ):
-        if backend == "newton":
-            pytest.xfail("Newton fixed-tendon mask write-to-sim is not implemented")
+        require_backend_capability(backend, "fixed_tendon_write_to_sim_mask")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")

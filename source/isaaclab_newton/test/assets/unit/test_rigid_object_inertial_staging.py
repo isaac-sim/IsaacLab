@@ -6,8 +6,11 @@
 """Focused kernel tests for Newton rigid-body inertial staging."""
 
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.assets import kernels
+
+pytestmark = pytest.mark.unit
 
 
 def _diagonal_inertias(values: list[tuple[float, float, float]]) -> wp.array:

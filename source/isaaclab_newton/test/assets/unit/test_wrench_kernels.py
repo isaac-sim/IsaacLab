@@ -6,9 +6,12 @@
 """Regression tests for Newton external-wrench packing kernels."""
 
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+
+pytestmark = pytest.mark.unit
 
 _IDENTITY_QUAT = (0.0, 0.0, 0.0, 1.0)
 _QUARTER_TURN_Z_QUAT = (0.0, 0.0, np.sqrt(0.5), np.sqrt(0.5))

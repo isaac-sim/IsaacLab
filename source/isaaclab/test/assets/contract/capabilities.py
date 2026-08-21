@@ -35,23 +35,45 @@ class BackendStatus:
 
 
 _SHARED_CAPABILITIES = frozenset({"api", "data", "writes", "ordering", "fixed_tendons", "cuda"})
+_EXTENDED_ARTICULATION_CAPABILITIES = frozenset(
+    {
+        "com_orientation_write",
+        "fixed_tendon_extended_data",
+        "fixed_tendon_extended_write_index",
+        "fixed_tendon_write_mask",
+        "fixed_tendon_write_to_sim_index",
+        "fixed_tendon_write_to_sim_mask",
+    }
+)
 
 BACKEND_DECLARATIONS = (
     BackendDeclaration(
         name="physx",
         required_modules=("carb", "isaaclab_physx"),
-        capabilities=_SHARED_CAPABILITIES | {"index_resolution", "spatial_tendons"},
+        capabilities=_SHARED_CAPABILITIES
+        | _EXTENDED_ARTICULATION_CAPABILITIES
+        | {"index_resolution", "spatial_tendons"},
     ),
     BackendDeclaration(
         name="newton",
         required_modules=("isaaclab_newton",),
         capabilities=_SHARED_CAPABILITIES | {"index_resolution"},
-        unsupported={"spatial_tendons": "Newton does not support spatial tendons"},
+        unsupported={
+            "com_orientation_write": "Newton stores center-of-mass position but not orientation",
+            "fixed_tendon_extended_data": "Newton does not expose extended fixed-tendon data",
+            "fixed_tendon_extended_write_index": "Newton does not implement extended fixed-tendon index writers",
+            "fixed_tendon_write_mask": "Newton does not implement fixed-tendon mask writers",
+            "fixed_tendon_write_to_sim_index": (
+                "Newton fixed-tendon write-to-sim does not resolve a default environment selector"
+            ),
+            "fixed_tendon_write_to_sim_mask": "Newton does not implement fixed-tendon mask write-to-sim",
+            "spatial_tendons": "Newton does not support spatial tendons",
+        },
     ),
     BackendDeclaration(
         name="ovphysx",
         required_modules=("ovphysx", "isaaclab_ov"),
-        capabilities=_SHARED_CAPABILITIES | {"spatial_tendons"},
+        capabilities=_SHARED_CAPABILITIES | _EXTENDED_ARTICULATION_CAPABILITIES | {"spatial_tendons"},
         unsupported={"index_resolution": "OVPhysX does not expose the shared index-resolution helpers"},
         # The mock contract allocates pinned host staging buffers even for CPU tensors.
         requires_cuda_runtime=True,
@@ -120,6 +142,17 @@ def available_backends(capability: str) -> list[str]:
         for status in BACKEND_STATUSES
         if status.available and capability in status.declaration.capabilities
     ]
+
+
+def require_backend_capability(backend: str, capability: str) -> None:
+    """Skip the current case with the declared reason when a backend lacks a capability."""
+    declaration = next(declaration for declaration in BACKEND_DECLARATIONS if declaration.name == backend)
+    if capability in declaration.capabilities:
+        return
+    reason = declaration.unsupported.get(capability)
+    if reason is None:
+        raise ValueError(f"{backend} has no declaration for capability {capability!r}")
+    pytest.skip(reason)
 
 
 def backend_unavailable_reasons() -> dict[str, str]:

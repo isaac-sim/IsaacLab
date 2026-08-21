@@ -10,13 +10,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
+from _imports import import_physx_module
 from isaaclab_physx.assets.deformable_object.kernels import (
     compute_mean_vec3f_over_vertices,
     set_kinematic_flags_to_one,
     write_nodal_vec3f_to_buffer,
 )
 
-from ._imports import import_physx_module
+pytestmark = pytest.mark.unit
 
 
 def _module():

@@ -9,10 +9,12 @@ import sys
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
+from _imports import import_physx_module
 
-from ._imports import import_physx_module
+pytestmark = pytest.mark.unit
 
 
 def _rigid_object_class():

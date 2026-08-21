@@ -12,6 +12,8 @@ from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectDat
 from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
 from isaaclab_newton.physics import NewtonManager
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.parametrize("data_type", [RigidObjectData, RigidObjectCollectionData])
 def test_stale_fk_timestamp_forwards_once(data_type, monkeypatch) -> None:

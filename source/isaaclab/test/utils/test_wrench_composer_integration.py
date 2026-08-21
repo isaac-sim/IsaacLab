@@ -7,7 +7,7 @@
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True, device="cpu").app
+simulation_app = AppLauncher(headless=True).app
 
 import math
 
@@ -18,7 +18,6 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 
@@ -30,9 +29,11 @@ def _make_dual_cube_scene(device: str) -> tuple[RigidObject, RigidObject]:
     for name, y_offset in (("Composer", 0.0), ("Raw", 3.0)):
         sim_utils.create_prim(f"/World/{name}", "Xform", translation=(0.0, y_offset, 1.0))
 
-    spawn = sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    spawn = sim_utils.CuboidCfg(
+        size=(0.2, 0.2, 0.2),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
     )
     composer = RigidObject(
         cfg=RigidObjectCfg(

@@ -23,6 +23,8 @@ from pxr import Sdf, Usd, UsdPhysics
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+pytestmark = pytest.mark.unit
+
 from isaaclab_ov.assets.articulation.articulation import Articulation  # noqa: E402
 from isaaclab_ov.physics import OvPhysxManager  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402

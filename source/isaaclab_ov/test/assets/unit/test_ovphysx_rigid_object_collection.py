@@ -14,6 +14,8 @@ import warp as wp
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+pytestmark = pytest.mark.unit
+
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import (  # noqa: E402
     RigidObjectCollection,

@@ -10,6 +10,8 @@ import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
+pytestmark = pytest.mark.unit
+
 
 def _selector(values: list[int], dtype: type) -> wp.array:
     """Create a CPU Warp selector with the requested integer width."""

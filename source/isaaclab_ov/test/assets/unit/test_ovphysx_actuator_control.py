@@ -8,12 +8,15 @@
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
+import pytest
 import warp as wp
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets.articulation import actuator_control as actuator_control_module
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl
 
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+
+pytestmark = pytest.mark.unit
 
 
 class _RecordingView:

@@ -18,7 +18,7 @@ import pytest
 import torch
 import warp as wp
 from ._rigid_object_contract_utils import BACKENDS, get_rigid_object
-from .capabilities import contract_backend
+from .capabilities import contract_backend, require_backend_capability
 
 @pytest.fixture
 def rigid_object_iface(request):
@@ -731,6 +731,28 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
     return wp.array(mask_np, dtype=wp.bool, device=device)
 
 
+def _read_rigid_root_pose(backend: str, raw_backend) -> np.ndarray:
+    """Read rigid-object root poses from backend storage."""
+    if backend == "physx":
+        return raw_backend.get_transforms().numpy()
+    if backend == "newton":
+        return raw_backend.get_root_transforms(None).numpy().reshape(2, -1, 7)[:, 0]
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.RIGID_BODY_POSE]._data.copy()
+
+
+def _read_rigid_masses(backend: str, raw_backend) -> np.ndarray:
+    """Read rigid-object masses from backend storage."""
+    if backend == "physx":
+        return raw_backend.get_masses().numpy().reshape(2, 1)
+    if backend == "newton":
+        return raw_backend.get_attribute("body_mass", None).numpy().reshape(2, -1)[:, :1]
+    from isaaclab_ov import tensor_types as TT
+
+    return raw_backend.bindings[TT.RIGID_BODY_MASS]._data.reshape(2, 1).copy()
+
+
 # ---------------------------------------------------------------------------
 # Tests: Root writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------
@@ -827,6 +849,97 @@ _backends = contract_backend("writes")
 
 class TestRigidObjectWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
+
+    @_backends
+    def test_root_pose_index_forwards_selected_literal(self, backend):
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device="cpu")
+        if backend == "physx":
+            def read_backend():
+                return raw_backend.get_transforms().numpy()
+        elif backend == "newton":
+            def read_backend():
+                return raw_backend.get_root_transforms(None).numpy().reshape(2, -1, 7)[:, 0]
+        else:
+            from isaaclab_ov import tensor_types as TT
+
+            def read_backend():
+                return raw_backend.bindings[TT.RIGID_BODY_POSE]._data.copy()
+        before = torch.from_numpy(read_backend()).clone()
+        root_pose = torch.tensor([[11.0, 12.0, 13.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32)
+
+        obj.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=torch.tensor([0], dtype=torch.int32))
+        after = torch.from_numpy(read_backend())
+
+        torch.testing.assert_close(after[0], root_pose[0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1], before[1], rtol=0.0, atol=0.0)
+        if backend == "physx":
+            method_name, forwarded, indices = raw_backend._contract_write_calls[-1]
+            assert method_name == "set_transforms"
+            np.testing.assert_array_equal(indices, np.array([0], dtype=np.int64))
+            np.testing.assert_array_equal(forwarded[0], root_pose.numpy()[0])
+            np.testing.assert_array_equal(forwarded[1], before.numpy()[1])
+
+    @_backends
+    def test_root_velocity_index_forwards_selected_literal(self, backend):
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device="cpu")
+        if backend == "physx":
+            def read_backend():
+                return raw_backend.get_velocities().numpy()
+        elif backend == "newton":
+            def read_backend():
+                return raw_backend.get_root_velocities(None).numpy().reshape(2, -1, 6)[:, 0]
+        else:
+            from isaaclab_ov import tensor_types as TT
+
+            def read_backend():
+                return raw_backend.bindings[TT.RIGID_BODY_VELOCITY]._data.copy()
+        before = torch.from_numpy(read_backend()).clone()
+        root_velocity = torch.tensor([[21.0, 22.0, 23.0, 24.0, 25.0, 26.0]], dtype=torch.float32)
+
+        obj.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=torch.tensor([0], dtype=torch.int32)
+        )
+        after = torch.from_numpy(read_backend())
+
+        torch.testing.assert_close(after[0], root_velocity[0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1], before[1], rtol=0.0, atol=0.0)
+        if backend == "physx":
+            method_name, forwarded, indices = raw_backend._contract_write_calls[-1]
+            assert method_name == "set_velocities"
+            np.testing.assert_array_equal(indices, np.array([0], dtype=np.int64))
+            np.testing.assert_array_equal(forwarded[0], root_velocity.numpy()[0])
+            np.testing.assert_array_equal(forwarded[1], before.numpy()[1])
+
+    @_backends
+    def test_root_pose_mask_preserves_unselected_backend_row(self, backend):
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device="cpu")
+        before = torch.from_numpy(_read_rigid_root_pose(backend, raw_backend)).clone()
+        root_pose = torch.tensor(
+            [[31.0, 32.0, 33.0, 0.0, 0.0, 0.0, 1.0], [41.0, 42.0, 43.0, 0.0, 0.0, 0.0, 1.0]],
+            dtype=torch.float32,
+        )
+
+        obj.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=_make_env_mask(2, "cpu", True))
+        after = torch.from_numpy(_read_rigid_root_pose(backend, raw_backend))
+
+        torch.testing.assert_close(after[0], root_pose[0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1], before[1], rtol=0.0, atol=0.0)
+
+    @_backends
+    def test_mass_mask_preserves_unselected_backend_row(self, backend):
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device="cpu")
+        before = torch.from_numpy(_read_rigid_masses(backend, raw_backend)).clone()
+        masses = torch.tensor([[51.0], [61.0]], dtype=torch.float32)
+
+        obj.set_masses_mask(
+            masses=masses,
+            env_mask=_make_env_mask(2, "cpu", True),
+            body_mask=_make_item_mask(1, [0], "cpu"),
+        )
+        after = torch.from_numpy(_read_rigid_masses(backend, raw_backend))
+
+        torch.testing.assert_close(after[0], masses[0], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[1], before[1], rtol=0.0, atol=0.0)
 
     # -- index variants --
 
@@ -967,8 +1080,8 @@ class TestRigidObjectWritersBody:
     def test_body_writer_index(
         self, backend, num_instances, device, rigid_object_iface, method_base, kwarg, wp_dtype, trailing
     ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
+        if method_base == "set_coms":
+            require_backend_capability(backend, "com_orientation_write")
         obj, _ = rigid_object_iface
         obj.data.update(dt=0.01)
         num_bodies = 1
@@ -1035,8 +1148,8 @@ class TestRigidObjectWritersBody:
     def test_body_writer_mask(
         self, backend, num_instances, device, rigid_object_iface, method_base, kwarg, wp_dtype, trailing
     ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
+        if method_base == "set_coms":
+            require_backend_capability(backend, "com_orientation_write")
         obj, _ = rigid_object_iface
         obj.data.update(dt=0.01)
         num_bodies = 1

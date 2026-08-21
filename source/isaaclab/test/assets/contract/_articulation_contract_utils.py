@@ -44,6 +44,57 @@ if "ovphysx" in BACKENDS:
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 
 
+def _install_physx_recording_setters(mock_view) -> None:
+    """Install contract-local PhysX setters that record and apply staged rows."""
+    storage_by_method = {
+        "set_root_transforms": "_root_transforms",
+        "set_root_velocities": "_root_velocities",
+        "set_dof_positions": "_dof_positions",
+        "set_dof_velocities": "_dof_velocities",
+        "set_dof_position_targets": "_dof_position_targets",
+        "set_dof_velocity_targets": "_dof_velocity_targets",
+        "set_dof_actuation_forces": "_dof_actuation_forces",
+        "set_dof_limits": "_dof_limits",
+        "set_dof_stiffnesses": "_dof_stiffnesses",
+        "set_dof_dampings": "_dof_dampings",
+        "set_dof_max_forces": "_dof_max_forces",
+        "set_dof_max_velocities": "_dof_max_velocities",
+        "set_dof_armatures": "_dof_armatures",
+        "set_dof_friction_coefficients": "_dof_friction_coefficients",
+        "set_dof_friction_properties": "_dof_friction_properties",
+        "set_masses": "_masses",
+        "set_coms": "_coms",
+        "set_inertias": "_inertias",
+    }
+    mock_view._contract_write_calls = []
+
+    def make_setter(method_name: str, storage_name: str):
+        def setter(values: wp.array, indices: wp.array | None = None) -> None:
+            values_np = values.numpy().copy()
+            indices_np = None if indices is None else indices.numpy().astype(np.int64, copy=True)
+            mock_view._contract_write_calls.append((method_name, values_np.copy(), indices_np))
+            stored = getattr(mock_view, storage_name, None)
+            if stored is None:
+                shape = (mock_view._count, *values_np.shape[1:])
+                stored = wp.zeros(shape, dtype=wp.float32, device=values.device)
+                setattr(mock_view, storage_name, stored)
+            stored_np = stored.numpy()
+            if indices_np is None:
+                stored_np[...] = values_np.reshape(stored_np.shape)
+            else:
+                if values_np.size == stored_np.size:
+                    normalized = values_np.reshape(stored_np.shape)
+                else:
+                    normalized = values_np.reshape(len(indices_np), *stored_np.shape[1:])
+                staged_rows = normalized[indices_np] if normalized.shape[0] == stored_np.shape[0] else normalized
+                stored_np[indices_np] = staged_rows
+
+        return setter
+
+    for method_name, storage_name in storage_by_method.items():
+        setattr(mock_view, method_name, make_setter(method_name, storage_name))
+
+
 def create_physx_articulation(
     num_instances: int = 2,
     num_joints: int = 6,
@@ -87,7 +138,8 @@ def create_physx_articulation(
         max_spatial_tendons=num_spatial_tendons,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    mock_view._noop_setters = False
+    _install_physx_recording_setters(mock_view)
 
     # Set up the mock view's metatype for accessing names/counts
     mock_metatype = MagicMock()
@@ -323,7 +375,7 @@ def create_newton_articulation(
         tendon_names=fixed_tendon_names,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    mock_view._noop_setters = False
     mock_view._attributes["mujoco.tendon_stiffness"] = wp.zeros(
         (num_instances, 1, num_fixed_tendons), dtype=wp.float32, device=device
     )

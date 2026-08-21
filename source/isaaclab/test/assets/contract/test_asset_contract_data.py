@@ -9,6 +9,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 from ._articulation_contract_cases import (  # noqa: F401
     TestArticulationDataAliases,
     TestArticulationDataBodyState,

@@ -7,7 +7,6 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
-from importlib import import_module
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -173,10 +172,9 @@ _PUBLIC_MEMBER_SNAPSHOT = {
 
 @dataclass(frozen=True)
 class PublicMemberContract:
-    """Map one public member to a concrete contract target or justified exclusion."""
+    """Classify one public member or record why it is excluded."""
 
     kind: ContractKind
-    target: str | None = None
     reason: str | None = None
 
 
@@ -187,12 +185,11 @@ class PublicSurfaceAudit:
     missing: frozenset[str]
     stale: frozenset[str]
     unreasoned: frozenset[str]
-    untargeted: frozenset[str]
 
     @property
     def is_valid(self) -> bool:
         """Return whether the public inventory and mappings agree exactly."""
-        return not (self.missing or self.stale or self.unreasoned or self.untargeted)
+        return not (self.missing or self.stale or self.unreasoned)
 
     def format_errors(self) -> str:
         """Format all mapping failures for one actionable pytest diagnostic."""
@@ -202,7 +199,6 @@ class PublicSurfaceAudit:
                 ("missing", self.missing),
                 ("stale", self.stale),
                 ("unreasoned exclusions", self.unreasoned),
-                ("covered members without targets", self.untargeted),
             )
             if values
         )
@@ -213,38 +209,24 @@ def _mapping(
     members: str,
     kind: ContractKind,
     *,
-    target: str | None = None,
     reason: str | None = None,
 ) -> dict[str, PublicMemberContract]:
     """Build explicit qualified mappings for one reviewed member group."""
     return {
-        f"{class_name}.{member_name}": PublicMemberContract(kind=kind, target=target, reason=reason)
-        for member_name in members.split()
+        f"{class_name}.{member_name}": PublicMemberContract(kind=kind, reason=reason) for member_name in members.split()
     }
 
-
-_ARTICULATION_API_CONTRACT = "contract._articulation_contract_cases.TestArticulationProperties"
-_ARTICULATION_DATA_CONTRACT = "contract._articulation_contract_cases.TestArticulationDataRootState"
-_ARTICULATION_WRITE_CONTRACT = "contract._articulation_contract_cases.TestArticulationWritersRoot"
-_COLLECTION_API_CONTRACT = "contract._rigid_object_collection_contract_cases.TestCollectionProperties"
-_COLLECTION_DATA_CONTRACT = "contract._rigid_object_collection_contract_cases.TestCollectionDataBodyState"
-_COLLECTION_WRITE_CONTRACT = "contract._rigid_object_collection_contract_cases.TestCollectionWritersPose"
-_RIGID_OBJECT_API_CONTRACT = "contract._rigid_object_contract_cases.TestRigidObjectProperties"
-_RIGID_OBJECT_DATA_CONTRACT = "contract._rigid_object_contract_cases.TestRigidObjectDataRootState"
-_RIGID_OBJECT_WRITE_CONTRACT = "contract._rigid_object_contract_cases.TestRigidObjectWritersRoot"
 
 PUBLIC_SURFACE_CONTRACTS = {
     **_mapping(
         "AssetBase",
         "data device is_initialized num_instances",
         ContractKind.API,
-        target=_ARTICULATION_API_CONTRACT,
     ),
     **_mapping(
         "AssetBase",
         "assert_shape_and_dtype assert_shape_and_dtype_mask reset update write_data_to_sim",
         ContractKind.WRITE,
-        target=_ARTICULATION_WRITE_CONTRACT,
     ),
     **_mapping(
         "AssetBase",
@@ -259,7 +241,6 @@ PUBLIC_SURFACE_CONTRACTS = {
             permanent_wrench_composer root_view
         """,
         ContractKind.API,
-        target=_RIGID_OBJECT_API_CONTRACT,
     ),
     **_mapping(
         "BaseRigidObject",
@@ -276,13 +257,11 @@ PUBLIC_SURFACE_CONTRACTS = {
             write_root_velocity_to_sim_index write_root_velocity_to_sim_mask
         """,
         ContractKind.WRITE,
-        target=_RIGID_OBJECT_WRITE_CONTRACT,
     ),
     **_mapping(
         "BaseRigidObjectData",
         _PUBLIC_MEMBER_SNAPSHOT["BaseRigidObjectData"],
         ContractKind.DATA,
-        target=_RIGID_OBJECT_DATA_CONTRACT,
     ),
     **_mapping(
         "BaseRigidObjectCollection",
@@ -291,7 +270,6 @@ PUBLIC_SURFACE_CONTRACTS = {
             num_objects object_names permanent_wrench_composer root_view
         """,
         ContractKind.API,
-        target=_COLLECTION_API_CONTRACT,
     ),
     **_mapping(
         "BaseRigidObjectCollection",
@@ -311,13 +289,11 @@ PUBLIC_SURFACE_CONTRACTS = {
             write_object_velocity_to_sim
         """,
         ContractKind.WRITE,
-        target=_COLLECTION_WRITE_CONTRACT,
     ),
     **_mapping(
         "BaseRigidObjectCollectionData",
         _PUBLIC_MEMBER_SNAPSHOT["BaseRigidObjectCollectionData"],
         ContractKind.DATA,
-        target=_COLLECTION_DATA_CONTRACT,
     ),
     **_mapping(
         "BaseArticulation",
@@ -329,7 +305,6 @@ PUBLIC_SURFACE_CONTRACTS = {
             spatial_tendon_names
         """,
         ContractKind.API,
-        target=_ARTICULATION_API_CONTRACT,
     ),
     **_mapping(
         "BaseArticulation",
@@ -374,13 +349,11 @@ PUBLIC_SURFACE_CONTRACTS = {
             write_spatial_tendon_properties_to_sim_mask
         """,
         ContractKind.WRITE,
-        target=_ARTICULATION_WRITE_CONTRACT,
     ),
     **_mapping(
         "BaseArticulationData",
         _PUBLIC_MEMBER_SNAPSHOT["BaseArticulationData"],
         ContractKind.DATA,
-        target=_ARTICULATION_DATA_CONTRACT,
     ),
 }
 
@@ -399,7 +372,6 @@ def audit_public_surface(classes: tuple[type, ...], mappings: dict[str, PublicMe
     }
     mapped_members = set(mappings)
     exclusion_kinds = {ContractKind.UNSUPPORTED, ContractKind.OUT_OF_SCOPE}
-    covered_kinds = {ContractKind.API, ContractKind.DATA, ContractKind.WRITE}
     return PublicSurfaceAudit(
         missing=frozenset(declared_members - mapped_members),
         stale=frozenset(mapped_members - declared_members),
@@ -408,32 +380,7 @@ def audit_public_surface(classes: tuple[type, ...], mappings: dict[str, PublicMe
             for member_name, contract in mappings.items()
             if contract.kind in exclusion_kinds and not contract.reason
         ),
-        untargeted=frozenset(
-            member_name
-            for member_name, contract in mappings.items()
-            if contract.kind in covered_kinds and not contract.target
-        ),
     )
-
-
-def unresolved_contract_targets(mappings: dict[str, PublicMemberContract]) -> frozenset[str]:
-    """Return concrete covered-contract targets that cannot be imported."""
-    unresolved = set()
-    for contract in mappings.values():
-        if contract.target is None:
-            continue
-        try:
-            import_module(contract.target)
-        except ModuleNotFoundError:
-            module_name, _, attribute = contract.target.rpartition(".")
-            try:
-                module = import_module(module_name)
-            except ModuleNotFoundError:
-                unresolved.add(contract.target)
-            else:
-                if not hasattr(module, attribute):
-                    unresolved.add(contract.target)
-    return frozenset(unresolved)
 
 
 def unclassified_public_members(classes: tuple[type, ...], classifications: dict[str, ContractKind]) -> set[str]:

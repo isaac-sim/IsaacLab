@@ -9,12 +9,11 @@ SPDX-License-Identifier: BSD-3-Clause
 
 ## Outcome
 
-The comparable asset and WrenchComposer scopes now finish in **134.18 s** of
-subprocess wall time, down from **1,197.60 s**: an **8.93x wall-time speed-up**.
+The comparable asset and WrenchComposer scopes now finish in **143.67 s** of
+subprocess wall time, down from **1,197.60 s**: an **8.34x wall-time speed-up**.
 The test-runner model is unchanged: every selected file runs in a fresh
-subprocess. The final scopes collect 1,460 focused cases: 1,355 pass, 69 skip
-with an explicit capability reason, and 36 are expected failures for explicit
-Newton contract limitations.
+subprocess. The final scopes collect 1,511 focused cases: 1,408 pass and 103
+skip with an explicit capability reason.
 
 The reduction comes from replacing backend-independent solver matrices with a
 shared contract, moving backend-only branches into tiny unit/kernel tests, and
@@ -24,7 +23,7 @@ deliberately excluded.
 
 ## Measurement environment
 
-- Final branch base: `0c676a15c8` from `origin/develop`, rebased before the
+- Final branch base: `0451444c24` from `origin/develop`, rebased before the
   final measurements.
 - Original baseline base: `d7033a5a1a207f1d4284edb60d72d7838984413b`.
 - Worktree-local environment: `env_isaaclab`, installed with
@@ -40,33 +39,33 @@ deliberately excluded.
 ## Copy-ready PR performance section
 
 The asset-test redesign reduced the five comparable CI-style scopes from
-19m57.60s to 2m14.18s wall time (**8.93x faster**). This comparison uses the
+19m57.60s to 2m23.67s wall time (**8.34x faster**). This comparison uses the
 same repository test orchestrator before and after, with one process per test
 file. Controller-owner and OV manager lifecycle checks are reported separately
 and are not included in the denominator.
 
 | Scope | Before files / cases | After files / outcomes | Before pytest / wall | After pytest / wall | Wall speed-up |
 |---|---:|---:|---:|---:|---:|
-| Shared assets | 8 / 4,331 | 6 / 1,185 pass, 69 skip, 36 xfail | 64.70 / 84.02 s | 3.80 / 18.26 s | **4.60x** |
-| Newton assets, no cable/MPM | 6 / 644 | 15 / 58 pass | 590.94 / 608.44 s | 16.56 / 50.53 s | **12.04x** |
-| PhysX assets | 7 / 486 | 12 / 41 pass | 236.80 / 255.30 s | 6.29 / 34.07 s | **7.49x** |
-| OV assets | 9 / 492 | 12 / 56 pass | 196.94 / 220.05 s | 3.49 / 24.99 s | **8.81x** |
-| WrenchComposer | 3 / 412 | 2 / 15 pass | 23.34 / 29.79 s | 2.50 / 6.33 s | **4.71x** |
-| **Aggregate** | **33 / 6,365** | **47 / 1,355 pass, 69 skip, 36 xfail** | **1,112.72 / 1,197.60 s** | **32.64 / 134.18 s** | **8.93x** |
+| Shared assets | 8 / 4,331 | 6 / 1,238 pass, 103 skip | 64.70 / 84.02 s | 7.89 / 25.47 s | **3.30x** |
+| Newton assets, no cable/MPM | 6 / 644 | 15 / 58 pass | 590.94 / 608.44 s | 17.00 / 56.02 s | **10.86x** |
+| PhysX assets | 7 / 486 | 12 / 41 pass | 236.80 / 255.30 s | 6.13 / 32.32 s | **7.90x** |
+| OV assets | 9 / 492 | 12 / 56 pass | 196.94 / 220.05 s | 3.55 / 25.22 s | **8.73x** |
+| WrenchComposer | 3 / 412 | 2 / 15 pass | 23.34 / 29.79 s | 0.81 / 4.64 s | **6.42x** |
+| **Aggregate** | **33 / 6,365** | **47 / 1,408 pass, 103 skip** | **1,112.72 / 1,197.60 s** | **35.38 / 143.67 s** | **8.34x** |
 
 Focused gate and ownership timings:
 
 | Gate or owner | Result | Pytest / wall |
 |---|---:|---:|
-| Shared contract, one process | 1,081 pass, 69 skip, 36 xfail | 5.36 / 6.81 s |
-| Shared contract + adjacent units, file-isolated gate | 1,185 pass, 69 skip, 36 xfail | 3.80 / 18.26 s |
-| Newton backend units/kernels, including executable kitless guard | 49 pass | 11.72 / 12.78 s |
-| PhysX backend units | 33 pass | 1.72 / 2.84 s |
-| OV backend units | 50 pass | 1.67 / 2.77 s |
+| Shared contract, one process | 1,134 pass, 103 skip | 7.46 / 8.90 s |
+| Shared contract + adjacent units, file-isolated gate | 1,238 pass, 103 skip | 7.89 / 25.47 s |
+| Newton backend units/kernels, including executable kitless guard | 49 pass | 11.96 / 13.06 s |
+| PhysX backend units | 33 pass | 1.69 / 2.76 s |
+| OV backend units | 50 pass | 1.62 / 2.70 s |
 | Newton minimal real integration | 4 files, 9 pass | 5.03 / 16.87 s |
 | PhysX minimal real integration | 6 files, 8 pass | 4.43 / 20.62 s |
 | OV minimal real integration | 4 files, 6 pass | 2.73 / 10.14 s |
-| WrenchComposer real delivery | 1 file, 1 pass | 2.48 / 4.82 s |
+| WrenchComposer real delivery | 1 file, 1 pass | 0.79 / 3.12 s |
 | Newton task-space controller owner | 3 pass | 3.03 / 4.57 s |
 | PhysX actuator-runtime and termination owners | 6 pass | 1.13 / 2.00 s |
 | OV mixed CPU/CUDA lifecycle owner | 1 pass | 2.01 / 2.43 s |
@@ -76,9 +75,9 @@ All warmed contract/backend-unit gates are below the 30-second target.
 ## Exact comparable-scope commands
 
 `TEST_INCLUDE_FILES` matches **basenames recursively** below
-`TEST_FILTER_PATTERN`. This is intentional for the comparable scopes: for
-example, `test_articulation.py` selects both the integration file and
-`assets/unit/test_articulation.py`. Basenames are not unique identifiers.
+`TEST_FILTER_PATTERN`. The comparable commands therefore enumerate every
+integration and unit basename explicitly; backend-qualified OV unit filenames
+keep a combined multi-backend pytest collection collision-free.
 
 ```bash
 WARP_CACHE_PATH=/tmp/isaaclab-task8-warp \
@@ -105,7 +104,7 @@ TEST_RESULT_FILE=task8-final-assets-physx.xml \
 WARP_CACHE_PATH=/tmp/isaaclab-task8-warp \
 OMNI_KIT_ACCEPT_EULA=YES \
 TEST_FILTER_PATTERN=/source/isaaclab_ov/test/assets/ \
-TEST_INCLUDE_FILES=test_actuator_control.py,test_articulation.py,test_articulation_helpers.py,test_articulation_kernels.py,test_deformable_object.py,test_deformable_views.py,test_rigid_object.py,test_rigid_object_collection.py \
+TEST_INCLUDE_FILES=test_articulation.py,test_articulation_helpers.py,test_articulation_kernels.py,test_deformable_object.py,test_deformable_views.py,test_ovphysx_actuator_control.py,test_ovphysx_articulation.py,test_ovphysx_deformable_object.py,test_ovphysx_rigid_object.py,test_ovphysx_rigid_object_collection.py,test_rigid_object.py,test_rigid_object_collection.py \
 TEST_RESULT_FILE=task8-final-assets-ov.xml \
 ./isaaclab.sh -p -m pytest tools -q
 
@@ -215,11 +214,11 @@ absent from every benchmark command.
 | `test_articulation_helpers.py` | Moved | `assets/unit/test_articulation_helpers.py`. |
 | `test_articulation_kernels.py` | Moved | `assets/unit/test_articulation_kernels.py`. |
 | `test_deformable_object.py` | Retained and reduced | One volume and one surface CUDA seam, including forced rewarm isolation. |
-| `test_deformable_object_helpers.py` | Moved/expanded | `assets/unit/test_deformable_object.py`. |
+| `test_deformable_object_helpers.py` | Moved/expanded | `assets/unit/test_ovphysx_deformable_object.py`. |
 | `test_deformable_views.py` | Moved | `assets/unit/test_deformable_views.py`. |
 | `test_rigid_object.py` | Retained and reduced | Local partial state, raw inertial property, and real wrench delivery. |
 | `test_rigid_object_collection.py` | Retained and reduced | Local nonidentity selection plus raw fused inertial/material mapping. |
-| `test_rigid_object_helpers.py` | Moved/expanded | Rigid and fused-collection unit modules. |
+| `test_rigid_object_helpers.py` | Moved/expanded | Backend-qualified rigid and fused-collection unit modules. |
 
 ## Case-family disposition and coverage holes closed
 
@@ -241,22 +240,24 @@ absent from every benchmark command.
 | Newton kinematic rigid-object parameters | Removed unsupported skips | Newton does not support these modes; the old cases executed no behavior. |
 | Cable and MPM | Excluded | Assigned outside this project and unchanged. |
 
-The public-base-surface audit classifies every member declared by `AssetBase`,
+The public-base-surface inventory classifies every member declared by `AssetBase`,
 `BaseRigidObject`, `BaseRigidObjectData`, `BaseRigidObjectCollection`,
 `BaseRigidObjectCollectionData`, `BaseArticulation`, and
-`BaseArticulationData` as covered, explicitly unsupported, or reasoned out of
-scope. Factory manager replacements are scoped to one contract test and exact
+`BaseArticulationData` by contract kind or as reasoned out of scope; it detects
+API taxonomy drift rather than claiming that a generic class import proves
+per-member behavioral coverage. Direct tests cover actuator-collection binding
+and the deprecated friction-writer forwarding seam. Factory manager
+replacements are scoped to one contract test and exact
 PhysX/Newton production bindings are restored; forward and reverse
 cross-backend factory order is covered.
 
 ## Unsupported capabilities and expected outcomes
 
-- Newton spatial tendons are explicitly unsupported. Contract parameters stay
-  visible as reasoned skips rather than disappearing from collection.
+- Newton spatial tendons, CoM-orientation writes, and extended fixed-tendon
+  data/write paths are explicitly unsupported. Contract parameters stay visible
+  as reasoned capability skips rather than disappearing from collection.
 - Contract fixtures without spatial tendons skip spatial-tendon data probes
   with `No spatial tendons configured`.
-- The 36 expected failures document Newton fixed-tendon writer/property gaps
-  and its position-only COM representation; they are not silent omissions.
 - OV surface deformable kinematic targets remain unsupported and raise the
   asserted `ValueError` in unit and real coverage.
 - The installed PhysX wheel reports an invalid surface-view `check()` flag

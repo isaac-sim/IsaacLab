@@ -8,6 +8,8 @@
 import pytest
 from isaaclab_newton.assets import RigidObjectCollection
 
+pytestmark = pytest.mark.unit
+
 
 def test_combined_pattern_preserves_common_leaf_prefix_around_body_index() -> None:
     """The collection wildcard must not admit unrelated sibling bodies."""

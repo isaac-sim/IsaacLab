@@ -8,12 +8,15 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+
+pytestmark = pytest.mark.unit
 
 
 class _LaunchCache:

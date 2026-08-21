@@ -42,6 +42,39 @@ if "ovphysx" in BACKENDS:
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 
 
+def _install_physx_recording_setters(mock_view) -> None:
+    """Install contract-local PhysX setters that record and apply staged rows."""
+    storage_by_method = {
+        "set_transforms": "_transforms",
+        "set_velocities": "_velocities",
+        "set_masses": "_masses",
+        "set_coms": "_coms",
+        "set_inertias": "_inertias",
+    }
+    mock_view._contract_write_calls = []
+
+    def make_setter(method_name: str, storage_name: str):
+        def setter(values: wp.array, indices: wp.array | None = None) -> None:
+            values_np = values.numpy().copy()
+            indices_np = None if indices is None else indices.numpy().astype(np.int64, copy=True)
+            mock_view._contract_write_calls.append((method_name, values_np.copy(), indices_np))
+            stored_np = getattr(mock_view, storage_name).numpy()
+            if indices_np is None:
+                stored_np[...] = values_np.reshape(stored_np.shape)
+            else:
+                if values_np.size == stored_np.size:
+                    normalized = values_np.reshape(stored_np.shape)
+                else:
+                    normalized = values_np.reshape(len(indices_np), *stored_np.shape[1:])
+                staged_rows = normalized[indices_np] if normalized.shape[0] == stored_np.shape[0] else normalized
+                stored_np[indices_np] = staged_rows
+
+        return setter
+
+    for method_name, storage_name in storage_by_method.items():
+        setattr(mock_view, method_name, make_setter(method_name, storage_name))
+
+
 def create_physx_rigid_object(
     num_instances: int = 2,
     device: str = "cuda:0",
@@ -64,7 +97,8 @@ def create_physx_rigid_object(
         device=device,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    mock_view._noop_setters = False
+    _install_physx_recording_setters(mock_view)
 
     object.__setattr__(rigid_object, "_root_view", mock_view)
     object.__setattr__(rigid_object, "_device", device)
@@ -137,7 +171,7 @@ def create_newton_rigid_object(
         body_names=body_names,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    mock_view._noop_setters = False
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()

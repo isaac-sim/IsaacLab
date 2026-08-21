@@ -7,6 +7,7 @@
 
 from unittest.mock import Mock
 
+import pytest
 import torch
 import warp as wp
 from isaaclab_ov import tensor_types as TT
@@ -17,6 +18,8 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
+
+pytestmark = pytest.mark.unit
 
 
 def test_joint_dof_sign_resolution_traverses_instance_proxies() -> None:

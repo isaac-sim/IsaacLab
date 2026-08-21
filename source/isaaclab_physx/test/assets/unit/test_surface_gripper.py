@@ -13,6 +13,8 @@ import pytest
 import warp as wp
 from isaaclab_physx.assets.surface_gripper.surface_gripper import SurfaceGripper
 
+pytestmark = pytest.mark.unit
+
 
 def _gripper() -> SurfaceGripper:
     gripper = object.__new__(SurfaceGripper)

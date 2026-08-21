@@ -6,11 +6,13 @@
 """Focused PhysX rigid-object-collection ordering and selector tests."""
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
+from _imports import import_physx_module
 from isaaclab_physx.assets.rigid_object_collection.kernels import resolve_view_ids, resolve_view_ids_kernel
 
-from ._imports import import_physx_module
+pytestmark = pytest.mark.unit
 
 
 def test_view_id_kernel_maps_instance_body_grid_to_physx_body_major_order() -> None:

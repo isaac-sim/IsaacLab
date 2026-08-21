@@ -15,6 +15,7 @@ from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import torch
 
 from pxr import Usd
 
@@ -534,6 +535,7 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_manager_reuses_cpu_and_cuda_scenes_in_one_process():
     """A process must run CPU, CUDA, then CPU cuboid scenes with state I/O on each device."""
     completed, output = _run_child(_device_reuse_script())

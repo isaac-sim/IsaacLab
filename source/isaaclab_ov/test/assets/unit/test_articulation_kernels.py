@@ -13,6 +13,8 @@ import pytest
 import warp as wp
 from isaaclab_ov.assets import kernels
 
+pytestmark = pytest.mark.unit
+
 
 def _selector(values: list[int], dtype: type) -> wp.array:
     return wp.array(values, dtype=dtype, device="cpu")

@@ -14,6 +14,8 @@ from isaaclab_newton.assets import Articulation, RigidObject, RigidObjectCollect
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import ModelFlags
 
+pytestmark = pytest.mark.unit
+
 
 def _diagonal_inertias(num_bodies: int, diagonal: tuple[float, float, float]) -> wp.array:
     data = np.zeros((2, num_bodies, 9), dtype=np.float32)

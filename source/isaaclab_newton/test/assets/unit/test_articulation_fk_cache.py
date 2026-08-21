@@ -7,9 +7,12 @@
 
 from types import SimpleNamespace
 
+import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+pytestmark = pytest.mark.unit
 
 
 def test_stale_articulation_fk_forwards_and_republishes_ordered_state_once(monkeypatch) -> None:
