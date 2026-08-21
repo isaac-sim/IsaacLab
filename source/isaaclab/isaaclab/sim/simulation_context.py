@@ -497,7 +497,6 @@ class SimulationContext:
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""
         return bool(self.get_setting("/isaaclab/visualizer/explicit"))
-
     def _is_cli_visualizer_disable_all(self) -> bool:
         """Return ``True`` when CLI requested ``--viz none`` semantics."""
         return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
@@ -713,12 +712,14 @@ class SimulationContext:
         """Set camera view on all visualizers that support it.
 
         Args:
-            eye: Camera eye position as a three-element sequence.
-            target: Camera target position as a three-element sequence.
+            eye: Camera eye position [m] as a three-element sequence.
+            target: Camera target position [m] as a three-element sequence.
         """
-        self._pending_camera_view = (tuple(eye), tuple(target))
+        eye_tuple = tuple(eye)
+        target_tuple = tuple(target)
+        self._pending_camera_view = (eye_tuple, target_tuple)
         for viz in self._visualizers:
-            viz.set_camera_view(eye, target)
+            viz.set_camera_view(eye_tuple, target_tuple)
 
     def add_render_callback(self, name: str, fn: Callable[[Any], None], order: int = 0) -> None:
         """Register a callback to fire after every render step.
