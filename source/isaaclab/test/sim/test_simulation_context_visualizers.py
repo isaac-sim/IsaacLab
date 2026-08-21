@@ -287,16 +287,22 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
+    class _RenderContext:
+        @staticmethod
+        def finalize_consumers(visualizers, *, rebuild):
+            events.append(f"finalize_consumers:{len(visualizers)}:{rebuild}")
+
     def _initialize_visualizers():
         events.append("initialize_visualizers")
         ctx._visualizers = [_FakeVisualizer()]
 
     ctx.physics_manager = _PhysicsManager()
+    ctx._render_context = _RenderContext()
     ctx.initialize_visualizers = _initialize_visualizers
 
     ctx.reset()
 
-    assert events == ["reset:False", "initialize_visualizers", "play"]
+    assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 

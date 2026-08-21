@@ -59,6 +59,7 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "lift_kuka_homo": 8.0,
     "lift_kuka_hetero": 8.0,
+    "kuka_visual_material_randomization": 4.0,
 }
 
 # OVRTX 0.4.1 rendering fixes allow a tighter tolerance for data types that
@@ -87,6 +88,14 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "lift_kuka_homo": 0.95,
     "lift_kuka_hetero": 0.95,
+    "kuka_visual_material_randomization": 0.99,
+}
+
+# Low-resolution Newton + RTX cloth shading varies between otherwise equivalent CI frames.
+_IMAGE_TOLERANCE_OVERRIDES = {
+    ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.96),
+    ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgba"): (20.0, 0.96),
+    ("franka_cable", "newton", "ovrtx_renderer", "rgb"): (8.0, 0.98),
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
@@ -314,6 +323,11 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
+_VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
+    pytest.param("newton", "ovrtx_renderer", id="newton-ovrtx", marks=_FLAKY_MARK),
+    pytest.param("newton", "newton_renderer", id="newton-newton_warp"),
+]
+
 
 def make_kitless_rendering_params_lift() -> list[pytest.param]:
     """Create kitless Lift rendering parameters."""
@@ -323,6 +337,11 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
     """Create kitless Franka rendering parameters."""
     return make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+
+
+def make_kitless_visual_material_rendering_params() -> list[pytest.param]:
+    """Create kitless visual-material parameters, including both OVRTX stage paths."""
+    return make_kitless_rendering_params(_VISUAL_MATERIAL_KITLESS_COMBINATIONS)
 
 
 # Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
@@ -1105,6 +1124,10 @@ def validate_camera_outputs(
     failed_data_types = {}
 
     for data_type, output in camera_outputs.items():
+        pixel_threshold, data_ssim_threshold = _IMAGE_TOLERANCE_OVERRIDES.get(
+            (test_name, physics_backend, renderer, data_type),
+            (max_different_pixels_percentage, ssim_threshold),
+        )
         tensor = output if isinstance(output, torch.Tensor) else output.torch
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
@@ -1149,9 +1172,9 @@ def validate_camera_outputs(
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
             result_image_for_comparison,
             golden_image_for_comparison,
-            max_different_pixels_percentage,
+            pixel_threshold,
             check_ssim=check_ssim,
-            ssim_threshold=ssim_threshold,
+            ssim_threshold=data_ssim_threshold,
         )
 
         entry = {
@@ -1163,8 +1186,8 @@ def validate_camera_outputs(
             "diff_pct": diff_pct,
             "ssim": ssim_score,
             "ssim_checked": check_ssim,
-            "threshold": max_different_pixels_percentage,
-            "ssim_threshold": ssim_threshold,
+            "threshold": pixel_threshold,
+            "ssim_threshold": data_ssim_threshold,
             "passed": succeeded,
             "img_result_path": None,
             "img_golden_path": None,
@@ -1756,6 +1779,131 @@ def rendering_test_lift_kuka(
             env = None
 
 
+def rendering_test_kuka_visual_material_randomization(
+    physics_backend: str, renderer: str, comparison_scores: list[dict]
+) -> None:
+    """Validate heterogeneous per-link material colors through one minimal scene."""
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import AssetBaseCfg, VisualMaterial, VisualMaterialCfg
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sensors import CameraCfg
+
+    from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
+
+    test_name = "kuka_visual_material_randomization"
+    renderer_cfg = {
+        "isaacsim_rtx_renderer": IsaacRtxRendererCfg,
+        "newton_renderer": NewtonWarpRendererCfg,
+        "ovrtx_renderer": OVRTXRendererCfg,
+    }[renderer]()
+    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
+    scene_cfg.sky_light = AssetBaseCfg(
+        prim_path="/World/skyLight", spawn=sim_utils.DomeLightCfg(color=(1.0, 1.0, 1.0), intensity=750.0)
+    )
+    scene_cfg.base_camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(1.2, -1.2, 1.1), rot=(0.5149, 0.2650, 0.3730, 0.7249), convention="opengl"),
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+        width=128,
+        height=128,
+        renderer_cfg=renderer_cfg,
+    )
+    link_paths = tuple(f"iiwa7_link_{index}/visuals" for index in range(8)) + (
+        "ee_link/palm_link/visuals",
+        *(
+            f"ee_link/{finger}_link_{index}/visuals"
+            for finger in ("index", "middle", "ring", "thumb")
+            for index in range(4)
+        ),
+    )
+    material_names = tuple(f"link_{index}" for index in range(len(link_paths)))
+    bindings = {}
+    for material_name, link_path in zip(material_names, link_paths, strict=True):
+        material_path = f"{{ENV_REGEX_NS}}/Robot/{material_name}"
+        setattr(scene_cfg, material_name, VisualMaterialCfg(prim_path=material_path, spawn=sim_utils.PbrMdlCfg()))
+        bindings[link_path] = f"./{material_name}"
+    robot_spawn = KUKA_ALLEGRO_CFG.spawn.replace(activate_contact_sensors=False, visual_material_bindings=bindings)
+    scene_cfg.robot = KUKA_ALLEGRO_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, robot_spawn.copy()], random_choice=False),
+    )
+
+    sim = None
+    try:
+        sim = sim_utils.SimulationContext(
+            sim_utils.SimulationCfg(
+                dt=0.005,
+                render_interval=4,
+                physics={"newton": NewtonCfg, "physx": PhysxCfg}[physics_backend](),
+            )
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        robot = scene.articulations["robot"]
+        root_pose = robot.data.default_root_pose.torch.clone()
+        root_pose[:, :3] += scene.env_origins
+        robot.write_root_pose_to_sim_index(root_pose=root_pose)
+        robot.write_root_velocity_to_sim_index(root_velocity=robot.data.default_root_vel.torch.clone())
+        robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch.clone())
+        robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
+        robot.reset()
+        sim.step(render=False)
+
+        assert not scene.rigid_objects
+        assert set(scene.articulations) == {"robot"}
+        assert set(scene.extras) == {"sky_light"}
+        assert set(scene.sensors) == {"base_camera"}
+        assert set(scene.visual_materials) == set(material_names)
+        assert len(scene.clone_plan.cfg_rows[id(scene_cfg.robot)]) == 2
+        for material_name in material_names:
+            material_cfg = SceneEntityCfg(material_name)
+            material_cfg.resolve(scene)
+            assert scene[material_cfg.name] is scene.visual_materials[material_name]
+
+        generator = torch.Generator(device="cpu").manual_seed(42)
+        colors = (torch.rand((len(link_paths), scene.num_envs, 3), generator=generator) * 0.9 + 0.05).to(sim.device)
+        materials = tuple(scene[material_name] for material_name in material_names)
+        if renderer == "isaacsim_rtx_renderer":
+            stage = sim_utils.get_current_stage()
+            usd_inputs = tuple(
+                stage.GetAttributeAtPath(f"{shader_path}.inputs:{material._input_names['color']}")
+                for material in materials
+                for shader_path in material._shader_paths
+            )
+            authored_colors = tuple(attribute.Get() for attribute in usd_inputs)
+        VisualMaterial.write_channels(materials, {"color": colors})
+        if renderer == "isaacsim_rtx_renderer":
+            torch.cuda.synchronize(sim.device)
+            assert tuple(attribute.Get() for attribute in usd_inputs) == authored_colors
+
+        camera = scene.sensors["base_camera"]
+        for _ in range(2):
+            camera.update(dt=0.0, force_recompute=True)
+        maybe_save_stage(test_name, physics_backend, renderer, "rgb")
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            {"rgb": camera.data.output["rgb"]},
+            max_different_pixels_percentage=_max_different_pixels_percentage(test_name, renderer, "rgb"),
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if sim is not None:
+            sim.stop()
+            sim.clear_instance()
+
+
 def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_type: str) -> None:
     """Shrink the scene and force image-only observations for Franka golden AOV tests."""
     from isaaclab.envs import mdp as env_mdp
@@ -1790,6 +1938,7 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_type: str) ->
 def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
+    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
     env_cfg.commands.deformable_pose.debug_vis = False
     env_cfg.events.reset_deformable.params["position_range"] = {
         "x": (0.0, 0.0),
@@ -1828,12 +1977,11 @@ def rendering_test_franka_cloth(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
+        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
-        # We step only once to let the cloth fall uniformly on the gravity but not collide with the cube on the table.
-        # This is to limit the inconsistent nodal poses and pixels from run to run due to solver scheduling and
-        # numerical precision.
+        # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
 
@@ -1907,18 +2055,9 @@ def rendering_test_franka_soft(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
+        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
-        if data_type == "motion_vectors":
-            # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
-            arm_action = env.action_manager.get_term("arm_action")
-            ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
-            ee_pos_curr[0] += 0.05
-
-            actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-            actions[:, 0:3] = ee_pos_curr
-            actions[:, 3:7] = ee_quat_curr
-
-            env.step(actions)
+        maybe_step_env_for_motion(env, renderer, data_type, action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 

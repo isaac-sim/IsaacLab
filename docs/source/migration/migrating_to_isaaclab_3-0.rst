@@ -19,6 +19,13 @@ maintaining a consistent user-facing API.
 This guide covers the main breaking changes and deprecations you need to address when migrating
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+
+   migrating_from_isaacgymenvs
+   migrating_deformables
+
 
 .. _actuators-solver-limit-migration:
 
