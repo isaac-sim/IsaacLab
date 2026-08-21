@@ -224,6 +224,25 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
         return _parse_rst(self, content)
 
 
+class IsaacLabUvImportersWheelInstall(SphinxDirective):
+    """Render the Isaac Lab standalone importer command with resolver overrides."""
+
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        branch = _source_branch(self.config)
+        overrides_url = (
+            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
+        )
+        content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaaclab[importers]" \\
+     --overrides "{overrides_url}"
+"""
+        return _parse_rst(self, content)
+
+
 class IsaacLabTorchInstall(SphinxDirective):
     """Render the pinned ``torch``/``torchvision`` install command for a CUDA build.
 
@@ -324,6 +343,7 @@ def setup(app):
     app.add_directive("isaaclab-quickstart-install", IsaacLabQuickstartInstall)
     app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
     app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)
+    app.add_directive("isaaclab-uv-importers-wheel-install", IsaacLabUvImportersWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)
     app.add_directive("isaaclab-ovrtx-install", IsaacLabOvrtxInstall)
     return {

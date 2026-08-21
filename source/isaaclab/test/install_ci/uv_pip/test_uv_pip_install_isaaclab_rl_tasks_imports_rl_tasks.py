@@ -81,9 +81,7 @@ class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
     def test_install_rl_tasks_omits_isaacsim(self):
         """The Isaac Sim runtime is absent after installing the RL extras (isaacsim extra not requested).
 
-        ``import isaacsim`` is not the check: the standalone importers ship in the base
-        dependencies and contribute an ``isaacsim.asset`` portion, so the namespace package
-        resolves without the runtime. Ask the distribution instead.
+        Ask the distribution directly so this remains independent of namespace-package behavior.
         """
         result = self.run_in_uv_env(
             ["python", "-c", "import importlib.metadata as m; m.version('isaacsim')"],

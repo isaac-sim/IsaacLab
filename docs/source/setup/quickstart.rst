@@ -50,8 +50,9 @@ Training outputs, including checkpoints, are saved under ``logs/``. Add
    For example, ``--extra ovphysx`` makes the OV PhysX integration available, while
    ``physics=ovphysx`` selects it for the task. You can combine extras as needed. The ``--extra all``
    shortcut installs the curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``,
-   and ``viser`` extras. Isaac Sim and specialized extras such as ``rlinf``, ``mimic``, ``teleop``,
-   ``tetrahedralization``, ``video``, and ``leapp`` are not included; add them explicitly. See
+   and ``viser`` extras. Isaac Sim, standalone importers, and specialized extras such as ``rlinf``,
+   ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp`` are not included; add
+   them explicitly. See
    :ref:`installation-optional-extras` for the complete list.
 
 Choose an RL library

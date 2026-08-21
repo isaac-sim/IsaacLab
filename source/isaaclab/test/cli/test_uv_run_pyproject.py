@@ -59,6 +59,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
+        "importers",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -95,6 +96,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
         "isaacsim",
+        "importers",
         "mimic",
         "teleop",
         "tetrahedralization",

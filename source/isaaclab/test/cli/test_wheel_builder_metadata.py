@@ -86,11 +86,17 @@ def test_wheel_builder_includes_isaacsim_extra(tmp_path):
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
-def test_wheel_builder_requests_required_tinyobjloader_prerelease_directly(tmp_path):
-    """Plain wheel installs must opt into the isolated importer's prerelease dependency."""
+def test_wheel_builder_keeps_standalone_importers_explicit(tmp_path):
+    """The wheel must expose standalone importers only through their explicit extra."""
     generated = _generate_wheel_pyproject(tmp_path)
+    project = generated["project"]
 
-    assert "tinyobjloader==2.0.0rc13" in generated["project"]["dependencies"]
+    assert "isaacsim-asset-isolated>=6.0,<6.1" not in project["dependencies"]
+    assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
+    assert project["optional-dependencies"]["importers"] == [
+        "isaacsim-asset-isolated>=6.0,<6.1",
+        "tinyobjloader==2.0.0rc13",
+    ]
 
 
 def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
@@ -102,7 +108,17 @@ def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
     assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
     for prefix in ("ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
         assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
-    for prefix in ("isaacsim[", "ray", "robomimic", "isaacteleop", "pytetwild", "moviepy", "leapp", "pytest"):
+    for prefix in (
+        "isaacsim[",
+        "isaacsim-asset-isolated",
+        "ray",
+        "robomimic",
+        "isaacteleop",
+        "pytetwild",
+        "moviepy",
+        "leapp",
+        "pytest",
+    ):
         assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
 
 
