@@ -54,6 +54,9 @@ runs:
           isaaclab.sh
           environment.yml
           source/isaaclab/isaaclab/cli
+          # Pins the CI pytest deps layered onto the image after build, so a
+          # change to that list must invalidate the deps cache.
+          .github/actions/docker-build/action.yml
         )
         deps_manifest_pattern='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
