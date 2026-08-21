@@ -41,5 +41,6 @@ def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
     else:
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
+        torch.use_deterministic_algorithms(False)
 
     return seed
