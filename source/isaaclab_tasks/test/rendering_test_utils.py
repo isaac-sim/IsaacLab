@@ -2047,6 +2047,7 @@ def rendering_test_franka_soft(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
+    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -2055,6 +2056,7 @@ def rendering_test_franka_soft(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
+        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         if data_type == "motion_vectors":
             # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
