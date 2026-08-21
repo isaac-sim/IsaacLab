@@ -270,6 +270,28 @@ def test_newton_visualizer_render_rgb_array_requires_initialized_viewer():
         visualizer.render_rgb_array()
 
 
+def test_newton_viewer_camera_speed_boost_when_shift_held(monkeypatch):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._camera_speed = 4.0
+
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: True)
+    assert viewer.camera_speed == pytest.approx(8.0)
+
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: False)
+    assert viewer.camera_speed == pytest.approx(4.0)
+
+
+def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: False)
+
+    viewer.camera_speed = 6.0
+    assert viewer._camera_speed == pytest.approx(6.0)
+
+    with pytest.raises(ValueError, match="camera_speed must be finite and nonnegative"):
+        viewer.camera_speed = -1.0
+
+
 def test_newton_viewer_particle_color_override(monkeypatch):
     from newton.viewer import ViewerGL
 

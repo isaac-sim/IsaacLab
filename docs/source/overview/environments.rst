@@ -267,8 +267,8 @@ for the lift-cube environment:
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |franka-pour|           | |franka-pour-link|           | Pour granular media from a source cup into a receiver with the Franka robot |                                         |
-    |                         |                              | Generate its local reset artifact first (about two minutes); see            |                                         |
-    |                         |                              | :ref:`franka-pour-reset-artifact`.                                          |                                         |
+    |                         |                              | The canonical reset artifact downloads automatically; see                   |                                         |
+    |                         |                              | :ref:`franka-pour-reset-artifact` to regenerate it locally.                 |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |ur10-particle-push|    | |ur10-particle-push-link|    | Push granular media from randomized piles into a bin with the UR10 robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
@@ -1040,12 +1040,16 @@ Classic
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
     | World                  | Environment ID                     | Description                                                                                                           | Presets                      |
     +========================+====================================+=======================================================================================================================+==============================+
-    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Move the cart and the pendulum to keep the last one upwards in the classic inverted double pendulum on a cart control |                              |
+    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Cooperative ``cart`` and ``pendulum`` agents solve the classic inverted double pendulum control task.                 | **physics=**                 |
+    |                        |                                    |                                                                                                                       | ``isaacsim_physx``,          |
+    |                        |                                    |                                                                                                                       | ``newton_kamino``,           |
+    |                        |                                    |                                                                                                                       | ``newton_mjwarp``,           |
+    |                        |                                    |                                                                                                                       | ``ovphysx``                  |
     +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
 
-.. |cart-double-pendulum-direct-link| replace:: :isaaclab-source:`Isaac-Pendulum-Direct <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_env.py>`
+.. |cart-double-pendulum-direct-link| replace:: :isaaclab-source:`Isaac-Pendulum-MARL-Direct <source/isaaclab_tasks/isaaclab_tasks/core/pendulum/pendulum_marl_env.py>`
 
 Manipulation
 ~~~~~~~~~~~~
@@ -1192,10 +1196,10 @@ including disabling runtime perturbations used for training.
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Pendulum-Direct
+    * - Isaac-Pendulum-MARL-Direct
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
-      -
+      - **physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Reach-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1260,6 +1264,11 @@ including disabling runtime perturbations used for training.
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO, IPPO, MAPPO)
       - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+    * - Isaac-Shadow-Handover
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
+          | **presets=** ``randomized``
     * - Isaac-Velocity-Flat-AnymalD
       - Manager Based
       - **rsl_rl** (PPO, DISTILLATION, DISTILLATION_RECURRENT, RECURRENT), **skrl** (PPO)

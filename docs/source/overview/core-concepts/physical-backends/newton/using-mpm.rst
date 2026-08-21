@@ -11,23 +11,31 @@ Start with the compact ``scripts/demos/mpm/newton_mpm_granular.py`` example;
 
 .. _franka-pour-reset-artifact:
 
-Generate and Train Franka Pour
--------------------------------
+Train and Regenerate Franka Pour
+---------------------------------
 
 The ``IsaacContrib-Franka-Pour`` task restores episodes from a reset artifact
-that is generated locally and ignored by Git. From the repository root, the
-complete setup is two commands with no configuration overrides:
+containing the connected 14-phase reset distribution. The canonical 20,000-row
+artifact downloads from the standard Isaac Lab asset root on first use, so
+training needs no artifact setup:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour --num_envs 2048 --device cuda:0
+
+The checked-in generator remains the executable reference for reproducing or
+customizing the distribution. It takes about two minutes on an L40S-class GPU
+and writes a local artifact that can be selected explicitly:
 
 .. code-block:: bash
 
    uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
-   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour --num_envs 2048 --device cuda:0
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour --num_envs 2048 --device cuda:0 env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
 
-The first command takes about two minutes on an L40S-class GPU and writes the
-20,000-row artifact to ``datasets/franka_pour/reset_dataset.pt``. The task uses
-that same repository-relative path by default and validates the artifact's
-stored content digest automatically. Digest pinning remains available for
-reproducible experiments, but ordinary training and playback do not require it.
+The task validates the payload's stored content digest automatically. Setting
+``ISAACSIM_ASSET_ROOT`` redirects the canonical artifact to a compatible local
+or self-hosted asset tree. Digest pinning remains available for custom
+reproducible experiments.
 
 
 Minimal Setup

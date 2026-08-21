@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import math
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -34,9 +32,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
         )
         width: int = 96
         height: int = 96
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
-            default=NewtonWarpRendererCfg(), newton_renderer=NewtonWarpRendererCfg()
-        )
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
     depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
@@ -64,7 +60,9 @@ class CartpoleCameraEnvCfg(PresetCfg):
         Values less than two disable stacking.
         """
 
-        # spaces: an image instead of the 4-dim joint-state vector
+        # spaces: single-frame channels + default spatial size. At env init, height/width
+        # are replaced with the tiled camera size and channels are expanded by frame_stack.
+        # Only the channel count must stay in sync with the camera data type (presets set this).
         observation_space = [3, 96, 96]
         state_space = 4
 

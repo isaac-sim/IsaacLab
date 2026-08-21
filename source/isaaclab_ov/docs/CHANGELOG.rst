@@ -1,6 +1,81 @@
 Changelog
 ---------
 
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
+2.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX execution of supported native explicit actuators through the
+  shared host adapter when
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
+* Added OVRTX cable curve point updates driven by Newton segment shapes.
+* Added :func:`~isaaclab_ov.renderers.map_attribute_for_warp_writes`, a context manager that maps
+  an OVRTX attribute binding for CUDA writes and unmaps it with the producing Warp stream as the
+  CUDA sync. Use it instead of ``with binding.map(...)`` for GPU writes: the binding's own context
+  manager unmaps without a CUDA sync, so OVRTX's commit is not ordered against the fill.
+
+Changed
+^^^^^^^
+
+* Routed OVPhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` dropping authored USD scale when syncing
+  Newton body transforms into OVRTX, which rendered scaled assets (for example Shadow Hand) at
+  unit scale.
+* Fixed the OVRTX renderer's GPU transform writes (object and camera ``omni:xform`` mappings)
+  committing without CUDA synchronization against the Warp kernels that fill the mapped buffers.
+  The commit is now ordered on the producing Warp stream, as the OVRTX API contract requires;
+  previously the ordering held only through CUDA legacy default-stream serialization, an
+  implementation detail the contract does not promise.
+
+
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
+2.0.4 (2026-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved OVRTX camera-output throughput on Linux. A render var has to be read in an order that
+  respects render completion, and on Linux blocking the calling thread on the render-completion
+  event measures faster than a GPU-side wait. Camera outputs are now read that way on Linux, worth
+  15-70% more end-to-end throughput depending on task and environment count. Other platforms order
+  the read on the consuming Warp stream, which Linux can also be switched to by setting
+  ``ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC=1``. Camera outputs themselves are unchanged.
+
+
 2.0.3 (2026-08-16)
 ~~~~~~~~~~~~~~~~~~
 

@@ -111,16 +111,6 @@ def create_sim_cfg():
     )
 
 
-def preview_material(color):
-    """Return a preview-surface material for Kit runs; Kit-less runs spawn no USD materials."""
-    if "kit" not in (args_cli.visualizer or []):
-        return None
-
-    import isaaclab.sim as sim_utils
-
-    return sim_utils.PreviewSurfaceCfg(diffuse_color=color)
-
-
 def create_scene_cfg():
     """Create an Isaac Lab scene config using declarative assets."""
     from isaaclab_newton.assets import MPMObjectCfg
@@ -141,7 +131,7 @@ def create_scene_cfg():
                     static_friction=friction,
                     dynamic_friction=friction,
                 ),
-                visual_material=preview_material((0.45, 0.45, 0.45)),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.45)),
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=center, rot=orientation),
         )

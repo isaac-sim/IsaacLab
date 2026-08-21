@@ -28,6 +28,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 if TYPE_CHECKING:
     _MappingBatch: TypeAlias = tuple[
@@ -132,6 +133,8 @@ def _build_newton_builder_from_mapping(
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"], load_visual_shapes)
     replace_newton_builder_shape_colors(builder, stage)
+    if load_visual_shapes:
+        import_builder_visual_material_paths(builder, stage)
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
