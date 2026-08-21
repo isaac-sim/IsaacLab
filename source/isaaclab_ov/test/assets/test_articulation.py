@@ -3332,8 +3332,8 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     OVPhysX exposes per-collision-shape material as the
     ``articulation_shape_friction_and_restitution`` tensor binding (shape ``[N, S, 3]`` =
     static friction, dynamic friction, restitution), addressed through the
-    :class:`~isaaclab_ov.sim.views.OvPhysxView`. The binding is device-resident, so the
-    buffer lives on the simulation device. (The PhysX backend instead uses a dedicated
+    :class:`~isaaclab_ov.sim.views.OvPhysxView`. The binding is CPU-native, so the
+    buffer lives in host memory. (The PhysX backend instead uses a dedicated
     ``root_view.get_material_properties`` / ``set_material_properties`` view API.)
     """
     if not hasattr(TT, "SHAPE_FRICTION_AND_RESTITUTION"):
@@ -3351,8 +3351,8 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     # Number of collision shapes per articulation, from the material binding's shape [N, S, 3].
     num_shapes = view.binding_for(TT.SHAPE_FRICTION_AND_RESTITUTION).shape[1]
 
-    # Random material per shape: (static_friction, dynamic_friction, restitution), on the sim device.
-    materials = torch.empty(num_articulations, num_shapes, 3, device=device).uniform_(0.0, 1.0)
+    # Random material per shape: (static_friction, dynamic_friction, restitution), on the CPU.
+    materials = torch.empty(num_articulations, num_shapes, 3, device="cpu").uniform_(0.0, 1.0)
     materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])  # dynamic <= static
 
     # Set material properties through the view, then simulate.

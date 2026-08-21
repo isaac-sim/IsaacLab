@@ -13,10 +13,13 @@ steps the simulation using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
+import math
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import numpy as np
 import warp as wp
 
 from pxr import UsdPhysics
@@ -365,6 +368,7 @@ class OvPhysxManager(PhysicsManager):
     _ovstage: ClassVar[Any] = None
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
+    _next_control_ordinal: ClassVar[int] = 2
     _requires_full_stage: ClassVar[bool] = False
     # Device mode is process-wide; later contexts must reuse the first selected device.
     _locked_device: ClassVar[str | None] = None
@@ -612,12 +616,16 @@ class OvPhysxManager(PhysicsManager):
             raise
         cls._ovstage = stage
 
+        cls._next_control_ordinal = 2
+
     @classmethod
     def _destroy_ovstage(cls) -> None:
         """Destroy the attached OVStage after PhysX has released its stage."""
         if cls._ovstage is not None:
             cls._ovstage.destroy()
             cls._ovstage = None
+
+        cls._next_control_ordinal = 2
 
     @staticmethod
     def _close_physx_views(physx: Any) -> None:
@@ -654,6 +662,51 @@ class OvPhysxManager(PhysicsManager):
         if cls._sim is None or not hasattr(cls._sim, "cfg"):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         return cls._sim.cfg.gravity
+
+    @classmethod
+    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
+        """Set the scene-wide gravity vector through OvStage [m/s^2].
+
+        The OvPhysX runtime accepts live scene changes only as sealed OvStage
+        control updates. This method authors the scene's gravity direction and
+        magnitude at the next control ordinal, seals it, and applies that
+        single ordinal to the running simulation.
+
+        Args:
+            gravity: World-frame gravity vector [m/s^2].
+
+        Raises:
+            RuntimeError: If the OVPhysX simulation has not been initialized.
+            ValueError: If gravity does not contain three finite values.
+        """
+        if cls._sim is None or cls._physx is None or cls._ovstage is None:
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+
+        gravity_array = np.asarray(gravity, dtype=np.float32)
+        if gravity_array.shape != (3,) or not np.all(np.isfinite(gravity_array)):
+            raise ValueError("Gravity must contain three finite values.")
+
+        magnitude = float(np.linalg.norm(gravity_array))
+        if math.isclose(magnitude, 0.0):
+            direction = np.array([[0.0, 0.0, -1.0]], dtype=np.float32)
+        else:
+            direction = (gravity_array / magnitude).reshape(1, 3)
+        ordinal = cls._next_control_ordinal
+        cls._next_control_ordinal += 1
+
+        import ovstage  # noqa: PLC0415
+
+        with contextlib.ExitStack() as cleanup:
+            paths = cleanup.enter_context(ovstage.PathDictionary(cls._ovstage))
+            path_list = paths.create_path_list_from_strings([cls._sim.cfg.physics_prim_path])
+            cleanup.callback(paths.destroy_path_list, path_list)
+            query = cleanup.enter_context(cls._ovstage.query_from_path_list(path_list))
+            cls._ovstage.write_attribute(query, "physics:gravityDirection", ordinal, direction, is_array=False).wait()
+            cls._ovstage.write_attribute(
+                query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
+            ).wait()
+            cls._ovstage.advance_write_floor(ordinal=ordinal).wait()
+            cls._physx.update_from_ovstage(ordinal, ordinal)
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
