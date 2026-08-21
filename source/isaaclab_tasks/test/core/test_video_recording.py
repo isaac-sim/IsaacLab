@@ -54,8 +54,8 @@ from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_CLIP = 12  # frames per clip
-_STEPS = 22  # env steps: enough for one full clip plus close() flush
+_CLIP = 20  # frames per clip
+_STEPS = 30  # env steps: enough for one full clip plus close() flush
 _MIN_NONZERO_RATIO = 0.005
 _MIN_MOTION_STD = 0.1
 _SEED = 42
