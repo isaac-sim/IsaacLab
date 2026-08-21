@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Collection guard for the kitless Newton rigid-asset suites."""
+"""Runtime guard for the kitless Newton asset suites."""
 
 import os
 import subprocess
@@ -16,7 +16,11 @@ _ASSET_TEST_DIR = Path(__file__).resolve().parents[1]
 _TARGETS = (
     ("test_rigid_object.py", "test_rigid_object_real_newton_seams[cpu]"),
     ("test_rigid_object_collection.py", "test_rigid_object_collection_real_newton_seams"),
+    ("test_articulation.py", "test_articulation_real_newton_seams"),
+    ("test_newton_actuators_newton.py", "test_newton_actuator_real_equivalence"),
 )
+
+_TARGET_FILENAMES = tuple(target for target, _ in _TARGETS)
 
 
 def _run_monitored_target(target: Path, node: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
@@ -37,9 +41,7 @@ class _ForbiddenFinder(importlib.abc.MetaPathFinder):
             or frame.f_code.co_filename == __file__
         ):
             frame = frame.f_back
-        imported_by_target = frame is not None and frame.f_code.co_filename.endswith(
-            ("test_rigid_object.py", "test_rigid_object_collection.py")
-        )
+        imported_by_target = frame is not None and frame.f_code.co_filename.endswith(__TARGET_FILENAMES__)
         if fullname.startswith("isaacsim") or (
             fullname.startswith("isaaclab.app") and (imported_by_target or fullname == "isaaclab.app.app_launcher")
         ):
@@ -50,8 +52,8 @@ class _ForbiddenFinder(importlib.abc.MetaPathFinder):
 class _ForbiddenNucleusPath(str):
     def _guard(self):
         caller = sys._getframe(2).f_code.co_filename
-        if caller.endswith(("test_rigid_object.py", "test_rigid_object_collection.py")):
-            raise RuntimeError("forbidden Nucleus asset used by Newton rigid-asset test")
+        if caller.endswith(__TARGET_FILENAMES__):
+            raise RuntimeError("forbidden Nucleus asset used by Newton asset test")
 
     def __format__(self, format_spec):
         self._guard()
@@ -65,7 +67,7 @@ class _ForbiddenNucleusPath(str):
 sys.meta_path.insert(0, _ForbiddenFinder())
 assets.ISAAC_NUCLEUS_DIR = _ForbiddenNucleusPath(assets.ISAAC_NUCLEUS_DIR)
 assets.ISAACLAB_NUCLEUS_DIR = _ForbiddenNucleusPath(assets.ISAACLAB_NUCLEUS_DIR)
-""",
+""".replace("__TARGET_FILENAMES__", repr(_TARGET_FILENAMES)),
         encoding="utf-8",
     )
     env = os.environ | {"PYTHONPATH": str(tmp_path)}
@@ -80,7 +82,7 @@ assets.ISAACLAB_NUCLEUS_DIR = _ForbiddenNucleusPath(assets.ISAACLAB_NUCLEUS_DIR)
 
 
 @pytest.mark.parametrize(("target", "node"), _TARGETS)
-def test_rigid_asset_cpu_seam_runs_without_kit_isaacsim_or_nucleus(target: str, node: str, tmp_path: Path) -> None:
+def test_newton_asset_cpu_seam_runs_without_kit_isaacsim_or_nucleus(target: str, node: str, tmp_path: Path) -> None:
     """Run each real CPU seam while rejecting Kit, IsaacSim, and Nucleus access."""
     result = _run_monitored_target(_ASSET_TEST_DIR / target, node, tmp_path)
 
@@ -104,7 +106,7 @@ def test_runtime_nucleus_access_inside_fixture_is_rejected(tmp_path: Path) -> No
     result = _run_monitored_target(mutated_target, "test_rigid_object_real_newton_seams[cpu]", tmp_path)
 
     assert result.returncode != 0
-    assert "forbidden Nucleus asset used by Newton rigid-asset test" in result.stdout + result.stderr
+    assert "forbidden Nucleus asset used by Newton asset test" in result.stdout + result.stderr
 
 
 def test_runtime_app_launcher_import_inside_fixture_is_rejected(tmp_path: Path) -> None:

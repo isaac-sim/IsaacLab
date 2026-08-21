@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.assets import RigidObject, RigidObjectCollection
+from isaaclab_newton.assets import Articulation, RigidObject, RigidObjectCollection
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import ModelFlags
 
@@ -27,12 +27,16 @@ def _minimal_asset(asset_type, num_bodies: int):
     asset._device = "cpu"
     asset._check_shapes = False
     asset._ALL_BODY_INDICES = wp.array(np.arange(num_bodies), dtype=wp.int32, device="cpu")
-    if asset_type is RigidObject:
+    if asset_type in (Articulation, RigidObject):
         asset._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
     else:
         asset._ALL_ENV_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
     staged_inertia = _diagonal_inertias(num_bodies, (2.0, 3.0, 4.0))
     data = SimpleNamespace(
+        has_body_ordering=False,
+        body_ordering=None,
+        _body_mass_user=None,
+        _body_inertia_user=None,
         _sim_bind_body_mass=wp.ones((2, num_bodies), dtype=wp.float32, device="cpu"),
         _sim_bind_body_inv_mass=wp.ones((2, num_bodies), dtype=wp.float32, device="cpu"),
         _sim_bind_body_inv_inertia=wp.ones((2, num_bodies), dtype=wp.mat33f, device="cpu"),
@@ -43,7 +47,10 @@ def _minimal_asset(asset_type, num_bodies: int):
     return asset, staged_inertia
 
 
-@pytest.mark.parametrize(("asset_type", "num_bodies"), [(RigidObject, 1), (RigidObjectCollection, 2)])
+@pytest.mark.parametrize(
+    ("asset_type", "num_bodies"),
+    [(Articulation, 2), (RigidObject, 1), (RigidObjectCollection, 2)],
+)
 def test_mass_setter_stages_only_selection_and_notifies_inertial_change(
     asset_type, num_bodies: int, monkeypatch
 ) -> None:
@@ -73,7 +80,10 @@ def test_mass_setter_stages_only_selection_and_notifies_inertial_change(
     assert notifications == [ModelFlags.BODY_INERTIAL_PROPERTIES]
 
 
-@pytest.mark.parametrize(("asset_type", "num_bodies"), [(RigidObject, 1), (RigidObjectCollection, 2)])
+@pytest.mark.parametrize(
+    ("asset_type", "num_bodies"),
+    [(Articulation, 2), (RigidObject, 1), (RigidObjectCollection, 2)],
+)
 def test_inertia_setter_stages_only_selection_and_notifies_inertial_change(
     asset_type, num_bodies: int, monkeypatch
 ) -> None:
