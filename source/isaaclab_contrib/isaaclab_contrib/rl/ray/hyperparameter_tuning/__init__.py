@@ -3,8 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated wrapper for :mod:`isaaclab_contrib.rl.ray.launch`."""
-
-from _compat import forward
-
-forward("isaaclab_contrib.rl.ray.launch", globals())
+"""Example Ray Tune configurations."""
