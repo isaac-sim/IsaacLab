@@ -2006,17 +2006,4 @@ Improvements
   at every step call, the lazy buffers are updated only when the user queries them
 * Added SKRL support to more environments
 
-Breaking Changes
-----------------
-
-For users coming from Orbit, this release brings certain breaking changes. Please check the migration guide for more information.
-
-Migration Guide
----------------
-
-Please find detailed migration guides as follows:
-
-* :doc:`From Orbit to IsaacLab <../migration/migrating_from_orbit>`
-* :doc:`From OmniIsaacGymEnvs to IsaacLab <../migration/migrating_from_omniisaacgymenvs>`
-
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

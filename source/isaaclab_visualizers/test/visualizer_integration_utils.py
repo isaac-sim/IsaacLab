@@ -1016,12 +1016,6 @@ def _prepare_visualizer_test_process() -> None:
     """Reset Python-side sim state and let Kit settle before a flaky retry starts."""
     with contextlib.suppress(Exception):
         SimulationContext.clear_instance()
-    # NewtonManager.clear() is required: PhysicsManager.close() does not call it,
-    # leaving stale _model/_state_0 that prevents the next env from initializing.
-    with contextlib.suppress(Exception):
-        from isaaclab_newton.physics import NewtonManager
-
-        NewtonManager.clear()
     _drain_kit_app_updates(_VISUALIZER_STARTUP_DRAIN_UPDATES)
 
 
