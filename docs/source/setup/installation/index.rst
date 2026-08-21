@@ -777,98 +777,132 @@ On Windows, enable `long-path support
 <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`__
 before building.
 
-.. tab-set::
-   :sync-group: installation-platform
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
-      :sync: linux-x86_64
-
-      .. code-block:: bash
-
-         git clone https://github.com/isaac-sim/IsaacSim.git
-         cd IsaacSim
-         ./build.sh
-         export ISAACSIM_PATH="${PWD}/_build/linux-x86_64/release"
-         export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
-         ${ISAACSIM_PATH}/isaac-sim.sh
-         ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
-         ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
-      :sync: linux-aarch64
-
-      .. code-block:: bash
-
-         git clone https://github.com/isaac-sim/IsaacSim.git
-         cd IsaacSim
-         ./build.sh
-         export ISAACSIM_PATH="${PWD}/_build/linux-aarch64/release"
-         export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
-         ${ISAACSIM_PATH}/isaac-sim.sh
-         ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
-         ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
-      :sync: windows-x86_64
-
-      .. code-block:: batch
-
-         git clone https://github.com/isaac-sim/IsaacSim.git
-         cd IsaacSim
-         build.bat
-         set ISAACSIM_PATH="%cd%\_build\windows-x86_64\release"
-         set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
-         %ISAACSIM_PATH%\isaac-sim.bat
-         %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
-         %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.experimental.api\add_cubes.py
-
-Return to the workspace containing the ``IsaacSim`` checkout, then clone Isaac Lab, link it to the
-source build, install, and verify:
-
-.. code-block:: text
-
-   cd ..
-
-.. isaaclab-clone-commands::
+Choose how to connect the Isaac Sim source build to Isaac Lab:
 
 .. tab-set::
-   :sync-group: installation-platform
+   :sync-group: isaacsim-source-installation-method
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
-      :sync: linux-x86_64
+   .. tab-item:: uv (Recommended)
+      :sync: uv
 
-      .. code-block:: bash
+      Clone Isaac Sim next to the Isaac Lab checkout. From the Isaac Lab root, run the source-build
+      command. It incrementally builds Isaac Sim and links the live release tree as ``_isaac_sim``:
 
-         cd IsaacLab
-         ln -s ${ISAACSIM_PATH} _isaac_sim
-         sudo apt install cmake build-essential
-         ./isaaclab.sh -i
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+      .. code-block:: text
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
-      :sync: linux-aarch64
+         git clone https://github.com/isaac-sim/IsaacSim.git ../IsaacSim
+         uv run isaaclab --isaacsim_source ../IsaacSim
 
-      .. code-block:: bash
+      Isaac Lab runs the active ``uv`` environment through Isaac Sim's generated Python launcher.
+      This loads Kit and extensions directly from the source build without creating wheels or
+      changing ``pyproject.toml`` and ``uv.lock``. Run Isaac Lab against the source build with:
 
-         cd IsaacLab
-         ln -s ${ISAACSIM_PATH} _isaac_sim
-         sudo apt install cmake build-essential python3.12-dev libgl1-mesa-dev libx11-dev \
-            libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
-         ./isaaclab.sh -i
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+      .. code-block:: text
 
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
-      :sync: windows-x86_64
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
-      .. code-block:: batch
+      After changing Isaac Sim source, run the same ``--isaacsim_source`` command again. The native
+      build is incremental, and the link continues to expose the updated build immediately; no
+      wheel packaging or dependency resolution step is required.
 
-         cd IsaacLab
-         mklink /D _isaac_sim %ISAACSIM_PATH%
-         isaaclab.bat -i
-         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+      :sync: isaaclab-script
 
-The tutorial command should open a black simulator viewport. Use the binary-installation
-troubleshooting links above if the source build does not launch.
+      Build and verify Isaac Sim for your platform:
+
+      .. tab-set::
+         :sync-group: installation-platform
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
+            :sync: linux-x86_64
+
+            .. code-block:: bash
+
+               git clone https://github.com/isaac-sim/IsaacSim.git
+               cd IsaacSim
+               ./build.sh
+               export ISAACSIM_PATH="${PWD}/_build/linux-x86_64/release"
+               export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
+               ${ISAACSIM_PATH}/isaac-sim.sh
+               ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
+               ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
+            :sync: linux-aarch64
+
+            .. code-block:: bash
+
+               git clone https://github.com/isaac-sim/IsaacSim.git
+               cd IsaacSim
+               ./build.sh
+               export ISAACSIM_PATH="${PWD}/_build/linux-aarch64/release"
+               export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
+               ${ISAACSIM_PATH}/isaac-sim.sh
+               ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
+               ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
+
+         .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
+            :sync: windows-x86_64
+
+            .. code-block:: batch
+
+               git clone https://github.com/isaac-sim/IsaacSim.git
+               cd IsaacSim
+               build.bat
+               set ISAACSIM_PATH="%cd%\_build\windows-x86_64\release"
+               set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
+               %ISAACSIM_PATH%\isaac-sim.bat
+               %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
+               %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.experimental.api\add_cubes.py
+
+      Return to the workspace containing the ``IsaacSim`` checkout, then clone Isaac Lab:
+
+      .. code-block:: text
+
+         cd ..
+
+      .. isaaclab-clone-commands::
+
+      Link Isaac Lab to the source build, install, and verify:
+
+      .. tab-set::
+         :sync-group: installation-platform
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
+            :sync: linux-x86_64
+
+            .. code-block:: bash
+
+               cd IsaacLab
+               ln -s ${ISAACSIM_PATH} _isaac_sim
+               sudo apt install cmake build-essential
+               ./isaaclab.sh -i
+               ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+
+         .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
+            :sync: linux-aarch64
+
+            .. code-block:: bash
+
+               cd IsaacLab
+               ln -s ${ISAACSIM_PATH} _isaac_sim
+               sudo apt install cmake build-essential python3.12-dev libgl1-mesa-dev libx11-dev \
+                  libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
+               ./isaaclab.sh -i
+               ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+
+         .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
+            :sync: windows-x86_64
+
+            .. code-block:: batch
+
+               cd IsaacLab
+               mklink /D _isaac_sim %ISAACSIM_PATH%
+               isaaclab.bat -i
+               isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
+
+      The tutorial command should open a black simulator viewport. Use the binary-installation
+      troubleshooting links above if the source build does not launch.
 
 
 .. _installation-method-container:

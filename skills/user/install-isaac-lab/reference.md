@@ -59,11 +59,24 @@ Read `docs/source/setup/installation/index.rst` "System requirements" from the c
 
 Run the docs-defined minimal verification command after every install, before larger tests. The command varies by route:
 
-- Automatic uv (`installation-method-uv`), legacy installer (`installation-legacy-installer`), managed Python env (`installation-method-python-env`), Isaac Lab wheel (`installation-method-wheel`), and Isaac Sim source build (`installation-method-source`) verify Isaac Lab via the tutorial script documented in the section's included verification snippet:
+- Automatic uv (`installation-method-uv`), legacy installer (`installation-legacy-installer`), managed Python env (`installation-method-python-env`), and Isaac Lab wheel (`installation-method-wheel`) verify Isaac Lab via the tutorial script documented in the section's included verification snippet:
 
 ```bash
 uv run python scripts/tutorials/00_sim/create_empty.py --viz kit
 ```
+
+- Isaac Sim source build (`installation-method-source`) runs the same script against the locally built Isaac Sim wheels:
+
+```bash
+uv run --extra isaacsim-local python scripts/tutorials/00_sim/create_empty.py --viz kit
+```
+
+  This only uses the local build when `pyproject.toml` carries both edits that
+  `uv run isaaclab --isaacsim_source <path>` writes: `find-links = ["_isaac_sim_wheels"]` under
+  `[tool.uv]`, and an `isaacsim-local` extra pinning the exact version from
+  `_isaac_sim_wheels/isaacsim-*.whl`. Without the pin, uv resolves the published wheels from
+  `pypi.nvidia.com` instead, because source builds carry pre-release local versions that sort below
+  the release.
 
 - Downloaded Isaac Sim package (`installation-method-binary`) uses the bundled-Python verification documented in the section (launch via `${ISAACSIM_PATH}/isaac-sim.sh`, then run the tutorial script from the checkout).
 - Docker (`installation-method-container`) runs the same tutorial verification inside the container as documented in `docs/source/features/docker_cloud.rst`.
