@@ -225,15 +225,15 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 option includes the selected optional integration in the command's environment. Place it
 before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
-any combination resolves into one environment. The ``--extra all`` shortcut installs a
-curated set of backends, RL libraries, and visualizers. It does not include the specialized
-extras ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp``;
-request them by name:
+any combination resolves into one environment. The ``--extra all`` shortcut installs the
+curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser`` extras.
+It does not include Isaac Sim or the specialized ``rlinf``, ``mimic``, ``teleop``,
+``tetrahedralization``, ``video``, and ``leapp`` extras; request them by name:
 
 .. code-block:: bash
 
    uv run --extra all isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct physics=isaacsim_physx
+      --task Isaac-Cartpole-Direct physics=ovphysx
 
 See :ref:`installation-optional-extras` for the available extras.
 
@@ -574,9 +574,10 @@ or temporary work.
 Optional extras
 ~~~~~~~~~~~~~~~
 
-Add extras to the package requirement when your project needs them. For a standalone environment,
-use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
-``uv add "isaaclab[<extra>]"``.
+Add extras only when your project needs them. Most extras work with
+``uv pip install "isaaclab[<extra>]"`` in a standalone environment or
+``uv add "isaaclab[<extra>]"`` in a uv project. The ``importers`` and ``isaacsim`` extras
+have dedicated commands below.
 
 .. list-table::
    :header-rows: 1
@@ -601,20 +602,45 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
      - LEAP model export support.
+   * - ``importers``
+     - Standalone URDF and MJCF conversion without Isaac Sim.
    * - ``all``
-     - A curated set of backends, RL libraries, and visualizers: ``isaacsim``, ``ov``, ``rl-games``,
-       ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``.
+     - The curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
+       extras. Isaac Sim is not included.
    * - ``test``
      - Developer test and documentation tooling.
 
-Extras can be combined freely: none of them conflict, so any set of extras -- including
-the Isaac Sim and OV backend stacks together -- resolves into a single environment.
-Use ``all`` to install the curated set of backends, RL libraries, and visualizers listed
-above with one flag. The specialized extras (``rlinf``, ``mimic``, ``teleop``,
-``tetrahedralization``, ``video``, ``leapp``) and the developer ``test`` tooling are not
-part of ``all``; request them by name.
+Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
+(``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
+developer ``test`` tooling remain opt-in.
 
-.. isaaclab-uv-wheel-install::
+.. _installation-importers-extra:
+
+Installing the ``importers`` extra
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Install this extra to convert URDF and MJCF files without Isaac Sim.
+
+.. warning::
+
+   Use the full command below. Without the overrides, the importer extra can downgrade packages
+   used by the base Isaac Lab install. The overrides keep Isaac Lab's tested versions.
+
+.. isaaclab-uv-importers-wheel-install::
+
+Installing the ``isaacsim`` extra
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Sim 6.0 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
+the tested overrides:
+
+.. isaaclab-uv-isaacsim-wheel-install::
+
+Add other extras inside the brackets when needed; for example, use
+``isaaclab[isaacsim,all]`` to include the curated ``all`` list.
+
+Installing CUDA-enabled PyTorch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install the CUDA-enabled PyTorch build appropriate for your system architecture:
 
