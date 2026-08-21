@@ -126,6 +126,9 @@ process.
 
 ```bash
 # Shared contract and backend-specific fast gates.
+export WARP_CACHE_PATH=/tmp/isaaclab-task8-warp
+export OMNI_KIT_ACCEPT_EULA=YES
+
 ./isaaclab.sh -p -m pytest source/isaaclab/test/assets/contract -q
 ./isaaclab.sh -p -m pytest \
   source/isaaclab_newton/test/assets/unit \
@@ -138,6 +141,9 @@ Real-only subprocess gates must exclude `/assets/unit/`; otherwise colliding
 basenames pull unit files into the result.
 
 ```bash
+export WARP_CACHE_PATH=/tmp/isaaclab-task8-warp
+export OMNI_KIT_ACCEPT_EULA=YES
+
 TEST_FILTER_PATTERN=/source/isaaclab_newton/test/assets/ \
 TEST_EXCLUDE_PATTERN=/assets/unit/ \
 TEST_INCLUDE_FILES=test_articulation.py,test_newton_actuators_newton.py,test_rigid_object.py,test_rigid_object_collection.py \
