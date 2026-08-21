@@ -44,7 +44,7 @@ def test_update_wrench_array_rotates_body_wrenches_to_world_frame() -> None:
     )
 
 
-def test_update_wrench_array_ordered_rotates_and_scatter_wrenches_to_backend_order() -> None:
+def test_update_wrench_array_ordered_rotates_and_scatters_to_backend_order() -> None:
     """Rotate public-order body wrenches and scatter them into backend order."""
     forces = wp.array(np.asarray([[[1.0, 0.0, 0.0], [3.0, 0.0, 0.0]]], dtype=np.float32), dtype=wp.vec3f, device="cpu")
     torques = wp.array(np.asarray([[[2.0, 0.0, 0.0], [4.0, 0.0, 0.0]]], dtype=np.float32), dtype=wp.vec3f, device="cpu")
