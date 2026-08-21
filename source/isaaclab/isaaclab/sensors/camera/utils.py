@@ -194,10 +194,14 @@ def create_pointcloud_from_rgbd(
         is returned.
 
     Raises:
-        ValueError:  When rgb image is a numpy array but not of shape (H, W, 3) or (H, W, 4).
+        ValueError: When a constant RGB color does not contain exactly three components, or an RGB image is not
+            of shape (H, W, 3) or (H, W, 4).
     """
     # check valid inputs
-    if rgb is not None and not isinstance(rgb, (tuple, list)):
+    if isinstance(rgb, (tuple, list)):
+        if len(rgb) != 3:
+            raise ValueError(f"Input rgb color must contain exactly three components. Received {len(rgb)}.")
+    elif rgb is not None:
         if len(rgb.shape) == 3:
             if rgb.shape[2] not in [3, 4]:
                 raise ValueError(f"Input rgb image of invalid shape: {rgb.shape} != (H, W, 3) or (H, W, 4).")
@@ -216,6 +220,7 @@ def create_pointcloud_from_rgbd(
         depth = torch.from_numpy(depth).to(device=device)
     # retrieve XYZ pointcloud
     points_xyz = create_pointcloud_from_depth(intrinsic_matrix, depth, True, position, orientation, device=device)
+    color_device = points_xyz.device
 
     # get image height and width
     im_height, im_width = depth.shape[:2]
@@ -225,19 +230,19 @@ def create_pointcloud_from_rgbd(
     if rgb is not None:
         if isinstance(rgb, (np.ndarray, torch.Tensor, wp.array)):
             # copy numpy array to preserve
-            rgb = convert_to_torch(rgb, device=device, dtype=torch.float32)
+            rgb = convert_to_torch(rgb, device=color_device, dtype=torch.float32)
             rgb = rgb[:, :, :3]
             # convert the matrix to (W, H, 3) from (H, W, 3) since depth processing
             # is done in the order (u, v) where u: (0, W-1) and v: (0 - H-1)
             points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
         elif isinstance(rgb, (tuple, list)):
             # same color for all points
-            points_rgb = torch.tensor((rgb,) * num_points, device=device, dtype=torch.uint8)
+            points_rgb = torch.tensor((rgb,) * num_points, device=color_device, dtype=torch.uint8)
         else:
             # default color is black
-            points_rgb = torch.tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+            points_rgb = torch.tensor(((0, 0, 0),) * num_points, device=color_device, dtype=torch.uint8)
     else:
-        points_rgb = torch.tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+        points_rgb = torch.tensor(((0, 0, 0),) * num_points, device=color_device, dtype=torch.uint8)
     # normalize color values
     if normalize_rgb:
         points_rgb = points_rgb.float() / 255
