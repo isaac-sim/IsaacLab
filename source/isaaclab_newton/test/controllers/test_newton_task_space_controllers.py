@@ -5,6 +5,7 @@
 
 """Kitless controller bridges for Newton articulation dynamics data."""
 
+import pytest
 import torch
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -15,7 +16,10 @@ from isaaclab.controllers import (
     OperationalSpaceControllerCfg,
 )
 from isaaclab.utils.math import subtract_frame_transforms
+
 from source.isaaclab_newton.test.articulation_test_utils import author_fixed_spatial_chain, build_newton_context
+
+pytestmark = pytest.mark.integration
 
 
 def _end_effector_pose_b(articulation) -> torch.Tensor:
