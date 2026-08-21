@@ -102,7 +102,7 @@ EXIT_CODE_LABELS = {
 """Label for each exit code, printed with the result summary."""
 
 
-def resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang):
+def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_startup_hang: int) -> int:
     """Return the exit code for a finished run, based on how it failed.
 
     A crashed process, a hang and a failing assertion have different owners, so
@@ -111,6 +111,16 @@ def resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang):
     the outcome that proved the least: a process that died never reached the
     assertion a failing test did.  ``1`` still means failing assertions, so
     callers that only check for a non-zero code are unaffected.
+
+    Args:
+        num_failing: Test files that ran and reported a failing assertion.
+        num_timeout: Test files killed at their hard timeout.
+        num_crashed: Test files whose process exited without writing a report.
+        num_startup_hang: Test files killed before startup finished.
+
+    Returns:
+        ``0`` when nothing failed, otherwise the code for the highest-precedence
+        mode present: crash, then timeout, then startup hang, then assertion.
     """
     if num_crashed:
         return EXIT_CRASHED
