@@ -47,7 +47,7 @@ class MultirotorCfg(ArticulationCfg):
 
             # Quadcopter configuration
             quadcopter_cfg = MultirotorCfg(
-                prim_path="/World/envs/env_.*/Quadcopter",
+                prim_path="{ENV_REGEX_NS}/Quadcopter",
                 spawn=sim_utils.UsdFileCfg(
                     usd_path="path/to/quadcopter.usd",
                 ),

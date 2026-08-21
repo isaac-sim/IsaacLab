@@ -553,3 +553,35 @@ def test_sensor_print(setup_sim):
     sensor = scene.sensors["imu_ball"]
     # print info
     print(sensor)
+
+
+@pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))
+def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
+    """Acceleration uses the elapsed time between sensor samples."""
+    sim, scene = setup_sim
+    dt = sim.get_physics_dt()
+    body = scene.rigid_objects["balls"]
+    sensor = scene.sensors["imu_ball"]
+    velocity = torch.zeros((scene.num_envs, 6), dtype=torch.float32, device=scene.device)
+
+    body.write_root_velocity_to_sim_index(root_velocity=velocity)
+    scene.write_data_to_sim()
+    sim.step()
+    scene.update(dt)
+    _ = sensor.data
+
+    scene.cfg.lazy_sensor_update = True
+    if access_mode == "update_period":
+        sensor.cfg.update_period = 4 * dt
+
+    for step in range(4):
+        velocity[:, 0] = 0.1 * (step + 1)
+        body.write_root_velocity_to_sim_index(root_velocity=velocity)
+        scene.write_data_to_sim()
+        sim.step()
+        scene.update(dt)
+        if access_mode == "update_period":
+            _ = sensor.data
+
+    expected = torch.full((scene.num_envs,), 0.1 / dt, device=scene.device)
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch[:, 0], expected)

@@ -17,11 +17,13 @@ import weakref
 
 import numpy as np
 import pytest
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 
 import omni.timeline
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = pytest.mark.integration
@@ -90,6 +92,55 @@ def test_init(device):
     )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize(
+    "physics_cfg",
+    [PhysxCfg(), NewtonCfg(solver_cfg=MJWarpSolverCfg())],
+    ids=["physx", "newton"],
+)
+def test_stop_is_dispatched_for_lazy_class_type(physics_cfg):
+    """``PhysicsEvent.STOP`` must be dispatched even when ``class_type`` is declared lazily.
+
+    Configs declare ``class_type`` as a ``"module:Class"`` string, which proxies attribute access
+    but is a ``str``. The active-manager identity check in ``PhysicsManager.close`` therefore
+    never matched the class, and ``STOP`` never reached any sensor or asset.
+    """
+    sim = SimulationContext(SimulationCfg(physics=physics_cfg))
+
+    stopped = []
+
+    def on_stop(_):
+        stopped.append(True)
+
+    sim.physics_manager.register_callback(on_stop, PhysicsEvent.STOP, name="test_stop")
+    SimulationContext.clear_instance()
+
+    assert stopped, "PhysicsEvent.STOP was not dispatched at teardown"
+
+
+@pytest.mark.isaacsim_ci
+def test_clear_instance_closes_renderers():
+    """``clear_instance`` must close registered renderers rather than leave them to garbage collection.
+
+    A renderer is shared by every camera whose config resolves to it, so the stage-bound resources it
+    owns cannot be released from a single camera's ``cleanup``. Nothing else releases them either:
+    the OVRTX ovstage path holds its stage in a ``contextlib.ExitStack``, which has no finalizer, so
+    collection never runs the context managers that own it.
+    """
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg()))
+
+    closed = []
+
+    class _Renderer:
+        def close(self):
+            closed.append(True)
+
+    sim.render_context._renderer_entries.append((object(), _Renderer()))  # noqa: SLF001
+    SimulationContext.clear_instance()
+
+    assert closed, "registered renderers were not closed at teardown"
 
 
 @pytest.mark.isaacsim_ci
@@ -299,7 +350,8 @@ def test_render_pumps_app_update_without_visualizer():
 
     Originally ``SimulationContext.render()`` called ``omni.kit.app.get_app().update()`` when
     no visualizer had ``pumps_app_update()`` (see PR #5056). The same contract is now implemented
-    from :func:`~isaaclab.envs.utils.recording_hooks.run_recording_hooks_after_visualizers`, which calls
+    by physics-backend render callbacks registered via :meth:`~SimulationContext.add_render_callback`
+    (e.g. ``PhysxManager.initialize()`` registers a headless video pump). These callbacks call
     :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.pump_kit_app_for_headless_video_render_if_needed`
     when ``/isaaclab/video/enabled`` is set (as with ``--video``), which in turn calls
     ``ensure_isaac_rtx_render_update()`` (guarded by ``is_rendering`` and the no-pumping-visualizer check).
@@ -336,7 +388,7 @@ def test_render_skips_app_update_when_visualizer_pumps_it():
     """Regression test: do not pump Kit in the headless-video path when a visualizer already does.
 
     A visualizer with ``pumps_app_update() == True`` (e.g. KitVisualizer) calls ``app.update()`` in
-    its own ``step()``. The recording-hook pump must then skip
+    its own ``step()``. The render callback registered by the physics backend must then skip
     ``ensure_isaac_rtx_render_update`` so we do not double-pump the Kit loop.
     """
     from unittest.mock import MagicMock, patch
@@ -1122,3 +1174,103 @@ def test_exception_in_callback_on_step():
         if handle is not None:
             PhysxManager.deregister_callback(handle)
         SimulationContext.clear_instance()
+
+
+# ------------------------------------------------------------------
+# render callbacks
+# ------------------------------------------------------------------
+
+
+def test_render_callback_is_invoked_on_render():
+    """Callback registered via add_render_callback fires on every render() call."""
+    from unittest.mock import MagicMock, patch
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    cb = MagicMock()
+    sim.add_render_callback("test_cb", cb)
+
+    with patch("isaaclab.utils.version.has_kit", return_value=False):
+        sim.render()
+        sim.render()
+
+    assert cb.call_count == 2
+    cb.assert_called_with(None)
+
+    SimulationContext.clear_instance()
+
+
+def test_render_callback_ordering():
+    """Callbacks fire in ascending order value; lower order fires first."""
+    from unittest.mock import patch
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    call_log: list[str] = []
+    sim.add_render_callback("second", lambda _: call_log.append("second"), order=10)
+    sim.add_render_callback("first", lambda _: call_log.append("first"), order=0)
+    sim.add_render_callback("third", lambda _: call_log.append("third"), order=20)
+
+    with patch("isaaclab.utils.version.has_kit", return_value=False):
+        sim.render()
+
+    assert call_log == ["first", "second", "third"]
+
+    SimulationContext.clear_instance()
+
+
+def test_render_callback_replace_on_same_name():
+    """Re-registering with the same name silently replaces the old callback."""
+    from unittest.mock import MagicMock, patch
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    old_cb = MagicMock()
+    new_cb = MagicMock()
+    sim.add_render_callback("cb", old_cb)
+    sim.add_render_callback("cb", new_cb)
+
+    with patch("isaaclab.utils.version.has_kit", return_value=False):
+        sim.render()
+
+    old_cb.assert_not_called()
+    new_cb.assert_called_once_with(None)
+
+    SimulationContext.clear_instance()
+
+
+def test_remove_render_callback_stops_invocation():
+    """remove_render_callback prevents a registered callback from firing."""
+    from unittest.mock import MagicMock, patch
+
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    cb = MagicMock()
+    sim.add_render_callback("cb", cb)
+    sim.remove_render_callback("cb")
+
+    with patch("isaaclab.utils.version.has_kit", return_value=False):
+        sim.render()
+
+    cb.assert_not_called()
+
+    SimulationContext.clear_instance()
+
+
+def test_remove_render_callback_noop_for_unknown_name():
+    """remove_render_callback is a no-op when the name was never registered."""
+    cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(cfg)
+    sim.reset()
+
+    sim.remove_render_callback("nonexistent")  # must not raise
+
+    SimulationContext.clear_instance()

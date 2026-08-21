@@ -10,23 +10,23 @@ from typing import Literal
 
 import pytest
 
-import isaaclab.test.benchmark.capture as capture
-from isaaclab.test.benchmark.capture import (
+import isaaclab.benchmark.capture as capture
+from isaaclab.benchmark.capture import (
     capture_hardware,
     capture_resources,
     capture_versions,
     run_config_from_presets,
     synth_run_id,
 )
-from isaaclab.test.benchmark.interfaces import MeasurementData
-from isaaclab.test.benchmark.measurements import (
+from isaaclab.benchmark.interfaces import MeasurementData
+from isaaclab.benchmark.measurements import (
     DictMetadata,
     FloatMetadata,
     IntMetadata,
     SingleMeasurement,
     StringMetadata,
 )
-from isaaclab.test.benchmark.schema import Hardware, Resources, Versions
+from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
 
 class _Rec:
@@ -242,6 +242,10 @@ def test_run_config_from_presets_resolves_backend_configuration(monkeypatch):
     cfg = run_config_from_presets([], env_cfg=env_cfg)
     assert cfg.physics_backend == "newton_mjwarp"
     assert cfg.rendering_backend == "isaacsim_rtx"
+
+    physx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="PhysXManager")))
+    cfg = run_config_from_presets(["isaacsim_physx"], env_cfg=physx_env_cfg)
+    assert cfg.physics_backend == "physx"
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():

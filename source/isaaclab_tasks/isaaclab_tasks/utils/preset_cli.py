@@ -11,18 +11,19 @@ Recognizes three ``key=value`` tokens (no leading dashes) on ``sys.argv``:
 * ``renderer=NAME``           -- typed selector for ``RendererCfg`` variants.
 * ``presets=NAME[,NAME,...]`` -- broadcast applied to every matching ``PresetCfg``.
 
-:func:`setup_preset_cli` registers the preset-selection help description on the
-parser and runs ``parse_known_args``, returning the verbatim remainder. The
-tokens above are passed through unchanged; hydra's
+:func:`setup_preset_cli` registers preset-selection help and, for RL callers,
+agent discovery. It then runs ``parse_known_args``, returning the verbatim
+remainder. The preset tokens above are passed through unchanged; hydra's
 :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly (applying
 the names as presets and enforcing that ``physics=``/``renderer=`` resolve
 against a config of that type). Callers simply assign the remainder to
 ``sys.argv``; no rewriting step is needed.
 
-No argparse arguments are registered for the typed selectors -- discoverability
-lives in the ``argument_group`` description, so the parsed Namespace gains no
-preset attributes and cannot shadow :class:`~isaaclab.app.AppLauncher`
-SimulationApp config keys (``renderer`` notably).
+No argparse arguments are registered for the typed selectors -- their
+discoverability lives in the ``argument_group`` description, so the parsed
+Namespace gains no preset attributes and cannot shadow
+:class:`~isaaclab.app.AppLauncher` SimulationApp config keys (``renderer``
+notably).
 
 Typical script setup::
 
@@ -59,7 +60,10 @@ from .preset_target import PresetTarget
 
 
 def setup_preset_cli(
-    parser: argparse.ArgumentParser, argv: list[str] | None = None
+    parser: argparse.ArgumentParser,
+    argv: list[str] | None = None,
+    *,
+    agent_library: str | None = None,
 ) -> tuple[argparse.Namespace, list[str]]:
     """Register the preset-selection help description and parse argv.
 
@@ -78,14 +82,17 @@ def setup_preset_cli(
 
     Args:
         parser: Caller's argument parser. An ``argument_group`` is attached
-            for help-time variant discovery; no ``add_argument`` calls are
-            made, so the Namespace gains no preset attributes.
+            for help-time variant discovery. No preset selector arguments are
+            added, so the Namespace gains no preset attributes.
         argv: Optional argument list to parse. When ``None`` (default),
             ``parse_known_args`` reads from ``sys.argv``. Provided primarily
             for in-process test paths that drive the parser with a synthetic
             argv. Help-time variant enumeration always reads ``sys.argv`` --
             the user's interactive command line is the only argv that
             triggers ``--help`` rendering.
+        agent_library: Optional RL-library prefix. When provided, task-specific
+            help lists registered ``--agent`` values and declared preset
+            compatibility.
 
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
@@ -93,15 +100,15 @@ def setup_preset_cli(
         ``sys.argv``.
 
     Raises:
-        SystemExit: If ``argv`` requests help, after printing parser help.
+        SystemExit: If ``argv`` requests help, after printing it.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
     # normal training runs cheap.
     argv_helper = _ArgvHelper(sys.argv)
-    actual_variants = (
-        _enumerate_variants(argv_helper.task_name) if (argv_helper.task_name and argv_helper.help_requested) else None
-    )
+    actual_variants = None
+    if argv_helper.task_name and argv_helper.help_requested:
+        actual_variants = _enumerate_variants(argv_helper.task_name)
 
     # Argparse's default HelpFormatter reflows description text into one wrapped
     # paragraph, which would collapse the per-variant bullets we emit. Use a
@@ -115,12 +122,24 @@ def setup_preset_cli(
     # ``renderer``) into SimulationApp config.
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
+    if agent_library:
+        parser.add_argument_group(
+            "agent selection",
+            description=_AgentDescriptionBuilder.build(agent_library, argv_helper.task_name),
+        )
+
     args_to_parse = sys.argv[1:] if argv is None else argv
     if "-h" in args_to_parse or "--help" in args_to_parse:
         parser.print_help()
         raise SystemExit(0)
 
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+
+    task_name = getattr(args, "task", None) or argv_helper.task_name
+    if agent_library and getattr(args, "agent", None) is None and task_name:
+        _auto_select_agent(args, task_name, agent_library, args_to_parse)
+
+    return args, remaining
 
 
 # ============================================================================
@@ -246,15 +265,116 @@ class _DescriptionBuilder:
 
     @staticmethod
     def _description(target: PresetTarget) -> str:
-        """One-line description; for typed targets includes the cfg base class name."""
+        """One-line description of a selector's semantic target."""
         if target.base_classes:
-            return f"(typed) selects a {target.base_classes[0].__name__} variant"
+            return f"(typed) selects a {target.value} backend"
         return "broadcast: applied to every matching PresetCfg"
+
+
+class _AgentDescriptionBuilder:
+    """Render registered agent configs and declared preset compatibility."""
+
+    @staticmethod
+    def build(agent_library: str, task_name: str | None) -> str:
+        """Build help text for one RL library.
+
+        Args:
+            agent_library: RL-library prefix used to filter agent configs.
+            task_name: Gymnasium task ID, or ``None`` when task-specific help
+                was not requested.
+
+        Returns:
+            Multi-line argparse group description.
+        """
+        if task_name is None:
+            return (
+                f"Registered --agent values for {agent_library}. Pass `--task=X --help` "
+                "to see the available configs and declared preset compatibility."
+            )
+
+        agents, compatibility = _enumerate_agents(task_name, agent_library)
+        if not agents:
+            return f"Registered --agent values for {agent_library}: (none)"
+
+        lines = [f"Registered --agent values for {agent_library}:"]
+        for agent in agents:
+            suffix = " (default)" if agent == f"{agent_library}_cfg_entry_point" else ""
+            lines.append(f"    {agent}{suffix}")
+            compatible = compatibility.get(agent)
+            if compatible is not None:
+                lines.append(f"      compatible presets: {', '.join(compatible)}")
+        if not compatibility:
+            lines.extend(["", "Preset selection does not constrain --agent for this task."])
+        return "\n".join(lines)
 
 
 # ============================================================================
 # argv inspection (pre-argparse peek for help-text rendering)
 # ============================================================================
+
+
+def _auto_select_agent(
+    args: argparse.Namespace,
+    task_name: str,
+    agent_library: str,
+    argv: list[str],
+) -> None:
+    """Set ``args.agent`` when the task unambiguously implies one entry point.
+
+    Two independent selection rules are applied in order:
+
+    1. **Preset-based**: scans *argv* for ``presets=<name>`` tokens and checks
+       ``agent_preset_compatibility``. When exactly one registered entry point
+       declares compatibility with every active preset, that entry point is used.
+
+    2. **Default-absent**: when no preset is active and the canonical default
+       entry point (``<library>_cfg_entry_point``) is not registered for the
+       task, but exactly one other entry point is, that sole entry point is used.
+       This handles tasks such as ``IsaacContrib-Humanoid-AMP-*`` that only
+       support a non-default algorithm (AMP) and never register the PPO default.
+
+    Does nothing when the match is absent or ambiguous.
+
+    Args:
+        args: Parsed namespace to update in-place.
+        task_name: Gymnasium task ID used to look up the registry spec.
+        agent_library: RL-library prefix (e.g. ``"skrl"``).
+        argv: Raw argument list scanned for ``presets=`` tokens.
+    """
+    if getattr(args, "agent", None) is not None:
+        return
+
+    active_presets: set[str] = set()
+    for token in argv:
+        if token.startswith("presets="):
+            for name in token[len("presets=") :].split(","):
+                name = name.strip()
+                if name:
+                    active_presets.add(name)
+
+    try:
+        agents, compatibility = _enumerate_agents(task_name, agent_library)
+    except Exception:  # noqa: BLE001
+        return
+
+    if active_presets:
+        # Rule 1: preset-based selection via agent_preset_compatibility.
+        # Filter to only the presets that appear in the compatibility map: physics
+        # and renderer tokens can arrive via the presets= broadcast but are never
+        # declared as agent constraints, so including them would make issubset fail
+        # for every entry point and silently fall back to the wrong default.
+        all_declared = {p for declared in compatibility.values() for p in declared}
+        domain_presets = active_presets & all_declared
+        if domain_presets:
+            matches = [ep for ep, declared in compatibility.items() if domain_presets.issubset(set(declared))]
+            if len(matches) == 1:
+                args.agent = matches[0]
+        return
+
+    # Rule 2: default-absent selection.
+    default_ep = f"{agent_library}_cfg_entry_point"
+    if default_ep not in agents and len(agents) == 1:
+        args.agent = agents[0]
 
 
 class _ArgvHelper:
@@ -303,17 +423,29 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
     return _bucket_variants_by_target(collect_presets(env_cfg))
 
 
+def _enumerate_agents(task_name: str, agent_library: str) -> tuple[list[str], dict[str, tuple[str, ...]]]:
+    """Return registered agents and task-declared preset compatibility."""
+    import gymnasium as gym
+
+    spec = gym.spec(task_name.split(":")[-1])
+    prefix = f"{agent_library}_"
+    agents = sorted(key for key in spec.kwargs if key.startswith(prefix) and key.endswith("_cfg_entry_point"))
+    compatibility = spec.kwargs.get("agent_preset_compatibility", {})
+    return agents, {agent: tuple(presets) for agent, presets in compatibility.items() if agent in agents}
+
+
 def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     """Convert :func:`collect_presets` output into ``{target: set[name]}``.
 
-    Routes each ``(name, cfg)`` by ``isinstance(cfg, target.base_classes)``;
-    cfgs matching no typed target fall into ``DOMAIN``. The implicit
-    ``default`` field is filtered -- it's the fallback, not a selectable name.
+    Routes each ``(name, cfg)`` through :meth:`PresetTarget.matches`; cfgs
+    matching no typed target fall into ``DOMAIN``. The implicit ``default``
+    field is filtered -- it's the fallback, not a selectable name.
 
-    Routing by class hierarchy means new backends subclassing
+    Direct routing by class hierarchy means new backends subclassing
     :class:`~isaaclab.physics.PhysicsCfg` /
     :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` bucket automatically
-    regardless of what name the env_cfg gives the field.
+    regardless of what name the env_cfg gives the field. Targets may also
+    recognize documented container shapes through :meth:`PresetTarget.matches`.
     """
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
@@ -322,7 +454,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
             if name == "default":
                 continue
             matched = next(
-                (t for t in typed_targets if isinstance(cfg, t.base_classes)),
+                (target for target in typed_targets if target.matches(cfg)),
                 PresetTarget.DOMAIN,
             )
             result[matched].add(name)

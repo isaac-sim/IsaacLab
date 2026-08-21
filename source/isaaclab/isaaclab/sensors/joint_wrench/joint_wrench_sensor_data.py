@@ -15,7 +15,7 @@ from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensorData as NewtonJointWrenchSensorData
-    from isaaclab_ovphysx.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
+    from isaaclab_ov.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
     from isaaclab_physx.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
 
 

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -13,11 +14,12 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.cloner import queue_usd_replication
+from isaaclab.app.logging_utils import force_log_level
+from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -98,7 +100,7 @@ class Camera(SensorBase):
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
-    - ``"instance_segmentation_fast"``: The instance segmentation data.
+    - ``"instance_segmentation"``: The semantic instance segmentation data.
     - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
     .. note::
@@ -123,7 +125,6 @@ class Camera(SensorBase):
 
     UNSUPPORTED_TYPES: set[str] = {
         "instance_id_segmentation",
-        "instance_segmentation",
         "bounding_box_2d_tight",
         "bounding_box_2d_loose",
         "bounding_box_3d",
@@ -141,7 +142,7 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            ValueError: If the provided data types are not supported by the camera.
+            ValueError: If the provided data types are not supported by the camera or active renderer.
         """
         # perform check on supported data types
         self._check_supported_data_types(cfg)
@@ -172,7 +173,14 @@ class Camera(SensorBase):
                 spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
-        queue_usd_replication(self._source_cfg)
+        queue_replication(self._source_cfg)
+
+        # Every renderer backend draws the visual-only geometry, so it must survive cloning even
+        # when the run is otherwise headless. This has to happen before the replication queue is
+        # drained, which is why it is here rather than in ``_initialize_impl``.
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.require_visual_shapes()
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
@@ -206,17 +214,37 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # Renderer and render data — assigned in _initialize_impl.
+        # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
+        # ``sim.reset()``; sensor initialization only runs on ``PhysicsEvent.PHYSICS_READY``, which is
+        # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
         self._renderer: BaseRenderer | None = None
+        if sim_ctx is not None:
+            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+            with force_log_level(logging.INFO):
+                logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Render data — assigned in _initialize_impl.
         self._render_data = None
+        # Frame view — assigned in _initialize_impl.
+        self._view: FrameView | None = None
 
-    def __del__(self):
-        """Unsubscribes from callbacks and cleans up renderer resources."""
+    def __del__(self, _sys=sys):
+        """Unsubscribes from callbacks and cleans up renderer resources.
+
+        Skips cleanup during interpreter shutdown so destructor-time imports or renderer teardown
+        cannot raise ``ImportError: sys.meta_path is None`` and mask the original exception.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         # unsubscribe callbacks
         super().__del__()
+
+        # release the frame view's backend state, getattr covers partial initialization
+        if getattr(self, "_view", None) is not None:
+            self._view.close()
+            self._view = None
         # cleanup render resources (renderer may be None if never initialized)
-        if self._renderer is not None:
-            self._renderer.cleanup(self._render_data)
+        if getattr(self, "_renderer", None) is not None:
+            self._renderer.cleanup(getattr(self, "_render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -277,11 +305,21 @@ class Camera(SensorBase):
             i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
+        .. note::
+
+            Cameras carrying an OpenCV lens-distortion model are skipped (with a warning): their
+            ``fx/fy/cx/cy`` are fixed at spawn through the
+            :attr:`~isaaclab.sim.spawners.sensors.PinholeCameraCfg.distortion` cfg and cannot be overridden
+            here. Any other selected cameras in the same call are still updated.
+
         Args:
             matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
             focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+
+        Raises:
+            TypeError: If ``matrices`` is not a :class:`torch.Tensor` or a Warp array.
         """
         if isinstance(matrices, torch.Tensor):
             if not matrices.is_contiguous():
@@ -301,15 +339,21 @@ class Camera(SensorBase):
         if matrices.ndim == 2:
             matrices = matrices[None, ...]
         # iterate over env_ids
+        height, width = self.image_shape
+        skipped_distortion = False
         for i, intrinsic_matrix in zip(env_ids_np, matrices):
-            height, width = self.image_shape
+            # change data for corresponding camera index
+            sensor_prim = self._sensor_prims[i]
+            # A camera with an authored OpenCV lens-distortion model owns its fx/fy/cx/cy through the
+            # ``omni:lensdistortion:*`` calibration, which this square-pixel, centered focal-length/aperture
+            # write cannot express, so skip that camera and leave its calibration untouched.
+            if sensor_prim.GetPrim().GetAttribute("omni:lensdistortion:model").Get():
+                skipped_distortion = True
+                continue
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
                 intrinsic_matrix=intrinsic_matrix.reshape(-1), height=height, width=width, focal_length=focal_length
             )
-
-            # change data for corresponding camera index
-            sensor_prim = self._sensor_prims[i]
             # set parameters for camera
             for param_name, param_value in params.items():
                 # convert to camel case (CC)
@@ -321,6 +365,11 @@ class Camera(SensorBase):
                     param_value = float(param_value)
                 # set value using pure USD API
                 param_attr().Set(param_value)
+        if skipped_distortion:
+            logger.warning(
+                "set_intrinsic_matrices() skipped one or more cameras configured with an OpenCV"
+                " lens-distortion model; their intrinsics are fixed at spawn via the 'distortion' cfg."
+            )
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids_np)
 
@@ -448,9 +497,7 @@ class Camera(SensorBase):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
-            raise RuntimeError(
-                "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
-            )
+            raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data
@@ -470,16 +517,14 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function obtains the simulation-scoped :class:`~isaaclab.renderers.base_renderer.BaseRenderer`
-        from :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context` using the configured
-        :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` and delegates all render-product
-        and annotator management to it. It also initializes the internal buffers to store the data.
+        This function delegates all render-product and annotator management to the
+        :class:`~isaaclab.renderers.base_renderer.BaseRenderer` created in :meth:`__init__`. It also
+        initializes the internal buffers to store the data.
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: Propagated from the renderer constructor when the active backend's
-                runtime requirements are not satisfied (e.g. the RTX backend requires the
-                simulation app to be launched with ``--enable_cameras``).
+            RuntimeError: Propagated from the renderer constructor when the active backend's runtime requirements
+                are not satisfied.
         """
         # Initialize parent class
         super()._initialize_impl()
@@ -487,8 +532,9 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
-        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
+        if self._renderer is None:
+            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
 
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume
@@ -579,6 +625,12 @@ class Camera(SensorBase):
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
+        if "instance_segmentation_fast" in cfg.data_types:
+            raise ValueError(
+                "The data type 'instance_segmentation_fast' has been renamed to 'instance_segmentation'."
+                " Please update your CameraCfg.data_types and any camera.data.output / camera.data.info key"
+                " lookups to use 'instance_segmentation'."
+            )
         # check if there is any intersection in unsupported types
         # reason: these use np structured data types which are not compatible with the camera buffer contract
         common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
@@ -586,7 +638,7 @@ class Camera(SensorBase):
             # provide alternative fast counterparts
             fast_common_elements = []
             for item in common_elements:
-                if "instance_segmentation" in item or "instance_id_segmentation" in item:
+                if "instance_id_segmentation" in item:
                     fast_common_elements.append(item + "_fast")
             # raise error
             raise ValueError(
@@ -600,8 +652,9 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         specs = self._renderer.supported_output_types()
-        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        # Split requested names into known, unknown, and unsupported types.
         known: list[str] = []
+        unknown: list[str] = []
         unsupported: list[str] = []
         for name in self.cfg.data_types:
             try:
@@ -610,13 +663,18 @@ class Camera(SensorBase):
                 else:
                     unsupported.append(name)
             except ValueError:
-                unsupported.append(name)
+                unknown.append(name)
+        errors = []
+        if unknown:
+            errors.append(f"Unknown camera data types: {unknown}.")
         if unsupported:
-            logger.warning(
-                "Renderer %s does not support the following requested data types and will not produce them: %s",
-                type(self._renderer).__name__,
-                unsupported,
+            errors.append(
+                f"Renderer {type(self._renderer).__name__} does not support the following requested data types:"
+                f" {unsupported}."
+                f"\n\tSupported data types: {sorted(str(kind) for kind in specs)}"
             )
+        if errors:
+            raise ValueError("\n".join(errors))
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,
@@ -633,10 +691,63 @@ class Camera(SensorBase):
         self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)
 
+    def _read_authored_opencv_intrinsics(
+        self, prim: Usd.Prim, width: int, height: int, env_id: int
+    ) -> tuple[float, float, float, float] | None:
+        """Read the authored OpenCV lens-distortion intrinsics from a camera prim.
+
+        Returns the calibrated ``(fx, fy, cx, cy)`` that the RTX/OVRTX renderer projects through when
+        the prim carries a complete OpenCV lens-distortion model, otherwise ``None`` so the caller can
+        fall back to the focal-length/aperture projection. Unlike that projection, these intrinsics may
+        be non-square (``fx != fy``) or off-center.
+
+        Args:
+            prim: The camera prim to read the authored intrinsics from.
+            width: The render width in pixels.
+            height: The render height in pixels.
+            env_id: The environment index, used only for warning messages.
+
+        Returns:
+            The authored ``(fx, fy, cx, cy)`` in pixels, or ``None`` when no complete model is present.
+        """
+        distortion_model = prim.GetAttribute("omni:lensdistortion:model").Get()
+        if not distortion_model:
+            return None
+        prefix = f"omni:lensdistortion:{distortion_model}"
+        # a prim may carry the model token without fx/fy/cx/cy
+        intrinsics = tuple(prim.GetAttribute(f"{prefix}:{name}").Get() for name in ("fx", "fy", "cx", "cy"))
+        if None in intrinsics:
+            # a model token without intrinsics falls back to the focal-length/aperture projection
+            logger.warning(
+                "Camera prim '%s' declares lens-distortion model '%s' but is missing one or more"
+                " fx/fy/cx/cy intrinsics; falling back to the focal-length/aperture projection.",
+                prim.GetPath(),
+                distortion_model,
+            )
+            return None
+        # the intrinsics are reported in the calibrated pixel space; warn if the render resolution
+        # differs, since the matrix will not match the rendered pixels.
+        image_size = prim.GetAttribute(f"{prefix}:imageSize").Get()
+        if image_size is not None:
+            authored_size = (int(image_size[0]), int(image_size[1]))
+            if authored_size != (width, height):
+                logger.warning(
+                    "Camera prim '%s' (env %d) lens-distortion 'imageSize' %s does not match the render"
+                    " resolution (%d, %d). The reported intrinsic matrix is in the calibrated pixel space.",
+                    prim.GetPath(),
+                    env_id,
+                    authored_size,
+                    width,
+                    height,
+                )
+        return tuple(float(value) for value in intrinsics)
+
     def _update_intrinsic_matrices(self, env_ids: Sequence[int] | wp.array | None = None):
         """Compute camera's matrix of intrinsic parameters.
 
-        Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
+        Also called calibration matrix. This matrix works for linear depth images. Without an authored
+        OpenCV lens-distortion model the readback assumes square pixels and a centered principal point;
+        when such a model is present its calibrated ``fx/fy/cx/cy`` are used instead.
 
         .. note::
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
@@ -647,22 +758,27 @@ class Camera(SensorBase):
             return
 
         intrinsic_matrices = np.zeros((len(env_ids_np), 3, 3), dtype=np.float32)
+        # viewport parameters are shared by every camera prim of this sensor
+        height, width = self.image_shape
         # iterate over all cameras
         for matrix_id, i in enumerate(env_ids_np):
             # Get corresponding sensor prim
             sensor_prim = self._sensor_prims[int(i)]
-            # get camera parameters
-            # currently rendering does not use aperture offsets or vertical aperture
-            focal_length = sensor_prim.GetFocalLengthAttr().Get()
-            horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
-
-            # get viewport parameters
-            height, width = self.image_shape
-            # extract intrinsic parameters
-            f_x = (width * focal_length) / horiz_aperture
-            f_y = f_x
-            c_x = width * 0.5
-            c_y = height * 0.5
+            # Prefer an authored OpenCV lens-distortion model when present: it carries the authoritative
+            # fx/fy/cx/cy that the RTX/OVRTX renderer projects through, which may be non-square or off-center.
+            authored = self._read_authored_opencv_intrinsics(sensor_prim.GetPrim(), width, height, int(i))
+            if authored is not None:
+                f_x, f_y, c_x, c_y = authored
+            else:
+                # get camera parameters
+                # currently rendering does not use aperture offsets or vertical aperture
+                focal_length = sensor_prim.GetFocalLengthAttr().Get()
+                horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
+                # extract intrinsic parameters (square pixels, centered principal point)
+                f_x = (width * focal_length) / horiz_aperture
+                f_y = f_x
+                c_x = width * 0.5
+                c_y = height * 0.5
             # create intrinsic matrix for depth linear
             intrinsic_matrices[matrix_id, 0, 0] = f_x
             intrinsic_matrices[matrix_id, 0, 2] = c_x
@@ -811,5 +927,7 @@ class Camera(SensorBase):
         self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._view = None
+        # release backend state deterministically, then invalidate the view
+        if self._view is not None:
+            self._view.close()
+            self._view = None

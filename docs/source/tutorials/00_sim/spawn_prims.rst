@@ -10,6 +10,21 @@ This tutorial explores how to spawn various objects (or prims) into the scene in
 It builds on the previous tutorial on running the simulator from a standalone script and
 demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes from USD files.
 
+.. note::
+
+   This tutorial automatically tetrahedralizes a volume deformable. Run it with the
+   ``tetrahedralization`` extra:
+
+   .. code-block:: bash
+
+      uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
+
+   With the legacy installer, install the optional dependencies first:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
 
 The Code
 ~~~~~~~~
@@ -170,9 +185,19 @@ Executing the Script
 
 Similar to the tutorial before, to run the script, execute the following command:
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run python scripts/tutorials/00_sim/spawn_prims.py
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
 
 Once the simulation starts, you should see a window with a ground plane, a light, some cones, and a table.
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground

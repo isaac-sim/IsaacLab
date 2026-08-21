@@ -9,7 +9,9 @@ Examples to inspect:
 - `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
 
-For multi-backend tasks, follow the `VelocityEnvContactSensorCfg` pattern: wrap PhysX, Newton, and OvPhysX contact sensor configs in a `PresetCfg` instead of assuming the base contact sensor cfg works identically on every backend.
+For multi-backend tasks, use the common `ContactSensorCfg`; the active physics backend selects the sensor implementation automatically. Follow `MySceneCfg.contact_forces` in the maintained velocity task and use backend-specific fields only when the current API documents them.
+
+For an existing locomotion task, inspect its scene and reward config first. Add or update the contact sensor with the required `history_length` and `track_air_time=True`, bind an observation term to the intended foot bodies, and reuse `mdp.feet_air_time` when its semantics match. Keep task-specific wiring in the task config rather than creating a new shared-core observations module solely for the request.
 
 Validation checklist:
 
@@ -55,7 +57,7 @@ Use actuator configs in robot assets or task overrides, then validate joint name
 
 Examples to inspect:
 
-- `source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_direct_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_env_cfg.py`
 
 Validation checklist:

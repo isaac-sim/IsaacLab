@@ -9,7 +9,7 @@ This script demonstrates how to simulate a mobile manipulator.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_ridgeback_franka.py
+    uv run python source/isaaclab/test/assets/check_ridgeback_franka.py
 
 """
 
@@ -64,7 +64,7 @@ def add_robots() -> Articulation:
     robot_cfg.spawn.func("/World/Robot_1", robot_cfg.spawn, translation=(0.0, -1.0, 0.0))
     robot_cfg.spawn.func("/World/Robot_2", robot_cfg.spawn, translation=(0.0, 1.0, 0.0))
     # -- Create interface
-    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot.*"))
+    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot[^/]*"))
 
     return robot
 

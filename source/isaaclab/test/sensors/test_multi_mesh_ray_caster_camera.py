@@ -25,8 +25,8 @@ import torch
 import omni.replicator.core as rep
 from pxr import Gf
 
-import isaaclab.cloner as lab_cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner as lab_cloner
 from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
@@ -549,16 +549,16 @@ def test_depth_output_equal_to_usd_camera_heterogeneous_scene(setup_simulation):
     mesh_prim_paths = [
         "/World/defaultGroundPlane",
         MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-            prim_expr="/World/envs/env_.*/Object",
+            prim_expr="{ENV_REGEX_NS}/Object",
             track_mesh_transforms=False,
         ),
         MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-            prim_expr="/World/envs/env_.*/Robot/.+",
+            prim_expr="{ENV_REGEX_NS}/Robot/[^/]+",
             track_mesh_transforms=True,
         ),
     ]
     camera_cfg_warp = MultiMeshRayCasterCameraCfg(
-        prim_path="/World/envs/env_.*/RayCasterCamera",
+        prim_path="{ENV_REGEX_NS}/RayCasterCamera",
         mesh_prim_paths=mesh_prim_paths,
         update_period=0,
         debug_vis=False,
@@ -573,7 +573,7 @@ def test_depth_output_equal_to_usd_camera_heterogeneous_scene(setup_simulation):
     camera_cfg_usd = CameraCfg(
         height=height,
         width=width,
-        prim_path="/World/envs/env_.*/UsdCamera",
+        prim_path="{ENV_REGEX_NS}/UsdCamera",
         update_period=0,
         data_types=["distance_to_image_plane"],
         spawn=PinholeCameraCfg(

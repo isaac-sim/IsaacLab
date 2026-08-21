@@ -14,7 +14,7 @@ from collections.abc import Iterable
 import numpy as np
 import warp as wp
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import string_to_callable, to_camel_case
@@ -413,6 +413,57 @@ def define_articulation_root_properties(
     modify_articulation_root_properties(prim_path, cfg, stage)
 
 
+def create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> None:
+    """Author a ``UsdPhysics.FixedJoint`` fixing an articulation root link to the world frame.
+
+    This is a pure-USD equivalent of
+    ``omni.physx.scripts.utils.createJoint(joint_type="Fixed", from_prim=None, to_prim=articulation_prim)``.
+    Authoring directly with USD keeps the fixed-root-link spawn path backend-agnostic:
+    it works identically under Kit/PhysX and on kitless backends (e.g. Newton) where
+    ``omni.physx`` is unavailable. Only the single-body (world-attached) case is handled,
+    matching the fixed-root-link spawn path.
+
+    Args:
+        articulation_prim: The articulation root link prim to fix to the world.
+        stage: The stage that owns the prim.
+    """
+    # ``MAX_FLOAT`` used by ``omni.physx.createJoint`` for an effectively unbreakable joint.
+    max_break = 3.40282347e38
+
+    to_path = articulation_prim.GetPath().pathString
+
+    # Instanceable/prototype/instance-proxy prims are not authorable; walk up to the first
+    # writable ancestor so the joint can be defined there (mirrors ``omni.physx.createJoint``).
+    base_prim = articulation_prim
+    pseudo_root = stage.GetPseudoRoot()
+    while base_prim != pseudo_root and (
+        base_prim.IsInPrototype() or base_prim.IsInstanceProxy() or base_prim.IsInstanceable()
+    ):
+        base_prim = base_prim.GetParent()
+    joint_base_path = str(base_prim.GetPrimPath())
+    if joint_base_path == "/":
+        joint_base_path = ""
+
+    # Find a unique joint name under the writable base (mirrors ``create_unused_path``).
+    joint_name = "FixedJoint"
+    if stage.GetPrimAtPath(f"{joint_base_path}/{joint_name}").IsValid():
+        uniquifier = 0
+        while stage.GetPrimAtPath(f"{joint_base_path}/{joint_name}{uniquifier}").IsValid():
+            uniquifier += 1
+        joint_name = f"{joint_name}{uniquifier}"
+    joint = UsdPhysics.FixedJoint.Define(stage, f"{joint_base_path}/{joint_name}")
+
+    # Anchor the joint at the root link's world pose (body0 = world, body1 = root link).
+    world_pose = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
+    joint.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+    joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_pose.ExtractTranslation()))
+    joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_pose.ExtractRotationQuat()))
+    joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+    joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+    joint.CreateBreakForceAttr().Set(max_break)
+    joint.CreateBreakTorqueAttr().Set(max_break)
+
+
 @apply_nested
 def modify_articulation_root_properties(
     prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
@@ -501,9 +552,7 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
-            from omni.physx.scripts import utils as physx_utils
-
-            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            create_world_fixed_joint(articulation_prim, stage)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.
@@ -533,10 +582,41 @@ def modify_articulation_root_properties(
                     if not parent_attr:
                         parent_attr = parent_prim.CreateAttribute(aname, attr.GetTypeName())
                     parent_attr.Set(attr.Get())
+            # -- Newton root schema and its authored properties
+            newton_root_schema = "NewtonArticulationRootAPI"
+            if newton_root_schema in articulation_prim.GetAppliedSchemas():
+                if not parent_prim.AddAppliedSchema(newton_root_schema):
+                    raise RuntimeError(f"Failed to apply '{newton_root_schema}' to '{parent_prim.GetPath()}'.")
+                schema_definition = Usd.SchemaRegistry().FindAppliedAPIPrimDefinition(newton_root_schema)
+                newton_properties = []
+                if schema_definition is not None:
+                    for property_name in schema_definition.GetPropertyNames():
+                        prop = articulation_prim.GetProperty(property_name)
+                        if prop and prop.IsAuthored():
+                            newton_properties.append(prop)
+                for prop in newton_properties:
+                    if not prop.FlattenTo(parent_prim):
+                        raise RuntimeError(f"Failed to move '{prop.GetPath()}' to '{parent_prim.GetPath()}'.")
+                for prop in newton_properties:
+                    if not articulation_prim.RemoveProperty(prop.GetName()):
+                        raise RuntimeError(f"Failed to remove '{prop.GetPath()}' from the former articulation root.")
+                if not articulation_prim.RemoveAppliedSchema(newton_root_schema):
+                    raise RuntimeError(f"Failed to remove '{newton_root_schema}' from '{articulation_prim.GetPath()}'.")
 
             # remove api from root
             articulation_prim.RemoveAppliedSchema("PhysxArticulationAPI")
             articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+            articulation_prim = parent_prim
+
+    # Mirror after any root relocation so the Newton API does not recreate an articulation root
+    # on the former root link.
+    enabled_self_collisions = cfg_dict.get("enabled_self_collisions")
+    if enabled_self_collisions is not None:
+        if "NewtonArticulationRootAPI" not in articulation_prim.GetAppliedSchemas():
+            articulation_prim.AddAppliedSchema("NewtonArticulationRootAPI")
+        safe_set_attribute_on_usd_prim(
+            articulation_prim, "newton:selfCollisionEnabled", enabled_self_collisions, camel_case=False
+        )
 
     # success
     return True
@@ -1878,6 +1958,33 @@ def _fix_tet_winding_kernel(
         tet_indices[i, 3] = v2
 
 
+def define_deformable_curve_properties(prim_path: str, stage: Usd.Stage | None = None) -> None:
+    """Apply the deformable curve simulation schema.
+
+    Args:
+        prim_path: The path of the ``UsdGeom.BasisCurves`` prim.
+        stage: The stage where the prim exists. Defaults to the current stage.
+
+    Raises:
+        ValueError: If the prim path is invalid or is not a ``UsdGeom.BasisCurves`` prim.
+        RuntimeError: If the schema cannot be applied.
+    """
+    if stage is None:
+        stage = get_current_stage()
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not prim.IsA(UsdGeom.BasisCurves):
+        raise ValueError(f"Prim path '{prim_path}' is not a UsdGeom.BasisCurves prim.")
+
+    schema_name = "PhysicsCurvesDeformableSimAPI"
+    if schema_name in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+        return
+    if not prim.AddAppliedSchema(schema_name):
+        raise RuntimeError(f"Failed to set deformable curve API on prim '{prim_path}'.")
+
+
 def define_deformable_body_properties(
     prim_path: str,
     cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,
@@ -1917,6 +2024,8 @@ def define_deformable_body_properties(
     Raises:
         ValueError: When the prim path is not valid.
         ValueError: When the prim has no mesh or multiple meshes.
+        ModuleNotFoundError: When automatic volume tetrahedralization is requested
+            without its optional dependencies.
         RuntimeError: When setting the deformable body properties fails.
     """
     # get stage handle
@@ -2025,11 +2134,16 @@ def define_deformable_body_properties(
         if sim_mesh_prim is None:
             try:
                 from pytetwild import tetrahedralize
-            except ImportError as exc:
-                raise ImportError(
-                    "Automatic tetrahedralization of volume deformables requires the optional 'pytetwild' "
-                    "package. Install pytetwild or provide a pre-tetrahedralized UsdGeom.TetMesh under the "
-                    f"deformable prim '{prim_path}'."
+            except ModuleNotFoundError as exc:
+                if exc.name not in {"pytetwild", "pyvista", "vtk", "vtkmodules"}:
+                    raise
+                raise ModuleNotFoundError(
+                    "Automatic tetrahedralization of volume deformables requires the optional "
+                    "tetrahedralization dependencies. Install them with "
+                    "uv sync --inexact --extra tetrahedralization from a source checkout "
+                    "(or ./isaaclab.sh -i tetrahedralization with the legacy installer), or "
+                    'pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
+                    f"a pre-tetrahedralized UsdGeom.TetMesh under the deformable prim {prim_path}."
                 ) from exc
 
             tet_mesh_points, tet_mesh_indices = tetrahedralize(

@@ -39,10 +39,41 @@ depends on the workload: **physics-only** simulation does not require it; **RTX*
 
 Pass ``--deterministic`` to enable reproducible rendering from the app launcher. (Isaac RTX only)
 
-.. code-block:: bash
+.. tab-set::
 
-  ./isaaclab.sh train --rl_library rl_games \
-    --task Isaac-Cartpole-Camera --enable_cameras --deterministic
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+        uv run isaaclab train --rl_library rl_games \
+          --task Isaac-Cartpole-Camera --deterministic
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+        ./isaaclab.sh train --rl_library rl_games \
+          --task Isaac-Cartpole-Camera --deterministic
+
+Newton physics determinism
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set :attr:`isaaclab_newton.physics.NewtonCfg.deterministic_mode` to
+``"gpu_to_gpu"`` to request reproducibility across GPU architectures, or to
+``"run_to_run"`` to request reproducibility on one GPU. Newton applies the
+selected mode to supported solver kernels and enables deterministic contact
+ordering in its collision pipeline. Deterministic execution can increase
+memory use and reduce simulation performance. MJWarp on the GPU with
+:attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``,
+XPBD, and Featherstone are supported; selecting an unsupported solver raises
+an error.
+
+.. warning::
+
+   Deterministic contact ordering adds sorting work and allocates buffers sized
+   for the configured maximum contact count. Runtime and memory overhead
+   therefore grow with contact capacity. Enable this mode only when its
+   reproducibility guarantee is required.
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 

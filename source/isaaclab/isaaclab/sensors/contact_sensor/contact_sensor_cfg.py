@@ -83,12 +83,29 @@ class ContactSensorCfg(SensorBaseCfg):
         Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
         is replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_.*/Object``.
+        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_[^/]+/Object``.
 
     .. attention::
         Filtered contact reporting only works when :attr:`SensorBaseCfg.prim_path` matches a
         single primitive per environment. For many-to-many filtering, see
         ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
+    """
+
+    sensor_shape_prim_expr: list[str] = []
+    """List of shape prim path expressions for shape-level contact sensing. Defaults to empty,
+    meaning sensing is at the body level (via :attr:`~isaaclab.sensors.SensorBaseCfg.prim_path`).
+
+    **Newton backend only** (ignored by the PhysX and OvPhysX backends). A shape is an individual
+    collision geometry attached to a body. If non-empty, :attr:`prim_path` is ignored for the
+    sensing objects and these shape expressions are used instead.
+    """
+
+    filter_shape_prim_expr: list[str] = []
+    """List of shape prim path expressions to filter contacts against at the shape level. Defaults to
+    empty, meaning filter partners are resolved at the body level (via :attr:`filter_prim_paths_expr`).
+
+    **Newton backend only** (ignored by the PhysX and OvPhysX backends). If provided, the force
+    matrix reports per-shape contact forces; mutually exclusive with :attr:`filter_prim_paths_expr`.
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")

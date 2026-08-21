@@ -19,11 +19,9 @@ from pxr import UsdShade
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_physx.cloner import queue_physx_replication
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .deformable_object_data import DeformableObjectData
@@ -82,8 +80,6 @@ class DeformableObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
-        queue_physx_replication(cfg)
         # Register custom vec6f type for nodal state validation.
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
         # initialize deformable type to None, should be set to either surface or volume on initialization
@@ -648,12 +644,12 @@ class DeformableObject(AssetBase):
         if self._deformable_type == "surface":
             # surface deformable
             self._root_physx_view = self._physics_sim_view.create_surface_deformable_body_view(
-                root_prim_path_expr.replace(".*", "*")
+                sim_utils.path_expr_to_glob(root_prim_path_expr)
             )
         elif self._deformable_type == "volume":
             # volume deformable
             self._root_physx_view = self._physics_sim_view.create_volume_deformable_body_view(
-                root_prim_path_expr.replace(".*", "*")
+                sim_utils.path_expr_to_glob(root_prim_path_expr)
             )
         else:
             raise RuntimeError(
@@ -681,7 +677,7 @@ class DeformableObject(AssetBase):
                 material_prim_path_expr = material_prim_path
             # -- material view
             self._material_physx_view = self._physics_sim_view.create_deformable_material_view(
-                material_prim_path_expr.replace(".*", "*")
+                sim_utils.path_expr_to_glob(material_prim_path_expr)
             )
         else:
             self._material_physx_view = None

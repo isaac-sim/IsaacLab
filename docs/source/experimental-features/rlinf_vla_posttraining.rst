@@ -120,8 +120,7 @@ The training and evaluation commands below work unchanged.
 .. _rlinf-decord-aarch64:
 
 Then preload the OpenMP library so it can be loaded into the Python process
-(see the IsaacLab `pip installation guide
-<https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies>`_):
+(see :ref:`installation-method-python-env`):
 
 .. code-block:: bash
 
@@ -134,33 +133,72 @@ Quick Start
 
 **Training** — RL fine-tuning of a pretrained VLA model:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh train --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/checkpoint
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model
 
 **Evaluation** — Evaluate a pretrained (base) model with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/base_model \
-       --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra video isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --video
 
 **Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh play --rl_library rlinf \
-       --config_name isaaclab_ppo_gr00t_assemble_trocar \
-       --model_path /path/to/base_model \
-       --rl_model_path /path/to/checkpoints/global_step_N \
-       --video
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra video isaaclab play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --checkpoint /path/to/checkpoints/global_step_N \
+             --video
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh play --rl_library rlinf \
+             --config_name isaaclab_ppo_gr00t_assemble_trocar \
+             --model_path /path/to/base_model \
+             --checkpoint /path/to/checkpoints/global_step_N \
+             --video
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
-``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint
+``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
 directory (the ``global_step_<N>`` folder). The script loads the model
 architecture from the base model and overlays the RL-finetuned weights
 (``full_weights.pt``) from the checkpoint.
@@ -188,8 +226,9 @@ The placeholders are configurable in the task YAML
 - ``<experiment_name>`` — ``runner.logger.experiment_name`` (default: ``test_gr00t``)
 - ``<N>`` — increments every ``runner.save_interval`` epochs
 
-The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume,
-pass the ``global_step_<N>`` directory via ``--resume_dir``.
+The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume training, pass the
+``global_step_<N>`` directory via ``--checkpoint``. For playback, ``--checkpoint`` also
+accepts ``latest`` and ``best``; both select the newest saved RLinf checkpoint.
 
 .. tip::
 

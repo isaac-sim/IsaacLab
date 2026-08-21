@@ -1,5 +1,4 @@
-Verifying the Isaac Lab installation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Verifying the Isaac Lab installation
 
 To verify that the installation was successful, run the following command from the
 top of the repository:
@@ -10,14 +9,29 @@ top of the repository:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         # Option 1: Using the isaaclab.sh executable
-         # note: this works for both the bundled python and the virtual environment
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+         .. tab-item:: uv (Recommended)
 
-         # Option 2: Using python in your virtual environment
-         python scripts/tutorials/00_sim/create_empty.py --viz kit
+            .. code:: bash
+
+               # Option 1: Using the isaaclab.sh executable
+               # note: this works for both the bundled python and the virtual environment
+               uv run python scripts/tutorials/00_sim/create_empty.py --viz kit
+
+               # Option 2: Using python in your virtual environment
+               python scripts/tutorials/00_sim/create_empty.py --viz kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               # Option 1: Using the isaaclab.sh executable
+               # note: this works for both the bundled python and the virtual environment
+               ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
+
+               # Option 2: Using python in your virtual environment
+               python scripts/tutorials/00_sim/create_empty.py --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -51,8 +65,7 @@ If you see this, then the installation was successful! |:tada:|
    environment is activated and ``source _isaac_sim/setup_conda_env.sh`` has been executed (for uv as well).
 
 
-Train a robot!
-~~~~~~~~~~~~~~
+.. rubric:: Train a robot!
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
 These commands do not select a visualizer, so they run without a viewer for faster training.
@@ -63,9 +76,19 @@ These commands do not select a visualizer, so they run without a viewer for fast
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run isaaclab train --rl_library rsl_rl --task=Isaac-Ant
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -82,9 +105,19 @@ These commands do not select a visualizer, so they run without a viewer for fast
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code:: bash
+      .. tab-set::
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
+         .. tab-item:: uv (Recommended)
+
+            .. code:: bash
+
+               uv run isaaclab train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code:: bash
+
+               ./isaaclab.sh train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows

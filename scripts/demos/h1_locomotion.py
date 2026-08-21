@@ -9,7 +9,7 @@ This script demonstrates an interactive demo with the H1 rough terrain environme
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/demos/h1_locomotion.py
+    uv run python scripts/demos/h1_locomotion.py
 
 """
 
@@ -29,6 +29,12 @@ parser = argparse.ArgumentParser(
 )
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -54,9 +60,13 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
-from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
+from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
+from isaaclab_tasks.utils import resolve_presets
 
 TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
@@ -82,15 +92,19 @@ class H1RoughDemo:
         loads pre-trained checkpoints, and registers keyboard events."""
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
-        # load the trained jit policy
-        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
         # create envionrment
-        env_cfg = H1RoughEnvCfg_PLAY()
+        env_cfg = resolve_presets(H1RoughEnvCfg(), selected=(args_cli.physics,))
+        env_cfg.play_mode()
         env_cfg.scene.num_envs = 25
         env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None
         env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         env_cfg.commands.base_velocity.ranges.heading = (-1.0, 1.0)
+        # load the trained jit policy
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
+        if checkpoint is None:
+            raise FileNotFoundError("No published checkpoint is available for the H1 locomotion demo.")
         # wrap around environment for rsl-rl
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device

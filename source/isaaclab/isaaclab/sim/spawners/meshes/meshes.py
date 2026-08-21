@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,7 +15,6 @@ from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-from isaaclab.utils.version import has_kit
 
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
@@ -28,9 +26,6 @@ from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import meshes_cfg
-
-# import logger
-logger = logging.getLogger(__name__)
 
 
 @clone
@@ -105,9 +100,17 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If :attr:`~isaaclab.sim.MeshCuboidCfg.edge_refinement` is less than ``1.0``.
     """
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Cuboid mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+
     # create a trimesh box
     box = trimesh.creation.box(cfg.size)
+    if cfg.edge_refinement > 1.0:
+        max_edge = float(np.linalg.norm(box.bounding_box.extents)) / cfg.edge_refinement
+        vertices, faces = trimesh.remesh.subdivide_to_size(box.vertices, box.faces, max_edge=max_edge)
+        box = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -362,8 +365,9 @@ def _spawn_mesh_geom_from_mesh(
 
     There is a difference in how the properties are applied to the prim based on the type of object:
 
-    - Deformable body properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
-    - Collision properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Deformable body properties: The properties are applied to the parent prim: ``{prim_path}``.
+    - Collision properties: The properties are applied to the simulation mesh ``{prim_path}/sim_mesh`` for
+      deformable bodies, and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
     - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
 
     Args:
@@ -381,9 +385,9 @@ def _spawn_mesh_geom_from_mesh(
     Raises:
         ValueError: If a prim already exists at the given path.
         ValueError: If both deformable and rigid properties are used.
-        ValueError: If both deformable and collision properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
+        ValueError: If deformable properties are used with non-fragment collision properties.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -399,7 +403,10 @@ def _spawn_mesh_geom_from_mesh(
     if cfg.deformable_props is not None and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
     if cfg.deformable_props is not None and cfg.collision_props is not None:
-        raise ValueError("Cannot use both deformable and collision properties at the same time.")
+        # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
+        frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+            raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
@@ -442,6 +449,10 @@ def _spawn_mesh_geom_from_mesh(
         schemas.define_deformable_body_properties(
             prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
         )
+        # the collider is the simulation mesh, resolved from the body prim
+        if cfg.collision_props is not None:
+            frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+            schemas.apply_collision_properties(prim_path, frags, stage=stage)
         if cfg.mass_props is not None:
             raise ValueError(
                 """MassPropertiesCfg are not supported for deformable bodies
@@ -470,17 +481,14 @@ def _spawn_mesh_geom_from_mesh(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
+        if not cfg.visual_material_path.startswith("/"):
+            material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
         else:
-            if not cfg.visual_material_path.startswith("/"):
-                material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
-            else:
-                material_path = cfg.visual_material_path
-            # create material
-            cfg.visual_material.func(material_path, cfg.visual_material)
-            # apply material
-            bind_visual_material(mesh_prim_path, material_path, stage=stage)
+            material_path = cfg.visual_material_path
+        # create material
+        cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material
+        bind_visual_material(mesh_prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:

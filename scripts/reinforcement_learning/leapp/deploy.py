@@ -39,13 +39,13 @@ import torch
 from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.hydra import resolve_task_config
 
 
 def main():
     # ── Load env config from gym registry ─────────────────────────
     task_name = args_cli.task.split(":")[-1]
-    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    env_cfg, _ = resolve_task_config(task_name, "")
 
     if args_cli.seed is not None:
         env_cfg.seed = args_cli.seed

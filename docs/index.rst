@@ -89,9 +89,17 @@ Table of Contents
 
    source/setup/ecosystem
    source/setup/installation/index
-   source/deployment/index
-   source/setup/installation/cloud_installation
-   source/refs/reference_architecture/index
+   source/setup/environments
+   source/setup/quickstart
+   source/migration/migrating_to_isaaclab_3-0
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Concepts
+
+   source/concepts/backends_and_presets
+   source/concepts/actuators
 
 
 .. toctree::
@@ -99,7 +107,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/setup/quickstart
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
@@ -127,6 +134,7 @@ Table of Contents
    :caption: Features
 
    source/features/isaac_teleop
+   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
@@ -151,17 +159,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Migration Guides
-   :titlesonly:
-
-   source/migration/migrating_to_isaaclab_3-0
-   source/migration/migrating_deformables
-   source/migration/migrating_from_isaacgymenvs
-   source/migration/migrating_from_omniisaacgymenvs
-   source/migration/migrating_from_orbit
-
-.. toctree::
-   :maxdepth: 1
    :caption: Source API
 
    source/api/index
@@ -174,7 +171,6 @@ Table of Contents
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
-   source/refs/migration
    source/refs/issues
    source/refs/release_notes
    source/refs/changelog

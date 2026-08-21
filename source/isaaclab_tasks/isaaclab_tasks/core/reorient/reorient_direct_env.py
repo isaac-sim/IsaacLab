@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -21,7 +20,7 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import (
     quat_conjugate,
-    quat_from_angle_axis,
+    quat_error_magnitude,
     quat_mul,
     sample_uniform,
     saturate,
@@ -29,9 +28,87 @@ from isaaclab.utils.math import (
     unscale_transform,
 )
 
+from isaaclab_tasks.core.utils import (
+    EpisodeErrorRecorder,
+    randomize_rotation,
+    sample_joint_positions_within_limits,
+)
+
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+
+
+@torch.jit.script
+def reorient_reward(
+    reset_buf: torch.Tensor,
+    reset_goal_buf: torch.Tensor,
+    successes: torch.Tensor,
+    consecutive_successes: torch.Tensor,
+    object_pos: torch.Tensor,
+    target_pos: torch.Tensor,
+    goal_reached: torch.Tensor,
+    rotation_distance: torch.Tensor,
+    actions: torch.Tensor,
+    distance_scale: float,
+    rotation_scale: float,
+    rotation_epsilon: float,
+    action_penalty_scale: float,
+    success_bonus: float,
+    fall_distance: float,
+    fall_penalty: float,
+    averaging_factor: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute the Direct reorientation reward and success state transition.
+
+    The success evaluation is not recomputed here: callers pass the flags and
+    orientation errors computed once
+    per step.
+
+    Args:
+        reset_buf: Current episode-reset flags.
+        reset_goal_buf: Current goal-reset flags.
+        successes: Goals reached in each episode.
+        consecutive_successes: Moving-average success count.
+        object_pos: Object positions in the environment frame [m].
+        target_pos: Goal positions in the environment frame [m].
+        goal_reached: Per-environment success flags for this step.
+        rotation_distance: Per-environment orientation errors [rad].
+        actions: Normalized joint actions.
+        distance_scale: Position-distance reward scale [1/m].
+        rotation_scale: Orientation reward scale [rad].
+        rotation_epsilon: Orientation reward regularizer [rad].
+        action_penalty_scale: Squared-action reward scale.
+        success_bonus: Reward added when a goal is reached.
+        fall_distance: Object-to-goal termination distance [m].
+        fall_penalty: Reward added when the object is out of reach.
+        averaging_factor: Consecutive-success moving-average factor.
+
+    Returns:
+        Reward, goal-reset flags, episode success counts, and moving-average
+        consecutive successes.
+    """
+    goal_distance = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
+    goal_resets = reset_goal_buf | goal_reached
+    successes = successes + goal_resets
+    fell = goal_distance >= fall_distance
+    reward = (
+        goal_distance * distance_scale
+        + rotation_scale / (rotation_distance + rotation_epsilon)
+        + actions.square().sum(dim=-1) * action_penalty_scale
+        + goal_resets.to(goal_distance.dtype) * success_bonus
+        + fell.to(goal_distance.dtype) * fall_penalty
+    )
+    resets = reset_buf | fell
+    num_resets = resets.sum()
+    finished_successes = (successes * resets).sum()
+    mean_successes = finished_successes / num_resets.clamp_min(1)
+    consecutive_successes = torch.where(
+        num_resets > 0,
+        averaging_factor * mean_successes + (1.0 - averaging_factor) * consecutive_successes,
+        consecutive_successes,
+    )
+    return reward, goal_resets, successes, consecutive_successes
 
 
 class ReorientDirectEnv(DirectRLEnv):
@@ -40,61 +117,57 @@ class ReorientDirectEnv(DirectRLEnv):
     def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        # -- robot introspection: joints, bodies, limits --
         self.num_hand_dofs = self.hand.num_joints
-
-        # buffers for position targets
-        self.hand_dof_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
-        self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
-        self.cur_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
-
-        # list of actuated joints
-        self.actuated_dof_indices = list()
-        for joint_name in cfg.actuated_joint_names:
-            self.actuated_dof_indices.append(self.hand.joint_names.index(joint_name))
-        self.actuated_dof_indices.sort()
-
-        # finger bodies
-        self.finger_bodies = list()
-        for body_name in self.cfg.fingertip_body_names:
-            self.finger_bodies.append(self.hand.body_names.index(body_name))
-        self.finger_bodies.sort()
+        self.actuated_dof_indices, _ = self.hand.find_joints(cfg.actuated_joint_names)
+        if len(self.actuated_dof_indices) != len(cfg.actuated_joint_names):
+            raise ValueError(
+                f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(self.actuated_dof_indices)}."
+            )
+        self.finger_bodies, fingertip_body_names = self.hand.find_bodies(self.cfg.fingertip_body_names)
+        if len(self.finger_bodies) != len(self.cfg.fingertip_body_names):
+            raise ValueError(
+                f"Expected {len(self.cfg.fingertip_body_names)} fingertip bodies, found {len(self.finger_bodies)}."
+            )
         self.num_fingertips = len(self.finger_bodies)
-
         self.finger_wrench_bodies = []
         if getattr(self, "_joint_wrench_sensor", None) is not None:
-            for body_name in self.cfg.fingertip_body_names:
+            for body_name in fingertip_body_names:
                 self.finger_wrench_bodies.append(self._joint_wrench_sensor.body_names.index(body_name))
             self.finger_wrench_bodies.sort()
-
-        # joint limits
         joint_pos_limits = self.hand.data.joint_limits.torch.to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
-        # track goal resets
-        self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        # used to compare object position
-        self.in_hand_pos = self.object.data.default_root_pose.torch[:, 0:3].clone()
-        self.in_hand_pos[:, 2] -= 0.04
-        # default goal positions
-        self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
-        self.goal_rot[:, 0] = 1.0
-        self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        self.goal_pos[:, :] = torch.tensor([-0.2, -0.45, 0.68], device=self.device)
-        # initialize goal marker
-        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
+        # -- actuation targets (EMA-smoothed joint position targets) --
+        self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
+        self.cur_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
 
-        # track successes
+        # -- goal and success state --
+        # in-hand target = object default position + shared offset (mirrors ReorientCommand)
+        self.in_hand_pos = self.object.data.default_root_pose.torch[:, 0:3].clone()
+        self.in_hand_pos += torch.tensor(self.cfg.in_hand_pos_offset, dtype=torch.float, device=self.device)
+        self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
+        self.goal_rot[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
+        self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
+        self.goal_pos[:, :] = torch.tensor(self.cfg.goal_marker_position, device=self.device)
+        self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
-        self._last_episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
-        # unit tensors
+        # -- per-step evaluation state and diagnostics --
+        # written once per step in :meth:`_get_dones`; the reward and metrics reuse them
+        self._success_flags = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._orientation_error_buf = torch.full((self.num_envs,), torch.inf, device=self.device)
+        self._orientation_error = EpisodeErrorRecorder(self.num_envs, self.device)
+
+        # -- reset randomization constants --
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
-        # bind write methods
+        # -- visualization and articulation write handles --
+        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
         self._set_joint_pos_target = self.hand.set_joint_position_target_index
         self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
         self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
@@ -112,8 +185,11 @@ class ReorientDirectEnv(DirectRLEnv):
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
         cloner.replicate(plan, stage=self.scene.stage)
+        # PhysX replication requires explicit collision filtering between environments.
+        if "physx" in self.scene.physics_backend:
+            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
@@ -190,32 +266,31 @@ class ReorientDirectEnv(DirectRLEnv):
         self.fingertip_force_sensors = torch.cat((force, torque), dim=-1)
 
     def _get_rewards(self) -> torch.Tensor:
-        (
-            total_reward,
-            self.reset_goal_buf,
-            self.successes[:],
-            self.consecutive_successes[:],
-        ) = compute_rewards(
+        # the success flags and orientation errors were computed this step by
+        # :meth:`_get_dones`; the recorder and the reward reuse them
+        self._orientation_error.update(self._orientation_error_buf)
+        total_reward, goal_resets, successes, consecutive_successes = reorient_reward(
             self.reset_buf,
             self.reset_goal_buf,
             self.successes,
             self.consecutive_successes,
-            self.max_episode_length,
             self.object_pos,
-            self.object_rot,
             self.in_hand_pos,
-            self.goal_rot,
+            self._success_flags,
+            self._orientation_error_buf,
+            self.actions,
             self.cfg.dist_reward_scale,
             self.cfg.rot_reward_scale,
             self.cfg.rot_eps,
-            self.actions,
             self.cfg.action_penalty_scale,
-            self.cfg.success_tolerance,
             self.cfg.reach_goal_bonus,
             self.cfg.fall_dist,
             self.cfg.fall_penalty,
             self.cfg.av_factor,
         )
+        self.reset_goal_buf.copy_(goal_resets)
+        self.successes[:] = successes
+        self.consecutive_successes[:] = consecutive_successes
 
         if "log" not in self.extras:
             self.extras["log"] = dict()
@@ -235,11 +310,14 @@ class ReorientDirectEnv(DirectRLEnv):
         goal_dist = torch.linalg.norm(self.object_pos - self.in_hand_pos, ord=2, dim=-1)
         out_of_reach = goal_dist >= self.cfg.fall_dist
 
+        # single per-step success evaluation; the reward and metrics reuse these buffers
+        self._orientation_error_buf = quat_error_magnitude(self.object_rot, self.goal_rot)
+        self._success_flags = self._orientation_error_buf <= self.cfg.success_tolerance
+
         if self.cfg.max_consecutive_success > 0:
-            # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-            rot_dist = rotation_distance(self.object_rot, self.goal_rot)
+            # reset progress (episode length buf) on goal environments
             self.episode_length_buf = torch.where(
-                torch.abs(rot_dist) <= self.cfg.success_tolerance,
+                self._success_flags,
                 torch.zeros_like(self.episode_length_buf),
                 self.episode_length_buf,
             )
@@ -251,11 +329,14 @@ class ReorientDirectEnv(DirectRLEnv):
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int]):
-        # Episode counts as successful when goals reached >= cfg.success_count_threshold.
-        self._last_episode_success[env_ids] = self.successes[env_ids] >= self.cfg.success_count_threshold
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = (
-            self._last_episode_success[env_ids].float().mean().item()
-        )
+        # Per-attempt success rate, matching the manager workflow's metric of the same
+        # name: reaching a goal draws a replacement, so exactly one goal is outstanding
+        # when the episode ends and it presented ``successes + 1``.
+        # 0-dim device tensor: avoids a host sync here; consumers read it at logging cadence
+        goals = self.successes[env_ids]
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (goals / (goals + 1.0)).mean()
+        for statistic, value in self._orientation_error.reset(env_ids).items():
+            self.extras["log"][f"Diagnostics/episode_min_orientation_error_{statistic}"] = value
 
         super()._reset_idx(env_ids)
 
@@ -281,19 +362,15 @@ class ReorientDirectEnv(DirectRLEnv):
         self._write_obj_root_vel(root_velocity=object_default_vel, env_ids=env_ids)
 
         # reset hand
-        delta_max = self.hand_dof_upper_limits[env_ids] - self.hand.data.default_joint_pos.torch[env_ids]
-        delta_min = self.hand_dof_lower_limits[env_ids] - self.hand.data.default_joint_pos.torch[env_ids]
-
-        dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
-        dof_pos = self.hand.data.default_joint_pos.torch[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
+        default_dof_pos = self.hand.data.default_joint_pos.torch[env_ids]
+        dof_limits = self.hand.data.joint_limits.torch[env_ids]
+        dof_pos = sample_joint_positions_within_limits(default_dof_pos, dof_limits, self.cfg.reset_dof_pos_noise)
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
         dof_vel = self.hand.data.default_joint_vel.torch[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
 
         self.prev_targets[env_ids] = dof_pos
         self.cur_targets[env_ids] = dof_pos
-        self.hand_dof_targets[env_ids] = dof_pos
 
         self._set_joint_pos_target(target=dof_pos, env_ids=env_ids)
         self._write_hand_joint_pos(position=dof_pos, env_ids=env_ids)
@@ -312,11 +389,16 @@ class ReorientDirectEnv(DirectRLEnv):
         # update goal pose and markers
         self.goal_rot[env_ids] = new_rot
         goal_pos = self.goal_pos + self.scene.env_origins
-        self.goal_markers.visualize(goal_pos, self.goal_rot)
+        self.goal_markers.visualize(
+            goal_pos,
+            self.goal_rot,
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
         self.reset_goal_buf[env_ids] = 0
 
     def _compute_intermediate_values(self):
+        """Refresh the torch-side state snapshots consumed by the observation and reward paths."""
         # data for hand
         self.fingertip_pos = self.hand.data.body_pos_w.torch[:, self.finger_bodies]
         self.fingertip_rot = self.hand.data.body_quat_w.torch[:, self.finger_bodies]
@@ -405,75 +487,3 @@ class ReorientDirectEnv(DirectRLEnv):
             dim=-1,
         )
         return states
-
-
-@torch.jit.script
-def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
-    return quat_mul(
-        quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
-    )
-
-
-@torch.jit.script
-def rotation_distance(object_rot, target_rot):
-    # Orientation alignment for the cube in hand and goal cube
-    quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
-    return 2.0 * torch.asin(torch.clamp(torch.linalg.norm(quat_diff[:, 0:3], ord=2, dim=-1), max=1.0))
-
-
-@torch.jit.script
-def compute_rewards(
-    reset_buf: torch.Tensor,
-    reset_goal_buf: torch.Tensor,
-    successes: torch.Tensor,
-    consecutive_successes: torch.Tensor,
-    max_episode_length: float,
-    object_pos: torch.Tensor,
-    object_rot: torch.Tensor,
-    target_pos: torch.Tensor,
-    target_rot: torch.Tensor,
-    dist_reward_scale: float,
-    rot_reward_scale: float,
-    rot_eps: float,
-    actions: torch.Tensor,
-    action_penalty_scale: float,
-    success_tolerance: float,
-    reach_goal_bonus: float,
-    fall_dist: float,
-    fall_penalty: float,
-    av_factor: float,
-):
-    goal_dist = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
-    rot_dist = rotation_distance(object_rot, target_rot)
-
-    dist_rew = goal_dist * dist_reward_scale
-    rot_rew = 1.0 / (torch.abs(rot_dist) + rot_eps) * rot_reward_scale
-
-    action_penalty = torch.sum(actions**2, dim=-1)
-
-    # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
-    reward = dist_rew + rot_rew + action_penalty * action_penalty_scale
-
-    # Find out which envs hit the goal and update successes count
-    goal_resets = torch.where(torch.abs(rot_dist) <= success_tolerance, torch.ones_like(reset_goal_buf), reset_goal_buf)
-    successes = successes + goal_resets
-
-    # Success bonus: orientation is within `success_tolerance` of goal orientation
-    reward = torch.where(goal_resets == 1, reward + reach_goal_bonus, reward)
-
-    # Fall penalty: distance to the goal is larger than a threshold
-    reward = torch.where(goal_dist >= fall_dist, reward + fall_penalty, reward)
-
-    # Check env termination conditions, including maximum success number
-    resets = torch.where(goal_dist >= fall_dist, torch.ones_like(reset_buf), reset_buf)
-
-    num_resets = torch.sum(resets)
-    finished_cons_successes = torch.sum(successes * resets.float())
-
-    cons_successes = torch.where(
-        num_resets > 0,
-        av_factor * finished_cons_successes / num_resets + (1.0 - av_factor) * consecutive_successes,
-        consecutive_successes,
-    )
-
-    return reward, goal_resets, successes, cons_successes
