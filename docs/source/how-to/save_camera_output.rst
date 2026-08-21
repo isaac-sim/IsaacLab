@@ -76,7 +76,7 @@ to create a point cloud from the depth image and transform it to the world frame
    :end-before: # In the first few steps, things are still being instanced and Camera.data
 
 The resulting point cloud can be visualized with Isaac Lab's :class:`~isaaclab.markers.VisualizationMarkers`.
-The accompanying tutorial uses :data:`~isaaclab.markers.config.RAY_CASTER_MARKER_CFG` and calls
+The accompanying tutorial uses ``RAY_CASTER_MARKER_CFG`` and calls
 :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to draw the points in the viewport.
 
 .. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
