@@ -19,6 +19,8 @@ import warp as wp
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from ._manager_patch_scope import patch_contract_manager
+
 BACKENDS = available_backends("api")
 
 if "physx" in BACKENDS:
@@ -26,11 +28,6 @@ if "physx" in BACKENDS:
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-
-    # PhysX data classes need gravity even though contract tests do not create a physics scene.
-    _mock_physics_sim_view = MagicMock()
-    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
 if "newton" in BACKENDS:
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
@@ -50,6 +47,11 @@ def create_physx_rigid_object(
     device: str = "cuda:0",
 ):
     """Create a test RigidObject instance with mocked dependencies."""
+    mock_physics_sim_view = MagicMock()
+    mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    patch_contract_manager(
+        SimulationManager, "get_physics_sim_view", MagicMock(return_value=mock_physics_sim_view)
+    )
     body_names = ["body_0"]
 
     rigid_object = object.__new__(PhysXRigidObject)
@@ -155,7 +157,7 @@ def create_newton_rigid_object(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in the Newton data module
-    newton_data_module.SimulationManager = mock_manager
+    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
     data = NewtonRigidObjectData(mock_view, device)
 
     # Create RigidObject shell (bypass __init__)

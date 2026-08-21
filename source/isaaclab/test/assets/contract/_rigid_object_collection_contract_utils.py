@@ -20,6 +20,8 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from ._manager_patch_scope import patch_contract_manager
+
 BACKENDS = available_backends("api")
 
 if "physx" in BACKENDS:
@@ -31,11 +33,6 @@ if "physx" in BACKENDS:
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-
-    # PhysX data classes need gravity even though contract tests do not create a physics scene.
-    _mock_physics_sim_view = MagicMock()
-    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
 if "newton" in BACKENDS:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
@@ -64,6 +61,11 @@ def create_physx_rigid_object_collection(
     device: str = "cuda:0",
 ):
     """Create a test RigidObjectCollection instance with mocked dependencies."""
+    mock_physics_sim_view = MagicMock()
+    mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    patch_contract_manager(
+        SimulationManager, "get_physics_sim_view", MagicMock(return_value=mock_physics_sim_view)
+    )
     collection = object.__new__(PhysXRigidObjectCollection)
 
     rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
@@ -160,8 +162,8 @@ def create_newton_rigid_object_collection(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in both data and collection modules
-    newton_data_module.SimulationManager = mock_manager
-    newton_coll_module.SimulationManager = mock_manager
+    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
+    patch_contract_manager(newton_coll_module, "SimulationManager", mock_manager)
     data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
 
     # Create collection shell (bypass __init__)

@@ -20,9 +20,6 @@ import warp as wp
 from ._rigid_object_contract_utils import BACKENDS, get_rigid_object
 from .capabilities import contract_backend
 
-pytestmark = pytest.mark.integration
-
-
 @pytest.fixture
 def rigid_object_iface(request):
     backend = request.getfixturevalue("backend")

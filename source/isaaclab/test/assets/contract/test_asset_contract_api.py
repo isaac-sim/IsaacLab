@@ -1,4 +1,4 @@
-# Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -57,6 +57,84 @@ from .public_surface import (
     ContractKind,
     unclassified_public_members,
 )
+
+
+def _available_contract_manager_globals() -> dict[str, object]:
+    """Return installed backend bindings touched by the mock factories."""
+    import inspect
+
+    bindings: dict[str, object] = {}
+    if "physx" in BACKEND_STATUSES_BY_NAME and BACKEND_STATUSES_BY_NAME["physx"].available:
+        from isaaclab_physx.physics import PhysxManager
+
+        bindings["physx.get_physics_sim_view"] = inspect.getattr_static(PhysxManager, "get_physics_sim_view")
+    if "newton" in BACKEND_STATUSES_BY_NAME and BACKEND_STATUSES_BY_NAME["newton"].available:
+        import isaaclab_newton.assets.articulation.articulation_data as articulation_data
+        import isaaclab_newton.assets.rigid_object.rigid_object_data as rigid_object_data
+        import isaaclab_newton.assets.rigid_object_collection.rigid_object_collection as rigid_object_collection
+        from isaaclab_newton.assets.rigid_object_collection import (
+            rigid_object_collection_data,
+        )
+
+        bindings.update(
+            {
+                "newton.articulation_data": articulation_data.SimulationManager,
+                "newton.rigid_object_data": rigid_object_data.SimulationManager,
+                "newton.collection": rigid_object_collection.SimulationManager,
+                "newton.collection_data": rigid_object_collection_data.SimulationManager,
+            }
+        )
+    return bindings
+
+
+def _assert_identical_bindings(actual: dict[str, object], expected: dict[str, object]) -> None:
+    """Assert exact binding identity without invoking mock equality operators."""
+    assert actual.keys() == expected.keys()
+    assert all(actual[name] is original for name, original in expected.items())
+
+
+BACKEND_STATUSES_BY_NAME = {status.declaration.name: status for status in BACKEND_STATUSES}
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_contract_factory_manager_patch_supports_cross_suite_asset_access(reverse: bool) -> None:
+    """Keep each manager available while rigid, collection, and articulation methods run."""
+    from ._articulation_contract_utils import get_articulation
+    from ._manager_patch_scope import contract_manager_patch_scope
+    from ._rigid_object_collection_contract_utils import get_rigid_object_collection
+    from ._rigid_object_contract_utils import get_rigid_object
+
+    available_backends = [name for name in ("physx", "newton") if BACKEND_STATUSES_BY_NAME[name].available]
+    if reverse:
+        available_backends.reverse()
+    original_bindings = _available_contract_manager_globals()
+
+    with contract_manager_patch_scope():
+        for backend in available_backends:
+            rigid_object, _ = get_rigid_object(backend, device="cpu")
+            collection, _ = get_rigid_object_collection(backend, device="cpu")
+            articulation, _ = get_articulation(backend, device="cpu")
+
+            assert rigid_object.data.root_link_pose_w.shape == (2,)
+            assert collection.data.body_link_pose_w.shape == (2, 3)
+            assert articulation.data.root_link_pose_w.shape == (2,)
+
+    _assert_identical_bindings(_available_contract_manager_globals(), original_bindings)
+
+
+def test_contract_factory_modules_keep_production_manager_bindings_after_collection() -> None:
+    """Keep optional backend imports free of import-time manager substitutions."""
+    import inspect
+
+    if BACKEND_STATUSES_BY_NAME["physx"].available:
+        from isaaclab_physx.physics import PhysxManager
+
+        assert isinstance(inspect.getattr_static(PhysxManager, "get_physics_sim_view"), classmethod)
+    if BACKEND_STATUSES_BY_NAME["newton"].available:
+        from isaaclab_newton.physics import NewtonManager
+
+        bindings = _available_contract_manager_globals()
+        assert all(manager is NewtonManager for name, manager in bindings.items() if name.startswith("newton."))
 
 
 def test_backend_declaration_reports_missing_required_module() -> None:

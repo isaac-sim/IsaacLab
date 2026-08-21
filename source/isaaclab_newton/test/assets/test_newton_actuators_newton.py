@@ -5,6 +5,7 @@
 
 """Kitless real-solver equivalence test for Newton-native actuators."""
 
+import pytest
 import torch
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -16,6 +17,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+
+pytestmark = pytest.mark.integration
 
 
 def _author_two_link_articulations() -> Articulation:

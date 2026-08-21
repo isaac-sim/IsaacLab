@@ -22,9 +22,6 @@ import warp as wp
 from ._articulation_contract_utils import BACKENDS, get_articulation
 from .capabilities import backend_parameters, contract_backend
 
-pytestmark = pytest.mark.integration
-
-
 @pytest.fixture
 def articulation_iface(request):
     backend = request.getfixturevalue("backend")

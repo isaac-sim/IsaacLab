@@ -10,8 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 _ASSET_TEST_DIR = Path(__file__).resolve().parents[1]
 _TARGETS = (
     ("test_rigid_object.py", "test_rigid_object_real_newton_seams[cpu]"),
@@ -32,8 +30,8 @@ _TARGETS = (
 _TARGET_FILENAMES = tuple(Path(target).name for target, _ in _TARGETS) + ("articulation_test_utils.py",)
 
 
-def _run_monitored_target(target: Path, node: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
-    """Run a target under import and Nucleus sentinels."""
+def _run_monitored_targets(nodes: tuple[str, ...], tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """Run target nodes together under import and Nucleus sentinels."""
     sitecustomize = tmp_path / "sitecustomize.py"
     sitecustomize.write_text(
         """
@@ -81,7 +79,7 @@ assets.ISAACLAB_NUCLEUS_DIR = _ForbiddenNucleusPath(assets.ISAACLAB_NUCLEUS_DIR)
     )
     env = os.environ | {"PYTHONPATH": str(tmp_path)}
     return subprocess.run(
-        [sys.executable, "-m", "pytest", f"{target}::{node}", "-q"],
+        [sys.executable, "-m", "pytest", *nodes, "-q"],
         cwd=_ASSET_TEST_DIR,
         env=env,
         capture_output=True,
@@ -90,10 +88,10 @@ assets.ISAACLAB_NUCLEUS_DIR = _ForbiddenNucleusPath(assets.ISAACLAB_NUCLEUS_DIR)
     )
 
 
-@pytest.mark.parametrize(("target", "node"), _TARGETS)
-def test_newton_asset_cpu_seam_runs_without_kit_isaacsim_or_nucleus(target: str, node: str, tmp_path: Path) -> None:
-    """Run each real CPU seam while rejecting Kit, IsaacSim, and Nucleus access."""
-    result = _run_monitored_target(_ASSET_TEST_DIR / target, node, tmp_path)
+def test_newton_asset_cpu_seams_run_without_kit_isaacsim_or_nucleus(tmp_path: Path) -> None:
+    """Run all real CPU seams while rejecting Kit, IsaacSim, and Nucleus access."""
+    nodes = tuple(f"{_ASSET_TEST_DIR / target}::{node}" for target, node in _TARGETS)
+    result = _run_monitored_targets(nodes, tmp_path)
 
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -112,7 +110,7 @@ def test_runtime_nucleus_access_inside_fixture_is_rejected(tmp_path: Path) -> No
         encoding="utf-8",
     )
 
-    result = _run_monitored_target(mutated_target, "test_rigid_object_real_newton_seams[cpu]", tmp_path)
+    result = _run_monitored_targets((f"{mutated_target}::test_rigid_object_real_newton_seams[cpu]",), tmp_path)
 
     assert result.returncode != 0
     assert "forbidden Nucleus asset used by Newton asset test" in result.stdout + result.stderr
@@ -131,7 +129,7 @@ def test_runtime_app_launcher_import_inside_fixture_is_rejected(tmp_path: Path) 
         encoding="utf-8",
     )
 
-    result = _run_monitored_target(mutated_target, "test_rigid_object_real_newton_seams[cpu]", tmp_path)
+    result = _run_monitored_targets((f"{mutated_target}::test_rigid_object_real_newton_seams[cpu]",), tmp_path)
 
     assert result.returncode != 0
     assert "forbidden kit dependency imported: isaaclab.app.app_launcher" in result.stdout + result.stderr

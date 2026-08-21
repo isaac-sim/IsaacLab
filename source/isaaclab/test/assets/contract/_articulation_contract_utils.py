@@ -20,6 +20,8 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from ._manager_patch_scope import patch_contract_manager
+
 BACKENDS = available_backends("api")
 BACKEND_UNAVAILABLE_REASONS = backend_unavailable_reasons()
 
@@ -28,11 +30,6 @@ if "physx" in BACKENDS:
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
-
-    # PhysX data classes need gravity even though contract tests do not create a physics scene.
-    _mock_physics_sim_view = MagicMock()
-    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
 if "newton" in BACKENDS:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
@@ -59,6 +56,11 @@ def create_physx_articulation(
     body_ordering: tuple[str, ...] | None = None,
 ):
     """Create a test Articulation instance with mocked dependencies."""
+    mock_physics_sim_view = MagicMock()
+    mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    patch_contract_manager(
+        SimulationManager, "get_physics_sim_view", MagicMock(return_value=mock_physics_sim_view)
+    )
     joint_names = [f"joint_{i}" for i in range(num_joints)]
     body_names = [f"body_{i}" for i in range(num_bodies)]
     fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
@@ -356,7 +358,7 @@ def create_newton_articulation(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in the Newton data module
-    newton_data_module.SimulationManager = mock_manager
+    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
     data = NewtonArticulationData(mock_view, device)
     # Create Articulation shell (bypass __init__)
     articulation = object.__new__(NewtonArticulation)
