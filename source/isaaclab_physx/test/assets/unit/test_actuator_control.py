@@ -6,10 +6,12 @@
 """Focused PhysX dual actuator-dispatch tests."""
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import warp as wp
 from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
+
+from isaaclab.actuators import IdealPDActuatorCfg
 
 
 class _RecordingView:
@@ -85,9 +87,10 @@ def test_submit_commands_uses_native_effort_and_public_targets_for_newton_path()
 
 def test_compute_native_actuators_refreshes_nonidentity_public_joint_state() -> None:
     """The native controller must observe the latest reordered PhysX joint state."""
-    refresh_position = Mock()
-    refresh_velocity = Mock()
-    runtime = SimpleNamespace(compute=Mock())
+    ordered_calls = Mock()
+    refresh_position = ordered_calls.refresh_position
+    refresh_velocity = ordered_calls.refresh_velocity
+    runtime = SimpleNamespace(compute=ordered_calls.compute)
     articulation = SimpleNamespace(
         data=SimpleNamespace(has_joint_ordering=True),
         _data=SimpleNamespace(_refresh_joint_pos=refresh_position, _refresh_joint_vel=refresh_velocity),
@@ -100,6 +103,51 @@ def test_compute_native_actuators_refreshes_nonidentity_public_joint_state() -> 
 
     assert control.compute_native_actuators(collection, 0.01)
 
-    refresh_position.assert_called_once_with()
-    refresh_velocity.assert_called_once_with()
-    runtime.compute.assert_called_once_with(collection, 0.01)
+    assert ordered_calls.mock_calls == [
+        call.refresh_position(),
+        call.refresh_velocity(),
+        call.compute(collection, 0.01),
+    ]
+
+
+def test_prepare_native_actuators_does_not_overwrite_solver_gains(monkeypatch) -> None:
+    """Native preparation must leave solver gains for collection construction to resolve."""
+    from isaaclab_physx.assets.articulation import actuator_control
+
+    gain_writes = []
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+        joint_names=["joint"],
+        num_instances=1,
+        num_joints=1,
+        device="cpu",
+        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
+        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+    )
+    wrapper = SimpleNamespace()
+    adapter = SimpleNamespace()
+
+    class _Runtime:
+        def __init__(self, owner, *, logger):
+            self.wrapper = wrapper
+            self.adapter = adapter
+
+        def prepare(self, collection, **kwargs) -> None:
+            pass
+
+    monkeypatch.setattr(actuator_control, "_validate_newton_native_actuator_cfgs", lambda cfgs: None)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda path: None)
+    monkeypatch.setattr(actuator_control, "get_current_stage", lambda: None)
+    monkeypatch.setattr(actuator_control, "PhysxActuatorRuntime", _Runtime)
+    control = PhysxActuatorControl(articulation)
+
+    native_groups = control.prepare_native_actuators(
+        SimpleNamespace(),
+        {"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
+    )
+
+    assert native_groups == {"explicit"}
+    assert articulation._physx_actuator_wrapper is wrapper
+    assert articulation.newton_actuator_adapter is adapter
+    assert gain_writes == []

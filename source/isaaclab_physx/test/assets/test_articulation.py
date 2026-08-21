@@ -7,7 +7,7 @@
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device="cpu").app
 
 from pathlib import Path
 
@@ -16,7 +16,7 @@ import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
 
-from pxr import UsdPhysics
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
@@ -38,9 +38,11 @@ def _spawn_ordered_articulation() -> Articulation:
             body_ordering="mjwarp",
         )
     )
-    UsdPhysics.FixedJoint.Define(sim_utils.get_current_stage(), "/World/Robot/fixed_root").GetBody1Rel().SetTargets(
-        ["/World/Robot/base"]
-    )
+    stage = sim_utils.get_current_stage()
+    collision = UsdGeom.Cube.Define(stage, "/World/Robot/base/collision")
+    collision.CreateSizeAttr(0.1)
+    UsdPhysics.CollisionAPI.Apply(collision.GetPrim())
+    UsdPhysics.FixedJoint.Define(stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
     return articulation
 
 
@@ -105,6 +107,15 @@ def test_articulation_real_physx_seams() -> None:
             wp.to_torch(articulation.root_view.get_inertias()),
             articulation.data.body_inertia.torch[:, body_backend_to_user],
         )
+
+        materials = torch.empty((1, articulation.root_view.max_shapes, 3))
+        materials[..., 0] = 0.91
+        materials[..., 1] = 0.17
+        materials[..., 2] = 0.63
+        articulation.root_view.set_material_properties(
+            wp.from_torch(materials, dtype=wp.float32), wp.array([0], dtype=wp.int32, device="cpu")
+        )
+        torch.testing.assert_close(wp.to_torch(articulation.root_view.get_material_properties()), materials)
 
         sim.step()
         articulation.update(sim.cfg.dt)

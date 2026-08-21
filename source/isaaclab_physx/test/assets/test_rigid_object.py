@@ -7,10 +7,11 @@
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device="cpu").app
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_physx.assets import RigidObject
 
 import isaaclab.sim as sim_utils
@@ -65,11 +66,15 @@ def test_rigid_object_real_physx_seams() -> None:
         masses = torch.tensor([[3.0]])
         rigid_object.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
         torch.testing.assert_close(rigid_object.data.body_mass.torch[env_ids][:, body_ids], masses)
+        raw_masses = wp.to_torch(rigid_object.root_view.get_masses()).reshape(2, 1)
+        torch.testing.assert_close(raw_masses[env_ids][:, body_ids], masses)
 
         coms = rigid_object.data.body_com_pose_b.torch[env_ids][:, body_ids].clone()
         coms[..., :3] = torch.tensor([[[0.03, -0.02, 0.01]]])
         rigid_object.set_coms_index(coms=coms, env_ids=env_ids, body_ids=body_ids)
         torch.testing.assert_close(rigid_object.data.body_com_pose_b.torch[env_ids][:, body_ids], coms)
+        raw_coms = wp.to_torch(rigid_object.root_view.get_coms().view(wp.float32)).reshape(2, 1, 7)
+        torch.testing.assert_close(raw_coms[env_ids][:, body_ids], coms)
 
         inertias = rigid_object.data.body_inertia.torch[env_ids][:, body_ids].clone()
         inertias[..., 0] *= 1.2
@@ -77,6 +82,17 @@ def test_rigid_object_real_physx_seams() -> None:
         inertias[..., 8] *= 1.4
         rigid_object.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
         torch.testing.assert_close(rigid_object.data.body_inertia.torch[env_ids][:, body_ids], inertias)
+        raw_inertias = wp.to_torch(rigid_object.root_view.get_inertias()).reshape(2, 1, 9)
+        torch.testing.assert_close(raw_inertias[env_ids][:, body_ids], inertias)
+
+        materials = torch.empty((2, rigid_object.root_view.max_shapes, 3))
+        materials[0] = torch.tensor([0.8, 0.4, 0.2])
+        materials[1] = torch.tensor([0.7, 0.3, 0.1])
+        all_env_ids = torch.arange(2, dtype=torch.int32)
+        rigid_object.root_view.set_material_properties(
+            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(all_env_ids, dtype=wp.int32)
+        )
+        torch.testing.assert_close(wp.to_torch(rigid_object.root_view.get_material_properties()), materials)
 
         rigid_object.write_root_link_velocity_to_sim_index(
             root_velocity=torch.zeros((2, 6)), env_ids=torch.tensor([0, 1], dtype=torch.int32)

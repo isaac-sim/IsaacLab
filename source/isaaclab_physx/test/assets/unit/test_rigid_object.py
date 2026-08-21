@@ -5,6 +5,8 @@
 
 """Focused PhysX rigid-object CPU staging and cached-view tests."""
 
+import importlib
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -47,3 +49,23 @@ def test_tensor_api_float_view_is_cached_over_stable_pose_storage() -> None:
     assert first is second
     assert first.ptr == pose.ptr
     assert first.shape == (2, 7)
+
+
+def test_kitless_import_is_evicted_before_fresh_manager_import() -> None:
+    """A stub-bound unit import must not leak into the next real PhysX module import."""
+    module_name = "isaaclab_physx.assets.rigid_object.rigid_object"
+    stubbed_module = import_physx_module(module_name)
+    assert module_name not in sys.modules
+
+    try:
+        fresh_module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        # Plain uv Python has no Kit ``carb`` module. Reaching that boundary proves the
+        # real lazy PhysX manager replaced the unit stub.
+        assert exc.name == "carb"
+        assert module_name not in sys.modules
+    else:
+        from isaaclab_physx.physics import PhysxManager
+
+        assert fresh_module is not stubbed_module
+        assert fresh_module.SimulationManager is PhysxManager

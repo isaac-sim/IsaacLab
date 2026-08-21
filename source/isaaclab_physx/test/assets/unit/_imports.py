@@ -12,9 +12,18 @@ from importlib.machinery import ModuleSpec
 from types import ModuleType
 from unittest.mock import patch
 
+_MISSING = object()
+
 
 def import_physx_module(module_name: str):
     """Import a PhysX asset module while replacing only its unavailable Kit boundary."""
+    module_parts = module_name.split(".")
+    ancestor_names = [".".join(module_parts[:index]) for index in range(1, len(module_parts))]
+    ancestor_snapshots = {
+        name: (sys.modules[name], dict(sys.modules[name].__dict__)) for name in ancestor_names if name in sys.modules
+    }
+    missing_ancestors = [name for name in ancestor_names if name not in sys.modules]
+    previous_target = sys.modules.pop(module_name, _MISSING)
     cloner = ModuleType("isaaclab_physx.cloner")
     cloner.queue_physx_replication = lambda cfg: None
     physics = ModuleType("isaaclab_physx.physics")
@@ -31,5 +40,16 @@ def import_physx_module(module_name: str):
     stubs.update({"omni.physics": omni_physics, "omni.physics.tensors": omni_tensors})
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        with patch.object(omni, "physics", omni_physics, create=True), patch.dict(sys.modules, stubs):
-            return importlib.import_module(module_name)
+        try:
+            with patch.object(omni, "physics", omni_physics, create=True), patch.dict(sys.modules, stubs):
+                imported = importlib.import_module(module_name)
+        finally:
+            sys.modules.pop(module_name, None)
+            if previous_target is not _MISSING:
+                sys.modules[module_name] = previous_target
+            for name in reversed(missing_ancestors):
+                sys.modules.pop(name, None)
+            for module, namespace in ancestor_snapshots.values():
+                module.__dict__.clear()
+                module.__dict__.update(namespace)
+    return imported

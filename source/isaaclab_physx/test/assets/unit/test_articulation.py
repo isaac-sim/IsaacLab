@@ -5,9 +5,7 @@
 
 """Focused PhysX articulation staging, cache, friction, and kernel tests."""
 
-import sys
-import warnings
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -20,6 +18,8 @@ from isaaclab_physx.assets.articulation.kernels import (
     write_joint_state_data_kernel,
 )
 
+from ._imports import import_physx_module
+
 
 def _selector(values: list[int], dtype: type) -> wp.array:
     """Create a CPU Warp selector with the requested integer width."""
@@ -28,32 +28,7 @@ def _selector(values: list[int], dtype: type) -> wp.array:
 
 def _articulation_class():
     """Import PhysX Articulation while suppressing only unavailable lazy Kit exports."""
-    cloner = ModuleType("isaaclab_physx.cloner")
-    cloner.queue_physx_replication = lambda cfg: None
-    physics = ModuleType("isaaclab_physx.physics")
-    physics.PhysxManager = type("PhysxManager", (), {})
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=(
-                "^'RigidBodyMaterialCfg' is deprecated and will be removed in 5[.]0[.] Use "
-                "'isaaclab_physx[.]sim[.]spawners[.]materials[.]PhysxRigidBodyMaterialCfg' for PhysX properties, "
-                "or 'isaaclab[.]sim[.]spawners[.]materials[.]RigidBodyMaterialBaseCfg' for solver-common properties "
-                "only[.]$"
-            ),
-            category=DeprecationWarning,
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=(
-                "^`torch[.]jit[.]script` is deprecated[.] Please switch to `torch[.]compile` or `torch[.]export`[.]$"
-            ),
-            category=DeprecationWarning,
-        )
-        with patch.dict(sys.modules, {"isaaclab_physx.cloner": cloner, "isaaclab_physx.physics": physics}):
-            from isaaclab_physx.assets.articulation.articulation import Articulation
-
-    return Articulation
+    return import_physx_module("isaaclab_physx.assets.articulation.articulation").Articulation
 
 
 def _model_writer_articulation(Articulation) -> tuple[SimpleNamespace, SimpleNamespace]:

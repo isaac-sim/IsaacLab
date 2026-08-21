@@ -7,7 +7,7 @@
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device="cpu").app
 
 import pytest
 import torch
@@ -72,11 +72,16 @@ def test_rigid_object_collection_real_physx_seams() -> None:
         torch.testing.assert_close(collection.data.body_link_pose_w.torch[env_ids][:, body_ids], target_pose)
         torch.testing.assert_close(collection.data.body_link_pose_w.torch[:, :1], initial_pose[:, :1])
 
+        initial_masses = collection.data.body_mass.torch.clone()
+        initial_coms = collection.data.body_com_pose_b.torch.clone()
+        initial_inertias = collection.data.body_inertia.torch.clone()
         masses = torch.tensor([[5.0], [7.0]])
         collection.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
         torch.testing.assert_close(collection.data.body_mass.torch[env_ids][:, body_ids], masses)
         raw_mass = wp.to_torch(collection.root_view.get_masses()).reshape(2, 2).T
         torch.testing.assert_close(raw_mass[env_ids][:, body_ids], masses)
+        torch.testing.assert_close(collection.data.body_mass.torch[:, :1], initial_masses[:, :1])
+        torch.testing.assert_close(raw_mass[:, :1], initial_masses[:, :1])
 
         coms = collection.data.body_com_pose_b.torch[env_ids][:, body_ids].clone()
         coms[0, 0, :3] = torch.tensor([0.02, 0.03, 0.04])
@@ -85,6 +90,8 @@ def test_rigid_object_collection_real_physx_seams() -> None:
         torch.testing.assert_close(collection.data.body_com_pose_b.torch[env_ids][:, body_ids], coms)
         raw_coms = wp.to_torch(collection.root_view.get_coms().view(wp.float32)).reshape(2, 2, 7).transpose(0, 1)
         torch.testing.assert_close(raw_coms[env_ids][:, body_ids], coms)
+        torch.testing.assert_close(collection.data.body_com_pose_b.torch[:, :1], initial_coms[:, :1])
+        torch.testing.assert_close(raw_coms[:, :1], initial_coms[:, :1])
 
         inertias = collection.data.body_inertia.torch[env_ids][:, body_ids].clone()
         inertias[0, 0, 0] *= 1.2
@@ -93,3 +100,19 @@ def test_rigid_object_collection_real_physx_seams() -> None:
         torch.testing.assert_close(collection.data.body_inertia.torch[env_ids][:, body_ids], inertias)
         raw_inertias = wp.to_torch(collection.root_view.get_inertias()).reshape(2, 2, 9).transpose(0, 1)
         torch.testing.assert_close(raw_inertias[env_ids][:, body_ids], inertias)
+        torch.testing.assert_close(collection.data.body_inertia.torch[:, :1], initial_inertias[:, :1])
+        torch.testing.assert_close(raw_inertias[:, :1], initial_inertias[:, :1])
+
+        materials = torch.tensor(
+            [
+                [[0.9, 0.4, 0.1], [0.8, 0.3, 0.2]],
+                [[0.7, 0.2, 0.3], [0.6, 0.1, 0.4]],
+            ]
+        )
+        view_materials = collection.reshape_data_to_view_3d(wp.from_torch(materials, dtype=wp.float32), 3, device="cpu")
+        view_ids = wp.array([0, 1, 2, 3], dtype=wp.int32, device="cpu")
+        collection.root_view.set_material_properties(view_materials, view_ids)
+        raw_materials = collection.reshape_view_to_data_3d(
+            collection.root_view.get_material_properties(), 3, device="cpu"
+        )
+        torch.testing.assert_close(wp.to_torch(raw_materials), materials)
