@@ -6,6 +6,7 @@
 import os
 import platform
 import shutil
+import site
 import subprocess
 import sys
 import time
@@ -597,7 +598,37 @@ def run_python_command(
         [subprocess.CompletedProcess] Result returned by ``subprocess.run``.
     """
 
-    cmd = [extract_python_exe()]
+    python_exe = extract_python_exe()
+    cmd = [python_exe]
+
+    # A source build linked at ``_isaac_sim`` must load its live Kit and extension paths, but the
+    # dependencies managed by uv should still come from the active environment. Isaac Sim's Python
+    # launcher supports exactly this combination through its ``PYTHONEXE`` override. The shell
+    # wrappers already configure ``ISAAC_PATH`` before starting this CLI, so only direct invocations
+    # such as ``uv run isaaclab train`` need to delegate through the launcher here.
+    command_env = os.environ if env is None else env
+    configured_isaac_path = command_env.get("ISAAC_PATH")
+    local_sim = DEFAULT_ISAAC_SIM_PATH
+    python_launcher = local_sim / ("python.bat" if is_windows() else "python.sh")
+    isaac_env_active = (
+        configured_isaac_path is not None and Path(configured_isaac_path).resolve() == local_sim.resolve()
+    )
+    if local_sim.is_dir() and python_launcher.is_file() and not isaac_env_active:
+        env = dict(command_env)
+        env["PYTHONEXE"] = python_exe
+        source_paths = [
+            local_sim / "python_packages",
+            local_sim / "exts" / "isaacsim.simulation_app",
+            local_sim / "kit" / "kernel" / "py",
+            local_sim / "kit" / "plugins" / "bindings-python",
+            Path(site.getsitepackages()[0]),
+        ]
+        existing_pythonpath = env.get("PYTHONPATH")
+        python_paths = [str(path) for path in source_paths if path.is_dir()]
+        if existing_pythonpath:
+            python_paths.append(existing_pythonpath)
+        env["PYTHONPATH"] = os.pathsep.join(python_paths)
+        cmd = [str(python_launcher)]
 
     if is_module:
         cmd.append("-m")
