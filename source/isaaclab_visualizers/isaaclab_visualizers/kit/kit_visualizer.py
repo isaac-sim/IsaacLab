@@ -136,6 +136,13 @@ class KitVisualizer(BaseVisualizer):
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
+    @property
+    def visual_material_writer(self):
+        """Write material channels directly through Fabric."""
+        from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+
+        return FabricVisualMaterialWriter
+
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewport resources and bind scene data provider.
 
