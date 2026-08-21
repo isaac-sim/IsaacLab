@@ -65,6 +65,17 @@ def test_create_dataset_file(temp_dir):
     assert os.path.exists(dataset_file_path + ".hdf5")
 
 
+def test_create_dataset_file_in_current_directory(monkeypatch, tmp_path):
+    """Creating a dataset by basename should not try to create an empty directory path."""
+    monkeypatch.chdir(tmp_path)
+
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create("dataset.hdf5", "test_env_name")
+    dataset_file_handler.close()
+
+    assert (tmp_path / "dataset.hdf5").is_file()
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_write_and_load_episode(temp_dir, device):
     """Test writing and loading an episode to and from the dataset file."""
