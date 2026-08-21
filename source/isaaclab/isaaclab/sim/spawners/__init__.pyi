@@ -37,6 +37,7 @@ __all__ = [
     "spawn_preview_surface",
     "GlassMdlCfg",
     "MdlFileCfg",
+    "PbrMdlCfg",
     "PreviewSurfaceCfg",
     "VisualMaterialCfg",
     "spawn_mesh_capsule",
@@ -115,6 +116,7 @@ from .materials import (
     spawn_preview_surface,
     GlassMdlCfg,
     MdlFileCfg,
+    PbrMdlCfg,
     PreviewSurfaceCfg,
     VisualMaterialCfg,
 )

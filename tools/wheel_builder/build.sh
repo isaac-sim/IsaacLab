@@ -37,7 +37,7 @@ esac
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 mkdir -p "$BUILD_DIR/src/isaaclab"
 
-# 1. Copy inventory (same as python_packages.toml inventory.includes.all)
+# 1. Copy inventory (the full source tree: apps/ + source/)
 cp -r apps "$BUILD_DIR/src/isaaclab/"
 cp -r source "$BUILD_DIR/src/isaaclab/"
 
