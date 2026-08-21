@@ -256,7 +256,8 @@ EnvStepReturn = tuple[
 ]
 """The environment signals processed at the end of each step.
 
-The tuple contains batched information for each sub-environment (keyed by the agent ID). The information is stored in the following order:
+The tuple contains batched information for each sub-environment (keyed by the agent ID).
+The information is stored in the following order:
 
 1. **Observations**: The observations from the environment.
 2. **Rewards**: The rewards from the environment.
