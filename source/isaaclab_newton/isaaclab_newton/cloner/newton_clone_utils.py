@@ -15,7 +15,10 @@ from newton import GeoType, ModelBuilder, ShapeFlags, solvers
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
+from isaaclab.cloner import path as clone_path
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -145,6 +148,8 @@ def _build_source_builder(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
     replace_newton_builder_shape_colors(builder, stage)
+    if load_visual_shapes:
+        import_builder_visual_material_paths(builder, stage)
     return builder
 
 
@@ -315,7 +320,6 @@ def rename_builder_labels(
 
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/") or "/"
-        source_root_len = len(source_root)
         world_cols = torch.nonzero(mapping[source_index], as_tuple=True)[0].tolist()
         # Pre-normalize the destination roots
         destination = destinations[source_index]
@@ -324,14 +328,17 @@ def rename_builder_labels(
             for env_id in (env_ids_list[col] for col in world_cols)
         }
 
-        def _rename_pair(values, worlds, *, collect_body_bindings: bool = False):
-            for index, (value, world) in enumerate(zip(values, worlds, strict=True)):
-                if world is None or not isinstance(value, str) or not value.startswith(source_root):
+        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
+            rows = (
+                ((index, value, worlds[index]) for index, value in values.items())
+                if isinstance(values, dict)
+                else ((index, value, world) for index, (value, world) in enumerate(zip(values, worlds, strict=True)))
+            )
+            for index, value, world in rows:
+                suffix = clone_path.relative_to(value, src_root) if isinstance(value, str) else None
+                if world is None or suffix is None:
                     continue
-                suffix = value[source_root_len:]
-                if suffix and not suffix.startswith("/"):
-                    continue
-                world_root = world_roots.get(int(world))
+                world_root = roots.get(int(world))
                 if world_root is None:
                     continue
                 renamed_value = world_root + suffix
@@ -353,7 +360,11 @@ def rename_builder_labels(
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
         for attr in custom_attrs:
-            if attr.dtype is str and attr.values and (worlds := worlds_by_freq.get(attr.frequency)):
+            if attr.dtype is not str or not attr.values:
+                continue
+            if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
+                _rename_pair(attr.values, builder.shape_world)
+            elif worlds := worlds_by_freq.get(attr.frequency):
                 _rename_pair(attr.values, worlds)
 
     fabric_body_bindings.extend(

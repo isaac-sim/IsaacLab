@@ -43,6 +43,8 @@ def _parse_args(argv: list[str]):
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RL-Games.")
+    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
+    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
@@ -84,6 +86,7 @@ def _parse_args(argv: list[str]):
     add_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    _common.enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
@@ -125,6 +128,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     args_cli, remaining_args = _parse_args(argv)
 
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    _common.pre_launch_video_config(env_cfg, args_cli=args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -132,6 +136,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
             app_t1 = time.perf_counter_ns()
+            _common.apply_video_recording(env_cfg, args_cli.output_path, args_cli, subdir="play")
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
@@ -155,7 +160,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             else:
                 resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task, env_cfg)
 
-            cfg = capture.run_config_from_presets(remaining_args)
+            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -303,6 +308,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 reward=reward,
                 ep_length=ep_length,
                 checkpoint_path=resume_path,
+                video_path=env_cfg.video_recorders[0].output_dir if args_cli.video else None,
             )
 
             benchmark.attach_bundle(bundle)

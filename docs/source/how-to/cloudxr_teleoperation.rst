@@ -570,14 +570,147 @@ Manus Gloves
 Manus gloves provide high-fidelity finger tracking via the Manus SDK. This is useful when optical
 hand tracking from the headset is occluded or when higher-precision finger data is needed. Because
 the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task such as
-``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one.
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one. Manus
+tracking data flows through the same API as headset-based optical hand tracking in Isaac Teleop,
+so the same retargeters and pipelines work with both input sources.
+
+.. note::
+
+   Manus glove support has been migrated into Isaac Teleop as a native plugin. The previous
+   ``isaac-teleop-device-plugins`` repository and the ``libsurvive``-based Vive tracker integration
+   are no longer required.
+
+Prerequisites
+^^^^^^^^^^^^^
+
+* **Manus gloves with a Manus SDK license**, paired with the MANUS Core application so they are
+  connected and calibrated. See the `MANUS Getting Started guide for Linux
+  <https://docs.manus-meta.com/3.1.1/Plugins/SDK/Linux/>`_.
+
+* **The** ``manus_hand_plugin`` **plugin, built from Isaac Teleop source**: glove tracking data is
+  streamed by a standalone C++ plugin that you run alongside the sim.
+
+  .. important::
+
+     ``manus_hand_plugin`` is **not** shipped with Isaac Lab, is **not** part of the
+     ``isaacteleop`` pip package, and is not in any release archive. It exists only after building
+     the `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository from source. If
+     ``install/plugins/manus/manus_hand_plugin`` does not exist in your Isaac Teleop checkout, this
+     step has not been completed.
+
+  Clone the repository and check out the release branch matching the ``isaacteleop`` version Isaac
+  Lab is pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root
+  ``pyproject.toml``), so the plugin's wire format matches the ``isaacteleop`` package Isaac Lab
+  installs:
+
+  .. code-block:: bash
+
+     git clone https://github.com/NVIDIA/IsaacTeleop.git
+     cd IsaacTeleop
+     git checkout release/1.4.x
+
+  .. note::
+
+     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     branch instead.
+
+  Grant the host access to the Manus dongle **once, on the host machine**. Run this outside any
+  container -- udev rules are processed by ``systemd-udevd``, which does not run inside Docker, so
+  installing rules from a container has no effect:
+
+  .. code-block:: bash
+
+     cd src/plugins/manus
+     ./install_udev_rules.sh
+     # then unplug and replug the Manus dongle
+
+  Then, inside the environment you build in (devcontainer, Isaac ROS container, or bare host),
+  install ``clang-format-14`` -- a missing ``clang-format-14`` is the most common cause of a
+  failed build, because the root ``CMakeLists.txt`` enforces the format check by default on
+  Linux and ``install_manus.sh`` does not install it for you:
+
+  .. code-block:: bash
+
+     sudo apt-get update
+     sudo apt-get install -y clang-format-14
+
+  Then download the Manus SDK and build and install the plugin:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacTeleop/src/plugins/manus
+     ./install_manus.sh
+
+  The script installs the remaining required system packages, downloads the Manus SDK, and builds
+  and installs the plugin and its diagnostic CLI tool. The plugin is installed to
+  ``<IsaacTeleop>/install/plugins/manus/manus_hand_plugin``. Every later command in this section
+  runs from the Isaac Teleop checkout root; substitute your own path for ``/path/to/IsaacTeleop``.
+
+  Verify the build and that the gloves are tracking with the diagnostic CLI tool, which opens a
+  **MANUS Data Visualizer** window showing the hand skeleton. Only one process can hold the Manus
+  SDK connection at a time, so stop the CLI tool before starting the plugin:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacTeleop
+     ./install/bin/manus_hand_tracker_printer
+
+  See the `Manus plugin documentation`_ for manual installation without ``install_manus.sh``, the
+  full data-path reference (skeleton injection, flex-sensor tensors, haptics), and
+  troubleshooting.
+
+* **A Meta Quest 3 or Pico 4 Ultra controller per hand**, required for wrist positioning. Each
+  MANUS glove has a Universal Mount on the back of the wrist strap; clip the controller into it
+  so the controller's grip pose drives wrist placement while the glove tracks the fingers. See
+  `Wrist Positioning -- Controllers vs Optical Hand Tracking`_ in the Manus plugin documentation
+  for how the plugin selects between controller and optical wrist tracking.
+
+  .. list-table::
+     :widths: 50 50
+
+     * - .. figure:: ../_static/setup/manus_controller_mount_left.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the left MANUS glove's Universal Mount
+
+            Left glove
+       - .. figure:: ../_static/setup/manus_controller_mount_right.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the right MANUS glove's Universal Mount
+
+            Right glove
+
+Run the simulation
+^^^^^^^^^^^^^^^^^^
+
+Launch a teleoperation session paired with a hand-tracking task, as shown in
+:ref:`run-isaac-lab-with-the-cloudxr-runtime`:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra teleop isaaclab teleop run \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
 
 .. important::
 
    Manus gloves and other external push-device peripherals require
    ``NV_CXR_ENABLE_PUSH_DEVICES=1``. The shipped ``.env`` profiles set this to ``0``
-   (optimised for headset optical hand tracking). To use Manus gloves, create a custom
-   ``.env`` file with the value set to ``1`` and pass it via ``--cloudxr_env``:
+   (optimised for headset optical hand tracking). Create a custom ``.env`` file with the value set
+   to ``1`` and pass it via ``--cloudxr_env`` instead of the plain command above:
 
    .. tab-set::
 
@@ -610,29 +743,47 @@ the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task 
 
    See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
 
-.. note::
+Wait for **"Waiting for connection"** in the viewport status bar (or, running headless, for the
+CloudXR runtime to finish starting) before launching the plugin -- see
+:ref:`run-isaac-lab-with-the-cloudxr-runtime`.
 
-   Manus glove support has been migrated into Isaac Teleop as a native plugin. The previous
-   ``isaac-teleop-device-plugins`` repository and the ``libsurvive``-based Vive tracker integration
-   are no longer required.
+Start the plugin
+^^^^^^^^^^^^^^^^
 
-Requirements:
+Isaac Lab does not spawn the plugin for you. Once the sim is up and CloudXR is waiting for a
+connection, in a **separate terminal**, source the environment file the runtime writes on startup
+(this points the OpenXR loader at CloudXR) and start the plugin:
 
-* Manus gloves with a Manus SDK license
+.. code-block:: bash
 
-The Manus plugin is included in the ``isaacteleop`` package and activated automatically when
-configured in the environment's retargeting pipeline. Manus tracking data flows through the same
-API as headset-based optical hand tracking in Isaac Teleop, so the same retargeters and pipelines
-work with both input sources.
+   cd /path/to/IsaacTeleop
+   source ~/.cloudxr/run/cloudxr.env
+   ./install/plugins/manus/manus_hand_plugin
 
-For plugin configuration details, see the `Manus plugin documentation
-<https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_.
+By default the plugin enables human hand injection, flex-sensor push, and haptic read. Restrict
+datasets with ``--datasets=`` (comma-separated) -- see the `Manus plugin documentation`_ for
+details on each data path:
 
-The recommended workflow:
+.. code-block:: bash
 
-#. Start Isaac Lab and click **Start XR**.
+   ./install/plugins/manus/manus_hand_plugin --datasets=human,sensors,haptic
+   ./install/plugins/manus/manus_hand_plugin --datasets=human          # skeleton only
+
+Start teleoperation
+^^^^^^^^^^^^^^^^^^^
+
 #. Put on the Manus gloves and headset.
-#. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
+#. Connect the headset to Isaac Lab: for Meta Quest 3 / Pico 4 Ultra, follow the
+   :ref:`connection steps above <connect-quest-pico>`; for Apple Vision Pro, follow
+   :ref:`the Apple Vision Pro steps <use-apple-vision-pro>`. No additional pairing step is
+   required for the gloves once the headset is connected -- Manus tracking data replaces the
+   headset's own hand tracking on the same OpenXR path.
+#. Send the start command from the headset (Meta Quest 3 / Pico 4 Ultra: the CloudXR.js
+   **Connect** button; Apple Vision Pro: the **Play** button in the Isaac XR Teleop Sample
+   Client).
+
+Move your hands and the simulated follower will mirror the glove-tracked finger joints in real
+time.
 
 
 Run with Docker
@@ -752,3 +903,5 @@ For a fully headless experience, replace ``--visualizer kit`` with ``--visualize
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
 .. _`CloudXR.js`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
+.. _`Manus plugin documentation`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html
+.. _`Wrist Positioning -- Controllers vs Optical Hand Tracking`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking

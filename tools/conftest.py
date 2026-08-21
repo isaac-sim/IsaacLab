@@ -80,6 +80,58 @@ kill it.  The test results are taken from the report file (pass/fail), not
 from the kill.
 """
 
+EXIT_TESTS_FAILED = 1
+"""Exit code for a run that completed with at least one failing assertion."""
+
+EXIT_CRASHED = 20
+"""Exit code for a run where a test process died without writing its report."""
+
+EXIT_TIMEOUT = 21
+"""Exit code for a run where a test reached its hard timeout."""
+
+EXIT_STARTUP_HANG = 22
+"""Exit code for a run where a test never finished starting up."""
+
+EXIT_CODE_LABELS = {
+    0: "all tests passed",
+    EXIT_TESTS_FAILED: "test failures",
+    EXIT_CRASHED: "crashed process",
+    EXIT_TIMEOUT: "timeout",
+    EXIT_STARTUP_HANG: "startup hang",
+}
+"""Label for each exit code, printed with the result summary."""
+
+
+def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_startup_hang: int) -> int:
+    """Return the exit code for a finished run, based on how it failed.
+
+    A crashed process, a hang and a failing assertion have different owners, so
+    each reports its own code rather than a shared ``1``; the code alone is then
+    enough to route a red job.  When a run hits more than one, the code reports
+    the outcome that proved the least: a process that died never reached the
+    assertion a failing test did.  ``1`` still means failing assertions, so
+    callers that only check for a non-zero code are unaffected.
+
+    Args:
+        num_failing: Test files that ran and reported a failing assertion.
+        num_timeout: Test files killed at their hard timeout.
+        num_crashed: Test files whose process exited without writing a report.
+        num_startup_hang: Test files killed before startup finished.
+
+    Returns:
+        ``0`` when nothing failed, otherwise the code for the highest-precedence
+        mode present: crash, then timeout, then startup hang, then assertion.
+    """
+    if num_crashed:
+        return EXIT_CRASHED
+    if num_timeout:
+        return EXIT_TIMEOUT
+    if num_startup_hang:
+        return EXIT_STARTUP_HANG
+    if num_failing:
+        return EXIT_TESTS_FAILED
+    return 0
+
 
 def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
     """Run a command with timeout and capture all output while streaming in real-time.
@@ -577,9 +629,17 @@ def _retry_failed_test_in_fresh_process(
             with contextlib.suppress(FileNotFoundError):
                 os.remove(stale_file)
 
-        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+        (
+            returncode,
+            stdout_data,
+            stderr_data,
+            kill_reason,
+            retry_wall_time,
+            pre_kill_diag,
+        ) = capture_test_output_with_timeout(
             cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
         )
+        wall_time += retry_wall_time
         if not os.path.exists(report_file):
             # The attempt died before pytest wrote its report; the caller rebuilds the result from
             # this attempt's journal.
@@ -790,6 +850,7 @@ def _run_one_pass(
     # -- Run with retry on startup hang or hard timeout -----------------
     returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
     wall_time, pre_kill_diag = 0.0, ""
+    total_wall_time = 0.0
     startup_hang_attempts = 0
     timeout_attempts = 0
     while True:
@@ -802,6 +863,7 @@ def _run_one_pass(
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
             cmd, ctx.timeout, pass_env, startup_deadline=ctx.startup_deadline, report_file=report_file
         )
+        total_wall_time += wall_time
 
         has_report = os.path.exists(report_file)
 
@@ -841,6 +903,8 @@ def _run_one_pass(
             logger.info(diag)
             continue
         break
+
+    wall_time = total_wall_time
 
     # -- Resolve result from kill_reason and report file ----------------
     has_report = os.path.exists(report_file)
@@ -1531,6 +1595,9 @@ def pytest_sessionstart(session):
     summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
+    exit_code = resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang)
+    summary_str += f"Exit Code: {exit_code} ({EXIT_CODE_LABELS[exit_code]})\n"
+
     total_wall = sum(test_status[test_path]["wall_time"] for test_path in test_files)
     total_test = sum(test_status[test_path]["time_elapsed"] for test_path in test_files)
 
@@ -1547,7 +1614,4 @@ def pytest_sessionstart(session):
     logger.info(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit(
-        "Custom test execution completed",
-        returncode=0 if (num_failing == 0 and num_timeout == 0 and num_crashed == 0 and num_startup_hang == 0) else 1,
-    )
+    pytest.exit("Custom test execution completed", returncode=exit_code)

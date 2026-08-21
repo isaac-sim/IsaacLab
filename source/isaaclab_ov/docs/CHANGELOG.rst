@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
 2.1.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 

@@ -34,6 +34,7 @@ from .isaac_rtx_renderer_utils import (
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
 )
+from .visual_material import FabricVisualMaterialWriter
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,11 @@ class IsaacRtxRenderer(BaseRenderer):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    @property
+    def visual_material_writer(self):
+        """Write material channels directly through Fabric."""
+        return FabricVisualMaterialWriter
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
@@ -262,14 +268,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if settings.get("/isaaclab/has_gui"):
                 settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
+            unsupported = []
             if "albedo" in spec.cfg.data_types:
-                logger.warning(
-                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                )
-            if any(dt in SIMPLE_SHADING_MODES for dt in spec.cfg.data_types):
-                logger.warning(
-                    "Simple shading annotators are only supported in Isaac Sim 6.0+."
-                    " The simple shading data types will be ignored."
+                unsupported.append("albedo")
+            unsupported.extend(dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES)
+            if unsupported:
+                raise ValueError(
+                    "Isaac RTX renderer does not support the following requested data types in"
+                    " Isaac Sim versions before 6.0:"
+                    f" {unsupported}."
                 )
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation

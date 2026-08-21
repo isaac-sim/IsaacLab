@@ -13,9 +13,10 @@ Fixed
 Changed
 ^^^^^^^
 
-* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
   requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
-  ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and simple
-  shading additionally requires the render product to be in RTX Minimal mode, so one render product
-  cannot serve them. Previously the conflict was resolved silently and produced wrongly shaded or
-  empty images. Request the conflicting outputs from separate cameras.
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
