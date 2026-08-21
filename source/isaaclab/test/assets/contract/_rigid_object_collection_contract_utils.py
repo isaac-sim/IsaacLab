@@ -110,10 +110,12 @@ def create_physx_rigid_object_collection(
     object.__setattr__(collection, "_ALL_VIEW_INDICES", all_view_ids)
     object.__setattr__(collection, "_sim_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device=device))
     object.__setattr__(collection, "_sim_view_ids_views", {})
-    cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+    cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
     wp.copy(cpu_all_view_ids, all_view_ids)
     object.__setattr__(collection, "_cpu_all_view_ids", cpu_all_view_ids)
-    object.__setattr__(collection, "_cpu_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(
+        collection, "_cpu_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
+    )
     object.__setattr__(collection, "_cpu_view_ids_views", {})
 
     return collection, mock_view

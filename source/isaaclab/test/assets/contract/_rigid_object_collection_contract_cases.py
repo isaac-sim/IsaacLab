@@ -18,7 +18,7 @@ import pytest
 import torch
 import warp as wp
 from ._rigid_object_collection_contract_utils import BACKENDS, get_rigid_object_collection
-from .capabilities import backend_parameters
+from .capabilities import contract_backend
 
 pytestmark = pytest.mark.integration
 
@@ -60,21 +60,15 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 
 # Common parametrize decorators
-_backends = pytest.mark.parametrize("backend", backend_parameters("api"), indirect=False)
+_backends = contract_backend("api")
 _default_dims = pytest.mark.parametrize("num_instances", [2])
 
 _default_bodies = pytest.mark.parametrize("num_bodies", [3])
 
 _default_devices = pytest.mark.parametrize("device", ["cpu"])
-_index_resolution_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("index_resolution", names=("physx", "newton")), indirect=False
-)
-_reshape_3d_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("api"), indirect=False
-)
-_production_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("api"), indirect=False
-)
+_index_resolution_backends = contract_backend("index_resolution", names=("physx", "newton"))
+_reshape_3d_backends = contract_backend("data")
+_production_backends = contract_backend("api")
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +387,9 @@ class TestCollectionFinderReturnModes:
 # ---------------------------------------------------------------------------
 # Tests: Body state properties
 # ---------------------------------------------------------------------------
+
+
+_backends = contract_backend("data")
 
 
 class TestCollectionDataBodyState:
@@ -829,6 +826,9 @@ _BODY_POSE_METHODS = ["body_pose", "body_link_pose", "body_com_pose"]
 _BODY_VEL_METHODS = ["body_velocity", "body_com_velocity", "body_link_velocity"]
 
 
+_production_backends = contract_backend("data")
+
+
 class TestCollectionCacheInvalidation:
     @_production_backends
     def test_pose_write_invalidates_pose_dependent_caches(self, backend):
@@ -907,6 +907,9 @@ class TestCollectionCacheInvalidation:
         else:
             set_coms()
         _assert_buffers_stale(obj.data, buffers)
+
+
+_backends = contract_backend("writes")
 
 
 class TestCollectionWritersPose:
@@ -1250,6 +1253,9 @@ class TestCollectionWritersBody:
 # ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
+
+
+_backends = contract_backend("data")
 
 
 class TestCollectionDataAliases:

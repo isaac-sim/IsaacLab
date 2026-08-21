@@ -18,7 +18,7 @@ import pytest
 import torch
 import warp as wp
 from ._rigid_object_contract_utils import BACKENDS, get_rigid_object
-from .capabilities import backend_parameters
+from .capabilities import contract_backend
 
 pytestmark = pytest.mark.integration
 
@@ -46,16 +46,12 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 
 # Common parametrize decorators
-_backends = pytest.mark.parametrize("backend", backend_parameters("api"), indirect=False)
+_backends = contract_backend("api")
 _default_dims = pytest.mark.parametrize("num_instances", [2])
 
 _default_devices = pytest.mark.parametrize("device", ["cpu"])
-_index_resolution_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("index_resolution", names=("physx", "newton")), indirect=False
-)
-_production_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("api"), indirect=False
-)
+_index_resolution_backends = contract_backend("index_resolution", names=("physx", "newton"))
+_production_backends = contract_backend("api")
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +168,8 @@ class TestRigidObjectFinderReturnModes:
 # ---------------------------------------------------------------------------
 # Tests: RigidObjectData root state properties
 # ---------------------------------------------------------------------------
+
+_backends = contract_backend("data")
 
 
 class TestRigidObjectDataRootState:
@@ -744,6 +742,9 @@ _ROOT_POSE_METHODS = ["root_pose", "root_link_pose", "root_com_pose"]
 _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
 
+_production_backends = contract_backend("data")
+
+
 class TestRigidObjectCacheInvalidation:
     @_production_backends
     def test_pose_write_invalidates_pose_dependent_caches(self, backend):
@@ -822,6 +823,9 @@ class TestRigidObjectCacheInvalidation:
         else:
             set_coms()
         _assert_buffers_stale(obj.data, buffers)
+
+
+_backends = contract_backend("writes")
 
 
 class TestRigidObjectWritersRoot:
@@ -1094,6 +1098,9 @@ class TestRigidObjectWritersBody:
 # ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
+
+
+_backends = contract_backend("data")
 
 
 class TestRigidObjectDataAliases:

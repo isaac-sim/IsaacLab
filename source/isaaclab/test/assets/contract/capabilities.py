@@ -101,6 +101,18 @@ def backend_parameters(
     return parameters
 
 
+def contract_backend(capability: str, *, names: tuple[str, ...] | None = None) -> Callable:
+    """Parametrize a contract test with its explicit backend capability."""
+    parametrize = pytest.mark.parametrize("backend", backend_parameters(capability, names=names), indirect=False)
+
+    def decorator(test_function: Callable) -> Callable:
+        decorated = parametrize(test_function)
+        decorated.contract_backend_capability = capability
+        return decorated
+
+    return decorator
+
+
 def available_backends(capability: str) -> list[str]:
     """Return available backends that explicitly support a capability."""
     return [

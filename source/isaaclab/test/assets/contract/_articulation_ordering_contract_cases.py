@@ -14,6 +14,7 @@ import pytest
 import torch
 import warp as wp
 from ._articulation_contract_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
+from .capabilities import backend_parameters, contract_backend
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils.buffers import TimestampedBufferWarp
@@ -891,9 +892,10 @@ def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[s
 
 
 def _backend_param(backend: str, *values, **kwargs) -> ParameterSet:
-    """Build a backend parameter that skips unavailable plugins at collection time."""
+    """Build an ordering-capability parameter with optional additional values."""
+    declared_parameter = backend_parameters("ordering", names=(backend,))[0]
     marks = list(kwargs.pop("marks", ()))
-    marks.append(pytest.mark.skipif(backend not in BACKENDS, reason=_backend_unavailable_reason(backend)))
+    marks.extend(declared_parameter.marks)
     return pytest.param(backend, *values, marks=marks, **kwargs)
 
 
@@ -909,15 +911,9 @@ def _backend_unavailable_reason(backend: str) -> str:
 _requires_physx = pytest.mark.skipif("physx" not in BACKENDS, reason=_backend_unavailable_reason("physx"))
 _requires_ovphysx = pytest.mark.skipif("ovphysx" not in BACKENDS, reason=_backend_unavailable_reason("ovphysx"))
 _requires_newton = pytest.mark.skipif("newton" not in BACKENDS, reason=_backend_unavailable_reason("newton"))
-_all_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "ovphysx", "newton")], indirect=False
-)
-_physx_ovphysx_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "ovphysx")], indirect=False
-)
-_dynamics_ordering_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "newton")], indirect=False
-)
+_all_backends = contract_backend("ordering")
+_physx_ovphysx_backends = contract_backend("ordering", names=("physx", "ovphysx"))
+_dynamics_ordering_backends = contract_backend("ordering", names=("physx", "newton"))
 _non_mock_backends = _all_backends
 
 

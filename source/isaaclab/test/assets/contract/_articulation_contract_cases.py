@@ -20,7 +20,7 @@ import pytest
 import torch
 import warp as wp
 from ._articulation_contract_utils import BACKENDS, get_articulation
-from .capabilities import backend_parameters
+from .capabilities import backend_parameters, contract_backend
 
 pytestmark = pytest.mark.integration
 
@@ -59,8 +59,8 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 
 
-# Common parametrize decorator for all interface tests
-_backends = pytest.mark.parametrize("backend", backend_parameters("api"), indirect=False)
+# Common parametrize decorator for API contracts.
+_backends = contract_backend("api")
 # We also need to provide the fixture params that articulation_iface reads:
 _default_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies",
@@ -68,12 +68,8 @@ _default_dims = pytest.mark.parametrize(
 )
 
 _default_devices = pytest.mark.parametrize("device", ["cpu"])
-_index_resolution_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("index_resolution", names=("physx", "newton")), indirect=False
-)
-_production_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("api"), indirect=False
-)
+_index_resolution_backends = contract_backend("index_resolution", names=("physx", "newton"))
+_production_backends = contract_backend("api")
 
 
 # ---------------------------------------------------------------------------
@@ -275,9 +271,7 @@ class TestArticulationFinderReturnModes:
 # ---------------------------------------------------------------------------
 
 
-_non_mock_backends = pytest.mark.parametrize(
-    "backend", backend_parameters("api"), indirect=False
-)
+_non_mock_backends = contract_backend("api")
 
 
 class TestResolveMatchingNamesCache:
@@ -341,6 +335,8 @@ class TestResolveMatchingNamesCache:
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData root state properties
 # ---------------------------------------------------------------------------
+
+_backends = contract_backend("data")
 
 
 class TestArticulationDataRootState:
@@ -1331,6 +1327,9 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 # Tests: Root writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------
 
+_backends = contract_backend("writes")
+_production_backends = contract_backend("writes")
+
 _ROOT_POSE_METHODS = ["root_pose", "root_link_pose", "root_com_pose"]
 _ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
 
@@ -1908,6 +1907,8 @@ class TestArticulationWritersBody:
 # Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
 
+_backends = contract_backend("data")
+
 
 class TestArticulationDataAliases:
     """Test that alias properties return the same shape/dtype as their canonical counterparts."""
@@ -1962,8 +1963,9 @@ class TestArticulationDataAliases:
 # Tendon tests — parametrize, properties, finders, data, writers
 # ---------------------------------------------------------------------------
 
-# Spatial tendon behavior is selected through the explicit backend capability declaration.
-_tendon_backends = pytest.mark.parametrize("backend", backend_parameters("spatial_tendons"), indirect=False)
+# Fixed and spatial tendon behavior have distinct backend capability declarations.
+_tendon_backends = contract_backend("fixed_tendons")
+_spatial_tendon_backends = contract_backend("spatial_tendons")
 
 _tendon_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons",
@@ -1994,7 +1996,7 @@ class TestArticulationTendonProperties:
         art, _ = articulation_iface
         assert art.num_fixed_tendons == num_fixed_tendons
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_num_spatial_tendons(
@@ -2031,7 +2033,7 @@ class TestArticulationTendonProperties:
         assert len(names) == num_fixed_tendons
         assert all(isinstance(n, str) for n in names)
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_names(
@@ -2101,7 +2103,7 @@ class TestArticulationTendonFinders:
         assert indices == [0]
         assert names == [first]
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_find_spatial_tendons_all(
@@ -2123,7 +2125,7 @@ class TestArticulationTendonFinders:
         assert len(indices) == num_spatial_tendons
         assert len(names) == num_spatial_tendons
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_find_spatial_tendons_single(
@@ -2211,6 +2213,8 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton does not implement fixed-tendon limit stiffness")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -2234,6 +2238,8 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton does not implement fixed-tendon rest length")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -2257,6 +2263,8 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton does not implement fixed-tendon offset")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         _check_proxy_array(
@@ -2280,6 +2288,8 @@ class TestArticulationDataTendonState:
         device,
         articulation_iface,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton does not expose fixed-tendon position limits")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
         from isaaclab.utils.warp import ProxyArray
@@ -2297,7 +2307,7 @@ class TestArticulationDataTendonState:
 
     # -- Spatial tendon data properties --
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_stiffness(
@@ -2322,7 +2332,7 @@ class TestArticulationDataTendonState:
             name="spatial_tendon_stiffness",
         )
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_damping(
@@ -2347,7 +2357,7 @@ class TestArticulationDataTendonState:
             name="spatial_tendon_damping",
         )
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_limit_stiffness(
@@ -2372,7 +2382,7 @@ class TestArticulationDataTendonState:
             name="spatial_tendon_limit_stiffness",
         )
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_spatial_tendon_offset(
@@ -2441,6 +2451,8 @@ class TestArticulationWritersFixedTendon:
         wp_dtype,
         accepts_float,
     ):
+        if backend == "newton" and method_base not in {"set_fixed_tendon_stiffness", "set_fixed_tendon_damping"}:
+            pytest.xfail(f"Newton does not implement {method_base}")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2506,6 +2518,8 @@ class TestArticulationWritersFixedTendon:
         wp_dtype,
         accepts_float,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton fixed-tendon mask writers are not implemented")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2559,7 +2573,7 @@ _SPATIAL_TENDON_METHODS = [
 class TestArticulationWritersSpatialTendon:
     """Test spatial tendon writers/setters with all input combinations."""
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -2620,7 +2634,7 @@ class TestArticulationWritersSpatialTendon:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_bad_data_warp((num_instances, num_spatial_tendons), device, wp_dtype)})
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     @pytest.mark.parametrize(
@@ -2703,6 +2717,8 @@ class TestArticulationWritersTendonToSim:
         device,
         articulation_iface,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton fixed-tendon write-to-sim does not resolve a default environment selector")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2727,6 +2743,8 @@ class TestArticulationWritersTendonToSim:
         device,
         articulation_iface,
     ):
+        if backend == "newton":
+            pytest.xfail("Newton fixed-tendon mask write-to-sim is not implemented")
         art, _ = articulation_iface
         if num_fixed_tendons == 0:
             pytest.skip("No fixed tendons configured")
@@ -2737,7 +2755,7 @@ class TestArticulationWritersTendonToSim:
         art.write_fixed_tendon_properties_to_sim_mask(env_mask=_make_env_mask(num_instances, device, True))
         art.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=_make_item_mask(num_fixed_tendons, [0], device))
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_write_spatial_tendon_properties_to_sim_index(
@@ -2763,7 +2781,7 @@ class TestArticulationWritersTendonToSim:
             spatial_tendon_ids=wp.array([0], dtype=wp.int64, device=device)
         )
 
-    @_tendon_backends
+    @_spatial_tendon_backends
     @_tendon_dims
     @_default_devices
     def test_write_spatial_tendon_properties_to_sim_mask(
