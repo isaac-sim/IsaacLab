@@ -2216,17 +2216,7 @@ def rendering_test_franka_soft(
         env = ManagerBasedRLEnv(env_cfg)
         env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
-        if "motion_vectors" in data_types:
-            # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
-            arm_action = env.action_manager.get_term("arm_action")
-            ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
-            ee_pos_curr[0] += 0.05
-
-            actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-            actions[:, 0:3] = ee_pos_curr
-            actions[:, 3:7] = ee_quat_curr
-
-            env.step(actions)
+        maybe_step_env_for_motion(env, renderer, _motion_data_type(data_types), action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
