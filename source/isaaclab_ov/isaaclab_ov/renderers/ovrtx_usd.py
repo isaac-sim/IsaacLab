@@ -325,35 +325,14 @@ def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[
     return prim_paths
 
 
-def _set_prims_active_on_layer(layer: Sdf.Layer, prim_paths: list[Sdf.Path], active: bool) -> None:
-    """Activate or deactivate prims on the given layer.
-
-    Args:
-        layer: Layer to modify the prims on.
-        prim_paths: Paths of prims to activate or deactivate.
-        active: Whether to activate or deactivate the prims.
-    """
-    action_str = "Activated" if active else "Deactivated"
-
-    with Sdf.ChangeBlock():
-        for prim_path in prim_paths:
-            # If a prim already exists at the given path it will be returned unmodified.
-            prim_spec = Sdf.CreatePrimInLayer(layer, prim_path)
-            prim_spec.active = active
-            logger.debug("%s prim: %s", action_str, prim_path)
-
-    logger.info("%s %d prims in total", action_str, len(prim_paths))
-
-
 def export_stage_to_string(
     stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
 ) -> str:
     """Export the USD stage as a USDA string for OVRTX loading.
 
     When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives
-    only the prototype geometry it replicates at clone time. Non-source env descendants are temporarily deactivated
-    on the root layer during export and restored afterwards; ``stage.ExportToString`` re-composes the stage, so
-    deactivated prims drop out of the exported text and their paths are absent when the clone path repopulates them.
+    only the prototype geometry it replicates at clone time. Non-source env descendants are deactivated on an
+    anonymous session layer used only for export, so the input stage remains unchanged.
 
     When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
     active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
@@ -373,8 +352,11 @@ def export_stage_to_string(
     if num_envs <= 1:
         return stage.ExportToString()
 
+    export_session = Sdf.Layer.CreateAnonymous()
+    export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
+    export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     envs_path = Sdf.Path("/World/envs")
-    envs_prim = stage.GetPrimAtPath(envs_path)
+    envs_prim = export_stage.GetPrimAtPath(envs_path)
     if not envs_prim.IsValid():
         raise RuntimeError(f"Failed to get prim at path: {envs_path}")
 
@@ -391,13 +373,9 @@ def export_stage_to_string(
         # Ovstage code path: strip env roots, their xforms are queried beforehand.
         prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
 
-    root_layer = stage.GetRootLayer()
-
-    # Temporarily deactivate the prims so that the stage is exported without them.
-    _set_prims_active_on_layer(root_layer, prim_paths, active=False)
-
-    try:
-        return stage.ExportToString()
-    finally:
-        # Restore the active state of the prims.
-        _set_prims_active_on_layer(root_layer, prim_paths, active=True)
+    with Sdf.ChangeBlock():
+        for prim_path in prim_paths:
+            Sdf.CreatePrimInLayer(export_session, prim_path).active = False
+            logger.debug("Deactivated prim: %s", prim_path)
+    logger.info("Deactivated %d prims in total", len(prim_paths))
+    return export_stage.ExportToString()

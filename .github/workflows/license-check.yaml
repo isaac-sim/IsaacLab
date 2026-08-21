@@ -61,12 +61,8 @@ jobs:
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
       run: |
-        # ``all`` covers every backend (Isaac Sim included), RL library, and visualizer.
-        # ``rlinf`` and ``mimic`` are outside ``all``, so name them to keep them scanned.
-        # No extras conflict, so this is a single resolution -- Isaac Sim no longer needs
-        # an imperative install after the sync.
         bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
-          uv sync --extra all --extra test --extra rlinf --extra mimic
+          uv sync --extra all --extra isaacsim --extra test --extra rlinf --extra mimic
         # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
         # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
         # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license

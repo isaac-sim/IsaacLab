@@ -19,6 +19,7 @@ from isaaclab.cli.utils import (
     extract_python_exe,
     get_pip_command,
     run_command,
+    run_python_command,
 )
 
 pytestmark = pytest.mark.unit
@@ -59,6 +60,47 @@ def test_run_command_retries_a_failed_process():
     assert result is success
     assert subprocess_run.call_count == 2
     sleep.assert_called_once_with(3.0)
+
+
+def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
+    """Direct uv launches must combine the live source build with the active Python."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    python_launcher = local_sim / "python.sh"
+    python_launcher.touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {}, clear=True),
+    ):
+        run_python_command("train.py", ["--task", "Cartpole"])
+
+    command = run.call_args.args[0]
+    assert command[0] == str(python_launcher)
+    assert Path(command[1]).name == "train.py"
+    assert command[2:] == ["--task", "Cartpole"]
+    assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
+
+
+def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
+    """The legacy wrapper path must not source the same Isaac Sim environment twice."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"ISAAC_PATH": str(local_sim)}, clear=True),
+    ):
+        run_python_command("script.py", [])
+
+    assert run.call_args.args[0] == [active_python, "script.py"]
 
 
 # ---------------------------------------------------------------------------

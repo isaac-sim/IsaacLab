@@ -31,6 +31,11 @@ Command Builder
            <span>--task</span>
            <select data-environment-field="task" aria-label="Task"></select>
          </label>
+         <div class="environment-scope-switch" role="group" aria-label="Task collection">
+           <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
+           <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
+           <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
+         </div>
        </div>
        <div class="environment-command-row environment-command-row-options">
          <label class="environment-selector environment-selector-physics">
@@ -50,6 +55,11 @@ Command Builder
            <span>Use Pre-trained Checkpoint</span>
          </label>
        </div>
+       <p class="environment-non-rl-note" data-non-rl-note role="status" hidden>
+         <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+         This environment does not support RL training or playback. The command runs it with the
+         zero-action agent instead.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">
@@ -135,7 +145,6 @@ Available Tasks
            <option value="classic">Classic control</option>
            <option value="manipulation">Manipulation</option>
            <option value="locomotion">Locomotion</option>
-           <option value="contrib">Contrib</option>
          </select>
        </label>
        <span class="environment-task-count" data-task-count></span>
