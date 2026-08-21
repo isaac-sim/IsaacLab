@@ -137,11 +137,7 @@ class JointPositionToLimitsAction(ActionTerm):
         self._IO_descriptor.action_type = "JointAction"
         self._IO_descriptor.joint_names = self._joint_names
         self._IO_descriptor.scale = self._scale
-        # This seems to be always [4xNum_joints] IDK why. Need to check.
-        if isinstance(self._offset, torch.Tensor):
-            self._IO_descriptor.offset = self._offset[0].detach().cpu().numpy().tolist()
-        else:
-            self._IO_descriptor.offset = self._offset
+        self._IO_descriptor.offset = 0.0
         if self.cfg.clip is not None:
             self._IO_descriptor.clip = self._clip
         else:
