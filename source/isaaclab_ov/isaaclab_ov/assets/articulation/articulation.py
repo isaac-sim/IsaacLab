@@ -12,7 +12,6 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import Any
 
 import numpy as np
 import torch
@@ -21,6 +20,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -40,6 +40,7 @@ from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
+from .actuator_control import OvPhysxActuatorControl
 from .articulation_data import ArticulationData
 from .kernels import (
     clamp_default_joint_pos_and_update_soft_limits_index_kernel,
@@ -217,6 +218,9 @@ class Articulation(BaseArticulation):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
+        # reset actuators, including backend-native actuator state. None selects all
+        # environments; delayed-actuator buffers do not accept a slice.
+        self.actuators.reset(None if env_ids == slice(None) else env_ids)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -262,56 +266,9 @@ class Articulation(BaseArticulation):
             if inst.active:
                 inst.reset()
 
-        # apply actuator models
-        self._apply_actuator_model()
-        # write actions into simulation (zeros are safe when no actuators are active).
-        # ``_applied_torque`` is the actuator-computed output (may differ from the raw
-        # commanded target, e.g. once clipped), so it must be reordered into its own
-        # scratch buffer rather than ``_joint_effort_target_backend``. The latter is the
-        # persistent mirror of the raw target that partial writes rely on for their
-        # unselected joints (see ``set_joint_effort_target_index``/``_mask``).
-        write_effort = self._can_write_effort
-        # position and velocity targets only for implicit actuators
-        write_pos = self._has_implicit_actuators and self._can_write_pos_target
-        write_vel = self._has_implicit_actuators and self._can_write_vel_target
-        if self.data.has_joint_ordering:
-            if write_effort or write_pos or write_vel:
-                # One fused gather replaces the per-target reorder launches. The
-                # fourth joint-acceleration output is disabled.
-                wp.launch(
-                    ordering_kernels.reorder_joint_targets_user_to_backend,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[
-                        self._data._applied_torque,
-                        self._data._joint_pos_target,
-                        self._data._joint_vel_target,
-                        self.data.joint_ordering.backend_to_user,
-                        write_effort,
-                        write_pos,
-                        write_vel,
-                        False,
-                    ],
-                    outputs=[
-                        self._applied_torque_backend,
-                        self._joint_pos_target_backend,
-                        self._joint_vel_target_backend,
-                        None,
-                    ],
-                    device=self._device,
-                )
-            effort = self._applied_torque_backend
-            pos_target = self._joint_pos_target_backend
-            vel_target = self._joint_vel_target_backend
-        else:
-            effort = self._data._applied_torque
-            pos_target = self._data._joint_pos_target
-            vel_target = self._data._joint_vel_target
-        if write_effort:
-            self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
-        if write_pos:
-            self._root_view.set_attribute(TT.DOF_POSITION_TARGET, pos_target)
-        if write_vel:
-            self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, vel_target)
+        # apply actuator models and submit processed commands.
+        self.actuators.compute(OvPhysxManager.get_physics_dt())
+        self.actuators.submit_commands()
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -2716,302 +2673,6 @@ class Articulation(BaseArticulation):
         )
         self._data._reset_dynamics(mass_matrix=True)
 
-    def _write_joint_target(
-        self,
-        target: torch.Tensor | wp.array,
-        *,
-        user_buffer: wp.array,
-        backend_buffer: wp.array | None,
-        tensor_type: TT.TensorType,
-        env_sel: Sequence[int] | torch.Tensor | wp.array | None,
-        joint_sel: Sequence[int] | torch.Tensor | wp.array | None,
-        use_mask: bool,
-    ) -> None:
-        """Write a joint target into the public buffer and push it to the backend binding.
-
-        Shared implementation behind the six
-        ``set_joint_{position,velocity,effort}_target_{index,mask}`` setters. The public-order
-        target is always written to :paramref:`user_buffer`; under a non-identity joint ordering the
-        value is additionally scattered into :paramref:`backend_buffer` (backend-order staging), and
-        that staging buffer is the one pushed to the simulation. Otherwise :paramref:`user_buffer` is
-        pushed directly.
-
-        Args:
-            target: Joint targets [m, rad, m/s, rad/s, N, or N·m, depending on the setter and joint
-                type]. Shape is (len(env_ids), len(joint_ids)) for index selection or
-                (num_instances, num_joints) for mask selection, with dtype wp.float32.
-            user_buffer: Public-order destination buffer for the target.
-            backend_buffer: Backend-order staging destination, or None when the joint ordering is
-                identity. It is guaranteed non-None while a non-identity joint ordering is active
-                because :meth:`_ordering_configure_backend_staging` allocates it during
-                initialization.
-            tensor_type: Backend binding key the target is pushed to.
-            env_sel: Environment indices (index selection) or mask (mask selection). None selects all.
-            joint_sel: Joint indices (index selection) or mask (mask selection). None selects all.
-            use_mask: Whether :paramref:`env_sel` and :paramref:`joint_sel` are masks (True) or
-                indices (False).
-
-        """
-        if use_mask:
-            env_sel = self._resolve_env_mask(env_sel)
-            joint_sel = self._resolve_joint_mask(joint_sel)
-            self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        else:
-            env_sel = self._resolve_env_ids(env_sel)
-            joint_sel = self._resolve_joint_ids(joint_sel)
-            self.assert_shape_and_dtype(target, (env_sel.shape[0], joint_sel.shape[0]), wp.float32, "target")
-            if env_sel.shape[0] == 0 or joint_sel.shape[0] == 0:
-                return
-        # Under a non-identity ordering the backend staging receives the reordered copy and is the
-        # buffer pushed to the binding; the identity case writes and pushes the public buffer.
-        has_joint_ordering = self.data.has_joint_ordering
-        if has_joint_ordering:
-            target_backend = backend_buffer
-        else:
-            target_backend = user_buffer
-        if use_mask:
-            ordering_kernels.write_float_user_to_backend_with_mask(
-                target,
-                env_sel,
-                joint_sel,
-                self._joint_user_to_backend_map(),
-                has_joint_ordering,
-                user_buffer,
-                target_backend,
-                device=self._device,
-            )
-            self._root_view.set_attribute(tensor_type, target_backend, mask=env_sel)
-        else:
-            sim_env_ids = self._sim_env_ids_view(env_sel.shape[0])
-            ordering_kernels.write_float_user_to_backend_with_indices_and_sim_ids(
-                target,
-                env_sel,
-                joint_sel,
-                self._joint_user_to_backend_map(),
-                has_joint_ordering,
-                False,
-                user_buffer,
-                target_backend,
-                sim_env_ids,
-                device=self._device,
-            )
-            self._root_view.set_attribute(
-                tensor_type, target_backend, indices=self._get_sim_env_ids(env_sel, sim_env_ids)
-            )
-
-    def set_joint_position_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set joint position targets into internal buffers using indices.
-
-        This function does not apply the joint targets to the simulation.  It only fills the
-        buffers with the desired values.  To apply the joint targets, call
-        :meth:`write_data_to_sim`.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations.
-            Performance is similar for both.  However, to allow graphed pipelines, the
-            mask method must be used.
-
-        Args:
-            target: Joint position targets [m or rad, depending on joint type].  Shape is
-                (len(env_ids), len(joint_ids)) with dtype wp.float32.
-            joint_ids: Joint indices.  Defaults to None (all joints).
-            env_ids: Environment indices.  Defaults to None (all environments).
-        """
-        self._write_joint_target(
-            target,
-            user_buffer=self._data._joint_pos_target,
-            backend_buffer=self._joint_pos_target_backend,
-            tensor_type=TT.DOF_POSITION_TARGET,
-            env_sel=env_ids,
-            joint_sel=joint_ids,
-            use_mask=False,
-        )
-
-    def set_joint_position_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set joint position targets into internal buffers using masks.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations.
-            Performance is similar for both.  However, to allow graphed pipelines, the
-            mask method must be used.
-
-        Args:
-            target: Joint position targets [m or rad, depending on joint type].  Shape is
-                (num_instances, num_joints) with dtype wp.float32.
-            joint_mask: Joint mask.  If None, all joints are updated.  Shape is (num_joints,).
-            env_mask: Environment mask.  If None, all instances are updated.  Shape is
-                (num_instances,).
-        """
-        self._write_joint_target(
-            target,
-            user_buffer=self._data._joint_pos_target,
-            backend_buffer=self._joint_pos_target_backend,
-            tensor_type=TT.DOF_POSITION_TARGET,
-            env_sel=env_mask,
-            joint_sel=joint_mask,
-            use_mask=True,
-        )
-
-    def set_joint_velocity_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set joint velocity targets into internal buffers using indices.
-
-        This function does not apply the joint targets to the simulation.  It only fills the
-        buffers with the desired values.  To apply the joint targets, call
-        :meth:`write_data_to_sim`.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations.
-            Performance is similar for both.  However, to allow graphed pipelines, the
-            mask method must be used.
-
-        Args:
-            target: Joint velocity targets [m/s or rad/s, depending on joint type].  Shape is
-                (len(env_ids), len(joint_ids)) with dtype wp.float32.
-            joint_ids: Joint indices.  Defaults to None (all joints).
-            env_ids: Environment indices.  Defaults to None (all environments).
-        """
-        self._write_joint_target(
-            target,
-            user_buffer=self._data._joint_vel_target,
-            backend_buffer=self._joint_vel_target_backend,
-            tensor_type=TT.DOF_VELOCITY_TARGET,
-            env_sel=env_ids,
-            joint_sel=joint_ids,
-            use_mask=False,
-        )
-
-    def set_joint_velocity_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set joint velocity targets into internal buffers using masks.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations.
-            Performance is similar for both.  However, to allow graphed pipelines, the
-            mask method must be used.
-
-        Args:
-            target: Joint velocity targets [m/s or rad/s, depending on joint type].  Shape is
-                (num_instances, num_joints) with dtype wp.float32.
-            joint_mask: Joint mask.  If None, all joints are updated.  Shape is (num_joints,).
-            env_mask: Environment mask.  If None, all instances are updated.  Shape is
-                (num_instances,).
-        """
-        self._write_joint_target(
-            target,
-            user_buffer=self._data._joint_vel_target,
-            backend_buffer=self._joint_vel_target_backend,
-            tensor_type=TT.DOF_VELOCITY_TARGET,
-            env_sel=env_mask,
-            joint_sel=joint_mask,
-            use_mask=True,
-        )
-
-    def set_joint_effort_target_index(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set joint effort targets into internal buffers using indices.
-
-        This function does not apply the joint targets to the simulation.  It only fills the
-        buffers with the desired values.  To apply the joint targets, call
-        :meth:`write_data_to_sim`.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations.
-            Performance is similar for both.  However, to allow graphed pipelines, the
-            mask method must be used.
-
-        Args:
-            target: Joint effort targets [N or N·m, depending on joint type].  Shape is
-                (len(env_ids), len(joint_ids)) with dtype wp.float32.
-            joint_ids: Joint indices.  Defaults to None (all joints).
-            env_ids: Environment indices.  Defaults to None (all environments).
-        """
-        self._write_joint_target(
-            target,
-            user_buffer=self._data._joint_effort_target,
-            backend_buffer=self._joint_effort_target_backend,
-            tensor_type=TT.DOF_ACTUATION_FORCE,
-            env_sel=env_ids,
-            joint_sel=joint_ids,
-            use_mask=False,
-        )
-
-    def set_joint_effort_target_mask(
-        self,
-        *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set joint effort targets into internal buffers using masks.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations.
-            Performance is similar for both.  However, to allow graphed pipelines, the
-            mask method must be used.
-
-        Args:
-            target: Joint effort targets [N or N·m, depending on joint type].  Shape is
-                (num_instances, num_joints) with dtype wp.float32.
-            joint_mask: Joint mask.  If None, all joints are updated.  Shape is (num_joints,).
-            env_mask: Environment mask.  If None, all instances are updated.  Shape is
-                (num_instances,).
-        """
-        self._write_joint_target(
-            target,
-            user_buffer=self._data._joint_effort_target,
-            backend_buffer=self._joint_effort_target_backend,
-            tensor_type=TT.DOF_ACTUATION_FORCE,
-            env_sel=env_mask,
-            joint_sel=joint_mask,
-            use_mask=True,
-        )
-
     """
     Operations - Tendons.
     """
@@ -4275,7 +3936,7 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
         self._joint_effort_target_backend: wp.array | None = None
-        self._applied_torque_backend: wp.array | None = None
+        self._applied_effort_backend: wp.array | None = None
         self._ordering_configure_backend_staging()
 
         # All-true masks.
@@ -4293,10 +3954,6 @@ class Articulation(BaseArticulation):
         # Wrench composers.
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
-
-        # Wrench scratch buffer (used by _apply_external_wrenches, not yet allocated above).
-        # Joint-index arrays for each actuator (populated by _process_actuators_cfg).
-        self._joint_ids_per_actuator: dict[str, slice | torch.Tensor] = {}
 
         # Pinned-host CPU staging for env ids/masks (PR #5329 pattern).
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
@@ -4471,17 +4128,18 @@ class Articulation(BaseArticulation):
         "_joint_pos_target_backend",
         "_joint_vel_target_backend",
         "_joint_effort_target_backend",
-        "_applied_torque_backend",
+        "_applied_effort_backend",
     )
     """Backend-order joint staging buffers managed by :meth:`_ordering_configure_backend_staging`.
 
     ``_joint_pos_target_backend`` / ``_joint_vel_target_backend`` / ``_joint_effort_target_backend``
     are persistent backend-order mirrors of the corresponding user-order target buffers, kept
-    current by the partial :meth:`set_joint_position_target_index`-style setters.
-    ``_applied_torque_backend`` is separate, purely transient scratch: :meth:`write_data_to_sim`
-    fully overwrites it every step with the backend-order actuator output, so it must not alias
-    ``_joint_effort_target_backend`` (whose unselected rows a partial effort-target write relies
-    on to still hold the persisted target, not the last pushed applied torque).
+    current by :meth:`OvPhysxActuatorControl.stage_user_command` whenever a user setter runs.
+    ``_applied_effort_backend`` is separate, purely transient scratch:
+    :meth:`OvPhysxActuatorControl.submit_commands` fully overwrites it every step with the
+    backend-order actuator output, so it must not alias ``_joint_effort_target_backend`` (whose
+    unselected rows a partial effort-target write relies on to still hold the persisted target,
+    not the last pushed applied torque).
     """
 
     """
@@ -4489,115 +4147,17 @@ class Articulation(BaseArticulation):
     """
 
     def _process_actuators_cfg(self) -> None:
-        """Build actuator instances from the config and write drive properties to PhysX.
-
-        Mirrors the PhysX backend's ``_process_actuators_cfg``:
-
-        * For :class:`~isaaclab.actuators.ImplicitActuator`: write the configured
-          stiffness/damping to the PhysX drive so the solver uses exactly those values.
-        * For all explicit actuators: zero out PhysX stiffness/damping so USD-authored
-          drive gains cannot interfere with the explicit torque path.
-        * For all actuators: write :attr:`~isaaclab.actuators.ActuatorBase.effort_limit_sim`
-          and :attr:`~isaaclab.actuators.ActuatorBase.velocity_limit_sim`.
-        """
-        from isaaclab.actuators import ImplicitActuator
-
-        self.actuators: dict[str, Any] = {}
-        self._has_implicit_actuators = False
-        for name, act_cfg in self.cfg.actuators.items():
-            joint_ids, joint_names = self.find_joints(act_cfg.joint_names_expr, as_proxy=True)
-            if not joint_names:
-                logger.warning("Actuator '%s': no joints matched '%s'", name, act_cfg.joint_names_expr)
-                continue
-            actuator_joint_ids = slice(None) if joint_names == self.joint_names else joint_ids.torch
-            torch_joint_ids = actuator_joint_ids
-            act_cfg_copy = act_cfg.copy()
-            # seed the actuator with the simulation's already-correct DOF defaults
-            # (USD-authored ``physxJoint:maxJointVelocity`` etc. parsed at scene-load).
-            # Without these the ActuatorBase constructor falls back to ``inf`` for unset
-            # cfg fields, and the ``write_joint_*_to_sim_index`` calls below then
-            # overwrite the correct values with ``inf``.
-            act = act_cfg_copy.class_type(
-                act_cfg_copy,
-                joint_names=joint_names,
-                joint_ids=actuator_joint_ids,
-                num_envs=self._num_instances,
-                device=self._device,
-                stiffness=self._data.joint_stiffness.torch[:, torch_joint_ids],
-                damping=self._data.joint_damping.torch[:, torch_joint_ids],
-                armature=self._data.joint_armature.torch[:, torch_joint_ids],
-                friction=self._data.joint_friction_coeff.torch[:, torch_joint_ids],
-                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, torch_joint_ids],
-                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, torch_joint_ids],
-                effort_limit=self._data.joint_effort_limits.torch[:, torch_joint_ids].clone(),
-                velocity_limit=self._data.joint_vel_limits.torch[:, torch_joint_ids],
-            )
-            self.actuators[name] = act
-            self._joint_ids_per_actuator[name] = actuator_joint_ids
-
-            # Write drive gains and limits to PhysX to match the actuator config.
-            # Without this, PhysX retains whatever stiffness/damping was authored in the
-            # USD file, which can produce large restoring forces when the USD gains differ
-            # from the actuator config.
-            if isinstance(act, ImplicitActuator):
-                self._has_implicit_actuators = True
-                stiffness = act.stiffness  # torch (N, J)
-                damping = act.damping  # torch (N, J)
-            else:
-                stiffness = wp.zeros((self._num_instances, len(joint_names)), dtype=wp.float32, device=self._device)
-                damping = wp.zeros((self._num_instances, len(joint_names)), dtype=wp.float32, device=self._device)
-            self.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=actuator_joint_ids)
-            self.write_joint_damping_to_sim_index(damping=damping, joint_ids=actuator_joint_ids)
-            self.write_joint_effort_limit_to_sim_index(limits=act.effort_limit_sim, joint_ids=actuator_joint_ids)
-            self.write_joint_velocity_limit_to_sim_index(limits=act.velocity_limit_sim, joint_ids=actuator_joint_ids)
-
-    def _apply_actuator_model(self) -> None:
-        """Run the actuator model to compute joint torques from user-supplied targets.
-
-        IsaacLab actuators are torch-based. The method converts Warp buffers to
-        torch via DLPack (zero-copy on GPU), runs each actuator's
-        :meth:`~isaaclab.actuators.ActuatorBase.compute` method, then writes the
-        computed effort back to the private ``_computed_torque`` / ``_applied_torque``
-        buffers of the data container. :meth:`write_data_to_sim` then pushes
-        ``_applied_torque`` to the ``DOF_ACTUATION_FORCE`` binding in one shot.
-        """
-        from isaaclab.utils.types import ArticulationActions
-
-        for name, act in self.actuators.items():
-            joint_ids = self._joint_ids_per_actuator[name]
-            all_joints = isinstance(joint_ids, slice)
-            torch_joint_ids = joint_ids
-
-            # Warp -> torch (zero-copy on same device via DLPack).
-            jp_target_full = self._data.joint_pos_target.torch
-            jv_target_full = self._data.joint_vel_target.torch
-            je_target_full = self._data.joint_effort_target.torch
-            jp_target = jp_target_full if all_joints else jp_target_full[:, torch_joint_ids]
-            jv_target = jv_target_full if all_joints else jv_target_full[:, torch_joint_ids]
-            je_target = je_target_full if all_joints else je_target_full[:, torch_joint_ids]
-
-            control_action = ArticulationActions(
-                joint_positions=jp_target,
-                joint_velocities=jv_target,
-                joint_efforts=je_target,
-            )
-
-            jp_cur_full = self._data.joint_pos.torch
-            jv_cur_full = self._data.joint_vel.torch
-            jp_cur = jp_cur_full if all_joints else jp_cur_full[:, torch_joint_ids]
-            jv_cur = jv_cur_full if all_joints else jv_cur_full[:, torch_joint_ids]
-
-            control_action = act.compute(control_action, jp_cur, jv_cur)
-
-            if act.computed_effort is not None:
-                ct = wp.to_torch(self._data._computed_torque)
-                at = wp.to_torch(self._data._applied_torque)
-                if all_joints:
-                    ct[:] = act.computed_effort
-                    at[:] = act.applied_effort
-                else:
-                    ct[:, torch_joint_ids] = act.computed_effort
-                    at[:, torch_joint_ids] = act.applied_effort
+        """Build actuator instances and delegate runtime ownership to the collection."""
+        self._actuator_control = OvPhysxActuatorControl(self)
+        self.actuators = ActuatorCollection(
+            self.cfg.actuators,
+            self._actuator_control,
+            debug_value_resolution=self.cfg.actuator_value_resolution_debug_print,
+        )
+        self._has_implicit_actuators = self.actuators.has_implicit_actuators
+        self._has_newton_actuators = self._actuator_control.native_actuator_path_active
+        self._physx_actuator_wrapper = self._actuator_control._physx_actuator_wrapper
+        self._data.bind_actuator_collection(self.actuators)
 
     """
     Internal helpers -- Debugging.

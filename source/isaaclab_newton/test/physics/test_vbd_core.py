@@ -137,6 +137,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     monkeypatch.setattr(newton_module, "get_current_stage", lambda: stage)
     monkeypatch.setattr(pxr, "UsdGeom", usd_geom)
     monkeypatch.setattr(newton_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
+    monkeypatch.setattr(newton_module, "import_builder_visual_material_paths", lambda *args: None)
     monkeypatch.setattr(newton_module, "replace_newton_builder_shape_colors", lambda *args: None)
     monkeypatch.setattr(newton_module, "replicate_builder_mapping", replicate)
     monkeypatch.setattr(physics.NewtonVBDManager, "create_builder", classmethod(create_builder))

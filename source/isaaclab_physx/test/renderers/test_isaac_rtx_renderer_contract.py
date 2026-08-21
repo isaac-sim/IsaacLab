@@ -337,3 +337,12 @@ def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monke
 
     # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
     assert camera_data.info == {"rgb": None, "semantic_segmentation": None}
+
+
+def test_isaac_rtx_publishes_fabric_visual_material_writer(monkeypatch):
+    """Isaac RTX exposes the renderer-owned Fabric writer factory."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+
+    assert IsaacRtxRenderer.__new__(IsaacRtxRenderer).visual_material_writer is FabricVisualMaterialWriter

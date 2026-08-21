@@ -194,7 +194,7 @@ def test_format_presets_rst_keeps_ovphysx_on_physics():
 
 def test_physics_names_for_docs_infers_physx_from_default():
     names = _physics_names_for_docs(
-        "Isaac-Velocity-Flat-G1",
+        "IsaacContrib-Velocity-Flat-AnymalC",
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]

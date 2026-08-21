@@ -431,6 +431,11 @@ class NewtonWarpRenderer(BaseRenderer):
         if self.cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
+    @property
+    def visual_material_writer(self):
+        """Return the shared Newton model color-writer factory."""
+        return NewtonManager.create_visual_material_writer
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
@@ -502,7 +507,8 @@ class NewtonWarpRenderer(BaseRenderer):
             or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         ):
             if self._seg_mapper is None:
-                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg)
+                clone_plan = SimulationContext.instance().get_clone_plan()
+                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg, clone_plan)
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)

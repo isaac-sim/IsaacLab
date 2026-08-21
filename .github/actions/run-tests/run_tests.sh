@@ -322,7 +322,6 @@ run_tests() {
       mkdir -p tests
       rm _isaac_sim || true
       ln -s /isaac-sim _isaac_sim
-      bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky \"coverage>=7.6.1\"
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
       fi
