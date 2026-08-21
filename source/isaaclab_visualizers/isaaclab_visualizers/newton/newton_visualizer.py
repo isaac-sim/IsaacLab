@@ -895,6 +895,11 @@ class NewtonVisualizer(BaseVisualizer):
     :class:`NewtonRTXVisualizer`.
     """
 
+    @property
+    def visual_material_writer(self):
+        """Return the shared Newton model color-writer factory."""
+        return NewtonManager.create_visual_material_writer
+
     class _ViewerPickingBinding:
         """Stable Newton-manager callback for viewer picking.
 
