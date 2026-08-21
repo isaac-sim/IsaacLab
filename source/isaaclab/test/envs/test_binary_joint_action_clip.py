@@ -5,10 +5,13 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from isaaclab.envs.mdp.actions.actions_cfg import BinaryJointPositionActionCfg
 from isaaclab.envs.mdp.actions.binary_joint_actions import BinaryJointPositionAction
+
+pytestmark = pytest.mark.unit
 
 
 class _JointIds:
