@@ -9,6 +9,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.sim.spawners.materials import visual_materials
 from isaaclab.sim.spawners.materials.visual_materials_cfg import MdlFileCfg, PreviewSurfaceCfg
+from isaaclab.sim.spawners.meshes import meshes
+from isaaclab.sim.spawners.meshes.meshes_cfg import MeshRectangleCfg
 from isaaclab.sim.utils import prims as prim_utils
 from isaaclab.sim.utils.prims import bind_visual_material
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
@@ -63,6 +65,28 @@ def test_spawn_and_bind_mdl_material_without_kit(monkeypatch):
     assert prim.GetAttribute("inputs:albedo_brightness").Get() == 0.5
     binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/World/Geometry")).GetDirectBinding()
     assert binding.GetMaterialPath() == "/Looks/MdlMaterial"
+
+
+def test_spawn_mesh_with_visual_material_without_kit(monkeypatch):
+    """Mesh spawners should author and bind their inline material without Kit."""
+    stage = Usd.Stage.CreateInMemory()
+    monkeypatch.setattr(meshes, "get_current_stage", lambda: stage)
+    monkeypatch.setattr(visual_materials, "get_current_stage", lambda: stage)
+    monkeypatch.setattr(prim_utils, "get_current_stage", lambda: stage)
+    cfg = MeshRectangleCfg(size=(0.2, 0.2), visual_material=PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)))
+
+    cfg.func("/World/Cloth", cfg)
+
+    material_path = Sdf.Path("/World/Cloth/geometry/material")
+    material = UsdShade.Material(stage.GetPrimAtPath(material_path))
+    binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/World/Cloth/geometry/mesh")).GetDirectBinding()
+    assert material
+    assert binding.GetMaterialPath() == material_path
+    assert UsdShade.Shader(stage.GetPrimAtPath(material_path.AppendChild("Shader"))).GetInput("diffuseColor").Get() == (
+        0.95,
+        0.85,
+        0.1,
+    )
 
 
 def test_visual_material_spawners_do_not_depend_on_kit_commands():
