@@ -199,6 +199,11 @@ jobs:
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
+            "${wheel}[importers]"
+
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
             "${wheel}[isaacsim]"

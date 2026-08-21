@@ -574,9 +574,10 @@ or temporary work.
 Optional extras
 ~~~~~~~~~~~~~~~
 
-Add extras to the package requirement when your project needs them. Except for ``isaacsim``, use
+Add extras only when your project needs them. Most extras work with
 ``uv pip install "isaaclab[<extra>]"`` in a standalone environment or
-``uv add "isaaclab[<extra>]"`` in a uv project. Isaac Sim has a separate command below.
+``uv add "isaaclab[<extra>]"`` in a uv project. The ``importers`` and ``isaacsim`` extras
+have dedicated commands below.
 
 .. list-table::
    :header-rows: 1
@@ -601,15 +602,31 @@ Add extras to the package requirement when your project needs them. Except for `
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
      - LEAP model export support.
+   * - ``importers``
+     - Standalone URDF and MJCF conversion without Isaac Sim.
    * - ``all``
      - The curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``
        extras. Isaac Sim is not included.
    * - ``test``
      - Developer test and documentation tooling.
 
-Use ``all`` for the curated list above. Isaac Sim, the specialized extras (``rlinf``, ``mimic``,
-``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the developer ``test`` tooling
-remain opt-in.
+Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
+(``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
+developer ``test`` tooling remain opt-in.
+
+.. _installation-importers-extra:
+
+Installing the ``importers`` extra
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Install this extra to convert URDF and MJCF files without Isaac Sim.
+
+.. warning::
+
+   Use the full command below. Without the overrides, the importer extra can downgrade packages
+   used by the base Isaac Lab install. The overrides keep Isaac Lab's tested versions.
+
+.. isaaclab-uv-importers-wheel-install::
 
 Installing the ``isaacsim`` extra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -621,6 +638,9 @@ the tested overrides:
 
 Add other extras inside the brackets when needed; for example, use
 ``isaaclab[isaacsim,all]`` to include the curated ``all`` list.
+
+Installing CUDA-enabled PyTorch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install the CUDA-enabled PyTorch build appropriate for your system architecture:
 

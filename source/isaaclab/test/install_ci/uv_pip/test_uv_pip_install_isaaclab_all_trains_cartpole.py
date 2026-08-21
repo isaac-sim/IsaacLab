@@ -15,9 +15,11 @@ Setup:
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
+    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.5.0'"
+        -> verify the wheel resolves Newton 1.5
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
-        physics=ovphysx --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
-        --task Isaac-Cartpole-Camera-Direct --num_envs 16 physics=ovphysx renderer=ovrtx --max_iterations 2
+        presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
+        --task Isaac-Cartpole-Camera-Direct --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
  -> verify state training, camera rendering, and camera training work
 """
 
@@ -54,6 +56,14 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             )
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
+            result = self.run_in_uv_env(
+                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.5.0'"],
+                cwd=isaaclab_root,
+            )
+            assert result.returncode == 0, (
+                f"isaaclab[all] did not resolve Newton 1.5:\n{result.stdout}\n{result.stderr}"
+            )
+
             # Restore the CUDA build selected for this architecture.
             result = self.run_in_uv_env(
                 [
@@ -76,10 +86,6 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             result = self.run_in_uv_env(
                 [str(self.python), str(cartpole_smoke_script)],
                 cwd=isaaclab_root,
-                env={
-                    "ISAACLAB_CARTPOLE_SMOKE_PHYSICS": "ovphysx",
-                    "ISAACLAB_CARTPOLE_SMOKE_RENDERER": "ovrtx",
-                },
                 timeout=3000,
             )
             assert result.returncode == 0, f"Cartpole smoke failed:\n{result.stdout}\n{result.stderr}"
