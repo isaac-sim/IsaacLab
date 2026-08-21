@@ -89,7 +89,7 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
+from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -119,6 +119,25 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
+
+
+def _compile_label_pattern(expr: str | list[str] | None, field: str) -> re.Pattern[str] | None:
+    """Compile a selector expression into the regex Newton full-matches against model labels.
+
+    ``None`` when nothing is requested. Newton reads a plain string as a glob but a compiled
+    pattern as a regex.
+    """
+    if expr is None:
+        return None
+    items = [expr] if isinstance(expr, str) else list(expr)
+    if not items:
+        return None
+    joined = "|".join(items)
+    try:
+        return re.compile(joined)
+    except re.error as err:
+        raise ValueError(f"{field} is not a valid regular expression: {expr!r} ({err})") from err
+
 
 logger = logging.getLogger(__name__)
 
@@ -3357,8 +3376,9 @@ class NewtonManager(PhysicsManager):
     ) -> tuple[str | list[str] | None, str | list[str] | None, str | list[str] | None, str | list[str] | None]:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
-        Converts Isaac Lab pattern conventions (``.*`` regex, full USD paths) to
-        fnmatch globs and delegates to :class:`newton.sensors.SensorContact`.
+        Compiles the Isaac Lab regular expressions and delegates to
+        :class:`newton.sensors.SensorContact`, which full-matches compiled patterns
+        against model labels.
 
         Args:
             body_names_expr: Expression for body names to sense.
@@ -3386,31 +3406,6 @@ class NewtonManager(PhysicsManager):
         def _hashable_key(x):
             return tuple(x) if isinstance(x, list) else x
 
-        def _to_fnmatch(expr: str | list[str] | None) -> str | list[str] | None:
-            """Convert Isaac Lab regex expressions (``.*``) to fnmatch glob (``*``)."""
-            if expr is None:
-                return None
-            if isinstance(expr, str):
-                return path_expr_to_glob(expr)
-            return [path_expr_to_glob(p) for p in expr]
-
-        def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
-            """Strip leading path components from *expr* when labels are bare names.
-
-            Model labels may be full USD paths (``/World/envs/env_0/Robot/base``) or bare
-            names (``base``).  When the labels are bare names but the user expression
-            contains slashes, we strip everything up to the last ``/``.
-            """
-            if expr is None or not labels:
-                return expr
-            label_has_paths = any("/" in lbl for lbl in labels)
-            items = [expr] if isinstance(expr, str) else list(expr)
-            expr_uses_paths = any("/" in p for p in items)
-            if label_has_paths or not expr_uses_paths:
-                return expr
-            normalized = [p.rsplit("/", 1)[-1] for p in items]
-            return normalized[0] if isinstance(expr, str) else normalized
-
         sensor_key = (
             _hashable_key(body_names_expr),
             _hashable_key(shape_names_expr),
@@ -3418,16 +3413,13 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_shape_expr),
         )
 
-        body_labels = list(cls._model.body_label)
-        shape_labels = list(cls._model.shape_label)
-
         with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
             sensor = NewtonContactSensor(
                 cls._model,
-                sensing_obj_bodies=_normalize_for_labels(_to_fnmatch(body_names_expr), body_labels),
-                sensing_obj_shapes=_normalize_for_labels(_to_fnmatch(shape_names_expr), shape_labels),
-                counterpart_bodies=_normalize_for_labels(_to_fnmatch(contact_partners_body_expr), body_labels),
-                counterpart_shapes=_normalize_for_labels(_to_fnmatch(contact_partners_shape_expr), shape_labels),
+                sensing_obj_bodies=_compile_label_pattern(body_names_expr, "body_names_expr"),
+                sensing_obj_shapes=_compile_label_pattern(shape_names_expr, "shape_names_expr"),
+                counterpart_bodies=_compile_label_pattern(contact_partners_body_expr, "contact_partners_body_expr"),
+                counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr, "contact_partners_shape_expr"),
                 measure_total=True,
                 verbose=verbose,
             )
