@@ -13,3 +13,5 @@ Fixed
   down to its final segment when no model label contained a separator. It dated from Newton's
   pre-hierarchical label API. Spell body and shape expressions as full paths to migrate, so
   ``["fingertip_.*"]`` becomes ``["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
+* Migrated the Newton contact sensor off the deprecated ``sensing_obj_*`` names onto the
+  replacements Newton 1.4 introduced.
