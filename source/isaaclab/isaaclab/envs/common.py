@@ -226,7 +226,7 @@ The tuple contains batched information for each sub-environment. The information
 2. **Rewards**: The rewards from the environment.
 3. **Terminated Dones**: Whether the environment reached a terminal state, such as task success or robot falling etc.
 4. **Timeout Dones**: Whether the environment reached a timeout state, such as end of max episode length.
-5. **Extras**: A dictionary containing additional information about the environment.
+5. **Extras**: A dictionary containing additional information from the environment.
 """
 
 AgentID = TypeVar("AgentID")
@@ -263,5 +263,5 @@ The information is stored in the following order:
 2. **Rewards**: The rewards from the environment.
 3. **Terminated Dones**: Whether the environment reached a terminal state, such as task success or robot falling etc.
 4. **Timeout Dones**: Whether the environment reached a timeout state, such as end of max episode length.
-5. **Extras**: A dictionary containing additional information about the environment.
+5. **Extras**: A dictionary containing additional information from the environment.
 """
