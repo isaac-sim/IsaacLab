@@ -284,6 +284,42 @@ class TestRenameCustomAttributes(unittest.TestCase):
             ["unassigned", f"{_DST.format(self.worlds[0])}/freqA_label_{self.worlds[0]}"],
         )
 
+    def test_shape_material_paths_follow_shape_worlds(self):
+        builder = _make_builder(self.worlds)
+        builder.add_custom_attribute(
+            newton.ModelBuilder.CustomAttribute(
+                name="visual_material_path",
+                namespace="isaaclab",
+                dtype=str,
+                frequency=newton.Model.AttributeFrequency.SHAPE,
+                default="",
+            )
+        )
+        paths = builder.custom_attributes["isaaclab:visual_material_path"].values
+        paths.update({index: f"{_SRC}/Looks/material" for index in range(len(self.worlds))})
+
+        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
+
+        self.assertEqual(paths, {index: f"{_DST.format(index)}/Looks/material" for index in range(len(self.worlds))})
+
+    def test_other_shape_attributes_without_world_references_pass_through(self):
+        builder = _make_builder(self.worlds)
+        builder.add_custom_attribute(
+            newton.ModelBuilder.CustomAttribute(
+                name="shape_note",
+                namespace="syn",
+                dtype=str,
+                frequency=newton.Model.AttributeFrequency.SHAPE,
+                default="",
+            )
+        )
+        notes = builder.custom_attributes["syn:shape_note"].values
+        notes.update({index: f"{_SRC}/note" for index in range(len(self.worlds))})
+
+        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
+
+        self.assertEqual(notes, {index: f"{_SRC}/note" for index in range(len(self.worlds))})
+
 
 class TestRenameMultiSource(unittest.TestCase):
     def test_prefix_overlap_does_not_cross_contaminate(self):
@@ -443,6 +479,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
+            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
         ):
             result, (shadow_entities, registry_groups) = (
                 visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
@@ -497,6 +534,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
             mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
             mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
+            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
+            mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
+            mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):
             builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan

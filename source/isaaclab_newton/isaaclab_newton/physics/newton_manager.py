@@ -71,6 +71,7 @@ from newton import (
     State,
     eval_fk,
 )
+from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
@@ -106,9 +107,16 @@ from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
+from isaaclab_newton.renderers.visual_material import (
+    VisualMaterialWriter,
+    VisualShapeColorWriter,
+    import_builder_visual_material_paths,
+)
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
+    from isaaclab.assets import BaseArticulation
+    from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -475,6 +483,7 @@ class NewtonManager(PhysicsManager):
     _shadow_deformable_remap_batches: list | None = None
     _shadow_deformable_copy_batch: tuple | None = None
     _shadow_deformable_batch_sync_key: tuple | None = None
+    _visualization_stop_callback: CallbackHandle | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -1054,6 +1063,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
+        callback = NewtonManager._visualization_stop_callback
+        NewtonManager._visualization_stop_callback = None
+        if callback is not None:
+            callback.deregister()
         NewtonManager._use_fabric_gpu_hierarchy = None
         NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
@@ -1887,6 +1900,7 @@ class NewtonManager(PhysicsManager):
             )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            import_builder_visual_material_paths(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
@@ -1897,6 +1911,7 @@ class NewtonManager(PhysicsManager):
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            import_builder_visual_material_paths(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
@@ -1910,6 +1925,7 @@ class NewtonManager(PhysicsManager):
                 source_builders[proto_path], stage, import_result["path_shape_map"]
             )
             replace_newton_builder_shape_colors(source_builders[proto_path], stage)
+            import_builder_visual_material_paths(source_builders[proto_path], stage)
             cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
@@ -2497,6 +2513,27 @@ class NewtonManager(PhysicsManager):
 
     # State accessors (used extensively by articulation/rigid object data)
     @classmethod
+    def create_visual_material_writer(cls, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
+        """Compile material-to-shape addresses for the active Newton model."""
+        return VisualMaterialWriter(cls.get_model(), batches)
+
+    @classmethod
+    def create_visual_shape_color_writer(
+        cls, asset: BaseArticulation, body_names: tuple[str, ...]
+    ) -> VisualShapeColorWriter:
+        """Compile selected articulation-body shape addresses for the active Newton model."""
+        model = cls.get_model()
+        view = asset.root_view
+        if not isinstance(view, ArticulationView):
+            root_expr = asset.cfg.prim_path
+            root_expr += (
+                "(?:/.*)?" if asset.cfg.articulation_root_prim_path is None else asset.cfg.articulation_root_prim_path
+            )
+            prim_paths = [path for path in model.articulation_label if re.fullmatch(root_expr, path)]
+            view = ArticulationView(model, prim_paths, verbose=False)
+        return VisualShapeColorWriter(model, view, body_names)
+
+    @classmethod
     def get_model(cls) -> Model:
         """Get the Newton model.
 
@@ -2797,6 +2834,12 @@ class NewtonManager(PhysicsManager):
             cls._model.num_envs = cls._num_envs
             NewtonManager._deformable_registry = []
             populate_shadow_deformable_registry(cls, registry_groups)
+            NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
+                lambda _payload: NewtonManager.clear(),
+                PhysicsEvent.STOP,
+                name="newton_visualization_state",
+                wrap_weak_ref=False,
+            )
 
         except Exception:
             logger.exception(
