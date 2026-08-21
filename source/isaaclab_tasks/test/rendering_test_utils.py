@@ -1913,7 +1913,10 @@ def rendering_test_lift_kuka(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        maybe_step_env_for_motion(env, renderer, motion_data_type)
+        if motion_data_type == "motion_vectors":
+            # Capture controlled joint motion instead of the first-step autoreset transient.
+            env.reset(seed=42)
+        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
         validate_camera_outputs(
             test_name,
