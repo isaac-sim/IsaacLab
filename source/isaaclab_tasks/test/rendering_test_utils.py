@@ -1938,6 +1938,7 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_type: str) ->
 def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_type: str) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_type)
+    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
     env_cfg.commands.deformable_pose.debug_vis = False
     env_cfg.events.reset_deformable.params["position_range"] = {
         "x": (0.0, 0.0),
@@ -1968,7 +1969,6 @@ def rendering_test_franka_cloth(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
-    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -2047,7 +2047,6 @@ def rendering_test_franka_soft(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_type)
-    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
 
@@ -2058,17 +2057,7 @@ def rendering_test_franka_soft(
         env = ManagerBasedRLEnv(env_cfg)
         env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
-        if data_type == "motion_vectors":
-            # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
-            arm_action = env.action_manager.get_term("arm_action")
-            ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
-            ee_pos_curr[0] += 0.05
-
-            actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-            actions[:, 0:3] = ee_pos_curr
-            actions[:, 3:7] = ee_quat_curr
-
-            env.step(actions)
+        maybe_step_env_for_motion(env, renderer, data_type, action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
