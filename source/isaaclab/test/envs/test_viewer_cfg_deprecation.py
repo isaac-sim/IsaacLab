@@ -10,11 +10,12 @@ No simulation context or Kit app required — pure Python.
 
 from __future__ import annotations
 
+import logging
 import warnings
 
 import pytest
 
-from isaaclab.envs.common import ViewerCfg
+from isaaclab.envs.common import ViewerCfg, _apply_deprecated_viewer_cfg
 
 
 def test_viewer_cfg_default_no_warning():
@@ -62,3 +63,20 @@ def test_viewer_cfg_warning_is_deprecation_warning_subclass():
         ViewerCfg(eye=(0.0, 0.0, 1.0))
 
     assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+
+
+def test_viewer_cfg_cam_prim_path_only_change_emits_migration_warning(caplog):
+    """A legacy camera-path override must not be silently ignored during migration."""
+
+    class EnvCfg:
+        sim = None
+
+    env_cfg = EnvCfg()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        env_cfg.viewer = ViewerCfg(cam_prim_path="/World/CustomCamera")
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.common"):
+        _apply_deprecated_viewer_cfg(env_cfg)
+
+    assert "cam_prim_path='/World/CustomCamera' cannot be automatically forwarded" in caplog.text
