@@ -26,7 +26,7 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from types import ModuleType
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, Protocol, TypedDict
 from urllib.parse import urlparse
 
 from filelock import FileLock
@@ -238,6 +238,47 @@ _ASSET_SOURCES: dict[str, tuple[str, str]] = {}
 """Original source and download directory of each managed copy."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
+
+_prewarm_started = False
+"""Whether the prewarm has run."""
+
+
+class _CancelableRequest(Protocol):
+    """Request returned by ``omni.client.stat_with_callback``."""
+
+    def stop(self) -> None: ...
+
+
+_prewarm_request: _CancelableRequest | None = None
+"""Prewarm request, kept so it can be stopped before the runtime shuts down."""
+
+
+def _prewarm_asset_server() -> None:
+    """Start a request to a remote asset root so its connection setup overlaps startup.
+
+    Only the first call runs. A failure is logged, never raised.
+    """
+    global _prewarm_request, _prewarm_started
+    if _prewarm_started:
+        return
+    _prewarm_started = True
+    try:
+        parsed = urlparse(NUCLEUS_ASSET_ROOT_DIR)
+        # a Windows drive letter parses as a scheme, but has no host
+        if not parsed.scheme or not parsed.netloc:
+            return
+        # _get_omni_client applies the selected asset region profile first
+        _prewarm_request = _get_omni_client().stat_with_callback(NUCLEUS_ASSET_ROOT_DIR, lambda _result, _entry: None)
+    except Exception as exc:  # noqa: BLE001 - prewarm must never fail the launch
+        logger.warning("Could not prewarm the asset server connection: %s", exc)
+
+
+def _cancel_asset_server_prewarm() -> None:
+    """Stop the prewarm request before the runtime shuts down."""
+    global _prewarm_request
+    request, _prewarm_request = _prewarm_request, None
+    if request is not None:
+        request.stop()
 
 
 def retrieve_git_asset_path(

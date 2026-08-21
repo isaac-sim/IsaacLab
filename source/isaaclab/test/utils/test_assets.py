@@ -873,3 +873,41 @@ def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):
     finally:
         monkeypatch.delenv("NEWTON_ASSET_DIR", raising=False)
         importlib.reload(assets_utils)
+
+
+@pytest.fixture
+def omni_client_calls(monkeypatch):
+    """Reset the prewarm state and record the requests made through a fake OmniClient."""
+    monkeypatch.setattr(assets_utils, "_prewarm_started", False)
+    monkeypatch.setattr(assets_utils, "_prewarm_request", None)
+    calls = []
+
+    def stat_with_callback(url, _callback):
+        calls.append(("requested", url))
+        return SimpleNamespace(stop=lambda: calls.append(("stopped", url)))
+
+    client = SimpleNamespace(stat_with_callback=stat_with_callback)
+    monkeypatch.setattr(assets_utils, "_get_omni_client", lambda: client)
+    return calls
+
+
+def test_prewarm_starts_one_request_that_cancel_stops(monkeypatch, omni_client_calls):
+    """Test that repeated prewarms of a remote root start one request, which cancel stops."""
+    root = "https://example.com/Assets/Isaac/6.0"
+    monkeypatch.setattr(assets_utils, "NUCLEUS_ASSET_ROOT_DIR", root)
+
+    assets_utils._prewarm_asset_server()
+    assets_utils._prewarm_asset_server()
+    assets_utils._cancel_asset_server_prewarm()
+
+    assert omni_client_calls == [("requested", root), ("stopped", root)]
+
+
+@pytest.mark.parametrize("root", ["/tmp/isaacsim_assets/Assets/Isaac/6.0", "C:\\assets\\Assets\\Isaac\\6.0"])
+def test_prewarm_leaves_a_local_asset_root_alone(monkeypatch, omni_client_calls, root):
+    """Test that a run configured against local assets opens no connection."""
+    monkeypatch.setattr(assets_utils, "NUCLEUS_ASSET_ROOT_DIR", root)
+
+    assets_utils._prewarm_asset_server()
+
+    assert omni_client_calls == []

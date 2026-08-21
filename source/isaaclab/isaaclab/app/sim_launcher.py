@@ -566,6 +566,8 @@ def launch_simulation(
     needed), then starts the launcher each required runtime's config names (closed on exit) or
     does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
 
+    With a remote asset root, it also starts connecting to the asset server before yielding.
+
     Yields the resolved physics config, so a script can pass a bare placeholder and
     pick the backend from the command line::
 
@@ -636,12 +638,20 @@ def launch_simulation(
     _sync_visualizer_cli_settings(args)
 
     exit_code = 0
+    cancel_asset_server_prewarm = None
     try:
-        # The import stays after the Kit launch decision. With no selected profile this is a
-        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
-        from ..utils.assets import configure_storage_profile
+        # The import stays after the Kit launch decision.
+        from ..utils.assets import (
+            _cancel_asset_server_prewarm,
+            _prewarm_asset_server,
+            configure_storage_profile,
+        )
 
+        cancel_asset_server_prewarm = _cancel_asset_server_prewarm
+        # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
+        # routing before user code runs.
         configure_storage_profile()
+        _prewarm_asset_server()
         yield physics_cfg
     except KeyboardInterrupt:
         exit_code = 130
@@ -657,5 +667,7 @@ def launch_simulation(
         traceback.print_exc()
         raise
     finally:
+        if cancel_asset_server_prewarm is not None:
+            cancel_asset_server_prewarm()
         for launcher in reversed(launchers):
             launcher.close(exit_code)

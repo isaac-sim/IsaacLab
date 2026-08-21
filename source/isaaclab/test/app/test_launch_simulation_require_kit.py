@@ -15,6 +15,7 @@ is the signal that the Kit branch was taken. No Kit/GPU required.
 """
 
 import argparse
+import contextlib
 import signal
 import sys
 import types
@@ -28,6 +29,13 @@ from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.visualizers import VisualizerCfg
+
+
+@pytest.fixture(autouse=True)
+def disable_asset_server_prewarm(monkeypatch: pytest.MonkeyPatch):
+    """Keep launcher tests independent of a real remote asset root."""
+    monkeypatch.setattr(assets_utils, "_prewarm_asset_server", lambda: None)
+    monkeypatch.setattr(assets_utils, "_cancel_asset_server_prewarm", lambda: None)
 
 
 @pytest.fixture
@@ -81,6 +89,28 @@ def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPa
             pass
 
     assert close_calls == [1]
+
+
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_kit_launch_cancels_prewarm_before_runtime_shutdown(monkeypatch: pytest.MonkeyPatch, interrupt):
+    """The prewarm starts before user code and is stopped before Kit closes, also on Ctrl-C."""
+    events = []
+
+    class FakeKitLauncher(SimulationLauncher):
+        def close(self, exit_code=0):
+            events.append("closed")
+
+    monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
+    monkeypatch.setattr(assets_utils, "_prewarm_asset_server", lambda: events.append("prewarmed"))
+    monkeypatch.setattr(assets_utils, "_cancel_asset_server_prewarm", lambda: events.append("cancelled"))
+
+    with contextlib.suppress(KeyboardInterrupt):
+        with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
+            events.append("user-code")
+            if interrupt:
+                raise KeyboardInterrupt
+
+    assert events == ["prewarmed", "user-code", "cancelled", "closed"]
 
 
 def test_require_kit_launches_kit_for_a_kitless_config(kit_branch_taken):
