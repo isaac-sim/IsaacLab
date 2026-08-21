@@ -114,8 +114,6 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
-# Standalone URDF/MJCF importers for conversion without Isaac Sim. The direct
-# tinyobjloader requirement opts uv into the transitive pre-release.
 importers = [
     "isaacsim-asset-isolated>=6.0,<6.1",
     "tinyobjloader==2.0.0rc13",
