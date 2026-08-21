@@ -44,6 +44,20 @@ Mesh Converter
 URDF Converter
 --------------
 
+.. note::
+
+    Xacro files are not accepted directly by :class:`UrdfConverter`. Expand the Xacro description to a plain
+    URDF first, then pass the generated ``.urdf`` file to Isaac Lab. With the ROS ``xacro`` command installed:
+
+    .. code-block:: bash
+
+       xacro path/to/robot.urdf.xacro > path/to/robot.urdf
+       uv run python scripts/tools/convert_urdf.py path/to/robot.urdf path/to/output_dir
+
+    Any Xacro arguments and ROS package substitutions must therefore be resolved during the Xacro expansion
+    step. The resulting URDF can then use the normal :class:`UrdfConverterCfg` options for collision geometry,
+    joint drives, fixed-joint merging, and USD output.
+
 .. autoclass:: UrdfConverter
     :members:
     :inherited-members:
