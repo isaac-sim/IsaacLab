@@ -5,7 +5,6 @@
 
 """Focused PhysX rigid-object CPU staging and cached-view tests."""
 
-import importlib
 import sys
 from types import SimpleNamespace
 
@@ -54,18 +53,28 @@ def test_tensor_api_float_view_is_cached_over_stable_pose_storage() -> None:
 def test_kitless_import_is_evicted_before_fresh_manager_import() -> None:
     """A stub-bound unit import must not leak into the next real PhysX module import."""
     module_name = "isaaclab_physx.assets.rigid_object.rigid_object"
+    package_name = module_name.rsplit(".", 1)[0]
+    subtree_before = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == package_name or name.startswith(f"{package_name}.")
+    }
     stubbed_module = import_physx_module(module_name)
-    assert module_name not in sys.modules
+    subtree_after = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == package_name or name.startswith(f"{package_name}.")
+    }
+    assert subtree_after == subtree_before
 
     try:
-        fresh_module = importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        # Plain uv Python has no Kit ``carb`` module. Reaching that boundary proves the
-        # real lazy PhysX manager replaced the unit stub.
-        assert exc.name == "carb"
-        assert module_name not in sys.modules
-    else:
         from isaaclab_physx.physics import PhysxManager
+    except ModuleNotFoundError as exc:
+        assert exc.name == "carb"
+        PhysxManager = type("FreshPhysxManager", (), {})
 
-        assert fresh_module is not stubbed_module
-        assert fresh_module.SimulationManager is PhysxManager
+    fresh_module = import_physx_module(module_name, simulation_manager=PhysxManager)
+
+    assert fresh_module is not stubbed_module
+    assert fresh_module.SimulationManager is PhysxManager
+    assert fresh_module.RigidObjectData.__init__.__globals__["SimulationManager"] is PhysxManager

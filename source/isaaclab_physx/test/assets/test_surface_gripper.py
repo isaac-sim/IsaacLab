@@ -84,6 +84,7 @@ def _author_local_surface_gripper() -> SurfaceGripper:
     )
 
 
+@pytest.mark.isaacsim_ci
 def test_initialization_and_open_close_commands() -> None:
     """Initialize the local view and prove close/open commands reach the real plugin."""
     with build_simulation_context(device="cpu", gravity_enabled=False) as sim:
