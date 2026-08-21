@@ -28,24 +28,6 @@ adapted to OVPhysX by going through
 Reads use the data-class properties (``cube_object.data.body_mass``,
 ``body_inertia``, ``body_com_pose_b``).
 
-Process-global device lock
---------------------------
-
-The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
-its first ``ovphysx.PhysX`` instance and cannot switch it without a process
-restart. :class:`~isaaclab_ov.physics.OvPhysxManager` tracks
-this on ``_locked_device`` and raises :exc:`RuntimeError` if a later
-:class:`SimulationContext` requests a different device.  The
-``_ovphysx_skip_other_device`` autouse fixture below preempts that error in
-parametrized tests by ``pytest.skip``-ing on the unlocked device, so the
-session finishes cleanly when only one device is exercised.
-
-CI note
--------
-Because the lock is process-global, full coverage requires **two separate
-``./scripts/run_ovphysx.sh -m pytest`` invocations** -- once with ``-k 'cpu'``
-and once with ``-k 'cuda:0'``. Until the wheel exposes a way to reset Carbonite
-device state, this is the supported pattern.
 """
 
 from __future__ import annotations
@@ -99,9 +81,6 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
 
 wp.init()
-
-pytestmark = pytest.mark.device_split
-
 
 _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
     "Schema-level fixed-joint creation in :mod:`isaaclab.sim.schemas` imports the Kit-only "
@@ -201,39 +180,6 @@ def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device:
     """
     arr = articulation.root_view.get_attribute(tensor_type)
     return wp.to_torch(arr).to(device)
-
-
-# Session-locked device.  Set on the first parametrized test that runs and
-# never reassigned -- ovphysx's process-global device lock means subsequent
-# tests on the other device must skip.
-_LOCKED_DEVICE: list[str | None] = [None]
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip tests whose ``device`` parameter mismatches the session-locked device.
-
-    The OVPhysX runtime locks process-global device mode when the process
-    creates its first ``ovphysx.PhysX`` instance, so any test parametrized to a
-    different device after the first ``sim.reset()`` would hit the manager's
-    :exc:`RuntimeError`. We detect the locked device on the
-    first encounter and skip subsequent tests on the other device with a clear
-    message so the run finishes cleanly rather than producing spurious failures.
-    """
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        # Test does not parametrize on device (e.g. test_warmup_attach_stage_not_called_for_cpu).
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 def _ovphysx_sim_context(device: str, **kwargs):

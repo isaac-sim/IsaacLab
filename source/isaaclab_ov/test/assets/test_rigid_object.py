@@ -10,14 +10,6 @@
 """Real-backend tests for the OVPhysX RigidObject.
 
 Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
-
-The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
-its first ``ovphysx.PhysX`` instance and cannot switch it without a process
-restart. Full coverage therefore requires two separate pytest
-invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
-``_ovphysx_skip_other_device`` autouse fixture below preempts the manager's
-:exc:`RuntimeError` by ``pytest.skip``-ing on the unlocked device so
-single-device runs finish cleanly.
 """
 
 from __future__ import annotations
@@ -59,35 +51,7 @@ from isaaclab.utils.math import (  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
-
 _logger = logging.getLogger(__name__)
-
-
-_LOCKED_DEVICE: list[str | None] = [None]
-"""Device the session pins to on the first parametrized test that runs."""
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to.
-
-    See the module docstring for the wheel's process-global device-mode lock.
-    """
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        # Test does not parametrize on device (e.g. test_warmup_attach_stage_not_called_for_cpu).
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 def _ovphysx_sim_context(device: str, **kwargs):
@@ -1267,18 +1231,7 @@ def test_warmup_attach_stage_not_called_for_cpu():
     other calls continue to forward, then assert ``warmup_gpu.call_count == 0``
     after a CPU-mode :meth:`sim.reset`.
 
-    The test always runs CPU regardless of session parametrization, so it is
-    skipped when the session-locked device is anything other than CPU.  The
-    skip is enforced inline (rather than in the autouse fixture) so the rest
-    of the suite can still pin to GPU when invoked together.
     """
-    if _LOCKED_DEVICE[0] not in (None, "cpu"):
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{_LOCKED_DEVICE[0]}'; cannot run "
-            "CPU-only regression test in the same session."
-        )
-    _LOCKED_DEVICE[0] = "cpu"
-
     with _ovphysx_sim_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
         # Allocate a single rigid body so the manager has something to load.
         generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")

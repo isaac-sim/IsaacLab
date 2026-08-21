@@ -15,6 +15,8 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from pxr import Usd
+
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
@@ -25,9 +27,11 @@ class _FakePhysXConfig:
 
 
 class _FakePhysX:
+    cpu_mode_calls: list[bool] = []
+
     @classmethod
     def set_cpu_mode(cls, enabled):
-        pass
+        cls.cpu_mode_calls.append(enabled)
 
     def __init__(self, active_cuda_gpus=None, config=None):
         self.active_cuda_gpus = active_cuda_gpus
@@ -49,7 +53,6 @@ def manager_module(monkeypatch):
         "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
-        "_locked_device": None,
         "_active_clone_recipes": [],
         "_pending_clones": [],
         "_atexit_registered": False,
@@ -67,6 +70,34 @@ def _fake_ovphysx_module(bootstrap):
     module.PhysX = _FakePhysX
     module.PhysXConfig = _FakePhysXConfig
     return module
+
+
+def test_cpu_runtime_construction_does_not_enable_sticky_cpu_mode(manager_module):
+    """An ordinary CPU scene must not enable the wheel's process-global CPU-only mode."""
+    manager = manager_module.OvPhysxManager
+    _FakePhysX.cpu_mode_calls = []
+
+    manager._create_physx_instance(_fake_ovphysx_module(lambda: None), "cpu", 0)
+
+    assert _FakePhysX.cpu_mode_calls == []
+
+
+@pytest.mark.parametrize(
+    ("device", "expected_gpu_dynamics", "expected_broadphase"),
+    [("cpu", False, "MBP"), ("gpu", True, "GPU")],
+)
+def test_scene_configuration_authors_device_specific_dynamics_and_broadphase(
+    manager_module, device, expected_gpu_dynamics, expected_broadphase
+):
+    """CPU and GPU scenes must explicitly author their respective PhysX modes."""
+    manager = manager_module.OvPhysxManager
+    stage = Usd.Stage.CreateInMemory()
+    scene_prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+
+    manager._configure_physx_scene_prim(scene_prim, cfg=None, device=device)
+
+    assert scene_prim.GetAttribute("physxScene:enableGPUDynamics").Get() is expected_gpu_dynamics
+    assert scene_prim.GetAttribute("physxScene:broadphaseType").Get() == expected_broadphase
 
 
 @pytest.mark.parametrize(
@@ -392,6 +423,57 @@ def _retained_binding_script() -> str:
     )
 
 
+def _device_reuse_script() -> str:
+    return textwrap.dedent(
+        """
+        import torch
+
+        import isaaclab.sim as sim_utils
+        from isaaclab.assets import RigidObjectCfg
+        from isaaclab.sim import SimulationCfg, build_simulation_context
+        from isaaclab_ov.assets import RigidObject
+        from isaaclab_ov.physics import OvPhysxCfg
+
+        def run_scene(device):
+            sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 60.0)
+            with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
+                cube = RigidObject(
+                    RigidObjectCfg(
+                        prim_path="/World/Cube",
+                        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+                        spawn=sim_utils.CuboidCfg(
+                            size=(0.5, 0.5, 0.5),
+                            rigid_props=sim_utils.RigidBodyBaseCfg(),
+                            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                            collision_props=sim_utils.CollisionBaseCfg(),
+                        ),
+                    )
+                )
+                sim.reset()
+
+                root_pose = cube.data.root_link_pose_w.torch.clone()
+                root_velocity = cube.data.root_com_vel_w.torch.clone()
+                assert str(root_pose.device) == device
+                assert str(root_velocity.device) == device
+                root_pose[:, 0] = 0.25
+                cube.write_root_link_pose_to_sim_index(root_pose=root_pose)
+                cube.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
+                cube.update(sim.get_physics_dt())
+                torch.testing.assert_close(cube.data.root_link_pose_w.torch, root_pose)
+                torch.testing.assert_close(cube.data.root_com_vel_w.torch, root_velocity)
+
+                sim.step()
+                cube.update(sim.get_physics_dt())
+                advanced_pose = cube.data.root_link_pose_w.torch
+                assert str(advanced_pose.device) == device
+                assert advanced_pose[:, 2].item() < root_pose[:, 2].item()
+
+        for device in ("cpu", "cuda:0", "cpu"):
+            run_scene(device)
+        """
+    )
+
+
 def _run_child(script: str) -> tuple[subprocess.CompletedProcess[str], str]:
     completed = subprocess.run(
         [sys.executable, "-c", script],
@@ -419,3 +501,10 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     assert "NORMAL_ATEXIT" in output, output[-8000:]
     assert "OVPHYSX_STOP" in output, output[-8000:]
     _assert_no_atexit_errors(output)
+
+
+def test_manager_reuses_cpu_and_cuda_scenes_in_one_process():
+    """A process must run CPU, CUDA, then CPU cuboid scenes with state I/O on each device."""
+    completed, output = _run_child(_device_reuse_script())
+
+    assert completed.returncode == 0, output[-8000:]
