@@ -8,7 +8,7 @@ from __future__ import annotations
 import gc
 import logging
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
@@ -709,8 +709,13 @@ class SimulationContext:
                 return float(viz_dt)
         return self._viz_dt
 
-    def set_camera_view(self, eye: tuple, target: tuple) -> None:
-        """Set camera view on all visualizers that support it."""
+    def set_camera_view(self, eye: Sequence[float], target: Sequence[float]) -> None:
+        """Set camera view on all visualizers that support it.
+
+        Args:
+            eye: Camera eye position as a three-element sequence.
+            target: Camera target position as a three-element sequence.
+        """
         self._pending_camera_view = (tuple(eye), tuple(target))
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
