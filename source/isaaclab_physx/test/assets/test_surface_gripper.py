@@ -35,6 +35,8 @@ from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
+pytestmark = pytest.mark.integration
+
 # from isaacsim.robot.surface_gripper import GripperView
 
 _RUNNING_CI = bool(
