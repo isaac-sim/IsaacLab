@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from types import SimpleNamespace
 
 import pytest
 
@@ -66,10 +67,10 @@ def test_viewer_cfg_warning_is_deprecation_warning_subclass():
 
 
 def test_viewer_cfg_cam_prim_path_only_change_emits_migration_warning(caplog):
-    """A legacy camera-path override must not be silently ignored during migration."""
+    """A legacy camera-path override should warn without forwarding unrelated viewer defaults."""
 
     class EnvCfg:
-        sim = None
+        sim = SimpleNamespace(default_visualizer_cfg=None)
 
     env_cfg = EnvCfg()
     with warnings.catch_warnings():
@@ -80,3 +81,5 @@ def test_viewer_cfg_cam_prim_path_only_change_emits_migration_warning(caplog):
         _apply_deprecated_viewer_cfg(env_cfg)
 
     assert "cam_prim_path='/World/CustomCamera' cannot be automatically forwarded" in caplog.text
+    assert "viewer values have been automatically forwarded" not in caplog.text
+    assert env_cfg.sim.default_visualizer_cfg is None
