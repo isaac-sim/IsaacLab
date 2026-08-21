@@ -24,6 +24,7 @@ def test_action_descriptor_export_does_not_write_to_stdout(capsys):
         export=True,
     )
     manager = ActionManager.__new__(ActionManager)
+    manager._resolve_terms_handle = None
     manager._terms = {"test": SimpleNamespace(IO_descriptor=descriptor)}
 
     exported = manager.get_IO_descriptors
