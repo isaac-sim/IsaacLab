@@ -1,8 +1,519 @@
 Release Notes
 #############
 
-The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
-We summarize the release notes here for convenience.
+The release notes are also available in the
+`Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_. The entries below reproduce the
+published release text in reStructuredText format, excluding externally hosted media.
+
+v3.0.0-beta2.patch1
+===================
+
+`View this release on GitHub <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta2.patch1>`__.
+
+This is a small patch release on top of the previous Isaac Lab 3.0.0 Beta 2 release, including an update to support
+Isaac Sim 6.0.1, which includes fixes and improvements for NuRec workflows. See the
+`Isaac Sim 6.0.1 release notes <https://docs.isaacsim.omniverse.nvidia.com/6.0.1/overview/release_notes.html>`_.
+Additionally, some fixes were introduced for Isaac Lab dependencies and docker image to better support
+compatibility with Isaac Sim.
+
+What's Changed
+--------------
+
+* Bump h5py version to ``>=3.16.0`` by @peterd-NV in
+  `PR #6266 <https://github.com/isaac-sim/IsaacLab/pull/6266>`_.
+* Updates Isaac Sim to version 6.0.1 by @kellyguo11 in
+  `PR #6277 <https://github.com/isaac-sim/IsaacLab/pull/6277>`_.
+* [Fix] Cherry-pick Isaac Sim 6.0 streaming crash fix by @hujc7 in
+  `PR #6295 <https://github.com/isaac-sim/IsaacLab/pull/6295>`_.
+
+`Full Changelog <https://github.com/isaac-sim/IsaacLab/compare/v3.0.0-beta2...v3.0.0-beta2.patch1>`_.
+
+v3.0.0-beta2
+============
+
+`View this release on GitHub <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta2>`__.
+
+Isaac Lab 3.0 Beta 2 is a stabilization and enablement release for the Isaac Lab 3.0 beta development. It builds on
+`v3.0.0-beta <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta>`_ with additional features and
+improvements on Newton support (VBD, solver coupling, Kamino, rough terrain, sensors), multi-backend physics,
+simplified training and installation commands, kit-less workflows, visualizers, rendering, teleoperation, learning
+exports, installation, CI, and documentation.
+
+This release is compatible with the latest release of
+`Isaac Sim 6.0 <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/download.html>`_.
+
+.. warning::
+
+   This is a beta release. The ``develop`` branch is still under active development and may continue to receive
+   breaking changes, error-message changes, or performance tuning before the final 3.0 release. Please check out the
+   ``develop`` branch for the latest development updates.
+
+Highlights
+----------
+
+Multi-Backend Stabilization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The multi-backend architecture introduced in the first 3.0 beta has been hardened across PhysX, Newton, OVPhysX,
+Isaac RTX, OVRTX, and kit-less execution paths. This release improves backend selection, scene-data routing,
+clone-plan handling, sensor reset behavior, runtime compatibility checks, and error reporting when unsupported
+physics, renderer, or visualizer combinations are requested.
+
+Newton Physics & Kit-Less Workflows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Newton and OVPhysX support have been expanded and stabilized for larger kit-less training and visualization
+workflows:
+
+* Adds Newton ray-caster, frame-transformer, IMU/PVA, contact, joint-wrench, deformable, and VBD-coupling support
+  across the relevant packages.
+* Adds Newton rough-terrain locomotion presets for quadrupeds and bipeds, plus additional MJWarp presets for
+  manipulation, navigation, and Spot environments.
+* Adds documentation for Newton installation, supported features, MJWarp, Kamino, VBD, solver comparison, Warp
+  environment migration, and the Newton manager abstraction.
+* Fixes heterogeneous replication, clone-plan source resolution, stale sensor data after resets, Newton visualizer
+  updates on PhysX simulations, and Newton camera/site frame poses.
+* Adds initial experimental support for OvPhysX (kit-less version of PhysX).
+
+Rendering, Cameras & PPISP
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Rendering received broad updates across Isaac RTX, OVRTX, and Newton Warp:
+
+* Adds ``isaaclab_ppisp``, a renderer-backend-agnostic physically plausible image signal processing pipeline for
+  converting HDR scene-linear output to LDR camera images.
+* Adds HDR render outputs and internal PPISP composition to Isaac RTX, OVRTX, and Newton Warp renderers when
+  ``CameraCfg.isp_cfg`` is configured.
+* Moves the tiled-camera implementation into ``Camera`` and improves tiled-camera support in Kit and Newton
+  visualizers.
+* Fixes OVRTX multi-GPU operation, cloned-environment camera output, temp-file handling, missing-runtime errors, and
+  package resolution for optional PPISP installs.
+* Adds rendering correctness, image comparison, visualizer integration, and performance tests.
+
+Visualizers & Scene Data
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The visualizer system now has stronger backend-agnostic scene-data support:
+
+* Adds a scene-data backend hook for active ``InteractiveScene`` access.
+* Improves scene-data providers for PhysX, Newton, and OVPhysX so visualizers can discover transforms, contacts, and
+  sensors consistently.
+* Adds tiled camera views to Kit and Newton visualizers.
+* Fixes visualizer startup ordering, Kit visualizer crashes, Newton visualizer updates on PhysX scenes, and
+  camera/video recording behavior when multiple visualizers are active.
+
+Teleoperation, Mimic & Policy Deployment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Teleoperation and imitation-learning workflows were updated for the 3.0 stack:
+
+* Adds Isaac Teleop MCAP record/replay support and a non-interactive ``teleop_replay_agent.py`` for CI replay.
+* Defers optional ``isaacteleop`` imports so task configs can be parsed without the Isaac Teleop runtime installed.
+* Improves CloudXR defaults, XR performance guidance, native keyboard/gamepad/SpaceMouse mappings, and RMPFlow
+  teleoperation behavior.
+* Updates Mimic installation to include ``isaaclab_teleop`` and removes the obsolete
+  ``nvidia-srl-usd-to-urdf`` dependency.
+* Adds LEAPP policy export documentation and fixes RSL-RL recurrent policy export, projected-gravity export,
+  checkpoint selection, and policy-deployment guides.
+
+Installation, Docker & CI
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This release simplifies setup while adding significant infrastructure hardening:
+
+* Adds experimental root-level ``uv run train`` and ``uv run play`` workflows so training and playback can be
+  launched from a fresh checkout without manually creating or activating an environment.
+* Simplifies install extras to ``isaacsim`` and ``all``, replacing older per-submodule extras such as ``tasks``,
+  ``rl``, and ``assets``.
+* Pins the released Isaac Sim Docker image to 6.0.0 and keeps Python pinned to 3.12.
+* Updates PyTorch to ``2.10.0`` with CUDA 12.8 wheels on x86_64/Windows and CUDA 13.0 wheels for aarch64.
+* Adds install CI, wheel build automation, package-scoped test runners, Docker volume and non-root-user fixes, and
+  published image tags.
+* Improves aarch64, DGX Spark, ARM Docker, Windows, uv, and pip installation documentation.
+* Pins third-party GitHub Actions to commit SHAs and improves CI cleanup, cancellation, sharding, diagnostics, and
+  docs-only behavior.
+
+New & Expanded Capabilities
+---------------------------
+
+Core
+~~~~
+
+* Adds ProxyArray and asset/sensor-level property caching for faster repeated data access.
+* Adds scene-data provider APIs and docs for backend-neutral transform access.
+* Adds schema-configuration documentation and backend-neutral deformable APIs.
+* Adds GPU transform reads, performance optimizations for asset writes, and startup-time profiling tools.
+
+Physics & Rendering Backends
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Adds OVPhysX articulation, rigid object collection, contact sensor, frame view, scene-data backend, and runtime
+  install diagnostics.
+* Adds HDR camera output and PPISP integration, deformable API migration, ray-caster fixes, and multi-GPU Fabric
+  frame-view support.
+* Adds Newton deformable support, rigid-deformable coupling, ray-caster support, solver configuration exports,
+  contact accessors, and updated Newton package pins.
+
+Learning & Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Adds unified ``train`` and ``play`` console entry points that dispatch by ``--rl_library`` across ``rsl_rl``,
+  ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
+* Refactors per-library train/play scripts under ``scripts/reinforcement_learning/`` around a shared dispatch helper,
+  reducing duplicated launcher and parser logic.
+* Adds typed preset selectors such as ``physics=physx``, ``physics=newton_mjwarp``, and ``renderer=...`` to unified
+  training and play scripts. For example:
+  ``train --rl_library rl_games --task=Isaac-Cartpole-RGB-Camera-Direct-v0 physics=newton_mjwarp renderer=newton_renderer presets=rgb``.
+* Adds validation for unsupported backend/renderer/visualizer combinations with clearer errors.
+* Adds public helpers for enumerating task presets.
+* Expands Newton presets for locomotion, manipulation, navigation, and Warp-first experimental environments.
+* Adds success-rate metric logging across RL tasks.
+
+Documentation
+~~~~~~~~~~~~~
+
+* Reworks installation, quickstart, ecosystem, Docker, CloudXR, Teleop, visualizer, renderer, physical-backend,
+  migration, and environment documentation.
+* Adds policy-deployment guides for reach policies and LEAPP exports.
+* Adds profiling, proxy-array, camera-output, video-recording, tiled-camera, schema-cfg, and physical-backend
+  documentation.
+* Removes remaining ``--headless`` references in favor of ``--viz`` / ``--visualizer``.
+
+Breaking Changes
+----------------
+
+Preset CLI
+~~~~~~~~~~
+
+``isaaclab_tasks.utils.fold_preset_tokens`` has been removed. ``setup_preset_cli()`` now returns ``physics=``,
+``renderer=``, and ``presets=`` tokens verbatim, and ``register_task()`` parses them directly. Scripts should assign
+the returned remainder to ``sys.argv`` unchanged.
+
+Teleoperation Replay
+~~~~~~~~~~~~~~~~~~~~
+
+The transitional ``isaaclab_teleop.automation`` package, including ``XcrReplayConfig`` and ``start_xcr_replay``, has
+been removed. Replay workflows now use Isaac Teleop MCAP replay through
+``scripts/environments/teleoperation/teleop_replay_agent.py``.
+
+The legacy lazy ``teleop_devices`` accessor on GR1T2 pick-place environment configs has also been removed. Use
+``env_cfg.isaac_teleop`` or construct legacy OpenXR devices explicitly.
+
+Deformable APIs
+~~~~~~~~~~~~~~~
+
+Generic deformable object and material APIs have moved from ``isaaclab_physx`` into backend-neutral
+``isaaclab.assets`` and ``isaaclab.sim`` imports. The old generic PhysX deformable aliases are deprecated in favor of
+PhysX-specific names.
+
+OVRTX Renderer Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``OVRTXRendererCfg.use_cloning`` has been renamed to ``use_ovrtx_cloning``, and ``temp_usd_suffix`` has been removed.
+Temporary USD output now uses a fixed filename under ``temp_usd_dir`` when enabled.
+
+Camera Aliases
+~~~~~~~~~~~~~~
+
+``TiledCamera`` has been folded into ``Camera``. Existing tiled-camera aliases remain as compatibility surface where
+available, but new code should use ``Camera`` and ``CameraCfg``.
+
+Notable Fixes
+-------------
+
+Core Runtime
+~~~~~~~~~~~~
+
+* Fixes SimulationContext reset ordering so initial visualizers are created before timeline event pumping can
+  invalidate new PhysX tensor views.
+* Guards environment, asset, sensor, and callback destructors during Python shutdown.
+* Fixes memory leaks when closing manager-based, direct RL, and direct MARL environments.
+* Fixes safe callable resolution for lambda strings by validating expressions and evaluating them without Python
+  builtins.
+* Fixes local and remote asset dependency retrieval for MDL materials and textures.
+
+Backends & Sensors
+~~~~~~~~~~~~~~~~~~
+
+* Fixes stale sensor data after environment resets for PhysX and Newton contact, IMU, PVA, and joint-wrench sensors.
+* Fixes PhysX scene-data rigid-body discovery when joint prims share names or carry rigid-body API metadata.
+* Fixes Newton and OVRTX heterogeneous replication, clone-plan path resolution, and camera transform handling.
+* Fixes OVPhysX optional runtime pins and missing-runtime install errors.
+* Fixes OVRTX package resolution so PPISP is only required when camera ISP is configured.
+
+Training & Deployment
+~~~~~~~~~~~~~~~~~~~~~
+
+* Fixes ``rl_games`` and SB3 checkpoint fallback when best/final checkpoints are not yet written.
+* Fixes skrl JAX multihost imports, RSL-RL recurrent LEAPP export, and LEAPP projected-gravity export.
+* Fixes AutoMate PhysX sizing, assembly ID validation, Numba dependency removal, and downstream argument forwarding.
+* Fixes RLinf optional dependencies for DGX Spark and aarch64.
+* Fixes native teleoperation mappings for Franka reach tasks and RMPFlow quaternion handling.
+
+Updated Dependencies
+--------------------
+
+* Isaac Sim 6.0.0 Docker image.
+* Python ``>=3.12,<3.13``.
+* PyTorch ``2.10.0``, TorchAudio ``2.10.0``, TorchVision ``0.25.0``.
+* CUDA 12.8 PyTorch wheels for Linux x86_64, Windows, and AMD64 markers; CUDA 13.0 wheels for Linux aarch64/arm64
+  markers.
+* Newton package pins updated along the 1.2.1 line.
+* OVPhysX optional runtime pinned to ``ovphysx==0.4.13``.
+* OVRTX optional runtime updated along the 0.3.x line.
+* ``pyglet>=2.1.6,<3`` added for Newton GL video recording.
+* ``isaaclab_ppisp`` added as the shared camera ISP extension, loaded by renderers only when camera ISP is configured.
+
+Known Limitations
+-----------------
+
+* This remains a beta release; the release branch may still receive breaking changes before the final Isaac Lab 3.0
+  release. We anticipate the branch will stabilize towards a final Isaac Lab 3.0 release in the coming 1-2 months.
+* Newton remains under active development. Some features, task presets, and surface gripper workflows remain
+  backend-specific or unsupported.
+* OVRTX and OVPhysX require their optional runtime wheels. Isaac Lab now reports clearer install guidance when those
+  wheels are missing, but those backends are still optional installs.
+
+Migration Notes
+---------------
+
+* Replace ``--headless`` usage with ``--viz`` / ``--visualizer`` or omit visualizers for fully headless runs.
+* Replace ``presets=...`` only where broad preset broadcast is intended; prefer typed selectors such as
+  ``physics=...`` and ``renderer=...`` when selecting backend-specific behavior.
+* Remove ``fold_preset_tokens(...)`` wrappers from custom scripts that integrate with the preset CLI.
+* Move deformable imports to backend-neutral ``isaaclab.assets`` and ``isaaclab.sim`` APIs where possible.
+* Migrate tiled-camera code toward ``Camera`` / ``CameraCfg``.
+* Use ``ProxyArray.torch`` or ``ProxyArray.warp`` explicitly when crossing between Torch and Warp code.
+* Use Isaac Teleop MCAP replay and ``teleop_replay_agent.py`` for replay automation instead of the removed XCR
+  automation helpers.
+
+v3.0.0-beta
+===========
+
+`View this release on GitHub <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta>`__.
+
+Isaac Lab 3.0 Beta is the next major release of Isaac Lab, built on **Isaac Sim 6.0** and introducing a ground-up
+architectural overhaul. This release brings multi-backend physics, a pluggable renderer system, Warp-native data
+pipelines, and a kit-less installation mode — enabling faster, more flexible robot learning research.
+
+.. warning::
+
+   This is a beta release. The ``develop`` branch is under active development and may experience breaking changes,
+   error messages, or performance regressions in some use cases.
+
+Highlights
+----------
+
+Multi-Backend Physics Architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 introduces a **factory-based multi-backend architecture** that separates simulation backend-specific
+code from the core API. Asset and sensor classes (e.g., ``Articulation``, ``RigidObject``, and
+``ContactSensor``) are now backed by abstract base classes, with backend-specific implementations in dedicated
+extension packages:
+
+* **``isaaclab_physx``** — Full PhysX backend (default), including deformable objects, surface grippers, contact
+  sensors, IMU, and frame transformers.
+* **``isaaclab_newton``** — New Newton physics backend powered by MuJoCo-Warp, supporting MJWarp, XPBD, and
+  Featherstone solvers with CUDA-graph acceleration.
+
+Your existing imports from ``isaaclab.assets`` and ``isaaclab.sensors`` continue to work — the factory automatically
+dispatches to the active backend at runtime.
+
+Newton Physics Backend
+~~~~~~~~~~~~~~~~~~~~~~
+
+The new ``isaaclab_newton`` extension enables running Isaac Lab environments **without Isaac Sim** (kit-less mode).
+Newton support includes:
+
+* Articulations, rigid objects, and rigid object collections.
+* Contact sensors.
+* MuJoCo-Warp solver with configurable integrators (``implicitfast``, ``euler``) and contact models (``pyramidal``,
+  ``elliptic``).
+* CUDA graph support for high-throughput stepping.
+* Newton-compatible presets for 20+ environments (locomotion, manipulation, classic control).
+
+Pluggable Renderer System
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A new ``BaseRenderer`` abstraction supports multiple rendering backends via a factory pattern:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 50
+
+   * - Backend
+     - Requires Isaac Sim?
+     - Best For
+   * - **Isaac RTX**
+     - Yes
+     - Full sensor fidelity, photorealistic rendering
+   * - **OVRTX**
+     - No (+ ``isaaclab_ov[ovrtx]``)
+     - Kit-less RTX pipeline
+   * - **Newton Warp**
+     - No (kit-less)
+     - Fast training without RTX
+
+Pluggable Visualizer System
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 introduces a new **pluggable visualizer framework** (``isaaclab_visualizers``) with four interchangeable
+backends, all decoupled from the physics engine and renderer:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 25 55
+
+   * - Visualizer
+     - Best For
+     - Key Features
+   * - **Omniverse (Kit)**
+     - High-fidelity, Isaac Sim integration
+     - USD stage, visual markers, live training plots
+   * - **Newton**
+     - Fast iteration, low overhead
+     - OpenGL rendering, physics debug markers (joints, contacts, COM), interactive camera controls
+   * - **Rerun**
+     - Remote viewing & replay
+     - Web viewer, timeline scrubbing, ``.rrd`` recording/export
+   * - **Viser**
+     - Web-based sharing & recording
+     - Browser-based via Newton Warp renderer, public share URLs, ``.viser`` recording
+
+**Launch from the CLI** with the new ``--viz`` flag (replaces the deprecated ``--headless`` flag).
+
+Multiple visualizers at once:
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0 --viz kit,newton,rerun
+
+Single visualizer:
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0 --viz newton
+
+Web-based Viser visualizer:
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0 --viz viser
+
+Headless (no visualizers):
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0
+
+Warp-Native Data Pipeline
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All ``.data.*`` properties on asset and sensor classes now return **``wp.array``** (NVIDIA Warp) instead of
+``torch.Tensor``. Internal state buffers use structured warp types (``wp.vec3f``, ``wp.quatf``, ``wp.transformf``,
+``wp.spatial_vectorf``), and fused GPU kernels replace Python-level loops for state extraction, velocity transforms,
+and data write-back. Convert back to torch with ``wp.to_torch()`` when needed.
+
+Preset System for Multi-Backend Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A new ``PresetCfg`` pattern allows a single environment config to declare named variants for different backends.
+Select a preset at launch:
+
+Run with Newton backend:
+
+.. code-block:: bash
+
+   python train.py task=Isaac-Ant-v0 presets=newton
+
+Run with default PhysX backend:
+
+.. code-block:: bash
+
+   python train.py task=Isaac-Ant-v0
+
+Lazy Exporting & Resolvable Strings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All packages now use lazy exporting with ``.pyi`` stubs, so importing a top-level module (e.g.,
+``import isaaclab.sensors``) no longer eagerly pulls in heavyweight dependencies. Config fields like ``class_type``
+store references as resolvable strings that are resolved only after ``SimulationApp`` is initialized, enabling
+automatic physics-backend selection.
+
+Isaac Teleop Integration
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+XR teleoperation is now powered by Isaac Teleop via the new ``isaaclab_teleop`` extension, replacing the previous
+``isaaclab.devices.openxr`` stack. The new system provides a unified teleoperation interface with pipeline-based
+retargeting configuration.
+
+Breaking Changes
+----------------
+
+Quaternion Format: WXYZ → XYZW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All quaternions throughout Isaac Lab now use XYZW ordering to align with Warp, PhysX, and Newton conventions.
+Hard-coded quaternion values must be updated. A quaternion finder tool is provided to help locate and fix
+quaternions.
+
+Data Properties Return ``wp.array``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All ``.data.*`` properties now return ``wp.array``. Wrap with ``wp.to_torch()`` for PyTorch compatibility. An
+automated migration tool is available at ``scripts/tools/wrap_warp_to_torch.py``.
+
+Write Method Index/Mask Split
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All asset write methods have been split into ``_index`` and ``_mask`` variants. The previous
+``write_*_to_sim(data, env_ids)`` pattern is replaced by:
+
+* ``write_*_to_sim_index(data, env_ids)`` — sparse indexed data.
+* ``write_*_to_sim_mask(data, env_mask)`` — full data with boolean mask.
+
+Deprecated APIs
+~~~~~~~~~~~~~~~
+
+* ``root_physx_view`` → use ``root_view``.
+* ``object_*`` naming on ``RigidObjectCollection`` → use ``body_*``.
+* ``--headless`` CLI argument → use ``--visualizer`` / ``--viz``.
+* ``OpenXRDevice`` / ``OpenXRDeviceCfg`` → use ``IsaacTeleopDevice`` / ``IsaacTeleopCfg``.
+* Sensor ``pose_w``, ``pos_w``, and ``quat_w`` properties → use ``FrameTransformer``.
+
+URDF & MJCF Importers Updated
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both importers have been rewritten for Isaac Sim 6.0. Several configuration settings have been removed, renamed, or
+replaced. See the
+`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/migration/migrating_to_isaaclab_3-0.html>`__
+for details.
+
+Updated Dependencies
+--------------------
+
+* Python 3.12.
+* PyTorch 2.10.0+cu128.
+* NumPy 2.3.1.
+* Isaac Sim 6.0.
+
+Known Limitations
+-----------------
+
+* Ubuntu only — The ``develop`` branch is currently available on Ubuntu. Windows support and Isaac Lab pip wheels will
+  be available soon.
+* Newton backend is in active development — Not all environments have Newton presets yet. Some features (e.g.,
+  deformable objects, surface grippers, material randomization) are PhysX-only.
+* Performance regressions may be observed in some use cases as the multi-backend architecture stabilizes.
+* Breaking changes may still occur on the ``develop`` branch before the final 3.0 release.
+
+Migration Guide
+---------------
+
+For a comprehensive guide on migrating from Isaac Lab 2.x to 3.0, including code examples, API rename tables, and
+automated tooling, see the
+`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/migration/migrating_to_isaaclab_3-0.html>`__.
 
 v2.3.2
 ======
@@ -1972,7 +2483,7 @@ Welcome to the first official release of Isaac Lab!
 
 Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated
 the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_.
-This allows users to choose a suitable :ref:`task-design approach <ref_arch>`
+This allows users to choose a suitable :ref:`task-design approach <feature-workflows>`
 for their applications.
 
 While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with

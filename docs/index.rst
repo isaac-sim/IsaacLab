@@ -91,7 +91,6 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
-   source/refs/reference_architecture/index
    source/migration/migrating_to_isaaclab_3-0
 
 
