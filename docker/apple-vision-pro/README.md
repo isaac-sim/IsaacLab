@@ -5,15 +5,15 @@ CloudXR, and deploys the native Isaac XR Teleop Sample Client to Apple Vision Pr
 tracking with the `IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs` task.
 
 For the Snap Circuits workbench populated from private S3 and the two local
-asset bundles, using bimanual Sharpa Wave hands, follow the dedicated
-[Snap Circuits + Sharpa Wave demo](snap-circuits/README.md) after completing
+asset bundles, with selectable GR1T2, Sharpa Wave, and ProHand backends, follow
+the dedicated [Snap Circuits demo](snap-circuits/README.md) after completing
 the base setup below.
 
 The configuration was validated on the following server:
 
 | Component | Validated version |
 | --- | --- |
-| Host | Ubuntu 26.04 LTS, Linux x86_64 |
+| Host | Ubuntu 24.04 LTS, Linux x86_64 |
 | GPU | NVIDIA RTX PRO 6000 Blackwell Workstation Edition |
 | NVIDIA driver | 595.84 |
 | Docker / Compose | 29.1.3 / 2.40.3 |
