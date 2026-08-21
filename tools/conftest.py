@@ -80,6 +80,48 @@ kill it.  The test results are taken from the report file (pass/fail), not
 from the kill.
 """
 
+EXIT_TESTS_FAILED = 1
+"""Exit code for a run that completed with at least one failing assertion."""
+
+EXIT_CRASHED = 20
+"""Exit code for a run where a test process died without writing its report."""
+
+EXIT_TIMEOUT = 21
+"""Exit code for a run where a test reached its hard timeout."""
+
+EXIT_STARTUP_HANG = 22
+"""Exit code for a run where a test never finished starting up."""
+
+EXIT_CODE_LABELS = {
+    0: "all tests passed",
+    EXIT_TESTS_FAILED: "test failures",
+    EXIT_CRASHED: "crashed process",
+    EXIT_TIMEOUT: "timeout",
+    EXIT_STARTUP_HANG: "startup hang",
+}
+"""Label for each exit code, printed with the result summary."""
+
+
+def resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang):
+    """Return the exit code for a finished run, based on how it failed.
+
+    A crashed process, a hang and a failing assertion have different owners, so
+    each reports its own code rather than a shared ``1``; the code alone is then
+    enough to route a red job.  When a run hits more than one, the code reports
+    the outcome that proved the least: a process that died never reached the
+    assertion a failing test did.  ``1`` still means failing assertions, so
+    callers that only check for a non-zero code are unaffected.
+    """
+    if num_crashed:
+        return EXIT_CRASHED
+    if num_timeout:
+        return EXIT_TIMEOUT
+    if num_startup_hang:
+        return EXIT_STARTUP_HANG
+    if num_failing:
+        return EXIT_TESTS_FAILED
+    return 0
+
 
 def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
     """Run a command with timeout and capture all output while streaming in real-time.
@@ -1531,6 +1573,9 @@ def pytest_sessionstart(session):
     summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
+    exit_code = resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang)
+    summary_str += f"Exit Code: {exit_code} ({EXIT_CODE_LABELS[exit_code]})\n"
+
     total_wall = sum(test_status[test_path]["wall_time"] for test_path in test_files)
     total_test = sum(test_status[test_path]["time_elapsed"] for test_path in test_files)
 
@@ -1547,7 +1592,4 @@ def pytest_sessionstart(session):
     logger.info(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit(
-        "Custom test execution completed",
-        returncode=0 if (num_failing == 0 and num_timeout == 0 and num_crashed == 0 and num_startup_hang == 0) else 1,
-    )
+    pytest.exit("Custom test execution completed", returncode=exit_code)
