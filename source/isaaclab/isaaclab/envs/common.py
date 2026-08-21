@@ -124,9 +124,6 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     )
     cam_prim_path_changed = getattr(viewer, "cam_prim_path", _defaults.cam_prim_path) != _defaults.cam_prim_path
 
-    if not (eye_changed or lookat_changed or origin_changed or resolution_changed or cam_prim_path_changed):
-        return
-
     if cam_prim_path_changed:
         _logging.getLogger(__name__).warning(
             "env_cfg.viewer.cam_prim_path=%r cannot be automatically forwarded to KitVisualizerCfg "
@@ -134,6 +131,9 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
             "a custom KitVisualizerCfg in env_cfg.sim.visualizer_cfgs.",
             viewer.cam_prim_path,
         )
+
+    if not (eye_changed or lookat_changed or origin_changed or resolution_changed):
+        return
 
     _logging.getLogger(__name__).warning(
         "env_cfg.viewer is deprecated. Set env_cfg.sim.default_visualizer_cfg = "
@@ -226,7 +226,7 @@ The tuple contains batched information for each sub-environment. The information
 2. **Rewards**: The rewards from the environment.
 3. **Terminated Dones**: Whether the environment reached a terminal state, such as task success or robot falling etc.
 4. **Timeout Dones**: Whether the environment reached a timeout state, such as end of max episode length.
-5. **Extras**: A dictionary containing additional information from the environment.
+5. **Extras**: A dictionary containing additional information about the environment.
 """
 
 AgentID = TypeVar("AgentID")
@@ -263,5 +263,5 @@ The information is stored in the following order:
 2. **Rewards**: The rewards from the environment.
 3. **Terminated Dones**: Whether the environment reached a terminal state, such as task success or robot falling etc.
 4. **Timeout Dones**: Whether the environment reached a timeout state, such as end of max episode length.
-5. **Extras**: A dictionary containing additional information from the environment.
+5. **Extras**: A dictionary containing additional information about the environment.
 """
