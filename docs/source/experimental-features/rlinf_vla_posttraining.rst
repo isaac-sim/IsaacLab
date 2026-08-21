@@ -80,7 +80,9 @@ From the Isaac Lab root directory:
    uv sync --inexact --extra rlinf
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install rlinf==0.2.0dev2 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
+   uv pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-deps
 
    # Step 3: Install Isaac-GR00T (pinned version)
    git clone https://github.com/NVIDIA/Isaac-GR00T.git
