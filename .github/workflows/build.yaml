@@ -230,6 +230,7 @@ jobs:
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
+        parallel-test-workers: "4"
         warp-cache: restore
         container-name: isaac-lab-tasks-1-test
 
@@ -257,6 +258,7 @@ jobs:
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
+        parallel-test-workers: "4"
         warp-cache: restore
         container-name: isaac-lab-tasks-2-test
 
@@ -284,6 +286,7 @@ jobs:
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
+        parallel-test-workers: "4"
         warp-cache: restore
         container-name: isaac-lab-tasks-3-test
 

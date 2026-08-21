@@ -37,6 +37,7 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  local parallel_test_workers="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -129,6 +130,11 @@ run_tests() {
   if [ "$quarantined_only" = "true" ]; then
     docker_env_vars="$docker_env_vars -e TEST_QUARANTINED_ONLY=true"
     echo "Setting TEST_QUARANTINED_ONLY=true"
+  fi
+
+  if [ -n "$parallel_test_workers" ]; then
+    docker_env_vars="$docker_env_vars -e ISAACLAB_PARALLEL_TEST_WORKERS=$parallel_test_workers"
+    echo "Parallel-safe test workers: $parallel_test_workers"
   fi
 
   if [ -n "$include_files" ]; then

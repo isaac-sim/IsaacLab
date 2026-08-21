@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import threading
 import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from types import ModuleType
@@ -483,3 +484,57 @@ def test_result_summary_includes_fast_failure_after_thirty_slower_files():
     assert "Slowest 30 Test Files" not in summary
     assert "fast_failure.py" in summary
     assert all(test_path in summary for test_path in test_files)
+
+
+def test_parallel_safe_files_keep_process_isolation_and_complete_once(monkeypatch, tmp_path: Path) -> None:
+    """Approved files should overlap while each still uses the per-file runner once."""
+    orchestrator = _load_orchestrator_module()
+    test_files = [str(tmp_path / name) for name in ("test_a.py", "test_b.py", "test_sequential.py")]
+    for test_file in test_files:
+        Path(test_file).write_text("def test_present():\n    pass\n", encoding="utf-8")
+
+    monkeypatch.setattr(orchestrator.test_settings, "PARALLEL_SAFE_TESTS", {"test_a.py", "test_b.py"})
+    monkeypatch.setenv("ISAACLAB_PARALLEL_TEST_WORKERS", "2")
+    barrier = threading.Barrier(2)
+    calls: list[str] = []
+    calls_lock = threading.Lock()
+
+    def _run_file(test_file, *_args):
+        name = Path(test_file).name
+        with calls_lock:
+            calls.append(name)
+        if name in {"test_a.py", "test_b.py"}:
+            barrier.wait(timeout=2)
+        status = {
+            "errors": 0,
+            "failures": 0,
+            "skipped": 0,
+            "tests": 1,
+            "result": "passed",
+            "time_elapsed": 0.01,
+            "wall_time": 0.01,
+        }
+        return False, status, [name]
+
+    monkeypatch.setattr(orchestrator, "_run_individual_test_file", _run_file)
+
+    failed, status, reports = orchestrator.run_individual_tests(test_files, str(tmp_path), None)
+
+    assert not failed
+    assert calls.count("test_a.py") == 1
+    assert calls.count("test_b.py") == 1
+    assert calls.count("test_sequential.py") == 1
+    assert list(status) == test_files
+    assert reports == ["test_a.py", "test_b.py", "test_sequential.py"]
+
+
+def test_parallel_safe_task_files_do_not_require_exclusive_runner_features() -> None:
+    """The explicit parallel set must stay free of camera startup and device-split handling."""
+    orchestrator = _load_orchestrator_module()
+    workspace_root = Path(__file__).resolve().parents[4]
+
+    for relative_path in orchestrator.test_settings.PARALLEL_SAFE_TESTS:
+        test_file = workspace_root / relative_path
+        source = test_file.read_text(encoding="utf-8")
+        assert "enable_cameras=True" not in source, relative_path
+        assert not orchestrator.is_device_split_file(str(test_file), source=source), relative_path

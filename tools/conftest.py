@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import concurrent.futures
 import contextlib
 import logging
 import os
@@ -1071,12 +1072,108 @@ def _run_one_pass(
     )
 
 
+def _read_test_content(test_file: str) -> str:
+    """Read a test file for runner-level classification."""
+    try:
+        with open(test_file) as file:
+            return file.read()
+    except OSError:
+        return ""
+
+
+def _is_parallel_safe_test(test_file: str) -> bool:
+    """Return whether a test path is explicitly approved for concurrent execution."""
+    normalized = os.path.normpath(test_file).replace("\\", "/")
+    return any(normalized.endswith(path) for path in test_settings.PARALLEL_SAFE_TESTS)
+
+
+def _run_individual_test_file(
+    test_file,
+    workspace_root,
+    ci_marker,
+    test_node_ids_by_file,
+    global_k_expr,
+    test_content,
+    is_cold_cache_test,
+):
+    """Run one test file in its own pytest subprocess."""
+    logger.info(f"\n\n🚀 Running {test_file} independently...\n")
+    file_name = os.path.basename(test_file)
+    env = os.environ.copy()
+    env["PYTHONFAULTHANDLER"] = "1"
+
+    # Multi-GPU lane only: make the device-selection plugin importable in this
+    # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
+    # repo-root conftest). Detect a shard by the runtime device mask excluding cpu
+    # (position 0) and cuda:0 (position 1) -- the same ISAACLAB_TEST_DEVICES the
+    # plugin and test_devices() read. The plugin re-checks this; the cheap
+    # prefix test here leaves single-GPU CI's command (mask unset or "11...")
+    # unchanged.
+    mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
+    inject_shard_select = mask[:2] == "00"
+    if inject_shard_select:
+        plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
+        env["PYTHONPATH"] = plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
+
+    timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
+    if is_cold_cache_test:
+        timeout += COLD_CACHE_BUFFER
+        logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
+
+    extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
+    startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
+    pytest_targets = test_node_ids_by_file.get(os.path.normpath(test_file), [str(test_file)])
+    ctx = _PassContext(
+        test_file=test_file,
+        file_name=file_name,
+        workspace_root=workspace_root,
+        ci_marker=ci_marker,
+        timeout=timeout,
+        startup_deadline=startup_deadline,
+        env=env,
+        inject_shard_select=inject_shard_select,
+        pytest_targets=pytest_targets,
+    )
+
+    # On a multi-GPU shard, test_devices() already resolves to this shard's single
+    # GPU and mgpu_shard_select drops every other variant, so the device_split
+    # CPU/GPU two-pass (which exists to dodge the process-global device lock when
+    # CPU and GPU share one container) is unnecessary here — the CPU pass would
+    # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
+    if inject_shard_select:
+        passes = [("", None)]
+    elif is_device_split_file(test_file, source=test_content):
+        logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
+        passes = DEVICE_SPLIT_PASSES
+    else:
+        passes = [("", None)]
+
+    file_reports = []
+    file_failed = False
+    merged_status: dict | None = None
+    for suffix, k_expr in passes:
+        if global_k_expr is not None:
+            k_expr = f"({k_expr}) and ({global_k_expr})" if k_expr else global_k_expr
+        report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
+        if report is not None:
+            file_reports.append(report)
+        file_failed = file_failed or was_failure
+        merged_status = _merge_pass_status(merged_status, status)
+
+    assert merged_status is not None  # the pass list is never empty
+    return file_failed, merged_status, file_reports
+
+
 def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by_file=None):
-    """Run each test file separately, ensuring one finishes before starting the next.
+    """Run every test file in an isolated subprocess.
 
     When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue file, files are claimed
     from it (work-stealing across sibling shard containers) instead of iterating
     ``test_files``; each file still runs once, on this container's pinned GPU.
+
+    Explicitly approved lightweight files may run concurrently when
+    ``ISAACLAB_PARALLEL_TEST_WORKERS`` is greater than one. All other files and
+    work-queue runs remain sequential.
     """
     failed_tests = []
     test_status = {}
@@ -1088,87 +1185,64 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         logger.info(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
 
     queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
-    file_source = _queued_files(queue_path) if queue_path else test_files
+    try:
+        parallel_workers = max(1, int(os.environ.get("ISAACLAB_PARALLEL_TEST_WORKERS", "1")))
+    except ValueError:
+        pytest.exit("ISAACLAB_PARALLEL_TEST_WORKERS must be an integer", returncode=1)
 
-    for test_file in file_source:
-        logger.info(f"\n\n🚀 Running {test_file} independently...\n")
-        file_name = os.path.basename(test_file)
-        env = os.environ.copy()
-        env["PYTHONFAULTHANDLER"] = "1"
+    def record_result(test_file, result):
+        file_failed, status, reports = result
+        if file_failed:
+            failed_tests.append(test_file)
+        test_status[test_file] = status
+        xml_reports.extend(reports)
 
-        # Multi-GPU lane only: make the device-selection plugin importable in this
-        # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
-        # repo-root conftest). Detect a shard by the runtime device mask excluding cpu
-        # (position 0) and cuda:0 (position 1) -- the same ISAACLAB_TEST_DEVICES the
-        # plugin and test_devices() read. The plugin re-checks this; the cheap
-        # prefix test here leaves single-GPU CI's command (mask unset or "11...")
-        # unchanged.
-        _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
-        _inject_shard_select = _mask[:2] == "00"
-        if _inject_shard_select:
-            _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
-            env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
+    if queue_path:
+        parallel_files = []
+        sequential_files = _queued_files(queue_path)
+    elif parallel_workers > 1:
+        parallel_files = [test_file for test_file in test_files if _is_parallel_safe_test(test_file)]
+        sequential_files = [test_file for test_file in test_files if not _is_parallel_safe_test(test_file)]
+    else:
+        parallel_files = []
+        sequential_files = test_files
 
-        timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
-
-        # Read the test file once for cold-cache and device-split detection.
-        try:
-            with open(test_file) as fh:
-                test_content = fh.read()
-        except OSError:
-            test_content = ""
-
-        # The first camera-enabled test in a fresh container compiles shaders
-        # (~600 s).  Give it extra time so that doesn't look like a test timeout.
+    if parallel_workers > 1 and parallel_files:
+        for test_file in parallel_files:
+            test_content = _read_test_content(test_file)
+            if "enable_cameras=True" in test_content or is_device_split_file(test_file, source=test_content):
+                pytest.exit(f"Parallel-safe test requires renderer or device splitting: {test_file}", returncode=1)
+        logger.info(f"Running {len(parallel_files)} lightweight test files with {parallel_workers} workers")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+            futures = [
+                executor.submit(
+                    _run_individual_test_file,
+                    test_file,
+                    workspace_root,
+                    ci_marker,
+                    test_node_ids_by_file,
+                    global_k_expr,
+                    _read_test_content(test_file),
+                    False,
+                )
+                for test_file in parallel_files
+            ]
+            for test_file, future in zip(parallel_files, futures):
+                record_result(test_file, future.result())
+    for test_file in sequential_files:
+        test_content = _read_test_content(test_file)
         is_cold_cache_test = not cold_cache_applied and "enable_cameras=True" in test_content
-        if is_cold_cache_test:
-            timeout += COLD_CACHE_BUFFER
-            cold_cache_applied = True
-            logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
-
-        extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
-        startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
-
-        pytest_targets = test_node_ids_by_file.get(os.path.normpath(test_file), [str(test_file)])
-
-        ctx = _PassContext(
-            test_file=test_file,
-            file_name=file_name,
-            workspace_root=workspace_root,
-            ci_marker=ci_marker,
-            timeout=timeout,
-            startup_deadline=startup_deadline,
-            env=env,
-            inject_shard_select=_inject_shard_select,
-            pytest_targets=pytest_targets,
+        cold_cache_applied = cold_cache_applied or is_cold_cache_test
+        result = _run_individual_test_file(
+            test_file,
+            workspace_root,
+            ci_marker,
+            test_node_ids_by_file,
+            global_k_expr,
+            test_content,
+            is_cold_cache_test,
         )
-
-        # On a multi-GPU shard, test_devices() already resolves to this shard's single
-        # GPU and mgpu_shard_select drops every other variant, so the device_split
-        # CPU/GPU two-pass (which exists to dodge the process-global device lock when
-        # CPU and GPU share one container) is unnecessary here — the CPU pass would
-        # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-        if _inject_shard_select:
-            passes = [("", None)]
-        elif is_device_split_file(test_file, source=test_content):
-            logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
-            passes = DEVICE_SPLIT_PASSES
-        else:
-            passes = [("", None)]
-
-        merged_status: dict | None = None
-        for suffix, k_expr in passes:
-            if global_k_expr is not None:
-                k_expr = f"({k_expr}) and ({global_k_expr})" if k_expr else global_k_expr
-            report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
-            if report is not None:
-                xml_reports.append(report)
-            if was_failure and test_file not in failed_tests:
-                failed_tests.append(test_file)
-            merged_status = _merge_pass_status(merged_status, status)
-
-        assert merged_status is not None  # the pass list is never empty
-        test_status[test_file] = merged_status
+        record_result(test_file, result)
 
         # When running under the directory-based work queue (option 2), move the
         # claim entry from inflight/<shard>/ to done/<shard>/ so the post-run

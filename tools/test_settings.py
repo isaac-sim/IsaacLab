@@ -124,6 +124,41 @@ TESTS_TO_SKIP = [
 ]
 """A list of tests to skip in CI (see conftest.py)."""
 
+PARALLEL_SAFE_TESTS = {
+    "source/isaaclab_tasks/test/contrib/test_franka_pour_env_cfg.py",
+    "source/isaaclab_tasks/test/contrib/test_franka_pour_reset_dataset_io.py",
+    "source/isaaclab_tasks/test/contrib/test_franka_pour_reset_sampler.py",
+    "source/isaaclab_tasks/test/contrib/test_gear_assembly_env_cfg.py",
+    "source/isaaclab_tasks/test/contrib/test_so101_teleop_pipeline.py",
+    "source/isaaclab_tasks/test/contrib/test_ur10_particle_push_env_cfg.py",
+    "source/isaaclab_tasks/test/core/test_checkpoint_path.py",
+    "source/isaaclab_tasks/test/core/test_core_utils.py",
+    "source/isaaclab_tasks/test/core/test_distributed_device_resolution.py",
+    "source/isaaclab_tasks/test/core/test_g1_agent_cfg.py",
+    "source/isaaclab_tasks/test/core/test_handover_env_cfg.py",
+    "source/isaaclab_tasks/test/core/test_handover_physics_presets.py",
+    "source/isaaclab_tasks/test/core/test_hydra.py",
+    "source/isaaclab_tasks/test/core/test_lazy_export_stubs.py",
+    "source/isaaclab_tasks/test/core/test_lift_env_cfg.py",
+    "source/isaaclab_tasks/test/core/test_lift_kuka_ovphysx_presets.py",
+    "source/isaaclab_tasks/test/core/test_ovphysx_camera_presets.py",
+    "source/isaaclab_tasks/test/core/test_pendulum_marl_cfg.py",
+    "source/isaaclab_tasks/test/core/test_reach_franka_presets.py",
+    "source/isaaclab_tasks/test/core/test_runtime_compatibility.py",
+    "source/isaaclab_tasks/test/core/test_sim_launcher_visualizer_intent.py",
+    "source/isaaclab_tasks/test/core/test_velocity_newton_cfg.py",
+    "source/isaaclab_tasks/test/core/test_xr_camera_feed_presets.py",
+    "source/isaaclab_tasks/test/test_curriculum.py",
+    "source/isaaclab_tasks/test/test_maybe_save_stage_golden.py",
+    "source/isaaclab_tasks/test/test_parametrization_helpers.py",
+    "source/isaaclab_tasks/test/test_signals.py",
+}
+"""Task test files safe to run concurrently in independent subprocesses.
+
+These files do not launch Kit, request the cold renderer cache allowance, or use
+the CPU/GPU device-split mechanism. Keep unclassified tests sequential.
+"""
+
 TEST_RL_ENVS = [
     # classic control
     "Isaac-Ant",

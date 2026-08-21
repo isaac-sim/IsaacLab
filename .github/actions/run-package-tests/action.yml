@@ -79,6 +79,10 @@ inputs:
     description: 'Additional pytest options'
     default: ''
     required: false
+  parallel-test-workers:
+    description: 'Number of workers for explicitly parallel-safe test files'
+    default: '1'
+    required: false
   extra-pip-packages:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
@@ -321,6 +325,7 @@ runs:
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
         standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
+        parallel-test-workers: ${{ inputs.parallel-test-workers }}
 
     - name: Check Test Results
       if: always()
