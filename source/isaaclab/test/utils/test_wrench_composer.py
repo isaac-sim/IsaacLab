@@ -359,6 +359,16 @@ def test_raw_buffer_merge_accumulates_all_five_buffers_and_ignores_inactive_sour
         env_ids=[0],
         is_global=True,
     )
+    wp.copy(
+        inactive_source.local_force_b,
+        _vectors(
+            [
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [8.0, 0.0, 0.0]],
+            ]
+        ),
+    )
+    assert not inactive_source.active
 
     destination.add_raw_buffers_from(source)
     destination.add_raw_buffers_from(inactive_source)
