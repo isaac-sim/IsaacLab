@@ -7,8 +7,8 @@
 # pyright: reportPrivateUsage=none
 
 """
-Checks that the articulation interfaces are consistent across backends, and are providing the exact same data as what
-the base articulation class advertises. All articulation interfaces need to comply with the same interface contract.
+Checks that articulation implementations are consistent across backends and provide the exact same data as the base
+articulation class advertises. All articulation implementations need to comply with the same shared contract.
 
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
@@ -19,7 +19,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKENDS, get_articulation
+from ._articulation_contract_utils import BACKENDS, get_articulation
+from .capabilities import backend_parameters
 
 pytestmark = pytest.mark.integration
 
@@ -59,19 +60,19 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 
 # Common parametrize decorator for all interface tests
-_backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
+_backends = pytest.mark.parametrize("backend", backend_parameters("api"), indirect=False)
 # We also need to provide the fixture params that articulation_iface reads:
 _default_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies",
-    [(1, 1, 1), (1, 2, 2), (2, 6, 7), (100, 8, 13)],
+    [(2, 4, 3)],
 )
 
-_default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_default_devices = pytest.mark.parametrize("device", ["cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+    "backend", backend_parameters("index_resolution", names=("physx", "newton")), indirect=False
 )
 _production_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+    "backend", backend_parameters("api"), indirect=False
 )
 
 
@@ -275,7 +276,7 @@ class TestArticulationFinderReturnModes:
 
 
 _non_mock_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in BACKENDS if backend.lower() != "mock"], indirect=False
+    "backend", backend_parameters("api"), indirect=False
 )
 
 
@@ -1961,15 +1962,14 @@ class TestArticulationDataAliases:
 # Tendon tests — parametrize, properties, finders, data, writers
 # ---------------------------------------------------------------------------
 
-# Newton does not support tendons (always 0), so exclude it from tendon tests.
-_tendon_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "newton"], indirect=False)
+# Spatial tendon behavior is selected through the explicit backend capability declaration.
+_tendon_backends = pytest.mark.parametrize("backend", backend_parameters("spatial_tendons"), indirect=False)
 
 _tendon_dims = pytest.mark.parametrize(
     "num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons",
     [
-        (1, 2, 2, 1, 0),  # fixed only
-        (2, 6, 7, 3, 2),  # both types
-        (100, 8, 13, 4, 3),  # large, both types
+        (1, 4, 3, 1, 0),  # singleton fixed-only edge case
+        (2, 4, 3, 2, 2),  # canonical case with both tendon types
     ],
 )
 

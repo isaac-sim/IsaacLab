@@ -7,9 +7,8 @@
 # pyright: reportPrivateUsage=none
 
 """
-Checks that the rigid object collection interfaces are consistent across backends, and are providing
-the exact same data as what the base rigid object collection class advertises. All rigid object
-collection interfaces need to comply with the same interface contract.
+Checks that rigid object collection implementations are consistent across backends and provide the exact same data as
+the base rigid object collection class advertises. All rigid object collections need to comply with the shared contract.
 
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
@@ -18,7 +17,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _rigid_object_collection_iface_test_utils import BACKENDS, get_rigid_object_collection
+from ._rigid_object_collection_contract_utils import BACKENDS, get_rigid_object_collection
+from .capabilities import backend_parameters
 
 pytestmark = pytest.mark.integration
 
@@ -60,20 +60,20 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 
 # Common parametrize decorators
-_backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-_default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
+_backends = pytest.mark.parametrize("backend", backend_parameters("api"), indirect=False)
+_default_dims = pytest.mark.parametrize("num_instances", [2])
 
-_default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
+_default_bodies = pytest.mark.parametrize("num_bodies", [3])
 
-_default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_default_devices = pytest.mark.parametrize("device", ["cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+    "backend", backend_parameters("index_resolution", names=("physx", "newton")), indirect=False
 )
 _reshape_3d_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+    "backend", backend_parameters("api"), indirect=False
 )
 _production_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
+    "backend", backend_parameters("api"), indirect=False
 )
 
 

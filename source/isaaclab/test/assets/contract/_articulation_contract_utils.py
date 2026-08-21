@@ -6,11 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Shared mocked articulation backend factories for interface tests."""
+"""Shared mocked articulation backend factories for contract tests."""
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+from ._contract_boot import simulation_app
+from .capabilities import available_backends, backend_unavailable_reasons
 
 import numpy as np
 import torch
@@ -19,43 +20,31 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS: list[str] = []
-BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}
+BACKENDS = available_backends("api")
+BACKEND_UNAVAILABLE_REASONS = backend_unavailable_reasons()
 
-try:
+if "physx" in BACKENDS:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
-except ImportError as error:
-    BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
-else:
-    # PhysX data classes need gravity even though interface tests do not create a physics scene.
+
+    # PhysX data classes need gravity even though contract tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-    BACKENDS.append("physx")
-
-try:
+if "newton" in BACKENDS:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
-except ImportError as error:
-    BACKEND_UNAVAILABLE_REASONS["newton"] = f"{type(error).__name__}: {error}"
-else:
-    BACKENDS.append("newton")
 
-try:
+if "ovphysx" in BACKENDS:
     import ovphysx  # noqa: F401
 
     from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
-except ImportError as error:
-    BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
-else:
-    BACKENDS.append("ovphysx")
 
 
 def create_physx_articulation(
@@ -358,13 +347,8 @@ def create_newton_articulation(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in the Newton data module
-    original_sim_manager = newton_data_module.SimulationManager
     newton_data_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonArticulationData(mock_view, device)
-    finally:
-        newton_data_module.SimulationManager = original_sim_manager
+    data = NewtonArticulationData(mock_view, device)
     mock_view._tendon_count = num_fixed_tendons
 
     # Create Articulation shell (bypass __init__)

@@ -6,11 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Shared mocked rigid-object backend factories for interface tests."""
+"""Shared mocked rigid-object backend factories for contract tests."""
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+from ._contract_boot import simulation_app
+from .capabilities import available_backends
 
 import numpy as np
 import warp as wp
@@ -18,42 +19,30 @@ import warp as wp
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS: list[str] = []
+BACKENDS = available_backends("api")
 
-try:
+if "physx" in BACKENDS:
     from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject as PhysXRigidObject
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-except ImportError:
-    pass
-else:
-    # PhysX data classes need gravity even though interface tests do not create a physics scene.
+
+    # PhysX data classes need gravity even though contract tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-    BACKENDS.append("physx")
-
-try:
+if "newton" in BACKENDS:
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
-except ImportError:
-    pass
-else:
-    BACKENDS.append("newton")
 
-try:
+if "ovphysx" in BACKENDS:
     import ovphysx  # noqa: F401
 
     from isaaclab_ov.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
     from isaaclab_ov.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
-except ImportError:
-    pass
-else:
-    BACKENDS.append("ovphysx")
 
 
 def create_physx_rigid_object(
@@ -164,13 +153,8 @@ def create_newton_rigid_object(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in the Newton data module
-    original_sim_manager = newton_data_module.SimulationManager
     newton_data_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonRigidObjectData(mock_view, device)
-    finally:
-        newton_data_module.SimulationManager = original_sim_manager
+    data = NewtonRigidObjectData(mock_view, device)
 
     # Create RigidObject shell (bypass __init__)
     rigid_object = object.__new__(NewtonRigidObject)

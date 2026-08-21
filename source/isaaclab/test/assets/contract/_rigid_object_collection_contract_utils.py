@@ -6,11 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Shared mocked rigid-object-collection backend factories for interface tests."""
+"""Shared mocked rigid-object-collection backend factories for contract tests."""
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+from ._contract_boot import simulation_app
+from .capabilities import available_backends
 
 import numpy as np
 import warp as wp
@@ -19,9 +20,9 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS: list[str] = []
+BACKENDS = available_backends("api")
 
-try:
+if "physx" in BACKENDS:
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as PhysXRigidObjectCollection,
     )
@@ -30,17 +31,13 @@ try:
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-except ImportError:
-    pass
-else:
-    # PhysX data classes need gravity even though interface tests do not create a physics scene.
+
+    # PhysX data classes need gravity even though contract tests do not create a physics scene.
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-    BACKENDS.append("physx")
-
-try:
+if "newton" in BACKENDS:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as NewtonRigidObjectCollection,
     )
@@ -48,12 +45,8 @@ try:
         RigidObjectCollectionData as NewtonRigidObjectCollectionData,
     )
     from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView as NewtonMockCollectionView
-except ImportError:
-    pass
-else:
-    BACKENDS.append("newton")
 
-try:
+if "ovphysx" in BACKENDS:
     import ovphysx  # noqa: F401
 
     from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import (
@@ -63,11 +56,6 @@ try:
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
-except ImportError:
-    pass
-else:
-    if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
-        BACKENDS.append("ovphysx")
 
 
 def create_physx_rigid_object_collection(
@@ -170,16 +158,9 @@ def create_newton_rigid_object_collection(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in both data and collection modules
-    original_data_manager = newton_data_module.SimulationManager
-    original_coll_manager = newton_coll_module.SimulationManager
     newton_data_module.SimulationManager = mock_manager
     newton_coll_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
-    finally:
-        newton_data_module.SimulationManager = original_data_manager
-        newton_coll_module.SimulationManager = original_coll_manager
+    data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
 
     # Create collection shell (bypass __init__)
     collection = object.__new__(NewtonRigidObjectCollection)

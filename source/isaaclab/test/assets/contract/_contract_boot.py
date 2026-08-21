@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared Kit and kitless bootstrap for backend interface tests."""
+"""Shared Kit and kitless bootstrap for backend contract tests."""
 
 import os
 import sys
