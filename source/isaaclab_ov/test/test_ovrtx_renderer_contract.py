@@ -692,6 +692,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
+    assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None

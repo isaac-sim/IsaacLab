@@ -88,7 +88,6 @@ from .ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from .ovrtx_mapping import map_attribute_for_warp_writes
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -520,12 +519,13 @@ class OVRTXRenderer(BaseRenderer):
         """Initialize the legacy-path instance fields.
 
         Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles. State shared by both
-        paths (``_object_newton_indices``, the particle offset/count lists) stays in
-        :meth:`__init__`.
+        here: the ``bind_attribute``/``bind_array_attribute`` handles and the caller-owned object
+        transform buffer. State shared by both paths (``_object_newton_indices``, the particle
+        offset/count lists) stays in :meth:`__init__`.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
+        self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
         self._particle_workaround_applied = False
@@ -731,6 +731,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
+        self._object_transform_buffer = wp.zeros(len(newton_indices), dtype=wp.mat44d, device=self._device)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -960,7 +961,12 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
-        if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
+        if (
+            self._object_xform_binding is None
+            or self._object_newton_indices is None
+            or self._object_scales is None
+            or self._object_transform_buffer is None
+        ):
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -975,13 +981,20 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with map_attribute_for_warp_writes(self._object_xform_binding, self._device, wp.mat44d) as ovrtx_transforms:
-            wp.launch(
-                kernel=sync_newton_transforms_kernel,
-                dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q, self._object_scales],
-                device=self._device,
-            )
+        wp.launch(
+            kernel=sync_newton_transforms_kernel,
+            dim=len(self._object_newton_indices),
+            inputs=[self._object_transform_buffer, self._object_newton_indices, body_q, self._object_scales],
+            device=self._device,
+        )
+        # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
+        # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
+        # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
+        self._object_xform_binding.write(
+            self._object_transform_buffer,
+            data_access=DataAccess.ASYNC,
+            cuda_stream=wp.get_stream(self._device).cuda_stream,
+        )
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -1082,8 +1095,11 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
         if self._camera_xform_binding is not None:
-            with map_attribute_for_warp_writes(self._camera_xform_binding, self._device, wp.mat44d) as transforms_view:
-                wp.copy(transforms_view, camera_transforms)
+            self._camera_xform_binding.write(
+                camera_transforms,
+                data_access=DataAccess.ASYNC,
+                cuda_stream=wp.get_stream(self._device).cuda_stream,
+            )
 
     def read_output(
         self,
@@ -1534,6 +1550,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_xform_binding = None
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
+        self._object_transform_buffer = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
         _safe_unbind(self._particle_points_binding, "particle points")
