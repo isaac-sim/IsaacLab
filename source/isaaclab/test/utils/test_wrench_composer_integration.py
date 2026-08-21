@@ -61,7 +61,7 @@ def test_rotated_global_force_at_position_matches_physx_delivery() -> None:
         sim.reset()
 
         body_ids, _ = composer.find_bodies(".*")
-        force = torch.tensor([[[10.0, 0.0, 0.0]]], device=device)
+        force = torch.tensor([[[0.0, 0.0, 10.0]]], device=device)
         torque = torch.zeros_like(force)
         world_offset = torch.tensor([[[0.0, 1.0, 0.0]]], device=device)
         composer_position = composer.data.body_com_pos_w.torch[:, body_ids, :3] + world_offset
@@ -94,4 +94,4 @@ def test_rotated_global_force_at_position_matches_physx_delivery() -> None:
         torch.testing.assert_close(
             composer.data.root_ang_vel_w.torch, raw.data.root_ang_vel_w.torch, rtol=1.0e-4, atol=1.0e-4
         )
-        assert torch.abs(composer.data.root_ang_vel_w.torch[0, 2]).item() > 0.01
+        assert torch.abs(composer.data.root_ang_vel_w.torch[0, :2]).max().item() > 0.01

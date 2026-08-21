@@ -104,18 +104,98 @@ def test_global_force_at_position_rotates_force_and_induced_torque() -> None:
     )
 
     composer.add_forces_and_torques_index(
-        forces=_vectors([[[2.0, 0.0, 0.0]]]),
+        forces=_vectors([[[0.0, 0.0, 2.0]]]),
         positions=_vectors([[[1.0, 4.0, 3.0]]]),
         body_ids=[0],
         env_ids=[0],
         is_global=True,
     )
 
-    expected_force = torch.tensor([[[0.0, -2.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
-    expected_torque = torch.tensor([[[0.0, 0.0, -4.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    expected_force = torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    expected_torque = torch.tensor([[[0.0, -4.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
 
     torch.testing.assert_close(composer.out_force_b.torch, expected_force, atol=1.0e-6, rtol=1.0e-6)
     torch.testing.assert_close(composer.out_torque_b.torch, expected_torque, atol=1.0e-6, rtol=1.0e-6)
+
+
+def test_global_force_at_com_uses_dedicated_buffer_and_rotates() -> None:
+    quarter_turn_z = 2.0**-0.5
+    composer = _make_composer(
+        link_quat_w=torch.tensor(
+            [
+                [[0.0, 0.0, quarter_turn_z, quarter_turn_z], [0.0, 0.0, 0.0, 1.0]],
+                [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]],
+            ]
+        )
+    )
+    composer.add_forces_and_torques_index(
+        forces=_vectors([[[2.0, 0.0, 0.0]]]), body_ids=[0], env_ids=[0], is_global=True
+    )
+
+    expected_global_force_at_com = torch.tensor(
+        [[[2.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]
+    )
+    expected_force = torch.tensor([[[0.0, -2.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    torch.testing.assert_close(wp.to_torch(composer.global_force_at_com_w), expected_global_force_at_com)
+    torch.testing.assert_close(composer.out_force_b.torch, expected_force)
+    torch.testing.assert_close(composer.out_torque_b.torch, torch.zeros((2, 2, 3)))
+
+
+def test_global_mask_add_and_set_route_forces_and_torques() -> None:
+    composer = _make_composer()
+    composer.add_forces_and_torques_mask(
+        forces=_vectors(
+            [
+                [[0.0, 0.0, 2.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+            ]
+        ),
+        torques=_vectors(
+            [
+                [[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+            ]
+        ),
+        positions=_vectors(
+            [
+                [[0.0, 3.0, 0.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+            ]
+        ),
+        env_mask=_mask([True, False]),
+        body_mask=_mask([True, False]),
+        is_global=True,
+    )
+    composer.set_forces_and_torques_mask(
+        forces=_vectors(
+            [
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
+            ]
+        ),
+        torques=_vectors(
+            [
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [0.0, 3.0, 0.0]],
+            ]
+        ),
+        env_mask=_mask([False, True]),
+        body_mask=_mask([False, True]),
+        is_global=True,
+    )
+
+    expected_force = torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [4.0, 0.0, 0.0]]])
+    expected_torque = torch.tensor([[[7.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 3.0, 0.0]]])
+    expected_global_force = torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    expected_global_force_at_com = torch.tensor(
+        [[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [4.0, 0.0, 0.0]]]
+    )
+    expected_global_torque = torch.tensor([[[7.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 3.0, 0.0]]])
+    torch.testing.assert_close(composer.out_force_b.torch, expected_force)
+    torch.testing.assert_close(composer.out_torque_b.torch, expected_torque)
+    torch.testing.assert_close(wp.to_torch(composer.global_force_w), expected_global_force)
+    torch.testing.assert_close(wp.to_torch(composer.global_force_at_com_w), expected_global_force_at_com)
+    torch.testing.assert_close(wp.to_torch(composer.global_torque_w), expected_global_torque)
 
 
 def test_index_and_mask_selection_change_only_selected_cells() -> None:
@@ -147,13 +227,23 @@ def test_set_clears_only_targeted_environment_before_writing() -> None:
                 [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]],
                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
             ]
-        )
+        ),
+        torques=_vectors(
+            [
+                [[0.0, 0.0, 1.0], [0.0, 0.0, 2.0]],
+                [[0.0, 0.0, 3.0], [0.0, 0.0, 4.0]],
+            ]
+        ),
     )
 
-    composer.set_forces_and_torques_index(forces=_vectors([[[9.0, 0.0, 0.0]]]), body_ids=[1], env_ids=[0])
+    composer.set_forces_and_torques_index(
+        forces=_vectors([[[9.0, 0.0, 0.0]]]), torques=_vectors([[[0.0, 0.0, 6.0]]]), body_ids=[1], env_ids=[0]
+    )
 
     expected_force = torch.tensor([[[0.0, 0.0, 0.0], [9.0, 0.0, 0.0]], [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]]])
+    expected_torque = torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.0, 6.0]], [[0.0, 0.0, 3.0], [0.0, 0.0, 4.0]]])
     torch.testing.assert_close(composer.out_force_b.torch, expected_force)
+    torch.testing.assert_close(composer.out_torque_b.torch, expected_torque)
 
 
 def test_mask_set_clears_only_masked_environments_before_writing() -> None:
@@ -164,7 +254,13 @@ def test_mask_set_clears_only_masked_environments_before_writing() -> None:
                 [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]],
                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
             ]
-        )
+        ),
+        torques=_vectors(
+            [
+                [[0.0, 0.0, 1.0], [0.0, 0.0, 2.0]],
+                [[0.0, 0.0, 3.0], [0.0, 0.0, 4.0]],
+            ]
+        ),
     )
 
     composer.set_forces_and_torques_mask(
@@ -174,12 +270,20 @@ def test_mask_set_clears_only_masked_environments_before_writing() -> None:
                 [[7.0, 0.0, 0.0], [9.0, 0.0, 0.0]],
             ]
         ),
+        torques=_vectors(
+            [
+                [[0.0, 0.0, 5.0], [0.0, 0.0, 6.0]],
+                [[0.0, 0.0, 7.0], [0.0, 0.0, 9.0]],
+            ]
+        ),
         env_mask=_mask([False, True]),
         body_mask=_mask([False, True]),
     )
 
     expected_force = torch.tensor([[[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [9.0, 0.0, 0.0]]])
+    expected_torque = torch.tensor([[[0.0, 0.0, 1.0], [0.0, 0.0, 2.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 9.0]]])
     torch.testing.assert_close(composer.out_force_b.torch, expected_force)
+    torch.testing.assert_close(composer.out_torque_b.torch, expected_torque)
 
 
 def test_partial_and_full_reset_clear_their_documented_scope() -> None:
@@ -190,17 +294,28 @@ def test_partial_and_full_reset_clear_their_documented_scope() -> None:
                 [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]],
                 [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
             ]
-        )
+        ),
+        torques=_vectors(
+            [
+                [[0.0, 0.0, 1.0], [0.0, 0.0, 2.0]],
+                [[0.0, 0.0, 3.0], [0.0, 0.0, 4.0]],
+            ]
+        ),
     )
 
     composer.reset(env_ids=[0])
     expected_after_partial = torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[3.0, 0.0, 0.0], [4.0, 0.0, 0.0]]])
+    expected_torque_after_partial = torch.tensor(
+        [[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 3.0], [0.0, 0.0, 4.0]]]
+    )
     torch.testing.assert_close(composer.out_force_b.torch, expected_after_partial)
+    torch.testing.assert_close(composer.out_torque_b.torch, expected_torque_after_partial)
     assert composer.active
 
     composer.reset()
     torch.testing.assert_close(composer.out_force_b.torch, torch.zeros((2, 2, 3)))
     torch.testing.assert_close(composer.out_torque_b.torch, torch.zeros((2, 2, 3)))
+    torch.testing.assert_close(wp.to_torch(composer.local_torque_b), torch.zeros((2, 2, 3)))
     assert not composer.active
 
 
@@ -217,18 +332,61 @@ def test_permanent_and_instantaneous_composers_remain_independent() -> None:
     torch.testing.assert_close(instantaneous.out_force_b.torch, torch.zeros((2, 2, 3)))
 
 
-def test_raw_buffer_merge_accumulates_and_ignores_inactive_source() -> None:
+def test_out_torque_b_lazily_composes_a_fresh_torque_only_wrench() -> None:
+    composer = _make_composer()
+    composer.add_forces_and_torques_index(torques=_vectors([[[0.0, 0.0, 5.0]]]), body_ids=[0], env_ids=[1])
+
+    expected_torque = torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 5.0], [0.0, 0.0, 0.0]]])
+    assert composer._dirty
+    torch.testing.assert_close(composer.out_torque_b.torch, expected_torque)
+    assert not composer._dirty
+
+
+def test_raw_buffer_merge_accumulates_all_five_buffers_and_ignores_inactive_source() -> None:
     destination = _make_composer()
     source = _make_composer()
     inactive_source = _make_composer()
-    destination.add_forces_and_torques_index(forces=_vectors([[[1.0, 0.0, 0.0]]]), body_ids=[0], env_ids=[0])
-    source.add_forces_and_torques_index(forces=_vectors([[[0.0, 2.0, 0.0]]]), body_ids=[0], env_ids=[0])
+    destination.add_forces_and_torques_index(forces=_vectors([[[2.0, 0.0, 0.0]]]), body_ids=[0], env_ids=[0])
+    source.add_forces_and_torques_index(
+        forces=_vectors([[[1.0, 0.0, 0.0]]]), torques=_vectors([[[0.0, 2.0, 0.0]]]), body_ids=[0], env_ids=[0]
+    )
+    source.add_forces_and_torques_index(forces=_vectors([[[0.0, 0.0, 3.0]]]), body_ids=[0], env_ids=[0], is_global=True)
+    source.add_forces_and_torques_index(
+        forces=_vectors([[[0.0, 4.0, 0.0]]]),
+        torques=_vectors([[[0.0, 0.0, 5.0]]]),
+        positions=_vectors([[[0.0, 0.0, 0.0]]]),
+        body_ids=[0],
+        env_ids=[0],
+        is_global=True,
+    )
 
     destination.add_raw_buffers_from(source)
     destination.add_raw_buffers_from(inactive_source)
 
-    expected_force = torch.tensor([[[1.0, 2.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    expected_force = torch.tensor([[[3.0, 4.0, 3.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    expected_torque = torch.tensor([[[0.0, 2.0, 5.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]])
+    torch.testing.assert_close(
+        wp.to_torch(destination.local_force_b),
+        torch.tensor([[[3.0, 0.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(destination.global_force_w),
+        torch.tensor([[[0.0, 4.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(destination.global_force_at_com_w),
+        torch.tensor([[[0.0, 0.0, 3.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(destination.local_torque_b),
+        torch.tensor([[[0.0, 2.0, 0.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(destination.global_torque_w),
+        torch.tensor([[[0.0, 0.0, 5.0], [0.0, 0.0, 0.0]], [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]]),
+    )
     torch.testing.assert_close(destination.out_force_b.torch, expected_force)
+    torch.testing.assert_close(destination.out_torque_b.torch, expected_torque)
 
 
 def test_invalid_selection_and_empty_wrench_input_are_reported() -> None:
