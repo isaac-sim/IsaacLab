@@ -35,10 +35,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          # Pin the cache key to the dependency source of truth. Without this the
-          # action keys off its `**/requirements.txt` default, which here matches
-          # only the unrelated tools/template/requirements.txt.
-          cache-dependency-path: pyproject.toml
+          # Keyed on this workflow file, not pyproject.toml: the pip cache key is
+          # otherwise identical across every 3.12 ubuntu job here, so they collide
+          # and all but the first fail to save. Hashing the workflow also ties
+          # invalidation to the install list below rather than to unrelated
+          # dependency churn.
+          cache-dependency-path: .github/workflows/skills-check.yml
 
       - name: Verify skills
         run: python3 tools/skills/cli.py check
