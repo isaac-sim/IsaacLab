@@ -231,6 +231,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        renderer-cache: restore
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -258,6 +259,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        renderer-cache: restore
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -285,6 +287,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        renderer-cache: restore
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -949,6 +952,7 @@ jobs:
         # this image.
         test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
+        renderer-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
   #endregion

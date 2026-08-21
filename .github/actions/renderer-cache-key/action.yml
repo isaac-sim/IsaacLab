@@ -1,0 +1,54 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Renderer Cache Key'
+description: 'Computes a hardware- and Isaac-Sim-specific renderer cache key and host directory'
+
+inputs:
+  isaacsim-base-image:
+    description: 'Isaac Sim base image repository'
+    required: true
+  isaacsim-version:
+    description: 'Isaac Sim base image version'
+    required: true
+
+outputs:
+  collection:
+    description: 'Collection prefix shared by mutually compatible renderer caches'
+    value: ${{ steps.compute.outputs.collection }}
+  key:
+    description: 'Immutable cache key for this workflow run'
+    value: ${{ steps.compute.outputs.key }}
+  restore-keys:
+    description: 'Collection prefix used to restore the newest compatible snapshot'
+    value: ${{ steps.compute.outputs.restore-keys }}
+  host-dir:
+    description: 'Host directory bind-mounted over renderer cache paths'
+    value: ${{ steps.compute.outputs.host-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute renderer cache key
+      id: compute
+      shell: bash
+      env:
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
+      run: |
+        set -euo pipefail
+
+        gpu_inventory="$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | sort -u)"
+        compatibility="$ISAACSIM_BASE_IMAGE:$ISAACSIM_VERSION|$RUNNER_OS|$RUNNER_ARCH|$gpu_inventory"
+        compatibility_hash="$(printf '%s' "$compatibility" | sha256sum | cut -c1-20)"
+        collection="renderer-v1-${RUNNER_OS}-${RUNNER_ARCH}-${compatibility_hash}"
+
+        echo "collection=${collection}" >> "$GITHUB_OUTPUT"
+        echo "key=${collection}-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+        echo "restore-keys=${collection}-" >> "$GITHUB_OUTPUT"
+        echo "host-dir=${RUNNER_TEMP}/isaaclab-renderer-cache" >> "$GITHUB_OUTPUT"
+
+        echo "Renderer cache collection: ${collection}"
+        echo "Renderer cache compatibility: ${compatibility}"

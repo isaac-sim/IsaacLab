@@ -37,10 +37,15 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  local renderer_cache_host_dir="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
   local docker_runtime_dir=""
+  local home_cache_args=""
+  local isaacsim_cache_dir=""
+  local isaacsim_compute_cache_dir=""
+  local kit_cache_dir=""
 
   # Kill the container immediately if the runner is cancelled.
   # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
@@ -240,14 +245,36 @@ run_tests() {
       "${docker_runtime_dir}/isaac-sim/data" \
       "${docker_runtime_dir}/isaac-sim/logs" \
       "${docker_runtime_dir}/isaac-sim/pkg"
+
+    kit_cache_dir="${docker_runtime_dir}/isaac-sim/kit/cache"
+    isaacsim_cache_dir="${docker_runtime_dir}/isaac-sim/cache"
+    isaacsim_compute_cache_dir="${docker_runtime_dir}/isaac-sim/computecache"
+    home_cache_args=""
+    if [ -n "$renderer_cache_host_dir" ]; then
+      mkdir -p \
+        "${renderer_cache_host_dir}/home/cache" \
+        "${renderer_cache_host_dir}/home/computecache" \
+        "${renderer_cache_host_dir}/isaac-sim/kit-cache" \
+        "${renderer_cache_host_dir}/isaac-sim/cache" \
+        "${renderer_cache_host_dir}/isaac-sim/computecache"
+      kit_cache_dir="${renderer_cache_host_dir}/isaac-sim/kit-cache"
+      isaacsim_cache_dir="${renderer_cache_host_dir}/isaac-sim/cache"
+      isaacsim_compute_cache_dir="${renderer_cache_host_dir}/isaac-sim/computecache"
+      home_cache_args="\
+        -v ${renderer_cache_host_dir}/home/cache:/tmp/isaaclab-ci-home/.cache:rw \
+        -v ${renderer_cache_host_dir}/home/computecache:/tmp/isaaclab-ci-home/.nv/ComputeCache:rw"
+      echo "🔵 Mounting persistent renderer caches from ${renderer_cache_host_dir}"
+    fi
+
     docker_volume_args="\
       -v ${volume_mount_source}:/workspace/isaaclab:rw \
       -v ${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw \
-      -v ${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw \
+      ${home_cache_args} \
+      -v ${kit_cache_dir}:/isaac-sim/kit/cache:rw \
       -v ${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw \
       -v ${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw \
-      -v ${docker_runtime_dir}/isaac-sim/cache:/isaac-sim/.cache:rw \
-      -v ${docker_runtime_dir}/isaac-sim/computecache:/isaac-sim/.nv/ComputeCache:rw \
+      -v ${isaacsim_cache_dir}:/isaac-sim/.cache:rw \
+      -v ${isaacsim_compute_cache_dir}:/isaac-sim/.nv/ComputeCache:rw \
       -v ${docker_runtime_dir}/isaac-sim/config:/isaac-sim/.nvidia-omniverse/config:rw \
       -v ${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw \
       -v ${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw \

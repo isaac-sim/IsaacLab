@@ -107,6 +107,13 @@ inputs:
       post-merge a cumulative writeback; only warm-warp-cache uses it.
     default: ''
     required: false
+  renderer-cache:
+    description: >-
+      Kit, RTX, and NVIDIA compute cache mode. Empty disables the cache,
+      'restore' reads the newest compatible snapshot, and 'save' additionally
+      publishes a cumulative snapshot. PR jobs must use restore only.
+    default: ''
+    required: false
   standalone-script-scope:
     description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
     default: ''
@@ -192,6 +199,14 @@ runs:
       id: warp-cache-key
       uses: ./.github/actions/warp-cache-key
 
+    - name: Resolve renderer cache key
+      if: inputs.renderer-cache != ''
+      id: renderer-cache-key
+      uses: ./.github/actions/renderer-cache-key
+      with:
+        isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+
     # Both modes restore. 'save' additionally writes the result back, so a
     # post-merge run gets the same speedup as a pull request and the collection
     # accumulates whatever was missing instead of restarting from empty.
@@ -235,6 +250,45 @@ runs:
         if [ "$CACHE_MODE" = "save" ]; then
           fingerprint="$(python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" --fingerprint)"
           echo "WARP_CACHE_FINGERPRINT_BEFORE=$fingerprint" >> "$GITHUB_ENV"
+        fi
+
+    - name: Restore renderer cache
+      if: inputs.renderer-cache != ''
+      id: renderer-cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.renderer-cache-key.outputs.host-dir }}
+        key: ${{ steps.renderer-cache-key.outputs.key }}
+        restore-keys: ${{ steps.renderer-cache-key.outputs.restore-keys }}
+
+    - name: Report restored renderer cache
+      if: inputs.renderer-cache != ''
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.renderer-cache-key.outputs.host-dir }}
+        MATCHED_KEY: ${{ steps.renderer-cache-restore.outputs.cache-matched-key }}
+        COLLECTION: ${{ steps.renderer-cache-key.outputs.collection }}
+        CACHE_MODE: ${{ inputs.renderer-cache }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOST_DIR"
+        if [ ! -w "$HOST_DIR" ]; then
+          echo "::error::Renderer cache directory is not writable: $HOST_DIR"
+          exit 1
+        fi
+
+        if [ -z "$MATCHED_KEY" ]; then
+          echo "::warning::Renderer cache miss - no entry in collection ${COLLECTION}"
+          echo "RENDERER_CACHE_HIT=miss" >> "$GITHUB_ENV"
+        else
+          echo "Renderer cache hit: ${MATCHED_KEY}"
+          echo "RENDERER_CACHE_HIT=${MATCHED_KEY}" >> "$GITHUB_ENV"
+        fi
+        echo "RENDERER_CACHE_BYTES_BEFORE=$(du -sb "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
+        python3 .github/actions/run-package-tests/renderer_cache_inventory.py "$HOST_DIR" "Renderer cache restored"
+        if [ "$CACHE_MODE" = "save" ]; then
+          fingerprint="$(python3 .github/actions/run-package-tests/renderer_cache_inventory.py "$HOST_DIR" --fingerprint)"
+          echo "RENDERER_CACHE_FINGERPRINT_BEFORE=$fingerprint" >> "$GITHUB_ENV"
         fi
 
     - name: Setup wheelhouse registry authentication
@@ -318,6 +372,7 @@ runs:
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
         warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
+        renderer-cache-host-dir: ${{ steps.renderer-cache-key.outputs.host-dir }}
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
         standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
@@ -406,6 +461,60 @@ runs:
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
         key: ${{ steps.warp-cache-key.outputs.key }}
+
+    - name: Report renderer cache growth
+      if: always() && inputs.renderer-cache != ''
+      id: renderer-cache-growth
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.renderer-cache-key.outputs.host-dir }}
+        CACHE_MODE: ${{ inputs.renderer-cache }}
+      run: |
+        set -euo pipefail
+
+        if [ ! -d "$HOST_DIR" ]; then
+          echo "Renderer cache directory is missing; nothing to report"
+          echo "empty=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        before="${RENDERER_CACHE_BYTES_BEFORE:-0}"
+        after="$(du -sb "$HOST_DIR" | cut -f1)"
+        grew=$(( after - before ))
+        echo "Renderer cache: restored $(( before / 1000000 )) MB, ended at $(( after / 1000000 )) MB (+$(( grew / 1000000 )) MB)"
+        python3 .github/actions/run-package-tests/renderer_cache_inventory.py "$HOST_DIR" "Renderer cache final"
+
+        if [ -z "$(find "$HOST_DIR" -type f -print -quit)" ]; then
+          echo "::warning::Renderer cache contains no files; skipping publish"
+          echo "empty=true" >> "$GITHUB_OUTPUT"
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        elif [ "$after" -gt 8000000000 ]; then
+          echo "::warning::Renderer cache exceeds 8 GB; skipping publish"
+          echo "empty=false" >> "$GITHUB_OUTPUT"
+          echo "too-large=true" >> "$GITHUB_OUTPUT"
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "empty=false" >> "$GITHUB_OUTPUT"
+          echo "too-large=false" >> "$GITHUB_OUTPUT"
+          if [ "$CACHE_MODE" = "save" ] && [ "${RENDERER_CACHE_HIT:-miss}" != "miss" ]; then
+            fingerprint="$(python3 .github/actions/run-package-tests/renderer_cache_inventory.py "$HOST_DIR" --fingerprint)"
+            if [ "$fingerprint" = "${RENDERER_CACHE_FINGERPRINT_BEFORE:-}" ]; then
+              echo "Renderer cache contents are unchanged; skipping duplicate snapshot"
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        fi
+
+    - name: Save renderer cache
+      if: '!cancelled() && inputs.renderer-cache == ''save'' && steps.renderer-cache-growth.outputs.empty != ''true'' && steps.renderer-cache-growth.outputs.too-large != ''true'' && steps.renderer-cache-growth.outputs.changed == ''true'''
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.renderer-cache-key.outputs.host-dir }}
+        key: ${{ steps.renderer-cache-key.outputs.key }}
 
     - name: Cleanup wheelhouse artifacts
       if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''
