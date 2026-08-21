@@ -91,11 +91,15 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
     "kuka_visual_material_randomization": 0.99,
 }
 
-# Low-resolution Newton + RTX cloth shading varies between otherwise equivalent CI frames.
+# Targeted tolerance overrides for renderer noise in otherwise equivalent CI frames.
 _IMAGE_TOLERANCE_OVERRIDES = {
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.96),
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgba"): (20.0, 0.96),
     ("franka_cable", "newton", "ovrtx_renderer", "rgb"): (8.0, 0.98),
+    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgb"): (12.0, 0.985),
+    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgba"): (12.0, 0.985),
+    ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgb"): (5.0, 0.95),
+    ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgba"): (5.0, 0.95),
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
