@@ -40,6 +40,11 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   - type: volume
     source: isaac-docs
     target: ${DOCKER_USER_HOME}/Documents
+  # Preserve CloudXR's explicitly accepted EULA marker and runtime logs when
+  # the Isaac Lab container is recreated.
+  - type: volume
+    source: isaac-cloudxr
+    target: ${DOCKER_USER_HOME}/.cloudxr
     # This overlay allows changes on the local files to
     # be reflected within the container immediately
   - type: bind
@@ -54,6 +59,9 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   - type: bind
     source: ../tools
     target: ${DOCKER_ISAACLAB_PATH}/tools
+  - type: bind
+    source: ./apple-vision-pro
+    target: ${DOCKER_ISAACLAB_PATH}/docker/apple-vision-pro
     # The effect of these volumes is twofold:
     # 1. Prevent generated files from flooding the _build and logs dir
     #    on the host machine
@@ -95,6 +103,9 @@ x-kitless-isaac-lab-volumes: &kitless-isaac-lab-volumes
     source: ../tools
     target: ${DOCKER_ISAACLAB_PATH}/tools
   - type: bind
+    source: ./apple-vision-pro
+    target: ${DOCKER_ISAACLAB_PATH}/docker/apple-vision-pro
+  - type: bind
     source: ../docs
     target: ${DOCKER_ISAACLAB_PATH}/docs
   - type: volume
@@ -121,6 +132,14 @@ x-default-isaac-lab-deploy: &default-isaac-lab-deploy
           count: all
           capabilities: [ gpu ]
 
+# Keep NVIDIA device access stable on cgroup v2 hosts. The NVIDIA runtime still
+# injects the device nodes and driver libraries; these rules prevent a later
+# cgroup refresh from leaving those nodes present but returning EPERM.
+x-default-isaac-lab-device-cgroup-rules: &default-isaac-lab-device-cgroup-rules
+  - "c 195:* rmw" # nvidia0, nvidiactl, nvidia-modeset
+  - "c 236:* rmw" # nvidia-caps
+  - "c 510:* rmw" # nvidia-uvm and nvidia-uvm-tools on robolab1
+
 services:
   # This service is the base Isaac Lab image
   isaac-lab-base:
@@ -131,7 +150,7 @@ services:
       dockerfile: docker/Dockerfile.base
       args:
         - ISAACSIM_BASE_IMAGE_ARG=${ISAACSIM_BASE_IMAGE:-nvcr.io/nvidia/isaac-sim}
-        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION:-6.0.0}
+        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION:-6.0.1}
         - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
@@ -141,6 +160,7 @@ services:
     volumes: *default-isaac-lab-volumes
     network_mode: host
     deploy: *default-isaac-lab-deploy
+    device_cgroup_rules: *default-isaac-lab-device-cgroup-rules
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
@@ -170,6 +190,7 @@ services:
     volumes: *default-isaac-lab-volumes
     network_mode: host
     deploy: *default-isaac-lab-deploy
+    device_cgroup_rules: *default-isaac-lab-device-cgroup-rules
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
@@ -207,6 +228,7 @@ volumes:
   isaac-carb-logs:
   isaac-data:
   isaac-docs:
+  isaac-cloudxr:
   # kit-less
   isaac-cache-uv:
   isaac-cache-warp:

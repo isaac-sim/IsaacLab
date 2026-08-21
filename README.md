@@ -4,7 +4,7 @@
 
 # Isaac Lab 3.0.0 Beta 2
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
+[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.1-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
 [![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
 [![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
@@ -60,6 +60,7 @@ detailed tutorials and step-by-step guides. Follow these links to learn more abo
 - [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/develop/source/overview/reinforcement-learning/rl_existing_scripts.html)
 - [Tutorials](https://isaac-sim.github.io/IsaacLab/develop/source/tutorials/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/overview/environments.html)
+- [Apple Vision Pro teleoperation with Docker](docker/apple-vision-pro/README.md)
 
 ## Performance Dashboard
 

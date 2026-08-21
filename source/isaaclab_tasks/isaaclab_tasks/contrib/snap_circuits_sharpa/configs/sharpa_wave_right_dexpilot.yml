@@ -1,0 +1,40 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+retargeting:
+  finger_tip_link_names:
+    - right_thumb_fingertip
+    - right_index_fingertip
+    - right_middle_fingertip
+    - right_ring_fingertip
+    - right_pinky_fingertip
+  low_pass_alpha: 0.2
+  scaling_factor: 1.2
+  target_joint_names:
+    - right_thumb_CMC_FE
+    - right_thumb_CMC_AA
+    - right_thumb_MCP_FE
+    - right_thumb_MCP_AA
+    - right_thumb_IP
+    - right_index_MCP_FE
+    - right_index_MCP_AA
+    - right_index_PIP
+    - right_index_DIP
+    - right_middle_MCP_FE
+    - right_middle_MCP_AA
+    - right_middle_PIP
+    - right_middle_DIP
+    - right_ring_MCP_FE
+    - right_ring_MCP_AA
+    - right_ring_PIP
+    - right_ring_DIP
+    - right_pinky_CMC
+    - right_pinky_MCP_FE
+    - right_pinky_MCP_AA
+    - right_pinky_PIP
+    - right_pinky_DIP
+  type: DexPilot
+  urdf_path: placeholder_overridden_at_runtime
+  wrist_link_name: right_hand_C_MC

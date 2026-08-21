@@ -61,6 +61,7 @@ Guidelines for modifications:
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
 * Asier Arranz
+* Benjamin Biggs
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou

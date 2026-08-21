@@ -479,7 +479,7 @@ choose the tab that matches your hardware.
          +-------------------+---------------------+
          | Isaac Lab Version | Client App Version  |
          +-------------------+---------------------+
-         | 3.0               | v3.0.0              |
+         | 3.0               | v3.0.1              |
          +-------------------+---------------------+
          | 2.3               | v2.3.0              |
          +-------------------+---------------------+
@@ -792,6 +792,11 @@ Run with Docker
 Teleoperation runs in a **single container**. Build the image yourself and run a single container.
 Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
 components run inside one container with Isaac Lab in this release.
+
+For a complete Apple Vision Pro setup, including the headless host configuration, firewall,
+client signing, launch helper, and verification steps, follow the
+`Docker Apple Vision Pro runbook
+<https://github.com/isaac-sim/IsaacLab/blob/develop/docker/apple-vision-pro/README.md>`__.
 
 The CloudXR runtime auto-launches when a teleop script is started, so no separate
 runtime command is needed.

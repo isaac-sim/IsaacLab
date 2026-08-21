@@ -3,9 +3,9 @@
 Installation
 ============
 
-.. image:: https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-6.0.1-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: Isaac Sim 6.0.0
+   :alt: Isaac Sim 6.0.1
 
 .. image:: https://img.shields.io/badge/python-3.12-blue.svg
    :target: https://www.python.org/downloads/release/python-3120/

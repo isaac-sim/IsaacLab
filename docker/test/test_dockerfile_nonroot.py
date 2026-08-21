@@ -138,6 +138,38 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
 
 
+def test_base_dockerfile_installs_cloudxr_runtime_libraries():
+    """The base image contains the system libraries required by the CloudXR runtime."""
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.base").read_text(encoding="utf-8")
+
+    assert re.search(r"apt-get install.*\blibvulkan1\b.*\blibbsd0\b", dockerfile_text, re.DOTALL)
+
+
+def test_base_dockerfile_installs_cloudxr_python_runtime():
+    """The base image includes IsaacTeleop's CloudXR and dexterous-retargeting extras."""
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.base").read_text(encoding="utf-8")
+
+    assert '"isaacteleop[retargeters,ui,cloudxr]~=1.4.0"' in dockerfile_text
+    assert '"dex-retargeting==0.5.0"' in dockerfile_text
+
+
+def test_isaac_sim_docker_defaults_match_python_extra():
+    """Docker defaults use the same Isaac Sim patch release as the Python install."""
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    isaacsim_requirement = pyproject["project"]["optional-dependencies"]["isaacsim"][0]
+    python_version = isaacsim_requirement.split("==", maxsplit=1)[1]
+    container_version = python_version.rsplit(".", maxsplit=1)[0]
+
+    env_text = (DOCKER_DIR / ".env.base").read_text(encoding="utf-8")
+    compose_text = (DOCKER_DIR / "docker-compose.yaml").read_text(encoding="utf-8")
+
+    assert f"ISAACSIM_VERSION={container_version}" in env_text
+    assert f"ISAACSIM_VERSION:-{container_version}" in compose_text
+    for dockerfile_name in ("Dockerfile.base", "Dockerfile.curobo"):
+        dockerfile_text = (DOCKER_DIR / dockerfile_name).read_text(encoding="utf-8")
+        assert f"ARG ISAACSIM_VERSION_ARG={container_version}" in dockerfile_text
+
+
 # --------------------------------------------------------------------------- #
 # Volume mount-point writability
 #
@@ -182,6 +214,7 @@ def test_compose_volume_targets_parse():
         "${DOCKER_ISAACLAB_PATH}/logs",
         "${DOCKER_ISAACLAB_PATH}/data_storage",
         "${DOCKER_ISAACLAB_PATH}/docs/_build",
+        "${DOCKER_USER_HOME}/.cloudxr",
     ):
         assert required in targets, f"{required} missing from parsed volume targets: {targets}"
 
@@ -198,6 +231,7 @@ def test_resolved_targets_are_absolute_paths(monkeypatch):
     assert all(p.startswith("/") and "$" not in p for p in resolved), resolved
     assert "/isaac-sim/kit/cache" in resolved
     assert "/workspace/isaaclab/logs" in resolved
+    assert "/root/.cloudxr" in resolved
 
 
 @pytest.mark.parametrize(("dockerfile_name", "volumes_key"), NONROOT_VOLUME_DOCKERFILES.items())
