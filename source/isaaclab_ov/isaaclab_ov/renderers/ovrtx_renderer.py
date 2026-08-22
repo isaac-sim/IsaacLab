@@ -33,11 +33,12 @@ from typing import TYPE_CHECKING, Any, NoReturn, cast
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import ovstage
 import torch
 import warp as wp
 
 import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
+
+import ovstage
 
 # The ovrtx C library links to its own version of the USD libraries. Having
 # the pxr Python package available can cause the C library to load an

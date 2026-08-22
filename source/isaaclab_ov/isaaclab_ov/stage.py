@@ -11,8 +11,9 @@
 from __future__ import annotations
 
 import numpy as np
-import ovstage
 import warp as wp
+
+import ovstage
 
 # DLDataType for a 4x4 double matrix (``omni:xform`` column). ovstage stores omni:xform as one
 # 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
