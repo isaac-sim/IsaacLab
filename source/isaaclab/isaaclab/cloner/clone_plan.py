@@ -224,8 +224,7 @@ def make_clone_plan(
     num_clones: int,
     env_spacing: float,
     device: str,
-    *,
-    global_paths: tuple[str, ...],
+    global_paths: tuple[str, ...] = (),
     clone_strategy: Callable = sequential,
     valid_set: torch.Tensor | None = None,
     env_template: str = DEFAULT_ENV_TEMPLATE,
@@ -247,7 +246,7 @@ def make_clone_plan(
         num_clones: Number of target envs.
         env_spacing: Distance between neighboring grid env origins [m].
         device: Torch device for plan tensors.
-        global_paths: Complete shared-asset roots declared by the scene composition root.
+        global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
         clone_strategy: Function that assigns prototype combinations to envs. Defaults
             to :func:`~isaaclab.cloner.sequential`.
         valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid prototype
@@ -387,8 +386,7 @@ def clone_plan_from_env_0(
     num_clones: int,
     device: str,
     positions: torch.Tensor | None = None,
-    *,
-    global_paths: tuple[str, ...],
+    global_paths: tuple[str, ...] = (),
 ) -> ClonePlan:
     """Build a single-source clone plan that targets every env from one source row.
 
@@ -405,7 +403,7 @@ def clone_plan_from_env_0(
         num_clones: Number of target envs.
         device: Torch device for the mask and env id buffers.
         positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
-        global_paths: Complete shared-asset roots for the hand-built scene.
+        global_paths: Complete shared-asset roots for the hand-built scene. Defaults to none.
 
     Returns:
         A :class:`ClonePlan` with a single source row covering every env.

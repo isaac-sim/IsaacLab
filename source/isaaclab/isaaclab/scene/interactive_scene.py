@@ -119,7 +119,7 @@ class InteractiveScene:
         robot = Articulation(robot_cfg)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing, device=scene.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, scene.device, pos, global_paths=())
+        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, scene.device, pos)
         cloner.replicate(plan, stage=scene.stage)
 
     .. note::

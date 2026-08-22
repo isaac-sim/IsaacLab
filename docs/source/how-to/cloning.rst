@@ -218,8 +218,7 @@ and exiting the block drains every registration against the plan:
 
 .. code-block:: python
 
-    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0,
-                                 device=device, global_paths=(), stage=stage):
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, device=device, stage=stage):
         for cfg in cfgs:
             cfg.class_type(cfg)
 
@@ -254,7 +253,7 @@ intervene before replication actually happens:
 
 .. code-block:: python
 
-    plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0, device=device, global_paths=())
+    plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0, device=device)
     for cfg in cfgs:
         cfg.class_type(cfg)
     cloner.replicate(plan, stage=stage)

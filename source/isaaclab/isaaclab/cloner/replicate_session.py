@@ -127,7 +127,7 @@ class ReplicateSession:
 
         .. code-block:: python
 
-            with cloner.ReplicateSession(cfgs, num_clones=128, global_paths=(), stage=sim.stage):
+            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0, device="cuda:0", stage=sim.stage):
                 for cfg in cfgs:
                     cfg.class_type(cfg)
     """
@@ -139,8 +139,8 @@ class ReplicateSession:
         env_spacing: float,
         device: str,
         *,
-        global_paths: tuple[str, ...],
         stage: Usd.Stage,
+        global_paths: tuple[str, ...] = (),
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
         replicate_physics: bool = True,
@@ -153,8 +153,8 @@ class ReplicateSession:
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
             device: Torch device for plan tensors.
-            global_paths: Complete shared-asset roots declared by the composition root.
             stage: USD stage to author replicated prim specs into.
+            global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
             clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
                 prototype combinations; ``None`` uses the full cartesian product.

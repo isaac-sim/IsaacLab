@@ -367,7 +367,7 @@ The scene creation process is as follow:
    positions = cloner.grid_transforms(
        self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device
    )[0]
-   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, positions, global_paths=())
+   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, positions)
    cloner.replicate(plan, stage=self.scene.stage)
 
    if "physx" in self.scene.physics_backend:

@@ -574,7 +574,7 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
         _author_nested_chain("/World/envs/env_0/Robot")
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions, global_paths=())
+        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions)
         assert clone_plan.env_ids is not None
         ovphysx_replicate(
             stage,

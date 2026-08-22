@@ -725,7 +725,6 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             num_clones=2,
             env_spacing=1.0,
             device=sim.cfg.device,
-            global_paths=(),
             stage=sim_utils.get_current_stage(),
         ):
             leaked_cfg.cloning_contexts = (sentinel_cls,)
