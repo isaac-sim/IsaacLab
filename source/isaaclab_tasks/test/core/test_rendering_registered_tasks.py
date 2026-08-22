@@ -20,6 +20,7 @@ import torch  # noqa: E402
 from rendering_test_utils import (  # noqa: E402
     MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME,
     make_attach_comparison_properties_fixture,
+    make_cartpole_rendering_test_env,
     make_determinism_fixture,
     make_generate_html_report_fixture,
     maybe_save_stage,
@@ -65,12 +66,16 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank
 # rendering. The max different pixels percentage is set based on the screen space taken up by the
 # env. These golden baselines validate Isaac Sim PhysX with Isaac RTX. The ``presets`` column
-# selects a data-type variant on the consolidated cartpole camera task; ``None`` uses its default.
+# selects one data-type preset or provides a test-local collection of compatible data types;
+# ``None`` uses the task default.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "depth", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
+    pytest.param("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole", id="Isaac-Cartpole-Camera-Direct-rgb-cartpole"),
+    pytest.param(
+        "Isaac-Cartpole-Camera-Direct",
+        ("albedo", "depth"),
+        "cartpole",
+        id="Isaac-Cartpole-Camera-Direct-albedo-depth-cartpole",
+    ),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
@@ -87,7 +92,9 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 
 
 @pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str, monkeypatch: pytest.MonkeyPatch):
+def test_rendering_registered_tasks(
+    task_id: str, presets: str | tuple[str, ...] | None, env_name: str, monkeypatch: pytest.MonkeyPatch
+):
     """Test registered tasks rendering correctness."""
     monkeypatch.delenv(_SCENE_PARTITION_ENV_VAR, raising=False)
     env = None
@@ -97,14 +104,17 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        allow_multiple_data_types = isinstance(presets, tuple)
         selected_presets = {"isaacsim_physx", "isaacsim_rtx"}
-        if presets:
+        if presets and not allow_multiple_data_types:
             selected_presets.add(presets)
         env_cfg = resolve_presets(env_cfg, selected_presets)
         env_cfg.sim.device = "cuda:0"
         env_cfg.scene.num_envs = 4
+        if allow_multiple_data_types:
+            env_cfg.tiled_camera.data_types = list(presets)
 
-        env = gym.make(task_id, cfg=env_cfg)
+        env = make_cartpole_rendering_test_env(env_cfg) if allow_multiple_data_types else gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
         sim = getattr(unwrapped, "sim", None)
         if sim is not None:
@@ -115,7 +125,7 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
             "default_physics",
             "default_renderer",
             "stage",
-            compare_golden=(presets is None),
+            compare_golden=(presets is None or allow_multiple_data_types),
         )
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
