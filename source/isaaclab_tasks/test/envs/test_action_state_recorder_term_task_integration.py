@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Preserve task-backed action-state recorder integration coverage.
+"""Task-backed action-state recorder integration coverage.
 
-This temporary relocation handoff intentionally remains in the core test tree until the
-Franka task and Gym-wrapper scenario can move to the task package.
+Covers the Franka task and Gym-wrapper scenario. The task-agnostic recorder behaviour is
+covered by ``source/isaaclab/test/envs/test_action_state_recorder_term.py``.
 """
 
 from isaaclab.app import AppLauncher

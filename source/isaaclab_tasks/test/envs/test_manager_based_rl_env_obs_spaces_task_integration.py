@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Preserve task-backed manager-based RL observation-space integration coverage.
+"""Task-backed manager-based RL observation-space integration coverage.
 
-This temporary relocation handoff intentionally remains in the core test tree until the
-task-backed reset/step, camera, and ray-caster scenarios can move to the task package.
+Covers the task-backed reset/step, camera, and ray-caster scenarios. The task-agnostic
+observation-space behaviour is covered by
+``source/isaaclab/test/envs/test_manager_based_rl_env_unit.py``.
 """
 
 from isaaclab.app import AppLauncher
