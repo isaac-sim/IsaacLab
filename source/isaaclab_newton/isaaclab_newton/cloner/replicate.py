@@ -205,7 +205,6 @@ class NewtonReplicateContext:
     def __init__(
         self,
         stage: Usd.Stage,
-        *,
         global_paths: Sequence[str] = (),
         device: str = "cpu",
         up_axis: str = "Z",
