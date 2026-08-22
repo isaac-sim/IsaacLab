@@ -105,7 +105,6 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
-    *,
     global_paths: Sequence[str] = (),
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
@@ -350,7 +349,6 @@ def newton_physics_replicate(
     quaternions: torch.Tensor | None = None,
     device: str = "cpu",
     up_axis: str = "Z",
-    *,
     global_paths: Sequence[str] = (),
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.

@@ -80,7 +80,7 @@ class OvPhysxReplicateContext:
 
     replicate_priority = 0
 
-    def __init__(self, stage: Usd.Stage, *, global_paths: Sequence[str] = ()):
+    def __init__(self, stage: Usd.Stage, global_paths: Sequence[str] = ()):
         """Initialize the context.
 
         Args:
