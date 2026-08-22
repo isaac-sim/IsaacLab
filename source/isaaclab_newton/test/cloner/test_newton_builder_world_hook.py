@@ -74,6 +74,7 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
     ground = UsdGeom.Cube.Define(stage, "/World/Ground")
     UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
     UsdLux.DistantLight.Define(stage, "/World/Light")
+    global_paths = ("/World/Ground", "/World/Light")
 
     builder = newton.ModelBuilder()
     add_usd = mock.Mock(wraps=builder.add_usd)
@@ -92,22 +93,18 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
     monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
 
     builder, *_ = replicate_module._build_newton_builder_from_mapping(
-        stage=stage,
-        sources=(),
-        destinations=(),
-        env_ids=torch.arange(2),
-        mapping=torch.empty((0, 2), dtype=torch.bool),
-        global_paths=("/World/Ground", "/World/Light"),
+        stage,
+        (),
+        (),
+        torch.arange(2),
+        torch.empty((0, 2), dtype=torch.bool),
+        global_paths=global_paths,
         load_visual_shapes=False,
     )
 
-    assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == [
-        "/physicsScene",
-        "/World/Ground",
-        "/World/Light",
-    ]
+    assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == ["/physicsScene", *global_paths]
     manager._inject_terrain_heightfields.assert_called_once_with(
-        stage, builder, root_paths=("/physicsScene", "/World/Ground", "/World/Light")
+        stage, builder, root_paths=("/physicsScene", *global_paths)
     )
     model = builder.finalize("cpu")
     ground_index = model.shape_label.index("/World/Ground")
