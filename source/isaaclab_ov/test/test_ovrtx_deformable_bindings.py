@@ -27,13 +27,13 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+
+    # ovstage is an unconditional dependency of isaaclab_ov, so it is importable here.
+    import ovstage  # noqa: E402
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
     from ovrtx import BindingFlag, DataAccess  # noqa: E402
-
-    # ovstage is an unconditional dependency of isaaclab_ov, so it is importable here.
-    import ovstage  # noqa: E402
 else:
     NewtonManager = None
     OVRTXRenderer = None
