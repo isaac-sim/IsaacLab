@@ -253,7 +253,7 @@ class InteractiveScene:
         self._scene_asset_names = [name for name in self._scene_asset_names if name not in nested_material_names]
 
         cfgs: list[Any] = []
-        global_paths: list[str] = []
+        global_paths: tuple[str, ...] = ()
         clone_asset_names: list[str] = []
         variant_counts: list[int] = []
         for asset_name, child in flat_items:
@@ -262,7 +262,8 @@ class InteractiveScene:
                     child.spawn.spawn_path = child.prim_path
                 continue
             if cloner.path.match(child.prim_path, self._env_fmt) is None:
-                global_paths.append(child.prim_path)
+                if child.prim_path not in global_paths:
+                    global_paths += (child.prim_path,)
             elif isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None:
                 cfgs.append(child)
                 clone_asset_names.append(asset_name)
@@ -278,7 +279,7 @@ class InteractiveScene:
             )
         else:
             self._clone_valid_set = None
-        return cfgs, tuple(dict.fromkeys(global_paths))
+        return cfgs, global_paths
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

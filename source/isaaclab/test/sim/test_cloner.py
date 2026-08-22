@@ -436,7 +436,7 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
         num_clones=3,
         env_spacing=1.0,
         device=sim.cfg.device,
-        global_paths=("/World/global/Robot", "/World/ground", "/World/global/Robot"),
+        global_paths=("/World/global/Robot", "/World/ground"),
     )
 
     assert plan.sources == ()

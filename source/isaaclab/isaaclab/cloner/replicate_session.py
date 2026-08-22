@@ -139,7 +139,7 @@ class ReplicateSession:
         env_spacing: float,
         device: str,
         *,
-        global_paths: Iterable[str],
+        global_paths: tuple[str, ...],
         stage: Usd.Stage,
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,

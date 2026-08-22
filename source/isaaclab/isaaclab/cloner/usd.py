@@ -30,7 +30,7 @@ class UsdReplicateContext:
 
     replicate_priority = 100
 
-    def __init__(self, stage: Usd.Stage, global_paths: Sequence[str] = ()):
+    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = ()):
         """Initialize the context.
 
         Args:

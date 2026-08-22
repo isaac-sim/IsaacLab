@@ -15,6 +15,8 @@ import torch
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonManager
 
+from pxr import Usd, UsdGeom, UsdLux, UsdPhysics
+
 replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
 
 
@@ -64,11 +66,18 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     assert copied.shape_source[0] is not source.shape_source[0]
 
 
-def test_explicit_global_import_uses_only_declared_roots(monkeypatch):
-    """Newton imports the physics scene and each declared global, never an inferred stage root."""
-    stage = object()
-    builder = mock.Mock()
-    builder.add_usd.return_value = {"path_shape_map": {}}
+def test_explicit_global_import_uses_global_world(monkeypatch):
+    """Declared global colliders remain in Newton world -1 after model finalization."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    UsdGeom.Xform.Define(stage, "/World")
+    ground = UsdGeom.Cube.Define(stage, "/World/Ground")
+    UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
+    UsdLux.DistantLight.Define(stage, "/World/Light")
+
+    builder = newton.ModelBuilder()
+    add_usd = mock.Mock(wraps=builder.add_usd)
+    monkeypatch.setattr(builder, "add_usd", add_usd)
     manager = SimpleNamespace(
         create_builder=mock.Mock(return_value=builder), _inject_terrain_heightfields=mock.Mock(return_value=[])
     )
@@ -77,22 +86,22 @@ def test_explicit_global_import_uses_only_declared_roots(monkeypatch):
         "_sim",
         SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics_prim_path="/physicsScene")),
     )
-    restore = mock.Mock()
-    monkeypatch.setattr(replicate_module, "_restore_visible_colliders_without_visual_shapes", restore)
-    monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock(side_effect=StopIteration))
+    monkeypatch.setattr(replicate_module.NewtonManager, "_deformable_registry", ())
+    monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
+    monkeypatch.setattr(replicate_module.NewtonManager, "_per_world_builder_hooks", ())
+    monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
 
-    with pytest.raises(StopIteration):
-        replicate_module._build_newton_builder_from_mapping(
-            stage=stage,
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            env_ids=torch.arange(2),
-            mapping=torch.ones((1, 2), dtype=torch.bool),
-            global_paths=("/World/Ground", "/World/Light"),
-            load_visual_shapes=False,
-        )
+    builder, *_ = replicate_module._build_newton_builder_from_mapping(
+        stage=stage,
+        sources=(),
+        destinations=(),
+        env_ids=torch.arange(2),
+        mapping=torch.empty((0, 2), dtype=torch.bool),
+        global_paths=("/World/Ground", "/World/Light"),
+        load_visual_shapes=False,
+    )
 
-    assert [call.kwargs["root_path"] for call in builder.add_usd.call_args_list] == [
+    assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == [
         "/physicsScene",
         "/World/Ground",
         "/World/Light",
@@ -100,5 +109,8 @@ def test_explicit_global_import_uses_only_declared_roots(monkeypatch):
     manager._inject_terrain_heightfields.assert_called_once_with(
         stage, builder, root_paths=("/physicsScene", "/World/Ground", "/World/Light")
     )
-    assert restore.call_count == 3
-    assert "queue_global_paths" not in vars(replicate_module.NewtonReplicateContext)
+    model = builder.finalize("cpu")
+    ground_index = model.shape_label.index("/World/Ground")
+    assert model.shape_world.numpy()[ground_index] == -1
+    assert model.world_count == 2
+    assert "/World/Light" not in model.shape_label  # USD lights are not Newton physics entities.

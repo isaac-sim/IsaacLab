@@ -225,7 +225,7 @@ def make_clone_plan(
     env_spacing: float,
     device: str,
     *,
-    global_paths: Iterable[str],
+    global_paths: tuple[str, ...],
     clone_strategy: Callable = sequential,
     valid_set: torch.Tensor | None = None,
     env_template: str = DEFAULT_ENV_TEMPLATE,
@@ -280,8 +280,6 @@ def make_clone_plan(
         if count <= 0:
             raise ValueError(f"Spawner at '{cfg.prim_path}' must have at least one variant.")
         groups.append((cfg, cfg.spawn, env_template + matched.suffix, count))
-    global_paths = tuple(dict.fromkeys(global_paths))
-
     env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
     positions, _ = grid_transforms(num_clones, env_spacing, device=device)
 
@@ -390,7 +388,7 @@ def clone_plan_from_env_0(
     device: str,
     positions: torch.Tensor | None = None,
     *,
-    global_paths: Iterable[str],
+    global_paths: tuple[str, ...],
 ) -> ClonePlan:
     """Build a single-source clone plan that targets every env from one source row.
 
@@ -422,5 +420,5 @@ def clone_plan_from_env_0(
         env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
         positions=positions,
         cfg_rows=cfg_rows,
-        global_paths=tuple(dict.fromkeys(global_paths)),
+        global_paths=global_paths,
     )
