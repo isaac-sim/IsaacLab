@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model, ModelBuilder
+from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
@@ -31,10 +31,7 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
-    @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Register the custom attributes consumed by MuJoCo Warp."""
-        SolverMuJoCo.register_custom_attributes(builder)
+    _builder_attribute_solvers = (SolverMuJoCo,)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:

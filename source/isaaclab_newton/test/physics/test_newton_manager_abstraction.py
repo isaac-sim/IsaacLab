@@ -31,6 +31,7 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
+from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoDVICfg,
@@ -55,9 +56,10 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from newton import ModelBuilder
+from newton import JointTargetMode, JointType, ModelBuilder
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
@@ -1026,6 +1028,40 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
         NewtonMPMManager,
     ):
         assert manager._supports_rigid_body_force_input is False
+
+
+def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
+    """Resolve target modes once, then copy them to the replicated articulations."""
+    builder = SimpleNamespace(
+        articulation_label=["/World/Env_0/Robot", "/World/Env_1/Robot"],
+        articulation_start=[0, 1],
+        articulation_end=[1, 2],
+        joint_type=[JointType.REVOLUTE, JointType.REVOLUTE],
+        joint_qd_start=[0, 1],
+        joint_label=["/World/Env_0/Robot/joint", "/World/Env_1/Robot/joint"],
+        joint_target_mode=[int(JointTargetMode.NONE)] * 2,
+        joint_target_ke=[0.0] * 2,
+        joint_target_kd=[0.0] * 2,
+    )
+    cfg = SimpleNamespace(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+    )
+    original = articulation_module.resolve_matching_names
+    actuator_resolutions = 0
+
+    def count_actuator_resolutions(name_keys, names, *args, **kwargs):
+        nonlocal actuator_resolutions
+        if names == ["joint"]:
+            actuator_resolutions += 1
+        return original(name_keys, names, *args, **kwargs)
+
+    monkeypatch.setattr(articulation_module, "resolve_matching_names", count_actuator_resolutions)
+    articulation_module._configure_builder_joint_target_modes(builder, cfg)
+
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)] * 2
+    assert actuator_resolutions == 1
 
 
 @pytest.mark.parametrize(

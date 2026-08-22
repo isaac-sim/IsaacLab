@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 import warp as wp
-from newton import Model, ModelBuilder, eval_fk
+from newton import Model, eval_fk
 from newton.solvers import SolverKamino
 
 from isaaclab.physics import PhysicsManager
@@ -57,10 +57,7 @@ class NewtonKaminoManager(NewtonManager):
     # Annotate the concrete solver type.
     _solver: SolverKamino
 
-    @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Register the custom attributes consumed by Kamino."""
-        SolverKamino.register_custom_attributes(builder)
+    _builder_attribute_solvers = (SolverKamino,)
 
     @classmethod
     def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:

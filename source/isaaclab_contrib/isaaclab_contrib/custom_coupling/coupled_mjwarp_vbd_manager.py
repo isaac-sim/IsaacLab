@@ -10,7 +10,7 @@ from __future__ import annotations
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
-from newton import Contacts, Control, Model, ModelBuilder, State
+from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
 from isaaclab.physics import PhysicsManager
@@ -29,12 +29,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _rigid_solver: SolverMuJoCo | None = None
     _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
-
-    @classmethod
-    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Register the custom attributes consumed by the nested rigid solver."""
-        super()._register_builder_attributes(builder)
-        PhysicsManager._cfg.solver_cfg.rigid_solver_cfg.class_type._register_builder_attributes(builder)
+    _builder_attribute_solvers = (SolverMuJoCo,)
 
     @classmethod
     def step(cls) -> None:
