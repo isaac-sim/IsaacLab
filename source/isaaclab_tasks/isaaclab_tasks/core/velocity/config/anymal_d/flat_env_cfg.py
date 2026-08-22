@@ -3,39 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
-
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_tasks.core.velocity.velocity_env_cfg import RoughPhysicsCfg
 
 from .rough_env_cfg import AnymalDRoughEnvCfg
 
 
 @configclass
-class PhysicsCfg(RoughPhysicsCfg):
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=60,
-            nconmax=25,
-            cone="elliptic",
-            impratio=100.0,
-        ),
-        num_substeps=1,
-        debug_mode=False,
-    )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
-    default = newton_mjwarp
-
-
-@configclass
 class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
-
     def __post_init__(self):
         super().__post_init__()
 
+        # physics
+        newton_mjwarp = self.sim.physics.newton_mjwarp
+        newton_mjwarp.solver_cfg.njmax = 60
+        newton_mjwarp.solver_cfg.nconmax = 25
+        newton_mjwarp.solver_cfg.cone = "elliptic"
+        newton_mjwarp.solver_cfg.impratio = 100.0
+        newton_mjwarp.num_substeps = 1
+        self.sim.physics.default = newton_mjwarp
         # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
