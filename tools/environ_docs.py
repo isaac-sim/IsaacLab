@@ -103,11 +103,9 @@ def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetT
     try:
         from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
 
-        from isaaclab_tasks.utils.hydra import resolve_presets
-        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+        from isaaclab_tasks.utils import resolve_task_config
 
-        cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-        cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+        cfg, _ = resolve_task_config(task_name, "", overrides=("physics=newton_mjwarp",))
         if workflow == "Direct":
             try:
                 return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None

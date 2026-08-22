@@ -157,7 +157,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             else:
                 resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
 
-            cfg = capture.run_config_from_presets(remaining, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -178,7 +178,6 @@ def run(argv: list[str]) -> BenchmarkResult:
                             "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
             )
