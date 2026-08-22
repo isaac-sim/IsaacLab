@@ -55,6 +55,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
+from newton import ModelBuilder
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.physics import PhysicsManager
@@ -561,6 +562,30 @@ def test_mpm_register_builder_attributes_is_idempotent():
     # Second call must be a no-op (no exceptions, attribute still present).
     NewtonMPMManager._register_builder_attributes(builder)
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+@pytest.mark.parametrize(
+    ("manager", "active", "inactive"),
+    [
+        (NewtonMJWarpManager, "mujoco:condim", ("kamino:max_solver_iterations", "mpm:young_modulus")),
+        (NewtonKaminoManager, "kamino:max_solver_iterations", ("mujoco:condim", "mpm:young_modulus")),
+    ],
+)
+def test_rigid_solver_registers_only_its_builder_attributes(manager, active, inactive):
+    """A rigid solver declares its own builder schema and no inactive solver schema."""
+    builder = ModelBuilder()
+
+    manager._register_builder_attributes(builder)
+
+    assert builder.has_custom_attribute(active)
+    assert all(not builder.has_custom_attribute(name) for name in inactive)
+
+
+def test_clone_source_builder_has_no_solver_dependency():
+    """The active manager's builder factory, not the cloner, owns solver attributes."""
+    import isaaclab_newton.cloner.newton_clone_utils as clone_utils
+
+    assert not hasattr(clone_utils, "solvers")
 
 
 def test_mpm_prepare_builder_makes_kinematic_bodies_massless():

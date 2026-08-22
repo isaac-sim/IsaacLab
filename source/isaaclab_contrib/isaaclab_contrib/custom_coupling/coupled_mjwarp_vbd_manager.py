@@ -10,8 +10,10 @@ from __future__ import annotations
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
-from newton import Contacts, Control, Model, State
+from newton import Contacts, Control, Model, ModelBuilder, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
+
+from isaaclab.physics import PhysicsManager
 
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
@@ -29,10 +31,14 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _coupling_mode: str | None = None
 
     @classmethod
+    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+        """Register the custom attributes consumed by the nested rigid solver."""
+        super()._register_builder_attributes(builder)
+        PhysicsManager._cfg.solver_cfg.rigid_solver_cfg.class_type._register_builder_attributes(builder)
+
+    @classmethod
     def step(cls) -> None:
         """Step the physics simulation."""
-        from isaaclab.physics import PhysicsManager
-
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return

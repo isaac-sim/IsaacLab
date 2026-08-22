@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model
+from newton import Contacts, Model, ModelBuilder
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
@@ -30,6 +30,11 @@ class NewtonMJWarpManager(NewtonManager):
     convergence logging emitted from :meth:`_log_solver_debug` when
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
+
+    @classmethod
+    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+        """Register the custom attributes consumed by MuJoCo Warp."""
+        SolverMuJoCo.register_custom_attributes(builder)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
