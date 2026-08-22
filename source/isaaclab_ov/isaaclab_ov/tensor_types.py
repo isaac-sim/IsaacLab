@@ -259,7 +259,7 @@ Guarded so this module stays import-safe against older wheels that lack them.
 
 try:
     SHAPE_FRICTION_AND_RESTITUTION = _TT.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
-    """Per-collision-shape material of each articulation instance — read/write, GPU.
+    """Per-collision-shape material of each articulation instance — read/write, CPU.
     Shape ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]``
     restitution (all dimensionless)."""
 except AttributeError:
@@ -267,7 +267,7 @@ except AttributeError:
 
 try:
     RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION = _TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
-    """Per-collision-shape material of each rigid body — read/write, GPU. Shape
+    """Per-collision-shape material of each rigid body — read/write, CPU. Shape
     ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]`` restitution
     (all dimensionless)."""
 except AttributeError:
@@ -450,8 +450,15 @@ _CPU_ONLY_TYPES_CANDIDATES: tuple = (
     DEFORMABLE_MATERIAL_THICKNESS,
     DEFORMABLE_MATERIAL_BENDING_DAMPING,
 )
-# Optional rigid-body CPU entries: only included when the wheel exposes them.
-_RIGID_BODY_OPTIONAL_CPU: tuple = tuple(
-    globals()[name] for name in ("RIGID_BODY_INV_MASS", "RIGID_BODY_INV_INERTIA") if name in globals()
+# Optional CPU-native entries: only included when the wheel exposes them.
+_OPTIONAL_CPU_TYPES: tuple = tuple(
+    globals()[name]
+    for name in (
+        "RIGID_BODY_INV_MASS",
+        "RIGID_BODY_INV_INERTIA",
+        "SHAPE_FRICTION_AND_RESTITUTION",
+        "RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION",
+    )
+    if name in globals()
 )
-_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(_CPU_ONLY_TYPES_CANDIDATES + _RIGID_BODY_OPTIONAL_CPU)
+_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(_CPU_ONLY_TYPES_CANDIDATES + _OPTIONAL_CPU_TYPES)

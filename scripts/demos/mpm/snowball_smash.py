@@ -239,9 +239,7 @@ def create_scene_cfg():
                     dynamic_friction=CRATE_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=(
-                    sim_utils.PreviewSurfaceCfg(diffuse_color=color) if "kit" in (args_cli.visualizer or []) else None
-                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color),
                 visual_material_path="visualMaterial",
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=center),
