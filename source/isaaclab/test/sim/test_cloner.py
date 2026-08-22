@@ -464,14 +464,9 @@ def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
         cfg.cloning_contexts = (UsdReplicateContext,)
         queue_replication(cfg)
 
-    plan = cloner.clone_plan_from_env_0(
-        source="/World/envs/env_0",
-        destination="/World/envs/env_{}",
-        num_clones=4,
-        device=sim.cfg.device,
-        positions=grid_transforms(4, 1.0, device=sim.cfg.device)[0],
-        global_paths=(),
-    )
+    src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+    pos = grid_transforms(4, 1.0, device=sim.cfg.device)[0]
+    plan = cloner.clone_plan_from_env_0(src, dest, 4, sim.cfg.device, pos, global_paths=())
 
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)

@@ -268,7 +268,7 @@ Shortcut for the case where every env is just a copy of env_0.
 one line by pointing at the prototype, and :func:`~isaaclab.cloner.replicate`
 finishes the setup. This is the pattern most :class:`~isaaclab.envs.DirectRLEnv`
 subclasses use — they author the env-0 prototype prim by prim in
-``_setup_scene`` and end the method with these four lines:
+``_setup_scene`` and end the method with this sequence:
 
 .. code-block:: python
 
@@ -279,14 +279,8 @@ subclasses use — they author the env-0 prototype prim by prim in
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(
-            src,
-            dest,
-            self.scene.num_envs,
-            self.device,
-            pos,
-            global_paths=("/World/ground",),
-        )
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
         cloner.replicate(plan, stage=self.scene.stage)
 
 Every env receives the same prototype. When envs need to differ, use one of the
