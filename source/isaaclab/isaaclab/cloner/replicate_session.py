@@ -103,7 +103,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         backend_ctxs[BackendCtxCls] = ctx
         row_list = sorted(row_set)
         queue_global_paths = getattr(ctx, "queue_global_paths", None)
-        if queue_global_paths is not None and plan.global_paths is not None:
+        if queue_global_paths is not None:
             queue_global_paths(plan.global_paths)
         ctx.queue_mapping(
             [plan.sources[i] for i in row_list],

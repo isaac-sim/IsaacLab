@@ -36,7 +36,7 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
         instances: list["FakeUsdContext"] = []
 
         def __init__(self, stage):
-            self.global_paths = None
+            self.global_paths = ()
             FakeUsdContext.instances.append(self)
 
         def queue_global_paths(self, paths):

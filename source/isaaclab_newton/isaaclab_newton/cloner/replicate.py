@@ -105,7 +105,8 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
-    global_paths: Sequence[str] | None = None,
+    *,
+    global_paths: Sequence[str],
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
 
@@ -123,16 +124,23 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
-    stage_info = _import_global_usd(
-        stage,
-        builder,
-        manager_cls,
-        sources=sources,
-        global_paths=global_paths,
-        physics_scene_path=PhysicsManager._sim.cfg.physics_prim_path,
-        schema_resolvers=schema_resolvers,
-        load_visual_shapes=load_visual_shapes,
-    )
+    import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+    stage_info = None
+    for root_path in import_paths:
+        import_result = builder.add_usd(
+            stage,
+            root_path=root_path,
+            ignore_paths=hf_ignore_paths,
+            schema_resolvers=schema_resolvers,
+            load_visual_shapes=load_visual_shapes,
+        )
+        _restore_visible_colliders_without_visual_shapes(
+            builder, stage, import_result["path_shape_map"], load_visual_shapes
+        )
+        if stage_info is None:
+            stage_info = import_result
+    assert stage_info is not None
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
@@ -174,52 +182,6 @@ def _build_newton_builder_from_mapping(
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     return builder, stage_info, site_index_map, world_xforms, source_builders
-
-
-def _import_global_usd(
-    stage: Usd.Stage,
-    builder: ModelBuilder,
-    manager_cls: type,
-    *,
-    sources: Sequence[str],
-    global_paths: Sequence[str] | None,
-    physics_scene_path: str,
-    schema_resolvers: Sequence,
-    load_visual_shapes: bool,
-) -> dict:
-    """Import shared USD without entering clone-source subtrees when globals are declared."""
-    if global_paths is None:
-        hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
-        stage_info = builder.add_usd(
-            stage,
-            ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
-            schema_resolvers=schema_resolvers,
-            load_visual_shapes=load_visual_shapes,
-        )
-        _restore_visible_colliders_without_visual_shapes(
-            builder, stage, stage_info["path_shape_map"], load_visual_shapes
-        )
-        return stage_info
-
-    # Heightfield conversion follows the same explicit ownership boundary as USD import.
-    import_paths = (physics_scene_path, *global_paths)
-    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
-    stage_info = None
-    for root_path in import_paths:
-        import_result = builder.add_usd(
-            stage,
-            root_path=root_path,
-            ignore_paths=hf_ignore_paths,
-            schema_resolvers=schema_resolvers,
-            load_visual_shapes=load_visual_shapes,
-        )
-        _restore_visible_colliders_without_visual_shapes(
-            builder, stage, import_result["path_shape_map"], load_visual_shapes
-        )
-        if root_path == physics_scene_path:
-            stage_info = import_result
-    assert stage_info is not None
-    return stage_info
 
 
 def _renderer_wants_visual_shapes() -> bool:
@@ -271,7 +233,7 @@ class NewtonReplicateContext:
             load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
         self.load_visual_shapes = _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes
         self.commit_to_manager = commit_to_manager
-        self._global_paths: tuple[str, ...] | None = None
+        self._global_paths: tuple[str, ...] = ()
         self._queue: list[_MappingBatch] = []
 
     def queue_global_paths(self, paths: Sequence[str]) -> None:
@@ -375,7 +337,7 @@ class NewtonReplicateContext:
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()
-        self._global_paths = None
+        self._global_paths = ()
         return builder, stage_info, site_index_map
 
 
@@ -394,6 +356,8 @@ def newton_physics_replicate(
     quaternions: torch.Tensor | None = None,
     device: str = "cpu",
     up_axis: str = "Z",
+    *,
+    global_paths: Sequence[str],
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
@@ -407,11 +371,13 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         device: Device used by the finalized Newton model builder.
         up_axis: Up axis for the Newton model builder.
+        global_paths: Shared scene-asset roots imported once.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
     ctx = NewtonReplicateContext(stage, device=device, up_axis=up_axis, commit_to_manager=True)
+    ctx.queue_global_paths(global_paths)
     ctx.queue_mapping(sources, destinations, env_ids, mapping, positions=positions, quaternions=quaternions)
     builder, stage_info, _site_index_map = ctx.replicate()
     return builder, stage_info
