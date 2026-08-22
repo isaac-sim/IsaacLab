@@ -61,6 +61,13 @@ class ClonePlan:
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
+    global_paths: tuple[str, ...] = ()
+    """Unique prim paths for scene assets shared by every environment.
+
+    Global assets are not replication rows: they have no destination template or
+    clone-mask entry because backends must not copy them.
+    """
+
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
     """Create a centered grid of transforms for ``N`` instances.
@@ -235,8 +242,9 @@ def make_clone_plan(
 
     Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
     asset constructor spawns the prototype into its first active environment. Cfgs
-    whose ``prim_path`` is global (not under the env root ``/World/envs/``) or that
-    lack a spawn are skipped — they do not appear in the plan and are not replicated.
+    whose ``prim_path`` is global (not under the env root ``/World/envs/``) appear
+    only in :attr:`ClonePlan.global_paths`; they are never replicated. Env-scoped cfgs
+    without a spawn are skipped.
 
     Args:
         cfgs: Asset cfgs with resolved ``prim_path`` (no ``{ENV_REGEX_NS}`` macros).
@@ -251,8 +259,8 @@ def make_clone_plan(
 
     Returns:
         A :class:`ClonePlan` whose ``sources``/``destinations``/``clone_mask`` describe
-        the flat prototype-to-env mapping and whose ``cfg_rows`` maps each cfg to the
-        rows it owns.
+        the flat prototype-to-env mapping, whose ``cfg_rows`` maps each replicated cfg
+        to the rows it owns, and whose ``global_paths`` names shared scene assets.
     """
 
     def set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
@@ -267,18 +275,24 @@ def make_clone_plan(
                 raise ValueError("Single spawner expects exactly one planned source path.")
             spawn_cfg.spawn_path = active[0]
 
-    # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
+    # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants),
+    # while retaining the paths this same scene declaration says are global.
     groups: list[tuple[Any, Any, str, int]] = []
+    global_paths: list[str] = []
     for cfg in cfgs:
-        if not hasattr(cfg, "prim_path") or not hasattr(cfg, "spawn") or cfg.spawn is None:
+        if not hasattr(cfg, "prim_path"):
             continue
         prim_path = cfg.prim_path
         if (matched := match(prim_path, env_template)) is None:
+            global_paths.append(prim_path)
+            continue
+        if not hasattr(cfg, "spawn") or cfg.spawn is None:
             continue
         count = num_spawn_variants(cfg.spawn)
         if count <= 0:
             raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
         groups.append((cfg, cfg.spawn, env_template + matched.suffix, count))
+    global_paths = list(dict.fromkeys(global_paths))
 
     env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
     positions, _ = grid_transforms(num_clones, env_spacing, device=device)
@@ -293,6 +307,7 @@ def make_clone_plan(
             env_ids=env_ids,
             positions=positions,
             cfg_rows={},
+            global_paths=tuple(global_paths),
         )
 
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
@@ -307,6 +322,7 @@ def make_clone_plan(
             env_ids=env_ids,
             positions=positions,
             cfg_rows=cfg_rows,
+            global_paths=tuple(global_paths),
         )
 
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
@@ -375,6 +391,7 @@ def make_clone_plan(
         env_ids=env_ids,
         positions=positions,
         cfg_rows=cfg_rows,
+        global_paths=tuple(global_paths),
     )
 
 
@@ -389,9 +406,10 @@ def clone_plan_from_env_0(
 
     Auto-populates :attr:`ClonePlan.cfg_rows` from :data:`~isaaclab.cloner.REPLICATION_QUEUE`,
     including only cfgs whose ``prim_path`` falls under the env-root prefix of
-    ``destination``. Must be called *after* all asset constructors have run, so their cfgs
-    are already registered in the queue; otherwise those assets will be skipped by the
-    subsequent :func:`~isaaclab.cloner.replicate` call.
+    ``destination``. Paths outside that namespace populate :attr:`ClonePlan.global_paths`.
+    Must be called *after* all asset constructors have run, so their cfgs are already
+    registered in the queue; otherwise those assets will be skipped by the subsequent
+    :func:`~isaaclab.cloner.replicate` call.
 
     Args:
         source: Source prim path (typically ``/World/envs/env_0``).
@@ -405,9 +423,13 @@ def clone_plan_from_env_0(
     """
     from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
 
-    cfg_rows: dict[int, tuple[int, ...]] = {
-        id(cfg): (0,) for cfg in REPLICATION_QUEUE if match(cfg.prim_path, destination) is not None
-    }
+    cfg_rows: dict[int, tuple[int, ...]] = {}
+    global_paths: list[str] = []
+    for cfg in REPLICATION_QUEUE:
+        if match(cfg.prim_path, destination) is None:
+            global_paths.append(cfg.prim_path)
+        else:
+            cfg_rows[id(cfg)] = (0,)
     return ClonePlan(
         sources=(source,),
         destinations=(destination,),
@@ -415,4 +437,5 @@ def clone_plan_from_env_0(
         env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
         positions=positions,
         cfg_rows=cfg_rows,
+        global_paths=tuple(dict.fromkeys(global_paths)),
     )

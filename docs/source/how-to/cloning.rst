@@ -130,6 +130,8 @@ this page:
      - Long tensor of target env ids.
    * - ``positions``
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
+   * - ``global_paths``
+     - Unique prim paths for scene assets shared by every env and therefore not replicated.
 
 The plan is stage-agnostic by design — the same instance can be replayed against a
 different stage, inspected by tooling, or serialized.
@@ -141,6 +143,7 @@ When every env is a copy of env_0:
     sources      = ("/World/envs/env_0",)
     destinations = ("/World/envs/env_{}",)
     clone_mask   = [[True, True, ..., True]]
+    global_paths = ("/World/Ground", "/World/Light")
 
 When envs differ — say a cartpole in every env plus a 2-variant obstacle (box into
 envs 0/1, sphere into envs 2/3):

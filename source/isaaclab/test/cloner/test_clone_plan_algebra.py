@@ -528,6 +528,19 @@ def test_query_agrees_across_duplicate_source_rows():
 ##
 
 
+def test_global_paths_are_not_replication_rows():
+    """Shared assets stay explicit without changing the replication table's shape."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool),
+        global_paths=("/World/Ground", "/World/Light"),
+    )
+
+    assert plan.global_paths == ("/World/Ground", "/World/Light")
+    assert len(plan.sources) == len(plan.destinations) == plan.clone_mask.shape[0] == 1
+
+
 def test_query_and_path_are_real_modules():
     """``cloner.path``/``cloner.query`` import as modules, not just package attributes."""
     import isaaclab.cloner.path  # noqa: PLC0415
