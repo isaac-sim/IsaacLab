@@ -30,7 +30,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import ShapeFlags
+from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab_contrib.coupling import (
@@ -577,6 +577,23 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     NewtonCouplerManager._prepare_builder_for_finalize(builder)
 
     assert events == [("register", builder), ("finalize", builder)]
+
+
+def test_nested_solvers_register_their_builder_attributes(monkeypatch):
+    """A coupled model declares the schemas consumed by each configured child solver."""
+    builder = ModelBuilder()
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(name="rigid", solver_cfg=MJWarpSolverCfg()),
+            CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg()),
+        ]
+    )
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+
+    NewtonCouplerManager._register_builder_attributes(builder)
+
+    assert builder.has_custom_attribute("mujoco:condim")
+    assert builder.has_custom_attribute("mpm:young_modulus")
 
 
 def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):

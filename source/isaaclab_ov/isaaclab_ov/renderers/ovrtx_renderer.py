@@ -26,7 +26,7 @@ import os
 import re
 import sys
 import weakref
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -85,7 +85,6 @@ from .ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from .ovrtx_mapping import map_attribute_for_warp_writes
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -109,6 +108,12 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+
+# Maps depth render-var sources to compatible output buffers.
+_DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
+    "DistanceToImagePlaneSD": ("depth", "distance_to_image_plane"),
+    "DistanceToCameraSD": ("distance_to_camera",),
+}
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
 _RTX_MINIMAL_MODES = {
@@ -466,12 +471,13 @@ class OVRTXRenderer(BaseRenderer):
         """Initialize the legacy-path instance fields.
 
         Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles. State shared by both
-        paths (``_object_newton_indices``, the particle offset/count lists) stays in
-        :meth:`__init__`.
+        here: the ``bind_attribute``/``bind_array_attribute`` handles and the caller-owned object
+        transform buffer. State shared by both paths (``_object_newton_indices``, the particle
+        offset/count lists) stays in :meth:`__init__`.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
+        self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
         self._particle_workaround_applied = False
@@ -677,6 +683,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
+        self._object_transform_buffer = wp.zeros(len(newton_indices), dtype=wp.mat44d, device=self._device)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -906,7 +913,12 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
-        if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
+        if (
+            self._object_xform_binding is None
+            or self._object_newton_indices is None
+            or self._object_scales is None
+            or self._object_transform_buffer is None
+        ):
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -921,13 +933,20 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with map_attribute_for_warp_writes(self._object_xform_binding, self._device, wp.mat44d) as ovrtx_transforms:
-            wp.launch(
-                kernel=sync_newton_transforms_kernel,
-                dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q, self._object_scales],
-                device=self._device,
-            )
+        wp.launch(
+            kernel=sync_newton_transforms_kernel,
+            dim=len(self._object_newton_indices),
+            inputs=[self._object_transform_buffer, self._object_newton_indices, body_q, self._object_scales],
+            device=self._device,
+        )
+        # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
+        # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
+        # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
+        self._object_xform_binding.write(
+            self._object_transform_buffer,
+            data_access=DataAccess.ASYNC,
+            cuda_stream=wp.get_stream(self._device).cuda_stream,
+        )
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -1028,8 +1047,11 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
         if self._camera_xform_binding is not None:
-            with map_attribute_for_warp_writes(self._camera_xform_binding, self._device, wp.mat44d) as transforms_view:
-                wp.copy(transforms_view, camera_transforms)
+            self._camera_xform_binding.write(
+                camera_transforms,
+                data_access=DataAccess.ASYNC,
+                cuda_stream=wp.get_stream(self._device).cuda_stream,
+            )
 
     def read_output(
         self,
@@ -1301,10 +1323,22 @@ class OVRTXRenderer(BaseRenderer):
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
 
     def _extract_depth_tiles(
-        self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
+        self,
+        render_data: OVRTXRenderData,
+        tiled_depth_data: wp.array,
+        output_buffers: dict,
+        buffer_keys: Sequence[str],
     ) -> None:
-        """Extract per-env depth tiles into output_buffers (single kernel launch)."""
-        for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
+        """Extract per-env depth tiles into the given output buffers (one kernel launch each).
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            tiled_depth_data: Tiled depth data mapped from one depth render var.
+            output_buffers: Destination warp buffers, keyed by data type.
+            buffer_keys: Data types that this depth render var measures. Keys absent from
+                ``output_buffers`` are skipped.
+        """
+        for depth_type in buffer_keys:
             if depth_type in output_buffers:
                 self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
 
@@ -1359,16 +1393,17 @@ class OVRTXRenderer(BaseRenderer):
                 with self._map_render_var_to_dlpack(frame.render_vars["LdrColor"]) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
+        for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
             if depth_var not in frame.render_vars:
+                continue
+            if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
                 continue
             with self._map_render_var_to_dlpack(frame.render_vars[depth_var]) as tiled_depth_data:
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
-                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
-            break
+                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(frame.render_vars["DiffuseAlbedoSD"]) as tiled_albedo_data:
@@ -1467,6 +1502,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_xform_binding = None
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
+        self._object_transform_buffer = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
         _safe_unbind(self._particle_points_binding, "particle points")

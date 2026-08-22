@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from rendering_test_utils import (
+    group_rendering_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
@@ -19,7 +20,7 @@ from rendering_test_utils import (
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_RENDERING_PARAMS = make_kitless_rendering_params_franka()
+_RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params_franka())
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -29,8 +30,8 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_type", _RENDERING_PARAMS, indirect=["ovstage_variant"]
+    "ovstage_variant,physics_backend,renderer,data_types", _RENDERING_PARAMS, indirect=["ovstage_variant"]
 )
-def test_rendering_franka_cable_kitless(ovstage_variant, physics_backend, renderer, data_type):
+def test_rendering_franka_cable_kitless(ovstage_variant, physics_backend, renderer, data_types):
     """Camera output must match golden images for the Franka cable test setup."""
-    rendering_test_franka_cable(physics_backend, renderer, data_type, _COMPARISON_SCORES)
+    rendering_test_franka_cable(physics_backend, renderer, data_types, _COMPARISON_SCORES)
