@@ -110,7 +110,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
         # -- generate random joint efforts
         efforts = torch.randn_like(robot.data.joint_pos.torch) * 5.0
         # -- apply action to the robot
-        robot.set_joint_effort_target_index(target=efforts)
+        robot.actuators.target_command.set_effort_index(value=efforts)
         # -- write data to sim
         robot.write_data_to_sim()
         # Perform step

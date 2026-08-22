@@ -582,10 +582,41 @@ def modify_articulation_root_properties(
                     if not parent_attr:
                         parent_attr = parent_prim.CreateAttribute(aname, attr.GetTypeName())
                     parent_attr.Set(attr.Get())
+            # -- Newton root schema and its authored properties
+            newton_root_schema = "NewtonArticulationRootAPI"
+            if newton_root_schema in articulation_prim.GetAppliedSchemas():
+                if not parent_prim.AddAppliedSchema(newton_root_schema):
+                    raise RuntimeError(f"Failed to apply '{newton_root_schema}' to '{parent_prim.GetPath()}'.")
+                schema_definition = Usd.SchemaRegistry().FindAppliedAPIPrimDefinition(newton_root_schema)
+                newton_properties = []
+                if schema_definition is not None:
+                    for property_name in schema_definition.GetPropertyNames():
+                        prop = articulation_prim.GetProperty(property_name)
+                        if prop and prop.IsAuthored():
+                            newton_properties.append(prop)
+                for prop in newton_properties:
+                    if not prop.FlattenTo(parent_prim):
+                        raise RuntimeError(f"Failed to move '{prop.GetPath()}' to '{parent_prim.GetPath()}'.")
+                for prop in newton_properties:
+                    if not articulation_prim.RemoveProperty(prop.GetName()):
+                        raise RuntimeError(f"Failed to remove '{prop.GetPath()}' from the former articulation root.")
+                if not articulation_prim.RemoveAppliedSchema(newton_root_schema):
+                    raise RuntimeError(f"Failed to remove '{newton_root_schema}' from '{articulation_prim.GetPath()}'.")
 
             # remove api from root
             articulation_prim.RemoveAppliedSchema("PhysxArticulationAPI")
             articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+            articulation_prim = parent_prim
+
+    # Mirror after any root relocation so the Newton API does not recreate an articulation root
+    # on the former root link.
+    enabled_self_collisions = cfg_dict.get("enabled_self_collisions")
+    if enabled_self_collisions is not None:
+        if "NewtonArticulationRootAPI" not in articulation_prim.GetAppliedSchemas():
+            articulation_prim.AddAppliedSchema("NewtonArticulationRootAPI")
+        safe_set_attribute_on_usd_prim(
+            articulation_prim, "newton:selfCollisionEnabled", enabled_self_collisions, camel_case=False
+        )
 
     # success
     return True

@@ -75,7 +75,11 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        spawn_path="/World/envs/env_0/Camera",
+        focal_length=24.0,
+        focus_distance=400.0,
+        horizontal_aperture=20.955,
+        clipping_range=(0.1, 20.0),
     )
     width: int = 120
     height: int = 120
@@ -140,8 +144,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
         benchmark task, which disables the feature extractor, to measure pure
         depth-rendering throughput, e.g.::
 
-            presets=depth          # depth rendering, default renderer
-            presets=depth,newton_renderer     # depth rendering with Newton renderer
+            presets=depth          # depth rendering with the default Newton renderer
             presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
@@ -163,12 +166,6 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
-
-    def __post_init__(self):
-        # only the RTX tiled camera renders the default RGB/depth/semantic set
-        super().__post_init__()
-        for backend_cfg in (self.sim.physics, self.robot_cfg):
-            backend_cfg.default = backend_cfg.isaacsim_physx
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""

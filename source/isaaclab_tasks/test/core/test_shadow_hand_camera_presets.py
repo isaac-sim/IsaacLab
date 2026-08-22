@@ -15,30 +15,20 @@ Two test suites are provided:
    :class:`ShadowHandTiledCameraCfg` and
    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` resolves to the expected
    concrete config class and data types, using the real config classes.
-   These require Isaac Sim to be launched so that the renderer cfg imports
-   are available.
 """
 
-"""Launch Isaac Sim Simulator first."""
+import types
 
-from isaaclab.app import AppLauncher
+import pytest
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+from isaaclab.renderers import RendererCfg
 
-
-import types  # noqa: E402
-
-import pytest  # noqa: E402
-from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
-from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
-
-from isaaclab.renderers import RendererCfg  # noqa: E402
-
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (  # noqa: E402
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
-from isaaclab_tasks.utils.hydra import collect_presets  # noqa: E402
+from isaaclab_tasks.utils.hydra import collect_presets
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -199,7 +189,7 @@ def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets, pre
 
 _RENDERER_PRESETS = [
     # preset_name, expected_class
-    ("default", IsaacRtxRendererCfg),
+    ("default", NewtonWarpRendererCfg),
     ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
 ]

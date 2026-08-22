@@ -18,22 +18,40 @@ from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
 
-import json
+import functools
 import os
-import tempfile
 import unittest
+from types import SimpleNamespace
 
+import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.actuators.newton import read_group_parameter
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils.actuator_equivalence import (
+    CARTPOLE_EXPLICIT_ACTUATORS,
+    DC_MOTOR_ACTUATORS,
+    DELAYED_PD_ACTUATORS,
+    IDEAL_PD_ACTUATORS,
+    IMPLICIT_ONLY_ACTUATORS,
+    MIXED_WITH_IMPLICIT_ACTUATORS,
+    ActuatorStateResetBase,
+    EquivalenceAssertionsMixin,
+    MockEnv,
+    build_dr_term,
+    make_dummy_lstm_checkpoint,
+    make_dummy_mlp_checkpoint,
+)
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
+from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -59,79 +77,42 @@ _ANYMAL_C_PHYSX_JOINT_NAMES = (
 )
 
 
-# ---------------------------------------------------------------------------
-# Actuator configurations under test
-# ---------------------------------------------------------------------------
+def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
+    """Leave solver gains untouched until collection construction resolves actuator defaults."""
+    from isaaclab_physx.assets.articulation import actuator_control
 
-IDEAL_PD_ACTUATORS = {
-    "legs": IdealPDActuatorCfg(
-        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-        stiffness=40.0,
-        damping=5.0,
-        effort_limit=80.0,
-    ),
-}
+    from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrapper
 
-DC_MOTOR_ACTUATORS = {
-    "legs": DCMotorCfg(
-        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-        saturation_effort=120.0,
-        effort_limit=80.0,
-        velocity_limit=7.5,
-        stiffness={".*": 40.0},
-        damping={".*": 5.0},
-    ),
-}
+    joint_buffer = SimpleNamespace(warp=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
+    collection = SimpleNamespace(
+        target_command=SimpleNamespace(position=joint_buffer, velocity=joint_buffer, effort=joint_buffer)
+    )
+    gain_writes = []
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+        joint_names=["joint"],
+        num_instances=1,
+        num_joints=1,
+        device="cpu",
+        _data=SimpleNamespace(joint_pos=joint_buffer, joint_vel=joint_buffer),
+        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
+        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+    )
+    wrapper = SimpleNamespace()
+    adapter = SimpleNamespace(joint_indices=wp.array([0], dtype=wp.int32), finalize=lambda _: None)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
+    monkeypatch.setattr(PhysxActuatorWrapper, "create", lambda **_: wrapper)
+    monkeypatch.setattr(NewtonActuatorAdapter, "from_usd", lambda **_: adapter)
 
-MIXED_ACTUATORS = {
-    "hips": IdealPDActuatorCfg(
-        joint_names_expr=[".*HAA"],
-        stiffness=40.0,
-        damping=5.0,
-        effort_limit=80.0,
-    ),
-    "knees": DCMotorCfg(
-        joint_names_expr=[".*HFE", ".*KFE"],
-        saturation_effort=120.0,
-        effort_limit=80.0,
-        velocity_limit=7.5,
-        stiffness={".*": 40.0},
-        damping={".*": 5.0},
-    ),
-}
+    native_groups = PhysxActuatorControl(articulation).prepare_native_actuators(
+        collection,
+        {"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
+    )
 
-DELAYED_PD_ACTUATORS = {
-    "legs": DelayedPDActuatorCfg(
-        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-        stiffness=40.0,
-        damping=5.0,
-        effort_limit=80.0,
-        min_delay=2,
-        max_delay=4,
-    ),
-}
+    assert native_groups == {"explicit"}
+    assert gain_writes == []
 
-MIXED_WITH_IMPLICIT_ACTUATORS = {
-    "hips": ImplicitActuatorCfg(
-        joint_names_expr=[".*HAA"],
-        stiffness=40.0,
-        damping=5.0,
-    ),
-    "thighs": IdealPDActuatorCfg(
-        joint_names_expr=[".*HFE"],
-        stiffness=40.0,
-        damping=5.0,
-        effort_limit=80.0,
-    ),
-    "knees": DCMotorCfg(
-        joint_names_expr=[".*KFE"],
-        saturation_effort=120.0,
-        effort_limit=80.0,
-        velocity_limit=7.5,
-        stiffness=40.0,
-        damping=5.0,
-    ),
-}
 
 # ---------------------------------------------------------------------------
 # Simulation runner
@@ -146,6 +127,7 @@ def _run_simulation(
     feedforward: float | None = None,
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
+    capture_first_compute: bool = False,
 ) -> dict:
     """Run ANYmal-C on PhysX and return recorded trajectories + telemetry.
 
@@ -159,6 +141,7 @@ def _run_simulation(
         joint_ordering: Optional explicit public joint-name order.
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
+        capture_first_compute: Whether to invoke the first actuator computation inside an outer CUDA capture.
 
     Returns:
         Recorded joint-name metadata, commands, public trajectories and torque telemetry, and adapter effort traces.
@@ -218,19 +201,22 @@ def _run_simulation(
             articulation.set_joint_effort_target_index(target=effort_target)
 
         recorded_pos, recorded_vel = [], []
-        recorded_computed, recorded_applied = [], []
-        recorded_adapter_computed, recorded_adapter_applied = [], []
+        recorded_computed_effort, recorded_applied_effort = [], []
+        recorded_adapter_applied = []
+        if capture_first_compute:
+            with wp.ScopedCapture(device=articulation.device, force_module_load=True):
+                articulation.actuators.compute(DT)
         for _ in range(num_steps):
             articulation.write_data_to_sim()
             sim.step()
             articulation.update(DT)
             recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
-            recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
-            recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
+            recorded_computed_effort.append(articulation.actuators.computed_effort.torch.clone())
+            recorded_applied_effort.append(articulation.actuators.applied_effort.torch.clone())
             if use_newton_actuators:
-                recorded_adapter_computed.append(wp.to_torch(articulation.data._sim_bind_joint_computed_effort).clone())
                 recorded_adapter_applied.append(wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d).clone())
+        native_actuator_graph_count = len(getattr(articulation._actuator_control, "_native_actuator_graphs", ()) or ())
 
     return {
         "joint_names": joint_names,
@@ -239,14 +225,57 @@ def _run_simulation(
         "adapter_joint_names": joint_names,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
-        "computed_torque": recorded_computed,
-        "applied_torque": recorded_applied,
-        "adapter_computed_effort": recorded_adapter_computed,
+        "computed_effort": recorded_computed_effort,
+        "applied_effort": recorded_applied_effort,
         "adapter_applied_effort": recorded_adapter_applied,
         "target_pos": target_pos.clone(),
         "target_vel": target_vel.clone(),
         "effort_target": None if effort_target is None else effort_target.clone(),
+        "native_actuator_graph_count": native_actuator_graph_count,
     }
+
+
+def test_graphable_newton_actuators_capture_ping_pong_graphs() -> None:
+    result = _run_simulation(DELAYED_PD_ACTUATORS, use_newton_actuators=True, num_steps=2)
+
+    assert result["native_actuator_graph_count"] == 2
+
+
+def test_newton_actuator_graph_capture_failure_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingCapture:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            raise RuntimeError("capture unavailable")
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(wp, "ScopedCapture", FailingCapture)
+
+    result = _run_simulation(
+        DC_MOTOR_ACTUATORS,
+        use_newton_actuators=True,
+        num_steps=2,
+        feedforward=1.0,
+    )
+
+    assert result["native_actuator_graph_count"] == 0
+    assert len(result["joint_pos"]) == 2
+    assert all(torch.isfinite(joint_pos).all() for joint_pos in result["joint_pos"])
+    assert all(torch.any(effort != 0.0) for effort in result["applied_effort"])
+    assert all(torch.any(effort != 0.0) for effort in result["adapter_applied_effort"])
+
+
+def test_stateful_newton_actuators_reject_outer_cuda_capture() -> None:
+    with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
+        _run_simulation(
+            DELAYED_PD_ACTUATORS,
+            use_newton_actuators=True,
+            num_steps=0,
+            capture_first_compute=True,
+        )
 
 
 def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
@@ -270,7 +299,7 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
 def _assert_newton_actuator_uses_current_joint_state(
     joint_ordering: tuple[str, ...] | None, *, num_steps: int = NUM_STEPS
 ) -> None:
-    """Check that ``applied_torque`` always matches the IdealPD formula on *this* step's true state.
+    """Check that ``applied_effort`` always matches the IdealPD formula on *this* step's true state.
 
     Ground truth is read every step via ``root_view.get_dof_positions()``/``get_dof_velocities()`` --
     the raw PhysX view, bypassing :class:`ArticulationData`'s cached ``joint_pos``/``joint_vel`` shadow
@@ -286,7 +315,7 @@ def _assert_newton_actuator_uses_current_joint_state(
             joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
             stiffness=kp,
             damping=kd,
-            effort_limit=effort_limit,
+            actuator_effort_limit=effort_limit,
         ),
     }
     sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
@@ -334,7 +363,7 @@ def _assert_newton_actuator_uses_current_joint_state(
             true_vel = to_user_order(articulation.root_view.get_dof_velocities()).clone()
 
             articulation.write_data_to_sim()
-            applied = wp.to_torch(articulation.data.applied_torque).clone()
+            applied = articulation.actuators.applied_effort.torch.clone()
 
             expected = torch.clamp(kp * (target_pos - true_pos) - kd * true_vel, -effort_limit, effort_limit)
             torch.testing.assert_close(
@@ -343,7 +372,7 @@ def _assert_newton_actuator_uses_current_joint_state(
                 atol=1e-3,
                 rtol=1e-3,
                 msg=(
-                    f"applied_torque at step {step} does not match the IdealPD formula evaluated on this"
+                    f"applied_effort at step {step} does not match the IdealPD formula evaluated on this"
                     " step's true PhysX joint state -- the Newton actuator likely used a stale"
                     " joint_pos/joint_vel shadow"
                 ),
@@ -354,21 +383,15 @@ def _assert_newton_actuator_uses_current_joint_state(
 
 
 def test_newton_actuator_identity_ordering_uses_current_joint_state() -> None:
-    """Sanity check: with identity joint ordering, ``applied_torque`` always reflects this step's state."""
+    """Sanity check: with identity joint ordering, ``applied_effort`` always reflects this step's state."""
     _assert_newton_actuator_uses_current_joint_state(None)
 
 
 def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
-    """Regression test: a non-identity ordering must not lag PhysX's true joint state by one step.
+    """Regression test: non-identity joint ordering must preserve current-state torque evaluation.
 
-    ``_apply_actuator_model_newton`` binds ``w.joint_q``/``w.joint_qd`` once, at actuator setup, to
-    ``data.joint_pos``/``data.joint_vel``. With identity joint ordering those bindings alias PhysX-owned
-    memory directly and are always current. With non-identity ordering they alias an owned shadow buffer
-    that is only refreshed when the ``joint_pos``/``joint_vel`` *public* getters run -- which
-    :meth:`_apply_actuator_model_newton` itself only triggers *after* stepping the adapter (for torque
-    telemetry), i.e. one step too late for the adapter to see it. Explicit Newton PD actuators then
-    silently compute torques from one-physics-step-stale joint state whenever nothing else in that step
-    happens to read ``data.joint_pos``/``data.joint_vel`` first.
+    The adapter must resolve joint state in articulation order before evaluating the actuator model,
+    regardless of the backend view ordering.
     """
     reversed_joint_names = tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES))
     _assert_newton_actuator_uses_current_joint_state(reversed_joint_names)
@@ -379,23 +402,18 @@ def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _EquivalenceTestBase(unittest.TestCase):
+class _EquivalenceTestBase(EquivalenceAssertionsMixin, unittest.TestCase):
     """Base for Lab-vs-Newton equivalence tests on the PhysX backend.
 
     Subclasses set ``actuators`` to the config under test.  ``setUpClass``
     runs the simulation with both ``use_newton_actuators=False`` (Lab path)
     and ``True`` (Newton via PhysxActuatorWrapper) and stores the results.
+    The ``test_*_match`` oracles come from :class:`EquivalenceAssertionsMixin`.
     """
 
     __test__ = False
     actuators: dict = {}
     feedforward: float | None = None
-    pos_atol: float = 2e-3
-    pos_rtol: float = 1e-3
-    vel_atol: float = 1e-2
-    vel_rtol: float = 1e-2
-    torque_atol: float = 1e-3
-    torque_rtol: float = 1e-3
 
     @classmethod
     def setUpClass(cls):
@@ -409,50 +427,6 @@ class _EquivalenceTestBase(unittest.TestCase):
             use_newton_actuators=True,
             feedforward=cls.feedforward,
         )
-
-    def test_joint_positions_match(self):
-        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.pos_atol,
-                rtol=self.pos_rtol,
-                msg=f"Joint positions diverged at step {step_i}",
-            )
-
-    def test_joint_velocities_match(self):
-        for step_i, (lab, newton) in enumerate(zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.vel_atol,
-                rtol=self.vel_rtol,
-                msg=f"Joint velocities diverged at step {step_i}",
-            )
-
-    def test_applied_torque_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
-        ):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.torque_atol,
-                rtol=self.torque_rtol,
-                msg=f"applied_torque diverged at step {step_i}",
-            )
-
-    def test_computed_torque_match(self):
-        for step_i, (lab, newton) in enumerate(
-            zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
-        ):
-            torch.testing.assert_close(
-                lab,
-                newton,
-                atol=self.torque_atol,
-                rtol=self.torque_rtol,
-                msg=f"computed_torque diverged at step {step_i}",
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -472,13 +446,6 @@ class TestDCMotorEquivalence(_EquivalenceTestBase):
 
     __test__ = True
     actuators = DC_MOTOR_ACTUATORS
-
-
-class TestMixedActuatorEquivalence(_EquivalenceTestBase):
-    """Mixed actuators (IdealPD on HAA, DCMotor on HFE/KFE): Lab vs Newton (PhysX)."""
-
-    __test__ = True
-    actuators = MIXED_ACTUATORS
 
 
 class TestDelayedPDEquivalence(_EquivalenceTestBase):
@@ -504,23 +471,8 @@ class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):
 
 
 # ---------------------------------------------------------------------------
-# Implicit-only fast-path: enable Newton-actuator branch on PhysX with no explicit groups
+# Implicit + non-zero feedforward effort target on PhysX
 # ---------------------------------------------------------------------------
-
-IMPLICIT_ONLY_ACTUATORS = {
-    "legs": ImplicitActuatorCfg(
-        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-        stiffness=40.0,
-        damping=5.0,
-    ),
-}
-
-
-class TestImplicitOnlyEquivalencePhysx(_EquivalenceTestBase):
-    """All-implicit articulation on PhysX with ``use_newton_actuators=True``: Lab vs fast-path."""
-
-    __test__ = True
-    actuators = IMPLICIT_ONLY_ACTUATORS
 
 
 class TestImplicitWithFeedforwardEquivalencePhysx(_EquivalenceTestBase):
@@ -534,16 +486,6 @@ class TestImplicitWithFeedforwardEquivalencePhysx(_EquivalenceTestBase):
 # ---------------------------------------------------------------------------
 # Heterogeneous multi-articulation (ANYmal floating-base + Cartpole fixed-base)
 # ---------------------------------------------------------------------------
-
-
-CARTPOLE_EXPLICIT_ACTUATORS = {
-    "all_joints": IdealPDActuatorCfg(
-        joint_names_expr=["slider_to_cart", "cart_to_pole"],
-        stiffness=10.0,
-        damping=1.0,
-        effort_limit=100.0,
-    ),
-}
 
 
 def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM_STEPS) -> dict:
@@ -640,80 +582,66 @@ class TestHeterogeneousMultiArticulationPhysx(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class _MockScene:
-    """Minimal stand-in for ``InteractiveScene`` accepted by ``ManagerTermBase``."""
-
-    def __init__(self, assets: dict, num_envs: int):
-        self._assets = assets
-        self.num_envs = num_envs
-
-    def __getitem__(self, name: str):
-        return self._assets[name]
-
-
-class _MockEnv:
-    """Minimal stand-in for ``ManagerBasedEnv`` for invoking DR terms.
-
-    ``randomize_actuator_gains`` only reads ``env.scene[name]`` and
-    ``env.scene.num_envs`` (plus ``env.num_envs`` / ``env.device`` from the
-    ``ManagerTermBase`` properties). No simulator access is needed because
-    the DR term reaches the actuator adapter via ``self.the actuator adapter``.
-    """
-
-    def __init__(self, assets: dict, num_envs: int, device: str):
-        self.scene = _MockScene(assets, num_envs)
-        self.num_envs = num_envs
-        self.device = device
-
-
-def _build_dr_term(env, asset_name, joint_ids=None):
-    from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
-    from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
-
-    asset_cfg = SceneEntityCfg(asset_name)
-    if joint_ids is not None:
-        asset_cfg.joint_ids = joint_ids
-    cfg = EventTermCfg(
-        func=randomize_actuator_gains,
-        params={
-            "asset_cfg": asset_cfg,
-            "stiffness_distribution_params": (100.0, 100.0),
-            "damping_distribution_params": (5.0, 5.0),
-            "operation": "abs",
-            "distribution": "uniform",
-        },
-    )
-    return randomize_actuator_gains(cfg, env), asset_cfg
-
-
 class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
     """End-to-end DR test for the PhysX backend.
 
     Drives ``randomize_actuator_gains`` (events.py) and verifies the new
-    kp/kd values land in the per-articulation adapter's buffer at the
-    right cells — exercising the full path: events →
-    the actuator adapter → write_stiffness/damping → propagation
-    to controllers.
+    kp/kd values reach the controllers of the articulation's Newton
+    actuators — exercising the full path: events → the actuator adapter →
+    write_stiffness/damping → propagation to controllers. The assertions
+    read the controllers back via the public
+    ``read_group_parameter``.
 
-    With ``operation="abs"`` and ``distribution="uniform"`` over a
-    degenerate range ``(K, K)``, every randomized cell is set to exactly
-    ``K`` — so the assertions are deterministic.
+    The native-controller tests use degenerate ranges for exact expected values.
+    The implicit-storage regression instead seeds the generator and uses
+    non-degenerate ranges to verify one sampled payload reaches every storage.
     """
 
-    @staticmethod
-    def _gather_param(adapter, num_envs, num_joints, attr, device):
-        """Reconstruct a ``(num_envs, num_joints)`` view of ``controller.<attr>`` across all actuators."""
-        out = torch.zeros((num_envs, num_joints), device=device)
-        for act in adapter.actuators:
-            ctrl = act.controller
-            if not hasattr(ctrl, attr):
-                continue
-            flat_t = wp.to_torch(getattr(ctrl, attr))
-            idx_np = act.indices.numpy()
-            envs = torch.from_numpy((idx_np // num_joints).astype("int64")).to(device)
-            locals_ = torch.from_numpy((idx_np % num_joints).astype("int64")).to(device)
-            out[envs, locals_] = flat_t
-        return out
+    def test_implicit_storage_reuses_randomized_payload(self):
+        """Keep actuator-owned and implicit-solver gains identical after randomization."""
+        sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=False)
+        with build_simulation_context(
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            for i in range(NUM_ENVS):
+                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+            art_cfg = ANYMAL_C_CFG.replace(
+                actuators=IMPLICIT_ONLY_ACTUATORS,
+                prim_path="/World/Env_.*/Robot",
+            )
+            anymal = Articulation(art_cfg)
+            sim.reset()
+
+            actuator = anymal.actuators["legs"]
+            stiffness_before = actuator.stiffness.clone()
+            damping_before = actuator.damping.clone()
+            env = MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
+            term, asset_cfg = build_dr_term(env, "robot")
+            env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
+            torch.manual_seed(12345)
+
+            term(
+                env,
+                env_ids=env_ids,
+                asset_cfg=asset_cfg,
+                stiffness_distribution_params=(25.0, 75.0),
+                damping_distribution_params=(1.0, 9.0),
+                operation="abs",
+                distribution="uniform",
+            )
+
+            randomized_stiffness = actuator.stiffness[env_ids]
+            randomized_damping = actuator.damping[env_ids]
+            self.assertGreater(torch.unique(randomized_stiffness).numel(), 1)
+            self.assertGreater(torch.unique(randomized_damping).numel(), 1)
+            torch.testing.assert_close(randomized_stiffness, anymal.data.joint_stiffness.torch[env_ids])
+            torch.testing.assert_close(randomized_damping, anymal.data.joint_damping.torch[env_ids])
+            torch.testing.assert_close(actuator.stiffness[1:], stiffness_before[1:])
+            torch.testing.assert_close(actuator.damping[1:], damping_before[1:])
 
     def test_single_articulation(self):
         sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
@@ -735,12 +663,13 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
             adapter = anymal.newton_actuator_adapter
             self.assertIsNotNone(adapter, "PhysX per-articulation adapter should exist")
+            read = functools.partial(read_group_parameter, anymal.actuators)
             n = anymal.num_joints
-            kp_before = self._gather_param(adapter, NUM_ENVS, n, "kp", anymal.device).clone()
-            kd_before = self._gather_param(adapter, NUM_ENVS, n, "kd", anymal.device).clone()
+            kp_before = read("legs", "controller", "kp").clone()
+            kd_before = read("legs", "controller", "kd").clone()
 
-            env = _MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
-            term, asset_cfg = _build_dr_term(env, "robot")
+            env = MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
+            term, asset_cfg = build_dr_term(env, "robot")
             env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
 
             term(
@@ -753,13 +682,15 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
                 distribution="uniform",
             )
 
-            kp_after = self._gather_param(adapter, NUM_ENVS, n, "kp", anymal.device)
-            kd_after = self._gather_param(adapter, NUM_ENVS, n, "kd", anymal.device)
-            torch.testing.assert_close(kp_after[0], torch.full((n,), 100.0, device=anymal.device))
-            torch.testing.assert_close(kd_after[0], torch.full((n,), 5.0, device=anymal.device))
+            # Named native-group reads project the controller values immediately.
+            torch.testing.assert_close(
+                read("legs", "controller", "kp")[0], torch.full((n,), 100.0, device=anymal.device)
+            )
+            torch.testing.assert_close(read("legs", "controller", "kd")[0], torch.full((n,), 5.0, device=anymal.device))
+            # Other envs untouched.
             for env_idx in range(1, NUM_ENVS):
-                torch.testing.assert_close(kp_after[env_idx], kp_before[env_idx])
-                torch.testing.assert_close(kd_after[env_idx], kd_before[env_idx])
+                torch.testing.assert_close(read("legs", "controller", "kp")[env_idx], kp_before[env_idx])
+                torch.testing.assert_close(read("legs", "controller", "kd")[env_idx], kd_before[env_idx])
 
     def test_two_articulations(self):
         from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
@@ -792,15 +723,16 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             self.assertIsNotNone(cartpole_adapter)
             self.assertIsNot(anymal_adapter, cartpole_adapter)
 
-            n_anymal = anymal.num_joints
+            anymal_read = functools.partial(read_group_parameter, anymal.actuators)
+            cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
             n_cp = cartpole.num_joints
-            anymal_kp_before = self._gather_param(anymal_adapter, NUM_ENVS, n_anymal, "kp", anymal.device).clone()
-            anymal_kd_before = self._gather_param(anymal_adapter, NUM_ENVS, n_anymal, "kd", anymal.device).clone()
-            cp_kp_before = self._gather_param(cartpole_adapter, NUM_ENVS, n_cp, "kp", anymal.device).clone()
-            cp_kd_before = self._gather_param(cartpole_adapter, NUM_ENVS, n_cp, "kd", anymal.device).clone()
+            anymal_kp_before = anymal_read("legs", "controller", "kp").clone()
+            anymal_kd_before = anymal_read("legs", "controller", "kd").clone()
+            cp_kp_before = cartpole_read("all_joints", "controller", "kp").clone()
+            cp_kd_before = cartpole_read("all_joints", "controller", "kd").clone()
 
-            env = _MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
-            term, asset_cfg = _build_dr_term(env, "cartpole")
+            env = MockEnv({"anymal": anymal, "cartpole": cartpole}, NUM_ENVS, anymal.device)
+            term, asset_cfg = build_dr_term(env, "cartpole")
             env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
 
             term(
@@ -813,260 +745,46 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
                 distribution="uniform",
             )
 
-            cp_kp_after = self._gather_param(cartpole_adapter, NUM_ENVS, n_cp, "kp", anymal.device)
-            cp_kd_after = self._gather_param(cartpole_adapter, NUM_ENVS, n_cp, "kd", anymal.device)
+            cp_kp_after = cartpole_read("all_joints", "controller", "kp")
+            cp_kd_after = cartpole_read("all_joints", "controller", "kd")
             torch.testing.assert_close(cp_kp_after[0], torch.full((n_cp,), 100.0, device=anymal.device))
             torch.testing.assert_close(cp_kd_after[0], torch.full((n_cp,), 5.0, device=anymal.device))
+            # Cartpole's other envs are untouched (env_ids=[0] only).
             for env_idx in range(1, NUM_ENVS):
                 torch.testing.assert_close(cp_kp_after[env_idx], cp_kp_before[env_idx])
                 torch.testing.assert_close(cp_kd_after[env_idx], cp_kd_before[env_idx])
 
             # ANYmal's controllers are fully untouched — DR was scoped to cartpole.
-            anymal_kp_after = self._gather_param(anymal_adapter, NUM_ENVS, n_anymal, "kp", anymal.device)
-            anymal_kd_after = self._gather_param(anymal_adapter, NUM_ENVS, n_anymal, "kd", anymal.device)
-            torch.testing.assert_close(anymal_kp_after, anymal_kp_before)
-            torch.testing.assert_close(anymal_kd_after, anymal_kd_before)
+            torch.testing.assert_close(anymal_read("legs", "controller", "kp"), anymal_kp_before)
+            torch.testing.assert_close(anymal_read("legs", "controller", "kd"), anymal_kd_before)
 
 
 # ---------------------------------------------------------------------------
 # Per-env reset: actuator state isolation
 # ---------------------------------------------------------------------------
 
-RESET_WARMUP_STEPS = 3
 
+class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
+    """Per-env actuator state reset isolation on the PhysX backend.
 
-class TestActuatorStateReset(unittest.TestCase):
-    """Reset must clear the actuator state buffers for the requested envs only.
-
-    Inspects ``adapter.actuators[i].state.delay_state.num_pushes`` directly:
-
-    * After warmup, ``num_pushes > 0`` for every DOF (buffer was populated).
-    * After ``articulation.reset(env_ids=[0])``, the entries for env 0's DOFs
-      must be ``0`` and the entries for env 1's DOFs must remain ``> 0``.
-
-    Done independently on Lab and Newton paths. PhysX-side adapter is
-    per-articulation, available via ``articulation.newton_actuator_adapter``.
+    The scenario and assertions live in :class:`ActuatorStateResetBase`;
+    this subclass provides the PhysX sim config and the per-articulation
+    adapter (``articulation.newton_actuator_adapter``).
     """
 
-    RESET_ENV: int = 0
-    UNCHANGED_ENV: int = 1
+    def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
+        return SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
 
-    def _build_and_warm(self, *, use_newton_actuators: bool):
-        sim_cfg = SimulationCfg(
-            dt=DT,
-            physics=PhysxCfg(),
-            use_newton_actuators=use_newton_actuators,
-        )
-        ctx = build_simulation_context(
-            device="cuda:0",
-            gravity_enabled=True,
-            add_ground_plane=True,
-            sim_cfg=sim_cfg,
-        )
-        sim = ctx.__enter__()
-        sim._app_control_on_stop_handle = None
-        for i in range(NUM_ENVS):
-            sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(
-            actuators=DELAYED_PD_ACTUATORS,
-            prim_path="/World/Env_[^/]*/Robot",
-        )
-        articulation = Articulation(art_cfg)
-        sim.reset()
+    def _make_articulation(self) -> Articulation:
+        return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
 
-        init_pos = wp.to_torch(articulation.data.joint_pos).clone()
-        target_pos = init_pos + TARGET_OFFSET
-        target_vel = torch.zeros_like(init_pos)
-        articulation.set_joint_position_target_index(target=target_pos)
-        articulation.set_joint_velocity_target_index(target=target_vel)
-        for _ in range(RESET_WARMUP_STEPS):
-            articulation.write_data_to_sim()
-            sim.step()
-            articulation.update(DT)
-        return ctx, sim, articulation
-
-    def test_newton_state_reset_isolated_to_reset_env(self):
-        """Newton: ``num_pushes`` zeroes for env 0's DOFs only after reset of [0]."""
-        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=True)
-        try:
-            adapter = articulation.newton_actuator_adapter
-            self.assertIsNotNone(adapter)
-            stateful_pairs = [
-                (act, st)
-                for act, st in zip(adapter.actuators, adapter._states_a)
-                if st is not None and getattr(st, "delay_state", None) is not None
-            ]
-            self.assertGreater(len(stateful_pairs), 0, "expected at least one DelayedPD actuator with delay_state")
-
-            for act, state in stateful_pairs:
-                pushes_before = state.delay_state.num_pushes.numpy()
-                self.assertTrue(
-                    (pushes_before > 0).all(),
-                    "expected non-zero num_pushes for all DOFs after warmup",
-                )
-
-            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device, dtype=torch.long))
-
-            # Map each entry of ``act.indices`` to its env via ``adapter.num_joints``
-            # (PhysX adapter is per-articulation so this equals articulation.num_joints —
-            # using adapter.num_joints keeps the test symmetric with the Newton path).
-            for act, state in stateful_pairs:
-                pushes_after = state.delay_state.num_pushes.numpy()
-                indices_np = act.indices.numpy()
-                for i, global_dof in enumerate(indices_np):
-                    env = int(global_dof) // adapter.num_joints
-                    if env == self.RESET_ENV:
-                        self.assertEqual(
-                            int(pushes_after[i]),
-                            0,
-                            f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}",
-                        )
-                    else:
-                        self.assertGreater(
-                            int(pushes_after[i]),
-                            0,
-                            f"DOF {i} (env {env}) was NOT in reset env_ids but num_pushes is 0",
-                        )
-        finally:
-            ctx.__exit__(None, None, None)
-
-    def test_lab_state_reset_isolated_to_reset_env(self):
-        """Lab: DelayedPDActuator circular buffer zeroed for env 0 only."""
-        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=False)
-        try:
-            from isaaclab.actuators import DelayedPDActuator  # noqa: PLC0415
-
-            delayed = [a for a in articulation.actuators.values() if isinstance(a, DelayedPDActuator)]
-            self.assertGreater(len(delayed), 0, "expected at least one Lab DelayedPDActuator")
-            actuator = delayed[0]
-            buf = actuator.positions_delay_buffer._circular_buffer._buffer
-            self.assertIsNotNone(buf, "delay buffer should be populated after warmup")
-            self.assertTrue(
-                (buf[:, self.UNCHANGED_ENV] != 0).any().item(),
-                "expected non-zero buffer entries for env 1 after warmup",
-            )
-
-            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device, dtype=torch.long))
-
-            self.assertTrue(
-                torch.all(buf[:, self.RESET_ENV] == 0).item(),
-                f"Lab: env {self.RESET_ENV} buffer not zeroed after reset.",
-            )
-            self.assertTrue(
-                (buf[:, self.UNCHANGED_ENV] != 0).any().item(),
-                f"Lab: env {self.UNCHANGED_ENV} buffer was zeroed — reset leaked into an unselected env.",
-            )
-        finally:
-            ctx.__exit__(None, None, None)
+    def _get_adapter(self, articulation):
+        return articulation.newton_actuator_adapter
 
 
 # ---------------------------------------------------------------------------
-# RemotizedPD authoring: PD + delay + position-based clamping lookup table
+# RemotizedPD equivalence: PD + delay + position-based clamping lookup table
 # ---------------------------------------------------------------------------
-
-SPOT_KNEE_LOOKUP = [
-    [-2.792900, -24.776718, 37.165077],
-    [-2.767442, -26.290108, 39.435162],
-    [-2.741984, -27.793369, 41.690054],
-    [-2.716526, -29.285997, 43.928996],
-    [-2.691068, -30.767536, 46.151304],
-    [-2.665610, -32.237423, 48.356134],
-    [-2.640152, -33.695168, 50.542751],
-    [-2.614694, -35.140221, 52.710331],
-    [-2.589236, -36.572052, 54.858078],
-    [-2.563778, -37.990086, 56.985128],
-    [-2.538320, -39.393730, 59.090595],
-    [-2.512862, -40.782406, 61.173609],
-    [-2.487404, -42.155487, 63.233231],
-    [-2.461946, -43.512371, 65.268557],
-    [-2.436488, -44.852371, 67.278557],
-    [-2.411030, -46.174873, 69.262310],
-    [-2.385572, -47.479156, 71.218735],
-    [-2.360114, -48.764549, 73.146824],
-    [-2.334656, -50.030334, 75.045502],
-    [-2.309198, -51.275761, 76.913641],
-    [-2.283740, -52.500103, 78.750154],
-    [-2.258282, -53.702587, 80.553881],
-    [-2.232824, -54.882442, 82.323664],
-    [-2.207366, -56.038860, 84.058290],
-    [-2.181908, -57.171028, 85.756542],
-    [-2.156450, -58.278133, 87.417200],
-    [-2.130992, -59.359314, 89.038971],
-    [-2.105534, -60.413738, 90.620607],
-    [-2.080076, -61.440529, 92.160793],
-    [-2.054618, -62.438812, 93.658218],
-    [-2.029160, -63.407692, 95.111538],
-    [-2.003702, -64.346268, 96.519402],
-    [-1.978244, -65.253670, 97.880505],
-    [-1.952786, -66.128944, 99.193417],
-    [-1.927328, -66.971176, 100.456764],
-    [-1.901870, -67.779457, 101.669186],
-    [-1.876412, -68.552864, 102.829296],
-    [-1.850954, -69.290451, 103.935677],
-    [-1.825496, -69.991325, 104.986988],
-    [-1.800038, -70.654541, 105.981812],
-    [-1.774580, -71.279190, 106.918785],
-    [-1.749122, -71.864319, 107.796478],
-    [-1.723664, -72.409088, 108.613632],
-    [-1.698206, -72.912567, 109.368851],
-    [-1.672748, -73.373871, 110.060806],
-    [-1.647290, -73.792130, 110.688194],
-    [-1.621832, -74.166512, 111.249767],
-    [-1.596374, -74.496147, 111.744221],
-    [-1.570916, -74.780251, 112.170376],
-    [-1.545458, -75.017998, 112.526997],
-    [-1.520000, -75.208656, 112.812984],
-    [-1.494542, -75.351448, 113.027172],
-    [-1.469084, -75.445686, 113.168530],
-    [-1.443626, -75.490677, 113.236015],
-    [-1.418168, -75.485771, 113.228657],
-    [-1.392710, -75.430344, 113.145515],
-    [-1.367252, -75.323830, 112.985744],
-    [-1.341794, -75.165688, 112.748531],
-    [-1.316336, -74.955406, 112.433109],
-    [-1.290878, -74.692551, 112.038826],
-    [-1.265420, -74.376694, 111.565041],
-    [-1.239962, -74.007477, 111.011215],
-    [-1.214504, -73.584579, 110.376869],
-    [-1.189046, -73.107742, 109.661613],
-    [-1.163588, -72.576752, 108.865128],
-    [-1.138130, -71.991455, 107.987183],
-    [-1.112672, -71.351707, 107.027561],
-    [-1.087214, -70.657486, 105.986229],
-    [-1.061756, -69.908813, 104.863220],
-    [-1.036298, -69.105721, 103.658581],
-    [-1.010840, -68.248337, 102.372505],
-    [-0.985382, -67.336861, 101.005291],
-    [-0.959924, -66.371513, 99.557270],
-    [-0.934466, -65.352615, 98.028923],
-    [-0.909008, -64.280533, 96.420799],
-    [-0.883550, -63.155693, 94.733540],
-    [-0.858092, -61.978588, 92.967882],
-    [-0.832634, -60.749775, 91.124662],
-    [-0.807176, -59.469845, 89.204767],
-    [-0.781718, -58.139503, 87.209255],
-    [-0.756260, -56.759487, 85.139231],
-    [-0.730802, -55.330616, 82.995924],
-    [-0.705344, -53.853729, 80.780594],
-    [-0.679886, -52.329796, 78.494694],
-    [-0.654428, -50.759762, 76.139643],
-    [-0.628970, -49.144699, 73.717049],
-    [-0.603512, -47.485737, 71.228605],
-    [-0.578054, -45.784004, 68.676006],
-    [-0.552596, -44.040764, 66.061146],
-    [-0.527138, -42.257267, 63.385900],
-    [-0.501680, -40.434883, 60.652325],
-    [-0.476222, -38.574947, 57.862421],
-    [-0.450764, -36.678982, 55.018473],
-    [-0.425306, -34.748432, 52.122648],
-    [-0.399848, -32.784836, 49.177254],
-    [-0.374390, -30.789810, 46.184715],
-    [-0.348932, -28.764952, 43.147428],
-    [-0.323474, -26.711969, 40.067954],
-    [-0.298016, -24.632576, 36.948864],
-    [-0.272558, -22.528547, 33.792821],
-    [-0.247100, -20.401667, 30.602500],
-]
 
 
 class TestRemotizedPDEquivalence(_EquivalenceTestBase):
@@ -1087,13 +805,13 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
                 joint_names_expr=[".*HAA", ".*HFE"],
                 stiffness=40.0,
                 damping=5.0,
-                effort_limit=80.0,
+                actuator_effort_limit=80.0,
             ),
             "knees": RemotizedPDActuatorCfg(
                 joint_names_expr=[".*KFE"],
                 stiffness=60.0,
                 damping=1.5,
-                effort_limit=80.0,
+                actuator_effort_limit=80.0,
                 max_delay=3,
                 joint_parameter_lookup=SPOT_KNEE_LOOKUP,
             ),
@@ -1101,109 +819,9 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
         super().setUpClass()
 
 
-class TestRemotizedPDFunctional(unittest.TestCase):
-    """Verify RemotizedPDActuatorCfg runs correctly on PhysX with Newton actuators.
-
-    Uses the Spot knee lookup table (102 entries) on ANYmal's KFE joints.
-    """
-
-    @classmethod
-    def setUpClass(cls):
-        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
-
-        cls.result = _run_simulation(
-            {
-                "hips": IdealPDActuatorCfg(
-                    joint_names_expr=[".*HAA", ".*HFE"],
-                    stiffness=40.0,
-                    damping=5.0,
-                    effort_limit=80.0,
-                ),
-                "knees": RemotizedPDActuatorCfg(
-                    joint_names_expr=[".*KFE"],
-                    stiffness=60.0,
-                    damping=1.5,
-                    effort_limit=80.0,
-                    max_delay=3,
-                    joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-                ),
-            },
-            use_newton_actuators=True,
-        )
-
-    def test_positions_finite(self):
-        for step_i, pos in enumerate(self.result["joint_pos"]):
-            self.assertTrue(
-                torch.isfinite(pos).all(),
-                f"Non-finite positions at step {step_i}",
-            )
-
-
 # ---------------------------------------------------------------------------
 # Neural network actuator authoring: MLP and LSTM
 # ---------------------------------------------------------------------------
-
-
-def _make_dummy_mlp_checkpoint(device: str = "cpu") -> str:
-    """Create a minimal TorchScript MLP checkpoint with metadata."""
-    torch.manual_seed(42)
-    net = (
-        torch.nn.Sequential(
-            torch.nn.Linear(6, 8),
-            torch.nn.ELU(),
-            torch.nn.Linear(8, 1),
-        )
-        .to(device)
-        .eval()
-    )
-    scripted = torch.jit.script(net)
-
-    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
-        tmp_path = tmp.name
-    extra = {
-        "metadata.json": json.dumps(
-            {
-                "model_type": "mlp",
-                "input_order": "pos_vel",
-                "input_idx": [0, 1, 2],
-                "pos_scale": 1.0,
-                "vel_scale": 0.5,
-                "torque_scale": 2.0,
-            }
-        )
-    }
-    torch.jit.save(scripted, tmp_path, _extra_files=extra)
-    return tmp_path
-
-
-class _DummyLSTM(torch.nn.Module):
-    """Minimal LSTM network for actuator testing."""
-
-    def __init__(self):
-        super().__init__()
-        self.lstm = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=1, batch_first=True)
-        self.fc = torch.nn.Linear(4, 1)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        hc: tuple[torch.Tensor, torch.Tensor],
-    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
-        out, hc_new = self.lstm(x, hc)
-        return self.fc(out[:, -1, :]), hc_new
-
-
-def _make_dummy_lstm_checkpoint(device: str = "cpu") -> str:
-    """Create a minimal TorchScript LSTM checkpoint with metadata."""
-    torch.manual_seed(42)
-    net = _DummyLSTM().to(device).eval()
-    scripted = torch.jit.script(net)
-
-    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
-        tmp_path = tmp.name
-    extra = {"metadata.json": json.dumps({"model_type": "lstm"})}
-    torch.jit.save(scripted, tmp_path, _extra_files=extra)
-    return tmp_path
 
 
 class TestNeuralMLPFunctional(unittest.TestCase):
@@ -1213,15 +831,15 @@ class TestNeuralMLPFunctional(unittest.TestCase):
     def setUpClass(cls):
         from isaaclab.actuators.actuator_net_cfg import ActuatorNetMLPCfg  # noqa: PLC0415
 
-        cls.mlp_path = _make_dummy_mlp_checkpoint()
+        cls.mlp_path = make_dummy_mlp_checkpoint()
         cls.result = _run_simulation(
             {
                 "mlp_legs": ActuatorNetMLPCfg(
                     joint_names_expr=[".*HAA"],
                     network_file=cls.mlp_path,
                     saturation_effort=120.0,
-                    effort_limit=80.0,
-                    velocity_limit=7.5,
+                    actuator_effort_limit=80.0,
+                    actuator_velocity_limit=7.5,
                     pos_scale=-1.0,
                     vel_scale=1.0,
                     torque_scale=1.0,
@@ -1232,7 +850,7 @@ class TestNeuralMLPFunctional(unittest.TestCase):
                     joint_names_expr=[".*HFE", ".*KFE"],
                     stiffness=40.0,
                     damping=5.0,
-                    effort_limit=80.0,
+                    actuator_effort_limit=80.0,
                 ),
             },
             use_newton_actuators=True,
@@ -1257,21 +875,21 @@ class TestNeuralLSTMFunctional(unittest.TestCase):
     def setUpClass(cls):
         from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg  # noqa: PLC0415
 
-        cls.lstm_path = _make_dummy_lstm_checkpoint()
+        cls.lstm_path = make_dummy_lstm_checkpoint()
         cls.result = _run_simulation(
             {
                 "lstm_legs": ActuatorNetLSTMCfg(
                     joint_names_expr=[".*HAA"],
                     network_file=cls.lstm_path,
                     saturation_effort=120.0,
-                    effort_limit=80.0,
-                    velocity_limit=7.5,
+                    actuator_effort_limit=80.0,
+                    actuator_velocity_limit=7.5,
                 ),
                 "pd_legs": IdealPDActuatorCfg(
                     joint_names_expr=[".*HFE", ".*KFE"],
                     stiffness=40.0,
                     damping=5.0,
-                    effort_limit=80.0,
+                    actuator_effort_limit=80.0,
                 ),
             },
             use_newton_actuators=True,

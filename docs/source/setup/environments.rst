@@ -8,7 +8,7 @@
 Environments
 ============
 
-Build a command and browse the core tasks maintained by Isaac Lab.
+Build a command and browse the core and contributed tasks available in Isaac Lab.
 
 Command Builder
 ---------------
@@ -29,8 +29,13 @@ Command Builder
          </label>
          <label class="environment-inline-field environment-task-field">
            <span>--task</span>
-           <select data-environment-field="task" aria-label="Core task"></select>
+           <select data-environment-field="task" aria-label="Task"></select>
          </label>
+         <div class="environment-scope-switch" role="group" aria-label="Task collection">
+           <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
+           <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
+           <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
+         </div>
        </div>
        <div class="environment-command-row environment-command-row-options">
          <label class="environment-selector environment-selector-physics">
@@ -45,7 +50,16 @@ Command Builder
            <span>presets=</span>
            <select data-environment-field="presets" aria-label="Domain preset"></select>
          </label>
+         <label class="environment-checkpoint-toggle">
+           <input type="checkbox" data-environment-field="checkpoint">
+           <span>Use Pre-trained Checkpoint</span>
+         </label>
        </div>
+       <p class="environment-non-rl-note" data-non-rl-note role="status" hidden>
+         <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+         This environment does not support RL training or playback. The command runs it with the
+         zero-action agent instead.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">
@@ -67,10 +81,11 @@ Task Preview
    <div class="environment-browser" data-environment-preview>
      <section class="environment-preview-panel" aria-live="polite">
        <div class="environment-preview-stage">
-         <img data-preview-image src="../../_images/cartpole.jpg" alt="Isaac-Cartpole-Direct preview">
+         <video data-preview-video muted autoplay loop playsinline preload="metadata" hidden></video>
+         <img data-preview-image src="../../_images/cartpole.jpg" alt="Isaac-Cartpole preview">
          <div class="environment-preview-caption">
-           <span class="environment-preview-label">Selected core task</span>
-           <strong data-preview-task>Isaac-Cartpole-Direct</strong>
+           <span class="environment-preview-label">Selected task</span>
+           <strong data-preview-task>Isaac-Cartpole</strong>
          </div>
        </div>
        <dl class="environment-preview-details">
@@ -79,6 +94,7 @@ Task Preview
          <div><dt>Physics</dt><dd data-preview-physics>newton_mjwarp</dd></div>
          <div><dt>Renderer</dt><dd data-preview-renderer>Default</dd></div>
          <div><dt>Preset</dt><dd data-preview-presets>Default</dd></div>
+         <div><dt>VRAM</dt><dd data-preview-vram>Not available</dd></div>
        </dl>
      </section>
    </div>
@@ -88,18 +104,30 @@ Benchmarks
 
 .. raw:: html
 
-   <div class="environment-browser">
-     <section class="environment-benchmark-stub">
-       <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
-       <div>
-         <strong>Benchmark data is not available yet</strong>
-         <p>Performance history will appear here when benchmark collection is enabled.</p>
+   <div class="environment-browser" data-environment-benchmarks
+        data-benchmark-source="../../_static/environment-performance.csv">
+     <section class="environment-benchmark-panel">
+       <div class="environment-benchmark-toolbar">
+         <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
+         <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
+           <button type="button" class="is-active" data-benchmark-workload="runtime" aria-pressed="true">Collection</button>
+           <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
+         </div>
        </div>
+       <div class="environment-benchmark-chart" data-benchmark-chart></div>
+       <div class="environment-benchmark-stub" data-benchmark-empty hidden>
+         <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+         <div>
+           <strong>Benchmark data is not available yet</strong>
+           <p>Performance history will appear here when benchmark collection is enabled.</p>
+         </div>
+       </div>
+       <p class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</p>
      </section>
    </div>
 
-Available Core Tasks
---------------------
+Available Tasks
+---------------
 
 .. raw:: html
 
@@ -107,8 +135,8 @@ Available Core Tasks
      <div class="environment-task-toolbar">
        <label class="environment-task-search">
          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-         <span class="visually-hidden">Search core tasks</span>
-         <input type="search" data-task-search placeholder="Search core tasks" autocomplete="off">
+         <span class="visually-hidden">Search tasks</span>
+         <input type="search" data-task-search placeholder="Search tasks" autocomplete="off">
        </label>
        <label class="environment-task-filter">
          <span class="visually-hidden">Task category</span>
@@ -122,5 +150,5 @@ Available Core Tasks
        <span class="environment-task-count" data-task-count></span>
      </div>
      <div class="environment-task-list" data-task-list></div>
-     <p class="environment-empty-state" data-task-empty hidden>No core tasks match this search.</p>
+     <p class="environment-empty-state" data-task-empty hidden>No tasks match this search.</p>
    </div>

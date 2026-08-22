@@ -27,6 +27,9 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+
+    # ovstage is an unconditional dependency of isaaclab_ov, so it is importable here.
+    import ovstage  # noqa: E402
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
@@ -95,6 +98,7 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer.cfg = OVRTXRendererCfg()
     renderer._device = device
     renderer._camera_rel_path = "Camera"
+    renderer._clone_plan = None
     renderer._renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
     renderer._deformable_particle_offsets = []
@@ -103,6 +107,11 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._particle_visual_offsets = []
     renderer._particle_visual_counts = []
     renderer._particle_workaround_applied = False
+    # Cable bindings are set in __init__, which this fixture bypasses via __new__. Without them
+    # _update_geometries_legacy raises AttributeError on its cable check before reaching anything
+    # this module is testing.
+    renderer._cable_points_binding = None
+    renderer._cable_segment_counts = []
     renderer._use_ovstage = False
     return renderer, renderer._renderer
 
@@ -345,7 +354,6 @@ def test_setup_particle_points_bindings_binds_mpm_visual_prims(monkeypatch: pyte
     assert backend.calls[0]["attribute_name"] == "points"
     assert backend.calls[0]["flags"] is BindingFlag.OPTIMIZE
     assert renderer._particle_points_binding is backend.bindings["points"]
-    assert renderer._particle_workaround_applied is False
     assert renderer._particle_visual_offsets == [10, 15]
     assert renderer._particle_visual_counts == [5, 5]
     assert len(backend.writes) == 2
@@ -378,13 +386,12 @@ def test_setup_particle_points_bindings_binds_multiple_mpm_assets(monkeypatch: p
     assert renderer._particle_visual_counts == [5, 5, 3, 3]
 
 
-def test_update_particle_points_primes_with_host_sync_then_gpu_async(monkeypatch: pytest.MonkeyPatch):
-    """First MPM ``points`` update host-SYNC primes via binding; later frames use GPU ASYNC."""
+def test_update_particle_points_writes_world_particle_positions(monkeypatch: pytest.MonkeyPatch):
+    """The first MPM ``points`` update writes world-space positions through GPU ASYNC."""
     renderer, backend = _make_renderer_without_backend()
     renderer._particle_points_binding = _FakePointsBinding("points")
     renderer._particle_visual_offsets = [2]
     renderer._particle_visual_counts = [2]
-    renderer._particle_workaround_applied = False
     particle_q = wp.array(
         [
             wp.vec3f(0.0, 0.0, 0.0),
@@ -404,32 +411,22 @@ def test_update_particle_points_primes_with_host_sync_then_gpu_async(monkeypatch
 
     renderer.update_geometries()
 
-    assert renderer._particle_workaround_applied is True
     assert len(backend.writes) == 0
-    written = renderer._particle_points_binding.written
-    assert written is not None
-    assert len(written) == 1
-    assert isinstance(written[0], np.ndarray)
-    assert written[0].tolist() == [
-        [2.0, 3.0, 4.0],
-        [5.0, 6.0, 7.0],
-    ]
-    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
-    assert "cuda_stream" not in renderer._particle_points_binding.write_kwargs
-
-    renderer.update_geometries()
-
     written = renderer._particle_points_binding.written
     assert written is not None
     assert len(written) == 1
     assert written[0].ptr == particle_q[2:4].ptr
+    assert written[0].numpy().tolist() == [
+        [2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0],
+    ]
+    assert renderer._particle_points_binding.write_kwargs is not None
     assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert renderer._particle_points_binding.write_kwargs["cuda_stream"] == 42
-    assert len(backend.writes) == 0
 
 
 def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytest.MonkeyPatch):
-    """Deformable mesh stays GPU ASYNC; MPM primes once with host SYNC then switches to ASYNC."""
+    """Deformable and MPM points use GPU ASYNC writes from the first update."""
     renderer, backend = _make_renderer_without_backend()
     renderer._deformable_points_binding = _FakePointsBinding("deformable_points")
     renderer._deformable_particle_offsets = [0]
@@ -437,7 +434,6 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     renderer._particle_points_binding = _FakePointsBinding("points")
     renderer._particle_visual_offsets = [2]
     renderer._particle_visual_counts = [2]
-    renderer._particle_workaround_applied = False
     particle_q = wp.array(
         [
             wp.vec3f(0.0, 0.0, 0.0),
@@ -461,21 +457,136 @@ def test_update_geometries_writes_deformable_and_mpm_bindings(monkeypatch: pytes
     assert deformable_written is not None
     assert len(deformable_written) == 1
     assert deformable_written[0].ptr == particle_q[0:2].ptr
+    assert renderer._deformable_points_binding.write_kwargs is not None
     assert renderer._deformable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._deformable_points_binding.write_kwargs["cuda_stream"] == 42
 
-    assert renderer._particle_workaround_applied is True
     assert len(backend.writes) == 0
-    mpm_written = renderer._particle_points_binding.written
-    assert mpm_written is not None
-    assert isinstance(mpm_written[0], np.ndarray)
-    assert mpm_written[0].tolist() == [[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]
-    assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.SYNC
-
-    renderer.update_geometries()
-
     mpm_written = renderer._particle_points_binding.written
     assert mpm_written is not None
     assert len(mpm_written) == 1
     assert mpm_written[0].ptr == particle_q[2:4].ptr
+    assert renderer._particle_points_binding.write_kwargs is not None
     assert renderer._particle_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._particle_points_binding.write_kwargs["cuda_stream"] == 42
     assert len(backend.writes) == 0
+
+
+def _install_cable_shapes(shapes: dict[str, list[int]], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install a fake :meth:`NewtonManager.collect_cable_segment_shape_ids` result."""
+    monkeypatch.setattr(NewtonManager, "collect_cable_segment_shape_ids", classmethod(lambda cls: dict(shapes)))
+
+
+def test_setup_cable_bindings_binds_curve_points(monkeypatch: pytest.MonkeyPatch):
+    """Renderable cables create a ``points`` array binding over their curve prims."""
+    renderer, backend = _make_renderer_without_backend()
+    _install_cable_shapes({"/World/envs/env_0/Cable/geometry/mesh": [4, 5, 6]}, monkeypatch)
+
+    renderer._setup_cable_bindings()
+
+    assert len(backend.calls) == 1
+    assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Cable/geometry/mesh"]
+    assert backend.calls[0]["attribute_name"] == "points"
+    assert backend.calls[0]["dtype"] is np.float32
+    assert backend.calls[0]["shape"] == (3,)
+    assert backend.calls[0]["flags"] is BindingFlag.OPTIMIZE
+    assert renderer._cable_points_binding is backend.bindings["points"]
+
+    # World-space points are written directly, so the inherited env transform must be neutralised
+    # or it is applied twice -- the same contract the deformable path relies on.
+    assert [write["attribute_name"] for write in backend.writes] == ["omni:resetXformStack", "omni:xform"]
+
+
+def test_setup_cable_bindings_noop_without_cables(monkeypatch: pytest.MonkeyPatch):
+    """A scene with no renderable cables binds nothing rather than failing."""
+    renderer, backend = _make_renderer_without_backend()
+    _install_cable_shapes({}, monkeypatch)
+
+    renderer._setup_cable_bindings()
+
+    assert renderer._cable_points_binding is None
+    assert backend.calls == []
+
+
+def test_update_geometries_writes_one_slice_per_cable(monkeypatch: pytest.MonkeyPatch):
+    """Cable updates use disjoint point slices and GPU interop for unequal-length curves."""
+    renderer, _ = _make_renderer_without_backend()
+    _install_cable_shapes(
+        {
+            "/World/envs/env_0/Cable/geometry/mesh": [0, 1, 2],
+            "/World/envs/env_1/Cable/geometry/mesh": [3, 4, 5, 6, 7],
+            "/World/envs/env_2/Cable/geometry/mesh": [8, 9],
+        },
+        monkeypatch,
+    )
+    renderer._setup_cable_bindings()
+
+    model = SimpleNamespace(shape_body=None, shape_transform=None, shape_scale=None)
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(body_q=None)))
+    # The kernel needs a live Newton model; this test covers the slicing around it, not the maths in it.
+    launch_kwargs: dict = {}
+
+    def _capture_launch(*args, **kwargs):
+        launch_kwargs.update(kwargs)
+        if args:
+            launch_kwargs["kernel"] = args[0]
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _capture_launch)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: SimpleNamespace(cuda_stream=1234))
+
+    renderer.update_geometries()
+
+    assert launch_kwargs["dim"] == (3, 6)
+    written = renderer._cable_points_binding.written
+    assert written is not None
+    assert [len(slice_) for slice_ in written] == [4, 6, 3]
+    assert written[0].ptr == renderer._cable_points[0:4].ptr
+    assert written[1].ptr == renderer._cable_points[4:10].ptr
+    assert written[2].ptr == renderer._cable_points[10:13].ptr
+    # Zero-copy: OVRTX is handed the Warp stream so it waits on the kernel instead of forcing a host
+    # round-trip. Switching to SYNC would silently reintroduce a per-frame device copy, and is the
+    # only guard against that -- the downgrade does not raise, it just renders from a stale copy.
+    assert renderer._cable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._cable_points_binding.write_kwargs["cuda_stream"] == 1234
+
+
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="requires a CUDA device")
+def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
+    """The ovstage points write hands ``particle_q`` slices to ovstage as CUDA DLTensors, without a host copy."""
+    renderer, _backend = _make_renderer_without_backend(device="cuda:0")
+    particle_q = wp.array(
+        [
+            wp.vec3f(-1.0, -1.0, -1.0),
+            wp.vec3f(1.0, 2.0, 3.0),
+            wp.vec3f(4.0, 5.0, 6.0),
+            wp.vec3f(7.0, 8.0, 9.0),
+        ],
+        dtype=wp.vec3f,
+        device="cuda:0",
+    )
+    writes: list[dict] = []
+
+    def _write(query, attribute, **kwargs):
+        writes.append({"query": query, "attribute": attribute, **kwargs})
+        return SimpleNamespace(wait=lambda: None)
+
+    renderer._stage = SimpleNamespace(write_attribute=_write)
+    renderer._current_ordinal = 7
+
+    renderer._write_particle_q_slices_ovstage("points_query", particle_q, [1], [3])
+
+    assert len(writes) == 1
+    assert writes[0]["attribute"] == "points"
+    assert writes[0]["is_array"] is True
+    # The slices alias ``particle_q``, so ovstage is handed the producing Warp stream to order its
+    # read against, rather than the caller blocking the host on a device synchronize.
+    assert writes[0]["cuda_stream"] == wp.get_stream("cuda:0").cuda_stream
+    tensors = writes[0]["tensors"]
+    assert len(tensors) == 1
+    # A zero-copy device view: the descriptor points straight at the slice's own CUDA buffer with
+    # the trailing component axis folded into point3f's three lanes.
+    assert tensors[0].device.device_type.value == ovstage.DLDeviceType.kDLCUDA
+    assert tensors[0].data == particle_q[1:4].ptr
+    assert tensors[0].shape_tuple == (3,)
+    assert tensors[0].dtype.lanes == 3
