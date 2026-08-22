@@ -493,8 +493,7 @@ class NewtonManager(PhysicsManager):
     _shadow_deformable_batch_sync_key: tuple | None = None
     _visualization_stop_callback: CallbackHandle | None = None
 
-    # Views list for assets to register their views
-    _views: list = []
+    _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
     _mpm_object_registry: list = []
 
     # CL: Cloning / Replication logic
@@ -1053,15 +1052,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_physics_sim_view(cls) -> list:
-        """Get the list of registered views.
-
-        Assets can append their views to this list, and sensors can access them.
-        Returns a list that callers can append to.
-
-        Returns:
-            List of registered views (e.g., NewtonArticulationView instances).
-        """
-        return cls._views
+        """Return the registered articulation views."""
+        return [view for (manager, _), view in cls.views.items() if manager is NewtonManager]
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -1151,7 +1143,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cl_protos = {}
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
-        NewtonManager._views = []
+        for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
+            del NewtonManager.views[key]
         cls._solver_specific_clear()
 
     @classmethod
@@ -1196,17 +1189,9 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Subclass hook to register solver-specific custom attributes on *builder*.
-
-        Override in solver subclasses (e.g. :class:`NewtonMPMManager`) that need
-        Newton-side particle, shape, or body custom attributes registered before
-        the builder is finalized. The default implementation is a no-op so
-        solvers without custom attributes do not need to override it.
-
-        Implementations should be **idempotent** — the same builder may be
-        passed multiple times across :meth:`create_builder`,
-        :meth:`instantiate_builder_from_stage`, and :meth:`start_simulation`.
-        """
+        """Register custom attributes required by the active solver."""
+        for solver_cls in cls._builder_attribute_solvers:
+            solver_cls.register_custom_attributes(builder)
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
