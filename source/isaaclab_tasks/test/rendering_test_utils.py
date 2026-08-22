@@ -1890,6 +1890,18 @@ def rendering_test_lift_kuka(
     env_cfg.scene.base_camera.data_types = data_types
 
     motion_data_type = _motion_data_type(data_types)
+    if motion_data_type == "motion_vectors":
+        # Keep motion stable across hosts and test order. The seed covers future startup terms, while disabling
+        # current physics randomization removes backend-dependent draw sensitivity.
+        env_cfg.seed = 42
+        env_cfg.events.robot_physics_material = None
+        env_cfg.events.object_physics_material = None
+        env_cfg.events.object_physics_inertia = None
+        env_cfg.events.joint_stiffness_and_damping = None
+        env_cfg.events.joint_friction = None
+        env_cfg.events.object_scale_mass = None
+        env_cfg.events.finger_closing_speed = None
+
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
@@ -1913,7 +1925,10 @@ def rendering_test_lift_kuka(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        maybe_step_env_for_motion(env, renderer, motion_data_type)
+        if motion_data_type == "motion_vectors":
+            # Capture controlled joint motion instead of the first-step autoreset transient.
+            env.reset(seed=42)
+        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
         validate_camera_outputs(
             test_name,
