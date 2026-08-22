@@ -231,7 +231,7 @@ adding any other optional objects into the scene, such as lights.
 |                                                                              |     spawn_ground_plane(                                                |
 |                                                                              |         prim_path="/World/ground", cfg=GroundPlaneCfg())               |
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # create and apply a clone plan                                    |
-|                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(...)                           |
+|                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(..., global_paths=...)         |
 |     self._create_ground_plane()                                              |     cloner.replicate(plan, stage=self.scene.stage)                     |
 |     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
@@ -680,8 +680,10 @@ the need to set simulation parameters for actors in the task implementation.
 |         self.sim_params)                                               |     positions = cloner.grid_transforms(                             |
 |     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing,            |
 |     self._create_envs(self.num_envs,                                   |         device=self.device)[0]                                      |
-|         self.cfg["env"]['envSpacing'],                                 |     plan = cloner.clone_plan_from_env_0(                            |
-|         int(np.sqrt(self.num_envs)))                                   |         src, dest, self.scene.num_envs, self.device, positions)     |
+|         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                               |
+|         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
+|                                                                        |         src, dest, self.scene.num_envs, self.device, positions,     |
+|                                                                        |         global_paths=global_paths)                                  |
 |                                                                        |     cloner.replicate(plan, stage=self.scene.stage)                  |
 | def _create_ground_plane(self):                                        |     if "physx" in self.scene.physics_backend:                       |
 |     plane_params = gymapi.PlaneParams()                                |         self.scene.filter_collisions(global_prim_paths=[])          |
