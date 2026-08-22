@@ -25,6 +25,7 @@ from isaaclab.test.utils import test_devices
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import math
+import re
 
 import pytest
 import torch
@@ -1171,9 +1172,9 @@ _LABELS = [
 _SHAPE_LABELS = ["/World/envs/env_0/BoxA/geometry/mesh", "/World/envs/env_0/BoxB/mesh"]
 
 
-def _select(expr, labels, field="body_names_expr"):
+def _select(expr, labels):
     """Labels Newton selects for ``expr``."""
-    pattern = _compile_label_pattern(expr, field)
+    pattern = _compile_label_pattern(expr)
     return [labels[index] for index in match_labels(labels, pattern)]
 
 
@@ -1210,17 +1211,17 @@ def test_expression_list_selects_the_union():
 
 def test_shape_expressions_match_on_the_same_terms_as_body_expressions():
     """Shape selectors carry no rule of their own."""
-    assert _select(f"{_NS}/Box[^/]*", _SHAPE_LABELS, "shape_names_expr") == []
-    assert _select(f"{_NS}/Box[^/]*/.*", _SHAPE_LABELS, "shape_names_expr") == _SHAPE_LABELS
+    assert _select(f"{_NS}/Box[^/]*", _SHAPE_LABELS) == []
+    assert _select(f"{_NS}/Box[^/]*/.*", _SHAPE_LABELS) == _SHAPE_LABELS
 
 
 @pytest.mark.parametrize("expr", [None, []])
 def test_absent_selector_compiles_to_no_pattern(expr):
     """Nothing requested means unfiltered, not empty."""
-    assert _compile_label_pattern(expr, "body_names_expr") is None
+    assert _compile_label_pattern(expr) is None
 
 
-def test_invalid_expression_names_the_offending_field():
-    """A malformed expression says which parameter carried it."""
-    with pytest.raises(ValueError, match="contact_partners_body_expr"):
-        _compile_label_pattern("foo(", "contact_partners_body_expr")
+def test_invalid_expression_raises_regex_error():
+    """Reject malformed selector expressions at contact sensor construction."""
+    with pytest.raises(re.error):
+        _compile_label_pattern("foo(")

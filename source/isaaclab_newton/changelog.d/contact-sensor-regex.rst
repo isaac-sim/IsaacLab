@@ -15,3 +15,9 @@ Fixed
   ``["fingertip_.*"]`` becomes ``["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
 * Migrated the Newton contact sensor off the deprecated ``sensing_obj_*`` names onto the
   replacements Newton 1.4 introduced.
+
+Changed
+^^^^^^^
+
+* Built the shared shape BVH with collision geometry during model finalization when a raycast sensor is present,
+  instead of rebuilding the BVH when the sensor task initializes.

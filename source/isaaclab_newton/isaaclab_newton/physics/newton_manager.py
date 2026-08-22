@@ -121,22 +121,11 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
-def _compile_label_pattern(expr: str | list[str] | None, field: str) -> re.Pattern[str] | None:
-    """Compile a selector expression into the regex Newton full-matches against model labels.
-
-    ``None`` when nothing is requested. Newton reads a plain string as a glob but a compiled
-    pattern as a regex.
-    """
-    if expr is None:
+def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
+    """Compile selector expressions for Newton's full label matching."""
+    if not expr:
         return None
-    items = [expr] if isinstance(expr, str) else list(expr)
-    if not items:
-        return None
-    joined = "|".join(items)
-    try:
-        return re.compile(joined)
-    except re.error as err:
-        raise ValueError(f"{field} is not a valid regular expression: {expr!r} ({err})") from err
+    return re.compile("|".join((expr,) if isinstance(expr, str) else expr))
 
 
 logger = logging.getLogger(__name__)
@@ -454,7 +443,7 @@ class NewtonManager(PhysicsManager):
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
-    _sensor_bvh_has_collision_shapes: bool = False  # set once a ray-cast sensor widens the shape BVH
+    _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
 
     # USD/Fabric sync
     _newton_stage_path = None
@@ -1128,7 +1117,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
         NewtonManager._sensor_graph_capture_failed = False
-        NewtonManager._sensor_bvh_has_collision_shapes = False
+        NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -1197,6 +1186,7 @@ class NewtonManager(PhysicsManager):
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
             shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
+            shape_flags=cls._sensor_bvh_shape_flags,
         )
 
         cls._register_builder_attributes(builder)
@@ -2593,19 +2583,12 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def _register_sensor_task(
-        cls, name: str, update_fn: Callable[[], None], *, include_collision_shapes: bool = False
-    ) -> None:
+    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None]) -> None:
         """Register a graph-capturable scene-query task.
 
         Args:
             name: Unique task name.
             update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
-            include_collision_shapes: Whether the task must see collision-only
-                geometry. Newton builds the shape BVH over visible shapes, which is
-                what renderers want; the first ray-cast sensor rebuilds it with
-                collision shapes added, since those must be hit even when they carry
-                no visual representation.
         """
         if name in cls._sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
@@ -2613,12 +2596,8 @@ class NewtonManager(PhysicsManager):
         state = cls.get_state_0()
         if model is None or state is None:
             raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
-        if model.shape_count > 0:
-            if include_collision_shapes and not cls._sensor_bvh_has_collision_shapes:
-                model.bvh_build_shapes(state, shape_flags=ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES)
-                NewtonManager._sensor_bvh_has_collision_shapes = True
-            elif model.bvh_shapes is None:
-                model.bvh_build_shapes(state)
+        if model.shape_count > 0 and model.bvh_shapes is None:
+            model.bvh_build_shapes(state)
         if model.particle_count > 0 and model.bvh_particles is None:
             model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
@@ -3413,10 +3392,10 @@ class NewtonManager(PhysicsManager):
         with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
             sensor = NewtonContactSensor(
                 cls._model,
-                sensing_bodies=_compile_label_pattern(body_names_expr, "body_names_expr"),
-                sensing_shapes=_compile_label_pattern(shape_names_expr, "shape_names_expr"),
-                counterpart_bodies=_compile_label_pattern(contact_partners_body_expr, "contact_partners_body_expr"),
-                counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr, "contact_partners_shape_expr"),
+                sensing_bodies=_compile_label_pattern(body_names_expr),
+                sensing_shapes=_compile_label_pattern(shape_names_expr),
+                counterpart_bodies=_compile_label_pattern(contact_partners_body_expr),
+                counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr),
                 measure_total=True,
                 verbose=verbose,
             )

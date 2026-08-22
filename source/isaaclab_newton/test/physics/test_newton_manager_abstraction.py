@@ -25,6 +25,7 @@ Covers:
 
 from __future__ import annotations
 
+from inspect import signature
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
@@ -55,6 +56,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
+from newton import ShapeFlags
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.physics import PhysicsManager
@@ -337,6 +339,30 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     NewtonManager._update_sensor_tasks("render")
 
     assert status["rendered"]
+
+
+def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
+    """Builder finalization includes collision-only shapes without a later BVH rebuild."""
+    import newton
+
+    flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
+    monkeypatch.setattr(NewtonManager, "_sensor_bvh_shape_flags", flags)
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg())
+    builder = NewtonManager.create_builder()
+    body = builder.add_body()
+    builder.add_shape_sphere(body, cfg=newton.ModelBuilder.ShapeConfig(is_visible=False))
+
+    model = builder.finalize(device="cpu")
+
+    assert builder.default_bvh_cfg.shape_flags == flags
+    assert model.bvh_shape_count_enabled == 1
+    assert model.bvh_shapes is not None
+
+
+def test_sensor_task_registration_has_no_raycast_bvh_fallback():
+    """Raycast BVH requirements belong to builder creation, not task registration."""
+    assert "include_collision_shapes" not in signature(NewtonManager._register_sensor_task).parameters
+    assert not hasattr(NewtonManager, "_sensor_bvh_has_collision_shapes")
 
 
 def test_newton_shape_cfg_defaults_match_newton_shape_config():
@@ -988,10 +1014,12 @@ def test_subclass_of_newton_manager(manager):
 def test_clear_resets_rigid_body_force_capability(monkeypatch):
     """Teardown clears the canonical solver capability without subclass shadowing."""
     monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", True)
+    monkeypatch.setattr(NewtonManager, "_sensor_bvh_shape_flags", ShapeFlags.COLLIDE_SHAPES)
 
     NewtonManager.clear()
 
     assert NewtonManager._supports_rigid_body_force_input is False
+    assert NewtonManager._sensor_bvh_shape_flags == ShapeFlags.VISIBLE
     for manager in (
         NewtonMJWarpManager,
         NewtonXPBDManager,
