@@ -26,6 +26,7 @@ def test_get_module_name_preserves_other_backend_conventions(monkeypatch):
     assert FactoryBase._get_module_name("physx") == "isaaclab_physx.assets.articulation"
     assert FactoryBase._get_module_name("newton") == "isaaclab_newton.assets.articulation"
 
+
 def test_factory_backend_falls_back_to_newton_without_simulation_context(monkeypatch):
     """Backend resolution uses Newton before a simulation context exists."""
     monkeypatch.setattr(SimulationContext, "_instance", None)
