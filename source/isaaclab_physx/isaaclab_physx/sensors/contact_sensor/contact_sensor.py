@@ -21,7 +21,7 @@ import omni.physics.tensors as physx
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -315,7 +315,9 @@ class ContactSensor(BaseContactSensor):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         # Split the configured prim path into a parent expression and a leaf-name regex.
-        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        # split on separators only: a trailing ``[^/]`` class holds a ``/`` that is not one
+        *parent_segments, leaf_pattern = split_path_expr(self.cfg.prim_path)
+        parent_expr = "/".join(parent_segments)
         name_pattern = re.compile(leaf_pattern)
 
         def has_contact_report(prim) -> bool:
@@ -339,8 +341,8 @@ class ContactSensor(BaseContactSensor):
         # parent-level name alternation cannot address them.
         # note: with a list of patterns, the views order bodies pattern-major:
         #   view_id = body_id * num_envs + env_id
-        body_path_globs = [expr.replace(".*", "*") for _, expr in body_matches]
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        body_path_globs = [path_expr_to_glob(expr) for _, expr in body_matches]
+        filter_prim_paths_glob = [path_expr_to_glob(expr) for expr in self.cfg.filter_prim_paths_expr]
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)

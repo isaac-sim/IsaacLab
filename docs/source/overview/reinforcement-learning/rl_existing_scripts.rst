@@ -164,6 +164,74 @@ algorithms, are algorithm choices rather than preset requirements.
    :ref:`rlinf-post-training` has been completed.
 
 
+.. _pretrained-checkpoints:
+
+Pretrained checkpoints
+----------------------
+
+Published pretrained checkpoints are available only for supported core tasks,
+and availability may vary by RL library and backend combination. Other
+registered tasks, including contributed tasks, are not covered by the
+published checkpoint set.
+
+Pass ``--checkpoint pretrained`` to load the published policy matching the
+resolved task configuration. The selector does not guarantee that an artifact
+exists for every registered task: if the matching artifact has not been
+published, the command reports that it is unavailable and exits. In that case,
+train the task locally and omit ``--checkpoint`` to use automatic local
+discovery, or pass an explicit checkpoint path.
+
+Published checkpoints are grouped by RL library and use the following filename:
+
+.. code-block:: text
+
+   <task_name>_<physics_backend>_<render_backend>_<rl_library>.<extension>
+
+The physics token is ``physx`` for Isaac Sim PhysX and ``newtonmjwarp`` for
+Newton using the MJWarp solver. For example,
+``Isaac-Cartpole_newtonmjwarp_none_rsl_rl.pt`` is the RSL-RL policy for state-based
+Cartpole on Newton MJWarp, while
+``Isaac-Cartpole-Camera_newtonmjwarp_rtx_rsl_rl.pt`` is the RSL-RL camera policy
+using Newton MJWarp physics and RTX rendering. State-only tasks use ``none`` for
+the render backend.
+Pass the same physics, renderer, and domain selectors used during training so
+the checkpoint and policy network agree:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl \
+       --task Isaac-Cartpole-Camera \
+       --checkpoint pretrained \
+       physics=newton_mjwarp renderer=isaacsim_rtx
+
+Maintainers can generate the preferred core-task checkpoint matrix with
+``scripts/tools/train_and_publish_checkpoints.py``. The script selects RSL-RL
+when available, falls back to RL-Games, and uses SKRL MAPPO for multi-agent
+tasks. It preserves each task's default domain preset and trains only backend
+combinations declared by that task. Newton Kamino presets are excluded from
+this matrix; tasks whose only Newton preset is Kamino are skipped for Newton.
+Use ``--list --all --core`` to list the tasks and backend combinations targeted
+for publication by the current source tree. This matrix is not a live check of
+the remote asset store; a listed combination becomes usable with
+``--checkpoint pretrained`` only after its checkpoint has been uploaded.
+
+.. code-block:: bash
+
+   # Inspect and smoke-test the supported matrix.
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --list --all --core
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --smoke --all --core
+
+   # Run each agent config's full schedule and collect the last/best checkpoint.
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --train --all --core
+
+Collected files are written under ``logs/pretrained_checkpoints/<rl_library>/``
+by default. Re-running the command skips completed jobs, so interrupted matrices
+can be resumed.
+
+
 RL-Games
 --------
 
@@ -251,7 +319,7 @@ RSL-RL
                   # run command for training with Newton backend
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+                  uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent
                   uv run --extra video isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
@@ -266,7 +334,7 @@ RSL-RL
                   # run command for training with Newton backend
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
                   # run command for playing with 32 environments
-                  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+                  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
                   # run command for recording video of a trained agent (requires MoviePy)
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
@@ -282,7 +350,7 @@ RSL-RL
             :: run command for training with Newton backend
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+            isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --num_envs 32 --checkpoint /PATH/TO/model.pt
             :: run command for recording video of a trained agent (requires MoviePy)
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Reach-Franka --video --video_length 200
 
@@ -306,7 +374,7 @@ RSL-RL
                   # run command for rl training of the teacher agent with Newton backend
                   uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
                   # run command for playing the student with 64 environments
                   uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -321,7 +389,7 @@ RSL-RL
                   # run command for rl training of the teacher agent with Newton backend
                   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
                   # run command for distilling the teacher agent into a student agent
-                  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+                  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
                   # run command for playing the student with 64 environments
                   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -337,7 +405,7 @@ RSL-RL
             :: run command for rl training of the teacher agent with Newton backend
             isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD physics=newton_mjwarp
             :: run command for distilling the teacher agent into a student agent
-            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            isaaclab.bat train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --agent rsl_rl_distillation_cfg_entry_point --checkpoint /PATH/TO/teacher.pt
             :: run command for playing the student with 64 environments
             isaaclab.bat play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
@@ -635,7 +703,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             uv run isaaclab train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -644,7 +712,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Train with a specific config
             ./isaaclab.sh train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint
+                --model_path /path/to/base_model
 
 -  Evaluating a trained VLA agent:
 
@@ -657,7 +725,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             uv run --extra video isaaclab play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
       .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -667,7 +735,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
             # Evaluate with video recording
             ./isaaclab.sh play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
-                --model_path /path/to/checkpoint --video
+                --model_path /path/to/base_model --video
 
 
 All the commands above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
@@ -694,8 +762,9 @@ New training runs also store a ``run.json`` manifest in their run directory. Thi
          ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest
 
 Pass ``--checkpoint best`` to prefer the library-specific best or final checkpoint. For libraries without a
-distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported
-by RL-Games, RSL-RL, skrl, and Stable-Baselines3. RSL-RL training resume continues to require ``--resume``.
+distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported by RL-Games, RSL-RL, skrl, Stable-Baselines3, and RLinf.
+RLinf uses ``--model_path`` for its base VLA model and ``--checkpoint`` for the
+RL-finetuned weights.
 
 To view the logs, run:
 

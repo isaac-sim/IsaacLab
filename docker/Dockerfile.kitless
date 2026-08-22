@@ -20,6 +20,8 @@ ENV LANG=C.UTF-8
 ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
 ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
 ENV UV_NO_CACHE=1
+ENV PIP_RETRIES=12
+ENV UV_HTTP_RETRIES=12
 
 # Native build tools remain confined to this stage.
 RUN apt-get update \
@@ -44,17 +46,24 @@ WORKDIR ${ISAACLAB_PATH}
 COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
 COPY source/ source/
 COPY isaaclab.sh ./
+COPY tools/wheel_builder/uv-overrides.txt tools/wheel_builder/uv-overrides.txt
 
 # Same entry point as Dockerfile.base. The selectors are explicit because a bare
-# --install excludes `ov` and `visualizer`; both take `[all]` here. The venv pins
-# python3.12 to match the runtime stage's libpython3.12, and isaaclab.sh resolves
-# VIRTUAL_ENV first.
+# --install excludes `ov` and `visualizer`; both take `[all]` here. The standalone
+# importers are explicit wheel extras, so install them with the resolver overrides
+# that preserve Isaac Lab's dependency versions. The venv pins python3.12 to match
+# the runtime stage's libpython3.12, and isaaclab.sh resolves VIRTUAL_ENV first.
 RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
  && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all] \
+ && uv pip install \
+      --overrides "${ISAACLAB_PATH}/tools/wheel_builder/uv-overrides.txt" \
+      "isaacsim-asset-isolated>=6.0,<6.1" \
+      "tinyobjloader==2.0.0rc13" \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
+      assert 'isaacsim-asset-isolated' in names; \
       assert 'ovphysx' in names; \
       assert 'ovrtx' in names; \
       assert 'viser' in names; \

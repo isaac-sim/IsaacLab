@@ -35,7 +35,8 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
         replicate_priority = 100
         instances: list["FakeUsdContext"] = []
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
+            self.global_paths = global_paths
             FakeUsdContext.instances.append(self)
 
         def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
@@ -52,7 +53,7 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
     monkeypatch.setattr(SimulationContext, "instance", lambda: published)
 
     cfg = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="/World/envs/env_[^/]+/Robot",
         cloning_contexts=(FakeUsdContext,) if explicit_request else (),
         spawn=object(),
     )
@@ -64,9 +65,12 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
         env_ids=torch.arange(2, dtype=torch.long),
         positions=torch.zeros((2, 3)),
         cfg_rows={id(cfg): (0,)},
+        global_paths=("/World/Ground", "/World/Light"),
     )
 
     replicate_session.replicate(plan, stage=object())
 
     assert len(FakeUsdContext.instances) == expected_instances
+    if FakeUsdContext.instances:
+        assert FakeUsdContext.instances[0].global_paths == ("/World/Ground", "/World/Light")
     assert published.plan is plan

@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+1.8.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+
+
+1.7.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a camera speed-boost mode to the Newton GL and RTX visualizers: holding
+  Shift while flying the free camera with WASD doubles the camera translation
+  speed, matching the Kit visualizer's speed-up behavior.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to leave its viewport
+  camera unpartitioned when AppLauncher enables the all-environment spectator
+  view. Otherwise, the viewport camera is assigned to the first visible
+  environment.
+
+Fixed
+^^^^^
+
+* Fixed global Kit/USD visualization-marker instances appearing across tiled
+  environments when per-instance environment IDs are provided.
+
+
+1.6.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added per-group visibility controls for Isaac Lab visualization markers in
+  Newton GL.
+* Added native framebuffer capture to the Newton RTX visualizer.
+
+Fixed
+^^^^^
+
+* Fixed the streaming camera grid layout producing a portrait-oriented composite instead of
+  filling the visualizer panel. :func:`~isaaclab.envs.utils.camera_view.compose_streaming_grid`
+  now accepts a ``target_aspect`` parameter; the Kit and Newton GL visualizers pass
+  ``window_width / window_height`` so the tile grid matches the panel aspect ratio.
+
+* Fixed the Newton GL viewer **Show Contacts**, **Show Particles**, **Show Springs**, and
+  **Show Cloth** checkboxes remaining interactive when the model contains no elements of
+  that type.  Checkboxes are now greyed out with an explanatory tooltip.
+
+
+1.5.2 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate Simulation panels in the Newton RTX viewer.
+
+
 1.5.1 (2026-08-09)
 ~~~~~~~~~~~~~~~~~~
 

@@ -38,10 +38,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Photorealistic rendering, studio lighting *(visualization markers, live plots, and streaming camera panel not yet supported)*
    * - **Rerun**
      - Remote viewing, replay
-     - Webviewer, time scrubbing, recording export, visualization markers
+     - Webviewer, time scrubbing, recording export, visualization markers, live plots
    * - **Viser**
      - Web-based remote visualization, sharing, recording
-     - Warp-based rendering, browser-based, share URL, visualization markers
+     - Warp-based rendering, browser-based, share URL, visualization markers, live plots
 
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
@@ -208,6 +208,9 @@ worlds visually without changing their simulated poses:
 
 Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
 selection and visual offsets. This includes point-cloud and task-geometry markers.
+For RTX tiled cameras, pass one ``environment_ids`` entry per marker instance to
+:meth:`~isaaclab.markers.VisualizationMarkers.visualize` so global point-instancer
+markers are isolated with their environments.
 
 .. _visualization-common-modes:
 
@@ -338,8 +341,7 @@ golden-ratio hue palette to assign each class ID a distinct color.
    **Auto-create streaming camera and Newton MJWarp (``replicate_physics=True``)**
 
    When ``streaming_sensor_prim_path`` is ``None`` (auto-create mode), the visualizer
-   spawns a new camera prim after ``scene.initialize_renderers()`` has already finalised
-   Newton's clone plan.  With ``replicate_physics=True`` — which Newton MJWarp requires for
+   spawns a new camera prim after scene construction has already finalised Newton's clone plan.  With ``replicate_physics=True`` — which Newton MJWarp requires for
    its high-performance sparse world replication — only ``env_0`` exists as a USD prim after
    physics init; ``env_1..N`` are handled internally by Newton without USD prims.  The
    spawned cameras at ``env_1..N`` are silently dropped, ``FrameView`` resolves only one
@@ -458,6 +460,12 @@ Omniverse Visualizer
         enable_markers=True,
         enable_live_plots=True,  # set to False to disable live plots
     )
+
+When Isaac RTX scene partitioning is enabled, :class:`~isaaclab.app.AppLauncher`
+turns on the all-environment spectator view when the Kit viewport is enabled or
+Kit visualization, recording, livestreaming, or XR is requested. Regular headless
+camera-sensor runs retain partition isolation. See :ref:`overview_renderers` for
+configuration and content constraints.
 
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~
@@ -812,21 +820,24 @@ instead:
 **Newton RTX Visualizer (Experimental)**
 
 The Newton RTX visualizer (``--viz newton_rtx`` / :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg`)
-is currently experimental. The following features are **not yet supported** and will be added in a future release:
+is currently experimental. Its path-traced LDR framebuffer is available through
+``render_rgb_array()`` and ``--video``. Frame capture performs a GPU-to-CPU readback.
+
+The following features are **not yet supported** and will be added in a future release:
 
 * **Visualization markers** — debug-draw geometry (:class:`~isaaclab.markers.VisualizationMarkers`) is skipped.
 * **Live plots** — per-step scalar streaming (reward, episode length, manager terms) is disabled.
 * **Streaming camera panel** — the ``streaming_view`` option has no display sink in the RTX viewer;
   use :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg` or
   :class:`~isaaclab_visualizers.viser.ViserVisualizerCfg` alongside Newton RTX for streaming output.
-* **``render_rgb_array()`` / video recording** — framebuffer readback requires
-  ``ViewerRTX.get_frame()`` support from the Newton team; the method currently returns ``None``.
-  As a result, ``--video`` with ``source="visualizer:newton_rtx"`` produces no frames.
-  Use ``source="visualizer:newton_gl"`` or a sensor source (``source="sensor:<name>"``) instead.
 * **Pause rendering** — the path-tracer runs at full cost every tick even while paused (unlike GL's
   lightweight update).
 
-All of the above features are available in the other three visualizer backends (Newton GL, Rerun, Viser).
+All of the above features are available in the Newton GL backend. Visualization markers, live
+plots, and the streaming camera panel are also available in Rerun and Viser; however,
+framebuffer-based video recording (``--video`` with ``source="visualizer:*"``) is only
+supported in Kit and Newton GL — use a sensor source (``source="sensor:<name>"``) for
+video recording with Rerun or Viser.
 
 
 See Also

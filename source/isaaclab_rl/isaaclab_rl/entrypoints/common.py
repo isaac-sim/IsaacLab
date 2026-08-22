@@ -28,7 +28,7 @@ import torch
 from PIL import Image
 
 from isaaclab.app import AppLauncher, LoadingScreen, scan
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -295,13 +295,19 @@ def resolve_play_task_name(task: str | None) -> str | None:
     return f"{namespace}:{train_name}" if namespace else train_name
 
 
-def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:
+def resolve_play_checkpoint(
+    checkpoint: str | None,
+    framework: str,
+    task: str,
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
+) -> str:
     """Resolve an explicit or published checkpoint for a play workflow.
 
     Args:
         checkpoint: Local or Nucleus checkpoint path.
         framework: RL library name.
         task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
+        env_cfg: Resolved environment config used to identify the active backends.
 
     Returns:
         Local checkpoint path.
@@ -314,11 +320,15 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
 
         return retrieve_file_path(checkpoint)
 
-    from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names,
+        get_published_pretrained_checkpoint,
+    )
 
     logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
     published_task = task.split(":")[-1].replace("-Play", "")
-    path = get_published_pretrained_checkpoint(framework, published_task)
+    backend_names = get_pretrained_checkpoint_backend_names(env_cfg) if env_cfg is not None else ()
+    path = get_published_pretrained_checkpoint(framework, published_task, *backend_names)
     if path is None:
         raise FileNotFoundError(
             f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"
@@ -914,9 +924,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         # same as "no visualizer specified" for the purpose of picking a recorder source.
         active_cli_visualizers = [v for v in cli_visualizers if v != "none"]
 
-        # Streaming visualizers (rerun, viser) and the RTX path-tracer (newton_rtx) do not
-        # expose a local frame-capture API and cannot serve as video recording sources.
-        _NO_CAPTURE = {"newton_rtx", "rerun", "viser"}
+        # Streaming visualizers do not expose a local frame-capture API.
+        _NO_CAPTURE = {"rerun", "viser"}
 
         if active_cli_visualizers:
             # Partition into capture-capable and no-capture lists.
@@ -928,15 +937,15 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                 example_cfg = {
                     "rerun": "RerunVisualizerCfg",
                     "viser": "ViserVisualizerCfg",
-                    "newton_rtx": "NewtonRTXVisualizerCfg",
                 }.get(no_capture[0], f"{no_capture[0].title()}VisualizerCfg")
                 raise ValueError(
                     f"--video is not supported with --viz {names}: {names} "
                     f"{'is a streaming visualizer' if len(no_capture) == 1 else 'are streaming visualizers'} "
                     "and do not expose a local frame-capture API.\n\n"
-                    "Supported recording backends (both support headless mode for zero UI overhead):\n"
+                    "Supported recording backends (all support headless mode for zero UI overhead):\n"
                     "  --viz kit        Kit/Omniverse viewport\n"
-                    "  --viz newton_gl  Newton OpenGL viewport\n\n"
+                    "  --viz newton_gl  Newton OpenGL viewport\n"
+                    "  --viz newton_rtx Newton OVRTX path-traced viewport\n\n"
                     f"To run {names} alongside video recording, add a headless capture backend\n"
                     "to sim.visualizer_cfgs in your environment config, for example:\n\n"
                     f"  sim_cfg.visualizer_cfgs = [\n"
@@ -1097,6 +1106,7 @@ def resolve_checkpoint_selector(
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
+    recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using manifests from new training runs.
 
@@ -1113,6 +1123,7 @@ def resolve_checkpoint_selector(
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
         metadata: Additional manifest metadata required for compatibility.
+        recursive: Whether to search recursively below each matching run directory.
 
     Returns:
         Absolute path to the selected checkpoint.
@@ -1152,9 +1163,8 @@ def resolve_checkpoint_selector(
         checkpoint_dir = run_dir.joinpath(*(other_dirs or []))
         if not checkpoint_dir.is_dir():
             continue
-        checkpoints = [
-            path for path in checkpoint_dir.iterdir() if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)
-        ]
+        paths = checkpoint_dir.rglob("*") if recursive else checkpoint_dir.iterdir()
+        checkpoints = [path for path in paths if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)]
         if not checkpoints:
             continue
         if selector == "best" and preferred_checkpoint_pattern is not None:
@@ -1163,7 +1173,7 @@ def resolve_checkpoint_selector(
             ]
             if preferred:
                 checkpoints = preferred
-        checkpoints.sort(key=lambda path: _natural_sort_key(path.name))
+        checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 
     raise ValueError(

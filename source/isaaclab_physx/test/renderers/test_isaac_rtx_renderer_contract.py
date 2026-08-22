@@ -17,6 +17,7 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -238,6 +239,42 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
     assert call_order == ["enable", "global_settings"]
 
 
+@pytest.mark.parametrize("configured_value", [None, False, True])
+def test_init_applies_only_explicit_global_spectator_view_setting(monkeypatch, configured_value):
+    """Isaac RTX should preserve launch intent unless the renderer config overrides it."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
+        IsaacRtxRendererCfg,
+        IsaacRtxRendererGlobalSettingsCfg,
+    )
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension"),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(
+            IsaacRtxRendererCfg(
+                global_settings=IsaacRtxRendererGlobalSettingsCfg(
+                    show_all_partitions_by_default=configured_value,
+                )
+            )
+        )
+
+    spectator_calls = [
+        setting_call
+        for setting_call in settings.set.call_args_list
+        if setting_call.args[0] == ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+    ]
+    expected_calls = (
+        [] if configured_value is None else [call(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, configured_value)]
+    )
+    assert spectator_calls == expected_calls
+
+
 @pytest.mark.parametrize(
     ("stored", "expected_called"),
     [
@@ -300,3 +337,12 @@ def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monke
 
     # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
     assert camera_data.info == {"rgb": None, "semantic_segmentation": None}
+
+
+def test_isaac_rtx_publishes_fabric_visual_material_writer(monkeypatch):
+    """Isaac RTX exposes the renderer-owned Fabric writer factory."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+
+    assert IsaacRtxRenderer.__new__(IsaacRtxRenderer).visual_material_writer is FabricVisualMaterialWriter

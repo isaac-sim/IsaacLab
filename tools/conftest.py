@@ -21,7 +21,9 @@ from prettytable import PrettyTable
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
+import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
+from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -77,6 +79,58 @@ full hard timeout, we give the process a short grace period to exit, then
 kill it.  The test results are taken from the report file (pass/fail), not
 from the kill.
 """
+
+EXIT_TESTS_FAILED = 1
+"""Exit code for a run that completed with at least one failing assertion."""
+
+EXIT_CRASHED = 20
+"""Exit code for a run where a test process died without writing its report."""
+
+EXIT_TIMEOUT = 21
+"""Exit code for a run where a test reached its hard timeout."""
+
+EXIT_STARTUP_HANG = 22
+"""Exit code for a run where a test never finished starting up."""
+
+EXIT_CODE_LABELS = {
+    0: "all tests passed",
+    EXIT_TESTS_FAILED: "test failures",
+    EXIT_CRASHED: "crashed process",
+    EXIT_TIMEOUT: "timeout",
+    EXIT_STARTUP_HANG: "startup hang",
+}
+"""Label for each exit code, printed with the result summary."""
+
+
+def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_startup_hang: int) -> int:
+    """Return the exit code for a finished run, based on how it failed.
+
+    A crashed process, a hang and a failing assertion have different owners, so
+    each reports its own code rather than a shared ``1``; the code alone is then
+    enough to route a red job.  When a run hits more than one, the code reports
+    the outcome that proved the least: a process that died never reached the
+    assertion a failing test did.  ``1`` still means failing assertions, so
+    callers that only check for a non-zero code are unaffected.
+
+    Args:
+        num_failing: Test files that ran and reported a failing assertion.
+        num_timeout: Test files killed at their hard timeout.
+        num_crashed: Test files whose process exited without writing a report.
+        num_startup_hang: Test files killed before startup finished.
+
+    Returns:
+        ``0`` when nothing failed, otherwise the code for the highest-precedence
+        mode present: crash, then timeout, then startup hang, then assertion.
+    """
+    if num_crashed:
+        return EXIT_CRASHED
+    if num_timeout:
+        return EXIT_TIMEOUT
+    if num_startup_hang:
+        return EXIT_STARTUP_HANG
+    if num_failing:
+        return EXIT_TESTS_FAILED
+    return 0
 
 
 def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
@@ -250,6 +304,103 @@ def _create_error_report(prefix, file_name, message, details):
     report = JUnitXml()
     report.add_testsuite(suite)
     return report
+
+
+def _make_crash_pass_result(
+    journal_file,
+    prefix,
+    pass_file_label,
+    message,
+    details,
+    report_file,
+    result,
+    wall_time,
+    fallback_time_elapsed=0.0,
+):
+    """Persist and return the pass result for a run that produced no JUnit report.
+
+    Prefers a report rebuilt from the crash journal so the real per-test verdicts survive, and
+    falls back to the single-entry :func:`_create_error_report` only when the run died before
+    journaling anything (a true startup hang, or an old image without the journaling conftest).
+    """
+    rebuilt = create_crash_report(journal_file, os.path.splitext(pass_file_label)[0], message, details)
+    if rebuilt is None:
+        report = _create_error_report(prefix, pass_file_label, message, details)
+        counters = {"errors": 1, "failures": 0, "skipped": 0, "tests": 1, "time_elapsed": fallback_time_elapsed}
+        logger.warning(f"🔎 {pass_file_label}: no crash journal, reporting a single {prefix} entry")
+    else:
+        report, counters, culprit = rebuilt
+        logger.info(
+            f"🔎 {pass_file_label}: recovered {counters['tests']} test result(s) from the crash journal"
+            f" ({counters['failures']} failed, {counters['skipped']} not run);"
+            f" blamed {culprit or 'session shutdown (all tests completed teardown)'}"
+        )
+
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": counters["errors"],
+            "failures": counters["failures"],
+            "skipped": counters["skipped"],
+            "tests": counters["tests"],
+            "result": result,
+            "time_elapsed": counters["time_elapsed"],
+            "wall_time": wall_time,
+        },
+        True,
+    )
+
+
+def _make_missing_report_result(
+    *,
+    journal_file,
+    prefix,
+    pass_file_label,
+    log_label,
+    report_file,
+    returncode,
+    kill_reason,
+    stdout_data,
+    stderr_data,
+    wall_time,
+):
+    """Build the ``CRASHED`` pass result for a run that exited without writing a JUnit report.
+
+    Shared by the initial invocation and the fresh-process retries: a retry that dies before
+    ``pytest_sessionfinish`` has no report of its own, and reusing the previous attempt's results
+    would report the run as merely failed and lose the test that took the process down.
+    """
+    if kill_reason:
+        reason = f"Process killed ({kill_reason}) before it produced a report"
+    elif returncode < 0:
+        reason = _signal_description(-returncode)
+    else:
+        reason = f"Process exited with code {returncode} but produced no report"
+    diag = _get_diagnostics()
+    logger.warning(f"⚠️  {log_label}: {reason}")
+    logger.info(diag)
+
+    details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 2000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 2000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+    # The process died before it could replay anything, so this tail is the only renderer output.
+    details += ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
+
+    return _make_crash_pass_result(
+        journal_file,
+        prefix,
+        pass_file_label,
+        reason,
+        details,
+        report_file,
+        "CRASHED",
+        wall_time,
+    )
 
 
 def _get_diagnostics(pre_kill_diag=""):
@@ -442,6 +593,7 @@ def _retry_failed_test_in_fresh_process(
     env,
     startup_deadline,
     report_file,
+    journal_file,
     report,
     errors,
     failures,
@@ -455,7 +607,12 @@ def _retry_failed_test_in_fresh_process(
     wall_time,
     pre_kill_diag,
 ):
-    """Retry selected failed test files in a fresh subprocess."""
+    """Retry selected failed test files in a fresh subprocess.
+
+    ``env`` must carry :data:`JOURNAL_ENV_VAR`, and ``journal_file`` must be the path it names:
+    each attempt starts from an empty journal so a retry that crashes is reconstructed from its
+    own verdicts rather than from the ones the previous attempt left behind.
+    """
     has_test_failures = errors > 0 or failures > 0
     process_failure_attempts = 0
     max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
@@ -466,13 +623,26 @@ def _retry_failed_test_in_fresh_process(
             f"⚠️  {test_file}: failed in subprocess"
             f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
         )
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(report_file)
+        # The renderer log goes too: a retry that dies has its log quoted in the rebuilt report, and a
+        # leftover from the previous attempt would be attributed to this one.
+        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(stale_file)
 
-        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+        (
+            returncode,
+            stdout_data,
+            stderr_data,
+            kill_reason,
+            retry_wall_time,
+            pre_kill_diag,
+        ) = capture_test_output_with_timeout(
             cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
         )
+        wall_time += retry_wall_time
         if not os.path.exists(report_file):
+            # The attempt died before pytest wrote its report; the caller rebuilds the result from
+            # this attempt's journal.
             break
 
         try:
@@ -641,6 +811,19 @@ def _run_one_pass(
     # shutdown_hang detections in sibling shards via the report-file existence check.
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
+    # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
+    # the only record of what passed, failed, and was in flight when a run dies before that.
+    #
+    # Absolute, because the repo-root conftest reopens this path from inside the test process on
+    # every journal write. A test that changes directory (``monkeypatch.chdir``, or any fixture
+    # that does the same) would otherwise send its verdicts to a journal under the temporary cwd
+    # and, once teardown restored the cwd, resume writing to this one — so the rebuilt report
+    # would show a test that ran and passed as never having been reached.
+    journal_file = os.path.abspath(f"tests/test-journal-{report_slug}{suffix}.jsonl")
+    # pytest creates the report directory in ``pytest_sessionfinish``, which a crashed run never
+    # reaches; without this the journal's first write fails and ``_journal_write`` swallows it.
+    os.makedirs(os.path.dirname(journal_file), exist_ok=True)
+    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file}
 
     cmd = [
         sys.executable,
@@ -667,15 +850,20 @@ def _run_one_pass(
     # -- Run with retry on startup hang or hard timeout -----------------
     returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
     wall_time, pre_kill_diag = 0.0, ""
+    total_wall_time = 0.0
     startup_hang_attempts = 0
     timeout_attempts = 0
     while True:
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(report_file)
+        # Clear the renderer log too: read after the subprocess dies, it is the only renderer output a
+        # crash, hang, or timeout reports, and a leftover would be attributed to the wrong run.
+        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(stale_file)
 
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
-            cmd, ctx.timeout, ctx.env, startup_deadline=ctx.startup_deadline, report_file=report_file
+            cmd, ctx.timeout, pass_env, startup_deadline=ctx.startup_deadline, report_file=report_file
         )
+        total_wall_time += wall_time
 
         has_report = os.path.exists(report_file)
 
@@ -716,6 +904,8 @@ def _run_one_pass(
             continue
         break
 
+    wall_time = total_wall_time
+
     # -- Resolve result from kill_reason and report file ----------------
     has_report = os.path.exists(report_file)
 
@@ -723,6 +913,7 @@ def _run_one_pass(
         diag = _get_diagnostics(pre_kill_diag)
         logger.warning(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
         logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Startup hang after {ctx.startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -732,27 +923,24 @@ def _run_one_pass(
         if stdout_data:
             details += "=== STDOUT (last 2000 chars) ===\n"
             details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+        details += ovrtx_log_section
 
-        error_report = _create_error_report("startup_hang", pass_file_label, msg, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "STARTUP_HANG",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "startup_hang",
+            pass_file_label,
+            msg,
+            details,
+            report_file,
+            "STARTUP_HANG",
+            wall_time,
         )
 
     if kill_reason == "timeout" and not has_report:
         diag = _get_diagnostics(pre_kill_diag)
         logger.warning(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
         logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -762,55 +950,32 @@ def _run_one_pass(
         if stderr_data:
             details += "=== STDERR (last 5000 chars) ===\n"
             details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        details += ovrtx_log_section
 
-        error_report = _create_error_report("timeout", pass_file_label, msg, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "TIMEOUT",
-                "time_elapsed": ctx.timeout,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "timeout",
+            pass_file_label,
+            msg,
+            details,
+            report_file,
+            "TIMEOUT",
+            wall_time,
+            fallback_time_elapsed=ctx.timeout,
         )
 
     if not has_report:
-        reason = (
-            _signal_description(-returncode)
-            if returncode < 0
-            else f"Process exited with code {returncode} but produced no report"
-        )
-        diag = _get_diagnostics()
-        logger.warning(f"⚠️  {ctx.test_file}{suffix}: {reason}")
-        logger.info(diag)
-
-        details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-        if stdout_data:
-            details += "=== STDOUT (last 2000 chars) ===\n"
-            details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-        if stderr_data:
-            details += "=== STDERR (last 2000 chars) ===\n"
-            details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-
-        error_report = _create_error_report("crash", pass_file_label, reason, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "CRASHED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_missing_report_result(
+            journal_file=journal_file,
+            prefix="crash",
+            pass_file_label=pass_file_label,
+            log_label=f"{ctx.test_file}{suffix}",
+            report_file=report_file,
+            returncode=returncode,
+            kill_reason=kill_reason,
+            stdout_data=stdout_data,
+            stderr_data=stderr_data,
+            wall_time=wall_time,
         )
 
     # -- Report file exists: parse actual test results -----------------
@@ -874,9 +1039,10 @@ def _run_one_pass(
         file_name=ctx.file_name,
         cmd=cmd,
         timeout=ctx.timeout,
-        env=ctx.env,
+        env=pass_env,
         startup_deadline=ctx.startup_deadline,
         report_file=report_file,
+        journal_file=journal_file,
         report=report,
         errors=errors,
         failures=failures,
@@ -890,6 +1056,23 @@ def _run_one_pass(
         wall_time=wall_time,
         pre_kill_diag=pre_kill_diag,
     )
+
+    if not os.path.exists(report_file):
+        # A retry died before pytest wrote its report. Keeping the earlier attempt's parsed results
+        # would report the file as FAILED and drop the crash, so the retry's journal is what the
+        # result is rebuilt from — including the test that was in flight when the process died.
+        return _make_missing_report_result(
+            journal_file=journal_file,
+            prefix="retry_crash",
+            pass_file_label=pass_file_label,
+            log_label=f"{ctx.test_file}{suffix} (fresh-process retry)",
+            report_file=report_file,
+            returncode=returncode,
+            kill_reason=kill_reason,
+            stdout_data=stdout_data,
+            stderr_data=stderr_data,
+            wall_time=wall_time,
+        )
 
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
     no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
@@ -1412,6 +1595,9 @@ def pytest_sessionstart(session):
     summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
+    exit_code = resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang)
+    summary_str += f"Exit Code: {exit_code} ({EXIT_CODE_LABELS[exit_code]})\n"
+
     total_wall = sum(test_status[test_path]["wall_time"] for test_path in test_files)
     total_test = sum(test_status[test_path]["time_elapsed"] for test_path in test_files)
 
@@ -1428,7 +1614,4 @@ def pytest_sessionstart(session):
     logger.info(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit(
-        "Custom test execution completed",
-        returncode=0 if (num_failing == 0 and num_timeout == 0 and num_crashed == 0 and num_startup_hang == 0) else 1,
-    )
+    pytest.exit("Custom test execution completed", returncode=exit_code)

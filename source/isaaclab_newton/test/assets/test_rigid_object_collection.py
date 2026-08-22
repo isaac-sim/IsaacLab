@@ -108,14 +108,14 @@ def generate_cubes_scene(
     cube_config_dict = {}
     for i in range(num_cubes):
         cube_object_cfg = RigidObjectCfg(
-            prim_path=f"/World/Env_.*/Object_{i}",
+            prim_path=f"/World/Env_[^/]*/Object_{i}",
             spawn=spawn_cfg,
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
     if spawn_unrelated_sibling:
         spawn_cfg.func(
-            "/World/Env_.*/UnrelatedObject",
+            "/World/Env_[^/]*/UnrelatedObject",
             spawn_cfg,
             translation=(0.0, -3.0, height),
         )
@@ -197,7 +197,7 @@ def test_set_body_inertial_properties_updates_inverses(device):
             RigidObjectCollectionCfg(
                 rigid_objects={
                     f"cube_{body_index}": RigidObjectCfg(
-                        prim_path=f"/World/Env_.*/Object_{body_index}",
+                        prim_path=f"/World/Env_[^/]*/Object_{body_index}",
                         spawn=spawn_cfg,
                         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, float(body_index), 0.0)),
                     )

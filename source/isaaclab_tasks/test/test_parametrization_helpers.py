@@ -14,12 +14,126 @@ from rendering_test_utils import (
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     attach_comparison_properties,
     generate_html_report,
+    group_rendering_params,
     make_kitless_rendering_params,
     make_kitless_rendering_params_franka,
     make_kitless_rendering_params_lift,
     make_skip_rendering_params,
     make_xfail_rendering_params,
 )
+
+
+def test_group_rendering_params_groups_static_data_types_with_matching_marks() -> None:
+    """Static AOVs with the same rendering configuration and marks should share a case."""
+    flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
+    params = [
+        pytest.param("physx", "isaacsim_rtx_renderer", "albedo", id="physx-rtx-albedo", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "normals", id="physx-rtx-normals", marks=flaky),
+        pytest.param(
+            "physx",
+            "isaacsim_rtx_renderer",
+            "instance_segmentation",
+            id="physx-rtx-instance",
+            marks=pytest.mark.xfail(reason="Known segmentation regression."),
+        ),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("physx", "isaacsim_rtx_renderer", ["albedo", "normals"]),
+        ("physx", "isaacsim_rtx_renderer", ["instance_segmentation"]),
+    ]
+    assert [param.id for param in grouped] == ["physx-isaacsim_rtx_renderer-static", "physx-rtx-instance"]
+    assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["xfail"]]
+
+
+def test_group_rendering_params_isolates_temporal_and_minimal_data_types() -> None:
+    """AOVs requiring distinct capture or render-product state should stay isolated."""
+    flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
+    params = [
+        pytest.param("physx", "isaacsim_rtx_renderer", "rgb", id="physx-rtx-rgb", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "depth", id="physx-rtx-depth", marks=flaky),
+        pytest.param(
+            "physx",
+            "isaacsim_rtx_renderer",
+            "distance_to_image_plane",
+            id="physx-rtx-distance_to_image_plane",
+            marks=flaky,
+        ),
+        pytest.param("physx", "isaacsim_rtx_renderer", "motion_vectors", id="physx-rtx-motion", marks=flaky),
+        pytest.param(
+            "physx", "isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", id="physx-rtx-diffuse_mdl", marks=flaky
+        ),
+        pytest.param("physx", "isaacsim_rtx_renderer", "simple_shading_full_mdl", id="physx-rtx-full_mdl", marks=flaky),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("physx", "isaacsim_rtx_renderer", ["rgb", "depth", "distance_to_image_plane"]),
+        ("physx", "isaacsim_rtx_renderer", ["motion_vectors"]),
+        ("physx", "isaacsim_rtx_renderer", ["simple_shading_diffuse_mdl"]),
+        ("physx", "isaacsim_rtx_renderer", ["simple_shading_full_mdl"]),
+    ]
+    assert [param.id for param in grouped] == [
+        "physx-isaacsim_rtx_renderer-static",
+        "physx-rtx-motion",
+        "physx-rtx-diffuse_mdl",
+        "physx-rtx-full_mdl",
+    ]
+
+
+def test_group_rendering_params_groups_each_renderer() -> None:
+    """Every renderer should launch once with all of its supported AOVs."""
+    params = [
+        pytest.param("newton", "ovrtx_renderer", "albedo", id="newton-ovrtx-albedo"),
+        pytest.param("newton", "ovrtx_renderer", "normals", id="newton-ovrtx-normals"),
+        pytest.param("newton", "newton_renderer", "rgb", id="newton-warp-rgb"),
+        pytest.param("newton", "newton_renderer", "depth", id="newton-warp-depth"),
+        pytest.param("newton", "newton_renderer", "normals", id="newton-warp-normals"),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("newton", "ovrtx_renderer", ["albedo", "normals"]),
+        ("newton", "newton_renderer", ["rgb", "depth", "normals"]),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("env_name", "renderer", "data_type", "expected"),
+    [
+        ("franka_soft", "ovrtx_renderer", "albedo", 3.0),
+        ("franka_soft", "isaacsim_rtx_renderer", "albedo", 8.0),
+        ("cartpole", "ovrtx_renderer", "rgb", 1.5),
+        ("shadow_hand", "ovrtx_renderer", "depth", 5.0),
+    ],
+)
+def test_ovrtx_image_difference_threshold_is_capped(
+    env_name: str, renderer: str, data_type: str, expected: float
+) -> None:
+    """OVRTX should use a tighter cap without loosening stricter environment thresholds."""
+    assert rendering_test_utils._max_different_pixels_percentage(env_name, renderer, data_type) == expected
+
+
+@pytest.mark.parametrize(
+    ("renderer", "expected_steps"),
+    [
+        ("ovrtx_renderer", 3),
+        ("isaacsim_rtx_renderer", 2),
+    ],
+)
+def test_motion_history_steps(renderer: str, expected_steps: int) -> None:
+    """OVRTX should receive one extra motion-history step."""
+    env = Mock()
+    env.action_space.shape = (1,)
+    env.device = "cpu"
+
+    rendering_test_utils.maybe_step_env_for_motion(env, renderer, "motion_vectors")
+
+    assert env.step.call_count == expected_steps
 
 
 def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
@@ -95,46 +209,62 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
     assert marked[0].marks[0].kwargs["reason"] == "Native renderer crash."
 
 
-def test_kitless_matrix_scopes_texture_readiness_xfail_to_newton() -> None:
-    """OVPhysX textured AOVs pass outside Lift, so the shared readiness xfail stays Newton-only."""
+def test_kitless_matrix_has_no_ovrtx_041_xfails() -> None:
+    """OVRTX 0.4.1 textured and motion AOVs should run without release xfails."""
     params = {param.id: param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS}
 
     for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
-        newton_param = params[f"newton-ovrtx-{data_type}"]
-        assert [mark.name for mark in newton_param.marks] == ["xfail"]
-        assert "NVBUG#6505191" in newton_param.marks[0].kwargs["reason"]
+        for physics_backend in ("newton", "ovphysx"):
+            param = params[f"{physics_backend}-ovrtx-{data_type}"]
+            assert "xfail" not in [mark.name for mark in param.marks]
 
-        ovphysx_param = params[f"ovphysx-ovrtx-{data_type}"]
-        assert "xfail" not in [mark.name for mark in ovphysx_param.marks]
+    expanded = {param.id: param for param in make_kitless_rendering_params(list(params.values()))}
+    assert "xfail" not in [mark.name for mark in expanded["ovstage-ovphysx-ovrtx-motion_vectors"].marks]
 
 
-def test_lift_factory_applies_shared_native_crash_policy() -> None:
-    """Both backends skip the crash-prone MDL AOVs, which xfail cannot contain."""
+def test_lift_factory_retains_retries_without_native_crash_skips() -> None:
+    """Lift OVRTX MDL cases should run with the shared retry policy."""
     params = {param.id: param for param in make_kitless_rendering_params_lift()}
 
     for variant in ("legacy", "ovstage"):
         for physics_backend in ("newton", "ovphysx"):
             for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
                 param = params[f"{variant}-{physics_backend}-ovrtx-{data_type}"]
-                assert [mark.name for mark in param.marks] == ["skip"]
-                assert "NVBUG#6524987" in param.marks[0].kwargs["reason"]
+                assert [mark.name for mark in param.marks] == ["flaky"]
 
-    # Lift OVPhysX albedo passes, so it must not inherit an exemption from the MDL policy.
+    # Lift OVPhysX albedo passes, so it must not inherit an unrelated exemption.
     assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
 
 
-def test_franka_factory_adds_cloth_only_motion_policy() -> None:
-    """Only the cloth suite should carry the motion-vector xfail."""
-    soft_params = {param.id: param for param in make_kitless_rendering_params_franka()}
-    cloth_params = {
-        param.id: param for param in make_kitless_rendering_params_franka(include_cloth_motion_vectors=True)
-    }
+def test_franka_factory_marks_only_unsupported_instance_segmentation() -> None:
+    """Franka OVRTX grouping should isolate unsupported instance segmentation from valid AOVs."""
+    params = {param.id: param for param in make_kitless_rendering_params_franka()}
 
     for variant in ("legacy", "ovstage"):
-        motion_id = f"{variant}-newton-ovrtx-motion_vectors"
-        assert "xfail" not in [mark.name for mark in soft_params[motion_id].marks]
-        assert [mark.name for mark in cloth_params[motion_id].marks] == ["xfail"]
-        assert "NVBUG#6489754" in cloth_params[motion_id].marks[0].kwargs["reason"]
+        for physics_backend in ("newton", "ovphysx"):
+            motion_id = f"{variant}-{physics_backend}-ovrtx-motion_vectors"
+            assert "xfail" not in [mark.name for mark in params[motion_id].marks]
+
+            instance_id = f"{variant}-{physics_backend}-ovrtx-instance_segmentation"
+            assert [mark.name for mark in params[instance_id].marks] == ["skip"]
+
+    grouped = {param.id: param for param in group_rendering_params(list(params.values()))}
+    for variant in ("legacy", "ovstage"):
+        valid_static = grouped[f"{variant}-newton-ovrtx_renderer-static"]
+        assert valid_static.values[-1] == [
+            "rgb",
+            "albedo",
+            "semantic_segmentation",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+        ]
+        assert [mark.name for mark in valid_static.marks] == ["flaky"]
+
+        unsupported = grouped[f"{variant}-newton-ovrtx-instance_segmentation"]
+        assert unsupported.values[-1] == ["instance_segmentation"]
+        assert [mark.name for mark in unsupported.marks] == ["skip"]
 
 
 def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:

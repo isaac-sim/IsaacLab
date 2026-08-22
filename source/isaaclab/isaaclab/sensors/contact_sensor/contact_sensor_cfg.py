@@ -83,7 +83,7 @@ class ContactSensorCfg(SensorBaseCfg):
         Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
         is replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_.*/Object``.
+        Example: ``{ENV_REGEX_NS}/Object`` becomes ``/World/envs/env_[^/]+/Object``.
 
     .. attention::
         Filtered contact reporting only works when :attr:`SensorBaseCfg.prim_path` matches a
@@ -98,6 +98,9 @@ class ContactSensorCfg(SensorBaseCfg):
     **Newton backend only** (ignored by the PhysX and OvPhysX backends). A shape is an individual
     collision geometry attached to a body. If non-empty, :attr:`prim_path` is ignored for the
     sensing objects and these shape expressions are used instead.
+
+    Full-matched against shape paths, so an expression naming a body selects nothing:
+    write ``{ENV_REGEX_NS}/Box[^/]*/.*`` to reach the shapes below it.
     """
 
     filter_shape_prim_expr: list[str] = []
@@ -106,6 +109,8 @@ class ContactSensorCfg(SensorBaseCfg):
 
     **Newton backend only** (ignored by the PhysX and OvPhysX backends). If provided, the force
     matrix reports per-shape contact forces; mutually exclusive with :attr:`filter_prim_paths_expr`.
+
+    Matched against shape paths on the same terms as :attr:`sensor_shape_prim_expr`.
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")

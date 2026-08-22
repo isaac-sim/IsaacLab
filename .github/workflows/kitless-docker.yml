@@ -59,6 +59,7 @@ jobs:
           ^source/isaaclab/isaaclab/test/fixtures/ :: Isolated asset fixture implementation
           ^source/isaaclab_(physx|newton|ov)/isaaclab_.*/test/fixtures/ :: Backend fixture implementation
           ^source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics\.py$ :: Kit-less pytest subset
+          ^tools/wheel_builder/uv-overrides\.txt$ :: Importer dependency overrides
           ^\.github/workflows/kitless-docker\.yml$ :: This workflow file
           ^\.github/actions/detect-changes/ :: Change-detection action
           ^\.github/actions/_lib/compute-deps-hash/ :: Dependency-cache identity

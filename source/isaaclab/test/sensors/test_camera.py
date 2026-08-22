@@ -852,7 +852,7 @@ def test_camera_multi_regex_init(setup_camera_device, device):
         sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
 
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -907,7 +907,7 @@ def test_camera_all_annotators(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -970,7 +970,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation", "instance_id_segmentation_fast"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_segmentation = False
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
@@ -1000,7 +1000,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["normals"]
-    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -1090,16 +1090,21 @@ def test_camera_frame_offset(setup_camera_device, device):
     del camera
 
 
-def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
-    """Test Camera warns once and drops data types its renderer cannot produce."""
-    import logging
-
+@pytest.mark.parametrize(
+    ("data_types", "expected_names", "expected_messages"),
+    [
+        (["rgba", "depth", "normals"], ["depth", "normals"], ["_PartialRenderer", "Supported data types"]),
+        (["rgba", "not_a_render_buffer_kind"], ["not_a_render_buffer_kind"], ["Unknown camera data types"]),
+    ],
+)
+def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, expected_names, expected_messages):
+    """Test Camera rejects data types its renderer cannot produce or does not recognize."""
     from isaaclab.renderers import Renderer
     from isaaclab.renderers.base_renderer import BaseRenderer
 
     sim, camera_cfg, dt = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.data_types = ["rgba", "depth", "normals"]
+    camera_cfg.data_types = data_types
 
     from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
 
@@ -1144,31 +1149,11 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
     Renderer._registry[backend] = _PartialRenderer
     try:
         camera = Camera(camera_cfg)
-        caplog.clear()
-        with caplog.at_level(logging.WARNING, logger="isaaclab.sensors.camera.camera"):
+        with pytest.raises(ValueError) as exc_info:
             sim.reset()
-            # Step a few frames and confirm the warning is emitted once at init.
-            for _ in range(3):
-                sim.step()
-                camera.update(dt)
-
-        warning_records = [
-            r for r in caplog.records if r.levelno == logging.WARNING and "does not support" in r.getMessage()
-        ]
-        assert len(warning_records) == 1, (
-            f"Expected exactly one 'does not support' warning, got {len(warning_records)}:"
-            f" {[r.getMessage() for r in warning_records]}"
-        )
-        msg = warning_records[0].getMessage()
-        assert "_PartialRenderer" in msg
-        assert "depth" in msg
-        assert "normals" in msg
-        assert "rgba" not in msg
-
-        # Only the supported subset is in ``data.output``; the rest were dropped.
-        assert set(camera.data.output.keys()) == {"rgba"}
-        # ``data.info`` mirrors the ``data.output`` keys.
-        assert set(camera.data.info.keys()) == {"rgba"}
+        assert all(name in str(exc_info.value) for name in expected_names)
+        assert all(message in str(exc_info.value) for message in expected_messages)
+        assert "Hint:" not in str(exc_info.value)
 
         del camera
     finally:

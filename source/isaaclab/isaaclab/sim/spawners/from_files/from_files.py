@@ -497,14 +497,25 @@ def _spawn_from_usd_file(
         if not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
         else:
-            if not cfg.visual_material_path.startswith("/"):
-                material_path = f"{prim_path}/{cfg.visual_material_path}"
-            else:
-                material_path = cfg.visual_material_path
-            # create material
+            material_path = (
+                cfg.visual_material_path
+                if cfg.visual_material_path.startswith("/")
+                else f"{prim_path}/{cfg.visual_material_path}"
+            )
             cfg.visual_material.func(material_path, cfg.visual_material)
-            # apply material
             bind_visual_material(prim_path, material_path, stage=stage)
+
+    for part_path, material_path in cfg.visual_material_bindings.items():
+        from pxr import UsdShade  # noqa: PLC0415
+
+        target_path = f"{prim_path}/{part_path}"
+        material_path = (
+            material_path if material_path.startswith("/") else f"{prim_path}/{material_path.removeprefix('./')}"
+        )
+        binding = UsdShade.MaterialBindingAPI.Apply(stage.GetPrimAtPath(target_path))
+        relationship = binding.GetDirectBindingRel()
+        relationship.SetTargets([material_path])
+        UsdShade.MaterialBindingAPI.SetMaterialBindingStrength(relationship, UsdShade.Tokens.strongerThanDescendants)
 
     # apply physics material
     if cfg.physics_material is not None:

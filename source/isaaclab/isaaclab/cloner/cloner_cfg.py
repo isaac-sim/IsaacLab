@@ -12,6 +12,28 @@ from isaaclab.utils.configclass import configclass
 
 from .cloner_strategies import sequential
 
+DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"
+"""Default path template for a replicated env prim; ``{}`` marks the environment index."""
+
+
+def expand_env_regex_ns(path_expr: str, env_template: str = DEFAULT_ENV_TEMPLATE) -> str:
+    """Replace the ``{ENV_REGEX_NS}`` macro with the environment namespace it stands for.
+
+    The macro spares a configuration from spelling the namespace, and with it the segment
+    wildcard that names one environment. :class:`~isaaclab.scene.InteractiveScene` expands it
+    against its own template for the assets it collects; assets built outside the scene (a
+    direct environment builds its own) go through here instead.
+
+    Args:
+        path_expr: Prim path expression, with or without the macro.
+        env_template: Environment path template whose ``{}`` marks the environment index.
+
+    Returns:
+        ``path_expr`` with the macro replaced, unchanged when it holds no macro.
+    """
+    # a plain replace, not str.format: the rest of the expression may hold braces of its own
+    return path_expr.replace("{ENV_REGEX_NS}", env_template.format("[^/]+"))
+
 
 @configclass
 class InclusionSet:
@@ -46,8 +68,12 @@ class CloneCfg:
     device: str = "cpu"
     """Torch device on which mapping buffers are allocated."""
 
-    clone_regex: str = "/World/envs/env_.*"
-    """Regex matching every replicated env prim. Used to expand ``{ENV_REGEX_NS}`` cfg macros."""
+    clone_template: str = DEFAULT_ENV_TEMPLATE
+    """Path template for every replicated env prim, where ``{}`` is the environment index.
+
+    The regex form used to expand ``{ENV_REGEX_NS}`` cfg macros is
+    ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
+    """
 
     replicate_physics: bool = True
     """Whether physics replication clones each environment. Default is True.

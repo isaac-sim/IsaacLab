@@ -13,8 +13,6 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import preset
-
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
 from ... import lift_env_cfg as lift
@@ -27,13 +25,6 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thum
 
 
 @configclass
-class KukaAllegroObjectCfg(lift.ObjectCfg):
-    """Object presets supported by the Kuka Allegro tasks."""
-
-    ovphysx = lift.ObjectCfg().cube
-
-
-@configclass
 class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
     """Physics presets supported by the Kuka Allegro tasks."""
 
@@ -43,7 +34,8 @@ class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
         gpu_found_lost_pairs_capacity=2**26,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
+    newton_mjwarp = lift.PhysicsCfg().newton_mjwarp
+    default = newton_mjwarp
 
 
 @configclass
@@ -60,7 +52,6 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,
@@ -144,29 +135,6 @@ class KukaAllegroMixinCfg:
                 "distribution": "log_uniform",
             },
         )
-
-        # OVPhysX does not expose a runtime gravity setter. Keep the shared
-        # randomization and curriculum configs for PhysX/Newton, but omit the
-        # coupled gravity terms when the OVPhysX preset is selected.
-        default_events = self.events
-        ovphysx_events = default_events.replace(variable_gravity=None)
-        self.events = preset(
-            default=default_events,
-            physx=default_events,
-            isaacsim_physx=default_events,
-            newton_mjwarp=default_events,
-            ovphysx=ovphysx_events,
-        )
-        if self.curriculum is not None:
-            default_curriculum = self.curriculum
-            ovphysx_curriculum = default_curriculum.replace(gravity_adr=None)
-            self.curriculum = preset(
-                default=default_curriculum,
-                physx=default_curriculum,
-                isaacsim_physx=default_curriculum,
-                newton_mjwarp=default_curriculum,
-                ovphysx=ovphysx_curriculum,
-            )
 
 
 @configclass

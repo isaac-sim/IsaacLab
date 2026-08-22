@@ -17,7 +17,8 @@ import collections
 import contextlib
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -90,6 +91,31 @@ class EnvironmentDocRow:
     workflow: str
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
+    agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    supports_warp_frontend: bool = False
+
+
+def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
+    """Return whether a task can run through ``--frontend warp``."""
+    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+        return False
+
+    try:
+        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+
+        from isaaclab_tasks.utils.hydra import resolve_presets
+        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+        cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+        cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+        if workflow == "Direct":
+            try:
+                return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
+            except FrontendIncompatibleError:
+                return False
+        return WarpFrontend.check_compatibility(cfg) is None
+    except (ImportError, gym.error.Error):
+        return False
 
 
 def is_training_task(task_id: str) -> bool:
@@ -450,10 +476,21 @@ def _render_grid_row(cells: list[list[str]], widths: list[int], indent: str) -> 
     return output
 
 
-def get_workflow(entry_point: str) -> str:
+def get_workflow(entry_point: str | Callable[..., object]) -> str:
     """Return the human-readable workflow label for a Gym entry point."""
-    if "ManagerBasedRLEnv" in entry_point:
+    if isinstance(entry_point, str) and "ManagerBasedRLEnv" in entry_point:
         return "Manager Based"
+
+    env_creator = entry_point
+    if isinstance(entry_point, str):
+        with contextlib.suppress(ImportError, AttributeError, ValueError):
+            env_creator = gym.envs.registration.load_env_creator(entry_point)
+
+    if isinstance(env_creator, type):
+        from isaaclab.envs import ManagerBasedRLEnv
+
+        if issubclass(env_creator, ManagerBasedRLEnv):
+            return "Manager Based"
     return "Direct"
 
 
@@ -501,12 +538,19 @@ def collect_environment_doc_rows(
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
 
+        workflow = get_workflow(spec.entry_point)
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
-                workflow=get_workflow(spec.entry_point),
+                workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
+                agent_preset_compatibility={
+                    agent: tuple(presets)
+                    for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
+                    if agent in spec.kwargs
+                },
+                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
             )
         )
 
@@ -546,12 +590,51 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
     return "\n".join(lines)
 
 
-def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
-    """Render concrete core-task selectors for the environment browser."""
-    lines = ["        const taskRows = ["]
-    for row in rows:
-        if not row.task_name.startswith("Isaac-"):
+def collect_environment_preview_images(content: str) -> dict[str, str]:
+    """Map curated environment IDs to the preview images used by their catalog rows."""
+    image_definitions = dict(re.findall(r"^\.\. \|([^|]+)\| image:: \.\./_static/(\S+)$", content, flags=re.MULTILINE))
+    link_definitions = dict(
+        re.findall(r"^\.\. \|([^|]+)\| replace:: .*?`(Isaac(?:Contrib)?-[^ <`]+)", content, flags=re.MULTILINE)
+    )
+
+    preview_images: dict[str, str] = {}
+    current_image: str | None = None
+    for line in content.splitlines():
+        if not line.lstrip().startswith("|"):
             continue
+        substitutions = re.findall(r"\|([A-Za-z0-9_-]+)\|", line)
+        if substitutions and substitutions[0] in image_definitions:
+            current_image = substitutions.pop(0)
+        for substitution in substitutions:
+            if current_image is not None and substitution in link_definitions:
+                preview_images[link_definitions[substitution]] = image_definitions[current_image]
+
+    # Curated prose may list variants beside a table instead of repeating the
+    # shared world image. Their substitution names retain the image prefix.
+    for link_name, task_name in link_definitions.items():
+        if task_name in preview_images:
+            continue
+        link_stem = link_name.removesuffix("-link")
+        matches = [
+            image_name
+            for image_name in image_definitions
+            if link_stem == image_name or link_stem.startswith(f"{image_name}-")
+        ]
+        if matches:
+            preview_images[task_name] = image_definitions[max(matches, key=len)]
+
+    return preview_images
+
+
+def render_environment_browser_task_rows(
+    rows: list[EnvironmentDocRow], preview_images: dict[str, str] | None = None
+) -> str:
+    """Render concrete core and contributed task selectors for the environment browser."""
+    preview_images = preview_images or {}
+    lines = ["        const taskRows = ["]
+    browser_rows = [row for row in rows if row.task_name.startswith(("Isaac-", "IsaacContrib-"))]
+    browser_rows.sort(key=lambda row: row.task_name.startswith("IsaacContrib-"))
+    for row in browser_rows:
         selectors = _selector_names_for_docs(row.presets)
         values = (
             row.task_name,
@@ -561,6 +644,25 @@ def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
             ",".join(sorted(selectors[PresetTarget.DOMAIN])),
         )
         rendered_values = ", ".join(json.dumps(value) for value in values)
+        preview_image = preview_images.get(row.task_name, "")
+        if not preview_image:
+            aliases = [
+                (task_name, image)
+                for task_name, image in preview_images.items()
+                if row.task_name.startswith(f"{task_name}-")
+            ]
+            if aliases:
+                preview_image = max(aliases, key=lambda item: len(item[0]))[1]
+        if row.agent_preset_compatibility or preview_image:
+            rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
+        if preview_image:
+            rendered_values += f", {json.dumps(preview_image)}"
+        if row.supports_warp_frontend:
+            if not row.agent_preset_compatibility and not preview_image:
+                rendered_values += ", {}"
+            if not preview_image:
+                rendered_values += ', ""'
+            rendered_values += ", true"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)

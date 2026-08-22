@@ -23,6 +23,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -123,6 +124,9 @@ class _FakeVisualizer:
     def supports_markers(self):
         return False
 
+    def supports_live_plots(self):
+        return False
+
     def flush_startup_messages(self):
         pass
 
@@ -132,6 +136,7 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers = list(visualizers)
     ctx._scene_data_provider = provider
     ctx.physics_manager = _FakePhysicsManager()
+    ctx.vis_marker_registry = VisMarkerRegistry()
     return ctx
 
 
@@ -200,6 +205,37 @@ def test_update_visualizers_handles_training_pause_loop():
     assert viz.step_calls == [0.0, 0.2]
 
 
+class _LivePlotVisualizer(_FakeVisualizer):
+    def __init__(self, *, enable_live_plots: bool = True, **kwargs):
+        super().__init__(**kwargs)
+        self.cfg = VisualizerCfg(enable_live_plots=enable_live_plots)
+
+    def supports_live_plots(self):
+        return True
+
+
+def test_update_visualizers_dispatches_callbacks_for_live_plot_only_visualizer():
+    """Live-plot panels share the marker registry, so dispatch must not require marker support."""
+    dispatched = []
+    ctx = _make_context([_LivePlotVisualizer()], provider=_FakeProvider())
+    ctx.vis_marker_registry.add_callback("probe", dispatched.append)
+
+    ctx.update_visualizers(0.1)
+
+    assert len(dispatched) == 1
+
+
+def test_update_visualizers_skips_dispatch_when_live_plots_disabled():
+    """Live-plot support with the flag off consumes nothing, so callbacks stay idle."""
+    dispatched = []
+    ctx = _make_context([_LivePlotVisualizer(enable_live_plots=False)], provider=_FakeProvider())
+    ctx.vis_marker_registry.add_callback("probe", dispatched.append)
+
+    ctx.update_visualizers(0.1)
+
+    assert dispatched == []
+
+
 def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     created = []
     reset_calls = []
@@ -251,16 +287,22 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
+    class _RenderContext:
+        @staticmethod
+        def finalize_consumers(visualizers, *, rebuild):
+            events.append(f"finalize_consumers:{len(visualizers)}:{rebuild}")
+
     def _initialize_visualizers():
         events.append("initialize_visualizers")
         ctx._visualizers = [_FakeVisualizer()]
 
     ctx.physics_manager = _PhysicsManager()
+    ctx._render_context = _RenderContext()
     ctx.initialize_visualizers = _initialize_visualizers
 
     ctx.reset()
 
-    assert events == ["reset:False", "initialize_visualizers", "play"]
+    assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 
@@ -732,7 +774,8 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._pending_visualizer_cfgs = None
     ctx._scene_data_provider = _FakeProvider()
-    ctx._scene_data_requirements = None
+    ctx.requires_usd_stage = False
+    ctx.requires_newton_model = False
     ctx._clone_plan = None
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
@@ -905,7 +948,36 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         ctx.initialize_visualizers()
 
 
-def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPatch):
+def test_visualizer_init_keeps_requirements_published_before_reset():
+    """Scene and renderer requirements survive visualizer initialization.
+
+    The scene and the renderers publish their requirements while the scene is built, which happens
+    before the first reset initializes visualizers, so a stage-only visualizer must not clear the
+    Newton model requirement someone else already asked for.
+    """
+
+    class _InitializableVisualizerCfg(_FakeVisualizerCfg):
+        def create_visualizer(self):
+            visualizer = _FakeVisualizer()
+            visualizer.initialize = lambda provider: None
+            return visualizer
+
+    settings = {
+        "/isaaclab/visualizer/types": "kit",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[_InitializableVisualizerCfg("kit")])
+    ctx.requires_newton_model = True
+
+    ctx.initialize_visualizers()
+
+    assert ctx.requires_newton_model
+    assert ctx.requires_usd_stage
+
+
+def test_explicit_visualizer_create_failure_raises():
     """When cli_explicit, a failure in create_visualizer raises RuntimeError."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_create=True)
     settings = {
@@ -916,15 +988,11 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
-    import isaaclab.sim.simulation_context as sc_mod
-
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
-
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
 
 
-def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch):
+def test_explicit_visualizer_init_failure_raises():
     """When cli_explicit, a failure in visualizer.initialize raises RuntimeError."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_init=True)
     settings = {
@@ -934,10 +1002,6 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
-
-    import isaaclab.sim.simulation_context as sc_mod
-
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
 
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
@@ -989,7 +1053,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
     assert ctx._visualizers == []
 
 
-def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyPatch, caplog):
+def test_non_explicit_create_failure_silently_logged(caplog):
     """Without --visualizer flag, create_visualizer failures are logged, not raised."""
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_create=True)
     settings = {
@@ -999,10 +1063,6 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
-
-    import isaaclab.sim.simulation_context as sc_mod
-
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
 
     with caplog.at_level("ERROR"):
         ctx.initialize_visualizers()

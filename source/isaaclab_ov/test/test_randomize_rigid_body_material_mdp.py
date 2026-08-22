@@ -70,7 +70,7 @@ def _make_cubes(num_cubes: int, device: str) -> RigidObject:
     for i in range(num_cubes):
         sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=(i * 1.0, 0.0, 1.0))
     cfg = RigidObjectCfg(
-        prim_path="/World/Table_*/Object",
+        prim_path="/World/Table_[^/]+/Object",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd"),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
