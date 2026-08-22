@@ -153,6 +153,7 @@ def test_initialization_and_shapes(sim):
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
     sim.reset()
 
+    robot: Articulation = scene["robot"]
     sensor: JointWrenchSensor = scene["wrench"]
     sim.step()
     scene.update(sim.get_physics_dt())
@@ -163,6 +164,7 @@ def test_initialization_and_shapes(sim):
     assert sensor.data.force.torch.shape == (num_envs, num_joints, 3)
     assert sensor.data.torque.torch.shape == (num_envs, num_joints, 3)
     assert sensor.body_names == ["Arm"]
+    assert sensor._root_view is robot.root_view  # noqa: SLF001
 
 
 def test_multi_body_articulation(sim):

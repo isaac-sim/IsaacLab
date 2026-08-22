@@ -54,8 +54,8 @@ from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_CLIP = 12  # frames per clip
-_STEPS = 22  # env steps: enough for one full clip plus close() flush
+_CLIP = 20  # frames per clip
+_STEPS = 30  # env steps: enough for one full clip plus close() flush
 _MIN_NONZERO_RATIO = 0.005
 _MIN_MOTION_STD = 0.1
 _SEED = 42
@@ -138,7 +138,8 @@ def _run_cartpole_camera(env_cfg) -> None:
     try:
         assert env.cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
         env.reset()
-        actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+        # Nonzero action: guarantees clip motion instead of relying on passive pole fall.
+        actions = torch.ones(env.num_envs, *env.action_space.shape[1:], device=env.device)
         for _ in range(_STEPS):
             env.step(actions)
     finally:
