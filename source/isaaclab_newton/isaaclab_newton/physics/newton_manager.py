@@ -1785,7 +1785,9 @@ class NewtonManager(PhysicsManager):
             fabric_hierarchy.update_world_xforms()
 
     @classmethod
-    def _inject_terrain_heightfields(cls, stage: Usd.Stage, builder: ModelBuilder) -> list[str]:
+    def _inject_terrain_heightfields(
+        cls, stage: Usd.Stage, builder: ModelBuilder, root_paths: Sequence[str] | None = None
+    ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
         Scans the stage for prims carrying the ``newton:heightfield:resolution``
@@ -1803,13 +1805,19 @@ class NewtonManager(PhysicsManager):
         Args:
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
+            root_paths: Optional concrete subtree roots to scan. ``None`` scans the stage.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
         """
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
-        for prim in stage.Traverse():
+        prims = (
+            stage.Traverse()
+            if root_paths is None
+            else (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path)))
+        )
+        for prim in prims:
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
                 continue

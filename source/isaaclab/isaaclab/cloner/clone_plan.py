@@ -61,11 +61,13 @@ class ClonePlan:
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
-    global_paths: tuple[str, ...] = ()
-    """Unique prim paths for scene assets shared by every environment.
+    global_paths: tuple[str, ...] | None = None
+    """Unique prim paths for scene assets shared by every environment, or ``None`` if unspecified.
 
     Global assets are not replication rows: they have no destination template or
-    clone-mask entry because backends must not copy them.
+    clone-mask entry because backends must not copy them. Plan constructors populate
+    this field, including an empty tuple when they know the scene has no global assets;
+    ``None`` preserves discovery behavior for manually constructed legacy plans.
     """
 
 
@@ -401,15 +403,19 @@ def clone_plan_from_env_0(
     num_clones: int,
     device: str,
     positions: torch.Tensor | None = None,
+    *,
+    global_paths: Iterable[str] | None = None,
 ) -> ClonePlan:
     """Build a single-source clone plan that targets every env from one source row.
 
     Auto-populates :attr:`ClonePlan.cfg_rows` from :data:`~isaaclab.cloner.REPLICATION_QUEUE`,
     including only cfgs whose ``prim_path`` falls under the env-root prefix of
-    ``destination``. Paths outside that namespace populate :attr:`ClonePlan.global_paths`.
-    Must be called *after* all asset constructors have run, so their cfgs are already
-    registered in the queue; otherwise those assets will be skipped by the subsequent
-    :func:`~isaaclab.cloner.replicate` call.
+    ``destination``. Pass ``global_paths`` when the hand-built scene's shared assets are
+    known; queued cfgs outside the environment namespace are added to that declaration.
+    Omitting it leaves :attr:`ClonePlan.global_paths` unspecified so backends preserve
+    legacy stage discovery. Must be called *after* all asset constructors have run, so
+    their cfgs are already registered in the queue; otherwise those assets will be skipped
+    by the subsequent :func:`~isaaclab.cloner.replicate` call.
 
     Args:
         source: Source prim path (typically ``/World/envs/env_0``).
@@ -417,6 +423,8 @@ def clone_plan_from_env_0(
         num_clones: Number of target envs.
         device: Torch device for the mask and env id buffers.
         positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
+        global_paths: Complete shared-asset roots for the hand-built scene. ``None``
+            leaves them unspecified for backward compatibility.
 
     Returns:
         A :class:`ClonePlan` with a single source row covering every env.
@@ -424,10 +432,11 @@ def clone_plan_from_env_0(
     from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
 
     cfg_rows: dict[int, tuple[int, ...]] = {}
-    global_paths: list[str] = []
+    declared_global_paths = None if global_paths is None else list(global_paths)
     for cfg in REPLICATION_QUEUE:
         if match(cfg.prim_path, destination) is None:
-            global_paths.append(cfg.prim_path)
+            if declared_global_paths is not None:
+                declared_global_paths.append(cfg.prim_path)
         else:
             cfg_rows[id(cfg)] = (0,)
     return ClonePlan(
@@ -437,5 +446,5 @@ def clone_plan_from_env_0(
         env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
         positions=positions,
         cfg_rows=cfg_rows,
-        global_paths=tuple(dict.fromkeys(global_paths)),
+        global_paths=None if declared_global_paths is None else tuple(dict.fromkeys(declared_global_paths)),
     )

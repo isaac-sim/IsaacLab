@@ -470,6 +470,7 @@ def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
         num_clones=4,
         device=sim.cfg.device,
         positions=grid_transforms(4, 1.0, device=sim.cfg.device)[0],
+        global_paths=(),
     )
 
     assert plan.sources == ("/World/envs/env_0",)

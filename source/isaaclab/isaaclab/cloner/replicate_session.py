@@ -58,7 +58,8 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
-    failure cannot leak stale entries into the next call.
+    failure cannot leak stale entries into the next call. Contexts may implement
+    ``queue_global_paths(paths)`` to consume the plan's explicitly declared shared assets.
 
     Args:
         plan: Replication layout to dispatch.
@@ -101,6 +102,9 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         ctx = BackendCtxCls(stage)
         backend_ctxs[BackendCtxCls] = ctx
         row_list = sorted(row_set)
+        queue_global_paths = getattr(ctx, "queue_global_paths", None)
+        if queue_global_paths is not None and plan.global_paths is not None:
+            queue_global_paths(plan.global_paths)
         ctx.queue_mapping(
             [plan.sources[i] for i in row_list],
             [plan.destinations[i] for i in row_list],

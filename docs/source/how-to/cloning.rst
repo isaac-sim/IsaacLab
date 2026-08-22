@@ -131,7 +131,8 @@ this page:
    * - ``positions``
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
    * - ``global_paths``
-     - Unique prim paths for scene assets shared by every env and therefore not replicated.
+     - Unique prim paths for scene assets shared by every env and therefore not replicated;
+       ``None`` means a manually built legacy plan did not declare them.
 
 The plan is stage-agnostic by design — the same instance can be replayed against a
 different stage, inspected by tooling, or serialized.
@@ -278,11 +279,20 @@ subclasses use — they author the env-0 prototype prim by prim in
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        plan = cloner.clone_plan_from_env_0(
+            src,
+            dest,
+            self.scene.num_envs,
+            self.device,
+            pos,
+            global_paths=("/World/ground",),
+        )
         cloner.replicate(plan, stage=self.scene.stage)
 
 Every env receives the same prototype. When envs need to differ, use one of the
-other two.
+other two. If ``global_paths`` is omitted, backends preserve their legacy stage
+discovery so existing hand-built scenes remain compatible; passing the complete
+list enables scoped global import.
 
 
 Under the Hood

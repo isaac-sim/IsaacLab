@@ -16,8 +16,9 @@ import warp as wp
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd
+from pxr import Sdf, Usd
 
+from isaaclab.cloner.path import under
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
@@ -105,6 +106,7 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
+    global_paths: Sequence[str] | None = None,
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
 
@@ -122,16 +124,16 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
-    # Swap height-field-tagged terrain colliders for Newton heightfields before the
-    # mesh import, and skip those prims in add_usd so the terrain is not imported twice.
-    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
-    stage_info = builder.add_usd(
+    stage_info = _import_global_usd(
         stage,
-        ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
+        builder,
+        manager_cls,
+        sources=sources,
+        global_paths=global_paths,
+        physics_scene_path=PhysicsManager._sim.cfg.physics_prim_path,
         schema_resolvers=schema_resolvers,
         load_visual_shapes=load_visual_shapes,
     )
-    _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"], load_visual_shapes)
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
@@ -173,6 +175,67 @@ def _build_newton_builder_from_mapping(
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     return builder, stage_info, site_index_map, world_xforms, source_builders
+
+
+def _import_global_usd(
+    stage: Usd.Stage,
+    builder: ModelBuilder,
+    manager_cls: type,
+    *,
+    sources: Sequence[str],
+    global_paths: Sequence[str] | None,
+    physics_scene_path: str,
+    schema_resolvers: Sequence,
+    load_visual_shapes: bool,
+) -> dict:
+    """Import shared USD without entering clone-source subtrees when globals are declared."""
+    if global_paths is None:
+        hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
+        stage_info = builder.add_usd(
+            stage,
+            ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
+            schema_resolvers=schema_resolvers,
+            load_visual_shapes=load_visual_shapes,
+        )
+        _restore_visible_colliders_without_visual_shapes(
+            builder, stage, stage_info["path_shape_map"], load_visual_shapes
+        )
+        return stage_info
+
+    declared_paths = tuple(dict.fromkeys((physics_scene_path, *global_paths)))
+    for root_path in declared_paths:
+        valid_path, reason = Sdf.Path.IsValidPathString(root_path)
+        if not valid_path or not root_path.startswith("/"):
+            raise ValueError(f"ClonePlan global path {root_path!r} is not a concrete absolute prim path: {reason}")
+        if any(under(source, root_path) for source in sources):
+            raise ValueError(f"ClonePlan global path {root_path!r} contains clone source subtrees.")
+        if not stage.GetPrimAtPath(root_path).IsValid():
+            raise ValueError(f"ClonePlan global path {root_path!r} does not exist on the stage.")
+
+    # A parent declaration already owns every nested declaration; importing both would duplicate shapes.
+    import_paths = tuple(
+        root_path
+        for root_path in declared_paths
+        if not any(root_path != parent and under(root_path, parent) for parent in declared_paths)
+    )
+    # Heightfield conversion follows the same explicit ownership boundary as USD import.
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+    stage_info = None
+    for root_path in import_paths:
+        import_result = builder.add_usd(
+            stage,
+            root_path=root_path,
+            ignore_paths=hf_ignore_paths,
+            schema_resolvers=schema_resolvers,
+            load_visual_shapes=load_visual_shapes,
+        )
+        _restore_visible_colliders_without_visual_shapes(
+            builder, stage, import_result["path_shape_map"], load_visual_shapes
+        )
+        if root_path == physics_scene_path:
+            stage_info = import_result
+    assert stage_info is not None
+    return stage_info
 
 
 def _renderer_wants_visual_shapes() -> bool:
@@ -224,7 +287,16 @@ class NewtonReplicateContext:
             load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
         self.load_visual_shapes = _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes
         self.commit_to_manager = commit_to_manager
+        self._global_paths: tuple[str, ...] | None = None
         self._queue: list[_MappingBatch] = []
+
+    def queue_global_paths(self, paths: Sequence[str]) -> None:
+        """Declare the shared scene-asset roots imported once outside replicated worlds.
+
+        Args:
+            paths: Complete concrete prim roots for shared scene assets.
+        """
+        self._global_paths = tuple(paths)
 
     def queue_mapping(
         self,
@@ -308,6 +380,7 @@ class NewtonReplicateContext:
             quaternions=quaternions,
             up_axis=self.up_axis,
             load_visual_shapes=self.load_visual_shapes,
+            global_paths=self._global_paths,
         )
         fabric_body_bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping)
         if self.commit_to_manager:
@@ -318,6 +391,7 @@ class NewtonReplicateContext:
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()
+        self._global_paths = None
         return builder, stage_info, site_index_map
 
 
