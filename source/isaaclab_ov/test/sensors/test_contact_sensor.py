@@ -573,13 +573,8 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        clone_plan = cloner.clone_plan_from_env_0(
-            source="/World/envs/env_0",
-            destination="/World/envs/env_{}",
-            num_clones=num_envs,
-            device=device,
-            positions=env_positions,
-        )
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions)
         assert clone_plan.env_ids is not None
         ovphysx_replicate(
             stage,
