@@ -45,7 +45,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
 @configclass
 class RoughPhysicsCfg(PresetCfg):
-    """Shared physics preset for all rough-terrain locomotion envs."""
+    """Shared backend presets for locomotion velocity environments."""
 
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
