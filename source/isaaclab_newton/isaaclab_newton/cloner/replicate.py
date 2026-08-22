@@ -106,7 +106,7 @@ def _build_newton_builder_from_mapping(
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
     *,
-    global_paths: Sequence[str],
+    global_paths: Sequence[str] = (),
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
 
@@ -351,7 +351,7 @@ def newton_physics_replicate(
     device: str = "cpu",
     up_axis: str = "Z",
     *,
-    global_paths: Sequence[str],
+    global_paths: Sequence[str] = (),
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
@@ -365,7 +365,7 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         device: Device used by the finalized Newton model builder.
         up_axis: Up axis for the Newton model builder.
-        global_paths: Shared scene-asset roots imported once.
+        global_paths: Shared scene-asset roots imported once. Defaults to none.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
