@@ -126,7 +126,7 @@ def _build_newton_builder_from_mapping(
     builder = manager_cls.create_builder(up_axis=up_axis)
     import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
     hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
-    stage_info = None
+    import_results = []
     for root_path in import_paths:
         import_result = builder.add_usd(
             stage,
@@ -138,9 +138,8 @@ def _build_newton_builder_from_mapping(
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
-        if stage_info is None:
-            stage_info = import_result
-    assert stage_info is not None
+        import_results.append(import_result)
+    stage_info = import_results[0]
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
@@ -202,10 +201,13 @@ def _renderer_wants_visual_shapes() -> bool:
 class NewtonReplicateContext:
     """Queue and run Newton replication work for one stage."""
 
+    replicate_priority = 0
+
     def __init__(
         self,
         stage: Usd.Stage,
         *,
+        global_paths: Sequence[str],
         device: str = "cpu",
         up_axis: str = "Z",
         load_visual_shapes: bool | None = None,
@@ -215,6 +217,7 @@ class NewtonReplicateContext:
 
         Args:
             stage: USD stage containing source assets.
+            global_paths: Shared scene-asset roots imported once outside replicated worlds.
             device: Device used by the finalized Newton model builder.
             up_axis: Up axis for the Newton model builder.
             load_visual_shapes: Whether to import visual-only geometry. If ``None``,
@@ -224,6 +227,7 @@ class NewtonReplicateContext:
                 :class:`NewtonManager`.
         """
         self.stage = stage
+        self._global_paths = tuple(global_paths)
         self.device = device
         self.up_axis = up_axis
         if load_visual_shapes is None:
@@ -233,16 +237,7 @@ class NewtonReplicateContext:
             load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
         self.load_visual_shapes = _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes
         self.commit_to_manager = commit_to_manager
-        self._global_paths: tuple[str, ...] = ()
         self._queue: list[_MappingBatch] = []
-
-    def queue_global_paths(self, paths: Sequence[str]) -> None:
-        """Declare the shared scene-asset roots imported once outside replicated worlds.
-
-        Args:
-            paths: Complete concrete prim roots for shared scene assets.
-        """
-        self._global_paths = tuple(paths)
 
     def queue_mapping(
         self,
@@ -337,7 +332,6 @@ class NewtonReplicateContext:
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()
-        self._global_paths = ()
         return builder, stage_info, site_index_map
 
 
@@ -376,8 +370,7 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    ctx = NewtonReplicateContext(stage, device=device, up_axis=up_axis, commit_to_manager=True)
-    ctx.queue_global_paths(global_paths)
+    ctx = NewtonReplicateContext(stage, global_paths=global_paths, device=device, up_axis=up_axis)
     ctx.queue_mapping(sources, destinations, env_ids, mapping, positions=positions, quaternions=quaternions)
     builder, stage_info, _site_index_map = ctx.replicate()
     return builder, stage_info

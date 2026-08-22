@@ -58,8 +58,8 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
-    failure cannot leak stale entries into the next call. Contexts may implement
-    ``queue_global_paths(paths)`` to consume the plan's explicitly declared shared assets.
+    failure cannot leak stale entries into the next call. Every context receives the plan's
+    explicitly declared shared assets when it is constructed.
 
     Args:
         plan: Replication layout to dispatch.
@@ -73,7 +73,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     REPLICATION_QUEUE.clear()
 
     backend_package = FactoryBase._get_package_name(FactoryBase._get_backend())
-    backend_physics_ctx = getattr(importlib.import_module(f"{backend_package}.cloner"), "PHYSICS_CONTEXT", None)
+    backend_physics_ctx = importlib.import_module(f"{backend_package}.cloner").PHYSICS_CONTEXT
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication
@@ -86,25 +86,22 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         if rows is None:
             continue
         if cfg.cloning_contexts is None:
-            contexts = [backend_physics_ctx] if backend_physics_ctx else []
+            contexts = [backend_physics_ctx]
         else:
             contexts = [string_to_callable(c) if isinstance(c, str) else c for c in cfg.cloning_contexts]
         if not replicate_physics:
             contexts = [c for c in contexts if c is UsdReplicateContext]
         ctx_set = dict.fromkeys(contexts)
-        if getattr(cfg, "spawn", None) is not None and kit_available:
+        if cfg.spawn is not None and kit_available:
             ctx_set.setdefault(UsdReplicateContext, None)
         for BackendCtxCls in ctx_set:
             backend_rows.setdefault(BackendCtxCls, set()).update(rows)
 
     backend_ctxs: dict[type, Any] = {}
     for BackendCtxCls, row_set in backend_rows.items():
-        ctx = BackendCtxCls(stage)
+        ctx = BackendCtxCls(stage, global_paths=plan.global_paths)
         backend_ctxs[BackendCtxCls] = ctx
         row_list = sorted(row_set)
-        queue_global_paths = getattr(ctx, "queue_global_paths", None)
-        if queue_global_paths is not None:
-            queue_global_paths(plan.global_paths)
         ctx.queue_mapping(
             [plan.sources[i] for i in row_list],
             [plan.destinations[i] for i in row_list],
@@ -113,7 +110,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
             positions=plan.positions,
         )
 
-    for ctx in sorted(backend_ctxs.values(), key=lambda c: getattr(c, "replicate_priority", 0)):
+    for ctx in sorted(backend_ctxs.values(), key=lambda ctx: ctx.replicate_priority):
         ctx.replicate()
 
     SimulationContext.instance().set_clone_plan(plan)
@@ -130,7 +127,7 @@ class ReplicateSession:
 
         .. code-block:: python
 
-            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0, device="cuda:0", stage=sim.stage):
+            with cloner.ReplicateSession(cfgs, num_clones=128, global_paths=(), stage=sim.stage):
                 for cfg in cfgs:
                     cfg.class_type(cfg)
     """
@@ -142,6 +139,7 @@ class ReplicateSession:
         env_spacing: float,
         device: str,
         *,
+        global_paths: Iterable[str],
         stage: Usd.Stage,
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
@@ -155,6 +153,7 @@ class ReplicateSession:
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
             device: Torch device for plan tensors.
+            global_paths: Complete shared-asset roots declared by the composition root.
             stage: USD stage to author replicated prim specs into.
             clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
@@ -170,6 +169,7 @@ class ReplicateSession:
             num_clones=num_clones,
             env_spacing=env_spacing,
             device=device,
+            global_paths=global_paths,
             clone_strategy=clone_strategy,
             valid_set=valid_set,
             env_template=env_template,

@@ -1786,7 +1786,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _inject_terrain_heightfields(
-        cls, stage: Usd.Stage, builder: ModelBuilder, root_paths: Sequence[str] | None = None
+        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str]
     ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
@@ -1805,19 +1805,14 @@ class NewtonManager(PhysicsManager):
         Args:
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
-            root_paths: Optional concrete subtree roots to scan. ``None`` scans the stage.
+            root_paths: Concrete subtree roots to scan.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
         """
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
-        prims = (
-            stage.Traverse()
-            if root_paths is None
-            else (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path)))
-        )
-        for prim in prims:
+        for prim in (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path))):
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
                 continue
@@ -1898,7 +1893,7 @@ class NewtonManager(PhysicsManager):
         # ordering arguments are ever passed here, update the resolver
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
+        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder, root_paths=("/",))
         solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:

@@ -680,7 +680,7 @@ the need to set simulation parameters for actors in the task implementation.
 |         self.sim_params)                                               |     positions = cloner.grid_transforms(                             |
 |     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing,            |
 |     self._create_envs(self.num_envs,                                   |         device=self.device)[0]                                      |
-|         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                              |
+|         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                               |
 |         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
 |                                                                        |         src, dest, self.scene.num_envs, self.device, positions,     |
 |                                                                        |         global_paths=global_paths)                                  |

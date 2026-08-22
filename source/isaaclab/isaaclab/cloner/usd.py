@@ -30,7 +30,7 @@ class UsdReplicateContext:
 
     replicate_priority = 100
 
-    def __init__(self, stage: Usd.Stage):
+    def __init__(self, stage: Usd.Stage, *, global_paths: Sequence[str]):
         """Initialize the context.
 
         Args:
@@ -191,6 +191,6 @@ def usd_replicate(
         quaternions: Optional orientations in xyzw order, shape ``[E, 4]``. Authored as
             ``xformOp:orient`` only for env-instance root destinations (``.../env_{}``).
     """
-    ctx = UsdReplicateContext(stage)
+    ctx = UsdReplicateContext(stage, global_paths=())
     ctx.queue_mapping(sources, destinations, env_ids, mask, positions=positions, quaternions=quaternions)
     ctx.replicate()

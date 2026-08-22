@@ -36,7 +36,7 @@ from isaaclab.assets import (
     VisualMaterialCfg,
 )
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
-from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 
@@ -187,12 +187,13 @@ class InteractiveScene:
 
         # Always enter so a ClonePlan is published even when the scene cfg has no entities.
         self._global_prim_paths = list()
-        asset_cfgs = self._collect_asset_cfgs()
+        clone_cfgs, global_paths = self._collect_clone_cfgs_and_global_paths()
         with cloner.ReplicateSession(
-            asset_cfgs,
+            clone_cfgs,
             num_clones=self.num_envs,
             env_spacing=self.cfg.env_spacing,
             device=self.device,
+            global_paths=global_paths,
             env_template=self._env_fmt,
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
@@ -213,12 +214,12 @@ class InteractiveScene:
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
             self.filter_collisions(self._global_prim_paths)
 
-    def _collect_asset_cfgs(self) -> list[Any]:
-        """Flatten user-declared cfgs for :func:`~isaaclab.cloner.make_clone_plan`.
+    def _collect_clone_cfgs_and_global_paths(self) -> tuple[list[Any], tuple[str, ...]]:
+        """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
         resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
-        and orders sensors after the entities they inspect.
+        and returns only env-scoped configs with a spawner. Global roots are returned separately.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
@@ -230,16 +231,16 @@ class InteractiveScene:
                 asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
             )
             for child in children:
-                if hasattr(child, "prim_path"):
-                    child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
+                child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
                 flat_items.append((asset_name, child))
         flat_items.sort(key=lambda item: isinstance(item[1], SensorBaseCfg))
 
         owner_paths = [
             cfg.prim_path
             for _name, cfg in flat_items
-            if not isinstance(cfg, (SensorBaseCfg, VisualMaterialCfg))
-            and getattr(cfg, "spawn", None) is not None
+            if isinstance(cfg, AssetBaseCfg)
+            and not isinstance(cfg, VisualMaterialCfg)
+            and cfg.spawn is not None
             and cloner.path.match(cfg.prim_path, self._env_fmt) is not None
         ]
         nested_visual_material_ids = {
@@ -252,6 +253,7 @@ class InteractiveScene:
         self._scene_asset_names = [name for name in self._scene_asset_names if name not in nested_material_names]
 
         cfgs: list[Any] = []
+        global_paths: list[str] = []
         clone_asset_names: list[str] = []
         variant_counts: list[int] = []
         for asset_name, child in flat_items:
@@ -259,14 +261,12 @@ class InteractiveScene:
                 if child.spawn is not None:
                     child.spawn.spawn_path = child.prim_path
                 continue
-            if (
-                hasattr(child, "prim_path")
-                and getattr(child, "spawn", None) is not None
-                and cloner.path.match(child.prim_path, self._env_fmt)
-            ):
+            if cloner.path.match(child.prim_path, self._env_fmt) is None:
+                global_paths.append(child.prim_path)
+            elif isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None:
+                cfgs.append(child)
                 clone_asset_names.append(asset_name)
                 variant_counts.append(cloner.num_spawn_variants(child.spawn))
-            cfgs.append(child)
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:
             self._clone_valid_set = cloner.make_valid_clone_combinations(
@@ -278,7 +278,7 @@ class InteractiveScene:
             )
         else:
             self._clone_valid_set = None
-        return cfgs
+        return cfgs, tuple(dict.fromkeys(global_paths))
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

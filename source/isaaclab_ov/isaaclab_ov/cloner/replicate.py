@@ -78,7 +78,9 @@ def _validate_pose_rows(name: str, rows: list[list[float]] | None, env_ids: Sequ
 class OvPhysxReplicateContext:
     """Queue and run OvPhysX clone operations for one stage."""
 
-    def __init__(self, stage: Usd.Stage):
+    replicate_priority = 0
+
+    def __init__(self, stage: Usd.Stage, *, global_paths: Sequence[str]):
         """Initialize the context.
 
         Args:
@@ -244,7 +246,7 @@ def ovphysx_replicate(
     """
     del device
 
-    ctx = OvPhysxReplicateContext(stage)
+    ctx = OvPhysxReplicateContext(stage, global_paths=())
     ctx.queue_mapping(
         sources,
         destinations,

@@ -107,7 +107,7 @@ def test_usd_replicate_context_queue_and_replicate(sim):
     sim_utils.create_prim("/World/envs/env_1", "Xform")
 
     stage = sim_utils.get_current_stage()
-    ctx = UsdReplicateContext(stage)
+    ctx = UsdReplicateContext(stage, global_paths=())
     ctx.queue_mapping(
         sources=["/World/template/A"],
         destinations=["/World/envs/env_{}/A"],
@@ -329,13 +329,12 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
         prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
     )
-    ground = SimpleNamespace(prim_path="/World/Ground")
-
     plan = make_clone_plan(
-        cfgs=[cube, ground],
+        cfgs=[cube],
         num_clones=4,
         env_spacing=1.0,
         device=sim.cfg.device,
+        global_paths=("/World/Ground",),
     )
 
     assert plan.sources == ("/World/envs/env_0",)
@@ -409,13 +408,12 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
     )
-    ground = SimpleNamespace(prim_path="/World/Ground")
-
     plan = make_clone_plan(
-        cfgs=[multi_cfg, plain_cfg, ground],
+        cfgs=[multi_cfg, plain_cfg],
         num_clones=4,
         env_spacing=1.0,
         device=sim.cfg.device,
+        global_paths=("/World/Ground",),
         clone_strategy=sequential,
     )
 
@@ -433,18 +431,12 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
 
 def test_make_clone_plan_records_globals_outside_replication_rows(sim):
     """Global cfgs are named by the plan without becoming rows a backend might copy."""
-    global_cfg = SimpleNamespace(
-        prim_path="/World/global/Robot",
-        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-    )
-    global_alias = SimpleNamespace(prim_path="/World/global/Robot")
-    terrain_cfg = SimpleNamespace(prim_path="/World/ground")
-
     plan = make_clone_plan(
-        cfgs=[global_cfg, global_alias, terrain_cfg],
+        cfgs=[],
         num_clones=3,
         env_spacing=1.0,
         device=sim.cfg.device,
+        global_paths=("/World/global/Robot", "/World/ground", "/World/global/Robot"),
     )
 
     assert plan.sources == ()
@@ -466,7 +458,7 @@ def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
 
     src, dest = "/World/envs/env_0", "/World/envs/env_{}"
     pos = grid_transforms(4, 1.0, device=sim.cfg.device)[0]
-    plan = cloner.clone_plan_from_env_0(src, dest, 4, sim.cfg.device, pos, global_paths=())
+    plan = cloner.clone_plan_from_env_0(src, dest, 4, sim.cfg.device, pos, global_paths=("/World/global/Light",))
 
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
@@ -483,7 +475,7 @@ def test_replicate_physics_false_keeps_usd_only(sim):
         replicate_priority = 0
         instances: list["FakePhysicsCtx"] = []
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
             FakePhysicsCtx.instances.append(self)
 
         def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
@@ -495,7 +487,9 @@ def test_replicate_physics_false_keeps_usd_only(sim):
     stage = sim_utils.get_current_stage()
     stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
     cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot", cloning_contexts=(UsdReplicateContext, FakePhysicsCtx)
+        prim_path="/World/envs/env_[^/]+/Robot",
+        cloning_contexts=(UsdReplicateContext, FakePhysicsCtx),
+        spawn=None,
     )
     REPLICATION_QUEUE.append(cfg)
 
@@ -520,7 +514,7 @@ def test_replicate_drains_queue_dispatches_and_publishes(sim):
         replicate_priority = 0
         instances: list["FakeCtx"] = []
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
             self.stage = stage
             self.queue_calls: list[tuple] = []
             self.replicate_calls = 0
@@ -532,8 +526,8 @@ def test_replicate_drains_queue_dispatches_and_publishes(sim):
         def replicate(self):
             self.replicate_calls += 1
 
-    cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
-    cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
+    cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
+    cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object", spawn=None)
     cfg_a.cloning_contexts = (FakeCtx,)
     cfg_b.cloning_contexts = (FakeCtx,)
     REPLICATION_QUEUE.append(cfg_a)
@@ -576,7 +570,7 @@ def test_replicate_dedupes_shared_rows_across_cfgs(sim):
         replicate_priority = 0
         instances: list["FakeCtx"] = []
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
             self.queue_calls: list[tuple] = []
             self.replicate_calls = 0
             FakeCtx.instances.append(self)
@@ -587,7 +581,7 @@ def test_replicate_dedupes_shared_rows_across_cfgs(sim):
         def replicate(self):
             self.replicate_calls += 1
 
-    cfgs = [SimpleNamespace(prim_path=f"/World/envs/env_[^/]+/asset_{i}") for i in range(5)]
+    cfgs = [SimpleNamespace(prim_path=f"/World/envs/env_[^/]+/asset_{i}", spawn=None) for i in range(5)]
     for cfg in cfgs:
         cfg.cloning_contexts = (FakeCtx,)
         REPLICATION_QUEUE.append(cfg)
@@ -620,7 +614,7 @@ def test_replicate_runs_lower_priority_backends_first(sim):
     class LowPriority:
         replicate_priority = 0
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
             pass
 
         def queue_mapping(self, *args, **kwargs):
@@ -632,7 +626,7 @@ def test_replicate_runs_lower_priority_backends_first(sim):
     class HighPriority:
         replicate_priority = 100
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
             pass
 
         def queue_mapping(self, *args, **kwargs):
@@ -641,7 +635,7 @@ def test_replicate_runs_lower_priority_backends_first(sim):
         def replicate(self):
             call_order.append("high")
 
-    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
+    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
     cfg.cloning_contexts = (HighPriority, LowPriority)
     REPLICATION_QUEUE.append(cfg)
 
@@ -688,7 +682,7 @@ def test_replicate_clears_queue_on_backend_failure(sim):
     class ExplodingCtx:
         replicate_priority = 0
 
-        def __init__(self, stage):
+        def __init__(self, stage, *, global_paths):
             pass
 
         def queue_mapping(self, *args, **kwargs):
@@ -697,7 +691,7 @@ def test_replicate_clears_queue_on_backend_failure(sim):
         def replicate(self):
             raise RuntimeError("backend boom")
 
-    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
+    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
     cfg.cloning_contexts = (ExplodingCtx,)
     REPLICATION_QUEUE.append(cfg)
 
@@ -731,6 +725,7 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             num_clones=2,
             env_spacing=1.0,
             device=sim.cfg.device,
+            global_paths=(),
             stage=sim_utils.get_current_stage(),
         ):
             leaked_cfg.cloning_contexts = (sentinel_cls,)
