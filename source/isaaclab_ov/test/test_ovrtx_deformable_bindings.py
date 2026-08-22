@@ -547,6 +547,7 @@ def test_update_geometries_writes_one_slice_per_cable(monkeypatch: pytest.Monkey
     assert renderer._cable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert renderer._cable_points_binding.write_kwargs["cuda_stream"] == 1234
 
+
 def test_update_transforms_writes_caller_owned_buffer(monkeypatch: pytest.MonkeyPatch):
     """Object xforms fill a persistent GPU buffer and blocking ASYNC write, not map/unmap."""
     renderer, _ = _make_renderer_without_backend()
