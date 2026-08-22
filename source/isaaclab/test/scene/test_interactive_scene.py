@@ -307,7 +307,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_clone_cfgs_and_global_paths()
+    cfgs, global_paths = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
     assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
@@ -323,7 +323,7 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_clone_cfgs_and_global_paths()
+    cfgs, global_paths = scene._collect_asset_cfgs()
 
     assert cfgs == []
     assert global_paths == ()

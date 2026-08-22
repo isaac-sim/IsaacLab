@@ -187,7 +187,7 @@ class InteractiveScene:
 
         # Always enter so a ClonePlan is published even when the scene cfg has no entities.
         self._global_prim_paths = list()
-        clone_cfgs, global_paths = self._collect_clone_cfgs_and_global_paths()
+        clone_cfgs, global_paths = self._collect_asset_cfgs()
         with cloner.ReplicateSession(
             clone_cfgs,
             num_clones=self.num_envs,
@@ -214,7 +214,7 @@ class InteractiveScene:
         if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
             self.filter_collisions(self._global_prim_paths)
 
-    def _collect_clone_cfgs_and_global_paths(self) -> tuple[list[Any], tuple[str, ...]]:
+    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...]]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
