@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.8.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+
+
 1.7.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 
