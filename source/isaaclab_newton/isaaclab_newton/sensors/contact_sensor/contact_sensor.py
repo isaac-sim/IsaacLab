@@ -329,14 +329,14 @@ class ContactSensor(BaseContactSensor):
         body_labels = self._get_model_labels("body")
         shape_labels = self._get_model_labels("shape")
 
-        s_kind = self.contact_view.sensing_obj_type
+        s_kind = self.contact_view.sensing_type
         if s_kind == "body":
             s_labels = body_labels
         elif s_kind == "shape":
             s_labels = shape_labels
         else:
-            raise RuntimeError(f"Unexpected Newton sensing_obj_type {s_kind!r}; expected 'body' or 'shape'.")
-        self._sensor_names = [s_labels[i].split("/")[-1] for i in self.contact_view.sensing_obj_idx]
+            raise RuntimeError(f"Unexpected Newton sensing_type {s_kind!r}; expected 'body' or 'shape'.")
+        self._sensor_names = [s_labels[i].split("/")[-1] for i in self.contact_view.sensing_indices]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
 
