@@ -54,6 +54,7 @@ runs:
           isaaclab.sh
           environment.yml
           source/isaaclab/isaaclab/cli
+          tools/wheel_builder/uv-overrides.txt
           # Pins the CI pytest deps layered onto the image after build, so a
           # change to that list must invalidate the deps cache.
           .github/actions/docker-build/action.yml
