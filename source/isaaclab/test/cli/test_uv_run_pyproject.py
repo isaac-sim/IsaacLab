@@ -258,3 +258,10 @@ def test_uv_run_uses_managed_python():
     tool_uv = _root_pyproject()["tool"]["uv"]
 
     assert tool_uv["python-preference"] == "only-managed"
+
+
+def test_uv_run_legacy_cmake_dependency_uses_compatibility_policy():
+    """Allow uv to build egl-probe before launching Isaac Lab on CMake 4 hosts."""
+    build_variables = _root_pyproject()["tool"]["uv"]["extra-build-variables"]
+
+    assert build_variables["egl-probe"] == {"CMAKE_POLICY_VERSION_MINIMUM": "3.5"}

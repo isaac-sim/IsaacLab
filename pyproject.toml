@@ -377,6 +377,8 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
+# robomimic depends on the source-only egl-probe, whose CMake policy version predates CMake 4.
+extra-build-variables = { egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" } }
 # Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
 # Windows 11 x86_64. Restricting the resolution universe keeps macOS and other
