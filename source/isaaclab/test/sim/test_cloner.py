@@ -107,7 +107,7 @@ def test_usd_replicate_context_queue_and_replicate(sim):
     sim_utils.create_prim("/World/envs/env_1", "Xform")
 
     stage = sim_utils.get_current_stage()
-    ctx = UsdReplicateContext(stage, global_paths=())
+    ctx = UsdReplicateContext(stage)
     ctx.queue_mapping(
         sources=["/World/template/A"],
         destinations=["/World/envs/env_{}/A"],

@@ -41,7 +41,7 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
         _pose_matrix((0.0, 1.0, 2.0), (source_half_angle_sin, 0.0, 0.0, source_half_angle_cos))
     )
 
-    context = OvPhysxReplicateContext(stage, global_paths=())
+    context = OvPhysxReplicateContext(stage)
     context.queue_mapping(
         sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
         destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
@@ -91,7 +91,7 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
 def test_queue_mapping_rejects_invalid_source_prim():
     """Active clone rows require a valid source prim."""
     stage = Usd.Stage.CreateInMemory()
-    context = OvPhysxReplicateContext(stage, global_paths=())
+    context = OvPhysxReplicateContext(stage)
 
     with pytest.raises(ValueError, match="/World/envs/env_0/Robot"):
         context.queue_mapping(
@@ -113,7 +113,7 @@ def test_queue_mapping_rejects_invalid_source_anchor():
                 return Usd.Prim()
             return stage.GetPrimAtPath(path)
 
-    context = OvPhysxReplicateContext(StageWithoutAnchor(), global_paths=())
+    context = OvPhysxReplicateContext(StageWithoutAnchor())
     with pytest.raises(ValueError, match="/World/envs/env_0"):
         context.queue_mapping(
             sources=["/World/envs/env_0/Robot"],
@@ -131,7 +131,7 @@ def test_queue_mapping_rejects_pose_tensor_missing_selected_environment(name, va
     """Provided pose tensors include every selected environment."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    context = OvPhysxReplicateContext(stage, global_paths=())
+    context = OvPhysxReplicateContext(stage)
 
     with pytest.raises(ValueError, match=name):
         context.queue_mapping(
@@ -151,7 +151,7 @@ def test_queue_mapping_rejects_malformed_pose_tensor(name, value):
     """Provided pose tensors use the documented component counts."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    context = OvPhysxReplicateContext(stage, global_paths=())
+    context = OvPhysxReplicateContext(stage)
 
     with pytest.raises(ValueError, match=rf"{name} must have shape"):
         context.queue_mapping(

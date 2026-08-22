@@ -207,7 +207,7 @@ class NewtonReplicateContext:
         self,
         stage: Usd.Stage,
         *,
-        global_paths: Sequence[str],
+        global_paths: Sequence[str] = (),
         device: str = "cpu",
         up_axis: str = "Z",
         load_visual_shapes: bool | None = None,

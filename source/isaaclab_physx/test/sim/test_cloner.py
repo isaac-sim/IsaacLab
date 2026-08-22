@@ -138,7 +138,7 @@ def test_physx_replicate_context_queue_and_replicate(sim):
 
     mock_rep, replicate_calls = _make_mock_physx_rep()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
-        ctx = PhysxReplicateContext(stage, global_paths=())
+        ctx = PhysxReplicateContext(stage)
         ctx.queue_mapping(
             sources=["/World/envs/env_0/Object"],
             destinations=["/World/envs/env_{}/Object"],
