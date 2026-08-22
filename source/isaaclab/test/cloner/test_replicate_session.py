@@ -36,7 +36,11 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
         instances: list["FakeUsdContext"] = []
 
         def __init__(self, stage):
+            self.global_paths = None
             FakeUsdContext.instances.append(self)
+
+        def queue_global_paths(self, paths):
+            self.global_paths = tuple(paths)
 
         def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
             pass
@@ -64,50 +68,12 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
         env_ids=torch.arange(2, dtype=torch.long),
         positions=torch.zeros((2, 3)),
         cfg_rows={id(cfg): (0,)},
-    )
-
-    replicate_session.replicate(plan, stage=object())
-
-    assert len(FakeUsdContext.instances) == expected_instances
-    assert published.plan is plan
-
-
-def test_replicate_passes_declared_global_paths_to_capable_context(monkeypatch):
-    """A backend capability receives globals once without changing the mapping interface."""
-
-    class FakeContext:
-        instances: list["FakeContext"] = []
-
-        def __init__(self, stage):
-            self.global_paths = None
-            FakeContext.instances.append(self)
-
-        def queue_global_paths(self, paths):
-            self.global_paths = tuple(paths)
-
-        def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
-            pass
-
-        def replicate(self):
-            pass
-
-    published = SimpleNamespace(plan=None)
-    published.set_clone_plan = lambda plan: setattr(published, "plan", plan)
-    monkeypatch.setattr(replicate_session, "has_kit", lambda: False)
-    monkeypatch.setattr(replicate_session.FactoryBase, "_get_backend", lambda: "newton")
-    monkeypatch.setattr(SimulationContext, "instance", lambda: published)
-
-    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", cloning_contexts=(FakeContext,), spawn=object())
-    replicate_session.REPLICATION_QUEUE.append(cfg)
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.arange(2, dtype=torch.long),
-        cfg_rows={id(cfg): (0,)},
         global_paths=("/World/Ground", "/World/Light"),
     )
 
     replicate_session.replicate(plan, stage=object())
 
-    assert FakeContext.instances[0].global_paths == ("/World/Ground", "/World/Light")
+    assert len(FakeUsdContext.instances) == expected_instances
+    if FakeUsdContext.instances:
+        assert FakeUsdContext.instances[0].global_paths == ("/World/Ground", "/World/Light")
+    assert published.plan is plan

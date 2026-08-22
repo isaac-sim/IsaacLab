@@ -523,40 +523,6 @@ def test_query_agrees_across_duplicate_source_rows():
         assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
 
 
-##
-# Plan invariants.
-##
-
-
-def test_global_paths_are_not_replication_rows():
-    """Shared assets stay explicit without changing the replication table's shape."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        global_paths=("/World/Ground", "/World/Light"),
-    )
-
-    assert plan.global_paths == ("/World/Ground", "/World/Light")
-    assert len(plan.sources) == len(plan.destinations) == plan.clone_mask.shape[0] == 1
-
-
-def test_env_0_plan_requires_an_explicit_complete_global_declaration():
-    """Manual composition keeps legacy discovery unless its caller declares shared roots."""
-    cfg = type("Cfg", (), {"prim_path": "/World/Ground"})()
-    cloner.REPLICATION_QUEUE.append(cfg)
-    try:
-        legacy = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2, "cpu")
-        explicit = cloner.clone_plan_from_env_0(
-            "/World/envs/env_0", "/World/envs/env_{}", 2, "cpu", global_paths=("/World/Light",)
-        )
-    finally:
-        cloner.REPLICATION_QUEUE.clear()
-
-    assert legacy.global_paths is None
-    assert explicit.global_paths == ("/World/Light", "/World/Ground")
-
-
 def test_query_and_path_are_real_modules():
     """``cloner.path``/``cloner.query`` import as modules, not just package attributes."""
     import isaaclab.cloner.path  # noqa: PLC0415

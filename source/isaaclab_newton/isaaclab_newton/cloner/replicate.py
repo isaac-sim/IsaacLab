@@ -16,9 +16,8 @@ import warp as wp
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Sdf, Usd
+from pxr import Usd
 
-from isaaclab.cloner.path import under
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
@@ -202,23 +201,8 @@ def _import_global_usd(
         )
         return stage_info
 
-    declared_paths = tuple(dict.fromkeys((physics_scene_path, *global_paths)))
-    for root_path in declared_paths:
-        valid_path, reason = Sdf.Path.IsValidPathString(root_path)
-        if not valid_path or not root_path.startswith("/"):
-            raise ValueError(f"ClonePlan global path {root_path!r} is not a concrete absolute prim path: {reason}")
-        if any(under(source, root_path) for source in sources):
-            raise ValueError(f"ClonePlan global path {root_path!r} contains clone source subtrees.")
-        if not stage.GetPrimAtPath(root_path).IsValid():
-            raise ValueError(f"ClonePlan global path {root_path!r} does not exist on the stage.")
-
-    # A parent declaration already owns every nested declaration; importing both would duplicate shapes.
-    import_paths = tuple(
-        root_path
-        for root_path in declared_paths
-        if not any(root_path != parent and under(root_path, parent) for parent in declared_paths)
-    )
     # Heightfield conversion follows the same explicit ownership boundary as USD import.
+    import_paths = (physics_scene_path, *global_paths)
     hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
     stage_info = None
     for root_path in import_paths:
