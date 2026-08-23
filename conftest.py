@@ -33,11 +33,6 @@ except ModuleNotFoundError as exc:
     if exc.name != "warp":
         raise
 else:
-    # Warp captures ``enable_backward`` when a module is created, which can happen
-    # while pytest collects a test module. Isaac Lab's tests do not use Warp
-    # autodiff, so skip adjoint code generation before collection to reduce cold
-    # kernel compilation time. This also applies to the Warp cache-warming job,
-    # which uses the shared test runner.
     wp.config.enable_backward = False
 
 pytest_plugins = ["tools.ovrtx_log"]
