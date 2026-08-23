@@ -17,7 +17,6 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         newton_mjwarp = self.sim.physics.newton_mjwarp
         newton_mjwarp.solver_cfg.njmax = 52
         newton_mjwarp.solver_cfg.nconmax = 15
-        newton_mjwarp.num_substeps = 1
         self.sim.physics.default = newton_mjwarp
         # scene
         self.scene.terrain.terrain_type = "plane"

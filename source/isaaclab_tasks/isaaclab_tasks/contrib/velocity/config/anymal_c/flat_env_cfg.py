@@ -19,7 +19,6 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
         newton_mjwarp.solver_cfg.nconmax = 15
         newton_mjwarp.solver_cfg.cone = "elliptic"
         newton_mjwarp.solver_cfg.impratio = 100.0
-        newton_mjwarp.num_substeps = 1
         self.sim.physics.default = self.sim.physics.isaacsim_physx
         # scene
         self.scene.terrain.terrain_type = "plane"
