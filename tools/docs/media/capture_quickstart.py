@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OVRTX capture helpers for the quickstart media generator."""
+"""Capture helpers for OVRTX-rendered quickstart media."""
 
 from __future__ import annotations
 

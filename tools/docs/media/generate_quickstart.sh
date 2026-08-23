@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../../.." && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 OUTPUT_DIR="${REPO_ROOT}/docs/source/_static/quickstart"
 WORK_DIR="$(mktemp -d)"
 
@@ -34,7 +34,7 @@ record_simple_agent() {
     local policy="$1"
     local output="$2"
 
-    uv run --frozen --extra "${UV_EXTRAS}" python "${SCRIPT_DIR}/capture.py" \
+    uv run --frozen --extra "${UV_EXTRAS}" python "${SCRIPT_DIR}/capture_quickstart.py" \
         --policy "${policy}" \
         --task Isaac-Open-Drawer-Franka \
         --output-dir "${output}" \
@@ -58,7 +58,7 @@ record_policy() {
         --video \
         --video_length "${CAPTURE_STEPS}" \
         --viz newton_rtx \
-        --external_callback capture.configure_playback \
+        --external_callback capture_quickstart.configure_playback \
         "physics=${physics}"
 }
 
