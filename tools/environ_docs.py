@@ -56,6 +56,14 @@ _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
 # registered for RLinf eval configs) that should not appear as their own training row.
 _EVAL_TASK_SUFFIXES = ("-Eval",)
 
+# Registered environments that are internal utilities rather than standalone training tasks.
+# They remain registered so their companion command-line tools can instantiate them.
+_DOCUMENTATION_EXCLUDED_TASK_IDS = frozenset(
+    {
+        "IsaacContrib-Inhand-Rotate-Grasp-Allegro-v0",
+    }
+)
+
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
@@ -123,6 +131,8 @@ def is_training_task(task_id: str) -> bool:
     if "Isaac" not in task_id:
         return False
     if any(task_id.endswith(suffix) for suffix in _EVAL_TASK_SUFFIXES):
+        return False
+    if task_id in _DOCUMENTATION_EXCLUDED_TASK_IDS:
         return False
     if "-Benchmark-" in task_id:
         return False

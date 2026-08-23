@@ -302,6 +302,9 @@ for the lift-cube environment:
     | |cube-allegro|          | |allegro-direct-link|        | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |allegro-cylinder|      | |allegro-cylinder-roll-link| | In-hand cylinder rolling using the Allegro hand                            | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp``                       |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     |                         | |cube-shadow-ff-link|        |                                                                             |                                         |
@@ -429,6 +432,7 @@ for the lift-cube environment:
 .. |lift-cable-franka| image:: ../_static/tasks/manipulation/franka_lift_cable.jpg
 .. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 .. |cube-allegro| image:: ../_static/tasks/manipulation/allegro_cube.jpg
+.. |allegro-cylinder| image:: ../_static/tasks/manipulation/allegro_rotate.jpg
 .. |cube-shadow| image:: ../_static/tasks/manipulation/shadow_cube.jpg
 .. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
 .. |gr1_pick_place| image:: ../_static/tasks/manipulation/gr-1_pick_place.jpg
@@ -466,6 +470,7 @@ for the lift-cube environment:
 .. |franka-direct-link| replace:: :isaaclab-source:`Isaac-Open-Drawer-Franka-Direct <source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`
 .. |cube-allegro-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`
 .. |allegro-direct-link| replace:: :isaaclab-source:`Isaac-Reorient-Cube-Allegro-Direct <source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_direct_env_cfg.py>`
+.. |allegro-cylinder-roll-link| replace:: :isaaclab-source:`IsaacContrib-Inhand-Roll-Allegro-v0 <source/isaaclab_tasks/isaaclab_tasks/contrib/allegro_rotate/allegro_rotate_env.py>`
 .. |stack-cube-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_joint_pos_env_cfg.py>`
 .. |stack-cube-bp-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint <source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`
 .. |gr1_pick_place-link| replace:: :isaaclab-source:`IsaacContrib-PickPlace-GR1T2-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_env_cfg.py>`
@@ -1422,6 +1427,10 @@ including disabling runtime perturbations used for training.
       - Direct
       - **skrl** (AMP)
       -
+    * - IsaacContrib-Inhand-Roll-Allegro-v0
+      - Direct
+      - **rsl_rl** (PPO)
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
     * - IsaacContrib-Keyboard-SO101
       - Manager Based
       - **rsl_rl** (PPO)
