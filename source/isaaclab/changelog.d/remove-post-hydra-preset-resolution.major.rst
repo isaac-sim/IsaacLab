@@ -8,3 +8,9 @@ Removed
 * **Breaking:** Replaced ``run_config_from_presets`` with ``run_config_from_env_cfg`` in benchmark
   capture. Pass the concrete composed environment configuration instead of inferring backends from
   selector strings.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed an omitted :attr:`isaaclab.sim.SimulationCfg.physics` configuration to use
+  Newton MJWarp by default. Pass an explicit ``PhysxCfg`` to retain Isaac Sim PhysX.

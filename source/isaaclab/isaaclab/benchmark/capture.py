@@ -233,7 +233,7 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
     physics_type = type(physics_cfg)
     physics_descriptor = (
-        "physx"
+        "newton_mjwarp"
         if physics_cfg is None
         else f"{physics_type.__module__}.{physics_type.__name__} {getattr(physics_cfg, 'class_type', '')}".lower()
     )

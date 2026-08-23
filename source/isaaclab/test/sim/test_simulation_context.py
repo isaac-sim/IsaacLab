@@ -59,6 +59,7 @@ def test_init(device):
         gravity=(0.0, -0.5, -0.5),
         physics_material=RigidBodyMaterialCfg(),
         render_interval=5,
+        physics=PhysxCfg(),
     )
     # sim = SimulationContext(cfg)
     # TODO: Figure out why keyword argument doesn't work.
@@ -92,6 +93,15 @@ def test_init(device):
     )
     gravity = np.array(gravity_dir) * gravity_mag
     np.testing.assert_almost_equal(gravity, cfg.gravity)
+
+
+@pytest.mark.isaacsim_ci
+def test_default_physics_is_newton_mjwarp():
+    """An omitted physics config resolves to the Newton MJWarp default."""
+    sim = SimulationContext(SimulationCfg())
+
+    assert isinstance(sim.cfg.physics, NewtonCfg)
+    assert isinstance(sim.cfg.physics.solver_cfg, MJWarpSolverCfg)
 
 
 @pytest.mark.isaacsim_ci
