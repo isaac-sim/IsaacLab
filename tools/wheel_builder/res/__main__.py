@@ -136,19 +136,21 @@ def generate_vscode_settings():
 
 
 def main():
-    """Entry point for ``isaaclab`` console script and ``python -m isaaclab``."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--generate-vscode-settings", default=False, action="store_true", help="Generate VS Code settings."
-    )
-    parser.add_argument("--verbose", default=False, action="store_true", help="Verbose output.")
-    args, _ = parser.parse_known_args()
+    """Run the installed Isaac Lab CLI while preserving the legacy VS Code option."""
+    if "--generate-vscode-settings" in sys.argv:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--generate-vscode-settings", action="store_true", help="Generate VS Code settings.")
+        parser.add_argument("--verbose", action="store_true", help="Print discovered extension paths.")
+        args = parser.parse_args()
 
-    global cprint
-    cprint = print if args.verbose else lambda *args, **kwargs: None
-
-    if args.generate_vscode_settings:
+        global cprint
+        cprint = print if args.verbose else lambda *args, **kwargs: None
         generate_vscode_settings()
+        return
+
+    from isaaclab.cli import cli
+
+    cli()
 
 
 if __name__ == "__main__":

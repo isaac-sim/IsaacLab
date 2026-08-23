@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from importlib import util
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import tomllib
@@ -75,6 +77,28 @@ def test_wheel_builder_drops_workspace_members(tmp_path):
     dependencies = generated["project"]["dependencies"]
 
     assert not [dep for dep in dependencies if dep.lower().startswith("isaaclab")]
+
+
+def test_wheel_console_delegates_to_the_full_isaaclab_cli():
+    """The wheel console command must expose the same workflows as a source installation."""
+    module_path = _repo_root() / "tools" / "wheel_builder" / "res" / "__main__.py"
+    spec = util.spec_from_file_location("_isaaclab_wheel_main", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with mock.patch.object(sys, "argv", ["isaaclab", "train", "--help"]), mock.patch("isaaclab.cli.cli") as cli:
+        module.main()
+
+    cli.assert_called_once_with()
+
+
+def test_wheel_bundles_external_project_generator_resources():
+    """An installed wheel must contain the templates used by ``isaaclab --new``."""
+    build_script = (_repo_root() / "tools" / "wheel_builder" / "build.sh").read_text()
+
+    assert 'cp -r tools/template "$BUILD_DIR/src/isaaclab/tools/"' in build_script
 
 
 def test_wheel_builder_includes_isaacsim_extra(tmp_path):

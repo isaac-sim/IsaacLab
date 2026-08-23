@@ -11,12 +11,13 @@ import sys
 from datetime import datetime
 
 import jinja2
-from common import MULTI_AGENT_ALGORITHMS, ROOT_DIR, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
+from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
     trim_blocks=True,
     lstrip_blocks=True,
+    keep_trailing_newline=True,
 )
 
 
@@ -35,22 +36,6 @@ def _setup_git_repo(project_dir: str) -> None:
         result = subprocess.run(command, capture_output=True, text=True, cwd=project_dir)
         for line in result.stdout.splitlines():
             print(f"  |  {line}")
-
-
-def _replace_in_file(replacements: list[tuple[str, str]], src: str, dst: str | None = None) -> None:
-    """Replace the placeholders in the file.
-
-    Args:
-        replacements: The replacements to make.
-        src: The source file.
-        dst: The destination file. If not provided, the source file will be overwritten.
-    """
-    with open(src) as file:
-        content = file.read()
-    for old, new in replacements:
-        content = content.replace(old, new)
-    with open(src if dst is None else dst, "w") as file:
-        file.write(content)
 
 
 def _write_file(dst: str, content: str) -> None:
@@ -173,41 +158,18 @@ def _external(specification: dict) -> None:
     os.makedirs(project_dir, exist_ok=True)
     # repo files
     print("  |-- Copying repo files...")
-    shutil.copyfile(os.path.join(ROOT_DIR, ".dockerignore"), os.path.join(project_dir, ".dockerignore"))
-    shutil.copyfile(os.path.join(ROOT_DIR, "pyproject.toml"), os.path.join(project_dir, "pyproject.toml"))
-    shutil.copyfile(os.path.join(ROOT_DIR, ".gitattributes"), os.path.join(project_dir, ".gitattributes"))
-    if os.path.exists(os.path.join(ROOT_DIR, ".gitignore")):
-        shutil.copyfile(os.path.join(ROOT_DIR, ".gitignore"), os.path.join(project_dir, ".gitignore"))
-    shutil.copyfile(
-        os.path.join(ROOT_DIR, ".pre-commit-config.yaml"), os.path.join(project_dir, ".pre-commit-config.yaml")
-    )
+    for filename in [".gitattributes", ".gitignore", ".pre-commit-config.yaml"]:
+        shutil.copyfile(os.path.join(TEMPLATE_DIR, "external", filename), os.path.join(project_dir, filename))
+    template = jinja_env.get_template("external/pyproject.toml")
+    _write_file(os.path.join(project_dir, "pyproject.toml"), content=template.render(**specification))
     template = jinja_env.get_template("external/README.md")
     _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     # scripts
-    print("  |-- Copying scripts...")
-    # unified reinforcement learning entrypoints (backends are provided by the isaaclab_rl package)
+    print("  |-- Copying utility scripts...")
     dir = os.path.join(project_dir, "scripts")
     os.makedirs(dir, exist_ok=True)
-    for script in ["train", "play"]:
-        template = jinja_env.get_template(f"external/{script}")
-        _write_file(os.path.join(dir, f"{script}.py"), content=template.render(**specification))
-    # - other scripts
-    _replace_in_file(
-        [("import isaaclab_tasks", f"import {name}.tasks"), ("isaaclab_tasks", name), ('"Isaac"', '"Template-"')],
-        src=os.path.join(ROOT_DIR, "scripts", "environments", "list_envs.py"),
-        dst=os.path.join(dir, "list_envs.py"),
-    )
-    for script in ["zero_agent.py", "random_agent.py"]:
-        _replace_in_file(
-            [
-                (
-                    "# PLACEHOLDER: Extension template (do not remove this comment)",
-                    f"import {name}.tasks  # noqa: F401",
-                )
-            ],
-            src=os.path.join(ROOT_DIR, "scripts", "environments", script),
-            dst=os.path.join(dir, script),
-        )
+    template = jinja_env.get_template("external/list_envs.py")
+    _write_file(os.path.join(dir, "list_envs.py"), content=template.render(**specification))
     # # docker files
     # print("  |-- Copying docker files...")
     # dir = os.path.join(project_dir, "docker")
@@ -232,11 +194,10 @@ def _external(specification: dict) -> None:
     _write_file(
         os.path.join(dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
     )
-    # - setup.py and pyproject.toml
+    # - pyproject.toml
     dir = os.path.join(project_dir, "source", name)
-    template = jinja_env.get_template("extension/setup.py")
-    _write_file(os.path.join(dir, "setup.py"), content=template.render(**specification))
-    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "pyproject.toml"), os.path.join(dir, "pyproject.toml"))
+    template = jinja_env.get_template("extension/pyproject.toml")
+    _write_file(os.path.join(dir, "pyproject.toml"), content=template.render(**specification))
     # - tasks
     print("  |-- Generating tasks...")
     dir = os.path.join(project_dir, "source", name, name, "tasks")

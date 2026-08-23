@@ -33,26 +33,11 @@ Running the template generator
 ------------------------------
 
 Install Isaac Lab by following the `installation guide <../../setup/installation/index.html>`_.
-We recommend using conda or uv installation as it simplifies calling Python scripts from the terminal.
+Then run the generator from the uv-managed environment:
 
-Then, run the following command to generate a new external project or internal task:
+.. code-block:: bash
 
-.. tab-set::
-  :sync-group: os
-
-  .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-        ./isaaclab.sh --new  # or "./isaaclab.sh -n"
-
-  .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-        isaaclab.bat --new  :: or "isaaclab.bat -n"
+  uv run isaaclab --new  # or "uv run isaaclab -n"
 
 The generator will guide you in setting up the project/task for your needs by asking you the following questions:
 
@@ -66,74 +51,29 @@ External project usage (once generated)
 Once the external project is generated, a ``README.md`` file will be created in the specified directory.
 This file will contain instructions on how to install the project and run the tasks.
 
-Here are some general commands to get started with it:
+The generated project is a uv workspace. From its root, create the environment and install the
+generated package in editable mode:
 
-.. note::
+.. code-block:: bash
 
-  If Isaac Lab is not installed in a conda environment or in a (virtual) Python environment, use ``FULL_PATH_TO_ISAACLAB/isaaclab.sh -p``
-  (or ``FULL_PATH_TO_ISAACLAB\isaaclab.bat -p`` on Windows) instead of ``python`` to run the commands below.
+  uv sync
 
-* Install the project (in editable mode).
+* List the tasks and physics presets available in the project.
 
-  .. tab-set::
-    :sync-group: os
+  .. code-block:: bash
 
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
+    uv run python scripts/list_envs.py --show_presets
 
-        .. code-block:: bash
+* Train and play a task with the installed Isaac Lab commands.
 
-          python -m pip install -e source/<given-project-name>
+  .. code-block:: bash
 
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
+    uv run isaaclab train --rl_library <library> --task <Task-Name>
+    uv run isaaclab play --rl_library <library> --task <Task-Name> --checkpoint latest
 
-        .. code-block:: batch
-
-          python -m pip install -e source\<given-project-name>
-
-* List the tasks available in the project.
-
-  .. warning::
-
-    If the task names change, it may be necessary to update the search pattern ``"Template-"``
-    (in the ``scripts/list_envs.py`` file) so that they can be listed.
-
-  .. tab-set::
-    :sync-group: os
-
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
-
-        .. code-block:: bash
-
-          python scripts/list_envs.py
-
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
-
-        .. code-block:: batch
-
-          python scripts\list_envs.py
-
-* Run a task.
-
-  .. tab-set::
-    :sync-group: os
-
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
-
-        .. code-block:: bash
-
-          python scripts/<specific-rl-library>/train.py --task=<Task-Name>
-
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
-
-        .. code-block:: batch
-
-          python scripts\<specific-rl-library>\train.py --task=<Task-Name>
+  The same command surface provides ``zero_agent``, ``random_agent``, ``benchmark``, and
+  ``train_multigpu``. Generated packages advertise their task modules through package metadata,
+  so the commands discover downstream tasks without project-specific runner scripts.
 
 For more details, please follow the instructions in the generated project's ``README.md`` file.
 
@@ -142,60 +82,17 @@ Internal task usage (once generated)
 
 Once the internal task is generated, it will be available along with the rest of the Isaac Lab tasks.
 
-Here are some general commands to get started with it:
-
-.. note::
-
-  If Isaac Lab is not installed in a conda environment or in a (virtual) Python environment, use ``./isaaclab.sh -p``
-  (or ``isaaclab.bat -p`` on Windows) instead of ``python`` to run the commands below.
-
 * List the tasks available in Isaac Lab.
 
-  .. tab-set::
-    :sync-group: os
+  .. code-block:: bash
 
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
-
-        .. code-block:: bash
-
-          python scripts/environments/list_envs.py
-
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
-
-        .. code-block:: batch
-
-          python scripts\environments\list_envs.py
+    uv run python scripts/environments/list_envs.py --show_presets
 
 * Run a task.
 
-  .. tab-set::
-    :sync-group: os
+  .. code-block:: bash
 
-    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-        :sync: linux
-
-        .. tab-set::
-
-           .. tab-item:: uv (Recommended)
-
-              .. code-block:: bash
-
-                uv run isaaclab train --rl_library <library> --task=<Task-Name>
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                ./isaaclab.sh train --rl_library <library> --task=<Task-Name>
-
-    .. tab-item:: :icon:`fa-brands fa-windows` Windows
-        :sync: windows
-
-        .. code-block:: batch
-
-          isaaclab.bat train --rl_library <library> --task=<Task-Name>
+    uv run isaaclab train --rl_library <library> --task <Task-Name>
 
 * Run a task with dummy agents.
 
@@ -203,38 +100,12 @@ Here are some general commands to get started with it:
 
   * Zero-action agent
 
-    .. tab-set::
-      :sync-group: os
+    .. code-block:: bash
 
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-          :sync: linux
-
-          .. code-block:: bash
-
-            python scripts/zero_agent.py --task=<Task-Name>
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-          :sync: windows
-
-          .. code-block:: batch
-
-            python scripts\zero_agent.py --task=<Task-Name>
+      uv run isaaclab zero_agent --task <Task-Name>
 
   * Random-action agent
 
-    .. tab-set::
-      :sync-group: os
+    .. code-block:: bash
 
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-          :sync: linux
-
-          .. code-block:: bash
-
-            python scripts/random_agent.py --task=<Task-Name>
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-          :sync: windows
-
-          .. code-block:: batch
-
-            python scripts\random_agent.py --task=<Task-Name>
+      uv run isaaclab random_agent --task <Task-Name>
