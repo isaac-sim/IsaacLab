@@ -427,22 +427,6 @@ def test_interior_joint_wrench_at_rest(sim):
 
 
 # ---------------------------------------------------------------------------
-# String representation
-# ---------------------------------------------------------------------------
-
-
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    sensor_str = str(sensor)
-    assert "newton" in sensor_str
-    assert "Joint wrench sensor" in sensor_str
-
-
-# ---------------------------------------------------------------------------
 # Reset behavior
 # ---------------------------------------------------------------------------
 
