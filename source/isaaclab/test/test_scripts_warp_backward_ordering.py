@@ -27,6 +27,7 @@ _ENTRY_SCRIPTS = [
 ]
 
 _SETTING = "wp.config.enable_backward = False"
+_TEST_CONFTEST = "conftest.py"
 
 
 @pytest.mark.unit
@@ -46,3 +47,10 @@ def test_entry_script_disables_warp_backward_before_isaaclab_imports(script: str
         f"{script} sets enable_backward on line {setting_at + 1}, after the Isaac Lab import on line"
         f" {first_isaaclab_import + 1}; Warp modules created by that import keep adjoint codegen."
     )
+
+
+@pytest.mark.unit
+def test_shared_pytest_configuration_disables_warp_backward():
+    contents = (_REPO_ROOT / _TEST_CONFTEST).read_text()
+
+    assert _SETTING in contents, f"{_TEST_CONFTEST} does not set '{_SETTING}'"
