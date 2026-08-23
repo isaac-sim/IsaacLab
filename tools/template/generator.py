@@ -129,9 +129,9 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
             "dir": os.path.join(task_dir, workflow["name"].replace("-", "_"), filename),
         }
         if task["workflow"]["name"] == "direct":
-            task["id"] = f"{task_name_prefix}-{task_name}-Direct-v0"
+            task["id"] = f"{task_name_prefix}-{task_name}-Direct"
         elif task["workflow"]["name"] == "manager-based":
-            task["id"] = f"{task_name_prefix}-{task_name}-v0"
+            task["id"] = f"{task_name_prefix}-{task_name}"
         print(f"  |    |-- Generating '{task['id']}' task...")
         # Ensure the workflow directory is an importable package so ``import_packages`` discovers the
         # task. Internal tasks land in ``isaaclab_tasks/{direct,manager_based}/``, which are namespace

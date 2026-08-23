@@ -64,8 +64,8 @@ def _task_id(project_name: str, workflow_name: str, workflow_type: str, external
     if workflow_type == "multi-agent":
         task_name += "-Marl"
     if workflow_name == "direct":
-        return f"{prefix}-{task_name}-Direct-v0"
-    return f"{prefix}-{task_name}-v0"
+        return f"{prefix}-{task_name}-Direct"
+    return f"{prefix}-{task_name}"
 
 
 def _task_dir(root_dir: Path, project_name: str, workflow_name: str, workflow_type: str, external: bool) -> Path:
@@ -261,6 +261,9 @@ def test_external_launch_configs_pass_skrl_algorithm_for_every_generated_skrl_ag
     assert '"train"' in launch_config
     assert '"play"' in launch_config
     assert "scripts/skrl" not in launch_config
+    assert "Template-Template-Launch-External-Direct" in launch_config
+    assert "Template-Template-Launch-External-Marl-Direct" in launch_config
+    assert "-v0" not in launch_config
     for algorithm in ["AMP", "PPO", "IPPO", "MAPPO"]:
         assert f'"--algorithm", "{algorithm}"' in launch_config
 
