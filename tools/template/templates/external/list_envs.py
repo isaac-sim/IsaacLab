@@ -6,11 +6,12 @@
 """List the environments registered by the generated project."""
 
 import argparse
+import importlib
 
 import gymnasium as gym
 from prettytable import PrettyTable
 
-import {{ name }}.tasks  # noqa: F401
+importlib.import_module("{{ name }}.tasks")
 
 
 def _format_presets(preset_map: dict | None) -> str:
