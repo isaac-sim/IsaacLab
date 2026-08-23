@@ -222,7 +222,7 @@ def test_run_config_uses_concrete_backend_configuration():
     assert cfg.physics_backend == "physx"
 
     default_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
-    assert run_config_from_env_cfg(default_env_cfg).physics_backend == "newton_mjwarp"
+    assert run_config_from_env_cfg(default_env_cfg).physics_backend == "physx"
 
     with pytest.raises(ValueError, match="Unsupported concrete physics config"):
         run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
