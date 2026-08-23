@@ -231,9 +231,12 @@ def capture_hardware(bm: Any) -> Hardware:
 def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
     """Return active backend names from a concrete environment configuration."""
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    physics_type = type(physics_cfg)
     physics_descriptor = (
-        f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__} {getattr(physics_cfg, 'class_type', '')}"
-    ).lower()
+        "physx"
+        if physics_cfg is None
+        else f"{physics_type.__module__}.{physics_type.__name__} {getattr(physics_cfg, 'class_type', '')}".lower()
+    )
     physics = next(
         (
             name

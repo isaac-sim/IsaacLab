@@ -60,6 +60,26 @@ def test_resolve_task_config_applies_plain_scalar_override():
     assert env_cfg.scene.num_envs == 123
 
 
+def test_camera_cli_size_overrides_update_observation_space(monkeypatch: pytest.MonkeyPatch):
+    """A composed camera config exposes CLI dimensions before the env derives its Gym space."""
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv, CartpoleEnv
+
+    env_cfg = _resolve_with_args(
+        "env.tiled_camera.height=45",
+        "env.tiled_camera.width=80",
+        "env.frame_stack=1",
+    )
+
+    def fake_parent_init(self, cfg, *_args, **_kwargs):
+        self.cfg = cfg
+        self._is_closed = True
+
+    monkeypatch.setattr(CartpoleEnv, "__init__", fake_parent_init)
+    env = CartpoleCameraEnv(env_cfg)
+
+    assert env.cfg.observation_space == [3, 45, 80]
+
+
 def test_rtx_is_renderer_selector():
     """The automatic RTX selector is exposed as ``renderer=rtx``."""
     preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
