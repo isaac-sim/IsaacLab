@@ -234,6 +234,28 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert "--enable_cameras" in ray_camera_case.command()
 
+    usd_camera_case = next(
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "scripts/tutorials/04_sensors/run_usd_camera.py" and case.visualizer == "none"
+    )
+    assert "--enable_cameras" not in usd_camera_case.command()
+
+
+def test_hands_demo_uses_asset_owned_shadow_hand_configs():
+    """The generic hands demo must not inherit task-specific spawn policy."""
+    path = script_cases.ROOT / "scripts/demos/hands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imports = {
+        (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names
+    }
+
+    assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
+    assert {
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_CFG"),
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
+    } <= imports
+
 
 @pytest.mark.parametrize(
     "relative_path",
@@ -279,8 +301,8 @@ def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
     assert visualizer_cfg_values[0].value is None
 
 
-def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_policy():
-    """The H1 demo must use its published legacy policy without passing None to RSL-RL."""
+def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy():
+    """The H1 demo must select its backend-aware policy without passing None to RSL-RL."""
     path = script_cases.ROOT / "scripts/demos/h1_locomotion.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
@@ -292,7 +314,18 @@ def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_poli
         and isinstance((target := node.targets[0]), ast.Name)
         and isinstance(node.value, ast.Constant)
     }
-    assert constants["LEGACY_CHECKPOINT_TASK"] == "Isaac-Velocity-Rough-H1-v0"
+    assert constants["TASK"] == "Isaac-Velocity-Rough-H1"
+
+    backend_assignments = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "backend_names" for target in node.targets)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "get_pretrained_checkpoint_backend_names"
+    ]
+    assert backend_assignments
 
     checkpoint_calls = [
         node
@@ -302,7 +335,14 @@ def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_poli
         and node.func.id == "get_published_pretrained_checkpoint"
     ]
     assert any(
-        len(call.args) == 2 and isinstance(call.args[1], ast.Name) and call.args[1].id == "LEGACY_CHECKPOINT_TASK"
+        len(call.args) == 3
+        and isinstance(call.args[0], ast.Name)
+        and call.args[0].id == "RL_LIBRARY"
+        and isinstance(call.args[1], ast.Name)
+        and call.args[1].id == "TASK"
+        and isinstance(call.args[2], ast.Starred)
+        and isinstance(call.args[2].value, ast.Name)
+        and call.args[2].value.id == "backend_names"
         for call in checkpoint_calls
     )
     assert any(

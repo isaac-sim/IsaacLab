@@ -27,11 +27,13 @@ class CartpoleCameraEnv(CartpoleEnv):
     cfg: CartpoleCameraEnvCfg
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        frame_stack = max(1, cfg.frame_stack)
-        cfg.frame_stack = frame_stack
-        if frame_stack > 1:
-            single_channels = int(cfg.observation_space[0])
-            cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]
+        cfg.frame_stack = max(1, cfg.frame_stack)
+        if isinstance(cfg.observation_space, list):
+            cfg.observation_space = [
+                int(cfg.observation_space[0]) * cfg.frame_stack,
+                int(cfg.tiled_camera.height),
+                int(cfg.tiled_camera.width),
+            ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -42,10 +44,12 @@ class CartpoleCameraEnv(CartpoleEnv):
             )
 
         self._stack: CircularBuffer | None = None
-        if frame_stack > 1:
+        if self.cfg.frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
-            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1)
+            self._stack = CircularBuffer(
+                max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
+            )
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""

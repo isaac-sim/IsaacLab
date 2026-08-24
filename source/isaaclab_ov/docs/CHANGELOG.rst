@@ -1,6 +1,153 @@
 Changelog
 ---------
 
+2.2.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX object and camera transform updates to write a caller-owned GPU buffer instead of mapping and unmapping OVRTX memory every frame.
+
+
+2.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes for both OVRTX detached-scene APIs.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX ovstage path to write object transforms, camera transforms and deformable or
+  particle points straight from their Warp GPU buffers as CUDA DLTensors, removing the per-frame
+  host copies that ``ovstage 0.1.0`` required.
+* Changed those writes to be ordered by handing ovstage the producing Warp stream
+  (``write_attribute(cuda_stream=...)``), replacing the device-wide ``wp.synchronize_device`` with
+  stream-scoped producer ordering, and matching the legacy OVRTX binding path. The write is still
+  awaited, so the calling thread can block; the gain is the removed host copy and the narrower
+  synchronization scope, not a nonblocking handoff.
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+  requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
+
+Fixed
+^^^^^
+
+* Cleared ``ContactSensorData.force_matrix_w_history`` when resetting an
+  OVPhysX contact sensor.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` authoring only one pixel render var when a
+  camera requested several data types, which left every other requested output empty. The render
+  product now authors one render var per requested data type, so combinations such as ``rgb`` with
+  ``normals``, ``albedo``, ``motion_vectors``, segmentation, and depth are rendered together.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` filling ``depth``,
+  ``distance_to_image_plane``, and ``distance_to_camera`` from a single depth render var, which
+  returned euclidean distance for the image-plane outputs (or the reverse) when they were requested
+  together. Each output is now extracted from the source that measures it.
+
+
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
+2.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX execution of supported native explicit actuators through the
+  shared host adapter when
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
+* Added OVRTX cable curve point updates driven by Newton segment shapes.
+* Added :func:`~isaaclab_ov.renderers.map_attribute_for_warp_writes`, a context manager that maps
+  an OVRTX attribute binding for CUDA writes and unmaps it with the producing Warp stream as the
+  CUDA sync. Use it instead of ``with binding.map(...)`` for GPU writes: the binding's own context
+  manager unmaps without a CUDA sync, so OVRTX's commit is not ordered against the fill.
+
+Changed
+^^^^^^^
+
+* Routed OVPhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` dropping authored USD scale when syncing
+  Newton body transforms into OVRTX, which rendered scaled assets (for example Shadow Hand) at
+  unit scale.
+* Fixed the OVRTX renderer's GPU transform writes (object and camera ``omni:xform`` mappings)
+  committing without CUDA synchronization against the Warp kernels that fill the mapped buffers.
+  The commit is now ordered on the producing Warp stream, as the OVRTX API contract requires;
+  previously the ordering held only through CUDA legacy default-stream serialization, an
+  implementation detail the contract does not promise.
+
+
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
+2.0.4 (2026-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved OVRTX camera-output throughput on Linux. A render var has to be read in an order that
+  respects render completion, and on Linux blocking the calling thread on the render-completion
+  event measures faster than a GPU-side wait. Camera outputs are now read that way on Linux, worth
+  15-70% more end-to-end throughput depending on task and environment count. Other platforms order
+  the read on the consuming Warp stream, which Linux can also be switched to by setting
+  ``ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC=1``. Camera outputs themselves are unchanged.
+
+
+2.0.3 (2026-08-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Constrained the optional OVRTX runtime to ``ovrtx>0.4.0,<0.4.1`` to retain the validated
+  OVRTX 0.4.0 rendering outputs. Users with OVRTX 0.4.1 should downgrade until its output
+  changes are adopted with updated rendering baselines.
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to suppress the OVRTX deprecation warnings
+  emitted for the legacy stage API. Isaac Lab still drives that API until the ovstage path becomes
+  the default, so the warnings were noise no user of this renderer could act on. The option is set
+  only when the installed OVRTX build exposes it, so older wheels are unaffected.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX environment placement by authoring root translations from the clone plan after
+  cloning instead of capturing transforms from the USD stage.
+
+
 2.0.2 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

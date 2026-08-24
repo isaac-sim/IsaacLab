@@ -13,6 +13,7 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
+import contextlib
 import io
 import json
 import logging
@@ -21,9 +22,12 @@ import posixpath
 import re
 import subprocess
 import tempfile
+import uuid
 from types import ModuleType
 from typing import Literal, TypedDict
 from urllib.parse import urlparse
+
+from filelock import FileLock
 
 logger = logging.getLogger(__name__)
 
@@ -549,12 +553,18 @@ def _store_mirror(url: str, data: bytes) -> None:
         return
     try:
         os.makedirs(os.path.dirname(mirrored), exist_ok=True)
-        with open(mirrored, "wb") as f:
-            f.write(data)
+        with FileLock(mirrored + ".lock"):
+            temporary_path = f"{mirrored}.{uuid.uuid4().hex}.partial"
+            try:
+                with open(temporary_path, "wb") as f:
+                    f.write(data)
+                os.replace(temporary_path, mirrored)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temporary_path)
+            _write_mirror_fingerprint(url, mirrored)
     except OSError as exc:
         logger.debug("Unable to cache the asset '%s' locally: %s", url, exc)
-        return
-    _write_mirror_fingerprint(url, mirrored)
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
@@ -649,21 +659,37 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             is_root_asset = local_root is None
-            # an outdated local copy is re-fetched, so a changed remote asset is picked up
-            if force_download or not _usable_mirror(cur_url, download_dir):
-                result = omni_client.copy(cur_url, target_path, omni_client.CopyBehavior.OVERWRITE)
-                if result != omni_client.Result.OK:
-                    if force_download or is_root_asset:
-                        raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
-                    logger.debug("Skipping unavailable dependency: %s", cur_url)
-                    continue
-                _write_mirror_fingerprint(cur_url, target_path)
+            # Ranks can initialize against the same cold cache concurrently. Serialize a single
+            # mirrored file so no USD parser observes another rank overwriting it mid-read.
+            with FileLock(target_path + ".lock"):
+                # Re-check after acquiring the lock: another rank may have downloaded this asset
+                # while this rank was waiting.
+                if force_download or not _usable_mirror(cur_url, download_dir):
+                    temporary_path = f"{target_path}.{uuid.uuid4().hex}.partial"
+                    try:
+                        result = omni_client.copy(cur_url, temporary_path, omni_client.CopyBehavior.OVERWRITE)
+                        if result != omni_client.Result.OK:
+                            if force_download or is_root_asset:
+                                raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+                            logger.debug("Skipping unavailable dependency: %s", cur_url)
+                            continue
+                        # A reader that does not take this process-local lock must never observe
+                        # a partially copied USD file.
+                        os.replace(temporary_path, target_path)
+                        _write_mirror_fingerprint(cur_url, target_path)
+                    finally:
+                        with contextlib.suppress(OSError):
+                            os.remove(temporary_path)
+
+                # Resolve references while the mirror is stable. Each dependency gets its own
+                # lock below, preserving parallel initialization of unrelated asset trees.
+                references = _find_asset_dependencies(target_path)
 
             if local_root is None:
                 local_root = target_path
 
             # recurse into dependencies (USD references, payloads, MDL textures, etc.)
-            for ref in _find_asset_dependencies(target_path):
+            for ref in references:
                 ref_url = _resolve_reference_url(cur_url, ref)
                 if ref_url and ref_url not in visited:
                     to_visit.append(ref_url)

@@ -208,6 +208,9 @@ worlds visually without changing their simulated poses:
 
 Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
 selection and visual offsets. This includes point-cloud and task-geometry markers.
+For RTX tiled cameras, pass one ``environment_ids`` entry per marker instance to
+:meth:`~isaaclab.markers.VisualizationMarkers.visualize` so global point-instancer
+markers are isolated with their environments.
 
 .. _visualization-common-modes:
 
@@ -338,8 +341,7 @@ golden-ratio hue palette to assign each class ID a distinct color.
    **Auto-create streaming camera and Newton MJWarp (``replicate_physics=True``)**
 
    When ``streaming_sensor_prim_path`` is ``None`` (auto-create mode), the visualizer
-   spawns a new camera prim after ``scene.initialize_renderers()`` has already finalised
-   Newton's clone plan.  With ``replicate_physics=True`` — which Newton MJWarp requires for
+   spawns a new camera prim after scene construction has already finalised Newton's clone plan.  With ``replicate_physics=True`` — which Newton MJWarp requires for
    its high-performance sparse world replication — only ``env_0`` exists as a USD prim after
    physics init; ``env_1..N`` are handled internally by Newton without USD prims.  The
    spawned cameras at ``env_1..N`` are silently dropped, ``FrameView`` resolves only one
@@ -458,6 +460,12 @@ Omniverse Visualizer
         enable_markers=True,
         enable_live_plots=True,  # set to False to disable live plots
     )
+
+When Isaac RTX scene partitioning is enabled, :class:`~isaaclab.app.AppLauncher`
+turns on the all-environment spectator view when the Kit viewport is enabled or
+Kit visualization, recording, livestreaming, or XR is requested. Regular headless
+camera-sensor runs retain partition isolation. See :ref:`overview_renderers` for
+configuration and content constraints.
 
 Newton Visualizer
 ~~~~~~~~~~~~~~~~~

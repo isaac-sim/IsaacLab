@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, XPBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
 
 from pxr import UsdGeom
 from usdrt import Gf, Rt
@@ -28,8 +28,6 @@ from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_contrib.deformable import VBDSolverCfg
 
 
 @configclass

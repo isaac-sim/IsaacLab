@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+2.0.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Registered every configured child solver's builder attributes for coupled Newton models.
+
+
+2.0.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved the standalone VBD solver from
+  ``isaaclab_contrib.deformable`` to :mod:`isaaclab_newton.physics`. Import
+  :class:`~isaaclab_newton.physics.NewtonVBDManager` and
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` from their new location, and
+  move ``NewtonModelCfg`` and ``NewtonModelSolverCfg`` soft-contact settings to
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Removed the
+  ``isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`` compatibility
+  alias. Import
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` instead.
+
+
 1.4.0 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

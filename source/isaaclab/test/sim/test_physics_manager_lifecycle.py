@@ -26,6 +26,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=TestManager))
     monkeypatch.setattr(PhysicsManager, "_cfg", object())
     monkeypatch.setattr(PhysicsManager, "_sim_time", 1.0)
+    monkeypatch.setattr(PhysicsManager, "views", {(TestManager, "/World/Robot"): object()})
 
     TestManager.register_callback(
         lambda _payload: events.append("first"),
@@ -71,6 +72,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     assert PhysicsManager._sim is None
     assert PhysicsManager._cfg is None
     assert PhysicsManager._sim_time == 0.0
+    assert PhysicsManager.views == {}
 
 
 def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
