@@ -33,14 +33,12 @@ class OvPhysxCfg(PhysicsCfg):
 
     cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
     """Directory for the OVPhysX cooked-collider cache, defaulting to a per-user directory under the
-    system temporary directory.
+    system temporary directory. Set to ``None`` to use the runtime default.
 
-    Set to ``None`` to let OVPhysX resolve the location itself, which places the cache beside the running
-    executable -- for an embedded runtime that is the Python interpreter, whose directory the program does
-    not own.
-
-    OVPhysX never evicts entries, so the directory grows with every distinct cooked collider and is
-    reclaimed by deleting it. A system temporary directory may also be purged between boots.
+    The datastore is created once per process, so the first OVPhysX construction fixes the location and a
+    later config does not relocate it. The runtime garbage collects the cache against a disk budget;
+    deleting the directory reclaims the space immediately, and a system temporary directory may also be
+    purged between boots.
     """
 
     enable_enhanced_determinism: bool = False

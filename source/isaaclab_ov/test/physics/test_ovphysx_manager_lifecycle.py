@@ -457,6 +457,7 @@ def test_construct_physx_forwards_an_unset_cooked_collider_cache_dir(monkeypatch
     assert manager._physx.config.cooked_collider_cache_dir is None
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
 def test_default_cache_dir_is_created_owner_only(manager_module, tmp_path, monkeypatch):
     """The default directory is created ``0o700`` so another user cannot pre-own or read it."""
     import stat
@@ -468,6 +469,7 @@ def test_default_cache_dir_is_created_owner_only(manager_module, tmp_path, monke
     assert stat.S_IMODE(target.stat().st_mode) == 0o700
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
 def test_default_cache_dir_rejects_a_planted_symlink(manager_module, tmp_path, monkeypatch):
     """A symlink planted at the predictable path is refused instead of written through."""
     victim = tmp_path / "victim"
@@ -480,6 +482,7 @@ def test_default_cache_dir_rejects_a_planted_symlink(manager_module, tmp_path, m
         manager_module._prepare_default_cache_dir(str(target))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
 def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_module, tmp_path, monkeypatch):
     """A pre-existing directory this user does not own is refused."""
     import os as _os
