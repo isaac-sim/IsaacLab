@@ -84,10 +84,11 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
     import torch
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
-    from isaaclab_tasks.utils.hydra import resolve_presets
+    from isaaclab_tasks.utils import resolve_task_config
 
-    env_cfg = resolve_presets(CartpoleCameraEnvCfg(), selected={"newton_mjwarp", "newton_renderer"})
+    env_cfg, _ = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=newton_renderer")
+    )
     env_cfg.scene.num_envs = 2
     env_cfg.frame_stack = 1
     env = None
