@@ -102,17 +102,15 @@ def _cartpole_cfg_newton(*, num_envs: int = 1):
 
 
 def _cartpole_camera_cfg_physx(*, num_envs: int = 1):
-    from isaaclab_physx.physics import PhysxCfg
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+    from isaaclab_tasks.utils import resolve_task_config
 
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
-
-    cfg = CartpoleCameraEnvCfg()
-    cfg = cfg.default
+    cfg, _ = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct",
+        "",
+        overrides=("physics=isaacsim_physx", "renderer=isaacsim_rtx"),
+    )
     cfg.seed = _SEED
     cfg.scene.num_envs = num_envs
-    cfg.sim.physics = PhysxCfg()
-    cfg.tiled_camera.default.renderer_cfg.default = IsaacRtxRendererCfg()
     return cfg
 
 

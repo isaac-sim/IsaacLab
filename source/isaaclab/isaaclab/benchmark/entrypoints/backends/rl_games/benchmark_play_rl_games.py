@@ -160,7 +160,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             else:
                 resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task, env_cfg)
 
-            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -181,7 +181,6 @@ def run(argv: list[str]) -> BenchmarkResult:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
             )

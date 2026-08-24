@@ -1234,6 +1234,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             self._init_physx(env)
 
         distribution = cfg.params.get("distribution", "uniform")
+        self._distribution = distribution
         if distribution == "uniform":
             self._dist_fn = math_utils.sample_uniform
         elif distribution == "log_uniform":
@@ -1352,7 +1353,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             None,
             slice(None),
             operation=operation,
-            distribution="uniform",
+            distribution=self._distribution,
         )
         gravity = gravity[0].tolist()
         self._physics_sim_view.set_gravity(self._carb.Float3(*gravity))
@@ -1370,7 +1371,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             None,
             slice(None),
             operation=operation,
-            distribution="uniform",
+            distribution=self._distribution,
         )
         self._ovphysx_manager.set_gravity(tuple(gravity[0].tolist()))
 
