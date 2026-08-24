@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import yaml
 from leapp_initialized_checkpoints import discover_backend_tasks, resolved_path_file, task_checkpoint_dir
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -227,8 +228,18 @@ def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
     """Assert the expected LEAPP export artifacts exist."""
     export_dir = export_root / task_name
     assert (export_dir / f"{task_name}.onnx").is_file(), f"Missing .onnx export in {export_dir}"
-    assert (export_dir / f"{task_name}.yaml").is_file(), f"Missing .yaml export in {export_dir}"
+    graph_path = export_dir / f"{task_name}.yaml"
+    assert graph_path.is_file(), f"Missing .yaml export in {export_dir}"
     assert (export_dir / "log.txt").is_file(), f"Missing log.txt in {export_dir}"
+
+    graph = yaml.safe_load(graph_path.read_text(encoding="utf-8"))
+    policy_frequency = graph["pipeline"]["configs"]["frequency"]
+    assert policy_frequency > 0
+
+    env_path = export_dir / "env.yaml"
+    assert env_path.is_file(), f"Missing env.yaml in {export_dir}"
+    env = yaml.safe_load(env_path.read_text(encoding="utf-8"))
+    assert policy_frequency == pytest.approx(1.0 / (env["sim"]["dt"] * env["decimation"]))
 
 
 @pytest.fixture(scope="module")

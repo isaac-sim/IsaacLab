@@ -21,6 +21,7 @@ from pathlib import Path
 
 import gymnasium as gym
 import pytest
+import yaml
 
 _THIS_FILE = Path(__file__).resolve()
 _REPO_ROOT = str(_THIS_FILE.parents[4])
@@ -180,14 +181,23 @@ def test_direct_env_export_flow():
 
     onnx_path = os.path.join(artifact_dir, f"{_TASK_NAME}.onnx")
     yaml_path = os.path.join(artifact_dir, f"{_TASK_NAME}.yaml")
+    env_yaml_path = os.path.join(artifact_dir, "env.yaml")
     log_path = os.path.join(artifact_dir, "log.txt")
 
     if not os.path.isfile(onnx_path):
         pytest.fail(f"Missing .onnx export at {onnx_path}.\n{_build_failure_context(result, artifact_dir)}")
     if not os.path.isfile(yaml_path):
         pytest.fail(f"Missing .yaml export at {yaml_path}.\n{_build_failure_context(result, artifact_dir)}")
+    if not os.path.isfile(env_yaml_path):
+        pytest.fail(f"Missing env.yaml at {env_yaml_path}.\n{_build_failure_context(result, artifact_dir)}")
     if not os.path.isfile(log_path):
         pytest.fail(f"Missing log.txt at {log_path}.\n{_build_failure_context(result, artifact_dir)}")
+
+    with open(yaml_path, encoding="utf-8") as stream:
+        graph = yaml.safe_load(stream)
+    with open(env_yaml_path, encoding="utf-8") as stream:
+        env = yaml.safe_load(stream)
+    assert graph["pipeline"]["configs"]["frequency"] == pytest.approx(1.0 / (env["sim"]["dt"] * env["decimation"]))
 
 
 if __name__ == "__main__":
