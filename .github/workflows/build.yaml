@@ -425,6 +425,65 @@ jobs:
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
 
+  # Tutorials are scoped separately from demos: both scopes come from the same
+  # discovery in standalone_script_cases.py, and running them in one job would
+  # exceed the per-job budget.
+  test-standalone-tutorials-kit:
+    name: standalone tutorials (headless, Kit)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "tutorials"
+        standalone-script-visualizer: "none"
+        standalone-script-runtime-group: kit
+        result-file: "test-standalone-tutorials-kit-report.xml"
+        container-name: isaac-lab-standalone-tutorials-kit-test
+        omni-github-test-type: standalone-tutorial
+
+  test-standalone-tutorials-non-kit:
+    name: standalone tutorials (headless, non-Kit)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - name: Resolve OVPhysX runtime pin from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        extra-pip-packages: ${{ steps.ov_pins.outputs.ovphysx }}
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "tutorials"
+        standalone-script-visualizer: "none"
+        standalone-script-runtime-group: non-kit
+        result-file: "test-standalone-tutorials-non-kit-report.xml"
+        container-name: isaac-lab-standalone-tutorials-non-kit-test
+        omni-github-test-type: standalone-tutorial
+
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
