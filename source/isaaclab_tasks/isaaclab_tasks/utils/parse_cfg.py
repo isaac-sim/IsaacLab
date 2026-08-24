@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import yaml
 
-from isaaclab_tasks.utils.hydra import _user_stacklevel, resolve_presets
+from isaaclab_tasks.utils.hydra import _user_stacklevel, resolve_task_config
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -164,20 +164,13 @@ def parse_env_cfg(
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
     """
-    # load the default configuration
-    cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
+    # Compose the registered task through the same boundary used by Hydra entry points.
+    cfg, _ = resolve_task_config(task_name, None, overrides=())
 
     # check that it is not a dict
     # we assume users always use a class for the configuration
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
-
-    # Resolve any PresetCfg wrappers to their default preset so the config
-    # is usable without a Hydra CLI override (e.g. in tests).
-    # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
-    # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
-    # is replaced by its .default.
-    cfg = resolve_presets(cfg)
 
     # simulation device
     if device is not None:

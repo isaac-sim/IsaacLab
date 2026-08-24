@@ -46,6 +46,7 @@ def manager_module(monkeypatch):
         "_physx": None,
         "_ovstage": None,
         "_stage_usda": None,
+        "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
         "_locked_device": None,
@@ -245,6 +246,101 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
         ("wait", 9),
         "destroy_stage",
     ]
+
+
+@pytest.mark.parametrize("failure", [None, "query", "write"])
+def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, failure):
+    """Scene gravity updates must seal their ordinal and release resources on every path."""
+    manager = manager_module.OvPhysxManager
+    calls = []
+
+    class FakePathDictionary:
+        def __init__(self, stage):
+            self.stage = stage
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            calls.append(("destroy_dictionary",))
+
+        def create_path_list_from_strings(self, paths):
+            calls.append(("paths", paths))
+            return "physics-scene-paths"
+
+        def destroy_path_list(self, paths):
+            calls.append(("destroy_paths", paths))
+
+    class FakeQuery:
+        def __enter__(self):
+            return "physics-scene-query"
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            calls.append(("release_query", "physics-scene-query"))
+
+    class FakeStage:
+        def query_from_path_list(self, paths):
+            calls.append(("query", paths))
+            if failure == "query":
+                raise RuntimeError("query failed")
+            return FakeQuery()
+
+        def write_attribute(self, query, attribute, ordinal, tensors, *, is_array):
+            calls.append(("write", query, attribute, ordinal, tensors.tolist(), is_array))
+            if failure == "write":
+                raise RuntimeError("write failed")
+            return SimpleNamespace(wait=lambda: None)
+
+        def advance_write_floor(self, *, ordinal):
+            calls.append(("seal", ordinal))
+            return SimpleNamespace(wait=lambda: None)
+
+    class FakePhysX:
+        def update_from_ovstage(self, start_ordinal, end_ordinal):
+            calls.append(("update", start_ordinal, end_ordinal))
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.PathDictionary = FakePathDictionary
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+    monkeypatch.setattr(manager, "_ovstage", FakeStage())
+    monkeypatch.setattr(manager, "_physx", FakePhysX())
+    monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene")))
+
+    if failure is None:
+        manager.set_gravity((0.0, 0.0, -9.81))
+        expected_calls = [
+            ("paths", ["/World/physicsScene"]),
+            ("query", "physics-scene-paths"),
+            ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
+            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
+            ("seal", 2),
+            ("update", 2, 2),
+            ("release_query", "physics-scene-query"),
+            ("destroy_paths", "physics-scene-paths"),
+            ("destroy_dictionary",),
+        ]
+    else:
+        with pytest.raises(RuntimeError, match=f"{failure} failed"):
+            manager.set_gravity((0.0, 0.0, -9.81))
+        expected_calls = [
+            ("paths", ["/World/physicsScene"]),
+            ("query", "physics-scene-paths"),
+        ]
+        if failure == "write":
+            expected_calls.extend(
+                [
+                    ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
+                    ("release_query", "physics-scene-query"),
+                ]
+            )
+        expected_calls.extend(
+            [
+                ("destroy_paths", "physics-scene-paths"),
+                ("destroy_dictionary",),
+            ]
+        )
+
+    assert calls == expected_calls
 
 
 def _retained_binding_script() -> str:

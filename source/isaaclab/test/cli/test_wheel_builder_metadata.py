@@ -86,24 +86,39 @@ def test_wheel_builder_includes_isaacsim_extra(tmp_path):
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
-def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
-    """``isaaclab[all]`` must ship the aggregated requirements, not a self-reference.
+def test_wheel_builder_keeps_standalone_importers_explicit(tmp_path):
+    """The wheel must expose standalone importers only through their explicit extra."""
+    generated = _generate_wheel_pyproject(tmp_path)
+    project = generated["project"]
 
-    At the root, ``all`` is the self-reference ``isaaclab-dev[...]``. The generator
-    inlines it, so the published wheel carries the concrete third-party requirements
-    for every backend, RL library, and visualizer.
-    """
+    assert "isaacsim-asset-isolated>=6.0,<6.1" not in project["dependencies"]
+    assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
+    assert project["optional-dependencies"]["importers"] == [
+        "isaacsim-asset-isolated>=6.0,<6.1",
+        "tinyobjloader==2.0.0rc13",
+    ]
+
+
+def test_wheel_builder_expands_all_extra_into_concrete_requirements(tmp_path):
+    """``isaaclab[all]`` must contain concrete curated requirements."""
     generated = _generate_wheel_pyproject(tmp_path)
     optional_dependencies = generated["project"]["optional-dependencies"]
     all_extra = optional_dependencies["all"]
 
     assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
-    # Sampled across what ``all`` aggregates: Isaac Sim, both OV backends, the RL
-    # libraries, and the visualizers.
-    for prefix in ("isaacsim[", "ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
+    for prefix in ("ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
         assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
-    # The specialized extras and the developer tooling stay opt-in by name.
-    for prefix in ("ray", "robomimic", "isaacteleop", "pytetwild", "moviepy", "leapp", "pytest"):
+    for prefix in (
+        "isaacsim[",
+        "isaacsim-asset-isolated",
+        "ray",
+        "robomimic",
+        "isaacteleop",
+        "pytetwild",
+        "moviepy",
+        "leapp",
+        "pytest",
+    ):
         assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
 
 

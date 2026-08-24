@@ -8,7 +8,7 @@
 These utilities collect RL-library entry points, preset selectors, workflow
 types, and inference-task mappings for each registered Isaac Lab task. They
 are used by :mod:`tools.update_environments_rst` to keep
-``docs/source/overview/environments.rst`` in sync with the codebase.
+the environment browser in sync with the codebase.
 """
 
 from __future__ import annotations
@@ -61,7 +61,8 @@ RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
-# Marker comments that delimit the auto-generated section in environments.rst.
+# Legacy markers retained for the table-formatting helpers. The public
+# documentation now uses the generated environment browser instead.
 COMPREHENSIVE_LIST_START_MARKER = ".. START-AUTO-GENERATED: comprehensive-environment-list"
 COMPREHENSIVE_LIST_END_MARKER = ".. END-AUTO-GENERATED: comprehensive-environment-list"
 ENVIRONMENT_BROWSER_TASKS_START_MARKER = "// START-AUTO-GENERATED: environment-browser-task-rows"
@@ -85,13 +86,35 @@ _SELECTOR_LABELS = {
 
 @dataclass(frozen=True)
 class EnvironmentDocRow:
-    """One row of the comprehensive environment list in ``environments.rst``."""
+    """One task row in the generated environment browser."""
 
     task_name: str
     workflow: str
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
     agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    supports_warp_frontend: bool = False
+
+
+def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
+    """Return whether a task can run through ``--frontend warp``."""
+    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+        return False
+
+    try:
+        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+
+        from isaaclab_tasks.utils import resolve_task_config
+
+        cfg, _ = resolve_task_config(task_name, "", overrides=("physics=newton_mjwarp",))
+        if workflow == "Direct":
+            try:
+                return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
+            except FrontendIncompatibleError:
+                return False
+        return WarpFrontend.check_compatibility(cfg) is None
+    except (ImportError, gym.error.Error):
+        return False
 
 
 def is_training_task(task_id: str) -> bool:
@@ -526,6 +549,7 @@ def collect_environment_doc_rows(
                     for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
                     if agent in spec.kwargs
                 },
+                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
             )
         )
 
@@ -565,39 +589,21 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
     return "\n".join(lines)
 
 
-def collect_environment_preview_images(content: str) -> dict[str, str]:
-    """Map curated environment IDs to the preview images used by their catalog rows."""
-    image_definitions = dict(re.findall(r"^\.\. \|([^|]+)\| image:: \.\./_static/(\S+)$", content, flags=re.MULTILINE))
-    link_definitions = dict(
-        re.findall(r"^\.\. \|([^|]+)\| replace:: .*?`(Isaac(?:Contrib)?-[^ <`]+)", content, flags=re.MULTILINE)
-    )
+def collect_environment_browser_preview_images(content: str) -> dict[str, str]:
+    """Return preview-image assignments already stored in the browser task rows."""
+    start = content.find(ENVIRONMENT_BROWSER_TASKS_START_MARKER)
+    end = content.find(ENVIRONMENT_BROWSER_TASKS_END_MARKER)
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("Could not find the generated environment-browser task markers.")
 
     preview_images: dict[str, str] = {}
-    current_image: str | None = None
-    for line in content.splitlines():
-        if not line.lstrip().startswith("|"):
+    for line in content[start:end].splitlines():
+        row = line.strip().removesuffix(",")
+        if not row.startswith("["):
             continue
-        substitutions = re.findall(r"\|([A-Za-z0-9_-]+)\|", line)
-        if substitutions and substitutions[0] in image_definitions:
-            current_image = substitutions.pop(0)
-        for substitution in substitutions:
-            if current_image is not None and substitution in link_definitions:
-                preview_images[link_definitions[substitution]] = image_definitions[current_image]
-
-    # Curated prose may list variants beside a table instead of repeating the
-    # shared world image. Their substitution names retain the image prefix.
-    for link_name, task_name in link_definitions.items():
-        if task_name in preview_images:
-            continue
-        link_stem = link_name.removesuffix("-link")
-        matches = [
-            image_name
-            for image_name in image_definitions
-            if link_stem == image_name or link_stem.startswith(f"{image_name}-")
-        ]
-        if matches:
-            preview_images[task_name] = image_definitions[max(matches, key=len)]
-
+        values = json.loads(row)
+        if len(values) >= 7 and values[6]:
+            preview_images[values[0]] = values[6]
     return preview_images
 
 
@@ -632,6 +638,12 @@ def render_environment_browser_task_rows(
             rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
         if preview_image:
             rendered_values += f", {json.dumps(preview_image)}"
+        if row.supports_warp_frontend:
+            if not row.agent_preset_compatibility and not preview_image:
+                rendered_values += ", {}"
+            if not preview_image:
+                rendered_values += ', ""'
+            rendered_values += ", true"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)
