@@ -49,8 +49,9 @@ WARMUP="${WARMUP:-50}"
 SEED="${SEED:-42}"
 DATA_ROOT="${DATA_ROOT:-data}"
 # Repeats per configuration. A single run cannot separate a real regression from run-to-run noise,
-# which on this workload is a few percent of the mean iteration time.
-REPEATS="${REPEATS:-3}"
+# which on this workload is a few percent of the mean iteration time. The summary reduces the
+# repeats with a median, so the count is high enough for that to be stable against an outlier run.
+REPEATS="${REPEATS:-15}"
 
 read -r -a MODES <<<"$CAMERA_PRESETS"
 [[ ${#MODES[@]} -gt 0 ]] || { echo "CAMERA_PRESETS is empty" >&2; exit 1; }
@@ -278,8 +279,10 @@ log "results under $DATA_ROOT/$TASK_NAME/envs_$ENVS/"
 # ---------------------------------------------------------------------------
 # Summarize
 # ---------------------------------------------------------------------------
-# Repeats are only useful if they are reduced to a spread, so print mean +/- std across runs for
-# the metrics this matrix exists to compare, one table per render mode.
+# Repeats are only useful if they are reduced to a spread, so print median +/- IQR across runs for
+# the metrics this matrix exists to compare, one table per render mode. The median is used rather
+# than the mean because a single stalled run -- a background compile, a thermal dip -- skews a mean
+# by more than the regression this matrix is looking for.
 "$VENV_PY" - "$DATA_ROOT/$TASK_NAME/envs_$ENVS" "$(IFS=,; echo "${MODES[*]}")" "$(IFS=,; echo "${SELECTED[*]}")" <<'PY' || log "WARNING: summary failed"
 import json
 import pathlib
@@ -298,6 +301,12 @@ metrics = [
 ]
 
 
+def spread(values: list[float]) -> float:
+    """Interquartile range, the median's counterpart to the standard deviation."""
+    quartiles = statistics.quantiles(values, n=4, method="inclusive")
+    return quartiles[2] - quartiles[0]
+
+
 def collect(mode: str, config: str) -> dict[str, list[float]]:
     per_metric: dict[str, list[float]] = {name: [] for name, _, _ in metrics}
     for report in sorted((root / mode / config).glob("run_*/benchmark_runtime_*.json")):
@@ -313,7 +322,7 @@ def collect(mode: str, config: str) -> dict[str, list[float]]:
 width = max(len(name) for name, _, _ in metrics) + 8
 for mode in modes:
     samples = {config: collect(mode, config) for config in configs}
-    print(f"\n[ovrtx-matrix] {mode}: summary (mean +/- std over repeats)\n")
+    print(f"\n[ovrtx-matrix] {mode}: summary (median +/- IQR over repeats)\n")
     print("metric".ljust(width) + "".join(c.rjust(28) for c in configs))
     print("-" * (width + 28 * len(configs)))
     for name, unit, fmt in metrics:
@@ -325,7 +334,7 @@ for mode in modes:
             elif len(values) == 1:
                 cell = f"{fmt.format(values[0])} (n=1)"
             else:
-                cell = f"{fmt.format(statistics.mean(values))} +/- {fmt.format(statistics.stdev(values))} (n={len(values)})"
+                cell = f"{fmt.format(statistics.median(values))} +/- {fmt.format(spread(values))} (n={len(values)})"
             row += cell.rjust(28)
         print(row)
 
@@ -337,10 +346,10 @@ for mode in modes:
             base_values, cand_values = samples[base][name], samples[cand][name]
             if not base_values or not cand_values:
                 continue
-            base_mean, cand_mean = statistics.mean(base_values), statistics.mean(cand_values)
-            if base_mean == 0:
+            base_median, cand_median = statistics.median(base_values), statistics.median(cand_values)
+            if base_median == 0:
                 continue
-            print(f"    {f'{name} [{unit}]'.ljust(width)}{(cand_mean - base_mean) / base_mean * 100:+8.2f}%")
+            print(f"    {f'{name} [{unit}]'.ljust(width)}{(cand_median - base_median) / base_median * 100:+8.2f}%")
 print()
 PY
 
