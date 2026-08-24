@@ -24,12 +24,21 @@ inputs:
     description: >-
       'restore' reads the newest compatible snapshot of each tree and never
       writes. 'report' summarises how far the run compiled beyond what was
-      restored. 'save' reports the same way and writes each populated tree back
-      as a new snapshot; only the cache warmer uses it.
+      restored. 'save' reports the same way and writes each tree the run
+      actually added to back as a new snapshot; only the cache warmer uses it.
     required: true
   isaacsim-version:
     description: 'Isaac Sim image tag; identifies the exact Kit RTX build that compiles the kit/ blobs'
     required: true
+  publishes:
+    description: >-
+      'true' when the same job later invokes this action in 'save' mode. The
+      restore pass then fingerprints what it restored, so the save pass can tell
+      a run that compiled new blobs from one that only read back the snapshot it
+      started with. Other modes ignore it; leaving it false only costs a
+      duplicate snapshot, never a lost one.
+    required: false
+    default: 'false'
 
 outputs:
   host-dir:
@@ -79,6 +88,7 @@ runs:
         KITLESS_MATCHED_KEY: ${{ steps.restore-kitless.outputs.cache-matched-key }}
         KIT_COLLECTION: ${{ steps.compute.outputs.kit-collection }}
         KITLESS_COLLECTION: ${{ steps.compute.outputs.kitless-collection }}
+        PUBLISHES: ${{ inputs.publishes }}
       run: bash "$GITHUB_ACTION_PATH/report.sh" restore
 
     - name: Report OVRTX shader cache growth
@@ -94,11 +104,17 @@ runs:
     # '0' when the growth step aborted before counting; both mean "not measured"
     # and both must block the save, since the snapshot would publish under a key
     # every consumer prefers over the last good one.
+    #
+    # The changed gate is a quota guard: every save writes a new immutable entry,
+    # so a warm run that only read back what it restored would spend ~270 MB of
+    # the repository's cache allowance on a duplicate of the snapshot it started
+    # from. It is 'true' whenever the growth step could not rule that out.
     - name: Save OVRTX kit shader cache
       if: >-
         always() && inputs.mode == 'save'
         && steps.growth.outputs.kit-files != ''
         && steps.growth.outputs.kit-files != '0'
+        && steps.growth.outputs.kit-changed == 'true'
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.compute.outputs.kit-dir }}
@@ -109,6 +125,7 @@ runs:
         always() && inputs.mode == 'save'
         && steps.growth.outputs.kitless-files != ''
         && steps.growth.outputs.kitless-files != '0'
+        && steps.growth.outputs.kitless-changed == 'true'
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.compute.outputs.kitless-dir }}

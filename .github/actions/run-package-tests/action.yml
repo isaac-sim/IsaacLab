@@ -252,6 +252,7 @@ runs:
       uses: ./.github/actions/ovrtx-shader-cache
       with:
         mode: restore
+        publishes: ${{ inputs.ovrtx-shader-cache == 'save' }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
 
     - name: Setup wheelhouse registry authentication

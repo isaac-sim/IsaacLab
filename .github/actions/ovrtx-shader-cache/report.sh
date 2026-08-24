@@ -11,11 +11,12 @@
 #   restore  prepares both trees, checks the mount is writable, prints the
 #            per-tree hit/miss and records the baseline for the growth pass
 #   growth   prints how far the run compiled beyond what was restored, and
-#            emits the per-tree file counts the save gates read
+#            emits the per-tree file counts and changed flags the save gates read
 #
 # The passes are separate invocations of this action, so the restore pass hands
-# its baseline to the growth pass through OVRTX_CACHE_HIT and
-# OVRTX_CACHE_MB_BEFORE in $GITHUB_ENV. Both are internal to this action.
+# its baseline to the growth pass through OVRTX_CACHE_HIT, OVRTX_CACHE_MB_BEFORE
+# and OVRTX_<TREE>_FINGERPRINT_BEFORE in $GITHUB_ENV. All are internal to this
+# action.
 
 set -euo pipefail
 
@@ -26,6 +27,21 @@ mode="${1:?usage: report.sh restore|growth}"
 # which would otherwise make the '0' comparisons in the save gates miss.
 count_files() {
   find "$1" -type f 2>/dev/null | wc -l | tr -d '[:space:]' || true
+}
+
+fingerprint_var() {
+  printf 'OVRTX_%s_FINGERPRINT_BEFORE' "$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
+}
+
+# Digest of every file's path and contents in one tree, so the save pass can
+# recognise a run that added nothing and skip publishing a duplicate snapshot.
+# Contents rather than size or file count, because the driver rewrites blobs in
+# place as well as appending them. Prints nothing when the tree is missing;
+# callers read an empty digest as "not measured" and publish anyway.
+fingerprint_tree() {
+  [ -d "$1" ] || return 0
+  (cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum) |
+    sha256sum | cut -d' ' -f1
 }
 
 case "$mode" in
@@ -55,13 +71,23 @@ case "$mode" in
       echo "OVRTX_CACHE_HIT=${KIT_MATCHED_KEY:-miss}/${KITLESS_MATCHED_KEY:-miss}" >> "$GITHUB_ENV"
     fi
     echo "OVRTX_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
+
+    # Only the warmer compares fingerprints, and hashing both trees is the one
+    # part of this pass that scales with the restored snapshot.
+    if [ "${PUBLISHES:-false}" = "true" ]; then
+      for tree in kit kitless; do
+        echo "$(fingerprint_var "$tree")=$(fingerprint_tree "$HOST_DIR/$tree")" >> "$GITHUB_ENV"
+      done
+    fi
     ;;
 
   growth)
     if [ ! -d "$HOST_DIR" ]; then
       echo "OVRTX shader cache directory missing; nothing to report"
-      echo "kit-files=0" >> "$GITHUB_OUTPUT"
-      echo "kitless-files=0" >> "$GITHUB_OUTPUT"
+      for tree in kit kitless; do
+        echo "${tree}-files=0" >> "$GITHUB_OUTPUT"
+        echo "${tree}-changed=false" >> "$GITHUB_OUTPUT"
+      done
       exit 0
     fi
 
@@ -82,8 +108,22 @@ case "$mode" in
 
     for tree in kit kitless; do
       files="$(count_files "$HOST_DIR/$tree")"
-      echo "  ${tree}/ ${files:-0} file(s)"
-      echo "${tree}-files=${files:-0}" >> "$GITHUB_OUTPUT"
+      files="${files:-0}"
+
+      # A baseline this job never took - a consumer, or a save whose restore
+      # pass was skipped - leaves the digest empty and publishes, so an
+      # unmeasured tree costs a duplicate snapshot rather than a lost one.
+      before_var="$(fingerprint_var "$tree")"
+      before_fp="${!before_var:-}"
+      if [ -n "$before_fp" ] && [ "$(fingerprint_tree "$HOST_DIR/$tree")" = "$before_fp" ]; then
+        changed=false
+        echo "  ${tree}/ ${files} file(s), unchanged since restore"
+      else
+        changed=true
+        echo "  ${tree}/ ${files} file(s)"
+      fi
+      echo "${tree}-files=${files}" >> "$GITHUB_OUTPUT"
+      echo "${tree}-changed=${changed}" >> "$GITHUB_OUTPUT"
     done
     ;;
 
