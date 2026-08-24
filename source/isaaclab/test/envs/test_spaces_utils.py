@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 
 import numpy as np
@@ -123,11 +124,15 @@ def test_space_serialization_deserialization():
     space = {2}
     output = deserialize_space(serialize_space(space))
     assert space == output
-    space = Discrete(2, start=3)
+    discrete_kwargs = {"n": 3, "start": 2}
+    if "dtype" in inspect.signature(Discrete).parameters:
+        discrete_kwargs["dtype"] = np.int32
+    space = Discrete(**discrete_kwargs)
     output = deserialize_space(serialize_space(space))
     assert isinstance(output, Discrete)
     assert space.n == output.n
     assert space.start == output.start
+    assert space.dtype == output.dtype
     # MultiDiscrete
     space = [{1}, {2}, {3}]
     output = deserialize_space(serialize_space(space))
