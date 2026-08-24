@@ -50,10 +50,11 @@ parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
 import math
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 from random import Random
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -71,6 +72,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
+    import omni.physics.tensors as physx
     from pxr import Usd
 
     from isaaclab.scene import InteractiveScene
@@ -176,18 +178,18 @@ def spawn_grocery(
     return prim
 
 
-def grocery_cfg(slot: int) -> RigidObjectCfg:
+def grocery_cfg(slot: int) -> AssetBaseCfg:
     """Declare the grocery that occupies one slot of the spawn grid.
 
     Args:
         slot: Index into the spawn grid built by :func:`grocery_spawn_poses`.
 
     Returns:
-        The rigid-object configuration for that slot.
+        The spawn-only asset configuration for that slot.
     """
-    return RigidObjectCfg(
+    return AssetBaseCfg(
         prim_path=f"{{ENV_REGEX_NS}}/Groceries/Grocery_{slot:02d}",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(grocery_spawn_poses()[slot, :3].tolist())),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=tuple(grocery_spawn_poses()[slot, :3].tolist())),
         spawn=sim_utils.UsdFileCfg(func=spawn_grocery, usd_path=GROCERY_USDS[slot % len(GROCERY_USDS)]),
     )
 
@@ -249,30 +251,30 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
     )
 
     # grocery slots, one per object that may end up in the bin
-    grocery_00: RigidObjectCfg = grocery_cfg(0)
-    grocery_01: RigidObjectCfg = grocery_cfg(1)
-    grocery_02: RigidObjectCfg = grocery_cfg(2)
-    grocery_03: RigidObjectCfg = grocery_cfg(3)
-    grocery_04: RigidObjectCfg = grocery_cfg(4)
-    grocery_05: RigidObjectCfg = grocery_cfg(5)
-    grocery_06: RigidObjectCfg = grocery_cfg(6)
-    grocery_07: RigidObjectCfg = grocery_cfg(7)
-    grocery_08: RigidObjectCfg = grocery_cfg(8)
-    grocery_09: RigidObjectCfg = grocery_cfg(9)
-    grocery_10: RigidObjectCfg = grocery_cfg(10)
-    grocery_11: RigidObjectCfg = grocery_cfg(11)
-    grocery_12: RigidObjectCfg = grocery_cfg(12)
-    grocery_13: RigidObjectCfg = grocery_cfg(13)
-    grocery_14: RigidObjectCfg = grocery_cfg(14)
-    grocery_15: RigidObjectCfg = grocery_cfg(15)
-    grocery_16: RigidObjectCfg = grocery_cfg(16)
-    grocery_17: RigidObjectCfg = grocery_cfg(17)
-    grocery_18: RigidObjectCfg = grocery_cfg(18)
-    grocery_19: RigidObjectCfg = grocery_cfg(19)
-    grocery_20: RigidObjectCfg = grocery_cfg(20)
-    grocery_21: RigidObjectCfg = grocery_cfg(21)
-    grocery_22: RigidObjectCfg = grocery_cfg(22)
-    grocery_23: RigidObjectCfg = grocery_cfg(23)
+    grocery_00: AssetBaseCfg = grocery_cfg(0)
+    grocery_01: AssetBaseCfg = grocery_cfg(1)
+    grocery_02: AssetBaseCfg = grocery_cfg(2)
+    grocery_03: AssetBaseCfg = grocery_cfg(3)
+    grocery_04: AssetBaseCfg = grocery_cfg(4)
+    grocery_05: AssetBaseCfg = grocery_cfg(5)
+    grocery_06: AssetBaseCfg = grocery_cfg(6)
+    grocery_07: AssetBaseCfg = grocery_cfg(7)
+    grocery_08: AssetBaseCfg = grocery_cfg(8)
+    grocery_09: AssetBaseCfg = grocery_cfg(9)
+    grocery_10: AssetBaseCfg = grocery_cfg(10)
+    grocery_11: AssetBaseCfg = grocery_cfg(11)
+    grocery_12: AssetBaseCfg = grocery_cfg(12)
+    grocery_13: AssetBaseCfg = grocery_cfg(13)
+    grocery_14: AssetBaseCfg = grocery_cfg(14)
+    grocery_15: AssetBaseCfg = grocery_cfg(15)
+    grocery_16: AssetBaseCfg = grocery_cfg(16)
+    grocery_17: AssetBaseCfg = grocery_cfg(17)
+    grocery_18: AssetBaseCfg = grocery_cfg(18)
+    grocery_19: AssetBaseCfg = grocery_cfg(19)
+    grocery_20: AssetBaseCfg = grocery_cfg(20)
+    grocery_21: AssetBaseCfg = grocery_cfg(21)
+    grocery_22: AssetBaseCfg = grocery_cfg(22)
+    grocery_23: AssetBaseCfg = grocery_cfg(23)
 
     # A slot claimed by some layout but active in none of the layouts the environments
     # actually receive is never spawned, which the scene rejects. Environments cycle
@@ -295,33 +297,66 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
 ##
 
 
+@dataclass
+class FlatGroceryView:
+    """Demo-local state for one flat PhysX view over every spawned grocery."""
+
+    root_view: physx.RigidBodyView
+    """Rigid-body view with one row per grocery, without an environment axis."""
+
+    env_origins: torch.Tensor
+    """World origin of every view row's environment [m], shape ``(num_objects, 3)``."""
+
+    spawn_pose_w: torch.Tensor
+    """Default world pose of every grocery [m], shape ``(num_objects, 7)``."""
+
+    all_indices: wp.array
+    """Device indices covering every view row."""
+
+    cpu_indices: wp.array
+    """CPU indices covering every view row for model-property writes."""
+
+
+def create_flat_grocery_view(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> FlatGroceryView:
+    """Create one flat PhysX rigid-body view and derive row metadata from its paths."""
+    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    root_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Groceries/Grocery_*")
+    if root_view.count == 0:
+        raise RuntimeError("The flat grocery view matched no rigid bodies.")
+
+    env_ids = []
+    slot_ids = []
+    for path in root_view.prim_paths:
+        env_ids.append(int(path.partition("/env_")[2].partition("/")[0]))
+        slot_ids.append(int(path.rpartition("/Grocery_")[2]))
+    env_ids_t = torch.tensor(env_ids, dtype=torch.long, device=scene.device)
+    slot_ids_t = torch.tensor(slot_ids, dtype=torch.long, device=scene.device)
+    env_origins = scene.env_origins[env_ids_t]
+    spawn_pose_w = grocery_spawn_poses(scene.device)[slot_ids_t]
+    spawn_pose_w[:, :3] += env_origins
+
+    all_indices_t = torch.arange(root_view.count, dtype=torch.int32, device=scene.device)
+    cpu_indices_t = torch.arange(root_view.count, dtype=torch.int32, device="cpu")
+    return FlatGroceryView(
+        root_view=root_view,
+        env_origins=env_origins,
+        spawn_pose_w=spawn_pose_w,
+        all_indices=wp.from_torch(all_indices_t),
+        cpu_indices=wp.from_torch(cpu_indices_t),
+    )
+
+
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
     """Runs the simulation loop that coordinates spawn randomization and stepping.
 
-    A heterogeneous scene gives each grocery slot its own physics view whose
-    instance count is the number of environments containing that slot, not
-    ``num_envs``.
+    A flat physics view manages every grocery present in the heterogeneous scene.
 
     Returns:
         None: The simulator side-effects are applied through ``scene`` and ``sim``.
     """
     device = scene.device
-    # Resolve each spawned slot once: (asset, env ids owning an instance, world spawn poses).
-    # The spawn pose is the asset's default (init-state) pose, which carries the jittered
-    # grid position sampled by :func:`grocery_spawn_poses` at scene-config build time.
-    groceries = []
-    for name in GROCERY_NAMES:
-        asset = scene[name]
-        prim_paths = getattr(asset.root_view, "prim_paths", None)
-        if prim_paths is not None and len(prim_paths) == asset.num_instances:
-            env_ids = [int(path.partition("/env_")[2].partition("/")[0]) for path in prim_paths]
-        else:
-            # Homogeneous fallback: one instance per environment.
-            env_ids = range(asset.num_instances)
-        env_ids = torch.tensor(list(env_ids), dtype=torch.long, device=device)
-        spawn_pose_w = asset.data.default_root_pose.torch.clone()
-        spawn_pose_w[:, :3] += scene.env_origins[env_ids]
-        groceries.append((asset, env_ids, spawn_pose_w))
+    groceries = create_flat_grocery_view(sim, scene)
+    print(f"[INFO] Grocery RigidBodyView: 1 flat view managing {groceries.root_view.count} rigid bodies")
 
     pose_ranges = torch.tensor([POSE_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
     velocity_ranges = torch.tensor([VELOCITY_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
@@ -336,24 +371,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
             count = 0
             # Retrieve positions
             with Timer("[INFO] Time to reset scene: "):
-                for asset, env_ids, spawn_pose_w in groceries:
-                    num_instances = len(env_ids)
-                    # Only randomize the [roll, pitch, yaw] rotation; keep the spawn position fixed.
-                    noise = math_utils.sample_uniform(
-                        pose_ranges[:, 0], pose_ranges[:, 1], (num_instances, 3), device=device
-                    )
-                    pose = spawn_pose_w.clone()
-                    noise_quat = math_utils.quat_from_euler_xyz(noise[:, 0], noise[:, 1], noise[:, 2])
-                    pose[:, 3:7] = math_utils.quat_mul(pose[:, 3:7], noise_quat)
-                    asset.write_root_pose_to_sim_index(root_pose=pose)
-                    # Only randomize the angular velocity; leave the linear velocity at zero.
-                    root_velocity = torch.zeros((num_instances, 6), device=device)
-                    root_velocity[:, 3:6] = math_utils.sample_uniform(
-                        velocity_ranges[:, 0], velocity_ranges[:, 1], (num_instances, 3), device=device
-                    )
-                    asset.write_root_velocity_to_sim_index(root_velocity=root_velocity)
-                    # Vary the mass so the drop behavior differs between resets.
-                    asset.set_masses_index(masses=torch.rand((num_instances, 1), device=device) * 0.2 + 0.2)
+                shape = (groceries.root_view.count,)
+                # Only randomize the [roll, pitch, yaw] rotation; keep the spawn position fixed.
+                noise = math_utils.sample_uniform(pose_ranges[:, 0], pose_ranges[:, 1], (*shape, 3), device=device)
+                pose = groceries.spawn_pose_w.clone()
+                noise_quat = math_utils.quat_from_euler_xyz(noise[..., 0], noise[..., 1], noise[..., 2])
+                pose[..., 3:7] = math_utils.quat_mul(pose[..., 3:7], noise_quat)
+                groceries.root_view.set_transforms(wp.from_torch(pose.contiguous()), groceries.all_indices)
+                # Only randomize the angular velocity; leave the linear velocity at zero.
+                body_velocity = torch.zeros((*shape, 6), device=device)
+                body_velocity[..., 3:6] = math_utils.sample_uniform(
+                    velocity_ranges[:, 0], velocity_ranges[:, 1], (*shape, 3), device=device
+                )
+                groceries.root_view.set_velocities(wp.from_torch(body_velocity.contiguous()), groceries.all_indices)
+                # Vary the mass so the drop behavior differs between resets.
+                masses = torch.rand((groceries.root_view.count, 1), device="cpu") * 0.2 + 0.2
+                groceries.root_view.set_masses(wp.from_torch(masses), groceries.cpu_indices)
                 scene.reset()
 
         # Write data to sim
@@ -361,14 +394,21 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         # Perform step
         sim.step()
         # Bring out-of-bounds objects back to the bin.
-        for asset, env_ids, spawn_pose_w in groceries:
-            xy = asset.data.root_link_pose_w.torch[:, :2] - scene.env_origins[env_ids, :2]
-            stray = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).flatten()
-            if stray.numel():
-                asset.write_root_pose_to_sim_index(root_pose=spawn_pose_w[stray], env_ids=stray)
-                asset.write_root_velocity_to_sim_index(
-                    root_velocity=torch.zeros((stray.numel(), 6), device=device), env_ids=stray
-                )
+        transforms = groceries.root_view.get_transforms()
+        transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms
+        xy = transforms_t[:, :2] - groceries.env_origins[:, :2]
+        stray = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).flatten()
+        if stray.numel():
+            stray_indices = wp.from_torch(stray.to(dtype=torch.int32))
+            corrected_transforms = transforms_t.clone()
+            corrected_transforms[stray] = groceries.spawn_pose_w[stray]
+            velocities = groceries.root_view.get_velocities()
+            corrected_velocities = (
+                wp.to_torch(velocities).clone() if isinstance(velocities, wp.array) else velocities.clone()
+            )
+            corrected_velocities[stray] = 0.0
+            groceries.root_view.set_transforms(wp.from_torch(corrected_transforms.contiguous()), stray_indices)
+            groceries.root_view.set_velocities(wp.from_torch(corrected_velocities.contiguous()), stray_indices)
         # Increment counter
         count += 1
         # Update buffers
