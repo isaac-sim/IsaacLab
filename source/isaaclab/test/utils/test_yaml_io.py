@@ -27,11 +27,12 @@ def test_dump_yaml_adds_extension_in_current_working_directory(monkeypatch, tmp_
     assert (tmp_path / "config.yaml").is_file()
 
 
-def test_dump_yaml_preserves_yml_extension(monkeypatch, tmp_path):
+@pytest.mark.parametrize("filename", ["config.yml", "config.YML"])
+def test_dump_yaml_preserves_yml_extension(monkeypatch, tmp_path, filename):
     monkeypatch.chdir(tmp_path)
 
-    dump_yaml("config.yml", {"value": 42})
+    dump_yaml(filename, {"value": 42})
 
-    assert (tmp_path / "config.yml").is_file()
-    assert not (tmp_path / "config.yml.yaml").exists()
-    assert load_yaml("config.yml") == {"value": 42}
+    assert (tmp_path / filename).is_file()
+    assert not (tmp_path / f"{filename}.yaml").exists()
+    assert load_yaml(filename) == {"value": 42}
