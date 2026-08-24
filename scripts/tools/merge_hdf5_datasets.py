@@ -37,7 +37,11 @@ def merge_datasets():
         versions = ", ".join(
             f"{filepath}={version}" for filepath, version in zip(args_cli.input_files, format_versions)
         )
-        raise ValueError(f"Cannot merge datasets with different format_version values: {versions}.")
+        raise ValueError(
+            f"Cannot merge datasets with different format_version values: {versions}. "
+            "Ensure all inputs use the same dataset format; regenerate augmented datasets from their source or "
+            "convert legacy datasets before merging."
+        )
 
     with h5py.File(args_cli.output_file, "w") as output:
         episode_idx = 0
