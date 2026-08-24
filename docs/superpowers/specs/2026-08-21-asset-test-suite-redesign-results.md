@@ -9,8 +9,8 @@ SPDX-License-Identifier: BSD-3-Clause
 
 ## Outcome
 
-The comparable asset and WrenchComposer scopes now finish in **140.41 s** of
-subprocess wall time, down from **1,197.60 s**: an **8.53x wall-time speed-up**.
+The comparable asset and WrenchComposer scopes now finish in **134.11 s** of
+subprocess wall time, down from **1,197.60 s**: an **8.93x wall-time speed-up**.
 The test-runner model is unchanged: every selected file runs in a fresh
 subprocess. The final scopes collect 1,519 focused cases: 1,416 pass and 103
 skip with an explicit capability reason.
@@ -23,7 +23,7 @@ deliberately excluded.
 
 ## Measurement environment
 
-- Final branch base: `0451444c24` from `origin/develop`, rebased before the
+- Final branch base: `6aad90be0a` from `origin/develop`, rebased before the
   final measurements.
 - Original baseline base: `d7033a5a1a207f1d4284edb60d72d7838984413b`.
 - Worktree-local environment: `env_isaaclab`, installed with
@@ -39,19 +39,19 @@ deliberately excluded.
 ## Copy-ready PR performance section
 
 The asset-test redesign reduced the five comparable CI-style scopes from
-19m57.60s to 2m20.41s wall time (**8.53x faster**). This comparison uses the
+19m57.60s to 2m14.11s wall time (**8.93x faster**). This comparison uses the
 same repository test orchestrator before and after, with one process per test
 file. Controller-owner and OV manager lifecycle checks are reported separately
 and are not included in the denominator.
 
 | Scope | Before files / cases | After files / outcomes | Before pytest / wall | After pytest / wall | Wall speed-up |
 |---|---:|---:|---:|---:|---:|
-| Shared assets | 8 / 4,331 | 6 / 1,238 pass, 103 skip | 64.70 / 84.02 s | 7.89 / 25.47 s | **3.30x** |
-| Newton assets, no cable/MPM | 6 / 644 | 15 / 59 pass | 590.94 / 608.44 s | 16.29 / 50.49 s | **12.05x** |
-| PhysX assets | 7 / 486 | 12 / 44 pass | 236.80 / 255.30 s | 6.21 / 32.54 s | **7.85x** |
-| OV assets | 9 / 492 | 12 / 60 pass | 196.94 / 220.05 s | 5.41 / 27.27 s | **8.07x** |
-| WrenchComposer | 3 / 412 | 2 / 15 pass | 23.34 / 29.79 s | 0.81 / 4.64 s | **6.42x** |
-| **Aggregate** | **33 / 6,365** | **47 / 1,416 pass, 103 skip** | **1,112.72 / 1,197.60 s** | **36.61 / 140.41 s** | **8.53x** |
+| Shared assets | 8 / 4,331 | 6 / 1,238 pass, 103 skip | 64.70 / 84.02 s | 3.81 / 17.92 s | **4.69x** |
+| Newton assets, no cable/MPM | 6 / 644 | 15 / 59 pass | 590.94 / 608.44 s | 16.17 / 50.57 s | **12.03x** |
+| PhysX assets | 7 / 486 | 12 / 44 pass | 236.80 / 255.30 s | 6.12 / 31.92 s | **8.00x** |
+| OV assets | 9 / 492 | 12 / 60 pass | 196.94 / 220.05 s | 7.07 / 28.80 s | **7.64x** |
+| WrenchComposer | 3 / 412 | 2 / 15 pass | 23.34 / 29.79 s | 0.89 / 4.90 s | **6.08x** |
+| **Aggregate** | **33 / 6,365** | **47 / 1,416 pass, 103 skip** | **1,112.72 / 1,197.60 s** | **34.06 / 134.11 s** | **8.93x** |
 
 The articulation-only change in the final iteration more than doubled the
 number of real backend probes while reducing their aggregate runtime. Each
@@ -60,24 +60,24 @@ islands alive until every test node in the module has run.
 
 | Articulation backend | Before cases | After cases | Before pytest / wall | After pytest / wall |
 |---|---:|---:|---:|---:|
-| Newton | 3 | 4 | 3.04 / 4.65 s | 2.54 / 4.11 s |
-| PhysX | 2 | 5 | 4.94 / 5.75 s | 3.44 / 4.17 s |
-| OVPhysX | 2 | 6 | 2.38 / 3.46 s | 2.53 / 3.66 s |
-| **Aggregate** | **7** | **15** | **10.36 / 13.86 s** | **8.51 / 11.94 s** |
+| Newton | 3 | 4 | 3.04 / 4.65 s | 2.41 / 4.10 s |
+| PhysX | 2 | 5 | 4.94 / 5.75 s | 3.17 / 3.98 s |
+| OVPhysX | 2 | 6 | 2.38 / 3.46 s | 2.22 / 3.46 s |
+| **Aggregate** | **7** | **15** | **10.36 / 13.86 s** | **7.80 / 11.54 s** |
 
 Focused gate and ownership timings:
 
 | Gate or owner | Result | Pytest / wall |
 |---|---:|---:|
 | Shared contract, one process | 1,134 pass, 103 skip | 7.46 / 8.90 s |
-| Shared contract + adjacent units, file-isolated gate | 1,238 pass, 103 skip | 7.89 / 25.47 s |
+| Shared contract + adjacent units, file-isolated gate | 1,238 pass, 103 skip | 3.81 / 17.92 s |
 | Newton backend units/kernels, including executable kitless guard | 49 pass | 11.96 / 13.06 s |
 | PhysX backend units | 33 pass | 1.69 / 2.76 s |
 | OV backend units | 50 pass | 1.62 / 2.70 s |
-| Newton minimal real integration | 4 files, 10 pass | 4.54 / 16.21 s |
-| PhysX minimal real integration | 6 files, 11 pass | 4.52 / 21.18 s |
-| OV minimal real integration | 4 files, 10 pass | 4.61 / 12.13 s |
-| WrenchComposer real delivery | 1 file, 1 pass | 0.79 / 3.12 s |
+| Newton minimal real integration | 4 files, 10 pass | 4.58 / 16.42 s |
+| PhysX minimal real integration | 6 files, 11 pass | 4.42 / 20.37 s |
+| OV minimal real integration | 4 files, 10 pass | 4.71 / 12.08 s |
+| WrenchComposer real delivery | 1 file, 1 pass | 0.87 / 3.33 s |
 | Newton task-space controller owner | 3 pass | 3.03 / 4.57 s |
 | PhysX actuator-runtime and termination owners | 6 pass | 1.13 / 2.00 s |
 | OV mixed CPU/CUDA lifecycle owner | 1 pass | 2.01 / 2.43 s |

@@ -81,6 +81,11 @@ def test_rigid_object_collection_real_newton_seams(monkeypatch) -> None:
         assert collection.data.body_mass.shape == (2, 2)
         assert collection.data.body_com_pos_b.shape == (2, 2)
         assert collection.data.body_inertia.shape == (2, 2, 9)
+        torch.testing.assert_close(collection.data.body_link_pose_w.torch, collection.data.body_com_pose_w.torch)
+        torch.testing.assert_close(
+            collection.data.body_link_vel_w.torch[..., 3:],
+            collection.data.body_com_vel_w.torch[..., 3:],
+        )
 
         model_changes = []
         add_model_change = SimulationManager.add_model_change

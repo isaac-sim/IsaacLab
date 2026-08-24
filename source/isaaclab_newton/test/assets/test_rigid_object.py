@@ -108,6 +108,22 @@ def test_rigid_object_real_newton_seams(device: str, monkeypatch) -> None:
         assert rigid_object.data.body_mass.shape == (2, 1)
         assert rigid_object.data.body_com_pos_b.shape == (2, 1)
         assert rigid_object.data.body_inertia.shape == (2, 1, 9)
+        torch.testing.assert_close(
+            rigid_object.data.root_link_pose_w.torch,
+            rigid_object.data.body_link_pose_w.torch.squeeze(1),
+        )
+        torch.testing.assert_close(
+            rigid_object.data.root_com_pose_w.torch,
+            rigid_object.data.body_com_pose_w.torch.squeeze(1),
+        )
+        torch.testing.assert_close(
+            rigid_object.data.body_link_pose_w.torch,
+            rigid_object.data.body_com_pose_w.torch,
+        )
+        torch.testing.assert_close(
+            rigid_object.data.root_com_vel_w.torch[..., 3:],
+            rigid_object.data.body_com_vel_w.torch.squeeze(1)[..., 3:],
+        )
 
         model_changes = []
         add_model_change = SimulationManager.add_model_change
