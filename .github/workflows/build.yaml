@@ -103,6 +103,7 @@ jobs:
           ^apps/ :: Standalone apps
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
+          ^conftest\.py$ :: Root pytest configuration
           ^pyproject\.toml$ :: Root Python project (Docker copy)
           ^environment\.yml$ :: Conda env (Docker copy)
           ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
