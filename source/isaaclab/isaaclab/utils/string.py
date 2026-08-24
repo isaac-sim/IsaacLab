@@ -130,8 +130,8 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
 
     Returns:
         A string representation of the callable object. Nested attributes use
-        their qualified name when it can be resolved safely. Local functions
-        and instance-bound methods retain the legacy simple-name format.
+        their qualified name only when that exact path resolves back to the same
+        callable. Otherwise the legacy simple-name representation is retained.
     """
     # check if callable
     if not callable(value):
@@ -144,15 +144,25 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
         return f"lambda {lambda_line}"
     else:
-        # Use qualified names for safely resolvable nested attributes. Preserve
-        # the legacy simple-name format for local functions and instance-bound
-        # methods, whose qualified names either contain ``<locals>`` or would
-        # resolve back to an unbound function and silently drop the instance.
         module_name = value.__module__
+        function_name = value.__name__
         qualified_name = value.__qualname__
         bound_instance = getattr(value, "__self__", None)
         instance_bound_method = bound_instance is not None and not isinstance(bound_instance, type)
-        function_name = value.__name__ if "<locals>" in qualified_name or instance_bound_method else qualified_name
+
+        # A qualified name is safe only if the module exposes that exact path and
+        # it resolves to this same callable. This avoids serializing exported local
+        # aliases, hidden class paths, or instance-bound methods into a different
+        # callable than the one supplied by the user.
+        if "<locals>" not in qualified_name and not instance_bound_method:
+            try:
+                candidate = importlib.import_module(module_name)
+                for attr in qualified_name.split("."):
+                    candidate = getattr(candidate, attr)
+                if candidate is value:
+                    function_name = qualified_name
+            except (ModuleNotFoundError, AttributeError):
+                pass
         # return the string
         return f"{module_name}{separator}{function_name}"
 
@@ -469,12 +479,12 @@ def resolve_matching_names_values(
                         f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
                     )
                 # add to list
-                target_strings_match_found[target_index] = re_key
                 index_list.append(target_index)
                 names_list.append(potential_match_string)
                 values_list.append(value)
                 key_idx_list.append(key_index)
                 # add for regex key
+                target_strings_match_found[target_index] = re_key
                 keys_match_found[key_index].append(potential_match_string)
     # reorder keys if they should be returned in order of the query keys
     if preserve_order:
