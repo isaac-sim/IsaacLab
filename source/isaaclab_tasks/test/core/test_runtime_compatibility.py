@@ -7,9 +7,8 @@
 
 The OVRTX renderer is kitless and cannot run together with Isaac Sim / Kit
 runtimes (``PhysxCfg`` physics or the Kit visualizer). These tests verify that
-invalid combinations selected via ``presets=...`` (or ``--visualizer kit``) raise
-a clear error pointing the user at the correct ``isaacsim_rtx`` preset.
-No Kit/GPU required — safe for CI and beginners.
+invalid composed configurations raise a clear error identifying compatible
+concrete renderer configurations. No Kit/GPU required.
 """
 
 import argparse
@@ -70,7 +69,7 @@ def test_isaacsim_physx_plus_ovrtx_raises():
         validate_runtime_compatibility(env_cfg)
     msg = str(excinfo.value)
     assert "PhysxCfg" in msg
-    assert "isaacsim_rtx" in msg
+    assert "IsaacRtxRendererCfg" in msg
 
 
 def test_kit_visualizer_plus_ovrtx_raises():
@@ -85,7 +84,7 @@ def test_kit_visualizer_plus_ovrtx_raises():
         validate_runtime_compatibility(env_cfg, launcher_args)
     msg = str(excinfo.value)
     assert "Kit visualizer" in msg
-    assert "isaacsim_rtx" in msg
+    assert "IsaacRtxRendererCfg" in msg
 
 
 def test_kit_visualizer_dict_args_plus_ovrtx_raises():

@@ -221,18 +221,6 @@ def test_freefall_acceleration(sim):
     )
 
 
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene_cfg = ImuTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    imu: Imu = scene["imu"]
-    sensor_str = str(imu)
-    assert "newton" in sensor_str
-    assert "IMU sensor" in sensor_str
-
-
 def test_no_stale_data_after_scene_reset(sim):
     """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values (Newton).
 

@@ -295,7 +295,7 @@ class TerminationsCfg:
 @configclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: GearAssemblySceneCfg = GearAssemblySceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: GearAssemblySceneCfg = GearAssemblySceneCfg(num_envs=1024, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

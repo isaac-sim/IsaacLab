@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+18.0.0 (2026-08-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed Newton MJWarp velocity environments to use two physics substeps from their
+  shared family configuration. Robot-specific velocity configs no longer override the substep count.
+
+
+17.1.0 (2026-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX presets for the Franka soft-body and cloth lift tasks, including their camera
+  variants.
+
+Fixed
+^^^^^
+
+* Reduced the default number of parallel environments for GearAssembly tasks to 1024 so recurrent PPO training fits on development GPUs. Use ``--num_envs`` to select a different batch size.
+* Enabled the gravity curriculum for Kuka-Allegro tasks using the OvPhysX backend.
+
+
 17.0.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~~
 

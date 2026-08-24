@@ -3858,9 +3858,9 @@ class Articulation(BaseArticulation):
             resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
             _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- articulation
-        self._root_view = self._physics_sim_view.create_articulation_view(path_expr_to_glob(root_prim_path_expr))
-
-        # check if the articulation was created
+        self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = (
+            self._physics_sim_view.create_articulation_view(path_expr_to_glob(root_prim_path_expr))
+        )
         if self.root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
 
