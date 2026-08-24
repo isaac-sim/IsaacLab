@@ -5,6 +5,7 @@
 
 import math
 import random
+from collections import Counter
 
 import pytest
 
@@ -12,6 +13,16 @@ import isaaclab.utils.string as string_utils
 from isaaclab.utils.string import _resolve_matching_names_impl
 
 pytestmark = pytest.mark.unit
+
+
+def _make_exported_local_callable():
+    def exported_local_callable():
+        return "ok"
+
+    return exported_local_callable
+
+
+exported_local_callable = _make_exported_local_callable()
 
 
 def test_resolvable_string_metadata_is_non_eager():
@@ -54,10 +65,10 @@ def test_resolvable_string_runtime_resolution_still_works():
 
 def test_case_conversion():
     """Test case conversion between camel case and snake case."""
-    # test camel case to snake case
-    assert string_utils.to_snake_case("CamelCase") == "camel_case"
-    assert string_utils.to_snake_case("camelCase") == "camel_case"
-    assert string_utils.to_snake_case("CamelCaseString") == "camel_case_string"
+    # test camel case to camel case
+    assert string_utils.to_camel_case("CamelCase", to="CC") == "Camelcase"
+    assert string_utils.to_camel_case("camelCase", to="CC") == "Camelcase"
+    assert string_utils.to_camel_case("CamelCaseString", to="CC") == "Camelcasestring"
     # test snake case to camel case
     assert string_utils.to_camel_case("snake_case", to="CC") == "SnakeCase"
     assert string_utils.to_camel_case("snake_case_string", to="CC") == "SnakeCaseString"
@@ -71,6 +82,38 @@ def test_string_to_callable_allows_safe_lambdas():
     assert string_utils.string_to_callable("lambda x: x[0] if x else 0")([7, 8]) == 7
     assert string_utils.string_to_callable("lambda x: x > 0 and x < 10")(5) is True
     assert string_utils.string_to_callable("math:sqrt") is math.sqrt
+
+
+def test_dotted_callable_reference_round_trips():
+    """Nested callables should serialize and resolve through dotted attribute paths."""
+    reference = string_utils.callable_to_string(Counter.update)
+
+    assert reference == "collections:Counter.update"
+    assert string_utils.string_to_callable(reference) is Counter.update
+
+    counter = Counter()
+    string_utils.ResolvableString(reference)(counter, {"value": 2})
+    assert counter["value"] == 2
+
+
+def test_missing_dotted_callable_attribute_raises_value_error():
+    """Missing nested attributes should use the public ValueError contract."""
+    with pytest.raises(ValueError, match="Could not resolve"):
+        string_utils.string_to_callable("collections:Counter.not_a_method")
+
+
+def test_exported_local_callable_serialization_falls_back_to_resolvable_name():
+    """Qualified names containing local scopes should retain the resolvable simple-name form."""
+    reference = string_utils.callable_to_string(exported_local_callable)
+
+    assert reference == f"{__name__}:exported_local_callable"
+    assert string_utils.string_to_callable(reference) is exported_local_callable
+
+
+def test_instance_bound_method_preserves_legacy_simple_name():
+    """Instance-bound methods should not be serialized as unbound class methods."""
+    counter = Counter()
+    assert string_utils.callable_to_string(counter.update) == "collections:update"
 
 
 @pytest.mark.parametrize(
@@ -180,6 +223,7 @@ def test_resolve_matching_names_with_preserved_order():
     ground_truth_index_list = [9, 8, 5, 1, 4, 0]
     assert names_list == query_list
     assert index_list == ground_truth_index_list
+    assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
     # test return in target ordering with regex expression
     index_list, names_list = string_utils.resolve_matching_names(
         ["FR.*", "FL.*"], robot_joint_names, preserve_order=True
@@ -192,8 +236,8 @@ def test_resolve_matching_names_with_preserved_order():
         ["FR.*", "FL_calf_joint", "FL_thigh_joint", "FL_hip_joint"], robot_joint_names, preserve_order=True
     )
     ground_truth_index_list = [1, 5, 9, 8, 4, 0]
-    assert index_list == ground_truth_index_list
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
+    assert index_list == ground_truth_index_list
 
 
 def test_resolve_matching_names_values_with_basic_strings():
