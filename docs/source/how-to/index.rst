@@ -134,6 +134,7 @@ These guides explain how to interface with reinforcement learning environments i
 
     wrap_rl_env
     add_own_library
+    run_state_machines
 
 
 Transferring Policies Between Physics Backends
