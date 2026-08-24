@@ -116,9 +116,15 @@ Isaac Lab launchers and asset helpers apply the profile automatically. A standal
    configure_storage_profile()
 
 .. note::
-   Asset availability in the China mirror can differ from the global asset set and can change between releases.
-   A workflow that references an unavailable asset returns a not-found error. Use an available mirrored asset or a
-   local asset pack for that workflow.
+   Asset availability in the China service can differ from the global asset set and can change between releases.
+   Check the `Isaac 6.0 asset availability manifest
+   <https://assets.simready.cn/manifests/isaac/6.0/asset-availability.csv>`__ before choosing an asset. An asset must
+   have an ``available`` status to load from the service. Use an available asset or a local asset pack when a workflow
+   references an unavailable path.
+
+   Build paths from profile-resolved constants such as :attr:`~isaaclab.utils.assets.ISAAC_NUCLEUS_DIR` or
+   :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR` instead of hard-coding bucket or CDN URLs. This keeps the
+   selected storage profile and asset release applicable when routing changes.
 
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an
