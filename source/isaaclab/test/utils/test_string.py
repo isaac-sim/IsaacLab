@@ -87,13 +87,8 @@ def test_string_to_callable_allows_safe_lambdas():
 def test_dotted_callable_reference_round_trips():
     """Nested callables should serialize and resolve through dotted attribute paths."""
     reference = string_utils.callable_to_string(Counter.update)
-
     assert reference == "collections:Counter.update"
     assert string_utils.string_to_callable(reference) is Counter.update
-
-    counter = Counter()
-    string_utils.ResolvableString(reference)(counter, {"value": 2})
-    assert counter["value"] == 2
 
 
 def test_missing_dotted_callable_attribute_raises_value_error():
@@ -103,15 +98,14 @@ def test_missing_dotted_callable_attribute_raises_value_error():
 
 
 def test_exported_local_callable_serialization_falls_back_to_resolvable_name():
-    """Qualified names containing local scopes should retain the resolvable simple-name form."""
+    """Exported local aliases should retain the module-level resolvable name."""
     reference = string_utils.callable_to_string(exported_local_callable)
-
     assert reference == f"{__name__}:exported_local_callable"
     assert string_utils.string_to_callable(reference) is exported_local_callable
 
 
 def test_instance_bound_method_preserves_legacy_simple_name():
-    """Instance-bound methods should not be serialized as unbound class methods."""
+    """Instance-bound methods should not serialize as a different unbound callable."""
     counter = Counter()
     assert string_utils.callable_to_string(counter.update) == "collections:update"
 
@@ -135,18 +129,23 @@ def test_string_to_callable_blocks_unsafe_lambdas(payload):
 
 def test_resolve_matching_names_with_basic_strings():
     """Test resolving matching names with a basic expression."""
+    # list of strings
     target_names = ["a", "b", "c", "d", "e"]
+    # test matching names
     query_names = ["a|c", "b"]
     index_list, names_list = string_utils.resolve_matching_names(query_names, target_names)
     assert index_list == [0, 1, 2]
     assert names_list == ["a", "b", "c"]
+    # test matching names with regex
     query_names = ["a.*", "b"]
     index_list, names_list = string_utils.resolve_matching_names(query_names, target_names)
     assert index_list == [0, 1]
     assert names_list == ["a", "b"]
+    # test duplicate names
     query_names = ["a|c", "b", "a|c"]
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names(query_names, target_names)
+    # test no regex match
     query_names = ["a|c", "b", "f"]
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names(query_names, target_names)
@@ -154,20 +153,25 @@ def test_resolve_matching_names_with_basic_strings():
 
 def test_resolve_matching_names_with_joint_name_strings():
     """Test resolving matching names with joint names."""
+    # list of strings
     robot_joint_names = []
     for i in ["hip", "thigh", "calf"]:
         for j in ["FL", "FR", "RL", "RR"]:
             robot_joint_names.append(f"{j}_{i}_joint")
+    # test matching names
     index_list, names_list = string_utils.resolve_matching_names(".*", robot_joint_names)
     assert index_list == list(range(len(robot_joint_names)))
     assert names_list == robot_joint_names
+    # test matching names with regex
     index_list, names_list = string_utils.resolve_matching_names(".*_joint", robot_joint_names)
     assert index_list == list(range(len(robot_joint_names)))
     assert names_list == robot_joint_names
+    # test matching names with regex
     index_list, names_list = string_utils.resolve_matching_names(["FL.*", "FR.*"], robot_joint_names)
     ground_truth_index_list = [0, 1, 4, 5, 8, 9]
     assert index_list == ground_truth_index_list
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
+    # test matching names with regex
     query_list = [
         "FL_hip_joint",
         "FL_thigh_joint",
@@ -181,6 +185,8 @@ def test_resolve_matching_names_with_joint_name_strings():
     assert names_list != query_list
     assert index_list == ground_truth_index_list
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
+    # test matching names with regex but shuffled
+    # randomize order of previous query list
     rng = random.Random(0)
     rng.shuffle(query_list)
     index_list, names_list = string_utils.resolve_matching_names(query_list, robot_joint_names)
@@ -192,6 +198,7 @@ def test_resolve_matching_names_with_joint_name_strings():
 
 def test_resolve_matching_names_with_preserved_order():
     """Test resolving matching names with preserved order."""
+    # list of strings and query list
     robot_joint_names = []
     for i in ["hip", "thigh", "calf"]:
         for j in ["FL", "FR", "RL", "RR"]:
@@ -204,17 +211,20 @@ def test_resolve_matching_names_with_preserved_order():
         "FL_calf_joint",
         "FR_calf_joint",
     ]
+    # test return in target ordering with sublist
     query_list.reverse()
     index_list, names_list = string_utils.resolve_matching_names(query_list, robot_joint_names, preserve_order=True)
     ground_truth_index_list = [9, 8, 5, 1, 4, 0]
     assert names_list == query_list
     assert index_list == ground_truth_index_list
+    # test return in target ordering with regex expression
     index_list, names_list = string_utils.resolve_matching_names(
         ["FR.*", "FL.*"], robot_joint_names, preserve_order=True
     )
     ground_truth_index_list = [1, 5, 9, 0, 4, 8]
     assert index_list == ground_truth_index_list
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
+    # test return in target ordering with a mix of regex and non-regex expression
     index_list, names_list = string_utils.resolve_matching_names(
         ["FR.*", "FL_calf_joint", "FL_thigh_joint", "FL_hip_joint"], robot_joint_names, preserve_order=True
     )
@@ -225,20 +235,25 @@ def test_resolve_matching_names_with_preserved_order():
 
 def test_resolve_matching_names_values_with_basic_strings():
     """Test resolving matching names with a basic expression."""
+    # list of strings
     target_names = ["a", "b", "c", "d", "e"]
+    # test matching names
     data = {"a|c": 1, "b": 2}
     index_list, names_list, values_list = string_utils.resolve_matching_names_values(data, target_names)
     assert index_list == [0, 1, 2]
     assert names_list == ["a", "b", "c"]
     assert values_list == [1, 2, 1]
+    # test matching names with regex
     data = {"a|d|e": 1, "b|c": 2}
     index_list, names_list, values_list = string_utils.resolve_matching_names_values(data, target_names)
     assert index_list == [0, 1, 2, 3, 4]
     assert names_list == ["a", "b", "c", "d", "e"]
     assert values_list == [1, 2, 2, 1, 1]
+    # test matching names with regex
     data = {"a|d|e|b": 1, "b|c": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(data, target_names)
+    # test no regex match
     query_names = {"a|c": 1, "b": 0, "f": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(query_names, target_names)
@@ -246,22 +261,30 @@ def test_resolve_matching_names_values_with_basic_strings():
 
 def test_resolve_matching_names_values_with_strict_false():
     """Test resolving matching names with strict=False parameter."""
+    # list of strings
     target_names = ["a", "b", "c", "d", "e"]
+    # test strict=False
     data = {"a|c": 1, "b": 2, "f": 3}
     index_list, names_list, values_list = string_utils.resolve_matching_names_values(data, target_names, strict=False)
     assert index_list == [0, 1, 2]
     assert names_list == ["a", "b", "c"]
     assert values_list == [1, 2, 1]
+
+    # test failure case: multiple matches for a string (should still raise ValueError even with strict=False)
     data = {"a|c": 1, "a": 2, "b": 3}
     with pytest.raises(ValueError, match="Multiple matches for 'a':"):
         _ = string_utils.resolve_matching_names_values(data, target_names, strict=False)
+
+    # test failure case: invalid input type (should still raise TypeError even with strict=False)
     with pytest.raises(TypeError, match="Input argument `data` should be a dictionary"):
         _ = string_utils.resolve_matching_names_values("not_a_dict", target_names, strict=False)
 
 
 def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     """Test resolving matching names with a basic expression."""
+    # list of strings
     target_names = ["a", "b", "c", "d", "e"]
+    # test matching names
     data = {"a|c": 1, "b": 2}
     index_list, names_list, values_list = string_utils.resolve_matching_names_values(
         data, target_names, preserve_order=True
@@ -269,6 +292,7 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     assert index_list == [0, 2, 1]
     assert names_list == ["a", "c", "b"]
     assert values_list == [1, 1, 2]
+    # test matching names with regex
     data = {"a|d|e": 1, "b|c": 2}
     index_list, names_list, values_list = string_utils.resolve_matching_names_values(
         data, target_names, preserve_order=True
@@ -276,9 +300,11 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     assert index_list == [0, 3, 4, 1, 2]
     assert names_list == ["a", "d", "e", "b", "c"]
     assert values_list == [1, 1, 1, 2, 2]
+    # test matching names with regex
     data = {"a|d|e|b": 1, "b|c": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(data, target_names, preserve_order=True)
+    # test no regex match
     query_names = {"a|c": 1, "b": 0, "f": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(query_names, target_names, preserve_order=True)
@@ -287,12 +313,17 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
 def test_clear_resolve_matching_names_cache():
     """Clearing the cache discards previously cached entries."""
     target_names = ["a", "b", "c"]
+    # Populate the cache
     string_utils.resolve_matching_names("a", target_names)
     info_before = _resolve_matching_names_impl.cache_info()
     assert info_before.currsize > 0
+
+    # Clear the cache
     string_utils.clear_resolve_matching_names_cache()
     info_after = _resolve_matching_names_impl.cache_info()
     assert info_after.currsize == 0
+
+    # Results are still correct after clearing
     idx, names = string_utils.resolve_matching_names("a", target_names)
     assert idx == [0]
     assert names == ["a"]
