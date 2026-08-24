@@ -351,3 +351,36 @@ def test_rigid_body_fragments_empty_list_authors_nothing():
     prim = stage.GetPrimAtPath("/World/Bare")
     assert result is True
     assert not prim.HasAPI(UsdPhysics.RigidBodyAPI)
+
+
+def _author_child_root_robot_usd(path: str) -> None:
+    """Author a robot whose articulation root sits on a child link, as ANYmal-style assets do."""
+    stage = Usd.Stage.CreateNew(path)
+    robot = UsdGeom.Xform.Define(stage, "/Robot")
+    base = UsdGeom.Xform.Define(stage, "/Robot/base").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(base)
+    UsdPhysics.ArticulationRootAPI.Apply(base)
+    stage.SetDefaultPrim(robot.GetPrim())
+    stage.Save()
+
+
+def test_empty_articulation_fragments_still_fix_the_root_link(tmp_path):
+    """``articulation_props=[]`` with ``fix_root_link`` must still reach a root on a child prim.
+
+    An empty fragment list carries no targeting intent, so the spawner has to fall through to the
+    topology-only path, which sweeps the spawn prim's subtree. Treating it as an anchor-targeted
+    entry instead pins the expression to the spawn prim, which carries no root API, so nothing is
+    authored and the world joint is never created.
+    """
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "child_root_robot.usda")
+    _author_child_root_robot_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, articulation_props=[], fix_root_link=True)
+    _spawn_from_usd_file("/World/Robot", usd_path, cfg)
+
+    stage = sim_utils.get_current_stage()
+    assert sim_utils.find_global_fixed_joint_prim("/World/Robot", stage=stage) is not None

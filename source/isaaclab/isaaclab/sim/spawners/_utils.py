@@ -52,5 +52,7 @@ def fragment_mapping(value) -> dict | None:
     if isinstance(value, SchemaFragment):
         return {"": [value]}
     if isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value):
-        return {"": list(value)}
+        # an empty sequence carries no fragments and no targeting intent, so it maps to an empty
+        # mapping rather than an anchor-targeted entry with nothing to author
+        return {"": list(value)} if value else {}
     return None
