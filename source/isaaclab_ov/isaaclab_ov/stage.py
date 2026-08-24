@@ -44,7 +44,7 @@ def create_ovstage(name: str) -> ovstage.Stage:
         The created :class:`ovstage.Stage`.
     """
     config = ovstage.StageConfig(
-        runtime_default_hierarchy_computation_model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+        runtime_default_hierarchy_computation_model=ovstage.HierarchyComputationModel.GPU_INCREMENTAL
     )
     return ovstage.Stage(name, config=config)
 
