@@ -39,8 +39,14 @@ outputs:
 runs:
   using: composite
   steps:
+    # always() here and on every post-test step below: the caller already gates
+    # this invocation on job status, and without it the composite inherits a
+    # failed job context and skips work that stays valid after a test failure.
+    # This step in particular has to run in every mode, since every later step
+    # reads its outputs.
     - name: Compute OVRTX shader cache keys
       id: compute
+      if: always()
       shell: bash
       env:
         ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
@@ -75,9 +81,6 @@ runs:
         KITLESS_COLLECTION: ${{ steps.compute.outputs.kitless-collection }}
       run: bash "$GITHUB_ACTION_PATH/report.sh" restore
 
-    # always() on every post-test step: the caller already gates this invocation
-    # on job status, and without it the composite inherits a failed job context
-    # and skips work that stays valid after a test failure.
     - name: Report OVRTX shader cache growth
       if: always() && inputs.mode != 'restore'
       id: growth
