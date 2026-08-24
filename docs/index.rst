@@ -29,7 +29,8 @@ adaptability, and support for running in the cloud.
 
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
-and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
+and navigation tasks. Browse the registered tasks and build a command in the
+`environment browser <source/setup/environments>`_.
 
 Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
@@ -122,11 +123,9 @@ Table of Contents
 
 
    source/overview/core-concepts/index
-   source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/imitation-learning/index
    source/overview/showroom
-   source/overview/simple_agents
 
 
 .. toctree::
