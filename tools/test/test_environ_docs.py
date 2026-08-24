@@ -44,8 +44,8 @@ from environ_docs import (  # noqa: E402
     EnvironmentDocRow,
     _physics_names_for_docs,
     apply_rl_library_overrides,
+    collect_environment_browser_preview_images,
     collect_environment_doc_rows,
-    collect_environment_preview_images,
     format_presets_rst,
     format_rl_libraries,
     get_workflow,
@@ -194,7 +194,7 @@ def test_format_presets_rst_keeps_ovphysx_on_physics():
 
 def test_physics_names_for_docs_infers_physx_from_default():
     names = _physics_names_for_docs(
-        "Isaac-Velocity-Flat-G1",
+        "IsaacContrib-Velocity-Flat-AnymalC",
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
@@ -422,21 +422,17 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert "const preserved = true;" in updated
 
 
-def test_collect_environment_preview_images_reuses_curated_world_for_variants():
-    content = """
-    | |stack-cube| | |stack-cube-link| | Stack cubes |
+def test_collect_environment_browser_preview_images_preserves_generated_assignments():
+    content = (
+        f"{ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
+        'const taskRows = [\n    ["Isaac-Cartpole", "rsl_rl", "newton_mjwarp", "", "", {}, '
+        '"tasks/classic/cartpole.jpg"],\n];\n'
+        f"{ENVIRONMENT_BROWSER_TASKS_END_MARKER}\n"
+    )
 
-.. |stack-cube| image:: ../_static/tasks/manipulation/franka_stack.jpg
-.. |stack-cube-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka <cfg.py>`
-.. |stack-cube-ik-link| replace:: :isaaclab-source:`IsaacContrib-Stack-Cube-Franka-IK-Rel <ik_cfg.py>`
-"""
+    preview_images = collect_environment_browser_preview_images(content)
 
-    preview_images = collect_environment_preview_images(content)
-
-    assert preview_images == {
-        "IsaacContrib-Stack-Cube-Franka": "tasks/manipulation/franka_stack.jpg",
-        "IsaacContrib-Stack-Cube-Franka-IK-Rel": "tasks/manipulation/franka_stack.jpg",
-    }
+    assert preview_images == {"Isaac-Cartpole": "tasks/classic/cartpole.jpg"}
 
 
 def test_patch_environment_browser_rejects_markers_around_non_generated_code():

@@ -28,6 +28,14 @@ from __future__ import annotations
 import json
 import os
 
+try:
+    import warp as wp
+except ModuleNotFoundError as exc:
+    if exc.name != "warp":
+        raise
+else:
+    wp.config.enable_backward = False
+
 pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump"]
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
+from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
@@ -17,15 +18,19 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
 def validate_shadow_hand_camera_settings(
-    tiled_camera: CameraCfg | ShadowHandTiledCameraCfg,
+    tiled_camera: CameraCfg,
     feature_extractor: FeatureExtractorCfg,
 ) -> None:
-    """Validate one resolved or defaulted Shadow Hand camera pipeline."""
-    while isinstance(tiled_camera, PresetCfg):
-        tiled_camera = tiled_camera.default
+    """Validate one concrete Shadow Hand camera pipeline."""
+    if not isinstance(tiled_camera, CameraCfg):
+        raise TypeError(
+            f"Shadow Hand camera validation requires a concrete CameraCfg, got {type(tiled_camera).__name__}."
+        )
     renderer_cfg = tiled_camera.renderer_cfg
-    while isinstance(renderer_cfg, PresetCfg):
-        renderer_cfg = renderer_cfg.default
+    if renderer_cfg is not None and not isinstance(renderer_cfg, RendererCfg):
+        raise TypeError(
+            f"Shadow Hand camera validation requires a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
+        )
 
     renderer_type = getattr(renderer_cfg, "renderer_type", None)
     warp_supported = {

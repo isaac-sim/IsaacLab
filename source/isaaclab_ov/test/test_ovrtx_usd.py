@@ -133,9 +133,106 @@ def test_ovrtx_motion_vectors_uses_target_motion_render_var():
     )
 
 
-def test_ovrtx_motion_vectors_with_rgb_falls_back_to_rgb():
-    """OVRTX only supports one main AOV at a time; combining motion vectors with RGB keeps RGB."""
+def test_ovrtx_primary_render_var_follows_the_first_requested_data_type():
+    """The primary render var seeds the single-var arguments from the first requested data type."""
     assert get_render_var_config(["rgb", "motion_vectors"]) == ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+    assert get_render_var_config(["motion_vectors", "rgb"]) == (
+        "/Render/Vars/TargetMotionSD",
+        "TargetMotionSD",
+        "TargetMotionSD",
+    )
+
+
+def test_ovrtx_authors_one_render_var_per_requested_data_type():
+    """Every requested AOV is authored, so combining them no longer drops any."""
+    data_types = [
+        "rgb",
+        "albedo",
+        "semantic_segmentation",
+        "instance_segmentation",
+        "depth",
+        "distance_to_camera",
+        "normals",
+        "motion_vectors",
+    ]
+
+    sources = [source for _, _, source in get_render_var_configs(data_types)]
+
+    assert sources == [
+        "LdrColor",
+        "DiffuseAlbedoSD",
+        "SemanticSegmentation",
+        "NonStableInstanceSegmentation",
+        "DistanceToImagePlaneSD",
+        "DistanceToCameraSD",
+        "NormalSD",
+        "TargetMotionSD",
+        "StableIdSemanticIdMap",
+        "StableIdMap",
+        "SemanticIdMap",
+    ]
+
+
+def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
+    """``rgb``/``rgba`` and ``depth``/``distance_to_image_plane`` collapse onto one render var each."""
+    render_var_configs = get_render_var_configs(["rgb", "rgba", "depth", "distance_to_image_plane"])
+
+    assert render_var_configs == [
+        ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
+        ("/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"),
+    ]
+
+
+def test_ovrtx_depth_and_distance_to_camera_author_distinct_render_vars():
+    """Image-plane depth and distance-to-camera are different sources and get separate prims."""
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path="/Render/Vars/depth",
+        render_var_name="depth",
+        source_name="DistanceToImagePlaneSD",
+        tiled_width=16,
+        tiled_height=8,
+        render_var_configs=get_render_var_configs(["depth", "distance_to_camera"]),
+    )
+
+    assert "rel orderedVars = [</Render/Vars/depth>, </Render/Vars/DistanceToCameraSD>]" in render_scope
+    assert 'uniform string sourceName = "DistanceToImagePlaneSD"' in render_scope
+    assert 'uniform string sourceName = "DistanceToCameraSD"' in render_scope
+
+
+def test_ovrtx_unsupported_data_type_is_skipped_and_falls_back_to_ldr_color():
+    """Unsupported data types author no render var; an otherwise empty product keeps LdrColor."""
+    assert get_render_var_configs(["instance_id_segmentation_fast"]) == [
+        ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+    ]
+    assert get_render_var_configs(["normals", "instance_id_segmentation_fast"]) == [
+        ("/Render/Vars/NormalSD", "NormalSD", "NormalSD")
+    ]
+
+
+def test_ovrtx_rejects_color_combined_with_simple_shading():
+    """Color and simple shading both read LdrColor, so one render product cannot serve both."""
+    with pytest.raises(ValueError, match="simple shading"):
+        get_render_var_configs(["rgb", "simple_shading_full_mdl"])
+
+
+def test_ovrtx_rejects_multiple_simple_shading_data_types():
+    """RTX Minimal mode is per render product, so only one simple shading output is possible."""
+    with pytest.raises(ValueError, match="at most one simple shading"):
+        get_render_var_configs(["simple_shading_constant_diffuse", "simple_shading_full_mdl"])
+
+
+def test_ovrtx_simple_shading_alone_uses_ldr_color():
+    """A lone simple shading request still reads LdrColor, shaded by RTX Minimal mode."""
+    assert get_render_var_configs(["simple_shading_diffuse_mdl"]) == [("/Render/Vars/LdrColor", "LdrColor", "LdrColor")]
+
+
+def test_ovrtx_duplicate_simple_shading_data_types_collapse():
+    """Repeated identical simple-shading requests share one LdrColor render var."""
+    assert get_render_var_configs(["simple_shading_full_mdl", "simple_shading_full_mdl"]) == [
+        ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+    ]
 
 
 def test_render_product_initially_targets_only_the_resolvable_source_camera():

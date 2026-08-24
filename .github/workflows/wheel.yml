@@ -135,6 +135,25 @@ jobs:
         with:
           python-version: "3.12"
           architecture: x64
+          cache: pip
+          # Keyed on this workflow file, not pyproject.toml: the pip cache key is
+          # otherwise identical across every 3.12 ubuntu job here, so they collide
+          # and all but the first fail to save. Covers the `build` and `wheel`
+          # packages that tools/wheel_builder/build.sh installs with pip.
+          cache-dependency-path: .github/workflows/wheel.yml
+
+      # The extras-resolution step below drives uv, whose downloads land in
+      # ~/.cache/uv rather than pip's cache. Provisioning uv here caches that
+      # resolution work and drops the ~24 MB `pip install uv` bootstrap.
+      - name: Set up uv
+        if: steps.changes.outputs.run_build == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          # Neither this job nor kitless-docker pins python-version, so both land
+          # on the same `-unknown-` cache key and only one can save. This job
+          # caches the wheel's full extras resolution; keep it separate.
+          cache-suffix: wheel-extras
 
       # Compose Docker-image-style metadata for the artifact. The artifact
       # name is what QA sees in `gh run download`, so we make it scannable:
@@ -176,9 +195,6 @@ jobs:
         if: steps.changes.outputs.run_build == 'true'
         run: |
           set -euo pipefail
-
-          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python -m pip install --user uv
-          export PATH="$HOME/.local/bin:$PATH"
 
           overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
 
