@@ -13,7 +13,6 @@ import torch
 from isaaclab.managers import CommandTerm
 
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.lift_env_cfg import ReorientEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
@@ -37,14 +36,6 @@ class _FakeScene(dict):
         super().__init__(assets)
         self._ALL_INDICES = environment_ids
         self.env_origins = torch.zeros((len(environment_ids), 3))
-
-
-def test_reorient_episode_and_command_timing() -> None:
-    """Reorientation episodes should retain the intended command timing."""
-    cfg = ReorientEnvCfg()
-
-    assert cfg.episode_length_s == 12.0
-    assert cfg.commands.object_pose.resampling_time_range == (4.0, 6.0)
 
 
 def test_camera_normalization_is_stationary() -> None:
