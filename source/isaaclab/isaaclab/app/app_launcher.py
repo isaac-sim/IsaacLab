@@ -333,13 +333,6 @@ class AppLauncher:
         # Load IsaacSim extensions
         self._load_extensions()
 
-        # Nothing has asked for an asset yet, and the first thing that does -- building the
-        # scene -- would otherwise pay the connection handshake before its own lookup. Open
-        # it now instead, in the background.
-        from isaaclab.utils.assets import _prewarm_asset_server
-
-        _prewarm_asset_server()
-
         # Re-run path sanitization.  Kit and its extensions may have inserted
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
@@ -347,6 +340,13 @@ class AppLauncher:
         from isaaclab import _deprioritize_prebundle_paths
 
         _deprioritize_prebundle_paths()
+
+        # Nothing has asked for an asset yet, and the first thing that does -- building the
+        # scene -- would otherwise pay the connection handshake before its own lookup. Open
+        # it now instead, in the background.
+        from isaaclab.utils.assets import _prewarm_asset_server
+
+        _prewarm_asset_server()
 
         # Hide the stop button in the toolbar
         self._hide_stop_button()
