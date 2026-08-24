@@ -187,14 +187,19 @@ def _echo_ovrtx_log(request):
     the test that failed rather than in the log of a passing run, and the artifact holds one copy of each
     test's own output rather than a growing copy of everything logged before it.
 
-    The save runs first so that the artifact holds the log even if the replay cannot print it.
+    The save runs first so that the artifact holds the log even if the replay cannot print it, and is
+    suppressed so that the reverse cannot happen either: this runs in the teardown of every test that
+    rendered, so a full or unwritable artifact directory would otherwise turn each of them into an error
+    and take the replay below down with it. An artifact matters less than the test result and the replay,
+    as it does to ``_make_crash_pass_result`` in ``tools/conftest.py``.
     """
     label = request.node.name
 
     start = log_size(LOG_PATH)
     yield
     if directory := os.environ.get(LOG_DIR_ENV_VAR):
-        save_output(directory, label, start=start)
+        with contextlib.suppress(OSError):
+            save_output(directory, label, start=start)
 
     if section := format_log_section(LOG_PATH, label, start=start):
         print(f"\n{section}", end="")
