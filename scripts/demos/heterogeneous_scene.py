@@ -102,7 +102,7 @@ def _load_task_scenes() -> tuple[list[str], list[InteractiveSceneCfg]]:
         raise ValueError("Select at least two task scenes.")
     scene_cfgs = []
     for task_id in task_ids:
-        env_cfg, _ = resolve_task_config(task_id, "", overrides=(f"physics={args_cli.physics}", *hydra_args))
+        env_cfg, _ = resolve_task_config(task_id, "", overrides=hydra_args)
         scene_cfgs.append(env_cfg.scene)
     return task_ids, scene_cfgs
 
