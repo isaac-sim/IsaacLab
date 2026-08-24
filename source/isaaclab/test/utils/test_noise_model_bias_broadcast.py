@@ -42,6 +42,23 @@ def test_additive_bias_broadcasts_over_multidimensional_data(sample_bias_per_com
     torch.testing.assert_close(output, torch.ones_like(data))
 
 
+def test_additive_bias_preserves_rank_one_shape():
+    cfg = SimpleNamespace(
+        noise_cfg=SimpleNamespace(func=_identity_noise),
+        bias_noise_cfg=SimpleNamespace(func=_unit_bias),
+        sample_bias_per_component=True,
+    )
+    model = NoiseModelWithAdditiveBias(cfg, num_envs=2, device="cpu")
+    model.reset()
+
+    data = torch.zeros(2)
+    output = model(data)
+
+    assert model._bias.shape == (2, 1)
+    assert output.shape == data.shape
+    torch.testing.assert_close(output, torch.ones_like(data))
+
+
 def test_additive_bias_samples_each_multidimensional_component_independently():
     cfg = SimpleNamespace(
         noise_cfg=SimpleNamespace(func=_identity_noise),
