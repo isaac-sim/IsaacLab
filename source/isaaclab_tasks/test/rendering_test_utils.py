@@ -96,8 +96,10 @@ _IMAGE_TOLERANCE_OVERRIDES = {
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.96),
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgba"): (20.0, 0.96),
     ("franka_cable", "newton", "ovrtx_renderer", "rgb"): (8.0, 0.98),
-    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgb"): (12.0, 0.985),
-    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgba"): (12.0, 0.985),
+    # A cold first capture has reached 6.10% while retaining >= 0.9933 SSIM; keep narrow pixel headroom.
+    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgb"): (7.0, 0.985),
+    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgba"): (7.0, 0.985),
+    # A cold first capture has reached 4.20% and 0.9542 SSIM before retrying at 0.24% and 0.9999 SSIM.
     ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgb"): (5.0, 0.95),
     ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgba"): (5.0, 0.95),
 }
