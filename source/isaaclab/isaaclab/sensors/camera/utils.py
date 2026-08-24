@@ -156,7 +156,7 @@ def create_pointcloud_from_depth(
 def create_pointcloud_from_rgbd(
     intrinsic_matrix: torch.Tensor | np.ndarray | wp.array,
     depth: torch.Tensor | np.ndarray | wp.array,
-    rgb: torch.Tensor | wp.array | np.ndarray | tuple[float, float, float] | list[float] = None,
+    rgb: torch.Tensor | wp.array | np.ndarray | tuple[float, float, float] | list[float] | None = None,
     normalize_rgb: bool = False,
     position: Sequence[float] | None = None,
     orientation: Sequence[float] | None = None,
@@ -236,13 +236,13 @@ def create_pointcloud_from_rgbd(
             # is done in the order (u, v) where u: (0, W-1) and v: (0 - H-1)
             points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
         elif isinstance(rgb, (tuple, list)):
-            # same color for all points
-            points_rgb = torch.tensor((rgb,) * num_points, device=color_device, dtype=torch.uint8)
+            # same color for all points without materializing one Python tuple per point
+            points_rgb = torch.tensor(rgb, device=color_device, dtype=torch.uint8).expand(num_points, -1)
         else:
             # default color is black
-            points_rgb = torch.tensor(((0, 0, 0),) * num_points, device=color_device, dtype=torch.uint8)
+            points_rgb = torch.zeros((num_points, 3), device=color_device, dtype=torch.uint8)
     else:
-        points_rgb = torch.tensor(((0, 0, 0),) * num_points, device=color_device, dtype=torch.uint8)
+        points_rgb = torch.zeros((num_points, 3), device=color_device, dtype=torch.uint8)
     # normalize color values
     if normalize_rgb:
         points_rgb = points_rgb.float() / 255
