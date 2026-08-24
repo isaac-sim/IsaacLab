@@ -19,7 +19,6 @@ from isaaclab.managers import ActionManager, EventManager, ObservationManager, R
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
@@ -89,9 +88,6 @@ class ManagerBasedEnv:
 
         # check that the config is valid
         cfg.validate()
-        # Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)
-        # to their default variant so that managers and scene builders see concrete cfg objects.
-        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables

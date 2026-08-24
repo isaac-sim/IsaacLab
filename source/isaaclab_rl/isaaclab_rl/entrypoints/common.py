@@ -16,7 +16,7 @@ import re
 import runpy
 import sys
 import warnings
-from collections.abc import Callable, Container, Iterator
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,11 +34,8 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
 
-# Preset selectors whose values name a preset, and the preset names that resolved
-# configs map back to when their class or ``renderer_type`` differs from the name.
-_PRESET_SELECTORS = frozenset({"presets", "physics", "renderer"})
-_PHYSICS_PRESET_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
-_RENDERER_PRESET_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
+_PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
+_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
 
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
@@ -355,7 +352,7 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
             "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
             " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
             " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `presets=newton_mjwarp`."
+            " and `physics=newton_mjwarp`."
         ),
     )
 
@@ -555,33 +552,29 @@ def show_run_summary(
 ) -> None:
     """Print a summary of the backends and scale a run is about to use.
 
-    Every row names the backend that will run, alongside the choice the run stopped at.
-    A backend reached through a family the command line named -- ``physics=physx`` and
-    ``renderer=rtx`` name a family that launch resolves -- is shown as
-    ``<family> (<resolved>)``, and a backend the run named neither directly nor by
-    family is shown as ``default (<resolved>)``.
+    Every row names the backend that will run. An automatic launcher choice is
+    shown as ``<automatic> (<concrete>)``.
 
-    Resolving those selectors mutates *env_cfg* in place, exactly as the following
-    :func:`~isaaclab.app.launch_simulation` call would; call this after every other
-    pre-launch config change, in particular :func:`pre_launch_video_config`.
+    Resolving automatic backend configurations mutates *env_cfg* in place, exactly
+    as the following :func:`~isaaclab.app.launch_simulation` call would; call this
+    after every other pre-launch config change, in particular :func:`pre_launch_video_config`.
 
     Args:
         screen: Loading screen that owns the console.
         args_cli: Parsed command-line arguments.
-        env_cfg: Isaac Lab environment config, with its presets already resolved.
+        env_cfg: Concrete Isaac Lab environment config.
         library: Reinforcement learning library running the workflow.
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
-    selected = _selected_preset_names()
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
 
     # Names read before the scan resolves the automatic selectors, so a row can report
     # the family the run asked for next to the backend that family resolved to
-    requested_physics = _physics_name(env_cfg.sim.physics)
+    requested_physics = _physics_backend_name(env_cfg.sim.physics)
     requested_renderer = _renderer_name(env_cfg)
     scan(env_cfg, args_cli)
-    physics = _physics_name(env_cfg.sim.physics)
+    physics = _physics_backend_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
 
     screen.summary(
@@ -590,13 +583,12 @@ def show_run_summary(
             "Task": args_cli.task,
             "Workflow": _workflow_name(env_cfg),
             "RL library": library,
-            "Physics": _label(requested_physics, physics, selected=selected),
+            "Physics": _backend_label(requested_physics, physics),
             "Renderer": (
                 "n/a (no camera sensors)"
                 if renderer is None
-                else _label(requested_renderer or renderer, renderer, selected=selected)
+                else _backend_label(requested_renderer or renderer, renderer)
             ),
-            "Presets": _additional_preset_names({requested_physics, physics, requested_renderer, renderer}),
             "Visualizer": _visualizer_name(args_cli, env_cfg),
             "Device": str(device),
             "Environments": str(num_envs),
@@ -604,68 +596,18 @@ def show_run_summary(
     )
 
 
-def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -> str:
-    """Name the backend a row reports, and where the run stopped choosing it.
+def _backend_label(requested: str, concrete: str) -> str:
+    """Name a concrete backend and its automatic selector when they differ.
 
     Args:
-        requested: Preset name the config carried before launch resolved its automatic
-            selectors, which names a backend family when it differs from *resolved*.
-        resolved: Preset name of the backend that will run.
-        selected: Preset names the command line asked for.
+        requested: Backend name before launcher-owned automatic selection.
+        concrete: Concrete backend that will run.
 
     Returns:
-        The resolved name when the run asked for that backend, ``<family> (<resolved>)``
-        when it asked for the family the backend was picked from, and
-        ``default (<resolved>)`` when it asked for neither.
+        The concrete name, or ``<automatic> (<concrete>)`` when the launcher
+        selected a concrete backend from an automatic configuration.
     """
-    if resolved in selected:
-        return resolved
-    if requested in selected:
-        return f"{requested} ({resolved})"
-    return f"default ({resolved})"
-
-
-def _selected_preset_names() -> set[str]:
-    """Return the preset names the command line asked for.
-
-    Reads the same ``sys.argv`` the preset resolver consumes (see
-    :func:`~isaaclab_tasks.utils.hydra.register_task`), so the summary marks a
-    backend as chosen exactly when a ``physics=`` / ``renderer=`` / ``presets=``
-    token or a Hydra path override named it.
-    """
-    names: set[str] = set()
-    for token in sys.argv[1:]:
-        key, separator, value = token.partition("=")
-        if separator and (key.lstrip("-") in _PRESET_SELECTORS or key.startswith(("env.", "agent."))):
-            names.update(part.strip() for part in value.split(",") if part.strip())
-    return names
-
-
-def _additional_preset_names(shown: Container[str | None]) -> str:
-    """Return the presets the command line asked for that no other row names.
-
-    Domain presets such as ``presets=cube`` do not surface anywhere else in the
-    summary, so they are listed here. A preset a row already reports is left out,
-    whether it names the backend that will run or the family the row resolved it
-    from -- ``renderer=rtx`` is reported by an ``rtx (ovrtx)`` renderer row.
-
-    Args:
-        shown: Preset names reported by the physics and renderer rows, including
-            the families those rows resolved from.
-
-    Returns:
-        The remaining preset names in command-line order, comma separated, or
-        ``"none"`` when the run named no other preset.
-    """
-    names: list[str] = []
-    for token in sys.argv[1:]:
-        key, separator, value = token.partition("=")
-        if not separator or key.lstrip("-") not in _PRESET_SELECTORS:
-            continue
-        for part in (part.strip() for part in value.split(",")):
-            if part and part not in shown and part not in names:
-                names.append(part)
-    return ", ".join(names) if names else "none"
+    return concrete if requested == concrete else f"{requested} ({concrete})"
 
 
 def _workflow_name(env_cfg: Any) -> str:
@@ -675,11 +617,11 @@ def _workflow_name(env_cfg: Any) -> str:
     return "direct (multi-agent)" if isinstance(env_cfg, DirectMARLEnvCfg) else "direct"
 
 
-def _physics_name(physics_cfg: Any) -> str:
-    """Return the preset name of a resolved physics config."""
+def _physics_backend_name(physics_cfg: Any) -> str:
+    """Return the backend name of a concrete physics config."""
     class_name = type(physics_cfg).__name__
-    if class_name in _PHYSICS_PRESET_NAMES:
-        return _PHYSICS_PRESET_NAMES[class_name]
+    if class_name in _PHYSICS_BACKEND_NAMES:
+        return _PHYSICS_BACKEND_NAMES[class_name]
     solver_cfg = getattr(physics_cfg, "solver_cfg", None)
     backend = class_name.removesuffix("Cfg").lower()
     if solver_cfg is None:
@@ -688,7 +630,7 @@ def _physics_name(physics_cfg: Any) -> str:
 
 
 def _renderer_name(env_cfg: Any) -> str | None:
-    """Return the preset name of the renderer used by the first camera sensor of *env_cfg*.
+    """Return the backend name of the renderer used by the first camera sensor of *env_cfg*.
 
     Only configs whose class declares ``renderer_cfg`` are read. Probing every
     attribute with :func:`getattr` instead would resolve lazily evaluated config
@@ -703,7 +645,7 @@ def _renderer_name(env_cfg: Any) -> str | None:
             renderer_cfg = value.renderer_cfg
             if isinstance(renderer_cfg, RendererCfg):
                 renderer_type = renderer_cfg.renderer_type
-                return _RENDERER_PRESET_NAMES.get(renderer_type, renderer_type)
+                return _RENDERER_BACKEND_NAMES.get(renderer_type, renderer_type)
     return None
 
 
