@@ -62,8 +62,6 @@ def validate_source(
             f"\nsource:   {_format_paths(source_paths)}"
         )
     pr_merge_base = _run(["git", "merge-base", pr_base, pr_head]).stdout.strip()
-    if _patch_id(source_parent, source) != _patch_id(pr_merge_base, pr_head):
-        raise BackportValidationError("the merged commit does not represent the complete PR patch")
     if _change_digest(source_parent, source) != _change_digest(pr_merge_base, pr_head):
         raise BackportValidationError("the merged commit content differs from the complete PR patch")
     return source_paths
@@ -106,10 +104,6 @@ def validate_candidate(
             raise BackportValidationError(
                 "an exact automatic backport must replay every source path: " + _format_paths(missing_paths)
             )
-        source_patch_id = _patch_id(source_parent, source)
-        candidate_patch_id = _patch_id(target, candidate)
-        if source_patch_id != candidate_patch_id:
-            raise BackportValidationError("the candidate Git patch ID differs from the original PR")
         if _change_digest(source_parent, source) != _change_digest(target, candidate):
             raise BackportValidationError("the candidate added or removed content differs from the original PR")
 
@@ -180,31 +174,6 @@ def _candidate_entry(candidate: str | None, path: str) -> tuple[str, str] | None
     return mode, object_id
 
 
-def _patch_id(base: str, head: str | None) -> str:
-    """Return Git's stable patch ID for a revision range."""
-    if head is None:
-        raise ValueError("head is required when validating an exact patch")
-    patch = _run(
-        [
-            "git",
-            "diff",
-            "--binary",
-            "--full-index",
-            "--no-color",
-            "--no-ext-diff",
-            "--no-renames",
-            base,
-            head,
-            "--",
-        ],
-        text=False,
-    ).stdout
-    result = _run(["git", "patch-id", "--stable"], input_bytes=patch, text=False).stdout.decode("ascii").strip()
-    if not result:
-        raise BackportValidationError("the candidate patch is empty")
-    return result.split()[0]
-
-
 def _change_digest(base: str, head: str | None) -> str:
     """Hash exact added and removed bytes while ignoring base-dependent diff context."""
     if head is None:
@@ -261,18 +230,18 @@ def _create_parser() -> argparse.ArgumentParser:
     requested.add_argument("--event", type=Path, required=True)
 
     source = subparsers.add_parser("validate-source", help="Verify that a merge commit represents the full PR")
-    source.add_argument("--source-parent", required=True)
+    source.add_argument("--source_parent", required=True)
     source.add_argument("--source", required=True)
-    source.add_argument("--pr-base", required=True)
-    source.add_argument("--pr-head", required=True)
-    source.add_argument("--expected-files-json", type=Path, required=True)
+    source.add_argument("--pr_base", required=True)
+    source.add_argument("--pr_head", required=True)
+    source.add_argument("--expected_files_json", type=Path, required=True)
 
     candidate = subparsers.add_parser("validate-candidate", help="Verify a candidate backport")
-    candidate.add_argument("--source-parent", required=True)
+    candidate.add_argument("--source_parent", required=True)
     candidate.add_argument("--source", required=True)
     candidate.add_argument("--target", required=True)
     candidate.add_argument("--candidate")
-    candidate.add_argument("--exact-patch", action="store_true")
+    candidate.add_argument("--exact_patch", action="store_true")
     return parser
 
 

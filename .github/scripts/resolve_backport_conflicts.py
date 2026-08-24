@@ -34,11 +34,13 @@ class ConflictResolutionError(RuntimeError):
     """Raised when a conflict cannot be resolved within the backport constraints."""
 
 
-def collect_conflict_context(source_parent: str, source: str, target: str) -> dict[str, Any]:
+def collect_conflict_context(source_parent: str, source: str, target: str, cherry_pick_head: str) -> dict[str, Any]:
     """Collect complete text for each path left unmerged by a cherry-pick."""
-    cherry_pick_head = _git("rev-parse", "CHERRY_PICK_HEAD").strip()
-    if cherry_pick_head != source:
-        raise ConflictResolutionError(f"CHERRY_PICK_HEAD is {cherry_pick_head!r}, not the expected source {source!r}")
+    actual_cherry_pick_head = _git("rev-parse", "CHERRY_PICK_HEAD").strip()
+    if actual_cherry_pick_head != cherry_pick_head:
+        raise ConflictResolutionError(
+            f"CHERRY_PICK_HEAD is {actual_cherry_pick_head!r}, not the expected commit {cherry_pick_head!r}"
+        )
 
     conflicts = _git_paths("diff", "--name-only", "--diff-filter=U")
     if not conflicts:
@@ -389,9 +391,10 @@ def _git_paths(*args: str) -> list[str]:
 def _create_parser() -> argparse.ArgumentParser:
     """Create the command-line parser."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-parent", required=True)
+    parser.add_argument("--source_parent", required=True)
     parser.add_argument("--source", required=True)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--cherry_pick_head", required=True)
     parser.add_argument("--model", action="append", dest="models")
     return parser
 
@@ -408,7 +411,7 @@ def main() -> int:
         print("conflict resolution failed: at least one non-empty model is required", file=sys.stderr)
         return 1
     try:
-        context = collect_conflict_context(args.source_parent, args.source, args.target)
+        context = collect_conflict_context(args.source_parent, args.source, args.target, args.cherry_pick_head)
         resolutions = request_resolutions(context, api_key, models)
         apply_resolutions(resolutions, context)
     except (ConflictResolutionError, subprocess.CalledProcessError) as error:
