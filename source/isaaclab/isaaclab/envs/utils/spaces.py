@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
 import json
 from typing import Any
 
@@ -110,7 +111,15 @@ def serialize_space(space: SpaceType) -> str:
     """
     # Gymnasium spaces
     if isinstance(space, gym.spaces.Discrete):
-        return json.dumps({"type": "gymnasium", "space": "Discrete", "n": int(space.n), "start": int(space.start)})
+        return json.dumps(
+            {
+                "type": "gymnasium",
+                "space": "Discrete",
+                "n": int(space.n),
+                "start": int(space.start),
+                "dtype": str(space.dtype),
+            }
+        )
     elif isinstance(space, gym.spaces.Box):
         return json.dumps(
             {
@@ -173,7 +182,12 @@ def deserialize_space(string: str) -> gym.spaces.Space:
     # Gymnasium spaces
     if obj["type"] == "gymnasium":
         if obj["space"] == "Discrete":
-            return gym.spaces.Discrete(n=obj["n"], start=obj.get("start", 0))
+            kwargs = {"n": obj["n"], "start": obj.get("start", 0)}
+            # Gymnasium 1.3 added a configurable Discrete dtype. Keep older
+            # supported versions working by only passing it when accepted.
+            if "dtype" in obj and "dtype" in inspect.signature(gym.spaces.Discrete).parameters:
+                kwargs["dtype"] = np.dtype(obj["dtype"])
+            return gym.spaces.Discrete(**kwargs)
         elif obj["space"] == "Box":
             return gym.spaces.Box(
                 low=np.array(obj["low"]),
