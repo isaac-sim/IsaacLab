@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+5.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes through Fabric for Isaac RTX rendering.
+
+
 5.1.1 (2026-08-21)
 ~~~~~~~~~~~~~~~~~~
 

@@ -54,8 +54,8 @@ from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
 pytestmark = pytest.mark.isaacsim_ci
 
-_CLIP = 12  # frames per clip
-_STEPS = 22  # env steps: enough for one full clip plus close() flush
+_CLIP = 20  # frames per clip
+_STEPS = 30  # env steps: enough for one full clip plus close() flush
 _MIN_NONZERO_RATIO = 0.005
 _MIN_MOTION_STD = 0.1
 _SEED = 42
@@ -102,17 +102,15 @@ def _cartpole_cfg_newton(*, num_envs: int = 1):
 
 
 def _cartpole_camera_cfg_physx(*, num_envs: int = 1):
-    from isaaclab_physx.physics import PhysxCfg
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+    from isaaclab_tasks.utils import resolve_task_config
 
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
-
-    cfg = CartpoleCameraEnvCfg()
-    cfg = cfg.default
+    cfg, _ = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct",
+        "",
+        overrides=("physics=isaacsim_physx", "renderer=isaacsim_rtx"),
+    )
     cfg.seed = _SEED
     cfg.scene.num_envs = num_envs
-    cfg.sim.physics = PhysxCfg()
-    cfg.tiled_camera.default.renderer_cfg.default = IsaacRtxRendererCfg()
     return cfg
 
 
@@ -138,7 +136,8 @@ def _run_cartpole_camera(env_cfg) -> None:
     try:
         assert env.cfg.tiled_camera.renderer_cfg.renderer_type == "isaac_rtx"
         env.reset()
-        actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+        # Nonzero action: guarantees clip motion instead of relying on passive pole fall.
+        actions = torch.ones(env.num_envs, *env.action_space.shape[1:], device=env.device)
         for _ in range(_STEPS):
             env.step(actions)
     finally:

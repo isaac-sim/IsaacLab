@@ -3,13 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_ov.physics import OvPhysxCfg
-
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils.configclass import configclass
 
@@ -22,20 +19,6 @@ from .camera_cfg import StateObservationCfg
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 THUMB_SENSOR = "thumb_link_3_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
-
-
-@configclass
-class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
-    """Physics presets supported by the Kuka Allegro tasks."""
-
-    isaacsim_physx = lift.PhysicsCfg().isaacsim_physx
-    ovphysx = OvPhysxCfg(
-        gpu_max_rigid_patch_count=4 * 5 * 2**15,
-        gpu_found_lost_pairs_capacity=2**26,
-    )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp = lift.PhysicsCfg().newton_mjwarp
-    default = newton_mjwarp
 
 
 @configclass
@@ -105,7 +88,6 @@ class KukaAllegroMixinCfg:
 
     def __post_init__(self: lift.ReorientEnvCfg):
         super().__post_init__()
-        self.sim.physics = KukaAllegroPhysicsCfg()
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")

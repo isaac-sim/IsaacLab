@@ -1,6 +1,73 @@
 Changelog
 ---------
 
+18.0.1 (2026-08-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed backend factory resolution raising before simulator initialization by using the team-confirmed ``newton``
+  fallback when no ``SimulationContext`` exists.
+* Fixed scene gravity randomization to honor configured distributions with PhysX and OvPhysX.
+
+
+18.0.0 (2026-08-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.cloner.ClonePlan.global_paths` to identify scene assets shared by every environment
+  without representing them as replication rows.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.cloner.make_clone_plan`, :func:`~isaaclab.cloner.clone_plan_from_env_0`, and
+  :class:`~isaaclab.cloner.ReplicateSession` to accept explicit ``global_paths`` tuples.
+
+Fixed
+^^^^^
+
+* Fixed camera depth display normalization producing ``NaN`` values and suppressing finite depth contrast when
+  no-hit pixels contain ``inf`` or ``NaN`` values.
+
+
+17.0.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added scene-declared :class:`~isaaclab.assets.VisualMaterial` assets with shared or
+  per-environment cloning, numeric GPU channel randomization, and part-level material bindings.
+* Added kitless USD authoring for Preview Surface, OmniPBR, and OmniGlass materials.
+* Added the ``--isaacsim_source`` CLI option, which incrementally builds Isaac Sim from a source checkout,
+  links its live release tree into the repository as ``_isaac_sim``, and runs Python commands with
+  the active environment through Isaac Sim's generated launcher. This avoided rebuilding and
+  installing Python wheels after every incremental native build and left ``pyproject.toml`` and
+  ``uv.lock`` unchanged.
+* Added static Isaac Lab 3 and NVIDIA greetings to the loading screen, selected at random for each run.
+
+Changed
+^^^^^^^
+
+* Changed the loading screen's wide layout to start at 130 columns rather than 120, giving the
+  Isaac Lab 3 wordmark room to fit. Terminals between 120 and 129 columns now use the 80-column layout.
+* **Breaking:** Changed the ``isaaclab[all]`` extra to exclude Isaac Sim. Install
+  ``isaaclab[isaacsim]`` with the documented resolver overrides when Isaac Sim is required.
+* **Breaking:** Moved the standalone URDF/MJCF importers from the base wheel to the
+  ``isaaclab[importers]`` extra. Use the documented override command when installing it.
+
+Fixed
+^^^^^
+
+* Fixed Newton actuator imports with the minimum Newton versions supported by the wheel.
+* Fixed :func:`isaaclab.envs.mdp.image` so colorized semantic-segmentation observations are
+  converted to normalized ``float32`` tensors when ``normalize=True``.
+
+
 16.4.1 (2026-08-21)
 ~~~~~~~~~~~~~~~~~~~
 
