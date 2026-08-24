@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused PhysX rigid-object-collection ordering and selector tests."""
+"""Focused PhysX rigid-object-collection ordering and selector unit tests."""
 
 import numpy as np
 import pytest

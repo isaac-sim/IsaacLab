@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused PhysX rigid-object CPU staging and cached-view tests."""
+"""Focused PhysX rigid-object CPU staging and cached-view unit tests."""
 
 import sys
 from types import SimpleNamespace

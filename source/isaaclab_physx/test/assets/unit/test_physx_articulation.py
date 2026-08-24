@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused PhysX articulation staging, cache, friction, and kernel tests."""
+"""Focused PhysX articulation staging, cache, friction, and kernel unit tests."""
 
 from types import SimpleNamespace
 from unittest.mock import patch

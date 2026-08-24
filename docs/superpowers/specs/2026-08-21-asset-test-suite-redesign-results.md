@@ -9,10 +9,10 @@ SPDX-License-Identifier: BSD-3-Clause
 
 ## Outcome
 
-The comparable asset and WrenchComposer scopes now finish in **143.67 s** of
-subprocess wall time, down from **1,197.60 s**: an **8.34x wall-time speed-up**.
+The comparable asset and WrenchComposer scopes now finish in **140.41 s** of
+subprocess wall time, down from **1,197.60 s**: an **8.53x wall-time speed-up**.
 The test-runner model is unchanged: every selected file runs in a fresh
-subprocess. The final scopes collect 1,511 focused cases: 1,408 pass and 103
+subprocess. The final scopes collect 1,519 focused cases: 1,416 pass and 103
 skip with an explicit capability reason.
 
 The reduction comes from replacing backend-independent solver matrices with a
@@ -39,7 +39,7 @@ deliberately excluded.
 ## Copy-ready PR performance section
 
 The asset-test redesign reduced the five comparable CI-style scopes from
-19m57.60s to 2m23.67s wall time (**8.34x faster**). This comparison uses the
+19m57.60s to 2m20.41s wall time (**8.53x faster**). This comparison uses the
 same repository test orchestrator before and after, with one process per test
 file. Controller-owner and OV manager lifecycle checks are reported separately
 and are not included in the denominator.
@@ -47,11 +47,23 @@ and are not included in the denominator.
 | Scope | Before files / cases | After files / outcomes | Before pytest / wall | After pytest / wall | Wall speed-up |
 |---|---:|---:|---:|---:|---:|
 | Shared assets | 8 / 4,331 | 6 / 1,238 pass, 103 skip | 64.70 / 84.02 s | 7.89 / 25.47 s | **3.30x** |
-| Newton assets, no cable/MPM | 6 / 644 | 15 / 58 pass | 590.94 / 608.44 s | 17.00 / 56.02 s | **10.86x** |
-| PhysX assets | 7 / 486 | 12 / 41 pass | 236.80 / 255.30 s | 6.13 / 32.32 s | **7.90x** |
-| OV assets | 9 / 492 | 12 / 56 pass | 196.94 / 220.05 s | 3.55 / 25.22 s | **8.73x** |
+| Newton assets, no cable/MPM | 6 / 644 | 15 / 59 pass | 590.94 / 608.44 s | 16.29 / 50.49 s | **12.05x** |
+| PhysX assets | 7 / 486 | 12 / 44 pass | 236.80 / 255.30 s | 6.21 / 32.54 s | **7.85x** |
+| OV assets | 9 / 492 | 12 / 60 pass | 196.94 / 220.05 s | 5.41 / 27.27 s | **8.07x** |
 | WrenchComposer | 3 / 412 | 2 / 15 pass | 23.34 / 29.79 s | 0.81 / 4.64 s | **6.42x** |
-| **Aggregate** | **33 / 6,365** | **47 / 1,408 pass, 103 skip** | **1,112.72 / 1,197.60 s** | **35.38 / 143.67 s** | **8.34x** |
+| **Aggregate** | **33 / 6,365** | **47 / 1,416 pass, 103 skip** | **1,112.72 / 1,197.60 s** | **36.61 / 140.41 s** | **8.53x** |
+
+The articulation-only change in the final iteration more than doubled the
+number of real backend probes while reducing their aggregate runtime. Each
+backend now creates one composite scene, resets once, and keeps isolated actor
+islands alive until every test node in the module has run.
+
+| Articulation backend | Before cases | After cases | Before pytest / wall | After pytest / wall |
+|---|---:|---:|---:|---:|
+| Newton | 3 | 4 | 3.04 / 4.65 s | 2.54 / 4.11 s |
+| PhysX | 2 | 5 | 4.94 / 5.75 s | 3.44 / 4.17 s |
+| OVPhysX | 2 | 6 | 2.38 / 3.46 s | 2.53 / 3.66 s |
+| **Aggregate** | **7** | **15** | **10.36 / 13.86 s** | **8.51 / 11.94 s** |
 
 Focused gate and ownership timings:
 
@@ -62,9 +74,9 @@ Focused gate and ownership timings:
 | Newton backend units/kernels, including executable kitless guard | 49 pass | 11.96 / 13.06 s |
 | PhysX backend units | 33 pass | 1.69 / 2.76 s |
 | OV backend units | 50 pass | 1.62 / 2.70 s |
-| Newton minimal real integration | 4 files, 9 pass | 5.03 / 16.87 s |
-| PhysX minimal real integration | 6 files, 8 pass | 4.43 / 20.62 s |
-| OV minimal real integration | 4 files, 6 pass | 2.73 / 10.14 s |
+| Newton minimal real integration | 4 files, 10 pass | 4.54 / 16.21 s |
+| PhysX minimal real integration | 6 files, 11 pass | 4.52 / 21.18 s |
+| OV minimal real integration | 4 files, 10 pass | 4.61 / 12.13 s |
 | WrenchComposer real delivery | 1 file, 1 pass | 0.79 / 3.12 s |
 | Newton task-space controller owner | 3 pass | 3.03 / 4.57 s |
 | PhysX actuator-runtime and termination owners | 6 pass | 1.13 / 2.00 s |
@@ -76,8 +88,8 @@ All warmed contract/backend-unit gates are below the 30-second target.
 
 `TEST_INCLUDE_FILES` matches **basenames recursively** below
 `TEST_FILTER_PATTERN`. The comparable commands therefore enumerate every
-integration and unit basename explicitly; backend-qualified OV unit filenames
-keep a combined multi-backend pytest collection collision-free.
+integration and unit basename explicitly; backend-qualified OV and PhysX unit
+filenames keep combined pytest collection collision-free.
 
 ```bash
 WARP_CACHE_PATH=/tmp/isaaclab-task8-warp \
@@ -97,7 +109,7 @@ TEST_RESULT_FILE=task8-final-assets-newton.xml \
 WARP_CACHE_PATH=/tmp/isaaclab-task8-warp \
 OMNI_KIT_ACCEPT_EULA=YES \
 TEST_FILTER_PATTERN=/source/isaaclab_physx/test/assets/ \
-TEST_INCLUDE_FILES=test_actuator_control.py,test_articulation.py,test_deformable_object.py,test_newton_actuators_physx.py,test_rigid_object.py,test_rigid_object_collection.py,test_surface_gripper.py \
+TEST_INCLUDE_FILES=test_articulation.py,test_deformable_object.py,test_newton_actuators_physx.py,test_rigid_object.py,test_rigid_object_collection.py,test_surface_gripper.py,test_physx_actuator_control.py,test_physx_articulation.py,test_physx_deformable_object.py,test_physx_rigid_object.py,test_physx_rigid_object_collection.py,test_physx_surface_gripper.py \
 TEST_RESULT_FILE=task8-final-assets-physx.xml \
 ./isaaclab.sh -p -m pytest tools -q
 
@@ -136,8 +148,8 @@ export OMNI_KIT_ACCEPT_EULA=YES
 ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/unit -q
 ```
 
-Real-only subprocess gates must exclude `/assets/unit/`; otherwise colliding
-basenames pull unit files into the result.
+Real-only subprocess gates exclude `/assets/unit/` so their scope remains
+explicitly limited to live backend tests.
 
 ```bash
 export WARP_CACHE_PATH=/tmp/isaaclab-task8-warp
@@ -184,7 +196,7 @@ TEST_RESULT_FILE=task8-final-integration-ov.xml \
 
 | Old module | Disposition | Coverage owner |
 |---|---|---|
-| `test_articulation.py` | Retained and reduced | Local floating/fixed articulation seams, partial state/property/wrench, drive, Jacobian, and mass matrix. FK, staging, and ordering moved to units; IK/OSC/gravity moved to the controller owner. |
+| `test_articulation.py` | Retained and consolidated | One kitless CPU scene contains duplicated floating and fixed actor islands across identical Newton worlds. Four nodes cover partial state/property/wrench, drive, Jacobian, and mass matrix without rebuilding the model. FK, staging, and ordering remain in units; IK/OSC/gravity remain in the controller owner. |
 | `test_newton_actuators_newton.py` | Retained and reduced | One real Lab/native execution-path equivalence; adaptation and target-mode branches moved to units. |
 | `test_rigid_object.py` | Retained and reduced | Local CPU property/state/wrench seam plus CUDA smoke; selection, inverse inertia, FK, and notification branches moved to units. |
 | `test_rigid_object_collection.py` | Retained and reduced | Local `N=2, B=2` selection/property seam; model-index mapping moved to units. |
@@ -198,8 +210,8 @@ absent from every benchmark command.
 
 | Old module | Disposition | Coverage owner |
 |---|---|---|
-| `test_articulation.py` | Retained and reduced | One local ordered CPU articulation seam and one CUDA dynamics smoke; property/order conversions moved to units. |
-| `test_articulation_kernels.py` | Moved/expanded | `assets/unit/test_articulation.py`. |
+| `test_articulation.py` | Retained and consolidated | One local composite scene contains ordered/fixed, floating, and spatial-tendon islands. Five nodes cover state, raw properties, dynamics, root/COM state, wrench delivery, and tendon writes after one reset. |
+| `test_articulation_kernels.py` | Moved/expanded | `assets/unit/test_physx_articulation.py`. |
 | `test_deformable_object.py` | Replaced | Two working local surface/volume probes plus focused classification/material/target/kernel units; the former all-skipped startup is gone. |
 | `test_newton_actuators_physx.py` | Retained and reduced | One real ordered Lab/native dispatch seam; dispatch and graph branches moved to backend and shared actuator units. |
 | `test_rigid_object.py` | Retained and reduced | Local state, raw mass/COM/inertia/material, and wrench delivery; staging/cache/import isolation moved to units. |
@@ -210,7 +222,7 @@ absent from every benchmark command.
 
 | Old module | Disposition | Coverage owner |
 |---|---|---|
-| `test_articulation.py` | Retained and reduced | Local CPU and CUDA articulation seams with ordered state/properties, native actuation, Jacobian, and mass access. |
+| `test_articulation.py` | Retained and consolidated | One CUDA composite scene contains ordered/fixed, floating, spatial-tendon, and native-actuator islands. Six nodes cover state/properties, drive and dynamics, root/wrench behavior, tendon writes, and native effort after one reset. |
 | `test_articulation_helpers.py` | Moved | `assets/unit/test_articulation_helpers.py`. |
 | `test_articulation_kernels.py` | Moved | `assets/unit/test_articulation_kernels.py`. |
 | `test_deformable_object.py` | Retained and reduced | One volume and one surface CUDA seam, including forced rewarm isolation. |

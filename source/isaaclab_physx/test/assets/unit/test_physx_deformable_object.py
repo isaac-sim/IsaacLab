@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused PhysX deformable type, material, and kinematic-target tests."""
+"""Focused PhysX deformable type, material, and kinematic-target unit tests."""
 
 from types import SimpleNamespace
 

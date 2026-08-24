@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused PhysX dual actuator-dispatch tests."""
+"""Focused PhysX dual actuator-dispatch unit tests."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock, call

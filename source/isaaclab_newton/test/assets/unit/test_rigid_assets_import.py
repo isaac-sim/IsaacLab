@@ -18,7 +18,10 @@ _ASSET_TEST_DIR = Path(__file__).resolve().parents[1]
 _TARGETS = (
     ("test_rigid_object.py", "test_rigid_object_real_newton_seams[cpu]"),
     ("test_rigid_object_collection.py", "test_rigid_object_collection_real_newton_seams"),
-    ("test_articulation.py", "test_articulation_real_newton_seams"),
+    ("test_articulation.py", "test_articulation_initialization_and_partial_state"),
+    ("test_articulation.py", "test_articulation_model_properties_notify_newton"),
+    ("test_articulation.py", "test_articulation_dynamics_and_wrench_response"),
+    ("test_articulation.py", "test_fixed_articulation_actuation_and_dynamics"),
     ("test_newton_actuators_newton.py", "test_newton_actuator_real_equivalence"),
     ("../controllers/test_newton_task_space_controllers.py", "test_differential_ik_tracks_local_newton_chain"),
     (

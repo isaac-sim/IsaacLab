@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Focused surface-gripper command, property, and device-guard tests."""
+"""Focused PhysX surface-gripper command, property, and device-guard unit tests."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
