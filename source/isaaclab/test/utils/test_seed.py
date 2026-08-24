@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import random
 
+import numpy as np
 import pytest
 import torch
 
@@ -20,25 +22,26 @@ def test_configure_seed_disables_deterministic_algorithms_when_requested(monkeyp
     previous_benchmark = torch.backends.cudnn.benchmark
     previous_cudnn_deterministic = torch.backends.cudnn.deterministic
     previous_env = {key: os.environ.get(key) for key in ("CUBLAS_WORKSPACE_CONFIG", "PYTHONHASHSEED")}
-
-    # Keep the regression focused on deterministic-mode state rather than RNG state.
-    monkeypatch.setattr(seed_utils.random, "seed", lambda _seed: None)
-    monkeypatch.setattr(seed_utils.np.random, "seed", lambda _seed: None)
-    monkeypatch.setattr(seed_utils.torch, "manual_seed", lambda _seed: None)
-    monkeypatch.setattr(seed_utils.torch.cuda, "manual_seed", lambda _seed: None)
-    monkeypatch.setattr(seed_utils.torch.cuda, "manual_seed_all", lambda _seed: None)
+    previous_random_state = random.getstate()
+    previous_numpy_state = np.random.get_state()
+    previous_torch_state = torch.get_rng_state()
+    previous_cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
     monkeypatch.setattr(seed_utils.wp, "rand_init", lambda _seed: None)
 
     try:
         seed_utils.configure_seed(123, torch_deterministic=True)
         assert torch.are_deterministic_algorithms_enabled()
-
         seed_utils.configure_seed(123, torch_deterministic=False)
         assert not torch.are_deterministic_algorithms_enabled()
     finally:
         torch.use_deterministic_algorithms(previous_algorithms, warn_only=previous_warn_only)
         torch.backends.cudnn.benchmark = previous_benchmark
         torch.backends.cudnn.deterministic = previous_cudnn_deterministic
+        random.setstate(previous_random_state)
+        np.random.set_state(previous_numpy_state)
+        torch.set_rng_state(previous_torch_state)
+        if previous_cuda_states is not None:
+            torch.cuda.set_rng_state_all(previous_cuda_states)
         for key, value in previous_env.items():
             if value is None:
                 os.environ.pop(key, None)
