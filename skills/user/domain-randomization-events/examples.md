@@ -36,52 +36,33 @@ Expected setup:
 
 Input: start a manager-based lift task at zero gravity, then approach full gravity as the policy succeeds.
 
-Keep the scheduler and interpolation function in the task's own `mdp/curriculums.py`. The maintained implementations are in the [Core Lift ADR terms](../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/mdp/curriculums.py); adapt their success signal instead of importing Core Lift internals into another task.
+Given a reset event named `variable_gravity`, add a task-owned scheduler and interpolation term:
 
 ```python
-import isaaclab.envs.mdp as base_mdp
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
-from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.utils.configclass import configclass
 
-from . import mdp as task_mdp
-
-
-@configclass
-class EventCfg:
-    variable_gravity = EventTerm(
-        func=base_mdp.randomize_physics_scene_gravity,
-        mode="reset",
-        params={
-            "gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
-            "operation": "abs",
-        },
-    )
+from . import mdp
 
 
 @configclass
 class CurriculumCfg:
-    difficulty = CurrTerm(
-        func=task_mdp.DifficultyScheduler,
-        params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10},
-    )
+    adr = CurrTerm(func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10})
     gravity_adr = CurrTerm(
-        func=base_mdp.modify_term_cfg,
+        func=mdp.modify_term_cfg,
         params={
             "address": "events.variable_gravity.params.gravity_distribution_params",
-            "modify_fn": task_mdp.initial_final_interpolate_fn,
+            "modify_fn": mdp.initial_final_interpolate_fn,
             "modify_params": {
                 "initial_value": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
                 "final_value": ((0.0, 0.0, -9.81), (0.0, 0.0, -9.81)),
-                "difficulty_term_str": "difficulty",
+                "difficulty_term_str": "adr",
             },
         },
     )
 ```
 
-Assign `events: EventCfg = EventCfg()` and `curriculum: CurriculumCfg = CurriculumCfg()` on the environment config. At reset, `CurriculumManager` updates the range before `EventManager` applies `variable_gravity`.
-
-Validate difficulty fractions `0.0` and `1.0` first, then confirm real successes promote the scheduler without exceeding its bounds.
+Assign `curriculum: CurriculumCfg = CurriculumCfg()` on the environment config. Adapt the [Core Lift ADR scheduler](../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/mdp/curriculums.py) and test both endpoints.
 
 ## Startup Property Randomization
 

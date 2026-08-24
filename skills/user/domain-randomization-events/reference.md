@@ -3,7 +3,6 @@
 ## Contents
 
 - Direct and manager-based usage
-- Fixed randomization and ADR
 - Event mode selection
 - Backend compatibility
 - Timing limitations
@@ -24,16 +23,6 @@ Use the same event-term structure in both workflows:
 | Manager-based | Add an event config class to the manager-based env config's `events` field. |
 
 In direct workflows, observations and rewards remain direct methods; only randomization is routed through event terms.
-
-## Fixed Randomization and ADR
-
-Fixed domain randomization stores a stable distribution in an event term. ADR keeps the event as the owner of randomization and uses curriculum terms to adapt its configuration from policy performance.
-
-The maintained ADR pattern is manager-based: `ManagerBasedRLEnv` computes curriculum terms before applying reset events. Put the difficulty scheduler before interpolation terms in `CurriculumCfg`, then use `modify_term_cfg` addresses such as `events.variable_gravity.params.gravity_distribution_params`.
-
-Direct environments expose event terms but not `CurriculumManager`. Do not add a `curriculum` field and assume it will run; implement an explicit task-local schedule or migrate the curriculum ownership to a manager-based environment.
-
-ADR schedulers are task-owned because success semantics differ. Define which terminal signal promotes or demotes difficulty, clamp the range, and expose a normalized fraction for interpolation. Do not import a scheduler from an unrelated task package.
 
 ## Event Mode Selection
 

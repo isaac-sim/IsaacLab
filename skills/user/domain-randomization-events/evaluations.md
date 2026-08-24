@@ -93,14 +93,9 @@ Query: "Start gravity at zero and automatically ramp it to -9.81 as my lift poli
 Expected behavior:
 
 - Keeps gravity application in a reset event.
-- Uses a task-owned success-driven scheduler and `modify_term_cfg` interpolation in a manager-based curriculum.
-- Places the scheduler before the gravity interpolation term.
-- Validates the fixed final range, both interpolation endpoints, promotion/demotion behavior, and clamping.
-- References the curriculum guide and Core Lift ADR example.
+- Uses a manager-based curriculum to interpolate from zero to full gravity as policy success changes.
+- Uses a task-owned scheduler and validates both endpoint values.
 
-Known failure modes:
+Pass/fail criteria:
 
-- Treats ADR as an event mode or modifies gravity in the training loop.
-- Adds a `curriculum` field to a direct environment and assumes it will execute.
-- Imports Core Lift's private scheduler into an unrelated task.
-- Expands an unvalidated final range or omits endpoint checks.
+- Links the curriculum guide and Core Lift ADR example.
