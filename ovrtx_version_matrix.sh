@@ -4,25 +4,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# Benchmark the OVRTX renderer across two ovrtx runtimes:
+# Benchmark the OVRTX renderer across three runtimes:
 #
-#   ovrtx_0_4_1  the version pinned in pyproject.toml (public wheel)
-#   ovrtx_0_5_0  the internal wheel under ~/dev/wheels/ov
+#   ovrtx_0_4_1          the version pinned in pyproject.toml (public wheel)
+#   ovrtx_0_5_0          the internal wheel under ~/dev/wheels/ov
+#   ovrtx_0_5_0_ovstage  the same ovrtx 0.5.0 wheel, plus the internal ovstage wheel and
+#                        ISAAC_LAB_OVRTX_USE_OVSTAGE=1, which routes scene ownership through
+#                        ovstage instead of the legacy path
 #
 # Each runtime is measured once per camera preset in CAMERA_PRESETS, so the matrix is
-# (ovrtx version) x (render mode) x REPEATS. Both runtimes run against whatever ovstage the
-# project has pinned; the script never touches it.
+# (runtime) x (render mode) x REPEATS. The first two runtimes run against whatever ovstage the
+# project has pinned; only ovrtx_0_5_0_ovstage moves it, so the ovstage code path is compared
+# against ovrtx 0.5.0 with one variable changed rather than two.
 #
-# The ovrtx wheel is swapped in-place in ./.venv between configurations, so this MUTATES the
-# working environment. The baseline pin is restored on exit, including on failure or Ctrl-C.
+# The ovrtx and ovstage wheels are swapped in-place in ./.venv between configurations, so this
+# MUTATES the working environment. Both baseline pins are restored on exit, including on failure
+# or Ctrl-C.
 #
 # On a fresh clone -- or after a ``git clean -xfd`` has removed .venv -- the environment is
 # created with ``uv sync --extra ov`` before anything else runs. Set BOOTSTRAP=0 to make a
 # missing environment a hard error instead.
 #
 # Usage:
-#   ./ovrtx_version_matrix.sh                          # both runtimes, both render modes
+#   ./ovrtx_version_matrix.sh                          # all runtimes, both render modes
 #   ./ovrtx_version_matrix.sh ovrtx_0_5_0              # a subset of runtimes, in order
+#   ./ovrtx_version_matrix.sh ovrtx_0_5_0 ovrtx_0_5_0_ovstage   # legacy vs ovstage scene path
 #   ENVS=512 STEPS=300 ./ovrtx_version_matrix.sh       # override the workload
 #   CAMERA_PRESETS="rgb128" ./ovrtx_version_matrix.sh  # a single render mode
 #   TASK_NAME=Isaac-Cartpole-Camera-Direct BASE_PRESETS=newton_mjwarp,ovrtx \
@@ -61,7 +67,10 @@ read -r -a MODES <<<"$CAMERA_PRESETS"
 # ---------------------------------------------------------------------------
 VENV_PY="${VENV_PY:-$REPO_ROOT/.venv/bin/python}"
 OVRTX_050_WHEEL="${OVRTX_050_WHEEL:-$HOME/dev/wheels/ov/ovrtx-0.5.0.0-py3-none-manylinux_2_35_x86_64.whl}"
-# ovrtx resolves from the pypi-public index (see [tool.uv.sources] in pyproject.toml).
+# The ovstage build that the ovstage scene-ownership path is validated against. Only the
+# ovrtx_0_5_0_ovstage configuration installs it; the others keep the pinned ovstage.
+OVSTAGE_020_WHEEL="${OVSTAGE_020_WHEEL:-$HOME/dev/wheels/ov/ovstage-0.2.0.0-py3-none-manylinux_2_35_x86_64.whl}"
+# ovrtx and ovstage both resolve from the pypi-public index (see [tool.uv.sources] in pyproject.toml).
 OVRTX_INDEX_URL="${OVRTX_INDEX_URL:-https://pypi.org/simple}"
 # Extras to sync when .venv is missing. ``ov`` is the minimum this benchmark needs: newton arrives
 # with the base workspace dependencies (isaaclab-newton), and ``ov`` adds ovrtx/ovstage/ovphysx.
@@ -91,25 +100,25 @@ PY
 
 # ``uv pip install`` targets .venv directly. The benchmark is likewise invoked through
 # ``$VENV_PY`` rather than ``uv run``, which would re-sync the environment and undo the swap.
-install_ovrtx_spec() {
+install_spec() {
     local spec="$1"
     log "installing $spec"
-    # --no-deps keeps the swap surgical. The 0.5.0 wheel happens to declare no dependencies today,
-    # but the published ovrtx does, and resolving them would let ovstage move underneath a matrix
-    # that exists to vary ovrtx alone.
+    # --no-deps keeps each swap surgical. The internal wheels happen to declare no dependencies
+    # today, but the published ovrtx does, and resolving them would drag ovstage back to the pinned
+    # version underneath the one configuration that exists to vary it.
     uv pip install --python "$VENV_PY" --index-url "$OVRTX_INDEX_URL" --no-deps "$spec"
 }
 
-ensure_ovrtx() {
-    local want_version="$1" spec="$2"
-    if [[ "$(installed_version ovrtx)" == "$want_version" ]]; then
-        log "ovrtx $want_version already installed"
+ensure_package() {
+    local package="$1" want_version="$2" spec="$3"
+    if [[ "$(installed_version "$package")" == "$want_version" ]]; then
+        log "$package $want_version already installed"
         return
     fi
-    install_ovrtx_spec "$spec"
+    install_spec "$spec"
     local now
-    now="$(installed_version ovrtx)"
-    [[ "$now" == "$want_version" ]] || die "expected ovrtx $want_version after install, got $now"
+    now="$(installed_version "$package")"
+    [[ "$now" == "$want_version" ]] || die "expected $package $want_version after install, got $now"
 }
 
 # Create or repair .venv so the script works on a fresh clone, where ``git clean -xfd`` or a
@@ -144,7 +153,7 @@ bootstrap_env() {
 # ---------------------------------------------------------------------------
 # The names are static so a typo in the arguments fails instantly, before the bootstrap sync; the
 # versions behind them need $VENV_PY to read pyproject.toml, so they are resolved after it.
-CONFIG_NAMES=(ovrtx_0_4_1 ovrtx_0_5_0)
+CONFIG_NAMES=(ovrtx_0_4_1 ovrtx_0_5_0 ovrtx_0_5_0_ovstage)
 
 # Selection: positional arguments pick a subset, in the order given.
 SELECTED=("$@")
@@ -160,8 +169,11 @@ fi
 for name in "${SELECTED[@]}"; do
     [[ " ${CONFIG_NAMES[*]} " == *" $name "* ]] \
         || die "unknown configuration '$name'; expected one of: ${CONFIG_NAMES[*]}"
-    if [[ "$name" == "ovrtx_0_5_0" && ! -f "$OVRTX_050_WHEEL" ]]; then
+    if [[ "$name" == ovrtx_0_5_0* && ! -f "$OVRTX_050_WHEEL" ]]; then
         die "ovrtx 0.5.0 wheel not found at $OVRTX_050_WHEEL (override with OVRTX_050_WHEEL=...)"
+    fi
+    if [[ "$name" == "ovrtx_0_5_0_ovstage" && ! -f "$OVSTAGE_020_WHEEL" ]]; then
+        die "ovstage 0.2.0 wheel not found at $OVSTAGE_020_WHEEL (override with OVSTAGE_020_WHEEL=...)"
     fi
 done
 
@@ -169,11 +181,14 @@ bootstrap_env
 
 OVRTX_041_VERSION="$(pinned_version ovrtx)"
 OVRTX_050_VERSION="0.5.0.0"
+OVSTAGE_PINNED_VERSION="$(pinned_version ovstage)"
+OVSTAGE_020_VERSION="0.2.0.0"
 
-# name|ovrtx version|install spec
+# name|ovrtx version|ovrtx spec|ovstage version|ovstage spec|ISAAC_LAB_OVRTX_USE_OVSTAGE
 CONFIGS=(
-    "ovrtx_0_4_1|$OVRTX_041_VERSION|ovrtx==$OVRTX_041_VERSION"
-    "ovrtx_0_5_0|$OVRTX_050_VERSION|$OVRTX_050_WHEEL"
+    "ovrtx_0_4_1|$OVRTX_041_VERSION|ovrtx==$OVRTX_041_VERSION|$OVSTAGE_PINNED_VERSION|ovstage==$OVSTAGE_PINNED_VERSION|0"
+    "ovrtx_0_5_0|$OVRTX_050_VERSION|$OVRTX_050_WHEEL|$OVSTAGE_PINNED_VERSION|ovstage==$OVSTAGE_PINNED_VERSION|0"
+    "ovrtx_0_5_0_ovstage|$OVRTX_050_VERSION|$OVRTX_050_WHEEL|$OVSTAGE_020_VERSION|$OVSTAGE_020_WHEEL|1"
 )
 
 find_config() {
@@ -192,19 +207,30 @@ find_config() {
 # wheel; adopting that as the baseline would make this run try to restore it from the public index,
 # where it does not exist, and the repair would fail exactly when it is needed most.
 BASELINE_OVRTX="$OVRTX_041_VERSION"
+BASELINE_OVSTAGE="$OVSTAGE_PINNED_VERSION"
+restore_one() {
+    local package="$1" baseline="$2"
+    if [[ "$(installed_version "$package")" != "$baseline" ]]; then
+        log "restoring baseline $package==$baseline"
+        install_spec "$package==$baseline" \
+            || log "WARNING: restore of $package failed; run 'uv sync --extra ov' to repair .venv"
+    fi
+}
+
 restore_baseline() {
     local status=$?
-    if [[ "$(installed_version ovrtx)" != "$BASELINE_OVRTX" ]]; then
-        log "restoring baseline ovrtx==$BASELINE_OVRTX"
-        install_ovrtx_spec "ovrtx==$BASELINE_OVRTX" || log "WARNING: restore failed; run 'uv sync --extra ov' to repair .venv"
-    fi
+    restore_one ovrtx "$BASELINE_OVRTX"
+    # ovstage is restored too, because ovrtx_0_5_0_ovstage moves it and the pinned ovphysx requires
+    # the pinned ovstage; leaving the newer wheel behind would break unrelated runs.
+    restore_one ovstage "$BASELINE_OVSTAGE"
     exit "$status"
 }
 trap restore_baseline EXIT
 
 TOTAL_RUNS=$((${#SELECTED[@]} * ${#MODES[@]} * REPEATS))
 log "task=$TASK_NAME envs=$ENVS steps=$STEPS warmup=$WARMUP seed=$SEED"
-log "ovstage=$(installed_version ovstage) (held fixed) installed ovrtx=$(installed_version ovrtx) restore target=$BASELINE_OVRTX"
+log "installed ovrtx=$(installed_version ovrtx) ovstage=$(installed_version ovstage)"
+log "restore targets: ovrtx==$BASELINE_OVRTX ovstage==$BASELINE_OVSTAGE"
 log "runtimes: ${SELECTED[*]}"
 log "render modes: ${MODES[*]}"
 log "$TOTAL_RUNS runs total (${#SELECTED[@]} runtimes x ${#MODES[@]} modes x $REPEATS repeats)"
@@ -214,13 +240,14 @@ log "$TOTAL_RUNS runs total (${#SELECTED[@]} runtimes x ${#MODES[@]} modes x $RE
 # ---------------------------------------------------------------------------
 FAILED=()
 
-# The runtime is the outer loop so the wheel is swapped once per runtime rather than once per
+# The runtime is the outer loop so the wheels are swapped once per runtime rather than once per
 # render mode; a swap costs a multi-gigabyte reinstall, a mode change costs nothing.
 for name in "${SELECTED[@]}"; do
     entry="$(find_config "$name")"
-    IFS='|' read -r _ want_version spec <<<"$entry"
+    IFS='|' read -r _ ovrtx_version ovrtx_spec ovstage_version ovstage_spec use_ovstage <<<"$entry"
 
-    ensure_ovrtx "$want_version" "$spec"
+    ensure_package ovrtx "$ovrtx_version" "$ovrtx_spec"
+    ensure_package ovstage "$ovstage_version" "$ovstage_spec"
 
     for mode in "${MODES[@]}"; do
         presets="$BASE_PRESETS,$mode"
@@ -234,6 +261,7 @@ for name in "${SELECTED[@]}"; do
             echo "config=$name"
             echo "ovrtx=$(installed_version ovrtx)"
             echo "ovstage=$(installed_version ovstage)"
+            echo "use_ovstage=$use_ovstage"
             echo "ovphysx=$(installed_version ovphysx)"
             echo "task=$TASK_NAME"
             echo "presets=$presets"
@@ -254,9 +282,13 @@ for name in "${SELECTED[@]}"; do
             rm -rf "$run_out"
             mkdir -p "$run_out"
 
-            log "running $name/$mode repeat $run/$REPEATS (ovrtx=$(installed_version ovrtx)) -> $run_out"
+            log "running $name/$mode repeat $run/$REPEATS" \
+                "(ovrtx=$(installed_version ovrtx) ovstage=$(installed_version ovstage) use_ovstage=$use_ovstage)" \
+                "-> $run_out"
 
-            if "$VENV_PY" scripts/benchmarks/runtime.py \
+            # The env var is scoped to the benchmark process so nothing leaks into a later
+            # configuration that expects the legacy scene path.
+            if ISAAC_LAB_OVRTX_USE_OVSTAGE="$use_ovstage" "$VENV_PY" scripts/benchmarks/runtime.py \
                 --task "$TASK_NAME" "presets=$presets" \
                 --seed "$SEED" \
                 --num_envs "$ENVS" \
@@ -339,8 +371,10 @@ for mode in modes:
         print(row)
 
     # The point of the matrix is the delta, so state it rather than leaving it to be eyeballed.
-    if len(configs) == 2:
-        base, cand = configs
+    # Every configuration is compared against the first one selected, which is the baseline the
+    # argument order already implies.
+    base, *candidates = configs
+    for cand in candidates:
         print(f"\n  {cand} vs {base}:")
         for name, unit, _ in metrics:
             base_values, cand_values = samples[base][name], samples[cand][name]
