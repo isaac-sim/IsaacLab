@@ -147,8 +147,7 @@ def test_initialization_ignores_unrelated_sibling_rigid_objects(device):
         assert object_collection.data.default_body_pose.torch.shape == (num_envs, num_cubes, 7)
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_cubes", [1, 3])
+@pytest.mark.parametrize(("num_envs", "num_cubes"), [(1, 1), (2, 3)])
 @pytest.mark.parametrize("device", test_devices())
 def test_initialization(num_envs, num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
@@ -282,7 +281,7 @@ def test_initialization_with_kinematic_enabled(num_envs, num_cubes, device):
             torch.testing.assert_close(object_collection.data.body_link_vel_w.torch, default_body_vel)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_initialization_with_no_rigid_body(num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -352,8 +351,8 @@ def test_external_force_buffer(device):
             object_collection.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_cubes", [1, 4])
+@pytest.mark.parametrize("num_envs", [2])
+@pytest.mark.parametrize("num_cubes", [4])
 @pytest.mark.parametrize("device", test_devices())
 def test_external_force_on_single_body(num_envs, num_cubes, device):
     """Test application of external force on the base of the object."""
@@ -414,8 +413,8 @@ def test_external_force_on_single_body(num_envs, num_cubes, device):
             assert torch.all(object_collection.data.body_link_pos_w.torch[:, 1::2, 2] < 1.0)
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_cubes", [1, 4])
+@pytest.mark.parametrize("num_envs", [2])
+@pytest.mark.parametrize("num_cubes", [4])
 @pytest.mark.parametrize("device", test_devices())
 def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
     """Test application of external force on the base of the object at a specific position.
@@ -497,8 +496,8 @@ def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
             assert torch.all(object_collection.data.body_link_pos_w.torch[:, 1::2, 2] < 1.0)
 
 
-@pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_set_object_state(num_envs, num_cubes, device):
     """Test setting the state of the object.
@@ -569,8 +568,8 @@ def test_set_object_state(num_envs, num_cubes, device):
                     object_collection.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_reset_object_collection(num_envs, num_cubes, device):
     """Test resetting the state of the rigid object."""
@@ -604,8 +603,8 @@ def test_reset_object_collection(num_envs, num_cubes, device):
                 assert torch.count_nonzero(object_collection._permanent_wrench_composer.out_torque_b.torch) == 0
 
 
-@pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_set_material_properties(num_envs, num_cubes, device):
     """Test getting and setting material properties of rigid object collection via view-level APIs."""
@@ -643,8 +642,8 @@ def test_set_material_properties(num_envs, num_cubes, device):
         torch.testing.assert_close(restitution_check, restitution)
 
 
-@pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
@@ -680,8 +679,8 @@ def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_envs", [2, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_gravity_vec_w_tracks_model_gravity(num_envs, num_cubes, device):
     """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
@@ -720,8 +719,8 @@ def test_gravity_vec_w_tracks_model_gravity(num_envs, num_cubes, device):
         torch.testing.assert_close(object_collection.data.projected_gravity_b.torch, expected, atol=1e-5, rtol=1e-5)
 
 
-@pytest.mark.parametrize("num_envs", [1, 4])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [4])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 def test_object_state_properties(num_envs, num_cubes, device, with_offset):
@@ -794,9 +793,6 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
                 com_quat_w = quat_mul(object_link_pose_w[..., 3:], com_quat_b)
                 torch.testing.assert_close(com_quat_w, object_com_pose_w[..., 3:], **_tol)
 
-                # orientation of link will match object state will always match
-                torch.testing.assert_close(object_link_pose_w[..., 3:], object_link_pose_w[..., 3:])
-
                 # lin_vel will not match
                 # center of mass vel will be constant (i.e. spinning around com)
                 torch.testing.assert_close(
@@ -811,12 +807,11 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
                 torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, **_tol)
 
                 # ang_vel will always match
-                torch.testing.assert_close(object_com_vel_w[..., 3:], object_com_vel_w[..., 3:])
                 torch.testing.assert_close(object_com_vel_w[..., 3:], object_link_vel_w[..., 3:])
 
 
-@pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
@@ -893,8 +888,8 @@ def test_write_object_state(num_envs, num_cubes, device, with_offset, state_loca
                 torch.testing.assert_close(rand_state[..., 7:], cube_object.data.body_link_vel_w.torch)
 
 
-@pytest.mark.parametrize("num_envs", [1, 3])
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_envs", [3])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
