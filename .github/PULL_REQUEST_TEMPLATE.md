@@ -33,7 +33,7 @@ is demanded by more than one party. -->
 
 ## Release backport
 
-- [ ] <!-- backport-release-3.0.0 --> Backport this pull request to `release/3.0.0` after it merges into `develop`
+- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`
 
 ## Screenshots
 

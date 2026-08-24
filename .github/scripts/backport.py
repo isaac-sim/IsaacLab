@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_BACKPORT_MARKER = "backport-release-3.0.0"
+_BACKPORT_MARKER = "backport-active-release"
 _BACKPORT_PATTERN = re.compile(
     rf"^\s*-\s*\[\s*[xX]\s*\]\s*<!--\s*{re.escape(_BACKPORT_MARKER)}\s*-->",
     flags=re.MULTILINE,

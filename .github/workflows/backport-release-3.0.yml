@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Backport an opted-in PR after it merges into develop. Clean, content-equivalent
-# cherry-picks advance release/3.0.0 directly. A conflict is resolved through
-# NVIDIA inference on a dedicated branch and opened as a draft PR; inferred
-# resolutions never push directly to the release branch.
+# Backport an opted-in PR after it merges into develop while a release branch is
+# active. Clean, content-equivalent cherry-picks advance that branch directly. A
+# conflict is resolved through NVIDIA inference on a dedicated branch and opened
+# as a draft PR; inferred resolutions never push directly to the release branch.
 #
 # This workflow must exist on the repository's default branch because
 # pull_request_target loads workflow definitions from that trusted ref.
 
-name: Backport selected PR to release/3.0.0
+name: Backport selected PR to active release
 
 on:
   pull_request_target:
@@ -25,17 +25,19 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: backport-release-3.0-pr-${{ github.event.pull_request.number }}
+  group: backport-active-release-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
-  TARGET_BRANCH: release/3.0.0
-  BACKPORT_BRANCH: backport/release-3.0/pr-${{ github.event.pull_request.number }}
+  TARGET_BRANCH: ${{ vars.ACTIVE_RELEASE_BACKPORT_BRANCH }}
+  BACKPORT_BRANCH: backport/${{ vars.ACTIVE_RELEASE_BACKPORT_BRANCH }}/pr-${{ github.event.pull_request.number }}
 
 jobs:
   backport:
     name: "Backport PR #${{ github.event.pull_request.number }}"
-    if: github.event.pull_request.merged == true
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(vars.ACTIVE_RELEASE_BACKPORT_BRANCH, 'release/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -54,7 +56,7 @@ jobs:
           selected=$(python3 automation/.github/scripts/backport.py requested --event "$GITHUB_EVENT_PATH")
           echo "selected=$selected" >> "$GITHUB_OUTPUT"
           if [ "$selected" != "true" ]; then
-            echo "PR #${{ github.event.pull_request.number }} did not request a release/3.0.0 backport."
+            echo "PR #${{ github.event.pull_request.number }} did not request an active-release backport."
           fi
 
       - name: Check out release target
@@ -345,7 +347,7 @@ jobs:
             --repo "$REPOSITORY" \
             --base "$TARGET_BRANCH" \
             --head "$BACKPORT_BRANCH" \
-            --title "[Backport 3.0] PR #$PR_NUMBER" \
+            --title "[Backport] PR #$PR_NUMBER to $TARGET_BRANCH" \
             --body-file "$body_file" \
             --draft)
           echo "Inference-resolved draft backport PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
