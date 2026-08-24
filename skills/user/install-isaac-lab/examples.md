@@ -53,3 +53,19 @@ Suggested agent response:
 1. The platform is Windows, so use the guided per-tab flow instead of unattended express mode.
 2. Follow the Windows tab in `docs/source/setup/installation/index.rst` — "Automatic setup with uv" (`installation-method-uv`) for the docs-Recommended path, or "Python environment with Isaac Sim" (`installation-method-python-env`) if the user manages their own env — interactively: confirm driver, Python 3.12, long-path support, then prescribe the Windows commands verbatim.
 3. Keep questions minimal; verify with the docs-defined command.
+
+## Example 6: Install With China Asset Access
+
+User: "Install Isaac Lab for a workstation in mainland China."
+
+Suggested agent response:
+
+1. Run the normal preflight, including the existing asset-root and storage-profile environment variables. Route to the
+   install method from the current installation docs; location does not change the package-install method.
+2. Read the China Storage Profile section from `asset_caching_details.inc`. Add its profile setting to the consolidated
+   plan and explain that an existing `ISAACSIM_ASSET_ROOT` must be unset in the session for the profile to take effect.
+3. After the single confirmation, install normally and run the docs-defined verification with the profile selected.
+4. Before recommending an asset-bearing demo, check its full relative asset paths in the current availability manifest
+   and choose only assets marked `available`.
+5. Hand over the profile-setting command with the normal activation, demo, log, and install-profile details. Do not
+   persist shell settings or hard-code storage service URLs.
