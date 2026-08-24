@@ -93,9 +93,8 @@ Isaac Sim version before installing Isaac Lab.
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-RSL-RL is included in the default uv environment. Run ``uv sync --inexact`` to install it
-without removing previously selected extras, then retry the command with ``uv run``. See
-:ref:`uv extra synchronization <installation-uv-extra-sync>` for details. For the legacy installer, use
+RSL-RL is included in the default uv environment. Retry the command with ``uv run``, which
+syncs missing default dependencies before running it. For the legacy installer, use
 ``./isaaclab.sh -i 'rl[rsl-rl]'`` or ``./isaaclab.sh -i`` to install all
 frameworks.
 

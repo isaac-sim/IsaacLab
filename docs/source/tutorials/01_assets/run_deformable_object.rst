@@ -33,9 +33,6 @@ commands to the mesh nodes to move the soft body.
 
       uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
-   For details on choosing between ``uv run --extra`` and ``uv sync --inexact --extra``,
-   see :ref:`uv extra synchronization <installation-uv-extra-sync>`.
-
    With the legacy installer, install the optional dependencies first:
 
    .. code-block:: bash

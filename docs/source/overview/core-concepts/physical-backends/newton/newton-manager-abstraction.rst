@@ -194,15 +194,12 @@ outer simulation loop.
 
 .. note::
 
-   This volume soft-body task requires automatic tetrahedralization. Install its
-   optional dependencies before running it:
+   This volume soft-body task requires automatic tetrahedralization. Run commands for it
+   with the ``tetrahedralization`` extra:
 
    .. code-block:: bash
 
-      uv sync --inexact --extra tetrahedralization
-
-   For details on choosing between ``uv run --extra`` and ``uv sync --inexact --extra``,
-   see :ref:`uv extra synchronization <installation-uv-extra-sync>`.
+      uv run --extra tetrahedralization <command>
 
    With the legacy installer:
 

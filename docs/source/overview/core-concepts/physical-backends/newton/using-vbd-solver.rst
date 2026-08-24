@@ -28,14 +28,7 @@ Start from a Supported Deformable Task
 .. note::
 
    The ``Isaac-Lift-Soft-Franka`` task requires automatic tetrahedralization.
-   Install its optional dependencies before running the examples below:
-
-   .. code-block:: bash
-
-      uv sync --inexact --extra tetrahedralization
-
-   For details on choosing between ``uv run --extra`` and ``uv sync --inexact --extra``,
-   see :ref:`uv extra synchronization <installation-uv-extra-sync>`.
+   The uv commands below select the ``tetrahedralization`` extra when needed.
 
    With the legacy installer:
 
@@ -51,7 +44,7 @@ Before adding VBD to a new task, first run one of the Franka deformable tasks:
 
       .. code-block:: bash
 
-          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+          uv run --extra tetrahedralization python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -116,7 +109,7 @@ You can select the deformable Newton preset globally:
 
       .. code-block:: bash
 
-          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
+          uv run --extra tetrahedralization isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka physics=newton_mjwarp_vbd_proxy
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -132,7 +125,7 @@ or select the physics field directly:
 
       .. code-block:: bash
 
-          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
+          uv run --extra tetrahedralization isaaclab train --rl_library rsl_rl --task=Isaac-Lift-Soft-Franka env.sim.physics=newton_mjwarp_vbd_proxy
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -361,10 +354,10 @@ Try the demo:
       .. code-block:: bash
 
           # zero-agent visual smoke test
-          uv run python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+          uv run --extra tetrahedralization python scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
           # scripted pick-and-lift via state machine
-          uv run python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
+          uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
