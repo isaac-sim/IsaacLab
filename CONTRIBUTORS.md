@@ -63,6 +63,7 @@ Guidelines for modifications:
 * Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
+* Bodo Wirth
 * Bocheng Zou
 * Brayden Zhang
 * Brian Bingham

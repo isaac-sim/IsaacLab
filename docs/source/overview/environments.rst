@@ -323,7 +323,7 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |                                         |
-    |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |                                         |
+    |                         |                              | with enabled waist degrees of freedom, providing a wider reach space.       |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
@@ -400,10 +400,10 @@ for the lift-cube environment:
     | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    | **physics=** ``isaacsim_physx``,        |
     |                         |                              | a Galbot humanoid robot                                                     | ``newton_mjwarp``                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            | **physics=** ``isaacsim_physx``,        |
+    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with an Agibot A2D humanoid robot           | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       | **physics=** ``isaacsim_physx``,        |
+    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with an Agibot A2D humanoid robot      | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |reach_openarm_bi|      | |reach_openarm_bi-link|      | Move the end-effector to sampled target poses with the OpenArm robot        |                                         |
@@ -529,7 +529,7 @@ For example:
 AutoMate
 ~~~~~~~~
 
-Environments based on 100 diverse assembly tasks, each involving the insertion of a plug into a socket. These tasks share a common configuration and differ by th geometry and properties of the parts.
+Environments based on 100 diverse assembly tasks, each involving the insertion of a plug into a socket. These tasks share a common configuration and differ by the geometry and properties of the parts.
 
 You can switch between tasks by specifying the corresponding asset ID. Available asset IDs include:
 
