@@ -93,7 +93,7 @@ To run the accompanying script, execute the following command:
 .. code-block:: bash
 
    # Usage with saving and drawing
-   uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw
+   uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --viz kit
 
    # Usage with saving only (no visualizer)
    uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save
