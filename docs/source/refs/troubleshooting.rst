@@ -16,6 +16,87 @@ Tricks and Troubleshooting
     assistance.
 
 
+Capturing an Environment for a Bug Report
+-----------------------------------------
+
+Most setup failures are a difference between two machines rather than a defect in the code, and the
+difference is rarely in the lockfile. ``tools/capture_env.py`` records the parts a lockfile does not:
+the GPU and driver, the installed packages as they exist on disk, the environment variables Isaac Lab
+reads, and the symlinks and ``.pth`` files that decide which code actually gets imported.
+
+.. code:: bash
+
+    python3 tools/capture_env.py capture --command "<the command that failed>"
+
+This writes ``isaaclab-env-<host>-<timestamp>.zip`` and a matching ``.md`` document beside it. The
+document lists the steps to rebuild the environment, what the bundle cannot rebuild, and any problems
+the capture found. Attach the zip to the issue.
+
+The steps are derived from the capture rather than written in advance. The ``uv sync`` command carries
+the extras the captured environment was actually built with, because a bare ``uv sync`` installs the
+lockfile and removes everything else; packages no sync would restore are listed separately, which
+catches anything added with ``uv pip install``. Isaac Sim gets its own step matched to how it was
+installed on the captured machine -- the ``isaacsim`` wheel, a downloaded package, or a local build,
+named by the revision it was built from.
+
+The script uses only the Python standard library and never imports Isaac Lab, so it still runs on an
+installation that is too broken to start. Run it with any ``python3``: it reads the virtual environment
+from disk rather than from the interpreter that runs it. Each bundle also carries a copy of the script,
+so ``diff`` runs on a machine with no Isaac Lab checkout.
+
+To compare a reported environment against your own, which reproduces the capture locally and reports
+every difference:
+
+.. code:: bash
+
+    python3 tools/capture_env.py diff isaaclab-env-<host>-<timestamp>.zip
+
+Environment variables are captured by allowlist, limited to the names Isaac Lab and its runtime stack
+are known to read. Everything else is counted and left out, so a bundle cannot carry credentials or
+internal hostnames off the machine that produced it. Uncommitted source changes are excluded for the
+same reason; pass ``--include_diff`` to attach them.
+
+
+Reproducing a Reported Environment
+----------------------------------
+
+A bundle carries its own instructions. There is no fixed sequence to memorize, because the extras, the
+packages installed outside the lockfile, and the way Isaac Sim was obtained all differ between the
+machine that produced the bundle and yours. Unpack it and read what it prescribes:
+
+.. code:: bash
+
+    unzip isaaclab-env-<host>-<timestamp>.zip -d bundle
+    cat bundle/REPRODUCE.md
+
+The steps follow the same order every time, with the details filled in from the capture:
+
+1. Check out the recorded commit. If it is on no remote branch, the document says so rather than
+   emitting a ``git checkout`` that cannot succeed.
+2. Copy the captured ``pyproject.toml`` and ``uv.lock`` over the checkout and sync with the extras the
+   captured environment was built with. Take the command from the document rather than typing
+   ``uv sync``: the bare form installs the default dependency set and removes everything else,
+   including Isaac Sim and every RL library.
+3. Reinstall the packages no sync would restore. These are the ones a lockfile cannot account for,
+   added with ``uv pip install`` or upgraded by hand, and they are frequently the difference being
+   investigated.
+4. Obtain Isaac Sim the way the captured machine did -- the ``isaacsim`` wheel, a downloaded package
+   at the recorded version, or a local build at the recorded revision.
+5. Run ``diff`` against the bundle. This is the check that decides whether the reproduction worked;
+   *No differences recorded* is the only evidence that it did.
+
+Every bundle also contains a copy of ``capture_env.py``, so step 5 runs on a checkout too old to
+include the script, or on a machine with no Isaac Lab checkout at all:
+
+.. code:: bash
+
+    python3 bundle/capture_env.py diff isaaclab-env-<host>-<timestamp>.zip
+
+The document ends with what the bundle cannot rebuild: the GPU and driver, a locally built Isaac Sim,
+uncommitted source changes when they were not attached, and anything reached through ``PYTHONPATH`` or
+``LD_LIBRARY_PATH`` from outside the repository. Read that section before concluding that a failure to
+reproduce is meaningful.
+
 Installation Troubleshooting
 ----------------------------
 

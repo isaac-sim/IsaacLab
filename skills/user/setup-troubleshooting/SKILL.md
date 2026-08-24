@@ -23,10 +23,11 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 4. From the Isaac Lab checkout, use documented uv commands such as `uv run python`, `uv run isaaclab train`, and `uv run isaaclab play` for Python, verification, and RL entry points. XR teleoperation entry points are `uv run --extra teleop isaaclab teleop run|record|replay`; `teleop` cannot be combined with the `mimic` or `all` extras in one command.
 5. Use suffixless task names in verification and training commands.
 6. Ask for the smallest relevant error output when the failure mode is unclear.
-7. Prefer a minimal verification command before running examples, training, or rendering workflows.
-8. Route backend-specific setup to the relevant PhysX or Newton docs.
-9. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
-10. If the docs are incomplete or stale, update the docs rather than expanding this skill.
+7. When the failure looks environmental rather than code-level, or when a report has to be reproduced on another machine, ask for a bundle from `python3 tools/capture_env.py capture`; it runs on an installation too broken to import Isaac Lab, and `diff` reports what differs from a local checkout.
+8. Prefer a minimal verification command before running examples, training, or rendering workflows.
+9. Route backend-specific setup to the relevant PhysX or Newton docs.
+10. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
+11. If the docs are incomplete or stale, update the docs rather than expanding this skill.
 
 ## Validation
 
