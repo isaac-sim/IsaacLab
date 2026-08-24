@@ -149,7 +149,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
         formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
         formatter_types = formatter_types or ["omniperf"]
-        cfg = capture.run_config_from_presets(remaining, env_cfg=env_cfg)
+        cfg = capture.run_config_from_env_cfg(env_cfg)
 
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_runtime",
@@ -168,7 +168,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         "name": "environment_step_measurement_mode",
                         "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                     },
-                    {"name": "presets", "data": ",".join(cfg.presets)},
                     {"name": "world_size", "data": distributed.world_size},
                 ]
             },

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+18.0.1 (2026-08-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed backend factory resolution raising before simulator initialization by using the team-confirmed ``newton``
+  fallback when no ``SimulationContext`` exists.
+* Fixed scene gravity randomization to honor configured distributions with PhysX and OvPhysX.
+
+
 18.0.0 (2026-08-23)
 ~~~~~~~~~~~~~~~~~~~
 
