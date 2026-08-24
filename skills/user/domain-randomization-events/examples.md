@@ -4,6 +4,7 @@
 
 - Reset state randomization
 - Direct workflow event config
+- Success-driven ADR
 - Prestartup USD randomization
 - Startup property randomization
 - Backend-specific material randomization
@@ -30,6 +31,57 @@ Expected setup:
 - Assign `events: EventCfg = EventCfg()` on the direct task config.
 - Keep reward and observation logic in direct methods.
 - Validate that `prestartup`, `startup`, `reset`, and `interval` modes fire at the expected times for direct workflows.
+
+## Success-Driven ADR
+
+Input: start a manager-based lift task at zero gravity, then approach full gravity as the policy succeeds.
+
+Keep the scheduler and interpolation function in the task's own `mdp/curriculums.py`. The maintained implementations are in the [Core Lift ADR terms](../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/mdp/curriculums.py); adapt their success signal instead of importing Core Lift internals into another task.
+
+```python
+import isaaclab.envs.mdp as base_mdp
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.utils.configclass import configclass
+
+from . import mdp as task_mdp
+
+
+@configclass
+class EventCfg:
+    variable_gravity = EventTerm(
+        func=base_mdp.randomize_physics_scene_gravity,
+        mode="reset",
+        params={
+            "gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+            "operation": "abs",
+        },
+    )
+
+
+@configclass
+class CurriculumCfg:
+    difficulty = CurrTerm(
+        func=task_mdp.DifficultyScheduler,
+        params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10},
+    )
+    gravity_adr = CurrTerm(
+        func=base_mdp.modify_term_cfg,
+        params={
+            "address": "events.variable_gravity.params.gravity_distribution_params",
+            "modify_fn": task_mdp.initial_final_interpolate_fn,
+            "modify_params": {
+                "initial_value": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+                "final_value": ((0.0, 0.0, -9.81), (0.0, 0.0, -9.81)),
+                "difficulty_term_str": "difficulty",
+            },
+        },
+    )
+```
+
+Assign `events: EventCfg = EventCfg()` and `curriculum: CurriculumCfg = CurriculumCfg()` on the environment config. At reset, `CurriculumManager` updates the range before `EventManager` applies `variable_gravity`.
+
+Validate difficulty fractions `0.0` and `1.0` first, then confirm real successes promote the scheduler without exceeding its bounds.
 
 ## Startup Property Randomization
 
