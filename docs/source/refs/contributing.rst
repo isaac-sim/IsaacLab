@@ -121,7 +121,7 @@ Contributing assets
 -------------------
 
 Currently, we host the assets for the extensions on `NVIDIA Nucleus Server <https://docs.omniverse.nvidia.com/nucleus/latest/index.html>`__.
-Nucleus is a cloud-based storage service that allows users to store and share large files. It is
+Nucleus is a cloud-based storage service that allows users to store and share files. It is
 integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omniverse>`__.
 
 Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
@@ -447,7 +447,8 @@ direct reference. This avoids eagerly importing heavyweight modules (``omni``, `
 etc.) at config construction time — the string is resolved to the actual callable only
 after ``SimulationApp`` has been initialized.
 
-You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
+You can use either the ``{DIR}`` shorthand or a fully-qualified module path. Attribute paths
+after the colon may be dotted when the callable is nested under an exported class or object:
 
 .. code:: python
 
@@ -456,6 +457,9 @@ You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
 
    # Good — fully-qualified path (useful for cross-package references)
    class_type: type[Sensor] | str = "isaaclab.sensors.my_sensor.sensor:Sensor"
+
+   # Good — dotted attribute path for a nested callable
+   updater: str = "collections:Counter.update"
 
    # Bad — eagerly imports the implementation module
    from .sensor import Sensor
