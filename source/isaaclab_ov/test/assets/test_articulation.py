@@ -34,6 +34,7 @@ from isaaclab.test.utils.articulation_ordering import (  # noqa: E402
 pytestmark = pytest.mark.integration
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+_NUM_ENVS = 2
 
 
 @dataclass
@@ -71,9 +72,18 @@ def _apply_api_schema(prim, schema_name: str) -> None:
 
 
 def _spawn_articulation(
-    prim_path: str, *, fixed_base: bool, native_actuator: bool = False, spatial_tendon: bool = False
+    name: str,
+    *,
+    y_offset: float,
+    fixed_base: bool,
+    native_actuator: bool = False,
+    spatial_tendon: bool = False,
 ) -> Articulation:
-    """Spawn one cached local branching articulation island."""
+    """Spawn one cached two-environment branching-articulation island."""
+    island_path = f"/World/{name}"
+    sim_utils.create_prim(island_path, "Xform", translation=(0.0, y_offset, 0.0))
+    for env_index in range(_NUM_ENVS):
+        sim_utils.create_prim(f"{island_path}/Env_{env_index}", "Xform", translation=(3.0 * env_index, 0.0, 0.0))
     actuator_cfg = (
         IdealPDActuatorCfg(
             joint_names_expr=[".*"],
@@ -86,7 +96,7 @@ def _spawn_articulation(
     )
     articulation = Articulation(
         ArticulationCfg(
-            prim_path=prim_path,
+            prim_path=f"{island_path}/Env_[^/]*/Robot",
             spawn=sim_utils.UsdFileCfg(usd_path=str(_FIXTURE)),
             actuators={"joints": actuator_cfg},
             joint_ordering="mjwarp",
@@ -94,31 +104,33 @@ def _spawn_articulation(
         )
     )
     stage = sim_utils.get_current_stage()
-    for joint_name in ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow"):
-        drive = UsdPhysics.DriveAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/{joint_name}"), "angular")
-        drive.CreateStiffnessAttr(5.0)
-        drive.CreateDampingAttr(0.5)
-        drive.CreateMaxForceAttr(100.0)
-    if fixed_base:
-        fixed_joint = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/fixed_root")
-        fixed_joint.GetBody1Rel().SetTargets([f"{prim_path}/base"])
-    if spatial_tendon:
-        root_prim = stage.GetPrimAtPath(f"{prim_path}/base")
-        _apply_api_schema(root_prim, "PhysxTendonAttachmentRootAPI:root")
-        root_prim.CreateAttribute("physxTendon:root:localPos", Sdf.ValueTypeNames.Point3f).Set(Gf.Vec3f(0.0))
-        root_prim.CreateAttribute("physxTendon:root:stiffness", Sdf.ValueTypeNames.Float).Set(5.0)
-        root_prim.CreateAttribute("physxTendon:root:damping", Sdf.ValueTypeNames.Float).Set(0.5)
-        root_prim.CreateAttribute("physxTendon:root:limitStiffness", Sdf.ValueTypeNames.Float).Set(1.0)
-        root_prim.CreateAttribute("physxTendon:root:offset", Sdf.ValueTypeNames.Float).Set(0.0)
+    for env_index in range(_NUM_ENVS):
+        prim_path = f"{island_path}/Env_{env_index}/Robot"
+        for joint_name in ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow"):
+            drive = UsdPhysics.DriveAPI.Apply(stage.GetPrimAtPath(f"{prim_path}/{joint_name}"), "angular")
+            drive.CreateStiffnessAttr(5.0)
+            drive.CreateDampingAttr(0.5)
+            drive.CreateMaxForceAttr(100.0)
+        if fixed_base:
+            fixed_joint = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/fixed_root")
+            fixed_joint.GetBody1Rel().SetTargets([f"{prim_path}/base"])
+        if spatial_tendon:
+            root_prim = stage.GetPrimAtPath(f"{prim_path}/base")
+            _apply_api_schema(root_prim, "PhysxTendonAttachmentRootAPI:root")
+            root_prim.CreateAttribute("physxTendon:root:localPos", Sdf.ValueTypeNames.Point3f).Set(Gf.Vec3f(0.0))
+            root_prim.CreateAttribute("physxTendon:root:stiffness", Sdf.ValueTypeNames.Float).Set(5.0)
+            root_prim.CreateAttribute("physxTendon:root:damping", Sdf.ValueTypeNames.Float).Set(0.5)
+            root_prim.CreateAttribute("physxTendon:root:limitStiffness", Sdf.ValueTypeNames.Float).Set(1.0)
+            root_prim.CreateAttribute("physxTendon:root:offset", Sdf.ValueTypeNames.Float).Set(0.0)
 
-        leaf_prim = stage.GetPrimAtPath(f"{prim_path}/left_tip")
-        _apply_api_schema(leaf_prim, "PhysxTendonAttachmentLeafAPI:leaf")
-        leaf_prim.CreateAttribute("physxTendon:leaf:localPos", Sdf.ValueTypeNames.Point3f).Set(Gf.Vec3f(0.0))
-        leaf_prim.CreateAttribute("physxTendon:leaf:parentAttachment", Sdf.ValueTypeNames.Token).Set("root")
-        leaf_prim.CreateRelationship("physxTendon:leaf:parentLink").SetTargets([root_prim.GetPath()])
-        leaf_prim.CreateAttribute("physxTendon:leaf:restLength", Sdf.ValueTypeNames.Float).Set(0.5)
-        leaf_prim.CreateAttribute("physxTendon:leaf:lowerLimit", Sdf.ValueTypeNames.Float).Set(0.0)
-        leaf_prim.CreateAttribute("physxTendon:leaf:upperLimit", Sdf.ValueTypeNames.Float).Set(2.0)
+            leaf_prim = stage.GetPrimAtPath(f"{prim_path}/left_tip")
+            _apply_api_schema(leaf_prim, "PhysxTendonAttachmentLeafAPI:leaf")
+            leaf_prim.CreateAttribute("physxTendon:leaf:localPos", Sdf.ValueTypeNames.Point3f).Set(Gf.Vec3f(0.0))
+            leaf_prim.CreateAttribute("physxTendon:leaf:parentAttachment", Sdf.ValueTypeNames.Token).Set("root")
+            leaf_prim.CreateRelationship("physxTendon:leaf:parentLink").SetTargets([root_prim.GetPath()])
+            leaf_prim.CreateAttribute("physxTendon:leaf:restLength", Sdf.ValueTypeNames.Float).Set(0.5)
+            leaf_prim.CreateAttribute("physxTendon:leaf:lowerLimit", Sdf.ValueTypeNames.Float).Set(0.0)
+            leaf_prim.CreateAttribute("physxTendon:leaf:upperLimit", Sdf.ValueTypeNames.Float).Set(2.0)
     return articulation
 
 
@@ -128,10 +140,14 @@ def articulation_scene() -> _ArticulationScene:
     device = "cuda:0" if wp.is_cuda_available() else "cpu"
     native_enabled = device.startswith("cuda")
     with _sim_context(device, use_newton_actuators=native_enabled) as sim:
-        ordered = _spawn_articulation("/World/Ordered", fixed_base=True)
-        floating = _spawn_articulation("/World/Floating", fixed_base=False)
-        tendon = _spawn_articulation("/World/Tendon", fixed_base=True, spatial_tendon=True)
-        native = _spawn_articulation("/World/Native", fixed_base=True, native_actuator=True) if native_enabled else None
+        ordered = _spawn_articulation("Ordered", y_offset=0.0, fixed_base=True)
+        floating = _spawn_articulation("Floating", y_offset=3.0, fixed_base=False)
+        tendon = _spawn_articulation("Tendon", y_offset=6.0, fixed_base=True, spatial_tendon=True)
+        native = (
+            _spawn_articulation("Native", y_offset=9.0, fixed_base=True, native_actuator=True)
+            if native_enabled
+            else None
+        )
         sim.reset()
         yield _ArticulationScene(
             sim=sim,
@@ -153,27 +169,36 @@ def test_articulation_initialization_and_partial_state(articulation_scene: _Arti
     assert tuple(articulation.body_names) == BRANCHING_MJWARP_BODY_NAMES
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
+    assert articulation.num_instances == 2
 
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int32, device=device)
     target_position = torch.tensor([[0.21, -0.13]], device=device)
     target_velocity = torch.tensor([[0.41, -0.23]], device=device)
     expected_position = articulation.data.joint_pos.torch.clone()
     expected_velocity = articulation.data.joint_vel.torch.clone()
-    expected_position[:, joint_ids] = target_position
-    expected_velocity[:, joint_ids] = target_velocity
+    expected_position[env_ids[:, None], joint_ids] = target_position
+    expected_velocity[env_ids[:, None], joint_ids] = target_velocity
     articulation.write_joint_state_to_sim_index(
         position=target_position,
         velocity=target_velocity,
+        env_ids=env_ids,
         joint_ids=joint_ids,
     )
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+    backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)),
+        expected_position[:, backend_to_user],
+    )
 
 
 def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _ArticulationScene) -> None:
     """Prove selected joint and body properties reach real OVPhysX bindings."""
     articulation = articulation_scene.ordered
     device = articulation_scene.device
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int32, device=device)
     backend_friction_before = wp.to_torch(articulation.root_view.get_attribute(TT.DOF_FRICTION_PROPERTIES)).clone()
     static_friction = torch.tensor([[0.9, 0.7]], device=device)
@@ -183,13 +208,14 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         joint_friction_coeff=static_friction,
         joint_dynamic_friction_coeff=dynamic_friction,
         joint_viscous_friction_coeff=viscous_friction,
+        env_ids=env_ids,
         joint_ids=joint_ids,
     )
     backend_joint_ids = torch.as_tensor(articulation.joint_ordering.user_to_backend_indices)[joint_ids.cpu()]
     expected_backend_friction = backend_friction_before.clone()
-    expected_backend_friction[:, backend_joint_ids, 0] = static_friction.cpu()
-    expected_backend_friction[:, backend_joint_ids, 1] = dynamic_friction.cpu()
-    expected_backend_friction[:, backend_joint_ids, 2] = viscous_friction.cpu()
+    expected_backend_friction[1, backend_joint_ids, 0] = static_friction.cpu()
+    expected_backend_friction[1, backend_joint_ids, 1] = dynamic_friction.cpu()
+    expected_backend_friction[1, backend_joint_ids, 2] = viscous_friction.cpu()
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute(TT.DOF_FRICTION_PROPERTIES)),
         expected_backend_friction,
@@ -199,55 +225,63 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     backend_body_ids = torch.as_tensor(articulation.body_ordering.user_to_backend_indices)[body_ids.cpu()]
     raw_mass_before = wp.to_torch(articulation.root_view.get_attribute(TT.BODY_MASS)).clone()
     masses = torch.tensor([[2.5, 3.5]], device=device)
-    articulation.set_masses_index(masses=masses, body_ids=body_ids)
+    articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
     expected_raw_mass = raw_mass_before.clone()
-    expected_raw_mass[:, backend_body_ids] = masses.cpu()
+    expected_raw_mass[1, backend_body_ids] = masses.cpu()
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_attribute(TT.BODY_MASS)), expected_raw_mass)
 
     raw_com_before = wp.to_torch(articulation.root_view.get_attribute(TT.BODY_COM_POSE)).clone()
-    coms = articulation.data.body_com_pose_b.torch[:, body_ids].clone()
+    coms = articulation.data.body_com_pose_b.torch[env_ids][:, body_ids].clone()
     coms[0, 0, :3] = torch.tensor([0.02, -0.01, 0.03], device=device)
     coms[0, 1, :3] = torch.tensor([-0.03, 0.01, 0.02], device=device)
-    articulation.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf), body_ids=body_ids)
+    articulation.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf), env_ids=env_ids, body_ids=body_ids)
     expected_raw_com = raw_com_before.clone()
-    expected_raw_com[:, backend_body_ids] = coms.cpu()
+    expected_raw_com[1, backend_body_ids] = coms.cpu()
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_attribute(TT.BODY_COM_POSE)), expected_raw_com)
 
     raw_inertia_before = wp.to_torch(articulation.root_view.get_attribute(TT.BODY_INERTIA)).clone()
-    inertias = articulation.data.body_inertia.torch[:, body_ids].clone()
+    inertias = articulation.data.body_inertia.torch[env_ids][:, body_ids].clone()
     inertias[0, 0, 0] *= 1.2
     inertias[0, 1, 4] *= 1.3
-    articulation.set_inertias_index(inertias=inertias, body_ids=body_ids)
+    articulation.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
     expected_raw_inertia = raw_inertia_before.clone()
-    expected_raw_inertia[:, backend_body_ids] = inertias.cpu()
+    expected_raw_inertia[1, backend_body_ids] = inertias.cpu()
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_attribute(TT.BODY_INERTIA)), expected_raw_inertia)
-    torch.testing.assert_close(articulation.data.body_mass.torch[:, body_ids], masses)
-    torch.testing.assert_close(articulation.data.body_com_pose_b.torch[:, body_ids], coms)
-    torch.testing.assert_close(articulation.data.body_inertia.torch[:, body_ids], inertias)
+    torch.testing.assert_close(articulation.data.body_mass.torch[env_ids][:, body_ids], masses)
+    torch.testing.assert_close(articulation.data.body_com_pose_b.torch[env_ids][:, body_ids], coms)
+    torch.testing.assert_close(articulation.data.body_inertia.torch[env_ids][:, body_ids], inertias)
 
 
 def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene) -> None:
     """Prove implicit drive delivery and live OVPhysX dynamics access."""
     articulation = articulation_scene.ordered
+    device = articulation_scene.device
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    joint_ids = torch.tensor([0], dtype=torch.int32, device=device)
     articulation.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(articulation.data.joint_vel.torch))
     initial_drive_position = articulation.data.joint_pos.torch[:, 0].clone()
-    drive_target = articulation.data.joint_pos.torch.clone()
-    drive_target[:, 0] += 0.4
-    articulation.actuators.target_command.set_position_index(value=drive_target, full_data=True)
+    raw_target_before = wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION_TARGET)).clone()
+    drive_target = articulation.data.joint_pos.torch[env_ids][:, joint_ids].clone() + 0.4
+    articulation.actuators.target_command.set_position_index(
+        value=drive_target,
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
     articulation.write_data_to_sim()
     backend_target = wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION_TARGET))
-    backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
-    torch.testing.assert_close(backend_target, drive_target[:, backend_to_user])
+    backend_joint_id = articulation.joint_ordering.user_to_backend_indices[0]
+    torch.testing.assert_close(backend_target[1, backend_joint_id], drive_target[0, 0])
+    torch.testing.assert_close(backend_target[0], raw_target_before[0])
 
     for _ in range(8):
         articulation_scene.sim.step()
         articulation.update(articulation_scene.sim.cfg.dt)
         articulation.write_data_to_sim()
-    assert torch.any(torch.abs(articulation.data.joint_pos.torch[:, 0] - initial_drive_position) > 1e-6)
+    assert torch.abs(articulation.data.joint_pos.torch[1, 0] - initial_drive_position[1]) > 1e-6
     jacobian = articulation.data.body_link_jacobian_w.torch
     mass_matrix = articulation.data.mass_matrix.torch
-    assert jacobian.shape == (1, articulation.num_bodies - 1, 6, articulation.num_joints)
-    assert mass_matrix.shape == (1, articulation.num_joints, articulation.num_joints)
+    assert jacobian.shape == (_NUM_ENVS, articulation.num_bodies - 1, 6, articulation.num_joints)
+    assert mass_matrix.shape == (_NUM_ENVS, articulation.num_joints, articulation.num_joints)
     assert jacobian.device.type == torch.device(articulation_scene.device).type
     assert mass_matrix.device.type == torch.device(articulation_scene.device).type
     assert torch.isfinite(jacobian).all()
@@ -261,21 +295,29 @@ def test_floating_articulation_root_and_wrench_response(articulation_scene: _Art
     device = articulation_scene.device
     assert articulation.is_initialized
     assert not articulation.is_fixed_base
-    assert articulation.data.root_link_pose_w.torch.shape == (1, 7)
-    assert articulation.data.root_com_pose_w.torch.shape == (1, 7)
-    assert articulation.data.body_link_pose_w.torch.shape == (1, articulation.num_bodies, 7)
-    assert articulation.data.body_com_pose_w.torch.shape == (1, articulation.num_bodies, 7)
+    assert articulation.data.root_link_pose_w.torch.shape == (_NUM_ENVS, 7)
+    assert articulation.data.root_com_pose_w.torch.shape == (_NUM_ENVS, 7)
+    assert articulation.data.body_link_pose_w.torch.shape == (_NUM_ENVS, articulation.num_bodies, 7)
+    assert articulation.data.body_com_pose_w.torch.shape == (_NUM_ENVS, articulation.num_bodies, 7)
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    initial_pose = articulation.data.root_link_pose_w.torch.clone()
+    target_pose = initial_pose[env_ids].clone()
+    target_pose[:, :3] += torch.tensor([0.2, -0.1, 0.3], device=device)
+    articulation.write_root_link_pose_to_sim_index(root_pose=target_pose, env_ids=env_ids)
+    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[env_ids], target_pose)
+    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[:1], initial_pose[:1])
     initial_velocity = articulation.data.root_com_lin_vel_w.torch.clone()
     articulation.permanent_wrench_composer.set_forces_and_torques_index(
         forces=torch.tensor([[[8.0, 0.0, 0.0]]], device=device),
         torques=torch.zeros((1, 1, 3), device=device),
-        env_ids=torch.tensor([0], dtype=torch.int32, device=device),
+        env_ids=env_ids,
         body_ids=torch.tensor([0], dtype=torch.int32, device=device),
     )
     articulation.write_data_to_sim()
     articulation_scene.sim.step()
     articulation.update(articulation_scene.sim.cfg.dt)
-    assert articulation.data.root_com_lin_vel_w.torch[0, 0] > initial_velocity[0, 0]
+    assert articulation.data.root_com_lin_vel_w.torch[1, 0] > initial_velocity[1, 0]
+    torch.testing.assert_close(articulation.data.root_com_lin_vel_w.torch[0], initial_velocity[0], atol=1e-6, rtol=0)
 
 
 def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationScene) -> None:
@@ -284,19 +326,23 @@ def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationS
     device = articulation_scene.device
     assert articulation.is_initialized
     assert articulation.is_fixed_base
+    assert articulation.num_instances == _NUM_ENVS
     assert articulation.num_spatial_tendons == 1
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    initial_stiffness = articulation.data.spatial_tendon_stiffness.torch.clone()
     stiffness = torch.tensor([[12.0]], device=device)
     damping = torch.tensor([[1.5]], device=device)
     limit_stiffness = torch.tensor([[3.0]], device=device)
     offset = torch.tensor([[0.1]], device=device)
-    articulation.set_spatial_tendon_stiffness_index(stiffness=stiffness)
-    articulation.set_spatial_tendon_damping_index(damping=damping)
-    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=limit_stiffness)
-    articulation.set_spatial_tendon_offset_index(offset=offset)
-    torch.testing.assert_close(articulation.data.spatial_tendon_stiffness.torch, stiffness)
-    torch.testing.assert_close(articulation.data.spatial_tendon_damping.torch, damping)
-    torch.testing.assert_close(articulation.data.spatial_tendon_limit_stiffness.torch, limit_stiffness)
-    torch.testing.assert_close(articulation.data.spatial_tendon_offset.torch, offset)
+    articulation.set_spatial_tendon_stiffness_index(stiffness=stiffness, env_ids=env_ids)
+    articulation.set_spatial_tendon_damping_index(damping=damping, env_ids=env_ids)
+    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=limit_stiffness, env_ids=env_ids)
+    articulation.set_spatial_tendon_offset_index(offset=offset, env_ids=env_ids)
+    torch.testing.assert_close(articulation.data.spatial_tendon_stiffness.torch[env_ids], stiffness)
+    torch.testing.assert_close(articulation.data.spatial_tendon_stiffness.torch[:1], initial_stiffness[:1])
+    torch.testing.assert_close(articulation.data.spatial_tendon_damping.torch[env_ids], damping)
+    torch.testing.assert_close(articulation.data.spatial_tendon_limit_stiffness.torch[env_ids], limit_stiffness)
+    torch.testing.assert_close(articulation.data.spatial_tendon_offset.torch[env_ids], offset)
 
 
 def test_native_actuator_submits_real_effort(articulation_scene: _ArticulationScene) -> None:
@@ -304,6 +350,7 @@ def test_native_actuator_submits_real_effort(articulation_scene: _ArticulationSc
     articulation = articulation_scene.native
     if articulation is None:
         pytest.skip("Native actuator wheel probe requires CUDA")
+    assert articulation.num_instances == _NUM_ENVS
     assert articulation._actuator_control.native_actuator_path_active
     assert articulation.newton_actuator_adapter is not None
     target = articulation.data.joint_pos.torch.clone() + 0.2

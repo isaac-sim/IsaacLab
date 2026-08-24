@@ -56,14 +56,16 @@ and are not included in the denominator.
 The articulation-only change in the final iteration more than doubled the
 number of real backend probes while reducing their aggregate runtime. Each
 backend now creates one composite scene, resets once, and keeps isolated actor
-islands alive until every test node in the module has run.
+islands alive until every test node in the module has run. Every articulation
+island contains two environments so the real backends prove partial writes
+without restoring the old per-case scene startup cost.
 
 | Articulation backend | Before cases | After cases | Before pytest / wall | After pytest / wall |
 |---|---:|---:|---:|---:|
-| Newton | 3 | 4 | 3.04 / 4.65 s | 2.41 / 4.10 s |
-| PhysX | 2 | 5 | 4.94 / 5.75 s | 3.17 / 3.98 s |
-| OVPhysX | 2 | 6 | 2.38 / 3.46 s | 2.22 / 3.46 s |
-| **Aggregate** | **7** | **15** | **10.36 / 13.86 s** | **7.80 / 11.54 s** |
+| Newton | 3 | 4 | 3.04 / 4.65 s | 2.42 / 4.01 s |
+| PhysX | 2 | 5 | 4.94 / 5.75 s | 3.28 / 4.02 s |
+| OVPhysX | 2 | 6 | 2.38 / 3.46 s | 2.44 / 3.58 s |
+| **Aggregate** | **7** | **15** | **10.36 / 13.86 s** | **8.14 / 11.61 s** |
 
 Focused gate and ownership timings:
 
@@ -196,7 +198,7 @@ TEST_RESULT_FILE=task8-final-integration-ov.xml \
 
 | Old module | Disposition | Coverage owner |
 |---|---|---|
-| `test_articulation.py` | Retained and consolidated | One kitless CPU scene contains duplicated floating and fixed actor islands across identical Newton worlds. Four nodes cover partial state/property/wrench, drive, Jacobian, and mass matrix without rebuilding the model. FK, staging, and ordering remain in units; IK/OSC/gravity remain in the controller owner. |
+| `test_articulation.py` | Retained and consolidated | One kitless CPU scene contains duplicated floating and fixed actor islands across identical Newton worlds. Four aligned nodes cover partial state, joint/body properties, drive/dynamics, and floating-root/wrench behavior without rebuilding the model. FK, staging, and ordering remain in units; IK/OSC/gravity remain in the controller owner. |
 | `test_newton_actuators_newton.py` | Retained and reduced | One real Lab/native execution-path equivalence; adaptation and target-mode branches moved to units. |
 | `test_rigid_object.py` | Retained and reduced | Local CPU property/state/wrench seam plus CUDA smoke; selection, inverse inertia, FK, and notification branches moved to units. |
 | `test_rigid_object_collection.py` | Retained and reduced | Local `N=2, B=2` selection/property seam; model-index mapping moved to units. |
@@ -210,7 +212,7 @@ absent from every benchmark command.
 
 | Old module | Disposition | Coverage owner |
 |---|---|---|
-| `test_articulation.py` | Retained and consolidated | One local composite scene contains ordered/fixed, floating, and spatial-tendon islands. Five nodes cover state, raw properties, dynamics, root/COM state, wrench delivery, and tendon writes after one reset. |
+| `test_articulation.py` | Retained and consolidated | One local composite scene contains two-environment ordered/fixed, floating, and spatial-tendon islands. Five nodes cover partial state, raw joint/body properties, drive/dynamics, floating-root/wrench behavior, and tendon writes after one reset. |
 | `test_articulation_kernels.py` | Moved/expanded | `assets/unit/test_physx_articulation.py`. |
 | `test_deformable_object.py` | Replaced | Two working local surface/volume probes plus focused classification/material/target/kernel units; the former all-skipped startup is gone. |
 | `test_newton_actuators_physx.py` | Retained and reduced | One real ordered Lab/native dispatch seam; dispatch and graph branches moved to backend and shared actuator units. |
@@ -222,7 +224,7 @@ absent from every benchmark command.
 
 | Old module | Disposition | Coverage owner |
 |---|---|---|
-| `test_articulation.py` | Retained and consolidated | One CUDA composite scene contains ordered/fixed, floating, spatial-tendon, and native-actuator islands. Six nodes cover state/properties, drive and dynamics, root/wrench behavior, tendon writes, and native effort after one reset. |
+| `test_articulation.py` | Retained and consolidated | One CUDA composite scene contains two-environment ordered/fixed, floating, spatial-tendon, and native-actuator islands. Six nodes cover partial state, raw joint/body properties, drive/dynamics, floating-root/wrench behavior, tendon writes, and native effort after one reset. |
 | `test_articulation_helpers.py` | Moved | `assets/unit/test_articulation_helpers.py`. |
 | `test_articulation_kernels.py` | Moved | `assets/unit/test_articulation_kernels.py`. |
 | `test_deformable_object.py` | Retained and reduced | One volume and one surface CUDA seam, including forced rewarm isolation. |

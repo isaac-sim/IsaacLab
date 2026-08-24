@@ -121,14 +121,10 @@ def test_articulation_initialization_and_partial_state(articulation_scene: _Arti
 
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([0], dtype=torch.int32, device=device)
-    initial_root_pose = articulation.data.root_link_pose_w.torch.clone()
     initial_joint_pos = articulation.data.joint_pos.torch.clone()
     initial_joint_vel = articulation.data.joint_vel.torch.clone()
-    target_root_pose = initial_root_pose[env_ids].clone()
-    target_root_pose[:, :3] += torch.tensor([0.2, -0.1, 0.3], device=device)
     target_joint_pos = torch.tensor([[0.25]], device=device)
     target_joint_vel = torch.tensor([[-0.5]], device=device)
-    articulation.write_root_link_pose_to_sim_index(root_pose=target_root_pose, env_ids=env_ids)
     articulation.write_joint_state_to_sim_index(
         position=target_joint_pos,
         velocity=target_joint_vel,
@@ -136,18 +132,16 @@ def test_articulation_initialization_and_partial_state(articulation_scene: _Arti
         joint_ids=joint_ids,
     )
 
-    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[env_ids], target_root_pose)
-    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[:1], initial_root_pose[:1])
     torch.testing.assert_close(articulation.data.joint_pos.torch[env_ids], target_joint_pos)
     torch.testing.assert_close(articulation.data.joint_vel.torch[env_ids], target_joint_vel)
     torch.testing.assert_close(articulation.data.joint_pos.torch[:1], initial_joint_pos[:1])
     torch.testing.assert_close(articulation.data.joint_vel.torch[:1], initial_joint_vel[:1])
 
 
-def test_articulation_model_properties_notify_newton(
+def test_articulation_joint_and_body_properties_round_trip(
     articulation_scene: _ArticulationScene, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Prove partial inertial-property writes notify the live Newton model."""
+    """Prove partial joint/body property writes notify the live Newton model."""
     articulation = articulation_scene.floating
     device = articulation_scene.device
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
@@ -160,6 +154,19 @@ def test_articulation_model_properties_notify_newton(
         add_model_change(change)
 
     monkeypatch.setattr(SimulationManager, "add_model_change", staticmethod(record_model_change))
+    joint_ids = torch.tensor([0], dtype=torch.int32, device=device)
+    initial_friction = articulation.data.joint_friction_coeff.torch.clone()
+    friction = torch.tensor([[0.3]], device=device)
+    articulation.write_joint_friction_coefficient_to_sim_index(
+        joint_friction_coeff=friction,
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
+    torch.testing.assert_close(articulation.data.joint_friction_coeff.torch[env_ids][:, joint_ids], friction)
+    torch.testing.assert_close(articulation.data.joint_friction_coeff.torch[:1], initial_friction[:1])
+    assert notifications == [ModelFlags.JOINT_DOF_PROPERTIES]
+
+    notifications.clear()
     initial_mass = articulation.data.body_mass.torch.clone()
     masses = torch.tensor([[3.0]], device=device)
     articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
@@ -184,45 +191,25 @@ def test_articulation_model_properties_notify_newton(
     assert notifications == [ModelFlags.BODY_INERTIAL_PROPERTIES]
 
 
-def test_articulation_dynamics_and_wrench_response(articulation_scene: _ArticulationScene) -> None:
-    """Prove live floating-base dynamics data and isolated wrench delivery."""
-    articulation = articulation_scene.floating
-    device = articulation_scene.device
-    jacobians = articulation.data.body_link_jacobian_w.torch
-    mass_matrix = articulation.data.mass_matrix.torch
-    assert jacobians.device.type == torch.device(device).type
-    assert mass_matrix.device.type == torch.device(device).type
-    assert jacobians.shape == (2, 2, 6, 7)
-    assert mass_matrix.shape == (2, 7, 7)
-    assert torch.isfinite(jacobians).all()
-    assert torch.isfinite(mass_matrix).all()
-
-    initial_velocity = articulation.data.root_com_lin_vel_w.torch.clone()
-    articulation.permanent_wrench_composer.set_forces_and_torques_index(
-        forces=torch.tensor([[[8.0, 0.0, 0.0]]], device=device),
-        torques=torch.zeros((1, 1, 3), device=device),
-        env_ids=torch.tensor([1], dtype=torch.int32, device=device),
-        body_ids=torch.tensor([0], dtype=torch.int32, device=device),
-    )
-    articulation.write_data_to_sim()
-    articulation_scene.sim.step()
-    articulation.update(articulation_scene.sim.cfg.dt)
-    assert articulation.data.root_com_lin_vel_w.torch[1, 0] > initial_velocity[1, 0]
-    torch.testing.assert_close(articulation.data.root_com_lin_vel_w.torch[0], initial_velocity[0], atol=1e-6, rtol=0)
-
-
-def test_fixed_articulation_actuation_and_dynamics(articulation_scene: _ArticulationScene) -> None:
+def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene) -> None:
     """Prove fixed-root actuation, moving-link velocity, and dynamics data."""
     articulation = articulation_scene.fixed
+    device = articulation_scene.device
     assert articulation.is_initialized
     assert articulation.is_fixed_base
     assert articulation.num_instances == 2
     assert articulation.num_bodies == 7
     assert articulation.num_joints == 6
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    joint_ids = torch.tensor([0], dtype=torch.int32, device=device)
     initial_root_pose = articulation.data.root_link_pose_w.torch.clone()
-    target = articulation.data.joint_pos.torch.clone()
-    target[:, 0] = 0.05
-    articulation.actuators.target_command.set_position_index(value=target)
+    initial_joint_pos = articulation.data.joint_pos.torch.clone()
+    target = initial_joint_pos[env_ids][:, joint_ids].clone() + 0.05
+    articulation.actuators.target_command.set_position_index(
+        value=target,
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
 
     for _ in range(12):
         articulation.write_data_to_sim()
@@ -230,10 +217,43 @@ def test_fixed_articulation_actuation_and_dynamics(articulation_scene: _Articula
         articulation.update(articulation_scene.sim.cfg.dt)
 
     torch.testing.assert_close(articulation.data.root_link_pose_w.torch, initial_root_pose, atol=1e-6, rtol=0)
-    assert torch.linalg.vector_norm(articulation.data.body_link_vel_w.torch[0, -1]) > 1e-3
+    torch.testing.assert_close(articulation.data.joint_pos.torch[0], initial_joint_pos[0], atol=1e-6, rtol=0)
+    assert torch.linalg.vector_norm(articulation.data.body_link_vel_w.torch[1, -1]) > 1e-3
     jacobians = articulation.data.body_link_jacobian_w.torch
     mass_matrix = articulation.data.mass_matrix.torch
+    assert jacobians.device.type == torch.device(articulation_scene.device).type
+    assert mass_matrix.device.type == torch.device(articulation_scene.device).type
     assert jacobians.shape == (2, 6, 6, 6)
     assert mass_matrix.shape == (2, 6, 6)
     assert torch.isfinite(jacobians).all()
     assert torch.isfinite(mass_matrix).all()
+
+
+def test_floating_articulation_root_and_wrench_response(articulation_scene: _ArticulationScene) -> None:
+    """Prove floating-root state and isolated wrench delivery."""
+    articulation = articulation_scene.floating
+    device = articulation_scene.device
+    assert articulation.data.root_link_pose_w.torch.shape == (2, 7)
+    assert articulation.data.root_com_pose_w.torch.shape == (2, 7)
+    assert articulation.data.body_link_pose_w.torch.shape == (2, articulation.num_bodies, 7)
+    assert articulation.data.body_com_pose_w.torch.shape == (2, articulation.num_bodies, 7)
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    initial_pose = articulation.data.root_link_pose_w.torch.clone()
+    target_pose = initial_pose[env_ids].clone()
+    target_pose[:, :3] += torch.tensor([0.2, -0.1, 0.3], device=device)
+    articulation.write_root_link_pose_to_sim_index(root_pose=target_pose, env_ids=env_ids)
+    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[env_ids], target_pose)
+    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[:1], initial_pose[:1])
+
+    initial_velocity = articulation.data.root_com_lin_vel_w.torch.clone()
+    articulation.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=torch.tensor([[[8.0, 0.0, 0.0]]], device=device),
+        torques=torch.zeros((1, 1, 3), device=device),
+        env_ids=env_ids,
+        body_ids=torch.tensor([0], dtype=torch.int32, device=device),
+    )
+    articulation.write_data_to_sim()
+    articulation_scene.sim.step()
+    articulation.update(articulation_scene.sim.cfg.dt)
+    assert articulation.data.root_com_lin_vel_w.torch[1, 0] > initial_velocity[1, 0]
+    torch.testing.assert_close(articulation.data.root_com_lin_vel_w.torch[0], initial_velocity[0], atol=1e-6, rtol=0)
