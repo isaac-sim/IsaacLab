@@ -63,15 +63,16 @@ runs:
 
         # Resolve the actual base image digest so a new push of a mutable tag
         # (e.g. latest-develop) invalidates the deps cache automatically.
-        base_image_digest=$(docker buildx imagetools inspect \
+        # Fail loudly: an unreadable manifest is an auth/registry problem, and
+        # silently falling back to the tag string stops the deps cache from
+        # tracking the base image at all.
+        if ! base_image_digest=$(docker buildx imagetools inspect \
           "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
-          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-        if [ -n "${base_image_digest}" ]; then
-          base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
-        else
-          echo "🟠 Could not resolve base image digest, falling back to tag string"
-          base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}"
+          --format '{{json .Manifest.Digest}}' 2>&1 | tr -d '"'); then
+          echo "::error::Cannot read manifest for ${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}: ${base_image_digest}"
+          exit 1
         fi
+        base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
 
         mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
         file_hash=$(git ls-files -s "${deps_files[@]}" "${manifest_files[@]}" 2>/dev/null \
