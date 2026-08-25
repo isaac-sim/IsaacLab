@@ -62,8 +62,8 @@ from isaaclab_assets import (  # isort:skip
     ANYMAL_C_CFG,
     FRANKA_PANDA_CFG,
     FRANKA_PANDA_HIGH_PD_CFG,
-    SHADOW_HAND_CFG,
 )
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 
 def generate_articulation_cfg(
