@@ -28,6 +28,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 if TYPE_CHECKING:
     _MappingBatch: TypeAlias = tuple[
@@ -104,6 +105,7 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
+    global_paths: tuple[str, ...] = (),
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
 
@@ -121,17 +123,25 @@ def _build_newton_builder_from_mapping(
     manager_cls = PhysicsManager._sim.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
-    # Swap height-field-tagged terrain colliders for Newton heightfields before the
-    # mesh import, and skip those prims in add_usd so the terrain is not imported twice.
-    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder)
-    stage_info = builder.add_usd(
-        stage,
-        ignore_paths=["/World/envs", *sources, *hf_ignore_paths],
-        schema_resolvers=schema_resolvers,
-        load_visual_shapes=load_visual_shapes,
-    )
-    _restore_visible_colliders_without_visual_shapes(builder, stage, stage_info["path_shape_map"], load_visual_shapes)
+    import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
+    hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+    import_results = []
+    for root_path in import_paths:
+        import_result = builder.add_usd(
+            stage,
+            root_path=root_path,
+            ignore_paths=hf_ignore_paths,
+            schema_resolvers=schema_resolvers,
+            load_visual_shapes=load_visual_shapes,
+        )
+        _restore_visible_colliders_without_visual_shapes(
+            builder, stage, import_result["path_shape_map"], load_visual_shapes
+        )
+        import_results.append(import_result)
+    stage_info = import_results[0]
     replace_newton_builder_shape_colors(builder, stage)
+    if load_visual_shapes:
+        import_builder_visual_material_paths(builder, stage)
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
@@ -190,10 +200,12 @@ def _renderer_wants_visual_shapes() -> bool:
 class NewtonReplicateContext:
     """Queue and run Newton replication work for one stage."""
 
+    replicate_priority = 0
+
     def __init__(
         self,
         stage: Usd.Stage,
-        *,
+        global_paths: tuple[str, ...] = (),
         device: str = "cpu",
         up_axis: str = "Z",
         load_visual_shapes: bool | None = None,
@@ -203,6 +215,7 @@ class NewtonReplicateContext:
 
         Args:
             stage: USD stage containing source assets.
+            global_paths: Shared scene-asset roots imported once outside replicated worlds.
             device: Device used by the finalized Newton model builder.
             up_axis: Up axis for the Newton model builder.
             load_visual_shapes: Whether to import visual-only geometry. If ``None``,
@@ -212,6 +225,7 @@ class NewtonReplicateContext:
                 :class:`NewtonManager`.
         """
         self.stage = stage
+        self._global_paths = global_paths
         self.device = device
         self.up_axis = up_axis
         if load_visual_shapes is None:
@@ -305,6 +319,7 @@ class NewtonReplicateContext:
             quaternions=quaternions,
             up_axis=self.up_axis,
             load_visual_shapes=self.load_visual_shapes,
+            global_paths=self._global_paths,
         )
         fabric_body_bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping)
         if self.commit_to_manager:
@@ -333,6 +348,7 @@ def newton_physics_replicate(
     quaternions: torch.Tensor | None = None,
     device: str = "cpu",
     up_axis: str = "Z",
+    global_paths: tuple[str, ...] = (),
 ):
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
@@ -346,11 +362,12 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         device: Device used by the finalized Newton model builder.
         up_axis: Up axis for the Newton model builder.
+        global_paths: Shared scene-asset roots imported once. Defaults to none.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    ctx = NewtonReplicateContext(stage, device=device, up_axis=up_axis, commit_to_manager=True)
+    ctx = NewtonReplicateContext(stage, global_paths=global_paths, device=device, up_axis=up_axis)
     ctx.queue_mapping(sources, destinations, env_ids, mapping, positions=positions, quaternions=quaternions)
     builder, stage_info, _site_index_map = ctx.replicate()
     return builder, stage_info

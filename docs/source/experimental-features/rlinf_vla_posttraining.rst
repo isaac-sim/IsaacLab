@@ -51,6 +51,11 @@ Architecture
 Prerequisites
 -------------
 
+.. important::
+
+   RLinf post-training currently supports Linux only. Compatible distributions
+   include Ubuntu and Debian, Red Hat-family distributions, and Arch Linux.
+
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
 - A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
@@ -104,16 +109,6 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
    cd Isaac-GR00T
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
-.. note::
-
-   **Windows 11**: If ``git apply`` fails with ``error: corrupt patch at line 41``,
-   use ``patch.exe`` (bundled with Git for Windows) instead:
-
-   .. code-block:: bash
-
-      cd Isaac-GR00T
-      "C:\Program Files\Git\usr\bin\patch.exe" -p1 < \path\to\IsaacLab\scripts\imitation_learning\locomanipulation_sdg\gr00t\no_flash_attn.patch
-
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
 
@@ -143,7 +138,7 @@ Quick Start
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: isaaclab.sh
 
       .. code-block:: bash
 
@@ -164,7 +159,7 @@ Quick Start
              --model_path /path/to/base_model \
              --video
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: isaaclab.sh
 
       .. code-block:: bash
 
@@ -187,7 +182,7 @@ Quick Start
              --checkpoint /path/to/checkpoints/global_step_N \
              --video
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: isaaclab.sh
 
       .. code-block:: bash
 
@@ -207,11 +202,6 @@ architecture from the base model and overlays the RL-finetuned weights
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
-
-.. note::
-
-   **Windows support is still being optimized.** For now, Linux is recommended for
-   RLinf training and evaluation.
 
 Checkpoints
 -----------
