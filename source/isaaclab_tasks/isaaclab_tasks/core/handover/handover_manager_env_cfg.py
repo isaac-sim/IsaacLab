@@ -277,6 +277,35 @@ class RewardsCfg:
         },
     )
 
+    # --- ablation terms: weight 0.0 keeps the default reward exactly as before ---
+    action_penalty = RewTerm(func=mdp.action_l2, weight=0.0)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=0.0)
+    pose_deviation_right = RewTerm(
+        func=mdp.joint_deviation_l1, weight=0.0, params={"asset_cfg": SceneEntityCfg("right_hand")}
+    )
+    pose_deviation_left = RewTerm(
+        func=mdp.joint_deviation_l1, weight=0.0, params={"asset_cfg": SceneEntityCfg("left_hand")}
+    )
+    object_velocity = RewTerm(func=mdp.object_lin_vel_l2, weight=0.0)
+    joint_vel_right = RewTerm(func=mdp.joint_vel_l2, weight=0.0, params={"asset_cfg": SceneEntityCfg("right_hand")})
+    joint_vel_left = RewTerm(func=mdp.joint_vel_l2, weight=0.0, params={"asset_cfg": SceneEntityCfg("left_hand")})
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=0.0)
+    released_pose_right = RewTerm(
+        func=mdp.joint_deviation_when_released,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
+    )
+    released_pose_left = RewTerm(
+        func=mdp.joint_deviation_when_released,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)},
+    )
+    hold_at_goal = RewTerm(
+        func=mdp.hold_at_goal,
+        weight=0.0,
+        params={"command_name": "object_pose", "success_distance_threshold": 0.1, "hold_speed": 0.05},
+    )
+
 
 @configclass
 class TerminationsCfg:

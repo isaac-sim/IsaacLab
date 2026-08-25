@@ -208,3 +208,10 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     """Object-to-goal distance below which the handover is considered successful [m]."""
     # reward-related scales
     dist_reward_scale = 20.0
+    action_penalty_scale = 0.0
+    """Squared-action reward scale, charged per hand. Zero by default, like every other added term.
+
+    The distance term is shared, so once a hand releases the ball its pose stops affecting the
+    reward; a nonzero scale is what makes each hand pay for its own actions. Equivalent to the
+    manager task's ``action_penalty`` term, whose weight spans both hands' concatenated action.
+    """

@@ -244,7 +244,15 @@ class HandoverEnv(DirectMARLEnv):
         self._episode_succeeded |= succeeded
         self._last_goal_dist = goal_dist
 
-        return {"right_hand": rew_dist, "left_hand": rew_dist}
+        # Each hand pays for its own actions. The distance term is shared, so once a hand releases
+        # the ball its pose stops affecting the reward; zero-weighted by default like every other
+        # added term.
+        penalties = {
+            agent: self.actions[agent].square().sum(dim=-1) * self.cfg.action_penalty_scale
+            for agent in self.cfg.possible_agents
+        }
+        self.extras["log"]["action_penalty"] = torch.stack(list(penalties.values())).mean()
+        return {agent: rew_dist + penalties[agent] for agent in self.cfg.possible_agents}
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self._compute_intermediate_values()
