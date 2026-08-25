@@ -384,3 +384,23 @@ def test_empty_articulation_fragments_still_fix_the_root_link(tmp_path):
 
     stage = sim_utils.get_current_stage()
     assert sim_utils.find_global_fixed_joint_prim("/World/Robot", stage=stage) is not None
+
+
+def test_bare_fragment_on_usd_asset_reaches_nested_bodies(tmp_path):
+    """A bare fragment on a USD asset must keep the reach the legacy nested writer had.
+
+    Task configurations pass ``rigid_props=UsdPhysicsRigidBodyCfg(...)`` directly on a
+    ``UsdFileCfg``. The bodies live beneath the spawn prim, so pinning the convenience form to the
+    spawn prim authors nothing and the asset reaches the backend without a rigid body.
+    """
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/Robot",
+        rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=5.0),
+        mass_props=MassCfg(mass=2.0),
+    )
+
+    for link_rel_path in LINK_REL_PATHS:
+        link = stage.GetPrimAtPath(f"/World/Robot/{link_rel_path}")
+        assert abs(link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() - 5.0) < 1e-6
+        assert abs(link.GetAttribute("physics:mass").Get() - 2.0) < 1e-6

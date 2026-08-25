@@ -31,16 +31,19 @@ def props_expr(prim_path: str, pattern: str) -> str:
     return f"{prim_path}{pattern}"
 
 
-def fragment_mapping(value) -> dict | None:
+def fragment_mapping(value, default_pattern: str = "") -> dict | None:
     """Normalize a fragment spawner-configuration value to a target-pattern mapping.
 
-    The mapping form (``{pattern: [fragment, ...]}``) is the general spelling. As a convenience,
-    a bare fragment or a sequence of fragments is accepted for the common case of authoring on
-    the anchor prim itself, and is read as ``{"": [...]}``. Legacy dataclass configurations are
-    reported as ``None`` so callers route them to the legacy writers.
+    The mapping form (``{pattern: [fragment, ...]}``) is the general spelling. As a convenience, a
+    bare fragment or a sequence of fragments is accepted and read as ``{default_pattern: [...]}``.
+    The caller picks that default so the convenience form keeps the reach the legacy writers had:
+    the file spawners tune a prim together with its subtree, while the shape, mesh, and converter
+    spawners author the one prim they just created. Legacy dataclass configurations are reported
+    as ``None`` so callers route them to the legacy writers.
 
     Args:
         value: The value of a fragment spawner-configuration field.
+        default_pattern: The target pattern to use for the bare fragment (or sequence) form.
 
     Returns:
         The equivalent target-pattern mapping, or None when the value is a legacy configuration.
@@ -50,9 +53,9 @@ def fragment_mapping(value) -> dict | None:
     if isinstance(value, dict):
         return value
     if isinstance(value, SchemaFragment):
-        return {"": [value]}
+        return {default_pattern: [value]}
     if isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value):
         # an empty sequence carries no fragments and no targeting intent, so it maps to an empty
-        # mapping rather than an anchor-targeted entry with nothing to author
-        return {"": list(value)} if value else {}
+        # mapping rather than a targeted entry with nothing to author
+        return {default_pattern: list(value)} if value else {}
     return None

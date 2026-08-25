@@ -293,7 +293,7 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
     """
     # modify rigid body properties
     if cfg.rigid_props is not None:
-        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+        rigid_props_mapping = fragment_mapping(cfg.rigid_props, "(/.*)?")
         if rigid_props_mapping is not None:
             for pattern, fragments in rigid_props_mapping.items():
                 schemas.apply_rigid_body_properties(props_expr(prim_path, pattern), fragments)
@@ -301,7 +301,7 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
-        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        collision_props_mapping = fragment_mapping(cfg.collision_props, "(/.*)?")
         if collision_props_mapping is not None:
             for pattern, fragments in collision_props_mapping.items():
                 schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments)
@@ -309,7 +309,7 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
     # modify mass properties
     if cfg.mass_props is not None:
-        mass_props_mapping = fragment_mapping(cfg.mass_props)
+        mass_props_mapping = fragment_mapping(cfg.mass_props, "(/.*)?")
         if mass_props_mapping is not None:
             for pattern, fragments in mass_props_mapping.items():
                 schemas.apply_mass_properties(
@@ -339,7 +339,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
     # a legacy single cfg routes to the legacy writer -- it owns its own ``fix_root_link`` field; a
     # mapping (also an empty one) routes to the fragment writer, where the spawner-level topology
     # flag is honored even without any schema properties to author.
-    articulation_mapping = fragment_mapping(articulation_props)
+    articulation_mapping = fragment_mapping(articulation_props, "(/.*)?")
     if articulation_props is not None and articulation_mapping is None:
         if articulation_fix_root_link is not None:
             logger.warning(
@@ -369,14 +369,14 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
             )
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
-        fixed_tendons_props_mapping = fragment_mapping(cfg.fixed_tendons_props)
+        fixed_tendons_props_mapping = fragment_mapping(cfg.fixed_tendons_props, "(/.*)?")
         if fixed_tendons_props_mapping is not None:
             for pattern, fragments in fixed_tendons_props_mapping.items():
                 schemas.apply_fixed_tendon_properties(props_expr(prim_path, pattern), fragments)
         else:
             schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
     if cfg.spatial_tendons_props is not None:
-        spatial_tendons_props_mapping = fragment_mapping(cfg.spatial_tendons_props)
+        spatial_tendons_props_mapping = fragment_mapping(cfg.spatial_tendons_props, "(/.*)?")
         if spatial_tendons_props_mapping is not None:
             for pattern, fragments in spatial_tendons_props_mapping.items():
                 schemas.apply_spatial_tendon_properties(props_expr(prim_path, pattern), fragments)
@@ -390,7 +390,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
         # own body-gravcomp coupling in apply_mujoco_joint, so the fragment path adds no backend
         # coupling here); a legacy single cfg -> the pre-existing gravcomp auto-enable +
         # modify_joint_drive_properties below.
-        joint_drive_props_mapping = fragment_mapping(cfg.joint_drive_props)
+        joint_drive_props_mapping = fragment_mapping(cfg.joint_drive_props, "(/.*)?")
         if joint_drive_props_mapping is not None:
             for pattern, fragments in joint_drive_props_mapping.items():
                 schemas.apply_joint_drive_properties(
@@ -412,7 +412,7 @@ def _apply_articulation_schema_properties(prim_path: str, cfg: from_files_cfg.Fi
 
             # gravcomp may be authored either via the legacy MujocoRigidBodyPropertiesCfg or via a
             # MujocoRigidBodyCfg fragment in the rigid_props mapping. Treat either as "already set".
-            rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+            rigid_props_mapping = fragment_mapping(cfg.rigid_props, "(/.*)?")
             if rigid_props_mapping is not None:
                 rigid_props_list = [fragment for fragments in rigid_props_mapping.values() for fragment in fragments]
             else:
