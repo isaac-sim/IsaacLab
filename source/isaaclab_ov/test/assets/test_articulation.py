@@ -96,7 +96,8 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 wp.init()
 
