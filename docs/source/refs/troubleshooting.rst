@@ -56,9 +56,11 @@ are known to read. The list is closed and matched by exact name, so a variable t
 read is counted but never named or valued anywhere in the bundle. That is the whole of the guarantee:
 a bundle does record the hostname of the machine that produced it, in the archive name and in the
 manifest, the ``--command`` string as you typed it, and the values of allowlisted path variables such
-as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
-bundle before attaching it to a public issue. Uncommitted source changes are excluded by default;
-pass ``--include_diff`` to attach them.
+as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Git remotes are recorded because the reproduction needs a
+clone command, with any embedded credential stripped first, but the host and path of a private remote
+survive. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the bundle before attaching it to a
+public issue. Uncommitted source changes are excluded by default; pass ``--include_diff`` to attach
+them.
 
 
 Reproducing a Reported Environment
@@ -86,8 +88,12 @@ The steps follow the same order every time, with the details filled in from the 
    investigated.
 4. Obtain Isaac Sim the way the captured machine did -- the ``isaacsim`` wheel, a downloaded package
    at the recorded version, or a local build at the recorded revision.
-5. Run ``diff`` against the bundle. This is the check that decides whether the reproduction worked;
-   *No differences recorded* is the only evidence that it did.
+5. Run ``diff`` against the bundle. It compares the host and versions, every installed package and
+   its version, the allowlisted environment variables, the symlinks, the ``.pth`` files, the
+   ``RECORD``-against-disk integrity check, and the findings, and it names each section it found
+   identical. *No differences recorded* means the two captures agree on all of that. It is the
+   evidence that the reproduction worked, not a proof: whatever the capture does not record --
+   listed under *What this bundle cannot reproduce* -- is untested either way.
 
 Every bundle also contains a copy of ``capture_env.py``, so step 5 runs on a checkout too old to
 include the script, or on a machine with no Isaac Lab checkout at all:

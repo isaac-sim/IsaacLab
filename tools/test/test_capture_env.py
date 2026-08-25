@@ -33,6 +33,7 @@ from capture_env import (  # noqa: E402
     check_record_integrity,
     collect_environment,
     collect_isaac_sim,
+    collect_repo,
     find_unlocked_distributions,
     is_collected_env_var,
     load_manifest,
@@ -43,6 +44,7 @@ from capture_env import (  # noqa: E402
     render_diff,
     render_document,
     resolve_sync_plan,
+    sanitize_remote_url,
     scan_distributions,
     select_sync_extras,
     write_bundle,
@@ -230,6 +232,67 @@ class TestEnvironmentAllowlist:
     def test_every_listed_name_is_upper_case_and_unqualified(self):
         """Guards against a stray lower-case or prefixed entry slipping into the list."""
         assert all(name == name.upper() and not name.startswith("_") for name in ISAAC_LAB_ENV_VARS)
+
+
+class TestRemoteSanitization:
+    """A remote is recorded without the credential a checkout may have stored in it."""
+
+    @pytest.mark.parametrize(
+        "url, expected",
+        [
+            ("https://ghp_TOKEN@github.com/org/repo.git", "https://github.com/org/repo.git"),
+            ("https://oauth2:glpat_TOKEN@gitlab.example.com/org/repo.git", "https://gitlab.example.com/org/repo.git"),
+            ("http://user:password@host.corp/repo.git", "http://host.corp/repo.git"),
+            ("ssh://user:password@host.corp/repo.git", "ssh://host.corp/repo.git"),
+            ("user:password@host.corp:org/repo.git", "host.corp:org/repo.git"),
+        ],
+    )
+    def test_credentials_are_removed(self, url, expected):
+        assert sanitize_remote_url(url) == expected
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/isaac-sim/IsaacLab.git",
+            "git@github.com:isaac-sim/IsaacLab.git",
+            "ssh://git@github.com:22/isaac-sim/IsaacLab.git",
+            "git://github.com/isaac-sim/IsaacLab.git",
+            "/srv/git/IsaacLab.git",
+        ],
+    )
+    def test_a_url_without_a_credential_survives_intact(self, url):
+        """The clone step is only actionable if a key-authenticated remote is left usable."""
+        assert sanitize_remote_url(url) == url
+
+    def test_neither_the_manifest_nor_the_stored_listing_carries_the_token(self, tmp_path, monkeypatch):
+        remotes = (
+            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (fetch)\n"
+            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (push)\n"
+        )
+        monkeypatch.setattr(
+            "capture_env._git",
+            lambda root, args, timeout=15: remotes if args[:2] == ["remote", "-v"] else "",
+        )
+
+        section, artifacts = collect_repo(tmp_path, include_diff=False)
+
+        assert section["git"]["remotes"] == ["https://github.com/org/repo.git"]
+        assert section["git"]["remotes_redacted"] is True
+        assert "ghp_TOKEN" not in artifacts["repo/git-remote.txt"]
+        assert "ghp_TOKEN" not in json.dumps(section)
+
+    def test_a_remote_with_nothing_to_redact_is_not_reported_as_redacted(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "capture_env._git",
+            lambda root, args, timeout=15: (
+                "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)" if args[:2] == ["remote", "-v"] else ""
+            ),
+        )
+
+        section, artifacts = collect_repo(tmp_path, include_diff=False)
+
+        assert section["git"]["remotes_redacted"] is False
+        assert artifacts["repo/git-remote.txt"] == "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)"
 
 
 class TestRecordIntegrity:
@@ -786,10 +849,89 @@ class TestDiff:
 
         assert "| sync_extras | all test | all |" in report
 
+    def test_a_pth_file_adding_a_different_path_is_a_difference(self):
+        """Matching package versions still import different code when a `.pth` differs."""
+
+        def with_pth(*paths):
+            return _manifest(
+                python={
+                    "distributions": [{"key": "torch", "name": "torch", "version": "2.11.0"}],
+                    "duplicates": [],
+                    "pth_files": [{"name": "_isaaclab.pth", "lines": list(paths)}],
+                    "venv": None,
+                    "integrity": {"damaged": []},
+                }
+            )
+
+        report = render_diff(with_pth("/home/user/IsaacLab/source"), with_pth("/opt/IsaacLab/source"))
+
+        assert "`_isaaclab.pth`" in report
+        assert "/home/user/IsaacLab/source" in report
+        assert "/opt/IsaacLab/source" in report
+        assert "1 difference(s) recorded" in report
+
+    def test_a_package_gutted_on_one_side_is_a_difference(self):
+        """A distribution at the right version with its files gone is not an equivalent one."""
+
+        def with_damage(damaged):
+            return _manifest(
+                python={
+                    "distributions": [{"key": "usd-core", "name": "usd-core", "version": "25.5"}],
+                    "duplicates": [],
+                    "pth_files": [],
+                    "venv": None,
+                    "integrity": {"damaged": damaged},
+                }
+            )
+
+        report = render_diff(
+            with_damage([{"distribution": "usd_core-25.5.dist-info", "recorded": 78, "missing": 73, "examples": []}]),
+            with_damage([]),
+        )
+
+        assert "| `usd_core-25.5.dist-info` | 73 of 78 files missing | *intact* |" in report
+        assert "1 difference(s) recorded" in report
+
+    def test_skipping_the_integrity_check_is_reported_rather_than_read_as_a_match(self):
+        report = render_diff(_manifest(), _manifest())
+
+        assert "Not comparable: at least one capture ran with `--skip_integrity`." in report
+
+    def test_findings_sharing_a_code_are_compared_one_by_one(self):
+        """`missing-package-files` is raised per distribution; the code alone hides which."""
+
+        def damaged_in(name):
+            return _manifest(
+                findings=[
+                    {"level": "error", "code": "missing-package-files", "summary": f"{name} is gutted", "detail": []}
+                ]
+            )
+
+        report = render_diff(damaged_in("usd-core"), damaged_in("isaacsim-core"))
+
+        assert "usd-core is gutted" in report
+        assert "isaacsim-core is gutted" in report
+        assert "2 difference(s) recorded" in report
+
     def test_identical_captures_report_no_differences(self):
         report = render_diff(_manifest(), _manifest())
 
         assert "No differences recorded" in report
+
+    def test_every_section_names_itself_even_when_it_matches(self):
+        """The report doubles as the list of what was checked, so nothing may be dropped."""
+        report = render_diff(_manifest(), _manifest())
+
+        for section in (
+            "## Host and versions",
+            "## Packages",
+            "## Environment variables",
+            "## Symlinks",
+            "## Import path files",
+            "## Package integrity",
+            "## Findings",
+        ):
+            assert section in report
 
     def test_columns_are_disambiguated_when_both_captures_share_a_hostname(self):
         report = render_diff(_manifest(), _manifest())

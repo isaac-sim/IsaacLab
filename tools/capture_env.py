@@ -104,6 +104,15 @@ collected directly by :func:`collect_python`, which reads only the top level of
 ``site-packages``.
 """
 
+CREDENTIAL_BEARING_URL_SCHEMES = frozenset({"ftp", "ftps", "http", "https"})
+"""URL schemes whose userinfo field holds an authentication secret.
+
+An HTTPS remote authenticates with what the URL carries, so a checkout cloned with a token
+stores that token in ``.git/config`` and ``git remote -v`` prints it back verbatim. An SSH
+remote authenticates with a key instead, and its userinfo is the login name -- ``git`` on
+every hosted forge -- which is not a secret and is needed for the clone step to work.
+"""
+
 ISAAC_LAB_ENV_VARS = frozenset(
     {
         "CARB_APP_PATH",
@@ -426,6 +435,62 @@ def _git(repo_root: Path, args: list[str], timeout: int = 15) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout
+
+
+def sanitize_remote_url(url: str) -> str:
+    """Return ``url`` with any embedded credential removed.
+
+    Bundles are attached to public issues, so a remote that carries a token or password has
+    to be stripped before it is written anywhere. The userinfo field is dropped rather than
+    masked: the host and path are what make the clone step in the reproduction document
+    actionable, and a URL left with a placeholder where a token was cannot be pasted.
+
+    Args:
+        url: Remote URL as ``git remote -v`` reports it.
+
+    Returns:
+        The URL without userinfo where that field can hold a secret, otherwise unchanged.
+        SCP-style (``git@host:path``) and ``ssh://`` remotes are returned as they are unless
+        they carry a password, because their userinfo is a login name.
+    """
+    scheme, separator, rest = url.partition("://")
+    if not separator:
+        # SCP-style or a local path. Only the `user:password@host` form holds a secret.
+        userinfo, at_sign, tail = url.rpartition("@")
+        return tail if at_sign and ":" in userinfo else url
+    authority, slash, path = rest.partition("/")
+    userinfo, at_sign, host = authority.rpartition("@")
+    if not at_sign:
+        return url
+    if scheme.lower() in CREDENTIAL_BEARING_URL_SCHEMES or ":" in userinfo:
+        return f"{scheme}://{host}{slash}{path}"
+    return url
+
+
+def sanitize_remote_listing(remotes: str) -> tuple[str, list[str], bool]:
+    """Return ``git remote -v`` output with credentials removed, and the distinct URLs.
+
+    Args:
+        remotes: Verbatim ``git remote -v`` output.
+
+    Returns:
+        The listing with every URL passed through :func:`sanitize_remote_url`, the sorted set
+        of sanitized URLs, and whether anything was removed. The flag is reported so the
+        redaction is visible to whoever follows the clone step rather than silent.
+    """
+    lines: list[str] = []
+    urls: set[str] = set()
+    redacted = False
+    for line in remotes.splitlines():
+        fields = line.split()
+        if len(fields) < 2:
+            lines.append(line)
+            continue
+        url = sanitize_remote_url(fields[1])
+        redacted = redacted or url != fields[1]
+        urls.add(url)
+        lines.append("\t".join([fields[0], " ".join([url, *fields[2:]])]))
+    return "\n".join(lines), sorted(urls), redacted
 
 
 def find_repo_root(start: Path) -> Path:
@@ -1289,10 +1354,15 @@ def collect_repo(repo_root: Path, include_diff: bool) -> tuple[dict, dict[str, s
         "diff_included": False,
     }
 
+    # Remotes are recorded because the clone step needs one, but a checkout cloned over HTTPS
+    # with a token holds that token here. Redacting on the way in keeps it out of the manifest,
+    # the stored listing, and the clone command derived from them.
     remotes = _git(repo_root, ["remote", "-v"])
     if remotes:
-        artifacts["repo/git-remote.txt"] = remotes
-        git_info["remotes"] = sorted({line.split()[1] for line in remotes.splitlines() if len(line.split()) > 1})
+        listing, urls, redacted = sanitize_remote_listing(remotes)
+        artifacts["repo/git-remote.txt"] = listing
+        git_info["remotes"] = urls
+        git_info["remotes_redacted"] = redacted
     if status is not None:
         artifacts["repo/git-status.txt"] = status
     if diffstat:
@@ -1807,6 +1877,33 @@ def _summary_rows(manifest: dict) -> list[tuple[str, str]]:
     ]
 
 
+def _render_checkout_step(git: dict, remote: str) -> list[str]:
+    """Return the reproduction step that clones the captured source at the captured commit.
+
+    Args:
+        git: The manifest's ``repo.git`` section.
+        remote: The remote URL to clone, already sanitized by :func:`sanitize_remote_url`.
+
+    Returns:
+        The body of the step. The caller supplies the step number, its title, and the
+        surrounding blank lines.
+    """
+    lines = ["```bash", f"git clone {remote} IsaacLab-repro", "cd IsaacLab-repro"]
+    if git.get("commit"):
+        if not git.get("commit_on_remote"):
+            lines.append(f"# {git['commit']} is not on any remote branch; fetch it from the")
+            lines.append(f"# machine that produced this bundle, or ask for branch {git.get('branch')}.")
+        lines.append(f"git checkout {git['commit']}")
+    lines.append("```")
+    if git.get("remotes_redacted"):
+        lines.append("")
+        lines.append(
+            "A credential embedded in one of the captured remote URLs was removed. Supply your own"
+            " if the clone asks for one."
+        )
+    return lines
+
+
 def _render_isaac_sim_step(isaac_sim: dict, sync: dict) -> list[str]:
     """Return the reproduction step for obtaining Isaac Sim the way the captured machine did.
 
@@ -2014,17 +2111,7 @@ def render_document(manifest: dict, artifacts: dict[str, str]) -> str:
     step += 1
     lines.append(f"**{step}. Check out the same source.**")
     lines.append("")
-    lines.append("```bash")
-    lines.append(f"git clone {remotes[0]} IsaacLab-repro")
-    lines.append("cd IsaacLab-repro")
-    if git.get("commit"):
-        if git.get("commit_on_remote"):
-            lines.append(f"git checkout {git['commit']}")
-        else:
-            lines.append(f"# {git['commit']} is not on any remote branch; fetch it from the")
-            lines.append(f"# machine that produced this bundle, or ask for branch {git.get('branch')}.")
-            lines.append(f"git checkout {git['commit']}")
-    lines.append("```")
+    lines.extend(_render_checkout_step(git, remotes[0]))
     lines.append("")
     step += 1
 
@@ -2253,7 +2340,7 @@ def render_document(manifest: dict, artifacts: dict[str, str]) -> str:
         "repo/git-diffstat.txt": "Which files were modified, and by how much.",
         "repo/git-diff.patch": "The uncommitted changes themselves.",
         "repo/git-log.txt": "Last 20 commits.",
-        "repo/git-remote.txt": "Configured remotes.",
+        "repo/git-remote.txt": "Configured remotes, with any embedded credential removed.",
         "repo/git-untracked.txt": "Untracked files not covered by .gitignore.",
         "host/nvidia-smi.txt": "Full driver and GPU inventory.",
         "host/nvidia-smi-query.csv": "One row per GPU: model, UUID, VBIOS, memory, compute mode.",
@@ -2384,15 +2471,28 @@ def _flatten(manifest: dict) -> dict[str, str]:
     }
 
 
+def _pth_entries(lines: list[str] | None) -> str:
+    """Return the lines of one ``.pth`` file as a single readable cell."""
+    if lines is None:
+        return "*absent*"
+    entries = [line for line in lines if line.strip()]
+    return ", ".join(f"`{entry}`" for entry in entries) if entries else "*empty*"
+
+
 def render_diff(baseline: dict, current: dict) -> str:
     """Render every difference between two captured environments.
+
+    Every section of the manifest that can change what an installation imports or how it runs
+    is compared, because a reproduction accepted on a partial comparison is worse than one
+    that was never attempted. A section that matches says so rather than being dropped, so the
+    report doubles as the list of what was checked.
 
     Args:
         baseline: The manifest being compared against, usually the reported environment.
         current: The manifest being checked, usually the local reproduction attempt.
 
     Returns:
-        Markdown listing what differs. Sections with no differences are omitted.
+        Markdown listing what differs, section by section.
     """
     lines: list[str] = ["# Environment diff", ""]
     baseline_label = baseline.get("capture", {}).get("hostname", "baseline")
@@ -2486,21 +2586,80 @@ def render_diff(baseline: dict, current: dict) -> str:
         lines.append("Identical.")
     lines.append("")
 
-    def findings(manifest: dict) -> dict[str, str]:
-        return {finding["code"]: finding["summary"] for finding in manifest.get("findings", [])}
+    # A `.pth` file is executed at interpreter start and can put anything on sys.path, so two
+    # environments holding the same package versions still import different code when these
+    # differ. Compared line by line rather than as whole files so the added path is named.
+    def pth_files(manifest: dict) -> dict[str, list[str]]:
+        return {
+            entry["name"]: list(entry.get("lines", [])) for entry in manifest.get("python", {}).get("pth_files", [])
+        }
+
+    before_pth, after_pth = pth_files(baseline), pth_files(current)
+    pth_names = [
+        name for name in sorted(set(before_pth) | set(after_pth)) if before_pth.get(name) != after_pth.get(name)
+    ]
+    lines.append("## Import path files")
+    lines.append("")
+    if pth_names:
+        differences += len(pth_names)
+        for name in pth_names:
+            lines.append(f"- `{name}`")
+            lines.append(f"    - {baseline_label}: {_pth_entries(before_pth.get(name))}")
+            lines.append(f"    - {current_label}: {_pth_entries(after_pth.get(name))}")
+    else:
+        lines.append("Identical.")
+    lines.append("")
+
+    # A distribution present at the right version but missing the files its own RECORD claims
+    # imports as an empty namespace package instead of raising, so package versions matching is
+    # not enough to call two environments equivalent.
+    def damaged(manifest: dict) -> dict[str, str]:
+        integrity = manifest.get("python", {}).get("integrity") or {}
+        return {
+            entry["distribution"]: f"{entry['missing']} of {entry['recorded']} files missing"
+            for entry in integrity.get("damaged", [])
+        }
+
+    lines.append("## Package integrity")
+    lines.append("")
+    if baseline.get("python", {}).get("integrity") is None or current.get("python", {}).get("integrity") is None:
+        lines.append("Not comparable: at least one capture ran with `--skip_integrity`.")
+    else:
+        before_damaged, after_damaged = damaged(baseline), damaged(current)
+        damaged_rows = [
+            (name, before_damaged.get(name, "*intact*"), after_damaged.get(name, "*intact*"))
+            for name in sorted(set(before_damaged) | set(after_damaged))
+            if before_damaged.get(name) != after_damaged.get(name)
+        ]
+        if damaged_rows:
+            differences += len(damaged_rows)
+            lines.append(f"| Distribution | {baseline_label} | {current_label} |")
+            lines.append("|---|---|---|")
+            for name, before, after in damaged_rows:
+                lines.append(f"| `{name}` | {before} | {after} |")
+        else:
+            lines.append("Identical.")
+    lines.append("")
+
+    # Keyed by code and summary together: one code covers many findings -- `missing-package-files`
+    # is raised once per damaged distribution -- and collapsing by code alone reports two
+    # environments broken in different places as agreeing.
+    def findings(manifest: dict) -> set[tuple[str, str]]:
+        return {(finding["code"], finding["summary"]) for finding in manifest.get("findings", [])}
 
     before_findings, after_findings = findings(baseline), findings(current)
     lines.append("## Findings")
     lines.append("")
-    only_before = sorted(set(before_findings) - set(after_findings))
-    only_after = sorted(set(after_findings) - set(before_findings))
+    only_before = sorted(before_findings - after_findings)
+    only_after = sorted(after_findings - before_findings)
     if only_before or only_after:
-        for code in only_before:
-            lines.append(f"- Only on `{baseline_label}`: **{code}** -- {before_findings[code]}")
-        for code in only_after:
-            lines.append(f"- Only on `{current_label}`: **{code}** -- {after_findings[code]}")
+        differences += len(only_before) + len(only_after)
+        for code, summary in only_before:
+            lines.append(f"- Only on `{baseline_label}`: **{code}** -- {summary}")
+        for code, summary in only_after:
+            lines.append(f"- Only on `{current_label}`: **{code}** -- {summary}")
     else:
-        shared = sorted(set(before_findings) & set(after_findings))
+        shared = sorted({code for code, _ in before_findings})
         lines.append(
             "Both environments report the same findings." + (f" ({', '.join(shared)})" if shared else " (none)")
         )
