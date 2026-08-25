@@ -26,18 +26,19 @@ runs:
           exit 0
         fi
 
+        # Seed a CLEAN config - never inherit the runner's registry credentials.
+        # A persistent `docker login nvcr.io` on the runner is stored inline
+        # (the credential helper is broken), and inheriting it makes NGC refuse
+        # to mint a token for the PUBLIC nvidia/* catalog for that org identity
+        # ("denied: Access Denied") instead of falling back to anonymous.
         DOCKER_CONFIG_DIR=$(mktemp -d)
-        if [ -f "${HOME}/.docker/config.json" ]; then
-          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-        else
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-        fi
+        echo '{"credsStore":"","auths":{}}' > "${DOCKER_CONFIG_DIR}/config.json"
         export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
         echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
 
         if [ -n "${NGC_API_KEY:-}" ]; then
           echo "🔵 Logging into nvcr.io..."
-          docker login -u '$oauthtoken' -p "${NGC_API_KEY}" nvcr.io
+          printf '%s' "${NGC_API_KEY}" | docker login -u '$oauthtoken' --password-stdin nvcr.io
         else
           echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
