@@ -119,6 +119,43 @@ Until the upstream fix lands in Newton, please use the ``physx`` preset for
 Digit-based environments.
 
 
+.. _known-issues-animated-curve-scene-partition:
+
+Animated curves disappear under Isaac RTX scene partitioning
+-------------------------------------------------------------
+
+Cables are authored as ``UsdGeom.BasisCurves`` and animated every frame. Kit RTX
+computes a bounding box for a curve prim once and never refreshes it while the curve
+deforms (OMPE-105749). The per-environment scene partition is sized from the union of
+the bounding boxes of the prims it contains, so that union covers the cable's *initial*
+extent plus whatever static geometry shares the partition. Once the cable moves outside
+that union it is culled and vanishes from the tiled camera images -- for example a cable
+resting on a table can disappear the moment a robot arm pushes it off the edge.
+
+The bug is specific to the Isaac RTX (Kit) backend with
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` enabled.
+The OVRTX backend updates animated-curve bounding boxes correctly and is unaffected.
+
+There are two workarounds:
+
+* **Pin the partition bounds.** Spawn a pair of millimetre-scale static cubes at
+  diagonally opposite corners of a box that conservatively envelops the environment's
+  workspace. They enlarge the partition's bounding-box union to that box, so the cable
+  stays inside it wherever it moves. ``Isaac-Lift-Cable-Franka`` and
+  ``Isaac-Lift-Cable-Franka-Camera`` ship this workaround as the
+  ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries; copy
+  the pattern into custom cable environments. The markers are static visual prims without
+  colliders, so they do not participate in physics, and they are dropped automatically when
+  scene partitioning is off.
+
+* **Disable scene partitioning.** Set
+  :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to
+  ``False`` (or export ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0``) to opt
+  out of partitioning entirely, at the cost of the per-environment culling speedup.
+
+Both workarounds can be dropped once Kit updates bounding boxes for animated curves.
+
+
 URDF Importer: Unresolved references for fixed joints
 -----------------------------------------------------
 
