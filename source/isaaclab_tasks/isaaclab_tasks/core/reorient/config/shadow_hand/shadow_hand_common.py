@@ -28,8 +28,8 @@ import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_CFG,
     SHADOW_HAND_NEWTON_CFG,
+    SHADOW_HAND_PHYSX_CFG,
 )
 
 
@@ -166,9 +166,9 @@ class ShadowHandRobotCfg(PresetCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
-    isaacsim_physx = SHADOW_HAND_CFG.replace(
+    isaacsim_physx = SHADOW_HAND_PHYSX_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
+        spawn=SHADOW_HAND_PHYSX_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
     physx = isaacsim_physx
     ovphysx = isaacsim_physx

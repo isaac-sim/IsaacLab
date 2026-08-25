@@ -23,7 +23,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
 )
 from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientRobotObsCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_FINGERTIP_NAMES
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES
 
 
 @configclass
@@ -77,7 +77,7 @@ class ShadowHandCameraObservationsCfg:
         fingertip_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_HAND_FINGERTIP_NAMES)},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
         )
         # No action_name: this hand splits its motors across a joint term and a tendon term.
         last_action = ObsTerm(func=mdp.last_action)

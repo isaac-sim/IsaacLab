@@ -40,7 +40,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData
-from .mjc_tendon_control import MjcTendonControl, resolve_fixed_tendon_control_rows
+from .mjc_tendon_control import MjcTendonControl
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -3514,9 +3514,7 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            control_rows = resolve_fixed_tendon_control_rows(self._root_view, SimulationManager.get_model())
-            if control_rows is not None and bool((control_rows >= 0).any()):
-                self._mjc_tendon_control = MjcTendonControl(self, control_rows)
+            self._mjc_tendon_control = MjcTendonControl.create(self, SimulationManager.get_model())
 
     """
     Internal helpers -- Debugging.

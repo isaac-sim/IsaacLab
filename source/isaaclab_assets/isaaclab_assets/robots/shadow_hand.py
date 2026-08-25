@@ -26,7 +26,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-SHADOW_HAND_JOINT_NAMES = [
+JOINT_NAMES = [
     "rh_WRJ2",
     "rh_WRJ1",
     "rh_FFJ4",
@@ -46,7 +46,7 @@ SHADOW_HAND_JOINT_NAMES = [
 ]
 """The 16 motors that drive a joint of their own [rad]."""
 
-SHADOW_HAND_TENDON_NAMES = ["rh_FFJ0", "rh_MFJ0", "rh_RFJ0", "rh_LFJ0"]
+TENDON_NAMES = ["rh_FFJ0", "rh_MFJ0", "rh_RFJ0", "rh_LFJ0"]
 """The 4 motors that drive a tendon, one per non-thumb finger [rad].
 
 A tendon spans that finger's middle and distal joints, which move together as ``J0 = J1 + J2``
@@ -54,7 +54,7 @@ and take no command of their own. Tendons have their own index space, so a joint
 cannot reach them.
 """
 
-SHADOW_HAND_TENDON_POSITION_LIMITS = (0.0, 3.1415)
+TENDON_POSITION_LIMITS = (0.0, 3.1415)
 """Commandable range of each tendon motor [rad].
 
 The asset's value: each tendon actuator authors ``mjc:ctrlRange:max = 3.1415``, which is pi to
@@ -69,7 +69,7 @@ position limit of their own -- MEASURED, ``mujoco.tendon_limited`` is ``2`` (MuJ
 the command is the actuator's control range, which the MuJoCo backend exposes and PhysX does not.
 """
 
-SHADOW_HAND_FINGERTIP_NAMES = [
+FINGERTIP_NAMES = [
     "rh_ffdistal",
     "rh_mfdistal",
     "rh_rfdistal",
@@ -87,7 +87,6 @@ SHADOW_HAND_CFG = ArticulationCfg(
             "SHADOW_HAND_USD",
             f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandMultiPhysics/shadow_hand_instanceable.usda",
         ),
-        variants={"Physics": "physx"},
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             # Shared with Allegro, the other hand in these tasks, and with most robot configs
             # (23/30 set disable_gravity, 27/30 set max_depenetration_velocity).
@@ -126,7 +125,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
     body_ordering="mjwarp",
     actuators={
         "direct_motors": ImplicitActuatorCfg(
-            joint_names_expr=SHADOW_HAND_JOINT_NAMES,
+            joint_names_expr=JOINT_NAMES,
             joint_effort_limit={
                 "rh_WRJ2": 10.0,
                 "rh_WRJ1": 5.0,
@@ -173,15 +172,17 @@ SHADOW_HAND_CFG = ArticulationCfg(
         ),
     },
 )
-"""Shadow Hand on the asset's PhysX variant.
+"""Shadow Hand, with the asset's own ``Physics`` variant left selected.
 
-One asset serves both engines; the ``Physics`` variant selects which, and per-engine values are
-authored in the asset rather than restated here.
+One asset serves both engines; per-engine values are authored in the asset rather than restated
+here. Prefer :data:`SHADOW_HAND_PHYSX_CFG` or :data:`SHADOW_HAND_NEWTON_CFG`, which name the
+engine at the call site instead of relying on the asset's default.
 """
+
+SHADOW_HAND_PHYSX_CFG = SHADOW_HAND_CFG.copy()
+SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx"}
+"""Shadow Hand on the asset's PhysX variant."""
 
 SHADOW_HAND_NEWTON_CFG = SHADOW_HAND_CFG.copy()
 SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco"}
-"""Shadow Hand on the asset's MuJoCo variant, for the Newton (MJWarp) solver.
-
-Identical to :data:`SHADOW_HAND_CFG` apart from the selected variant.
-"""
+"""Shadow Hand on the asset's MuJoCo variant, for the Newton (MJWarp) solver."""

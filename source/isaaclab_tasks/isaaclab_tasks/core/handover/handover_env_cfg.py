@@ -25,12 +25,12 @@ from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, OBJECT
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_CFG,
-    SHADOW_HAND_FINGERTIP_NAMES,
-    SHADOW_HAND_JOINT_NAMES,
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
     SHADOW_HAND_NEWTON_CFG,
-    SHADOW_HAND_TENDON_NAMES,
-    SHADOW_HAND_TENDON_POSITION_LIMITS,
+    SHADOW_HAND_PHYSX_CFG,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
 )
 
 
@@ -59,7 +59,7 @@ def _hand_cfg(
     """
     # The asset's own spawn rotation is shared by both engines, so the per-hand rotation COMPOSES
     # with it rather than replacing it -- replacing leaves both palms turned 90 degrees. See
-    # SHADOW_HAND_CFG's init_state for why the asset carries that rotation.
+    # SHADOW_HAND_PHYSX_CFG's init_state for why the asset carries that rotation.
     hand_rot = tuple(
         math_utils.quat_mul(
             torch.tensor(init_rot, dtype=torch.float64),
@@ -83,7 +83,7 @@ class RightHandCfg(PresetCfg):
     """The right hand on every engine; only the asset's physics variant differs."""
 
     newton_mjwarp = _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_RIGHT_POSE)
-    isaacsim_physx = _hand_cfg(SHADOW_HAND_CFG, *_RIGHT_POSE)
+    isaacsim_physx = _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_RIGHT_POSE)
     physx = isaacsim_physx
     ovphysx = isaacsim_physx
     default = newton_mjwarp
@@ -94,14 +94,10 @@ class LeftHandCfg(PresetCfg):
     """The left hand on every engine; only the asset's physics variant differs."""
 
     newton_mjwarp = _hand_cfg(SHADOW_HAND_NEWTON_CFG, *_LEFT_POSE)
-    isaacsim_physx = _hand_cfg(SHADOW_HAND_CFG, *_LEFT_POSE)
+    isaacsim_physx = _hand_cfg(SHADOW_HAND_PHYSX_CFG, *_LEFT_POSE)
     physx = isaacsim_physx
     ovphysx = isaacsim_physx
     default = newton_mjwarp
-
-
-RIGHT_HAND_CFG = RightHandCfg()
-LEFT_HAND_CFG = LeftHandCfg()
 
 
 BALL_CFG = RigidObjectCfg(
@@ -185,12 +181,12 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     )
 
     # robot
-    right_robot_cfg: RightHandCfg = RIGHT_HAND_CFG
-    left_robot_cfg: LeftHandCfg = LEFT_HAND_CFG
-    actuated_joint_names = SHADOW_HAND_JOINT_NAMES
-    actuated_tendon_names = SHADOW_HAND_TENDON_NAMES
-    actuated_tendon_position_limits = SHADOW_HAND_TENDON_POSITION_LIMITS
-    fingertip_body_names = SHADOW_HAND_FINGERTIP_NAMES
+    right_robot_cfg: RightHandCfg = RightHandCfg()
+    left_robot_cfg: LeftHandCfg = LeftHandCfg()
+    actuated_joint_names = JOINT_NAMES
+    actuated_tendon_names = TENDON_NAMES
+    actuated_tendon_position_limits = TENDON_POSITION_LIMITS
+    fingertip_body_names = FINGERTIP_NAMES
 
     # in-hand object
     object_cfg: RigidObjectCfg = BALL_CFG
@@ -212,9 +208,3 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     """Object-to-goal distance below which the handover is considered successful [m]."""
     # reward-related scales
     dist_reward_scale = 20.0
-    action_penalty_scale = -0.0002
-    """Squared-action reward scale, matching the reorientation task.
-
-    Each hand pays for its own actions. The distance term is shared, so once a hand releases the ball
-    its pose stops affecting the reward and nothing else discourages it from saturating its motors.
-    """

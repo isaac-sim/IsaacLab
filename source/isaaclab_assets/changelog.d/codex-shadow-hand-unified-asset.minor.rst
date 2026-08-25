@@ -9,20 +9,20 @@ Changed
 Added
 ^^^^^
 
-* Added ``SHADOW_HAND_JOINT_NAMES``, ``SHADOW_HAND_TENDON_NAMES``,
-  ``SHADOW_HAND_TENDON_POSITION_LIMITS`` and ``SHADOW_HAND_FINGERTIP_NAMES`` to
+* Added ``JOINT_NAMES``, ``TENDON_NAMES``,
+  ``TENDON_POSITION_LIMITS`` and ``FINGERTIP_NAMES`` to
   :mod:`~isaaclab_assets.robots.shadow_hand`, so a task can name the hand's sixteen joint-driving
   motors, its four tendon-driving motors and their commandable range without restating them.
-  ``SHADOW_HAND_CFG`` and ``SHADOW_HAND_NEWTON_CFG`` select the PhysX and Newton variants.
+  ``SHADOW_HAND_PHYSX_CFG`` and ``SHADOW_HAND_NEWTON_CFG`` select the PhysX and Newton variants.
 
 Removed
 ^^^^^^^
 
 * Removed ``SHADOW_ACTUATED_JOINT_NAMES``, ``SHADOW_TENDON_JOINT_NAMES`` and
-  ``SHADOW_PHYSX_TENDON_GEARING``. Use ``SHADOW_HAND_JOINT_NAMES`` and
-  ``SHADOW_HAND_TENDON_NAMES`` instead. Note that ``SHADOW_ACTUATED_JOINT_NAMES`` listed all
+  ``SHADOW_PHYSX_TENDON_GEARING``. Use ``JOINT_NAMES`` and
+  ``TENDON_NAMES`` instead. Note that ``SHADOW_ACTUATED_JOINT_NAMES`` listed all
   twenty motors, so code that fed it to ``find_joints`` was asking for four joints that do not
-  exist; ``SHADOW_HAND_JOINT_NAMES`` lists only the sixteen that drive a joint.
+  exist; ``JOINT_NAMES`` lists only the sixteen that drive a joint.
 
 Fixed
 ^^^^^

@@ -52,8 +52,8 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_CFG,
     SHADOW_HAND_NEWTON_CFG,
+    SHADOW_HAND_PHYSX_CFG,
 )
 
 if TYPE_CHECKING:
@@ -97,7 +97,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 2 with Shadow Hand
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
-    shadow_hand_cfg = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_CFG
+    shadow_hand_cfg = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
     shadow_hand_cfg = shadow_hand_cfg.replace(prim_path="/World/Origin2/Robot")
     shadow_hand = shadow_hand_cfg.class_type(shadow_hand_cfg)
 

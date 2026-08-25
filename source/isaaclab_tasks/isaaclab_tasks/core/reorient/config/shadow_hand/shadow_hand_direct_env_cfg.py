@@ -19,10 +19,10 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
 )
 
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_FINGERTIP_NAMES,
-    SHADOW_HAND_JOINT_NAMES,
-    SHADOW_HAND_TENDON_NAMES,
-    SHADOW_HAND_TENDON_POSITION_LIMITS,
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
 )
 
 
@@ -56,10 +56,10 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot_cfg: ShadowHandRobotCfg = ShadowHandRobotCfg()
-    actuated_joint_names = SHADOW_HAND_JOINT_NAMES
-    actuated_tendon_names = SHADOW_HAND_TENDON_NAMES
-    actuated_tendon_position_limits = SHADOW_HAND_TENDON_POSITION_LIMITS
-    fingertip_body_names = SHADOW_HAND_FINGERTIP_NAMES
+    actuated_joint_names = JOINT_NAMES
+    actuated_tendon_names = TENDON_NAMES
+    actuated_tendon_position_limits = TENDON_POSITION_LIMITS
+    fingertip_body_names = FINGERTIP_NAMES
 
     # in-hand object
     object_cfg: RigidObjectCfg = CUBE_CFG

@@ -5,10 +5,10 @@
 
 import pytest
 
-from isaaclab_tasks.core.handover.handover_env_cfg import LEFT_HAND_CFG, RIGHT_HAND_CFG
+from isaaclab_tasks.core.handover.handover_env_cfg import LeftHandCfg, RightHandCfg
 
 
-@pytest.mark.parametrize("hand_cfg", [RIGHT_HAND_CFG, LEFT_HAND_CFG], ids=["right", "left"])
+@pytest.mark.parametrize("hand_cfg", [RightHandCfg(), LeftHandCfg()], ids=["right", "left"])
 def test_newton_shadow_hand_actuators_only_target_available_joints(hand_cfg):
     """Verify the Newton handover config does not add actuators for removed J0 joints."""
     # Assert the stated intent rather than the actuator-group names, which are an implementation

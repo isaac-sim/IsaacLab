@@ -22,8 +22,6 @@ import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
 from isaaclab_tasks.core.handover.handover_env_cfg import (
     BALL_CFG,
-    LEFT_HAND_CFG,
-    RIGHT_HAND_CFG,
     LeftHandCfg,
     PhysicsCfg,
     RightHandCfg,
@@ -31,10 +29,10 @@ from isaaclab_tasks.core.handover.handover_env_cfg import (
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_FINGERTIP_NAMES,
-    SHADOW_HAND_JOINT_NAMES,
-    SHADOW_HAND_TENDON_NAMES,
-    SHADOW_HAND_TENDON_POSITION_LIMITS,
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
 )
 
 
@@ -50,8 +48,8 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
     )
-    right_hand: RightHandCfg = RIGHT_HAND_CFG
-    left_hand: LeftHandCfg = LEFT_HAND_CFG
+    right_hand: RightHandCfg = RightHandCfg()
+    left_hand: LeftHandCfg = LeftHandCfg()
     object: RigidObjectCfg = BALL_CFG
     light = AssetBaseCfg(
         prim_path="/World/Light",
@@ -76,33 +74,33 @@ class ActionsCfg:
 
     right_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="right_hand",
-        joint_names=SHADOW_HAND_JOINT_NAMES,
+        joint_names=JOINT_NAMES,
         alpha=1.0,
         rescale_to_limits=True,
     )
     right_hand_tendons = mdp.FixedTendonPositionActionCfg(
         asset_name="right_hand",
-        tendon_names=SHADOW_HAND_TENDON_NAMES,
+        tendon_names=TENDON_NAMES,
         # the other four motors pull a tendon across a finger's middle and distal joints;
         # tendons have their own index space, so no joint term can reach them. Map the
         # policy's [-1, 1] onto the tendon's commandable span.
-        scale=0.5 * (SHADOW_HAND_TENDON_POSITION_LIMITS[1] - SHADOW_HAND_TENDON_POSITION_LIMITS[0]),
-        offset=0.5 * (SHADOW_HAND_TENDON_POSITION_LIMITS[0] + SHADOW_HAND_TENDON_POSITION_LIMITS[1]),
+        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
     )
     left_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="left_hand",
-        joint_names=SHADOW_HAND_JOINT_NAMES,
+        joint_names=JOINT_NAMES,
         alpha=1.0,
         rescale_to_limits=True,
     )
     left_hand_tendons = mdp.FixedTendonPositionActionCfg(
         asset_name="left_hand",
-        tendon_names=SHADOW_HAND_TENDON_NAMES,
+        tendon_names=TENDON_NAMES,
         # the other four motors pull a tendon across a finger's middle and distal joints;
         # tendons have their own index space, so no joint term can reach them. Map the
         # policy's [-1, 1] onto the tendon's commandable span.
-        scale=0.5 * (SHADOW_HAND_TENDON_POSITION_LIMITS[1] - SHADOW_HAND_TENDON_POSITION_LIMITS[0]),
-        offset=0.5 * (SHADOW_HAND_TENDON_POSITION_LIMITS[0] + SHADOW_HAND_TENDON_POSITION_LIMITS[1]),
+        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
     )
 
 
@@ -117,11 +115,11 @@ class PolicyCfg(ObsGroup):
         func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
     )
     right_fingertip_pose = ObsTerm(
-        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=SHADOW_HAND_FINGERTIP_NAMES)}
+        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)}
     )
     right_fingertip_vel = ObsTerm(
         func=reorient_mdp.fingertip_vel,
-        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=SHADOW_HAND_FINGERTIP_NAMES)},
+        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
     )
     right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
@@ -143,11 +141,11 @@ class PolicyCfg(ObsGroup):
         func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
     )
     left_fingertip_pose = ObsTerm(
-        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=SHADOW_HAND_FINGERTIP_NAMES)}
+        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)}
     )
     left_fingertip_vel = ObsTerm(
         func=reorient_mdp.fingertip_vel,
-        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=SHADOW_HAND_FINGERTIP_NAMES)},
+        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)},
     )
     left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
 

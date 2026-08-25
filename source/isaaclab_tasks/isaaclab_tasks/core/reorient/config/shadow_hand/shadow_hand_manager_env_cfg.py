@@ -29,10 +29,10 @@ from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import (
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_HAND_FINGERTIP_NAMES,
-    SHADOW_HAND_JOINT_NAMES,
-    SHADOW_HAND_TENDON_NAMES,
-    SHADOW_HAND_TENDON_POSITION_LIMITS,
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
 )
 
 ##
@@ -59,10 +59,10 @@ class ShadowHandActionsCfg(ActionsCfg):
 
     tendon_pos = mdp.FixedTendonPositionActionCfg(
         asset_name="robot",
-        tendon_names=SHADOW_HAND_TENDON_NAMES,
+        tendon_names=TENDON_NAMES,
         # map the policy's [-1, 1] onto the tendon's commandable span
-        scale=0.5 * (SHADOW_HAND_TENDON_POSITION_LIMITS[1] - SHADOW_HAND_TENDON_POSITION_LIMITS[0]),
-        offset=0.5 * (SHADOW_HAND_TENDON_POSITION_LIMITS[0] + SHADOW_HAND_TENDON_POSITION_LIMITS[1]),
+        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
     )
 
 
@@ -70,8 +70,8 @@ class ShadowHandActionsCfg(ActionsCfg):
 class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
-    fingertip_body_names = SHADOW_HAND_FINGERTIP_NAMES
-    actuated_joint_names = SHADOW_HAND_JOINT_NAMES
+    fingertip_body_names = FINGERTIP_NAMES
+    actuated_joint_names = JOINT_NAMES
     goal_orientation_threshold = 0.1
     goal_marker_cfg = GOAL_OBJECT_CFG
     decimation = 2
@@ -108,7 +108,7 @@ class ShadowHandAsymmetricObservationsCfg:
 
         fingertip_pos = ObsTerm(
             func=mdp.fingertip_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=SHADOW_HAND_FINGERTIP_NAMES)},
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=FINGERTIP_NAMES)},
         )
         object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
         goal_quat_diff = ObsTerm(
@@ -132,7 +132,7 @@ class ShadowHandAsymmetricObservationsCfg:
         fingertip_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_HAND_FINGERTIP_NAMES)},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
         )
         # No action_name: this hand splits its motors across a joint term and a tendon term.
         last_action = ObsTerm(func=mdp.last_action)
