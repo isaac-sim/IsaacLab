@@ -4,6 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "DeployRelativeJointPositionAction",
+    "DeployRelativeJointPositionActionCfg",
+    "DeployOperationalSpaceControllerAction",
+    "DeployOperationalSpaceControllerActionCfg",
+    "DeployDifferentialInverseKinematicsAction",
+    "DeployDifferentialInverseKinematicsActionCfg",
     "randomize_gear_type",
     "randomize_gears_and_base_pose",
     "set_robot_to_grasp_pose",
@@ -15,6 +21,8 @@ __all__ = [
     "gear_quat_w",
     "gear_shaft_pos_w",
     "gear_shaft_quat_w",
+    "joint_pos",
+    "joint_vel",
     "rigid_object_pos_w",
     "rigid_object_quat_w",
     "rigid_object_rot_6d_w",
@@ -32,6 +40,12 @@ __all__ = [
     "reset_when_gear_orientation_exceeds_threshold",
     "reset_when_plug_dropped",
     "reset_when_plug_orientation_exceeded",
+    "DelayedRelativeJointPositionAction",
+    "DelayedRelativeJointPositionActionCfg",
+    "ShapedDelayedRelativeJointPositionAction",
+    "ShapedDelayedRelativeJointPositionActionCfg",
+    "FlexivDynamicsAwareRelativeJointPositionAction",
+    "FlexivDynamicsAwareRelativeJointPositionActionCfg",
 ]
 
 from .events import (
@@ -47,6 +61,8 @@ from .observations import (
     gear_quat_w,
     gear_shaft_pos_w,
     gear_shaft_quat_w,
+    joint_pos,
+    joint_vel,
     rigid_object_pos_w,
     rigid_object_quat_w,
     rigid_object_rot_6d_w,
@@ -68,5 +84,25 @@ from .terminations import (
     reset_when_gear_orientation_exceeds_threshold,
     reset_when_plug_dropped,
     reset_when_plug_orientation_exceeded,
+)
+from .delayed_joint_actions import (
+    DelayedRelativeJointPositionAction,
+    ShapedDelayedRelativeJointPositionAction,
+    FlexivDynamicsAwareRelativeJointPositionAction,
+)
+from .delayed_joint_actions_cfg import (
+    DelayedRelativeJointPositionActionCfg,
+    ShapedDelayedRelativeJointPositionActionCfg,
+    FlexivDynamicsAwareRelativeJointPositionActionCfg,
+)
+from .actions import (
+    DeployDifferentialInverseKinematicsAction,
+    DeployOperationalSpaceControllerAction,
+    DeployRelativeJointPositionAction,
+)
+from .actions_cfg import (
+    DeployDifferentialInverseKinematicsActionCfg,
+    DeployOperationalSpaceControllerActionCfg,
+    DeployRelativeJointPositionActionCfg,
 )
 from isaaclab.envs.mdp import *
