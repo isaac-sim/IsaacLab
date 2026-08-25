@@ -228,21 +228,27 @@ runs:
         DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
         # Resolve the actual base image digest so a new push of a mutable tag
-        # (e.g. latest-develop) invalidates the deps cache. Failing here is
-        # deliberate: a tag fallback silently drops it from the cache key.
+        # (e.g. latest-develop) invalidates the deps cache. Failing is deliberate;
+        # stderr is kept off stdout so diagnostics can never reach the digest.
         BASE_IMAGE_DIGEST=""
+        INSPECT_ERR="$(mktemp)"
         for attempt in 1 2 3; do
-          if INSPECT_OUT=$(docker buildx imagetools inspect \
+          INSPECT_OUT=$(docker buildx imagetools inspect \
             "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-            --format '{{json .Manifest.Digest}}' 2>&1); then
-            BASE_IMAGE_DIGEST=$(printf '%s' "${INSPECT_OUT}" | tr -d '"')
-            break
-          fi
-          echo "🟠 Base image manifest read attempt ${attempt}/3 failed: ${INSPECT_OUT}"
+            --format '{{json .Manifest.Digest}}' 2>"${INSPECT_ERR}" || true)
+          CANDIDATE=$(printf '%s' "${INSPECT_OUT}" | tr -d '"')
+          case "${CANDIDATE}" in
+            sha256:*)
+              BASE_IMAGE_DIGEST="${CANDIDATE}"
+              break
+              ;;
+          esac
+          echo "🟠 Base image manifest read attempt ${attempt}/3 failed: $(tr '\n' ' ' < "${INSPECT_ERR}")"
           if [ "${attempt}" -lt 3 ]; then
             sleep $((attempt * 5))
           fi
         done
+        rm -f "${INSPECT_ERR}"
         if [ -z "${BASE_IMAGE_DIGEST}" ]; then
           echo "::error::Cannot read the manifest for ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }} after 3 attempts (see the attempt logs above)."
           exit 1
