@@ -7,10 +7,6 @@
 
 import gymnasium as gym
 
-from isaaclab_tasks.contrib.velocity.config.anymal_c import agents
-
-from .anymal_trail_env_cfg import AnymalCTrailEnvCfg
-
 ##
 # Register Gym environments.
 ##
@@ -23,5 +19,3 @@ gym.register(
         "env_cfg_entry_point": (f"{__name__}.anymal_trail_env_cfg:AnymalCTrailEnvCfg"),
     },
 )
-
-__all__ = ["AnymalCTrailEnvCfg"]

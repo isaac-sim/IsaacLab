@@ -13,7 +13,7 @@ export PYTHONPATH=/workspace/isaaclab/source/isaaclab_contrib:$PYTHONPATH
   --task IsaacContrib-Velocity-Trail-AnymalC \
   --num_envs 4
 
-Install: 
+Install:
 pip install manifold3d
 """
 
@@ -30,6 +30,12 @@ class AnymalCTrailEnvCfg(AnymalCRoughEnvCfg):
     def __post_init__(self) -> None:
         """Configure ANYmal-C and replace the rough terrain with trail terrains."""
         super().__post_init__()
+        # --------------------------------------------------
+        # overwrites go here...
+        for trail_cfg in TRAIL_CFG.sub_terrains.values():
+            trail_cfg.training = False  # do not use simplified useful for training
+            trail_cfg.cut_objects_above = None  # do not cut objects
+        # --------------------------------------------------
         self.scene.terrain = TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="generator",
@@ -38,4 +44,3 @@ class AnymalCTrailEnvCfg(AnymalCRoughEnvCfg):
             visual_material=None,
             debug_vis=False,
         )
-        self.sim.physics_material = self.scene.terrain.physics_material
