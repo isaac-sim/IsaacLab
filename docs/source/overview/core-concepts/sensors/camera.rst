@@ -407,21 +407,57 @@ absolute-difference images.
       .. code-block:: bash
 
          uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_renderer
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_renderer
 
 Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
 ``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
 contains multiple cameras with PPISP attributes. If a config or command selects
 a visualizer, force-disable all visualizers with ``--visualizer none`` or
-``--viz none``. Images are written to
-``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
+``--viz none``.
+
+The demo plays back the xform time samples authored on the selected camera or
+any of its ancestors, resampled to ``--fps`` and applied through
+:meth:`~sensors.Camera.set_world_poses` so both renderers observe the motion.
+Because the RTX render path re-evaluates animated USD xforms every frame — which
+would overwrite those pose writes — the demo first collapses the duplicated
+camera rig hierarchy to its static USD time 0 transform. It renders one frame
+per resampled trajectory sample and then exits, so a static camera produces a
+single frame. Timing and run length are controlled by:
+
+* ``--fps`` — rendered-frame rate used to resample the trajectory (default 30).
+* ``--physics_dt`` — physics step size (default 0.005). Physics steps are
+  batched per rendered frame through
+  :attr:`~sim.SimulationCfg.render_interval`, so ``--fps`` never changes the
+  physics rate.
+* ``--write_fps`` — image-writing rate, defaulting to ``--fps``. Frames are
+  written every ``round(fps / write_fps)`` frames, starting at the first frame.
+* ``--num_frames`` — render exactly this many frames instead of the trajectory
+  length, holding the final pose once the trajectory is exhausted.
+* ``--warmup_steps`` — steps rendered before the first write (32 for Isaac RTX,
+  0 for Newton) so accumulating renderers converge.
+
+Images are written under ``scripts/demos/sensors/output/ppisp_camera`` unless
+``--output_dir`` is set, into ``ppisp/``, ``baseline/``, ``diff/``, and
+``comparison/`` subdirectories. Use ``--render_only`` to write just the PPISP
+output and skip the baseline camera, difference, and comparison grid. Add
+``--profile`` to print and save per-section timings to ``profile.json``.
+
+With ``--renderer isaac_rtx`` the demo disables the Kit NuRec compositing
+post-process chain (``/omni/rtx/nre/compositing/disableNuRecPostProcessings``
+and the ``registeredCompositing`` inversions) so PPISP is the only ISP applied
+to the Gaussian render; pass ``--isaacrtx_keep_compositing_defaults`` to keep
+the Kit defaults instead. The remaining ``--isaacrtx_*`` flags forward RTX and
+RTX Gaussian settings such as ``--isaacrtx_render_mode``,
+``--isaacrtx_gaussian_max_intersections``, and
+``--isaacrtx_enable_accumulation``; run the demo with ``--help`` for the full
+list.
 
 Known limitations
 ^^^^^^^^^^^^^^^^^

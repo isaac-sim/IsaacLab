@@ -225,7 +225,7 @@ OVERRIDES = {
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
     ),
     "scripts/demos/sensors/ppisp_camera.py": ScriptOverride(
-        args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
+        args=("--num_frames", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
         visualizers=("none",),
     ),
