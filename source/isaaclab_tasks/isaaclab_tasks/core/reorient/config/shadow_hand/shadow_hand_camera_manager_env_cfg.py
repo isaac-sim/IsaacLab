@@ -23,7 +23,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
 )
 from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientRobotObsCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_FINGERTIP_BODY_NAMES
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_FINGERTIP_NAMES
 
 
 @configclass
@@ -52,7 +52,11 @@ class ShadowHandCameraObservationsCfg:
         """
 
         goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name, deliberately: omitting it returns the WHOLE action vector, whereas
+        # naming a term returns only that term's raw actions. This hand's twenty motors are
+        # split across a joint term and a tendon term, so naming either would feed the policy
+        # half of its own last action.
+        last_action = ObsTerm(func=mdp.last_action)
         camera_features = ObsTerm(
             func=mdp.ShadowHandCameraFeatures,
             params={
@@ -73,9 +77,10 @@ class ShadowHandCameraObservationsCfg:
         fingertip_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_HAND_FINGERTIP_NAMES)},
         )
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name: this hand splits its motors across a joint term and a tendon term.
+        last_action = ObsTerm(func=mdp.last_action)
         camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
 
     policy: CameraPolicyCfg = CameraPolicyCfg()

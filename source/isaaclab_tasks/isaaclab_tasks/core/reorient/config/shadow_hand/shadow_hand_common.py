@@ -16,7 +16,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
@@ -154,36 +154,24 @@ class ShadowHandManagerEventPresetCfg(PresetCfg):
 
 @configclass
 class ShadowHandRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        ),
-    )
-    isaacsim_physx = physx
-    # Newton robot lives in the asset (see isaaclab_assets.robots.shadow_hand); reorient
-    # uses its default gains. The handover task consumes the same asset cfg and overrides
-    # only the finger gains.
+    """The same hand on every engine; only the asset's physics variant differs.
+
+    The variant is a property of the asset -- its MuJoCo and PhysX payloads are mutually exclusive
+    -- so selecting it per engine is unavoidable. Nothing else may differ here: a spawn pose or gain
+    that needs a per-engine value is a defect to fix in the asset, not a preset to add.
+    """
+
+    # `spawn_path` authors only the prototype env; the scene clone plan replicates the rest (#7036).
     newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
-    ovphysx = SHADOW_HAND_CFG.replace(
+    isaacsim_physx = SHADOW_HAND_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
-        spawn=SHADOW_HAND_CFG.spawn.replace(
-            spawn_path="/World/envs/env_0/Robot",
-            fixed_tendons_props=None,
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        ),
+        spawn=SHADOW_HAND_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
     )
+    physx = isaacsim_physx
+    ovphysx = isaacsim_physx
     default = newton_mjwarp
 
 
@@ -207,6 +195,12 @@ CUBE_CFG = RigidObjectCfg(
         ),
         semantic_tags=[("class", "cube")],
     ),
+    # Above the palm of the hand, which lies horizontal reaching along -Y. This is the position the
+    # previous Newton asset used, and it applies unchanged because the two assets are the same hand
+    # in the same frame (Kabsch residual 0.00 mm between their USDs).
+    #
+    # Values tuned against a vertically-standing hand do NOT belong here: that pose was itself a
+    # mistake, and a cube placed for it sits 0.37 m from this palm.
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
 )
 """In-hand cube for the Shadow Hand reorientation tasks."""
