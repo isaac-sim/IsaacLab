@@ -64,10 +64,13 @@ def sinusoidal_z_curve_x(
     Returns:
         Sweeping path parametrized as numpay array with dimensions Nx3.
     """
-    s = np.linspace(0.0, 1.0, num_segments * num_curves)
+    n = sample(num_curves)
+    if n < 0.0:
+        raise RuntimeError("num_curves needs to be a positive number.")
+    s = np.linspace(0.0, 1.0, num_segments * n)
     xi = s * length
     yi = s * 0.0
-    zi = 0.5 * (1.0 - np.cos(sample(num_curves) * np.pi * s)) * sample(amplitude)
+    zi = 0.5 * (1.0 - np.cos(n * np.pi * s)) * sample(amplitude)
     return np.stack([xi, yi, zi], axis=1)
 
 

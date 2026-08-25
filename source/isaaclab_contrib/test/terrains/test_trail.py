@@ -202,3 +202,7 @@ class TestTrailUtilities(unittest.TestCase):
         rgb_roundtrip = colors.hsv_to_rgb(hsv)
         np.testing.assert_allclose(rgb_roundtrip, rgb.cpu().numpy(), atol=1e-5, rtol=1e-5)
 
+
+if __name__ == "__main__":
+    unittest.main()
+
