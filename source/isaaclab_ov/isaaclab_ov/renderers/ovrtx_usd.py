@@ -151,6 +151,7 @@ def build_render_scope_usd(
     minimal_mode: int | None = None,
     render_var_configs: list[tuple[str, str, str]] | None = None,
     background_color: tuple[float, float, float] | None = None,
+    device_id: int | None = None,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -167,11 +168,17 @@ def build_render_scope_usd(
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
             When set, the render product uses a solid color background instead of the dome light.
             When ``None``, the default dome-light background is used.
+        device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
+            OVRTX assigns the device automatically.
 
     Returns:
         The USD string for the render scope.
     """
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
+    # OVRTX reads ``deviceIds`` as CUDA indices and returns render var buffers on that device. Left
+    # unauthored it picks its own device, which on a multi-GPU machine can differ from the device the
+    # consuming Warp kernels run on -- an illegal access without peer access, silent garbage with it.
+    device_ids_line = "" if device_id is None else f"\n        uint[] deviceIds = [{device_id}]"
 
     if background_color is None:
         bg_type_line = 'token omni:rtx:background:source:type = "domeLight"'
@@ -208,7 +215,7 @@ def Scope "Render"
     def RenderProduct "{render_product_name}" (
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
-        rel camera = [{camera_rel_list}]
+        rel camera = [{camera_rel_list}]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
@@ -240,6 +247,7 @@ def build_render_product_as_string(
     minimal_mode: int | None = None,
     camera_rel_path: str = "Camera",
     background_color: tuple[float, float, float] | None = None,
+    device_id: int | None = None,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
@@ -258,6 +266,9 @@ def build_render_product_as_string(
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
             When set, the render product uses a solid color background instead of the dome light.
             When ``None``, the default dome-light background is used.
+        device_id: CUDA device index the render product is pinned to, so its render var buffers are
+            allocated on the same device as the Warp kernels that read them. When ``None``, OVRTX
+            assigns the device automatically.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -283,6 +294,7 @@ def build_render_product_as_string(
         minimal_mode,
         render_var_configs,
         background_color,
+        device_id,
     )
     return camera_content, render_product_path
 
