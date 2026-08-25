@@ -82,3 +82,39 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGravDisplayportInsertionRNNPPORunnerCfg",
     },
 )
+
+# Flexiv Rizon 4s - Task space (Operational Space Control)
+gym.register(
+    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0",
+    entry_point=_INSERTION_ENV_ENTRY,
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.task_space_env_cfg:Rizon4sTaskSpaceDisplayportInsertionEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGravDisplayportInsertionRNNPPORunnerCfg",
+    },
+)
+
+# Flexiv Rizon 4s - Task space Play
+gym.register(
+    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play-v0",
+    entry_point=_INSERTION_ENV_ENTRY,
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.task_space_env_cfg:Rizon4sTaskSpaceDisplayportInsertionEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGravDisplayportInsertionRNNPPORunnerCfg",
+    },
+)
+
+# Flexiv Rizon 4s - Task space ROS Inference
+gym.register(
+    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0",
+    entry_point=_INSERTION_ENV_ENTRY,
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.task_space_ros_inference_env_cfg:"
+            "Rizon4sTaskSpaceDisplayportInsertionROSInferenceEnvCfg"
+        ),
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGravDisplayportInsertionRNNPPORunnerCfg",
+    },
+)
