@@ -8,7 +8,7 @@
 """Example configuration for custom trail terrains."""
 
 from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from ..elements import roll_functions as roll
 from ..trail_cfg import (

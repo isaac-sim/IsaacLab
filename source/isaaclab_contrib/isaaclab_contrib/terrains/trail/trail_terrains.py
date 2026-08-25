@@ -446,16 +446,7 @@ def add_decoration(
 
     if cfg.decoration_functions is not None and cfg.rel_decorated_terrains >= np.random.rand():
         # load the list of decorative elements
-        if cfg.training:
-            decoration_path = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
-                "elements/list_of_objects_training.glb",
-            )
-        else:
-            decoration_path = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
-                "elements/list_of_objects_deployment.glb",
-            )
+        decoration_path = decoration_functions.generated_path(training=cfg.training)
         if not os.path.isfile(decoration_path):
             decoration_functions.generate(training=cfg.training)
         scene = trimesh.load(decoration_path)

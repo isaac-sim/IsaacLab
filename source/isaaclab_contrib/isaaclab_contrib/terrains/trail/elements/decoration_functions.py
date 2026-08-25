@@ -19,6 +19,7 @@ import colorsys
 import os
 import random
 import shutil
+import tempfile
 import zipfile
 from typing import TYPE_CHECKING, Literal
 
@@ -30,6 +31,21 @@ from ..utils.math import sample
 
 if TYPE_CHECKING:
     from ..trail_cfg import TrailBaseCfg
+
+
+def _decoration_cache_path() -> str:
+    """Return the writable directory used for extracted and generated decoration assets."""
+    return os.path.join(tempfile.gettempdir(), "isaaclab_contrib", "trail", "decoration_elements")
+
+
+def generated_path(training: bool) -> str:
+    """Return the path of the generated decoration GLB file."""
+    return os.path.join(
+        tempfile.gettempdir(),
+        "isaaclab_contrib",
+        "trail",
+        "list_of_objects_" + ("training" if training else "deployment") + ".glb",
+    )
 
 
 def generate(training: bool):
@@ -65,7 +81,7 @@ def generate(training: bool):
 
     scene = trimesh.Scene()
     file_path = os.path.dirname(os.path.realpath(__file__))
-    decoration_elements_path = os.path.join(file_path, "decoration_elements")
+    decoration_elements_path = _decoration_cache_path()
     decoration_elements_zip_path = os.path.join(file_path, "decoration_elements.zip")
 
     # Extract local asset bundle on demand when the folder is not yet present.
@@ -74,8 +90,9 @@ def generate(training: bool):
             raise FileNotFoundError(
                 f"Neither '{decoration_elements_path}' nor '{decoration_elements_zip_path}' exists."
             )
+        os.makedirs(os.path.dirname(decoration_elements_path), exist_ok=True)
         with zipfile.ZipFile(decoration_elements_zip_path, "r") as zip_ref:
-            zip_ref.extractall(file_path)
+            zip_ref.extractall(os.path.dirname(decoration_elements_path))
 
         if not os.path.isdir(decoration_elements_path):
             raise FileNotFoundError(
@@ -103,12 +120,7 @@ def generate(training: bool):
         # Add object to the scene
         scene.add_geometry(object_mesh, geom_name=object_name)
     # Store as GLB file
-    scene.export(
-        os.path.join(
-            file_path,
-            "list_of_objects_" + ("training" if training else "deployment") + ".glb",
-        )
-    )
+    scene.export(generated_path(training))
     if os.path.isdir(decoration_elements_path):
         shutil.rmtree(decoration_elements_path)
 

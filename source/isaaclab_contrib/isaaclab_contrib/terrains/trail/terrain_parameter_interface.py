@@ -5,7 +5,7 @@
 
 # Copyright (c) 2025-2026 Robotics and AI Institute LLC dba RAI Institute. All rights reserved.
 
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from .trail_cfg import TrailBaseCfg
 

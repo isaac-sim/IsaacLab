@@ -16,7 +16,7 @@ import trimesh
 from shapely.geometry import Polygon
 
 from isaaclab.terrains.terrain_generator_cfg import SubTerrainBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from . import trail_terrains
 from .elements import decoration_functions as decoration

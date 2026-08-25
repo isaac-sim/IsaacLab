@@ -591,7 +591,7 @@ from isaaclab_contrib.terrains.trail.trail_cfg import ObjectParameters as OP
 from isaaclab_contrib.terrains.trail.trail_cfg import StonesCfg
 
 from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 @configclass
 class TrailTerrainGeneratorCfg(TerrainGeneratorCfg):
@@ -650,7 +650,7 @@ Attach the trail terrain generator to a scene of manager-based RL environment as
 ```py
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.terrains.trail.examples.trails import TRAIL_CFG  # import the example trail config class
 
