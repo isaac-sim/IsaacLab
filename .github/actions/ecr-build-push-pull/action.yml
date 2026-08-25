@@ -51,6 +51,8 @@ runs:
 
     - name: Setup docker config and login to nvcr.io
       shell: bash
+      env:
+        BASE_IMAGE_REF: ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}
       run: |
         DOCKER_CONFIG_DIR=$(mktemp -d)
         if [ -f "${HOME}/.docker/config.json" ]; then
@@ -58,15 +60,33 @@ runs:
         else
           echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
         fi
-        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
         export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
 
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+        if [ -n "${NGC_API_KEY:-}" ]; then
           echo "🔵 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          printf '%s' "${NGC_API_KEY}" | docker login -u '$oauthtoken' --password-stdin nvcr.io
         else
           echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
+
+        # NGC refuses the runner's inherited private-org credentials a pull token
+        # for the public nvidia/* catalog rather than downgrading to anonymous,
+        # so keep them only if they can actually read the base image.
+        if ! docker buildx imagetools inspect "${BASE_IMAGE_REF}" >/dev/null 2>&1; then
+          ANON_CONFIG_DIR=$(mktemp -d)
+          echo '{"credsStore":"","auths":{}}' > "${ANON_CONFIG_DIR}/config.json"
+          if DOCKER_CONFIG="${ANON_CONFIG_DIR}" docker buildx imagetools inspect \
+            "${BASE_IMAGE_REF}" >/dev/null 2>&1; then
+            echo "🟠 Inherited credentials cannot read ${BASE_IMAGE_REF}; using anonymous access"
+            rm -rf "${DOCKER_CONFIG_DIR}"
+            DOCKER_CONFIG_DIR="${ANON_CONFIG_DIR}"
+            export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+          else
+            rm -rf "${ANON_CONFIG_DIR}"
+          fi
+        fi
+
+        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
 
     ##### 2: Resolve ECR URL #####
 
@@ -208,16 +228,26 @@ runs:
         DEPS_MANIFEST_PATTERN='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
         # Resolve the actual base image digest so a new push of a mutable tag
-        # (e.g. latest-develop) invalidates the deps cache automatically.
-        BASE_IMAGE_DIGEST=$(docker buildx imagetools inspect \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-        if [ -n "${BASE_IMAGE_DIGEST}" ]; then
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
-        else
-          echo "🟠 Could not resolve base image digest, falling back to tag string"
-          BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+        # (e.g. latest-develop) invalidates the deps cache. Failing here is
+        # deliberate: a tag fallback silently drops it from the cache key.
+        BASE_IMAGE_DIGEST=""
+        for attempt in 1 2 3; do
+          if INSPECT_OUT=$(docker buildx imagetools inspect \
+            "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+            --format '{{json .Manifest.Digest}}' 2>&1); then
+            BASE_IMAGE_DIGEST=$(printf '%s' "${INSPECT_OUT}" | tr -d '"')
+            break
+          fi
+          echo "🟠 Base image manifest read attempt ${attempt}/3 failed: ${INSPECT_OUT}"
+          if [ "${attempt}" -lt 3 ]; then
+            sleep $((attempt * 5))
+          fi
+        done
+        if [ -z "${BASE_IMAGE_DIGEST}" ]; then
+          echo "::error::Cannot read the manifest for ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }} after 3 attempts (see the attempt logs above)."
+          exit 1
         fi
+        BASE_IMAGE_UNIQ_ID="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}:${BASE_IMAGE_DIGEST}"
 
         echo "🔵 Base image ID: ${BASE_IMAGE_UNIQ_ID}"
 
