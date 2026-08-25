@@ -20,8 +20,8 @@ simulation results are reproducible across different runs. The seed is set into 
 parameters :attr:`isaaclab.envs.ManagerBasedEnvCfg.seed` or :attr:`isaaclab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
-App-level deterministic rendering via ``AppLauncher``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The ``--deterministic`` flag
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
 :class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic``.
@@ -33,11 +33,15 @@ The Isaac RTX backend reads it on init and applies
 for **RL-Games**, **skrl**, **RSL-RL**, and **Stable-Baselines3**: each calls
 :meth:`~isaaclab.utils.seed.configure_seed` after constructing its framework runner or agent object
 so library initialization is not disturbed, then training proceeds with the requested global RNG and
-optional PyTorch deterministic algorithms. Whether you need ``--deterministic`` at the app level
-depends on the workload: **physics-only** simulation does not require it; **RTX** rendering
-(non-minimal mode) does require it for reproducible imagery; **Newton** rendering does not require it.
+optional PyTorch deterministic algorithms. Whether the **rendering** half of the flag matters depends
+on the workload: **physics-only** simulation does not render at all; **RTX** rendering (non-minimal
+mode) needs it for reproducible imagery; **Newton** rendering is already deterministic.
 
-Pass ``--deterministic`` to enable reproducible rendering from the app launcher. (Isaac RTX only)
+**Physics determinism** comes from the same flag. It sets
+:attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` to ``"run_to_run"`` on Newton backends,
+applying the MJWarp prerequisite that setting documents, and enables
+:attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism` on PhysX backends. A backend that
+cannot provide the guarantee raises an error.
 
 .. tab-set::
 
@@ -66,7 +70,8 @@ ordering in its collision pipeline. Deterministic execution can increase
 memory use and reduce simulation performance. MJWarp on the GPU with
 :attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``,
 XPBD, and Featherstone are supported; selecting an unsupported solver raises
-an error.
+an error. Set this attribute directly only to request ``"gpu_to_gpu"`` or to
+override what ``--deterministic`` selects.
 
 .. warning::
 

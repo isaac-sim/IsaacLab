@@ -95,6 +95,23 @@ def test_newton_cartpole_env_determinism():
     )
 
 
+def test_newton_cartpole_camera_env_determinism():
+    """Check deterministic stepping for the camera env behind ``--deterministic``.
+
+    Uses the settings that flag now applies (``run_to_run`` plus ``disable_sensors``, see
+    ``isaaclab_rl.entrypoints.common.apply_env_overrides``), so this guards the values the flag
+    selects rather than only the mode plumbing. ``Isaac-Cartpole-Camera`` is the task the flag was
+    reported broken on, and it exercises the renderer feeding observations.
+    """
+    _test_environment_determinism(
+        "Isaac-Cartpole-Camera",
+        "cuda",
+        num_steps=25,
+        physics_preset_name="newton_mjwarp",
+        deterministic_mode="run_to_run",
+    )
+
+
 def _test_environment_determinism(
     task_name: str,
     device: str,
