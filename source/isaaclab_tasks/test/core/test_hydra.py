@@ -1180,7 +1180,7 @@ def test_apply_overrides_conflicting_globals_raises():
 def test_apply_overrides_aliased_globals_no_conflict():
     """Two global presets resolving to equal values do not raise.
 
-    Mirrors the dexsuite ObjectCfg pattern where ``newton_mjwarp = cube`` creates
+    Mirrors the Lift ObjectCfg pattern where ``newton_mjwarp = cube`` creates
     separate but equal dataclass instances after @configclass processing.
     """
 
@@ -1338,6 +1338,36 @@ def test_scalar_override_within_preset_path(class_presets):
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001
     assert env_cfg.backend.substeps == 4
+
+
+def test_scalar_override_kamino_solver_config():
+    """Concrete Kamino solver fields can be overridden through Hydra scalar paths."""
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, NewtonCfg
+
+    @configclass
+    class KaminoPhysicsPreset(PresetCfg):
+        default: NewtonCfg = NewtonCfg()
+        newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True))
+
+    @configclass
+    class KaminoEnvCfg:
+        physics: KaminoPhysicsPreset = KaminoPhysicsPreset()
+
+    env_cfg = KaminoEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(
+        env_cfg,
+        agent_cfg,
+        hydra_cfg,
+        ["newton_kamino"],
+        [],
+        [("env.physics.solver_cfg.dynamics_solver_cfg.max_iterations", "25")],
+        presets,
+    )
+    assert isinstance(env_cfg.physics.solver_cfg, KaminoPADMMSolverCfg)
+    assert env_cfg.physics.solver_cfg.dynamics_solver_cfg.max_iterations == 25
 
 
 # =============================================================================
@@ -1532,3 +1562,36 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
     # physics=newton_mjwarp (typed selector) must error.
     with pytest.raises(ValueError, match="physics=newton_mjwarp"):
         hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+
+
+# =============================================================================
+# Tests: play-mode overrides
+# =============================================================================
+
+
+def test_register_task_play_mode_applies_play_mode(monkeypatch):
+    """``register_task(play_mode=True)`` applies the env cfg's play-mode overrides after loading."""
+    import sys
+
+    import gymnasium as gym
+
+    @configclass
+    class PlayModeEnvCfg:
+        played: bool = False
+
+        def play_mode(self):
+            self.played = True
+
+    gym.register(
+        id="Isaac-Hydra-PlayMode-Test",
+        entry_point="dummy:Env",
+        kwargs={"env_cfg_entry_point": PlayModeEnvCfg},
+    )
+    monkeypatch.setattr(sys, "argv", ["test"])
+    try:
+        env_cfg, _, _ = hydra_mod.register_task("Isaac-Hydra-PlayMode-Test", None, play_mode=True)
+        assert env_cfg.played
+        env_cfg, _, _ = hydra_mod.register_task("Isaac-Hydra-PlayMode-Test", None)
+        assert not env_cfg.played
+    finally:
+        del gym.registry["Isaac-Hydra-PlayMode-Test"]

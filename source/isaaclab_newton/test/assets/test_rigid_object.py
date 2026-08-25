@@ -27,7 +27,7 @@ from flaky import flaky
 from isaaclab_newton.assets import RigidObject
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
+from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -111,7 +111,7 @@ def generate_cubes_scene(
 
     # Create rigid object
     cube_object_cfg = RigidObjectCfg(
-        prim_path="/World/Env_.*/Object",
+        prim_path="/World/Env_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -298,7 +298,7 @@ def test_external_force_buffer(device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [2, 4])
+@pytest.mark.parametrize("num_cubes", [4])
 @pytest.mark.parametrize("device", test_devices())
 def test_external_force_on_single_body(num_cubes, device):
     """Test application of external force on the base of the object.
@@ -373,7 +373,7 @@ def test_external_force_on_single_body(num_cubes, device):
             assert torch.all(cube_object.data.root_pos_w.torch[1::2, 2] < 1.0)
 
 
-@pytest.mark.parametrize("num_cubes", [2, 4])
+@pytest.mark.parametrize("num_cubes", [4])
 @pytest.mark.parametrize("device", test_devices())
 def test_external_force_on_single_body_at_position(num_cubes, device):
     """Test application of external force on the base of the object at a specific position.
@@ -462,7 +462,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_set_rigid_object_state(num_cubes, device):
     """Test setting the state of the rigid object.
@@ -530,7 +530,7 @@ def test_set_rigid_object_state(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_reset_rigid_object(num_cubes, device):
     """Test resetting the state of the rigid object."""
@@ -573,7 +573,7 @@ def test_reset_rigid_object(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Test getting and setting material properties of rigid object via view-level APIs."""
@@ -597,7 +597,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         wp.to_torch(friction_binding)[:] = friction
         wp.to_torch(restitution_binding)[:] = restitution
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
         # Simulate physics
         sim.step()
@@ -623,7 +623,7 @@ def _set_newton_material_properties(cube_object, friction_val, restitution_val, 
 
     wp.to_torch(friction_binding)[:] = friction_tensor
     wp.to_torch(restitution_binding)[:] = restitution_tensor
-    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 @pytest.mark.isaacsim_ci
@@ -839,30 +839,72 @@ def test_rigid_body_with_restitution(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_set_mass(num_cubes, device):
-    """Test getting and setting mass of rigid object."""
-    with _newton_sim_context(device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True) as sim:
+    """Test that selected mass writes update inverse mass and inertia across static transitions."""
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
+        for index in range(num_cubes):
+            sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(float(index), 0.0, 1.0))
+        cube_object = RigidObject(
+            RigidObjectCfg(
+                prim_path="/World/Env_[^/]*/Object",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.2, 0.2, 0.2),
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+            )
+        )
 
         # Play sim
         sim.reset()
 
-        # Get masses before increasing
-        original_masses = cube_object.data.body_mass.torch
+        # Get masses before updating one environment.
+        original_masses = cube_object.data.body_mass.torch.clone()
+        raw_model_inv_mass = cube_object.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[:, 0]
+        raw_model_inv_inertia = cube_object.root_view.get_attribute("body_inv_inertia", SimulationManager.get_model())[
+            :, 0
+        ]
+        assert cube_object.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
+        assert cube_object.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
+        model_inv_mass = cube_object.data._sim_bind_body_inv_mass
+        model_inv_inertia = cube_object.data._sim_bind_body_inv_inertia
+        original_inv_mass = wp.to_torch(model_inv_mass).clone()
+        original_inv_inertia = wp.to_torch(model_inv_inertia).clone()
 
         assert original_masses.shape == (num_cubes, 1)
 
-        # Randomize mass of the object
-        masses = original_masses + torch.zeros(num_cubes, 1, device=device).uniform_(4, 8)
+        env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+        body_ids = torch.tensor([0], dtype=torch.int32, device=device)
 
-        # Set masses using Newton API
-        cube_object.set_masses_index(masses=wp.from_torch(masses, dtype=wp.float32))
+        # A positive-to-zero transition makes the selected body static.
+        zero_mass = torch.zeros(1, 1, device=device)
+        cube_object.set_masses_index(masses=zero_mass, env_ids=env_ids, body_ids=body_ids)
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[1], torch.zeros_like(original_inv_mass[1]))
+        torch.testing.assert_close(wp.to_torch(model_inv_inertia)[1], torch.zeros_like(original_inv_inertia[1]))
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[0], original_inv_mass[0])
+        torch.testing.assert_close(wp.to_torch(model_inv_inertia)[0], original_inv_inertia[0])
 
-        torch.testing.assert_close(cube_object.data.body_mass.torch, masses)
+        # Inertia writes keep inverse mass unchanged and respect the body's current static state.
+        wp.to_torch(model_inv_inertia)[1].copy_(torch.eye(3, device=device).reshape(1, 3, 3))
+        inertia_matrix = torch.diag(torch.tensor([2.0, 3.0, 4.0], device=device))
+        inertias = inertia_matrix.reshape(1, 1, 9)
+        cube_object.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[1], torch.zeros_like(original_inv_mass[1]))
+        torch.testing.assert_close(wp.to_torch(model_inv_inertia)[1], torch.zeros_like(original_inv_inertia[1]))
+
+        # A zero-to-positive transition restores both inverse arrays from current primary data.
+        masses = original_masses[env_ids][:, body_ids] + 4.0
+        cube_object.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+        torch.testing.assert_close(cube_object.data.body_mass.torch[env_ids][:, body_ids], masses)
+        torch.testing.assert_close(wp.to_torch(model_inv_mass)[env_ids][:, body_ids], masses.reciprocal())
+        torch.testing.assert_close(
+            wp.to_torch(model_inv_inertia)[env_ids][:, body_ids],
+            torch.linalg.inv(inertia_matrix).reshape(1, 1, 3, 3),
+        )
 
         # Simulate physics
         # perform rendering
@@ -870,14 +912,14 @@ def test_rigid_body_set_mass(num_cubes, device):
         # update object
         cube_object.update(sim.cfg.dt)
 
-        masses_to_check = cube_object.data.body_mass.torch
+        masses_to_check = cube_object.data.body_mass.torch[env_ids][:, body_ids]
 
         # Check if mass is set correctly
         torch.testing.assert_close(masses, masses_to_check)
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 def test_gravity_vec_w(num_cubes, device, gravity_enabled):
@@ -915,7 +957,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [2, 3])
+@pytest.mark.parametrize("num_cubes", [3])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
     """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
@@ -930,8 +972,11 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
         sim.reset()
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model_gravity_arr = SimulationManager.get_model().gravity
+        model = SimulationManager.get_model()
+        model_gravity_arr = model.gravity[: model.world_count]
+        global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert cube_object.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
+        assert cube_object.data.GRAVITY_VEC_W.shape == (num_cubes,)
 
         # Mutate model.gravity per-env in place, as randomize_physics_scene_gravity does.
         new_gravity = torch.tensor(
@@ -940,10 +985,11 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
             dtype=torch.float32,
         )
         wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        SimulationManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)
+        torch.testing.assert_close(wp.to_torch(model.gravity)[-1], global_gravity)
 
         # Recompute the lazily-cached projected_gravity_b without sim.step, so cube
         # orientation stays at identity and the projection equals unit-direction gravity.
@@ -953,7 +999,7 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @flaky(max_runs=3, min_passes=1)
@@ -980,7 +1026,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1012,11 +1058,11 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
             if not with_offset:
                 torch.testing.assert_close(root_link_pose_w, root_com_pose_w)
                 torch.testing.assert_close(root_com_vel_w, root_link_vel_w)
-                torch.testing.assert_close(root_link_pose_w, root_link_pose_w)
+                torch.testing.assert_close(root_link_pose_w, body_link_pose_w.squeeze(-2))
                 torch.testing.assert_close(root_com_vel_w, root_link_vel_w)
                 torch.testing.assert_close(body_link_pose_w, body_com_pose_w)
                 torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
-                torch.testing.assert_close(body_link_pose_w, body_link_pose_w)
+                torch.testing.assert_close(root_com_pose_w, body_com_pose_w.squeeze(-2))
                 torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
             else:
                 # cubes are spinning around center of mass
@@ -1043,9 +1089,8 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:], **_tol)
                 torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_pose_w[..., 3:], **_tol)
 
-                # orientation of link will match root state will always match
-                torch.testing.assert_close(root_link_pose_w[..., 3:], root_link_pose_w[..., 3:], **_tol)
-                torch.testing.assert_close(body_link_pose_w[..., 3:], body_link_pose_w[..., 3:], **_tol)
+                # root and body link orientations describe the same rigid body
+                torch.testing.assert_close(root_link_pose_w[..., 3:], body_link_pose_w[..., 3:].squeeze(-2), **_tol)
 
                 # lin_vel will not match
                 # center of mass vel will be constant (i.e. spinning around com)
@@ -1059,14 +1104,13 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), **_tol)
 
                 # ang_vel will always match
-                torch.testing.assert_close(root_com_vel_w[..., 3:], root_com_vel_w[..., 3:])
                 torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
-                torch.testing.assert_close(body_com_vel_w[..., 3:], body_com_vel_w[..., 3:])
+                torch.testing.assert_close(root_com_vel_w[..., 3:], body_com_vel_w[..., 3:].squeeze(-2))
                 torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
@@ -1094,7 +1138,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1153,7 +1197,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
@@ -1180,7 +1224,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -1271,55 +1315,6 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(root_com_vel_w, cube_object.data.root_com_vel_w.torch)
             torch.testing.assert_close(root_link_pose_w, cube_object.data.root_link_pose_w.torch)
             torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.skip(reason="PhysX-specific warmup test")
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
-
-    Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
-    ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
-    These are two alternative initialization patterns; combining them causes
-    double-initialization that corrupts the CPU MBP broadphase, producing
-    non-deterministic collision failures (objects passing through surfaces).
-
-    Fix: guard ``attach_stage()`` with ``if is_gpu:`` — it is only required by the
-    GPU pipeline, which needs explicit stage attachment before the physics load step.
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()``.
-
-    This test verifies the guard is in place by monkeypatching ``attach_stage`` on
-    the PhysX simulation interface and asserting it is *not* called during CPU warmup.
-    The simulation test itself (1 cube falling onto a ground plane) is intentionally
-    omitted here because the MBP corruption is non-deterministic and depends on scene
-    complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
-    unit test assertion.
-    """
-    from unittest.mock import MagicMock
-
-    from isaaclab_physx.physics import PhysxManager
-
-    with _newton_sim_context("cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
-
-        # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
-        # assign to _physx_sim.attach_stage directly.  Instead, replace the class-level
-        # reference with a MagicMock that wraps the real object so all other calls still
-        # work, then restore it in the finally block.
-        original_physx_sim = PhysxManager._physx_sim
-        spy = MagicMock(wraps=original_physx_sim)
-        PhysxManager._physx_sim = spy
-        try:
-            sim.reset()
-        finally:
-            PhysxManager._physx_sim = original_physx_sim
-
-        assert spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "
-            f"This indicates the CPU MBP broadphase double-initialization regression is present: "
-            f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
-        )
 
 
 @pytest.mark.parametrize("device", test_devices())

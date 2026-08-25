@@ -9,6 +9,9 @@ from typing import Any
 
 import warp as wp
 
+# Segmentation colorization is shared across renderer backends to keep colors visually consistent.
+from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
+
 
 @wp.kernel
 def create_camera_transforms_kernel(
@@ -157,119 +160,6 @@ def extract_depth_tile_from_tiled_buffer_kernel(
     tile_buffer[y, x, 0] = tiled_buffer[src_y, src_x]
 
 
-@wp.func
-def color_hash(seed: wp.uint32) -> wp.uint32:
-    """MurmurHash3-style 32-bit finalizer, matching omni.replicator's ``randomColoursCPU``.
-
-    The arithmetic is intentionally done in ``uint32`` so the multiplications overflow and truncate to
-    32 bits (modular arithmetic). This wraparound is load-bearing: the reference implementation relies on
-    it, and computing the hash in a wider type (e.g. ``uint64``) yields different bits and therefore
-    different colors, breaking parity with Replicator / Isaac RTX colorized segmentation.
-    """
-    h = seed
-    h = h ^ (h >> wp.uint32(16))
-    h = h * wp.uint32(0x85EBCA6B)
-    h = h ^ (h >> wp.uint32(13))
-    h = h * wp.uint32(0xC2B2AE35)
-    h = h ^ (h >> wp.uint32(16))
-    return h
-
-
-@wp.func
-def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
-    """Generate random color from a single ID.
-
-    Generate visually distinct colours by linearly spacing the hue channel in HSV space and then convert to RGB space.
-
-    Args:
-        input_id: uint32 semantic ID
-
-    Returns:
-        uint32 color: ``r | (g<<8) | (b<<16) | (a<<24)``
-    """
-    if input_id == wp.uint32(0):
-        # BACKGROUND special case
-        return wp.uint32(0)
-    if input_id == wp.uint32(1):
-        # UNLABELLED special case
-        return wp.uint32(0xFF000000)
-
-    hash_val = color_hash(input_id)
-
-    # Golden ratio inverse = 1.0 / 1.618033988749895 (Replicator constant)
-    GOLDEN_RATIO_INV = wp.float64(1.0) / wp.float64(1.618033988749895)
-
-    # Use golden ratio spacing for maximum hue spread
-    hue_tmp = wp.float64(input_id) * GOLDEN_RATIO_INV
-    hue = hue_tmp - wp.floor(hue_tmp)
-
-    # Add hash-based perturbation for better distribution
-    hue_perturbation = wp.float64(hash_val & wp.uint32(0xFFFF)) / wp.float64(65536.0)
-    hue_tmp = hue + hue_perturbation * wp.float64(0.1)
-    hue = hue_tmp - wp.floor(hue_tmp)
-
-    # Use hash to determine saturation and value for maximum spread
-    sat_part = wp.uint32((hash_val >> wp.uint32(16)) & wp.uint32(0xFF))
-    val_part = wp.uint32((hash_val >> wp.uint32(8)) & wp.uint32(0xFF))
-
-    # Saturation: 0.7 to 1.0 for vibrant colors
-    saturation = wp.float64(0.7) + wp.float64(0.3) * (wp.float64(sat_part) / wp.float64(255.0))
-
-    # Value: 0.8 to 1.0 for bright colors
-    value = wp.float64(0.8) + wp.float64(0.2) * (wp.float64(val_part) / wp.float64(255.0))
-
-    # HSV to RGB conversion (match Replicator: ``f`` uses pre-modulo ``int(hue*6)``, then ``i %= 6``).
-    hue_i = wp.int32(hue * wp.float64(6.0))
-    hue_f = hue * wp.float64(6.0) - wp.float64(hue_i)
-    p = value * (wp.float64(1.0) - saturation)
-    q = value * (wp.float64(1.0) - saturation * hue_f)
-    t = value * (wp.float64(1.0) - saturation * (wp.float64(1.0) - hue_f))
-
-    r = wp.float64(0.0)
-    g = wp.float64(0.0)
-    b = wp.float64(0.0)
-
-    hue_i = hue_i % 6
-
-    if hue_i == 0:
-        r = value
-        g = t
-        b = p
-    elif hue_i == 1:
-        r = q
-        g = value
-        b = p
-    elif hue_i == 2:
-        r = p
-        g = value
-        b = t
-    elif hue_i == 3:
-        r = p
-        g = q
-        b = value
-    elif hue_i == 4:
-        r = t
-        g = p
-        b = value
-    else:
-        r = value
-        g = p
-        b = q
-
-    ri = wp.min(255, wp.max(0, wp.int32(r * wp.float64(255.0))))
-    gi = wp.min(255, wp.max(0, wp.int32(g * wp.float64(255.0))))
-    bi = wp.min(255, wp.max(0, wp.int32(b * wp.float64(255.0))))
-    ai = wp.int32(255)
-
-    color = (
-        wp.uint32(ri)
-        | (wp.uint32(gi) << wp.uint32(8))
-        | (wp.uint32(bi) << wp.uint32(16))
-        | (wp.uint32(ai) << wp.uint32(24))
-    )
-    return color
-
-
 @wp.kernel
 def generate_random_colors_from_ids_kernel(
     input_ids: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore
@@ -282,7 +172,7 @@ def generate_random_colors_from_ids_kernel(
         output_colors: 3D uint32 array for colors per pixel; each word is ``r | (g<<8) | (b<<16) | (a<<24)``.
     """
     i, j, k = wp.tid()
-    output_colors[i, j, k] = random_color_from_id(input_ids[i, j, k])
+    output_colors[i, j, k] = random_color_from_id_wp(input_ids[i, j, k])
 
 
 @wp.kernel
@@ -290,9 +180,108 @@ def sync_newton_transforms_kernel(
     ovrtx_transforms: wp.array(dtype=wp.mat44d),  # type: ignore
     newton_body_indices: wp.array(dtype=wp.int32),  # type: ignore
     newton_body_q: wp.array(dtype=wp.transformf),  # type: ignore
+    object_scales: wp.array(dtype=wp.vec3f),  # type: ignore
 ):
-    """Sync Newton physics body transforms to OVRTX 4x4 column-major matrices."""
+    """Sync Newton physics body transforms to OVRTX 4x4 column-major matrices.
+
+    A Newton ``transformf`` holds only translation and rotation, so the authored USD scale is
+    reapplied here to keep it from being overwritten with unit scale.
+    """
     i = wp.tid()
     body_idx = newton_body_indices[i]
     transform = newton_body_q[body_idx]
-    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
+    scale = object_scales[i]
+    ovrtx_transforms[i] = wp.mat44d(
+        wp.transpose(
+            wp.transform_compose(
+                wp.transform_get_translation(transform),
+                wp.transform_get_rotation(transform),
+                scale,
+            )
+        )
+    )
+
+
+@wp.func
+def _cable_capsule_endpoint_world(
+    shape_id: int,
+    z_sign: float,
+    shape_body: wp.array(dtype=wp.int32),
+    body_q: wp.array(dtype=wp.transformf),
+    shape_transform: wp.array(dtype=wp.transformf),
+    shape_scale: wp.array(dtype=wp.vec3f),
+) -> wp.vec3f:
+    """World-space tip of a Newton cable capsule along local ±Z.
+
+    Args:
+        shape_id: Newton shape id of the capsule segment.
+        z_sign: ``+1`` / ``-1`` selects the local +Z / -Z capsule tip.
+        shape_body: Newton shape-to-body index map.
+        body_q: Body poses in world frame [m, quaternion].
+        shape_transform: Local shape transforms relative to body [m, quaternion].
+        shape_scale: Shape scales; capsule half-length is ``shape_scale[shape_id][1]`` [m].
+
+    Returns:
+        Capsule tip position in world frame [m].
+    """
+    shape_q = wp.transform_multiply(body_q[shape_body[shape_id]], shape_transform[shape_id])
+    return wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, z_sign * shape_scale[shape_id][1]))
+
+
+@wp.kernel(enable_backward=False)
+def compute_cable_points_world_kernel(
+    shape_ids: wp.array(dtype=wp.int32),  # type: ignore
+    offsets: wp.array(dtype=wp.int32),  # type: ignore
+    counts: wp.array(dtype=wp.int32),  # type: ignore
+    shape_body: wp.array(dtype=wp.int32),  # type: ignore
+    body_q: wp.array(dtype=wp.transformf),  # type: ignore
+    shape_transform: wp.array(dtype=wp.transformf),  # type: ignore
+    shape_scale: wp.array(dtype=wp.vec3f),  # type: ignore
+    points_out: wp.array(dtype=wp.vec3f),  # type: ignore
+):
+    """Write world-space cable curve points from Newton segment bodies.
+
+    Same endpoint construction as NewtonManager Fabric cable sync, but emits world space because
+    the OVRTX cable prims pin an identity omni:xform with the transform stack reset. Endpoints
+    come from the first and last capsule; interior points are the midpoint of the two adjacent
+    capsule ends.
+
+    Launch with ``dim=(num_curves, max_segment_count + 1)``. Each thread owns one
+    ``(curve, point)``; threads with ``point > counts[curve]`` return immediately.
+
+    Args:
+        shape_ids: Flattened Newton segment shape ids packed by curve.
+        offsets: Start index into ``shape_ids`` for each curve.
+        counts: Segment count per curve.
+        shape_body: Newton shape-to-body index map.
+        body_q: Body poses in world frame [m, quaternion].
+        shape_transform: Local shape transforms relative to body [m, quaternion].
+        shape_scale: Shape scales; capsule half-length is ``shape_scale[shape][1]`` [m].
+        points_out: Flattened world-space curve points [m].
+    """
+    curve, point = wp.tid()
+    segment_count = counts[curve]
+    if point > segment_count:
+        return
+
+    offset = offsets[curve]
+    # ``offset`` is the prefix sum of segment counts. Every preceding curve contributes one
+    # additional endpoint, so its point-buffer start is ``offset + curve``.
+    point_base = offset + curve
+    if point == 0:
+        endpoint_w = _cable_capsule_endpoint_world(
+            shape_ids[offset], -1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+    elif point == segment_count:
+        endpoint_w = _cable_capsule_endpoint_world(
+            shape_ids[offset + segment_count - 1], 1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+    else:
+        left_w = _cable_capsule_endpoint_world(
+            shape_ids[offset + point - 1], 1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+        right_w = _cable_capsule_endpoint_world(
+            shape_ids[offset + point], -1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+        endpoint_w = (left_w + right_w) * 0.5
+    points_out[point_base + point] = endpoint_w

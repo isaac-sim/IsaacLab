@@ -8,16 +8,16 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/bipeds.py
+    uv run python scripts/demos/bipeds.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/bipeds.py --visualizer newton
+    uv run python scripts/demos/bipeds.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/bipeds.py --physics newton_mjwarp
+    uv run python scripts/demos/bipeds.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/bipeds.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/bipeds.py --visualizer newton --physics newton_mjwarp
 
 """
 
@@ -32,7 +32,9 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to simulate bipedal robots.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()

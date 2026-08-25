@@ -12,10 +12,10 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras --viz kit
+    uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz kit
 
     # Usage with no visualizer
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --enable_cameras
+    uv run python scripts/tutorials/04_sensors/run_usd_camera.py
 
 """
 
@@ -53,6 +53,8 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+# Camera sensors require the rendering extensions in headless and viewport-free launches.
+args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -86,7 +88,7 @@ def define_sensor() -> Camera:
     sim_utils.create_prim("/World/Origin_00", "Xform")
     sim_utils.create_prim("/World/Origin_01", "Xform")
     camera_cfg = CameraCfg(
-        prim_path="/World/Origin_.*/CameraSensor",
+        prim_path="/World/Origin_[^/]+/CameraSensor",
         update_period=0,
         height=480,
         width=640,
@@ -95,7 +97,7 @@ def define_sensor() -> Camera:
             "distance_to_image_plane",
             "normals",
             "semantic_segmentation",
-            "instance_segmentation_fast",
+            "instance_segmentation",
             "instance_id_segmentation_fast",
         ],
         renderer_cfg=IsaacRtxRendererCfg(
@@ -221,8 +223,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             print("Received shape of normals          : ", camera.data.output["normals"].shape)
         if "semantic_segmentation" in camera.data.output.keys():
             print("Received shape of semantic segm.   : ", camera.data.output["semantic_segmentation"].shape)
-        if "instance_segmentation_fast" in camera.data.output.keys():
-            print("Received shape of instance segm.   : ", camera.data.output["instance_segmentation_fast"].shape)
+        if "instance_segmentation" in camera.data.output.keys():
+            print("Received shape of instance segm.   : ", camera.data.output["instance_segmentation"].shape)
         if "instance_id_segmentation_fast" in camera.data.output.keys():
             print("Received shape of instance id segm.: ", camera.data.output["instance_id_segmentation_fast"].shape)
         print("-------------------------------")

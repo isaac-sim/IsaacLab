@@ -4,21 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.sensors import FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
+from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.cabinet import mdp
+import isaaclab_tasks.core.cabinet.mdp as mdp
+from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
 
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (  # isort: skip
-    FRAME_MARKER_SMALL_CFG,
-    CabinetEnvCfg,
-    CabinetSceneCfg,
-)
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 
 @configclass
@@ -61,10 +53,9 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
     scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # Set Actions for the specific robot type (franka)
+        # actions
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
@@ -83,14 +74,8 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         self.rewards.grasp_handle.params["open_joint_pos"] = 0.04
         self.rewards.grasp_handle.params["asset_cfg"].joint_names = ["panda_finger_.*"]
 
+    def play_mode(self):
+        super().play_mode()
 
-@configclass
-class FrankaCabinetEnvCfg_PLAY(FrankaCabinetEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
         # make a smaller scene for play
-        self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

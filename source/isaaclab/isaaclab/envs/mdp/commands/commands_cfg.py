@@ -89,6 +89,14 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     vel_yaw_success_threshold: float = 0.4
     """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
+    marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.5)
+    """Offset [m] applied to the robot root position when placing velocity visualization markers.
+
+    The default of ``(0.0, 0.0, 0.5)`` works well for quadrupeds. For taller robots such as
+    humanoids, increase the Z component (e.g. ``(0.0, 0.0, 1.8)``) so the arrows appear above
+    the robot's head rather than clipping through the torso.
+    """
+
     goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"
     )
@@ -181,10 +189,18 @@ class UniformPoseCommandCfg(CommandTermCfg):
     """Ranges for the commands."""
 
     position_success_threshold: float | None = None
-    """If set, position-error norm below this value (per step) flags the episode as successful.
+    """If set, position-error norm [m] below this value (per step) is required for success.
 
-    The episode-level binary "ever within threshold" is mean-reduced across environments and
-    logged under ``Metrics/success_rate``. Defaults to ``None`` (success tracking disabled)."""
+    When both position and orientation thresholds are set, both conditions must be satisfied.
+    The episode-level binary "ever successful" is mean-reduced across environments and logged
+    under ``Metrics/success_rate``. Defaults to ``None``."""
+
+    orientation_success_threshold: float | None = None
+    """If set, orientation-error norm [rad] below this value (per step) is required for success.
+
+    When both position and orientation thresholds are set, both conditions must be satisfied.
+    The episode-level binary "ever successful" is mean-reduced across environments and logged
+    under ``Metrics/success_rate``. Defaults to ``None``."""
 
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""

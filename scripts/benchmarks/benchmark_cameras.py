@@ -14,10 +14,10 @@ through the auto-tune functionality.
 .. code-block:: bash
 
     # Usage with GUI
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
     # Usage with headless
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_cameras.py -h --headless
+    uv run python scripts/benchmarks/benchmark_cameras.py -h
 
 """
 
@@ -260,6 +260,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.scene.interactive_scene import InteractiveScene
 from isaaclab.sensors import (
     Camera,
@@ -268,10 +269,9 @@ from isaaclab.sensors import (
     RayCasterCameraCfg,
     patterns,
 )
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
-from isaaclab_tasks.utils import load_cfg_from_registry
+from isaaclab_tasks.utils import parse_env_cfg
 
 """
 Camera Creation
@@ -527,9 +527,7 @@ def inject_cameras_into_task(
     num_cameras_per_env: int = 1,
 ) -> gym.Env:
     """Loads the task, sticks cameras into the config, and creates the environment."""
-    cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
-    cfg.sim.device = args_cli.device
-    cfg.sim.use_fabric = args_cli.use_fabric
+    cfg = parse_env_cfg(task, device=args_cli.device, use_fabric=args_cli.use_fabric)
     scene_cfg = cfg.scene
 
     num_envs = int(num_cams / num_cameras_per_env)
@@ -952,7 +950,7 @@ def main():
 
     # Finalize benchmark
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 if __name__ == "__main__":

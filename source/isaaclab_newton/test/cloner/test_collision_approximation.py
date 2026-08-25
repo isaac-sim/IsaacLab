@@ -10,7 +10,7 @@ import pytest
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import GeoType, ShapeFlags
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 _SOURCE = "/World/Asset"
 
@@ -38,6 +38,13 @@ def _add_l_prism(stage: Usd.Stage, path: str, approximation: str | None, offset:
     mesh_collision = UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim())
     if approximation is not None:
         mesh_collision.CreateApproximationAttr().Set(approximation)
+
+
+def _apply_sdf_collision(stage: Usd.Stage, path: str) -> None:
+    """Author ``NewtonSDFCollisionAPI`` on a collision mesh, as the Lab schema fragment does."""
+    prim = stage.GetPrimAtPath(path)
+    prim.AddAppliedSchema("NewtonSDFCollisionAPI")
+    prim.CreateAttribute("newton:sdfMaxResolution", Sdf.ValueTypeNames.Int).Set(64)
 
 
 def _make_stage(approximation: str | None) -> Usd.Stage:
@@ -73,6 +80,36 @@ def _make_two_source_stage(approximation_a: str | None, approximation_b: str | N
     return stage, sources
 
 
+def _make_mixed_visual_stage() -> Usd.Stage:
+    """Create dynamic and static colliders with and without separate visual shapes."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdGeom.Xform.Define(stage, _SOURCE)
+
+    primitive_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/Primitive")
+    UsdPhysics.RigidBodyAPI.Apply(primitive_body.GetPrim())
+    primitive = UsdGeom.Cube.Define(stage, f"{_SOURCE}/Primitive/geometry")
+    UsdPhysics.CollisionAPI.Apply(primitive.GetPrim())
+
+    authored_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/Authored")
+    UsdPhysics.RigidBodyAPI.Apply(authored_body.GetPrim())
+    UsdGeom.Sphere.Define(stage, f"{_SOURCE}/Authored/visual")
+    collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/Authored/collider")
+    collider.CreatePurposeAttr(UsdGeom.Tokens.guide)
+    UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+
+    UsdGeom.Xform.Define(stage, f"{_SOURCE}/StaticPrimitive")
+    static_primitive = UsdGeom.Cube.Define(stage, f"{_SOURCE}/StaticPrimitive/geometry")
+    UsdPhysics.CollisionAPI.Apply(static_primitive.GetPrim())
+
+    UsdGeom.Xform.Define(stage, f"{_SOURCE}/StaticAuthored")
+    UsdGeom.Sphere.Define(stage, f"{_SOURCE}/StaticAuthored/visual")
+    static_collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/StaticAuthored/collider")
+    UsdPhysics.CollisionAPI.Apply(static_collider.GetPrim())
+    return stage
+
+
 def _build_sources(stage: Usd.Stage, sources: list[str], **kwargs) -> dict[str, newton.ModelBuilder]:
     return build_source_builders(
         stage,
@@ -88,7 +125,7 @@ def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
 
 
 class TestClonerCollisionApproximation:
-    """build_source_builders must honor authored approximations and hull the rest."""
+    """build_source_builders must leave every collider at its USD-authored approximation."""
 
     def test_authored_convex_decomposition_produces_multiple_hulls(self):
         """A concave mesh authored with convexDecomposition decomposes into 2+ hulls."""
@@ -110,41 +147,34 @@ class TestClonerCollisionApproximation:
         shapes = _collision_shapes(_build(_make_stage(approximation)))
         assert list(shapes.values()) == [expected]
 
-    def test_unauthored_mesh_still_simplifies_to_single_hull(self):
-        """Meshes with no authored approximation keep the default convex-hull treatment."""
+    def test_unauthored_mesh_is_never_approximated(self):
+        """The cloner approximates nothing on its own: USD defaults ``physics:approximation`` to ``none``."""
         shapes = _collision_shapes(_build(_make_stage(None)))
-        assert len(shapes) == 1
-        assert next(iter(shapes.values())) in (GeoType.MESH, GeoType.CONVEX_MESH)
-
-    def test_simplify_meshes_false_keeps_raw_mesh(self):
-        """simplify_meshes=False leaves an unauthored mesh untouched."""
-        shapes = _collision_shapes(_build(_make_stage(None), simplify_meshes=False))
         assert list(shapes.values()) == [GeoType.MESH]
 
-    def test_simplify_pass_only_touches_unauthored_meshes(self):
-        """In a mixed stage, only the unauthored mesh gets the default hull treatment."""
-        stage = _make_stage("none")
+    def test_only_the_authored_mesh_is_remeshed_in_a_mixed_stage(self):
+        """A sibling that authors nothing keeps its trimesh while the authored one is remeshed."""
+        stage = _make_stage("boundingCube")
         _add_l_prism(stage, f"{_SOURCE}/geom_plain", None, offset=4.0)
 
         shapes = _collision_shapes(_build(stage))
 
-        # The authored "none" mesh keeps its raw trimesh; the unauthored sibling is hulled.
-        assert shapes[f"{_SOURCE}/geom"] == GeoType.MESH
-        assert shapes[f"{_SOURCE}/geom_plain"] == GeoType.CONVEX_MESH
+        assert shapes[f"{_SOURCE}/geom"] == GeoType.BOX
+        assert shapes[f"{_SOURCE}/geom_plain"] == GeoType.MESH
 
-    def test_heterogeneous_sources_fall_back_to_uniform_hulls(self):
-        """Differing shape sequences across sources revert to hull-everything with a warning.
+    def test_differing_sources_each_keep_their_own_authored_mode(self):
+        """Sources that resolve to different shape types are left alone, not rewritten.
 
-        SolverMuJoCo requires homogeneous worlds, so honoring authored modes that make
-        clone sources structurally different would break solver initialization.
+        Distinct assets in a scene are *expected* to differ; only per-world alternatives for
+        the same slot must agree, and that is settled by authoring them consistently rather
+        than by the cloner discarding what the assets declared.
         """
         stage, sources = _make_two_source_stage("boundingSphere", None)
 
-        with pytest.warns(UserWarning, match="homogeneous-worlds"):
-            builders = _build_sources(stage, sources)
+        builders = _build_sources(stage, sources)
 
-        for source in sources:
-            assert list(_collision_shapes(builders[source]).values()) == [GeoType.CONVEX_MESH]
+        assert list(_collision_shapes(builders[sources[0]]).values()) == [GeoType.SPHERE]
+        assert list(_collision_shapes(builders[sources[1]]).values()) == [GeoType.MESH]
 
     def test_heterogeneous_sources_with_equal_sequences_stay_honored(self):
         """Identically authored sources keep their authored modes (no fallback)."""
@@ -154,3 +184,44 @@ class TestClonerCollisionApproximation:
 
         for source in sources:
             assert list(_collision_shapes(builders[source]).values()) == [GeoType.SPHERE]
+
+    def test_sdf_collider_is_never_remeshed(self):
+        """``physics:approximation`` is ignored on an SDF collider, matching Newton's importer.
+
+        Remeshing one is refused outright by Newton (it would drop the SDF the shape exists to
+        provide), so the authored mode must not reach it even when the prim authors one.
+        """
+        stage = _make_stage("boundingCube")
+        _apply_sdf_collision(stage, f"{_SOURCE}/geom")
+
+        shapes = _collision_shapes(_build(stage))
+
+        assert list(shapes.values()) == [GeoType.MESH]
+
+    def test_primitive_collider_remains_visible_in_mixed_visual_model(self):
+        """Colliders remain visible only when their body or static parent has no visual shape."""
+        builder = _build(_make_mixed_visual_stage())
+        flags_by_label = dict(zip(builder.shape_label, builder.shape_flags, strict=True))
+
+        assert flags_by_label[f"{_SOURCE}/Primitive/geometry"] & ShapeFlags.VISIBLE
+        assert not flags_by_label[f"{_SOURCE}/Authored/collider"] & ShapeFlags.VISIBLE
+        assert flags_by_label[f"{_SOURCE}/StaticPrimitive/geometry"] & ShapeFlags.VISIBLE
+        assert not flags_by_label[f"{_SOURCE}/StaticAuthored/collider"] & ShapeFlags.VISIBLE
+
+    def test_mesh_collider_remains_visible_in_mixed_visual_model(self):
+        """A lone default-purpose collision mesh renders even when other bodies have visuals.
+
+        Assets that author a single mesh as both collider and render geometry have no
+        visual-only shape to fall back on, so hiding their collider makes the body
+        disappear from the viewer.
+        """
+        stage = _make_mixed_visual_stage()
+        mesh_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/MeshOnly")
+        UsdPhysics.RigidBodyAPI.Apply(mesh_body.GetPrim())
+        _add_l_prism(stage, f"{_SOURCE}/MeshOnly/geom", None, offset=8.0)
+
+        builder = _build(stage)
+        flags_by_label = dict(zip(builder.shape_label, builder.shape_flags, strict=True))
+
+        assert flags_by_label[f"{_SOURCE}/MeshOnly/geom"] & ShapeFlags.VISIBLE
+        assert not flags_by_label[f"{_SOURCE}/Authored/collider"] & ShapeFlags.VISIBLE

@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
+from isaaclab_teleop import (
+    ControllerHapticFeedbackCfg,
+    IsaacTeleopCfg,
+    XrAnchorRotationMode,
+    XrCameraFeedCfg,
+    XrCfg,
+)
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -14,6 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -30,6 +37,7 @@ from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_g1_locomanipulation_pipeline():
@@ -289,6 +297,32 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
+    # Use the calibrated G1 head-camera view shared with IsaacLab-Arena.
+    robot_pov_cam = robot_pov_camera_cfg(
+        parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
+        offset_pos=(0.04485, 0.0, 0.35325),
+        offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
+    ).replace(
+        prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam",
+        height=480,
+        width=640,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=15.0, horizontal_aperture=20.955, clipping_range=(0.1, 5.0)),
+    )
+
+    # Per-hand contact sensors over all finger links, used to drive controller
+    # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
+    # on the robot spawn, enabled in the env __post_init__.
+    left_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
+        update_period=0.0,
+        history_length=3,
+    )
+    right_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
+        update_period=0.0,
+        history_length=3,
+    )
+
     # Ground plane
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -352,6 +386,16 @@ class ObservationsCfg:
         object = ObsTerm(
             func=manip_mdp.object_obs,
             params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        )
+
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
         )
 
         def __post_init__(self):
@@ -425,6 +469,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
+        self.num_rerenders_on_reset = 3
 
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
         self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
@@ -441,4 +486,22 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=_build_g1_locomanipulation_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(
+                    camera_name="robot_pov_cam",
+                    enable_dlss_ray_reconstruction=True,
+                    dlss_exec_mode="quality",
+                    offset_m=(0.0, -0.15),
+                    max_update_hz=0.0,
+                )
+            ],
+        )
+        self.image_obs_list = ["robot_pov_cam"]
+
+        # Enable contact reporting on the robot so the per-hand ContactSensors
+        # report finger forces, and drive controller haptics from them.
+        self.scene.robot.spawn.activate_contact_sensors = True
+        self.haptic_feedback = ControllerHapticFeedbackCfg(
+            left_sensor_name="left_hand_contact",
+            right_sensor_name="right_hand_contact",
         )

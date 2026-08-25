@@ -7,13 +7,11 @@ from __future__ import annotations
 
 import math
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
 import isaaclab.sim as sim_utils
-from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -24,7 +22,7 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 class CartpoleTiledCameraCfg(PresetCfg):
     @configclass
     class BaseCartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "/World/envs/env_.*/Camera"
+        prim_path: str = "{ENV_REGEX_NS}/Camera"
         offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
         )
@@ -34,7 +32,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
         )
         width: int = 96
         height: int = 96
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(newton_renderer=NewtonWarpRendererCfg())
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
     depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])
@@ -62,18 +60,20 @@ class CartpoleCameraEnvCfg(PresetCfg):
         Values less than two disable stacking.
         """
 
-        # spaces: an image instead of the 4-dim joint-state vector
+        # spaces: single-frame channels + default spatial size. At env init, height/width
+        # are replaced with the tiled camera size and channels are expanded by frame_stack.
+        # Only the channel count must stay in sync with the camera data type (presets set this).
         observation_space = [3, 96, 96]
         state_space = 4
-
-        # change viewer settings
-        viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
         # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
+
+        def __post_init__(self):
+            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])

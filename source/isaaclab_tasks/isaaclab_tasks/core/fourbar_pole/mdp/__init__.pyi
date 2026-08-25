@@ -4,16 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "UprightSuccessRateCommand",
-    "UprightSuccessRateCommandCfg",
     "joint_pos_cos",
     "joint_pos_sin",
     "pole_upright",
 ]
 
 from .rewards import (
-    UprightSuccessRateCommand,
-    UprightSuccessRateCommandCfg,
     joint_pos_cos,
     joint_pos_sin,
     pole_upright,

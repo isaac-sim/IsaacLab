@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import collections
+import json
 import logging
 import os
 import time
@@ -27,6 +29,9 @@ from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .teleop_message_processor import TeleopMessageProcessor
 
+if TYPE_CHECKING:
+    from .haptic_feedback import HapticFeedbackCfg
+
 
 class SupportsDLPack(Protocol):
     """Duck type for objects supporting the DLPack buffer protocol.
@@ -43,6 +48,33 @@ class SupportsDLPack(Protocol):
 logger = logging.getLogger(__name__)
 
 _DLDEVICE_CPU = 1
+
+_MAX_PENDING_CLIENT_MESSAGES = 32
+"""Bound on host-originated messages awaiting delivery to the XR client.
+
+Small on purpose: these are user-facing notices, so dropping the oldest when a
+client never connects is preferable to growing without limit."""
+
+_MAX_CLIENT_MESSAGE_BYTES = 900
+"""Maximum encoded size of a single client message [bytes].
+
+Far below the message channel's nominal ``max_message_size`` (64 KiB), because
+that figure is not what the transport delivers.  Server-to-client opaque data is
+tunnelled as a gamepad haptics event, and nothing in that path fragments: the
+payload is serialized into one protobuf, pushed as one input event, and
+delivered as one blob.  A message therefore has to fit a single input event,
+which is MTU-bound.  Measured empirically at roughly 940 bytes, so this leaves a
+small margin.
+
+The framing also caps things well below 64 KiB regardless: the haptics event
+carries a ``uint16_t`` size over a 4-byte header, so the representable maximum
+is 65531.  A 64 KiB payload overflows that and, with asserts compiled out in
+release builds, the size cast wraps rather than failing -- silent corruption
+instead of an error.
+
+Oversized payloads are rejected here so they fail loudly at the source.  See
+:meth:`~isaaclab_teleop.system_check.SystemCheckResult.to_message`, which
+budgets a notice down to fit rather than letting it be dropped."""
 
 
 def _to_numpy_4x4(mat: np.ndarray | torch.Tensor | SupportsDLPack) -> np.ndarray:
@@ -108,6 +140,13 @@ class TeleopSessionLifecycle:
     """Well-known name for the ValueInput node that receives the
     world-to-XR-anchor 4x4 transform matrix."""
 
+    HAPTIC_FORCE_LEFT_INPUT_NAME = "_haptic_force_left"
+    """Well-known name for the ValueInput leaf feeding the left-hand contact
+    force (a 1-taxel ``TactileVector``) into the haptic sink subgraph."""
+
+    HAPTIC_FORCE_RIGHT_INPUT_NAME = "_haptic_force_right"
+    """Well-known name for the ValueInput leaf feeding the right-hand contact force."""
+
     _CONTROLLER_RIGHT_KEY = "_controller_right"
     """Internal pipeline output key for the right controller ``TensorGroup``."""
 
@@ -136,9 +175,11 @@ class TeleopSessionLifecycle:
         cfg: IsaacTeleopCfg,
         cloudxr_env_file: str | None = None,
         auto_launch_cloudxr: bool = True,
+        use_kit_xr_bridge: bool = True,
         mcap_record_path: str | None = None,
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
+        haptic_cfg: HapticFeedbackCfg | None = None,
     ):
         """Initialize the session lifecycle manager.
 
@@ -151,6 +192,15 @@ class TeleopSessionLifecycle:
             auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
                 when *cloudxr_env_file* is set.  Ignored when
                 *cloudxr_env_file* is ``None``.
+            use_kit_xr_bridge: Whether to source the live session's OpenXR
+                handles from Kit's XR bridge (``isaacsim.kit.xr.teleop.bridge``).
+                When ``True`` (the default) the session waits for Kit's XR
+                system -- the full XR rendering / anchor path.  When ``False``
+                the session runs *standalone*: it skips the Kit XR bridge
+                entirely and lets ``isaacteleop`` create and own its own OpenXR
+                session through the CloudXR runtime, so teleop I/O works
+                headless without Kit XR rendering.  Ignored in replay mode
+                (which never touches the XR runtime).
             mcap_record_path: Optional path to an MCAP file the live teleop
                 session should be recorded into.  Mutually exclusive with
                 *mcap_replay_path*.  Debug-grade only -- see the Isaac Lab
@@ -166,6 +216,10 @@ class TeleopSessionLifecycle:
                 (hand joints, controller poses) are chained into the session
                 outputs when enabled at :meth:`start` time.  When ``False``
                 (the default), the pipeline carries no visualization overhead.
+            haptic_cfg: Optional haptic-feedback configuration.  When provided,
+                per-hand output vectors pushed via :meth:`push_haptic` are
+                rendered on the configured device (controller, glove, ...).
+                ``None`` disables haptics entirely.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*
@@ -181,16 +235,35 @@ class TeleopSessionLifecycle:
         self._device = torch.device(cfg.sim_device)
         self._cloudxr_env_file = cloudxr_env_file
         self._auto_launch_cloudxr = auto_launch_cloudxr
+        self._use_kit_xr_bridge = use_kit_xr_bridge
         self._mcap_record_path = mcap_record_path
         self._mcap_replay_path = mcap_replay_path
         self._is_replay = mcap_replay_path is not None
         self._enable_debug_visualization = enable_debug_visualization
+
+        # Haptic feedback (optional): when configured, start() builds a
+        # HapticSink subgraph and step() feeds the latest per-hand output
+        # vector into it via the external-input mechanism.
+        self._haptic_cfg = haptic_cfg
+        self._haptic_sink = None
+        self._haptic_tracker = None
+        self._haptic_num_taxels = haptic_cfg.num_taxels if haptic_cfg is not None else 0
+        self._haptic_forces: dict[str, np.ndarray] = {
+            "left": np.zeros(self._haptic_num_taxels, dtype=np.float32),
+            "right": np.zeros(self._haptic_num_taxels, dtype=np.float32),
+        }
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor: TeleopMessageProcessor | None = None
+        # Outbound (host -> client) half of the control channel. Handed to the
+        # MessageChannelSource when the control pipeline is built; the source
+        # drains it on every poll once the channel is connected. Created here so
+        # messages can be queued before the pipeline exists (e.g. the startup
+        # workstation check, which runs before the session is built).
+        self._pending_client_messages: collections.deque[bytes] = collections.deque(maxlen=_MAX_PENDING_CLIENT_MESSAGES)
         self._last_right_controller = None
         self._last_left_controller = None
         self._last_step_result: dict | None = None
@@ -207,10 +280,13 @@ class TeleopSessionLifecycle:
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
 
-        # Replay sessions never talk to Kit's XR system, so skip all XR
-        # extension subscriptions; they would only generate noise and could
-        # mis-fire if a parallel live session ever toggled /xr/enabled.
-        if not self._is_replay:
+        # Replay sessions never talk to Kit's XR system, and standalone sessions
+        # (``use_kit_xr_bridge=False``) deliberately bypass it, so skip all XR
+        # extension subscriptions in both cases; they would only generate noise,
+        # could mis-fire if a parallel live session ever toggled /xr/enabled, and
+        # in standalone mode would pull in the Kit XR rendering extensions we are
+        # trying to avoid.
+        if not self._is_replay and self._use_kit_xr_bridge:
             try:
                 # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
                 import isaacsim.kit.xr.teleop.bridge as bridge
@@ -247,15 +323,24 @@ class TeleopSessionLifecycle:
             import omni.kit.app
             from carb.eventdispatcher import get_eventdispatcher
 
-            # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
-            # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
-            # The /xr/enabled setting often does not fire on close, so this is required.
-            self._pre_shutdown_subscription = get_eventdispatcher().observe_event(
-                event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
-                on_event=self._on_pre_shutdown,
-                observer_name="IsaacTeleop session lifecycle",
-                order=-100,
-            )
+            # carb can be importable while no Kit app is running -- standalone
+            # and headless use, and any process that imports the package without
+            # starting Kit. The dispatcher is None there, so check before use:
+            # the import guard below only covers a missing module, not a missing
+            # app, and calling observe_event() on None aborts construction.
+            dispatcher = get_eventdispatcher()
+            if dispatcher is None:
+                logger.info("No Kit event dispatcher; IsaacTeleop will not clean up on Kit close")
+            else:
+                # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
+                # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
+                # The /xr/enabled setting often does not fire on close, so this is required.
+                self._pre_shutdown_subscription = dispatcher.observe_event(
+                    event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
+                    on_event=self._on_pre_shutdown,
+                    observer_name="IsaacTeleop session lifecycle",
+                    order=-100,
+                )
         except (ImportError, ModuleNotFoundError):
             logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
 
@@ -321,7 +406,7 @@ class TeleopSessionLifecycle:
             return _NO_OP_EVENTS
         return _execution_events_to_control(ctx.execution_events)
 
-    def request_reset(self) -> None:
+    def request_reset(self, pause: bool = False) -> None:
         """Schedule a reset for the next pipeline step.
 
         When a control pipeline is configured, the reset flows through
@@ -332,13 +417,39 @@ class TeleopSessionLifecycle:
 
         If the control channel already processed a reset this frame,
         this method is a no-op to avoid a redundant second reset pulse.
+
+        Args:
+            pause: When ``True``, also pause a running session (operator reset);
+                defaults to ``False`` for a host reset that keeps teleop running.
         """
         if self.last_control_events.should_reset:
             return
         if self._message_processor is not None:
-            self._message_processor.inject_reset()
+            self._message_processor.inject_reset(pause=pause)
         else:
             self._pending_reset = True
+
+    def request_start(self) -> None:
+        """Locally drive the teleop state machine toward RUNNING (headset-free start).
+
+        Injects a ``"start"`` command into
+        :meth:`TeleopMessageProcessor.inject_command` so
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`
+        transitions to RUNNING without an XR client. No-op when no control
+        pipeline is configured.
+        """
+        if self._message_processor is not None:
+            self._message_processor.inject_command("start")
+
+    def request_stop(self) -> None:
+        """Locally drive the teleop state machine to PAUSED (headset-free stop).
+
+        Injects a ``"stop"`` command into
+        :meth:`TeleopMessageProcessor.inject_command`. No-op when no control
+        pipeline is configured.
+        """
+        if self._message_processor is not None:
+            self._message_processor.inject_command("stop")
 
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
@@ -360,6 +471,17 @@ class TeleopSessionLifecycle:
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
+        # Measure the workstation before anything expensive starts. Any notice is
+        # queued now and delivered when the client connects. The queue is not
+        # cleared here: send_client_message promises that messages queued before
+        # the session is built still arrive, and callers can queue between
+        # construction and this call -- start() runs from __enter__, which the
+        # teleop scripts reach hundreds of lines after building the device.
+        # Prior-session state is cleared by stop() instead.
+        # Skipped in replay: there is no live operator to warn.
+        if not self._is_replay:
+            self._run_system_check()
+
         # CloudXR is per-run, not per-mode: when the caller passes a profile
         # we spawn the runtime so a real client has something to attach to.
         # This is true for live recording (operator wears the headset) and
@@ -376,6 +498,16 @@ class TeleopSessionLifecycle:
         self._last_step_result = None
 
         self._pipeline = self._build_combined_pipeline(user_pipeline)
+
+        # Build the optional haptic sink. It reuses the button-controller
+        # tracker so no additional ControllersSource (and thus no duplicate
+        # OpenXR action-set attachment) is introduced. Skipped in replay mode:
+        # there is no live controller to vibrate during scripted MCAP playback.
+        self._haptic_sink = (
+            self._build_haptic_sink(self._button_controllers)
+            if self._haptic_cfg is not None and not self._is_replay
+            else None
+        )
 
         # Build the optional teleop_control_pipeline for message-channel control.
         # Live and replay both build it: in replay mode the underlying
@@ -438,6 +570,11 @@ class TeleopSessionLifecycle:
         self._message_processor = None
         self._last_step_result = None
         self._last_left_controller = None
+        self._haptic_sink = None
+        self._haptic_tracker = None
+        # Undelivered notices belong to the session that queued them; a later
+        # start() re-runs its own checks rather than replaying stale ones.
+        self._pending_client_messages.clear()
 
         if self._cloudxr_launcher is not None:
             try:
@@ -473,13 +610,15 @@ class TeleopSessionLifecycle:
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
         from isaacteleop.retargeting_engine.interface import OutputCombiner
 
-        button_controllers = ControllersSource("_button_controllers")
+        # Stored on self so start() can reuse this ControllersSource's tracker for
+        # the haptic sink, avoiding a second controller action-set attachment.
+        self._button_controllers = ControllersSource("_button_controllers")
         pipeline_outputs: dict[str, Any] = {
             "action": user_pipeline.output("action"),
-            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+            self._CONTROLLER_RIGHT_KEY: self._button_controllers.output(ControllersSource.RIGHT),
         }
         if self._enable_debug_visualization:
-            pipeline_outputs[self._CONTROLLER_LEFT_KEY] = button_controllers.output(ControllersSource.LEFT)
+            pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
             self._chain_hand_debug_outputs(user_pipeline, pipeline_outputs)
         return OutputCombiner(pipeline_outputs)
 
@@ -515,12 +654,16 @@ class TeleopSessionLifecycle:
     # Control pipeline construction
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _build_control_pipeline(channel_uuid: bytes) -> tuple[Any, TeleopMessageProcessor]:
+    def _build_control_pipeline(self, channel_uuid: bytes) -> tuple[Any, TeleopMessageProcessor]:
         """Build a ``teleop_control_pipeline`` from a message channel UUID.
 
-        Wires ``MessageChannelSource`` -> :class:`TeleopMessageProcessor`
-        -> :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+        Wires the inbound half, ``MessageChannelSource`` ->
+        :class:`TeleopMessageProcessor` ->
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`,
+        The same ``MessageChannelTracker`` carries the outbound half, so the
+        client sees a single bidirectional channel under *channel_uuid*.
+        Host-originated messages are queued by :meth:`send_client_message` and
+        flushed by the source once the channel reports ``CONNECTED``.
 
         Args:
             channel_uuid: 16-byte UUID for the OpenXR opaque data channel.
@@ -528,13 +671,23 @@ class TeleopSessionLifecycle:
         Returns:
             A ``(teleop_control_pipeline, message_processor)`` tuple.
         """
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import message_channel_config
+        import isaacteleop.deviceio as deviceio
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import MessageChannelSource
         from isaacteleop.teleop_session_manager import DefaultTeleopStateManager
 
-        source, _sink = message_channel_config(
-            name="_teleop_control",
-            channel_uuid=channel_uuid,
-        )
+        # Build the source directly rather than via ``message_channel_config``:
+        # the factory owns the outbound queue internally, and the lifecycle needs
+        # a handle on it to enqueue host-originated messages (see
+        # :meth:`send_client_message`).  The paired ``MessageChannelSink`` is
+        # deliberately not built -- it is a plain ``BaseRetargeter``, not an
+        # ``IDeviceIOSink``, so it cannot go in ``TeleopSessionConfig(sinks=...)``,
+        # and it is unnecessary here: the sink's only job is to append to this
+        # same queue, which the source drains on every ``poll_tracker``.
+        #
+        # The source name must stay ``_teleop_control_source``: replay sessions
+        # match the recorded channel by that name.
+        tracker = deviceio.MessageChannelTracker(channel_uuid, "", _MAX_CLIENT_MESSAGE_BYTES)
+        source = MessageChannelSource("_teleop_control_source", tracker, self._pending_client_messages)
 
         processor = TeleopMessageProcessor(name="_teleop_msg_processor")
         processor_graph = processor.connect({processor.INPUT_MESSAGES: source.output("messages_tracked")})
@@ -551,15 +704,163 @@ class TeleopSessionLifecycle:
         return teleop_control_pipeline, processor
 
     # ------------------------------------------------------------------
+    # Haptic feedback
+    # ------------------------------------------------------------------
+
+    def _build_haptic_sink(self, controllers_source):
+        """Build the haptic sink subgraph that renders the per-hand signal.
+
+        The lifecycle owns the generic part: per hand, a ``ValueInput`` carrying a
+        ``TactileVector(num_taxels)`` fed each step from :attr:`_haptic_forces`.
+        The device-specific part -- the retargeter (signal -> device format) and
+        the ``IHapticDevice`` behind the ``HapticSink`` -- is delegated to the
+        concrete :meth:`~isaaclab_teleop.HapticFeedbackCfg.build_sink`, so the
+        lifecycle stays backend-agnostic (controller, glove, ...).
+
+        The *controllers_source* tracker is offered to backends that need one
+        (e.g. a controller reuses it, avoiding a second OpenXR action set);
+        cross-process backends (e.g. a glove) ignore it.
+
+        Args:
+            controllers_source: The ``ControllersSource`` whose tracker a
+                tracker-backed device may reuse.
+
+        Returns:
+            The connected ``HapticSink`` node, ready to pass to
+            ``TeleopSessionConfig(sinks=[...])``.
+        """
+        from isaacteleop.retargeting_engine.interface import ValueInput
+        from isaacteleop.retargeting_engine.tensor_types import TactileVector
+
+        num_taxels = self._haptic_num_taxels
+        force_inputs = {}
+        for endpoint, leaf_name in (
+            ("left", self.HAPTIC_FORCE_LEFT_INPUT_NAME),
+            ("right", self.HAPTIC_FORCE_RIGHT_INPUT_NAME),
+        ):
+            force_inputs[endpoint] = ValueInput(leaf_name, TactileVector(num_taxels)).output(ValueInput.VALUE)
+
+        # build_sink returns (connected_sink, device_tracker). The tracker is kept
+        # so _on_request_required_extensions can request the device's OpenXR
+        # extensions (e.g. a glove's push-tensor extensions); the connected sink
+        # (a subgraph) does not expose the device.
+        sink, self._haptic_tracker = self._haptic_cfg.build_sink(force_inputs, controllers_source.get_tracker)
+        return sink
+
+    def push_haptic(self, endpoint: str, values) -> None:
+        """Set the latest per-hand output vector for one endpoint.
+
+        The vector is cached and injected into the haptic sink on the next
+        :meth:`step` (see :meth:`_build_external_inputs`). The value is coerced to
+        length ``num_taxels`` (zero-padded or truncated). A no-op when the endpoint
+        is unknown or haptics were not configured.
+
+        Args:
+            endpoint: ``"left"`` or ``"right"``.
+            values: The per-hand output vector; an all-zero vector stops feedback.
+        """
+        if endpoint not in self._haptic_forces:
+            return
+        vec = np.asarray(values, dtype=np.float32).reshape(-1)
+        num_taxels = self._haptic_num_taxels
+        if vec.shape[0] != num_taxels:
+            fixed = np.zeros(num_taxels, dtype=np.float32)
+            keep = min(num_taxels, vec.shape[0])
+            fixed[:keep] = vec[:keep]
+            vec = fixed
+        self._haptic_forces[endpoint] = vec
+
+    def send_client_message(self, message: dict) -> None:
+        """Queue a JSON message for delivery to the connected XR client.
+
+        The message travels over the outbound half of the teleop control
+        channel and is picked up by the client's message-channel receiver.  It
+        follows the same envelope convention as inbound control commands, so
+        *message* should carry a ``"type"`` discriminator the client
+        recognizes, e.g. ``{"type": "system_notice", "message": {...}}``.
+
+        Delivery is deferred, not immediate: the payload is queued here and put
+        on the wire by the control channel's source once the channel reports
+        ``CONNECTED``.  A message queued before the headset connects -- or even
+        before the session is built -- is therefore delivered on connect rather
+        than dropped, which is what makes startup notices reach the operator.
+
+        A no-op when no control channel is configured
+        (:attr:`~isaaclab_teleop.IsaacTeleopCfg.control_channel_uuid` is
+        ``None``).
+
+        Args:
+            message: A JSON-serializable dict to deliver to the client.
+        """
+        if self._cfg.control_channel_uuid is None:
+            logger.debug("No control channel configured; dropping client message")
+            return
+
+        try:
+            payload = json.dumps(message).encode()
+        except (TypeError, ValueError):
+            logger.exception("Client message is not JSON-serializable; dropping it")
+            return
+
+        if len(payload) > _MAX_CLIENT_MESSAGE_BYTES:
+            logger.warning(
+                f"Client message is {len(payload)} bytes, above the {_MAX_CLIENT_MESSAGE_BYTES}-byte channel"
+                " limit; dropping it"
+            )
+            return
+
+        from isaacteleop.schema import MessageChannelMessages, MessageChannelMessagesTrackedT
+
+        # One message per batch: the source drains whole batches, and keeping
+        # them separate means a partial send can be resumed message-by-message.
+        self._pending_client_messages.append(MessageChannelMessagesTrackedT([MessageChannelMessages(payload)]))
+
+    def _run_system_check(self) -> None:
+        """Measure the workstation against the recommended spec and report.
+
+        Logs the full result table and, when a requirement is unmet, queues a
+        ``system_notice`` for the XR client so the warning is visible in the
+        headset rather than only in the terminal the operator is not wearing.
+
+        Advisory only: a failed check never prevents the session from starting.
+        """
+        from .system_check import check_system_requirements
+
+        try:
+            # Probe the adapter teleop actually runs on: on a multi-GPU host the
+            # default ordinal is not necessarily the simulation device.
+            result = check_system_requirements(device=self._cfg.sim_device)
+        except Exception:
+            logger.debug("Teleop workstation check failed; continuing without it", exc_info=True)
+            return
+
+        if result.passed:
+            logger.info(result.format_table())
+            return
+
+        logger.warning(result.format_table())
+        # Budget the notice to the channel limit. An under-spec workstation can
+        # fail enough requirements to exceed it, and the full table is already
+        # in the terminal above.
+        self.send_client_message(result.to_message(max_bytes=_MAX_CLIENT_MESSAGE_BYTES))
+
+    def reset_haptics(self) -> None:
+        """Zero all cached haptic output so feedback stops (e.g. on episode reset)."""
+        for endpoint in self._haptic_forces:
+            self._haptic_forces[endpoint] = np.zeros(self._haptic_num_taxels, dtype=np.float32)
+
+    # ------------------------------------------------------------------
     # Extension / XR lifecycle callbacks
     # ------------------------------------------------------------------
 
     def _on_request_required_extensions(self) -> list[str]:
         """Callback for required extensions subscription.
 
-        Inspects both the main pipeline and the ``teleop_control_pipeline``
-        (if configured) so that extensions required by the control channel
-        (e.g. ``XR_NV_opaque_data_channel``) are included.
+        Inspects the main pipeline, the ``teleop_control_pipeline`` (if
+        configured), and the haptic sink (if configured) so that extensions
+        required by the control channel (e.g. ``XR_NV_opaque_data_channel``) and
+        by an output device (e.g. ``XR_NVX1_push_tensor`` for a haptic glove) are
+        all requested.
 
         Returns:
             A list of required extensions.
@@ -571,6 +872,22 @@ class TeleopSessionLifecycle:
             required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._pipeline))
         if self._teleop_control_pipeline is not None:
             required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._teleop_control_pipeline))
+
+        # The haptic sink is an output (IDeviceIOSink), not a pipeline source, so
+        # the pipeline scan above misses it. Add its device's tracker extensions
+        # directly (e.g. a glove's TensorPushTracker requires XR_NVX1_push_tensor);
+        # without this the push-tensor function pointer is never available.
+        #
+        # Guard this: the XR bridge silently drops ALL of a callback's extensions
+        # if the callback raises, so a failure here must not take down the
+        # pipeline's own required extensions (hand tracking, action context, ...).
+        if self._haptic_tracker is not None:
+            try:
+                import isaacteleop.deviceio as deviceio
+
+                required_extensions.extend(deviceio.DeviceIOSession.get_required_extensions([self._haptic_tracker]))
+            except Exception:
+                logger.exception("Failed to add haptic sink required extensions; continuing without them")
 
         required_extensions = sorted(set(required_extensions))
         logger.info(f"Required extensions: {required_extensions}")
@@ -627,12 +944,17 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        In live mode, tries to acquire OpenXR handles from Kit's XR bridge.
-        If the handles are available, creates and enters the
-        :class:`TeleopSession`.  If the handles are not yet complete — either
-        because the XR session has not started or because the bridge
-        component has not finished registering — session creation is deferred
-        and will be retried on the next :meth:`step` call.
+        In live mode with :attr:`_use_kit_xr_bridge` set, tries to acquire
+        OpenXR handles from Kit's XR bridge.  If the handles are available,
+        creates and enters the :class:`TeleopSession`.  If the handles are not
+        yet complete — either because the XR session has not started or because
+        the bridge component has not finished registering — session creation is
+        deferred and will be retried on the next :meth:`step` call.
+
+        In standalone live mode (:attr:`_use_kit_xr_bridge` ``False``), the Kit
+        XR bridge is bypassed and ``TeleopSession`` is started with
+        ``oxr_handles=None`` so it creates its own OpenXR session through the
+        CloudXR runtime; start is never deferred on Kit XR readiness.
 
         In replay mode, starts a :class:`SessionMode.REPLAY` session backed
         by the MCAP file passed via ``mcap_replay_path``; no Kit XR handles
@@ -648,26 +970,35 @@ class TeleopSessionLifecycle:
         if self._is_replay:
             return self._start_replay_session()
 
-        self._ensure_xr_ar_profile_enabled()
-
-        from isaacteleop.oxr import OpenXRSessionHandles
         from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-        oxr_handles = self._acquire_kit_oxr_handles(OpenXRSessionHandles)
+        if self._use_kit_xr_bridge:
+            self._ensure_xr_ar_profile_enabled()
 
-        if oxr_handles is None:
-            if not self._session_start_deferred_logged:
-                if self._kit_xr_session_is_active():
-                    logger.info(
-                        "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
-                    )
-                else:
-                    logger.info(
-                        "OpenXR handles not yet available (waiting for XR session); "
-                        "IsaacTeleop session creation deferred"
-                    )
-                self._session_start_deferred_logged = True
-            return False
+            from isaacteleop.oxr import OpenXRSessionHandles
+
+            oxr_handles = self._acquire_kit_oxr_handles(OpenXRSessionHandles)
+
+            if oxr_handles is None:
+                if not self._session_start_deferred_logged:
+                    if self._kit_xr_session_is_active():
+                        logger.info(
+                            "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
+                        )
+                    else:
+                        logger.info(
+                            "OpenXR handles not yet available (waiting for XR session); "
+                            "IsaacTeleop session creation deferred"
+                        )
+                    self._session_start_deferred_logged = True
+                return False
+        else:
+            # Standalone mode (e.g. no ``--xr``): do not touch Kit's XR bridge.
+            # Passing ``oxr_handles=None`` makes ``TeleopSession`` create and own
+            # its own OpenXR session through the CloudXR runtime, so teleop I/O
+            # runs headless without any Kit XR rendering. Session start is never
+            # deferred here -- the runtime is available as soon as CloudXR is up.
+            oxr_handles = None
 
         mcap_config = None
         if self._mcap_record_path is not None:
@@ -687,6 +1018,7 @@ class TeleopSessionLifecycle:
             oxr_handles=oxr_handles,
             retargeting_execution=self._resolved_retargeting_execution(),
             mcap_config=mcap_config,
+            sinks=[self._haptic_sink] if self._haptic_sink is not None else [],
         )
 
         # Create and enter the TeleopSession
@@ -736,6 +1068,8 @@ class TeleopSessionLifecycle:
             retargeting_execution=self._resolved_retargeting_execution(),
             mode=SessionMode.REPLAY,
             mcap_config=mcap_config,
+            # No haptics during scripted replay: there is no live controller to drive.
+            sinks=[],
         )
 
         self._session = TeleopSession(session_config)
@@ -910,7 +1244,12 @@ class TeleopSessionLifecycle:
             return None
 
         from isaacteleop.retargeting_engine.interface import TensorGroup, ValueInput
-        from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
+        from isaacteleop.retargeting_engine.tensor_types import TactileVector, TransformMatrix
+
+        haptic_leaf_to_endpoint = {
+            self.HAPTIC_FORCE_LEFT_INPUT_NAME: "left",
+            self.HAPTIC_FORCE_RIGHT_INPUT_NAME: "right",
+        }
 
         ext_specs = self._session.get_external_input_specs()
         external_inputs: dict = {}
@@ -926,6 +1265,12 @@ class TeleopSessionLifecycle:
                 xform_tg = TensorGroup(TransformMatrix())
                 xform_tg[0] = anchor_matrix
                 external_inputs[leaf_name] = {ValueInput.VALUE: xform_tg}
+            elif leaf_name in haptic_leaf_to_endpoint:
+                # Feed the latest cached per-hand vector as a TactileVector;
+                # the sink's retargeter maps it to the device output format.
+                force_tg = TensorGroup(TactileVector(self._haptic_num_taxels))
+                force_tg[0] = self._haptic_forces[haptic_leaf_to_endpoint[leaf_name]]
+                external_inputs[leaf_name] = {ValueInput.VALUE: force_tg}
             else:
                 logger.warning(
                     f"Unrecognized external leaf node '{leaf_name}' in pipeline; "
@@ -992,8 +1337,7 @@ class TeleopSessionLifecycle:
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
         setting which the :class:`~isaaclab.app.AppLauncher` stores after
-        resolving the headless state (covers both explicit ``--headless`` and
-        implicit headless when no Kit visualizer is requested).  In
+        resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.
         """

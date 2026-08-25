@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/markers.py
+    uv run python scripts/demos/markers.py
 
 """
 
@@ -24,9 +24,7 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates different types of markers.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
-# Newton visualizer not supported for markers
-parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
+parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()

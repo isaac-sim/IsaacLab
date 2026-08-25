@@ -1,6 +1,988 @@
 Changelog
 ---------
 
+19.0.0 (2026-08-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Made task composition the sole owner of preset replacement. Runtime task code now
+  requires concrete camera, renderer, and physics configurations; use
+  :func:`isaaclab_tasks.utils.resolve_task_config` or :func:`isaaclab_tasks.utils.parse_env_cfg`
+  instead of passing a raw registered configuration class to an environment.
+* Added explicit programmatic ``overrides`` to :func:`isaaclab_tasks.utils.resolve_task_config` so
+  tools and tests can use the same composition path without modifying :data:`sys.argv`.
+* Extended Core Lift and Reorient task episodes to 12 seconds and their pose-command resampling range to 4--6 seconds.
+
+
+18.0.0 (2026-08-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed Newton MJWarp velocity environments to use two physics substeps from their
+  shared family configuration. Robot-specific velocity configs no longer override the substep count.
+
+
+17.1.0 (2026-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX presets for the Franka soft-body and cloth lift tasks, including their camera
+  variants.
+
+Fixed
+^^^^^
+
+* Reduced the default number of parallel environments for GearAssembly tasks to 1024 so recurrent PPO training fits on development GPUs. Use ``--num_envs`` to select a different batch size.
+* Enabled the gravity curriculum for Kuka-Allegro tasks using the OvPhysX backend.
+
+
+17.0.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :obj:`Isaac-Cartpole-Camera-Direct` now derives policy observation height and width
+  from :attr:`tiled_camera` at environment initialization. Overriding
+  ``env.tiled_camera.width`` / ``height`` no longer requires a matching
+  ``env.observation_space`` rewrite; channel count still comes from the selected preset.
+* Changed the Unitree Go2 velocity tasks to execute their DC motor actuators
+  through the backend-native path by default
+  (:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is now ``True``).
+  Set ``env.sim.use_newton_actuators=false`` to restore Isaac Lab-side actuator
+  execution.
+* **Breaking:** Renamed the multi-agent pendulum task from
+  ``Isaac-Pendulum-Direct`` to ``Isaac-Pendulum-MARL-Direct``. Update task
+  selections and imports to use :class:`~isaaclab_tasks.core.pendulum.PendulumMARLEnv`
+  and :class:`~isaaclab_tasks.core.pendulum.PendulumMARLEnvCfg`.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to give both agents a shared team
+  reward aligned with upright balancing, including a bonus when both links
+  enter the success cone. Retrain policies created with the previous split
+  per-agent rewards.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to default to ``newton_mjwarp`` and
+  support the ``newton_kamino`` and ``ovphysx`` physics backends. Select the
+  previous Isaac Sim PhysX default with ``physics=isaacsim_physx``.
+* Changed ``Isaac-Pendulum-MARL-Direct`` to use ``0.05 kg m^2`` of armature
+  on the lower pendulum joint, aligning its full-scale ``50 N m`` response
+  between PhysX and MJWarp. Retrain policies created without the armature.
+
+Fixed
+^^^^^
+
+* Fixed reorientation, handover, and lift task-marker instances appearing
+  across environment scene partitions.
+* Used the selected tiled-camera preset when deriving Cartpole camera observation dimensions, restoring direct construction and sensor video recording.
+* Fixed ``physics=`` selectors rejecting physics presets that bundle a complete simulation configuration.
+* :func:`~isaaclab_tasks.utils.setup_preset_cli` now automatically resolves the
+  correct agent entry point from ``agent_preset_compatibility`` when a preset token
+  (e.g. ``presets=box_discrete``) is active and no explicit ``--agent`` flag is
+  given. Previously, skrl training on tasks with multiple space presets (such as
+  ``IsaacContrib-Cartpole-Showcase-Direct``) always loaded the default
+  ``skrl_cfg_entry_point`` regardless of the active preset, causing a shape mismatch
+  crash when a non-box action space was selected.
+* Fixed the Digit velocity and loco-manipulation tasks declaring a ``newton_mjwarp``
+  preset they cannot run. ``LocomotionVelocityRoughEnvCfg`` declares ``events.base_com``
+  with a ``newton_mjwarp`` branch that disables the center-of-mass randomization, since
+  Newton does not support it. Digit is PhysX-only, so that branch named no reachable
+  backend and surfaced as a standalone ``presets=newton_mjwarp`` token that stripped the
+  randomization from a PhysX run. The preset is now collapsed to its default on Digit.
+  ``IsaacContrib-Velocity-Flat-Digit``, ``IsaacContrib-Velocity-Rough-Digit`` and
+  ``IsaacContrib-Tracking-LocoManip-Digit`` no longer accept ``presets=newton_mjwarp``;
+  it was never a backend switch on those tasks, and passing it only removed a
+  randomization. Velocity tasks that do offer Newton are unchanged.
+* Fixed Shadow Hand reorientation scene setup to author only the prototype environment before
+  backend replication while preserving ``{ENV_REGEX_NS}`` for runtime views.
+
+
+16.5.1 (2026-08-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Made ``IsaacContrib-Franka-Pour`` download its canonical reset artifact from
+  the standard Isaac Lab asset root.
+
+
+16.5.0 (2026-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``physics=isaacsim_physx`` to ``Isaac-Cartpole`` and
+  ``Isaac-Cartpole-Camera`` to force the Isaac Sim PhysX backend;
+  ``physics=physx`` continues to select the PhysX-family backend automatically.
+* Added manager-based counterparts for the Shadow handover and Shadow camera
+  reorientation tasks, completing the manager coverage of the dexterous task
+  families.
+* Added a Direct-versus-manager value-parity check for the handover task,
+  alongside the reorientation one.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg` to use the Newton renderer
+  by default. Select ``renderer=isaacsim_rtx`` to continue using the Isaac RTX renderer.
+  Contributed teleoperation and Galbot Stack cameras retain their explicit Isaac RTX defaults.
+* Changed the manager-based Shadow camera task to run on the Kit PhysX backend by
+  default, since only the Isaac RTX tiled camera renders the default modalities.
+  Select Newton with ``physics=newton_mjwarp`` for the state-only observation
+  groups.
+* Changed the handover reward to a plain reward term, moving success and
+  goal-distance bookkeeping to
+  :class:`~isaaclab_tasks.core.handover.mdp.commands.HandoverCommand`.
+* Changed the reorientation action configuration to name its term through a
+  module path, so loading a task configuration no longer imports the USD
+  bindings.
+
+Removed
+^^^^^^^
+
+* Removed the ``Isaac-Reorient-Cube-Shadow-Camera-Play`` and
+  ``Isaac-Reorient-Cube-Shadow-Camera-Direct-Play`` tasks. Use the training task
+  with ``--play`` instead; playback settings now live in
+  :meth:`~isaaclab.envs.ManagerBasedRLEnvCfg.play_mode`.
+
+Fixed
+^^^^^
+
+* Fixed the Newton Shadow Hand handover configuration to avoid targeting
+  distal ``J0`` joints that are absent from the current Newton asset.
+* Fixed ``physics=isaacsim_physx`` for Shadow Hand handover to select the
+  PhysX hand and object assets together with the PhysX scene.
+* Fixed the G1 Newton agent preset to use its intended 5,000-iteration
+  training schedule.
+* Fixed Newton training instability for ``Isaac-Velocity-Rough-G1`` by
+  increasing the MJWarp constraint capacity.
+* Fixed the Shadow camera feature-extractor observation term ignoring its
+  declared ``feature_extractor_cfg`` parameter.
+
+
+16.4.0 (2026-08-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the Cartpole task family to use Newton MJWarp and the Newton renderer by default.
+  Pass explicit physics and renderer presets to retain an Isaac Sim PhysX configuration.
+
+
+16.3.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Franka soft-body task configurations to use the core
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` and
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Changed the Ant, Humanoid, and Velocity task families to use
+  Newton MJWarp by default. Pass an explicit physics preset to retain Isaac Sim PhysX.
+* **Breaking:** Changed the Cabinet and Lift task families to use Newton MJWarp
+  by default. Pass an explicit physics preset to retain Isaac Sim PhysX.
+
+Fixed
+^^^^^
+
+* Fixed ``IsaacContrib-Factory-Franka`` startup with segment-safe environment prim-path expressions.
+
+
+16.2.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-Lift-Cable-Franka`` and ``Isaac-Lift-Cable-Franka-Camera`` tasks for lifting
+  a 12-segment cable by its middle segment with the Franka robot.
+
+* Added nearest-segment reaching and average-height lifting rewards for cable tasks.
+* Added Newton MPM Franka pouring and UR10 particle-pushing reinforcement
+  learning tasks with reset-safe particle randomization and rigid-particle
+  coupling. The pouring task uses compact current-state observations and an
+  outcome-aware reset curriculum.
+* Added bounded sparse MPM configurations with CUDA graph capture and
+  fixed-payload resets for both tasks.
+* Added a compact one-file generator for reproducible Franka pouring reset
+  artifacts.
+* Added randomized pile shape and table placement, paired collision-screened
+  robot starts, and a weighted reset mixture to the UR10
+  particle-pushing task. Every level keeps the same single-pile, single-sweep
+  objective.
+* Added an opt-in Newton GL visualization of the particle-pushing policy
+  heightmap.
+* Added the ``IsaacContrib-Keyboard-SO101`` task with procedural keyboards and PhysX and Newton support.
+* Added :func:`~isaaclab_tasks.core.lift.mdp.utils.env_instance_rows`, mapping each environment to the
+  instance rows of an asset that has several roots per environment.
+* Added the ``IsaacContrib-Factory-Franka`` contact-rich assembly task under
+  :mod:`isaaclab_tasks.contrib.nist`, covering 12 NIST taskboard variants for
+  nut threading, gear meshing, and round or rectangular insertion with a Franka Panda,
+  supporting ``isaacsim_physx``, automatic ``physx``, and ``newton_mjwarp`` physics presets.
+
+Changed
+^^^^^^^
+
+* Simplified Franka Pour artifacts and runtime validation around the one-file
+  generator. Regenerate legacy calibrated artifacts with
+  ``scripts/tools/generate_franka_pour_reset_dataset.py`` and pin the printed
+  digest when an exact artifact is required.
+* Loaded the Franka Pour robot and cups from the standard Isaac Lab Nucleus asset root,
+  while retaining their environment variables for local overrides.
+* Resolved the default Franka Pour reset artifact relative to the repository
+  root and included the generator command in missing-artifact errors.
+* Changed :func:`~isaaclab_tasks.core.lift.mdp.utils.get_reset_state` and
+  :func:`~isaaclab_tasks.core.lift.mdp.utils.set_reset_state` to cover every instance an asset has in an
+  environment instead of reading and writing the instance row that matches the environment id, which
+  addressed the wrong instances for assets partitioned into several roots per environment. Serialized
+  states are unchanged for assets with one instance per environment; for partitioned assets each slice
+  now repeats per instance, so states captured before this change cannot be restored with it.
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+* **Breaking:** Changed core tasks to use RSL-RL when ``--rl_library`` is omitted, except the multi-agent Pendulum task, which uses SKRL.
+  Pass ``--rl_library`` explicitly to select a different RL library.
+
+Fixed
+^^^^^
+
+* Checked every UR10 reset candidate for contact-buffer overflow and copied
+  mutable Newton prototype geometry before offline IK and collision screening.
+
+
+16.1.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaacsim_physx`` support to the Franka cloth lift tasks.
+
+Changed
+^^^^^^^
+
+* Updated validated Kamino task presets to use
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`. The Cartpole
+  ``newton_kamino`` preset now uses Newton's collision pipeline instead of
+  Kamino's internal collision detector.
+
+Fixed
+^^^^^
+
+* Fixed success table visualization markers appearing at the world origin
+  before the first environment step.
+
+
+16.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added manager-based counterparts for the Shadow Hand cube reorientation task,
+  ``Isaac-Reorient-Cube-Shadow`` and ``Isaac-Reorient-Cube-Shadow-Camera``, alongside the
+  existing ``Isaac-Reorient-Cube-Allegro``.
+* Added ``presets=asymmetric`` to ``Isaac-Reorient-Cube-Shadow``, which swaps the
+  full-state actor for a reduced actor paired with a privileged critic and selects the
+  matching ``rsl_rl`` observation groups.
+* Added ``presets=randomized`` to the Allegro and Shadow manager tasks, which adds the
+  domain-randomization events to the per-episode reset.
+* Added Newton and OvPhysX presets to the manager-based reorientation environments,
+  selectable with ``physics=``.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved the OpenAI Shadow Hand reorientation variants to the contributed
+  tasks. Replace ``Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct`` with
+  ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct`` and
+  ``Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct`` with
+  ``IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct``. The paper's
+  training regime -- 20 Hz control, action and observation noise, and an episode budget
+  spent per goal -- does not generalize, so it no longer ships in the core task.
+* **Breaking:** Moved the Shadow Hand camera benchmark task to the contributed tasks as
+  ``IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct``. The released
+  ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct`` identifier no longer resolves.
+* **Breaking:** Changed ``Metrics/success_rate`` on the Direct reorientation tasks to the
+  per-attempt success rate the manager-based tasks already report, ``goals reached /
+  goals presented``. The Direct tasks previously reported a per-episode success bit, so the
+  same metric name meant different things in the two workflows and their curves could not
+  be compared. Direct curves from earlier runs are not comparable. Removed the
+  ``success_count_threshold`` configuration field, which no longer has an effect.
+* **Breaking:** Changed domain randomization to be opt-in through ``presets=randomized``
+  on the Allegro and Shadow manager tasks, matching each task's Direct counterpart.
+* **Breaking:** Changed the manager-based Allegro environment to match the Direct
+  observation, action, reset and termination contracts, and to use the same agent
+  configurations. The observation space changes size, so existing manager checkpoints must
+  be retrained. ``rl_games_manager_ppo_cfg.yaml`` and ``skrl_manager_ppo_cfg.yaml`` are
+  gone; use ``rl_games_ppo_cfg.yaml`` and ``skrl_ppo_cfg.yaml``.
+* **Breaking:** Replaced the per-backend in-hand cube preset with one configuration per
+  hand. Newton spawned a 54 mm articulation at ``z=0.535``; both backends now share the
+  PhysX rigid body, a 60 mm cube at ``z=0.6``. Newton checkpoints must be retrained, and
+  code resolving the object through :class:`~isaaclab.assets.Articulation` must use
+  :class:`~isaaclab.assets.RigidObject`.
+* Renamed the reorientation ``rsl_rl`` runner configurations after the workflow they
+  serve: ``AllegroCubePPORunnerCfg`` becomes ``AllegroHandManagerPPORunnerCfg`` and the
+  former ``AllegroHandPPORunnerCfg`` becomes ``AllegroHandDirectPPORunnerCfg``.
+  ``ShadowHandPPORunnerCfg`` is unchanged and still serves the Direct task;
+  ``ShadowHandManagerPPORunnerCfg`` adds the ``presets=asymmetric`` selection.
+* Renamed the per-robot scene constants to name what they hold: ``ROBOT_CFG`` becomes
+  ``SHADOW_HAND_ROBOT_CFG`` or ``ALLEGRO_HAND_ROBOT_CFG``, and ``OBJECT_CFG`` becomes
+  ``CUBE_CFG``.
+* Renamed the manager-based Allegro configurations after the robot rather than the object,
+  matching the Shadow counterparts: ``AllegroCubeEnvCfg`` and ``AllegroCubeSceneCfg`` become
+  ``AllegroHandManagerEnvCfg`` and ``AllegroHandManagerSceneCfg``. The
+  ``Isaac-Reorient-Cube-Allegro`` task identifier is unchanged.
+
+Removed
+^^^^^^^
+
+* Removed per-robot ``play_mode()`` overrides from Cassie, G1, and H1 rough velocity
+  environment configs. The base :meth:`~isaaclab_tasks.core.velocity.LocomotionVelocityRoughEnvCfg.play_mode`
+  is now used directly without robot-specific command range overrides.
+* Removed ``ReorientObjectEnvCfg``. The Shadow and Allegro manager tasks now share
+  ``isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientManagerEnvBaseCfg``, which each hand
+  specializes with its fingertip bodies, actuated joints, scene and control rate.
+* Removed ``reorient_common``. Its constants are declared by the tasks that use them, and
+  the in-hand offset and goal-marker position are per-robot fields on the Direct
+  configurations.
+* Removed the handover ``EventCfg``, which was never wired into ``HandoverEnvCfg.events``.
+* Removed ``evaluate_reorient_success`` and ``reorient_reward`` from the reorientation
+  ``mdp`` namespace. Neither is a manager MDP term; import them from
+  ``isaaclab_tasks.core.reorient.mdp.rewards`` instead.
+* Removed ``random_xy_rotation``. The manager reset uses the framework's
+  :func:`~isaaclab.envs.mdp.reset_root_state_with_random_orientation`, leaving the helper
+  without callers; the Direct and hand-over tasks compose their rotations with
+  ``randomize_rotation`` directly.
+* Removed the ``clone_in_fabric`` settings from the reorientation scenes. The flag no
+  longer reaches the replicator, so the value had no effect.
+
+Fixed
+^^^^^
+
+* Fixed the manager-based reorientation tasks not reporting ``Metrics/success_rate``.
+* Fixed ``Isaac-Reach-Franka-OSC`` instability on Newton MJWarp by enforcing the
+  Franka asset's authored arm effort limits in the actuator model.
+
+
+15.0.1 (2026-08-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` environment not resetting after a
+  successful cube stack. The success termination used a 100 µrad gripper-open tolerance
+  (``atol=0.0001``) that the follower cannot reach when the leader arm's raw encoder angle does
+  not exactly match ``SO101_GRIPPER_OPEN`` due to calibration offsets or joint soft-limit ceilings.
+  The tolerance is now set to ``gripper_threshold`` (0.2 rad) in the joint-teleop env, consistent
+  with the threshold used elsewhere to classify the gripper as open vs. closed.
+
+
+15.0.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a deformable COM pose command, dense deformable rewards with success logging, a gravity
+  curriculum, and ``joint`` and ``ik`` action presets to the Franka soft-beam and cloth lift tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the default action space to relative joint-position control. Use
+  ``presets=ik`` for task-space inverse-kinematics control; integrations using the cloth
+  environments' previous absolute joint targets must update their actions.
+* **Breaking:** Changed the non-camera ``rsl_rl`` experiment name from ``franka_deformable`` to
+  ``franka_soft``. Update log and checkpoint paths that refer to ``logs/rsl_rl/franka_deformable``.
+* Re-tuned the robot, scenes, contact handling, control rate, and ``rsl_rl`` configuration for
+  gravity-based training.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_lifted`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_lifting` and set the required ``std``.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_com_goal_distance`. Use
+  :class:`~isaaclab_tasks.core.lift.mdp.DeformableComGoalDistance` and set the required
+  ``success_threshold``.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_outside_table_bounds`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_outside_bounds` and set the required ``z_bounds``.
+* **Breaking:** Removed :func:`~isaaclab_tasks.core.lift.mdp.deformable_com_below_minimum`. Use
+  :func:`~isaaclab_tasks.core.lift.mdp.deformable_outside_bounds` with appropriate ``z_bounds`` for
+  workspace termination.
+* **Breaking:** Removed the state-machine demo's video arguments. Use ``--num_steps`` to control
+  the finite demo and an external capture workflow to record it.
+* **Breaking:** Removed the unsupported ``ovphysx`` preset from the Franka soft-beam and cloth lift
+  environments. Use ``isaacsim_physx`` for the soft-beam task or
+  ``newton_mjwarp_vbd_proxy`` for either task.
+
+Fixed
+^^^^^
+
+* Fixed velocity command visualization markers clipping through the torso of humanoid robots
+  (H1, G1) by setting :attr:`~isaaclab.envs.mdp.commands.UniformVelocityCommandCfg.marker_pos_offset`
+  in their respective rough environment configs.
+* Fixed :func:`~isaaclab_tasks.utils.parse_cfg.get_checkpoint_path` raising a bare ``FileNotFoundError``
+  when the log directory does not exist. It now raises the documented ``ValueError`` naming the directory
+  and pattern, matching the behavior when the directory exists but holds no runs.
+
+
+14.0.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added recorded ``robot_pov_cam`` policy observations to the GR1T2 pick-place and G1
+  locomanipulation tasks for XR camera feedback.
+
+Changed
+^^^^^^^
+
+* Removed ``viewer: ViewerCfg = ViewerCfg(...)`` from task environment configs following the
+  removal of :class:`~isaaclab.envs.common.ViewerCfg`. Custom camera positions can be set via
+  ``cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=..., lookat=...)]``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``newton_kamino`` physics preset from
+  :class:`~isaaclab_tasks.core.reach.reach_env_cfg.ReachPhysicsCfg`, so ``Isaac-Reach-Franka``,
+  ``Isaac-Reach-Franka-OSC`` and ``Isaac-Reach-UR10`` no longer accept ``physics=newton_kamino``.
+  Use ``physics=newton_mjwarp`` (the default) instead, or redeclare a task-local
+  ``newton_kamino`` preset if the Kamino solver is needed.
+
+Fixed
+^^^^^
+
+* Fixed the ExhaustPipe ``robot_pov_cam`` rotation after the WXYZ-to-XYZW quaternion migration.
+* Fixed the GR1T2 and G1 XR cameras to follow their robot attachment points and restored
+  the calibrated G1 camera view with viewer-start panel placement.
+* Fixed Newton MJWarp locomotion training instability by tuning contact capacity and parameters, adjusting the
+  ANYmal-D initial height, and terminating excessively fast bodies.
+
+
+13.0.0 (2026-08-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``ovphysx`` simulation preset to the direct and manager-based cabinet tasks.
+* Added RSL-RL agent configurations for the contributed Franka cabinet absolute and relative
+  inverse-kinematics tasks.
+* Added ``Metrics/drawer_pos`` to manager-based cabinet tasks and changed the direct-workflow metric
+  to report the furthest drawer position reached during the episode. The contributed OpenArm task
+  now reports both ``Metrics/success_rate`` and ``Metrics/drawer_pos``.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Aligned the direct-workflow Franka cabinet environment with its manager-based twin,
+  so ``Isaac-Open-Drawer-Franka-Direct`` and ``Isaac-Open-Drawer-Franka`` now define the same MDP.
+  The direct action space changed from nine incremental joint-position commands to seven absolute
+  arm commands and one binary gripper command. Its observation space changed from 23 to 31 values
+  to match the manager observation terms and include the previous action. Existing direct-workflow
+  checkpoints are not compatible with the new action and observation spaces.
+* **Breaking:** Changed the robot-specific fields on
+  :class:`~isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg.CabinetDirectEnvCfg` to describe the
+  arm and finger joints, end-effector and fingertip frames, and gripper commands required by the
+  manager-equivalent MDP. Derived configurations must provide the new joint, frame, offset, and
+  gripper-command fields used by their robot.
+* **Breaking:** Changed :class:`~isaaclab_tasks.core.cabinet.mdp.rewards.open_drawer_bonus` to
+  require ``success_threshold``. Configurations that use the term must now pass their drawer
+  position threshold for episode success, for example ``success_threshold=0.30``.
+* Changed :func:`~isaaclab_tasks.core.cabinet.mdp.rewards.align_grasp_around_handle` to return a
+  float tensor instead of a bool tensor, matching the other reward terms.
+* Changed the Lift multi-asset object and the Reorient dex cube to author
+  ``convexHull`` on their collision properties. Both spawn tessellated mesh
+  primitives with no approximation authored, which the Newton cloner used to hull
+  implicitly; authoring it keeps their collision shapes unchanged now that the
+  cloner leaves USD-authored approximations alone.
+
+Removed
+^^^^^^^
+
+* Removed the Newton-specific event configuration from the manager-based cabinet task. It existed to
+  skip :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material`, which Newton now implements,
+  so both backends share one event configuration again. Newton previously ran without the elevated
+  drawer-handle friction that PhysX received.
+* **Breaking:** Removed ``isaaclab_tasks.core.cabinet.mdp.observations.rel_ee_object_distance``. It
+  read ``env.scene["object"]``, which no cabinet scene defines, so any use raised ``KeyError``. Use
+  :func:`~isaaclab_tasks.core.cabinet.mdp.observations.rel_ee_drawer_distance` for the vector to the
+  drawer handle.
+
+Fixed
+^^^^^
+
+* Fixed the manager-based cabinet task acting at a different rate on each physics backend. The
+  backends now use backend-specific simulation timesteps and decimation values that preserve a
+  60 Hz policy rate.
+* Fixed the manager-based cabinet task feeding an unbounded raw action back to the policy. The
+  ``last_action`` observation is now clipped to prevent the critic and policy from inflating each
+  other until the value loss overflows.
+* Fixed the direct and manager Franka cabinet workflows using different simulation settings, scene
+  assets, actions, observations, rewards, terminations, resets, and episode timing. Both workflows
+  now define the same MDP while retaining their respective environment frontends.
+* Fixed the direct RSL-RL, RL Games, and SKRL configurations using different training behavior from
+  their manager counterparts. Only their experiment names remain different.
+
+
+12.0.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.core.locomotion.mdp.rewards.survival_success_rate` and registered it
+  as a zero-weight reward term on the manager-based ant and humanoid tasks, so the
+  ``Metrics/success_rate`` log is no longer emitted as a side effect of
+  :class:`~isaaclab_tasks.core.locomotion.mdp.rewards.progress_reward`.
+* Added a terminal ``terminating`` penalty to the manager-based ant and humanoid tasks, matching the
+  death cost the direct environments already applied.
+
+Changed
+^^^^^^^
+
+* Removed ``viewer: ViewerCfg = ViewerCfg(...)`` from task environment configs following the
+  removal of :class:`~isaaclab.envs.common.ViewerCfg`. Custom camera positions can be set via
+  ``cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=..., lookat=...)]``.
+* Refreshed the Newton Isaac RTX golden images for ``dexsuite_kuka_homo``
+  (``simple_shading_diffuse_mdl``) and ``franka_cloth`` (``motion_vectors``). Camera render
+  products are now released when an environment is torn down instead of when the camera is
+  garbage collected, so each environment renders from its own render product rather than one
+  left over from a previous environment.
+* **Breaking:** Aligned the direct-workflow ant and humanoid environments with their manager-based
+  twins, so ``Isaac-Ant-Direct``/``Isaac-Ant`` and ``Isaac-Humanoid-Direct``/``Isaac-Humanoid`` now
+  define the same MDP and converge to the same reward. The direct environments gained feet joint
+  wrench observations, reset joint randomization, and ``step_dt``-scaled rewards, and adopted the
+  gear-weighted energy and joint-limit penalties. Existing direct-workflow checkpoints are not
+  compatible: ``observation_space`` grew from 36 to 60 (ant) and from 75 to 87 (humanoid), and
+  ``episode_length_s`` changed from 15.0 to 16.0.
+* **Breaking:** Changed ``joint_gears`` on the ant and humanoid direct environment configurations
+  from a backend-ordered list (or a ``{"physx": [...], "newton": [...]}`` dict) to a dict keyed by
+  joint name expression. Migrate by replacing the ordered list with regex entries, e.g.
+  ``joint_gears = [15, 15, 15, 15, 15, 15, 15, 15]`` becomes ``joint_gears = {".*": 15.0}``. The
+  gears are now resolved by joint name, so a single table is correct for every physics backend.
+* **Breaking:** Removed the unused ``contact_force_scale`` field from the ant and humanoid direct
+  environment configurations, then reintroduced it as the scale applied to the new feet wrench
+  observations.
+* Changed the walk target used by the manager-based locomotion terms to be relative to each
+  environment origin. Previously the target was an absolute world position shared by every
+  environment, so robots in different environments aimed along slightly different directions.
+
+Fixed
+^^^^^
+
+* Fixed the manager-based ant and humanoid tasks rejecting ``presets=ovphysx`` with
+  ``Unknown preset(s): ovphysx``. Their physics preset configurations were missing the ``ovphysx``
+  entry that the direct-workflow configurations already declared. The direct configurations now also
+  set ``bounce_threshold_velocity=0.2`` on the Isaac Sim PhysX preset, matching the manager-based
+  tasks instead of leaving the 0.5 default.
+* Fixed the manager-based ant and humanoid tasks applying unbounded joint efforts, which drove the
+  MJWarp solver to produce ``NaN`` articulation states and aborted humanoid training partway through
+  a run. The joint effort action is now clipped at the gear magnitude, matching the clamp the direct
+  environments already applied to their actions.
+* Fixed :class:`~isaaclab_tasks.core.locomotion.humanoid.agents.rsl_rl_ppo_cfg.HumanoidDirectPPORunnerCfg`
+  overriding the learning rate, target KL, and value loss coefficient of the manager-based humanoid
+  runner config, so the two workflows trained at different rates despite sharing an MDP. It now
+  inherits the algorithm settings and only overrides the experiment name, as the ant config does.
+* Fixed :class:`~isaaclab_tasks.core.locomotion.mdp.rewards.progress_reward` computing the distance
+  to the target without zeroing the vertical component on reset, which made the potential recorded
+  at reset inconsistent with every subsequent step.
+* Enabled the Franka absolute differential IK preset on Newton and OVPhysX with aligned command frames, stabilized joint corrections, and task-appropriate action regularization.
+* Improved Franka Newton IK training convergence by reducing the rotational action scale.
+
+
+11.0.0 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_tasks.core.dexsuite`` package into
+  :mod:`isaaclab_tasks.core.lift`, so the dexterous lift and reorient tasks share one package and
+  MDP module. Task IDs and training behavior were unchanged, but environment configuration entry
+  points moved and the ``Dexsuite`` class-name prefix was removed. For example,
+  ``isaaclab_tasks.core.dexsuite.config.franka.dexsuite_franka_env_cfg:DexsuiteFrankaLiftEnvCfg``
+  became ``isaaclab_tasks.core.lift.config.franka.franka_env_cfg:FrankaLiftEnvCfg``.
+* **Breaking:** Moved the tutorial single-cube Franka lift task to :mod:`isaaclab_tasks.contrib.lift`.
+  Use ``--task IsaacContrib-Lift-Cube-Franka`` instead of
+  ``--task Isaac-Lift-Cube-Franka``. The rigid tutorial MDP terms moved with it; deformable
+  Lift terms remain in :mod:`isaaclab_tasks.core.lift.mdp`.
+* **Breaking:** Renamed the dexterous RSL-RL experiment directories from
+  ``dexsuite_franka`` and ``dexsuite_kuka_allegro*`` to ``lift_franka`` and
+  ``lift_kuka_allegro*``. Update existing checkpoint paths under ``logs/rsl_rl/dexsuite_*``.
+* **Breaking:** Changed environments whose default physics preset was automatic
+  ``physx`` to use concrete ``isaacsim_physx``. Environments with explicit
+  backend defaults, including Newton, remain unchanged. Select
+  ``physics=physx`` to retain automatic PhysX-family resolution between Isaac
+  Sim PhysX and OvPhysX.
+
+Fixed
+^^^^^
+
+* Fixed ineffective joint actuation in direct-workflow PhysX environments by filtering collisions between
+  replicas on all simulation devices.
+
+
+10.2.0 (2026-08-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`,
+  an RSL-RL actor whose convolutional feature map is reduced to per-channel keypoint coordinates
+  rather than flattened. The latent stays at two numbers per channel whatever the feature-map size,
+  which keeps higher input resolutions affordable and leaves room for a higher learning rate.
+* Added :class:`~isaaclab_tasks.core.dexsuite.mdp.SuccessMonitorCfg` and its
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.SuccessMonitor` implementation, which draws banked
+  reset states by measured success rate so episodes restart from the states the policy solves
+  about half the time.
+* Added :class:`~isaaclab_tasks.core.dexsuite.mdp.GraspTravelDistanceCfg` and
+  :func:`~isaaclab_tasks.core.dexsuite.mdp.grasp_travel_distance`, a reset-bank diversity feature
+  that spreads banked states over hand-to-object and object-to-goal distance.
+* Added ``disable_observation_noise_terms`` to the dexsuite ADR curriculum config, which drops the
+  noise-scheduling terms whose addresses no longer resolve when observation corruption is off.
+
+Changed
+^^^^^^^
+
+* Changed the dexsuite camera presets to a spatial-softmax actor at a fixed learning rate.
+  ``single_camera`` and ``duo_camera`` now reduce the convolutional feature map to per-channel
+  keypoint coordinates
+  (:class:`~isaaclab_tasks.core.dexsuite.config.kuka_allegro.agents.models.SpatialSoftmaxCNNModel`)
+  and run with ``schedule="fixed"`` and ``learning_rate=7e-5``; the adaptive KL schedule does not
+  converge for a camera actor. State-policy optimizer settings were unchanged.
+* Changed the dexsuite camera observation normalization to fixed maps that no longer depend on the
+  frame's own statistics. RGB is rescaled affinely to ``[-0.5, 0.5]`` and depth is squashed with a
+  ``tanh`` transform over the same span, replacing per-frame mean subtraction. Pixel values are now
+  comparable across frames and depth keeps an absolute-distance reference.
+* Changed the dexsuite tracking rewards used by the shipped tasks to
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.orientation_command_progress`, which pay a fixed amount
+  per increment of ground gained on the best error so far, so losing and regaining ground earns
+  nothing.
+* Reduced the default training iterations for the camera-based Shadow Hand
+  cube reorientation task from ``50000`` to ``5000`` for the RSL-RL and
+  RL-Games agents. Use ``--max_iterations 50000`` to retain the previous
+  training schedule.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``position_command_error_tanh`` and ``orientation_command_error_tanh`` in favor of
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.position_command_progress` and
+  :class:`~isaaclab_tasks.core.dexsuite.mdp.orientation_command_progress`. Swap the term and set
+  ``min_improvement`` instead of ``std``.
+
+Fixed
+^^^^^
+
+* Fixed the dexsuite progress rewards crediting against a stale reference after the tracked command
+  resampled mid-episode. The baseline is now re-seeded whenever the command changes.
+
+
+10.1.0 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``diffik_abs`` action preset to ``Isaac-Reach-Franka`` for 7D
+  absolute-pose differential IK with ``physics=isaacsim_physx``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``IsaacContrib-Reach-Franka-IK-Abs``. Use
+  ``--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs``.
+
+
+10.0.0 (2026-08-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added RGB camera variants of the Franka deformable lift environments.
+* Added the ``ovphysx`` physics preset to the Franka soft-body and cloth lift
+  environments.
+
+* Added rendering-correctness coverage for the OvPhysX Franka deformable
+  environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the ``newton_mjwarp_vbd`` preset from
+  ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka``. Both tasks now
+  default to ``newton_mjwarp_vbd_proxy``, which uses proxy coupling. Select
+  ``presets=newton_mjwarp_vbd_proxy`` explicitly, or import
+  :mod:`isaaclab_contrib.custom_coupling.tasks` and use its
+  ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task, which adds back a
+  ``newton_mjwarp_vbd`` preset for the manual coupler.
+* **Breaking:** Moved the Spot velocity environment from ``isaaclab_tasks.core``
+  to ``isaaclab_tasks.contrib`` and renamed its task ID from
+  ``Isaac-Velocity-Flat-Spot`` to ``IsaacContrib-Velocity-Flat-Spot``. Update
+  Python imports and ``gym.make`` / ``--task`` arguments to use the contributed
+  path and ID.
+* Unified the locomotion velocity physics presets to expose automatic PhysX
+  selection and the supported concrete PhysX and Newton backends.
+* Tuned the Newton and PhysX solver settings for the locomotion velocity
+  environments.
+
+Fixed
+^^^^^
+
+* Fixed the OvPhysX Franka deformable presets to replicate every configured
+  environment.
+
+
+9.3.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``Metrics/success_rate`` metric to the fourbar-pole and DR-Legs (walk and hold-pose) tasks for unified success tracking in the benchmark tools.
+
+Changed
+^^^^^^^
+
+* Changed task ``physics=physx`` presets to use explicit automatic PhysX
+  configurations. Use ``physics=isaacsim_physx`` or, when exposed by the task,
+  ``physics=ovphysx`` to force a concrete implementation.
+
+
+9.2.0 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ovphysx`` physics preset to the Kuka Allegro camera tasks and
+  enabled OVPhysX rendering coverage for the Shadow Hand and Kuka Allegro
+  camera tasks.
+* Added ``joint_pos``, ``diffik``, and ``newton_ik`` action presets to ``Isaac-Reach-Franka``, with ``joint_pos`` as
+  the default. Select the action independently from the ``isaacsim_physx``, ``ovphysx``, or ``newton_mjwarp``
+  physics preset; ``diffik`` uses the same action configuration across backends, while ``newton_ik`` requires
+  Newton.
+* Added an RSL-RL training configuration and success metrics to the Shadow handover
+  Direct task.
+* Added OVPhysX physics presets to the handover and camera Direct environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the canonical Franka Reach configuration module from ``joint_pos_env_cfg`` to
+  ``franka_reach_env_cfg`` and the OSC module from ``osc_env_cfg`` to ``franka_reach_osc_env_cfg``.
+* **Breaking:** Removed ``Isaac-Reach-Franka-Newton-IK-Rel`` and
+  ``Isaac-Reach-Franka-Newton-IK-Rel-v0``. Use
+  ``Isaac-Reach-Franka presets=newton_mjwarp,newton_ik`` instead.
+* **Breaking:** Removed ``IsaacContrib-Reach-Franka-IK-Rel``. Use
+  ``Isaac-Reach-Franka physics=isaacsim_physx presets=diffik`` instead.
+* Changed Reach to use one linear position term, one orientation term, a combined pose-success termination,
+  and shared action-rate, action-magnitude, and arm-velocity penalties. To retain the previous MDP, restore
+  ``end_effector_position_tracking_fine_grained`` and remove the success reward, success termination, and
+  action-magnitude term.
+* Changed Reach to use a common static table across physics backends and the MuJoCo Menagerie Franka, with
+  angular-drive gains and solver velocity limits normalized across backends. To retain the previous Franka, set
+  ``scene.robot`` to ``FRANKA_PANDA_CFG``.
+* Changed Reach to use a 120 Hz simulation rate with four control-decimation steps. The Newton MJWarp preset
+  uses two solver substeps and a data-update interval of two. To retain the previous timing, use a 60 Hz
+  simulation rate, two control-decimation steps, and one Newton solver substep.
+* Changed Franka Reach IK controllers to scale translation by ``0.05`` m and rotation by ``0.5`` rad, while
+  retaining the joint-position controller's ``0.5`` rad scale. To retain the previous IK scale, set all six
+  task-space coordinates to ``0.5``.
+* Changed the automate and factory environments to apply the armature inertia offset through
+  :meth:`~isaaclab.assets.Articulation.set_inertias_index` instead of the raw tensor view, so
+  :attr:`~isaaclab.assets.ArticulationData.body_inertia` stays coherent.
+* Changed the default physics backend of the Shadow handover Direct task from PhysX to
+  Newton (MJWarp). Pass ``physics=physx`` for the previous backend.
+
+Fixed
+^^^^^
+
+* Fixed the Forge environment's force-sensor body index to resolve against
+  :attr:`~isaaclab.assets.Articulation.backend_body_names`, since it indexes the
+  backend-order ``root_view.get_link_incoming_joint_force()`` array. With a
+  non-identity :attr:`~isaaclab.assets.ArticulationCfg.body_ordering`, the previous
+  public-order index silently read another link's wrench.
+* Fixed handover construction on Newton, which raised ``No joints found for actuator
+  group``.
+* Fixed the Shadow hand root orientation on Newton, which left both palms rotated
+  90 degrees.
+* Fixed the handover goal orientation, which was initialized to a 180-degree rotation
+  instead of identity.
+
+
+9.1.2 (2026-07-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added golden render tests for the Shadow Hand environment with a configurable camera
+  background colour (``test_rendering_shadow_hand_yellow_bg.py`` for kit-based renderers,
+  ``test_rendering_shadow_hand_yellow_bg_kitless.py`` for OVRTX). Tests cover
+  PhysX + Isaac RTX, Newton + Isaac RTX, PhysX + Newton renderer, and Newton + OVRTX
+  renderer combinations.
+
+
+9.1.1 (2026-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Cartpole, Ant, Humanoid, and Cabinet direct task ``physics=physx``
+  presets to use automatic PhysX-family selection. Use
+  ``physics=isaacsim_physx`` to force Isaac Sim PhysX.
+
+
+9.1.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated rendering test utilities and task configurations to use the renamed
+  ``"instance_segmentation"`` data type (previously ``"instance_segmentation_fast"``).
+  Renamed ``maybe_validate_instance_segmentation_fast`` to
+  ``maybe_validate_instance_segmentation`` in ``rendering_test_utils``.
+
+
+9.0.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Franka Panda configuration for the Dexsuite lift task, including a
+  reset-validity stack that resamples initial states from a prefilled bank of
+  collision-free poses and gripper closing-speed randomization for sim-to-sim transfer.
+* Added PhysX support to the DR Legs hold-pose and walking environments.
+* Added controller haptic feedback to the two G1 locomanipulation teleop example
+  environments (``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` and
+  ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``). Each env now has per-hand
+  finger ``ContactSensor`` s and a ``haptic_feedback`` config so the XR controller
+  vibrates when the corresponding G1 hand applies force to an object.
+* Added per-finger haptic glove feedback to the two GR1T2 pick-place teleop environments
+  (``IsaacContrib-PickPlace-GR1T2-Abs`` and ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``).
+  Each hand has fingertip ``ContactSensor`` s filtered against the grasped object, so each glove
+  finger vibrates in proportion to how tightly it grips the object.
+* Added a ``play_mode`` argument to :func:`~isaaclab_tasks.utils.hydra.hydra_task_config`,
+  :func:`~isaaclab_tasks.utils.hydra.resolve_task_config` and
+  :func:`~isaaclab_tasks.utils.hydra.register_task` that applies the environment configuration's
+  ``play_mode`` overrides after preset resolution.
+* Added preset-to-agent compatibility to task-specific command help for
+  :obj:`Isaac-Cartpole-Camera`,
+  :obj:`IsaacContrib-Cartpole-Showcase-Direct`, and
+  :obj:`IsaacContrib-Cartpole-Camera-Showcase-Direct`.
+* Added behavioral-success metrics and threshold-independent episode-error
+  diagnostics to the dexterous reorientation environments.
+* Added the ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` environment, an
+  SO-101 cube-stack task teleoperated by joint angles streamed from a physical
+  SO-101 leader arm (through the IsaacTeleop ``so101_leader`` device) instead of
+  an XR controller. It mirrors the leader's five arm joints and gripper directly
+  onto the follower via an absolute joint-position action.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``ISAACLAB_TASKS_METADATA`` from :mod:`isaaclab_tasks`.
+  This constant was populated from the now-deleted ``config/extension.toml`` Kit extension manifest.
+* Updated ``panda_instanceable.usd`` Nucleus path to
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` in Franka cabinet task config.
+* Moved the rigid-shape contact defaults in the ``lift_franka_soft`` presets
+  from ``NewtonModelCfg.shape_material_ke/kd/mu`` to
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg` on
+  ``NewtonCfg.default_shape_cfg``.
+
+* Made the proxy-coupled MJWarp + VBD solver the default for the
+  ``Isaac-Lift-Soft-Franka`` volume task, configured through named solver
+  entries and an explicit rigid-to-soft proxy mapping.
+* Changed the ``Isaac-Lift-Soft-Franka`` proxy-coupled preset to use full
+  Newton body-label regexes, removing the need to wire the environment scene
+  config into each physics preset alias.
+* Changed the AutoMate contrib launchers (``run_w_id.py``, ``run_disassembly_w_id.py``) to invoke the
+  unified ``scripts/reinforcement_learning/train.py`` and ``play.py`` entrypoints with
+  ``--rl_library rl_games`` instead of the removed per-library scripts.
+* Changed the Franka cabinet task configuration to the relocated
+  ``Robots/FrankaEmika/Legacy/panda_instanceable.usd`` asset, following the asset
+  reorganization on the Nucleus server.
+* Changed the canonical DR Legs task IDs to ``IsaacContrib-DrLegs-HoldPose`` and
+  ``IsaacContrib-DrLegs-Walk``, and removed the ``-v0`` suffix from the canonical Newton IK task IDs.
+  Use the new task IDs in scripts and training commands; the old IDs remain available
+  as deprecated aliases.
+* Changed the default Cartpole camera resolution to 96 by 96 pixels and used the Newton renderer's default
+  8 by 8 tile size. Set the camera resolution and Newton tile size explicitly to retain the previous values.
+* Changed the rough-terrain velocity tasks to declare their height scanner and contact sensor with
+  the backend-dispatching :class:`~isaaclab.sensors.RayCasterCfg` and
+  :class:`~isaaclab.sensors.ContactSensorCfg`, which select the matching backend implementation
+  automatically. This removes the per-task backend sensor presets.
+* Changed rough-terrain velocity tasks to use
+  :class:`~isaaclab_newton.sensors.NewtonRaycastSensor` for height scans with
+  Newton physics. PhysX and OvPhysX presets continue to use
+  :class:`~isaaclab.sensors.RayCaster`. No task configuration changes are required.
+* **Breaking:** Moved the Digit velocity environments from ``isaaclab_tasks.core``
+  to ``isaaclab_tasks.contrib`` and renamed their task IDs from
+  ``Isaac-Velocity-{Flat,Rough}-Digit`` to
+  ``IsaacContrib-Velocity-{Flat,Rough}-Digit``. Update Python imports and
+  ``gym.make`` / ``--task`` arguments to use the contributed paths and IDs.
+  Digit velocity and loco-manip environments now support only the ``physx``
+  physics preset.
+* Migrated the G1 loco-manipulation teleop environments to
+  :class:`~isaaclab_teleop.ControllerHapticFeedbackCfg` (was ``HapticFeedbackCfg``) following the
+  haptic-feedback config split. Behavior is unchanged.
+* **Breaking:** Removed the ``*_PLAY`` environment configuration classes and the ``-Play`` gym task
+  registrations. Play-mode overrides are now defined by overriding ``play_mode`` on the training
+  environment configuration and are applied automatically by the play scripts. Use the training task
+  id with ``play.py`` (a ``-Play`` id is redirected with a deprecation warning), and pass
+  ``--train_env_cfg`` to play the training configuration as-is.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``Isaac-DrLegs-HoldPose-v0``, ``Isaac-DrLegs-Walk-v0``, and the
+  ``-v0`` Newton IK task IDs in favor of their canonical replacements.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``.
+
+Fixed
+^^^^^
+
+* Fixed task scene assets using expanded environment regular expressions
+  instead of the canonical ``{ENV_REGEX_NS}/Leaf`` bindings.
+* Fixed Reach and OpenArm Lift table configurations to share a literal
+  environment-root binding and native-equal initial state.
+* Fixed Franka Cabinet variants to declare their robot and end-effector frame
+  in the scene configuration instead of mutating them after construction.
+* Fixed the locomanipulation pick-place success termination and the stack
+  lighting and texture randomization events to read static-asset poses and
+  prims from their spawned configurations, since static scene assets no
+  longer carry a runtime view in :class:`~isaaclab.scene.InteractiveScene`.
+* Fixed dexterous hand resets that could initialize joints below their lower
+  position limits. Reset joint positions now sample uniformly across the full
+  joint range; previously the distribution was biased toward the lower half of
+  the range.
+
+
 8.1.9 (2026-07-14)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,132 @@
 Changelog
 ---------
 
+0.2.1 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp-frontend ``ActionTerm``, ``CommandTerm`` and ``DirectRLEnvWarp`` debug
+  visualization toggles to register their callbacks through the simulation context's visualization
+  marker registry instead of the deprecated Kit ``IApp.get_post_update_event_stream`` API, matching
+  their non-experimental counterparts.
+
+Fixed
+^^^^^
+
+* Fixed debug visualization failing in kitless mode. Enabling it raised
+  ``ModuleNotFoundError: No module named 'omni.kit'`` because ``omni.kit.app`` was imported inside
+  the toggle. The registry path has no Kit dependency.
+
+* Fixed ``CommandTerm.set_debug_vis`` raising ``AttributeError`` whenever a command term
+  implemented debug visualization. It guarded on ``SimulationContext.has_omniverse_visualizer()``,
+  which does not exist, so the call failed before any callback was registered.
+
+
+0.2.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Warp MDP twins for :class:`~isaaclab.envs.mdp.is_terminated_term` and
+  :func:`~isaaclab.envs.mdp.pose_command_success`, so ``Isaac-Reach-Franka`` and
+  ``Isaac-Reach-UR10`` run under ``--frontend warp``.
+* Added :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.check_compatibility`, which
+  reports why an environment configuration cannot run on the Warp frontend instead of raising,
+  so several configurations can be surveyed in one pass.
+* Added :attr:`~isaaclab_experimental.managers.TerminationManager.term_dones_wp`, exposing the
+  per-term done buffer to reward terms that aggregate a subset of termination terms.
+
+Fixed
+^^^^^
+
+* Fixed the Warp :func:`~isaaclab_experimental.envs.mdp.pose_command_success` twin disagreeing
+  with the stable term's orientation error for non-unit quaternions, by computing the angle as
+  ``2*atan2(|xyz|, |w|)`` instead of ``2*acos(|w|)``. Both arguments scale with the quaternion,
+  so the angle is now norm-invariant and environments near the configured
+  ``orientation_success_threshold`` are classified the same way as on the stable path.
+
+
+0.1.5 (2026-07-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_experimental.envs.DirectRLEnvWarp.step` and
+  :meth:`~isaaclab_experimental.envs.DirectRLEnvWarp.reset` to store observations in
+  ``obs_buf``.
+
+
+0.1.4 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_experimental.envs.frontend` runtime selector and
+  :meth:`isaaclab_experimental.managers.SceneEntityCfg.from_stable` used by
+  ``--frontend=warp`` to adapt stable cfgs onto the warp runtime.
+* Added name-based resolution of direct-task warp env classes: ``--frontend=warp``
+  resolves a stable direct task's ``<task>_direct_env:<Name>Env`` to the mirrored
+  ``<task>_warp_env:<Name>WarpEnv`` and constructs it with the stable cfg. No
+  parallel registration is needed; a ``warp_entry_point`` kwarg is honored as an
+  optional override for classes that cannot follow the convention. The resolved
+  twin is verified against the task's cfg (via the warp env's ``cfg`` annotation),
+  so a stable env class shared by several tasks — e.g. ``ReorientDirectEnv``,
+  which serves both the Allegro and Shadow hands — never silently runs one
+  variant's warp env for another; a mismatch is a hard error.
+* Added observation-noise conversion to the warp frontend: stable noise cfgs
+  (constant/uniform/gaussian) swap to their warp-native twins during cfg
+  adaptation; cfgs without a twin (class-based noise models, customized or
+  tensor-valued parameters) are a hard error instead of being silently
+  ignored. The Warp observation manager rejects non-warp noise cfgs and
+  plumbs the shared per-env RNG state to function-style noise kernels.
+* Added warp adapters for the stable
+  :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material` and
+  :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_mass` startup event
+  terms, so tasks using them run under ``--frontend=warp`` with randomization
+  active.
+* Added deterministic warp twin resolution: a stable symbol's twin is looked
+  up on the mirrored experimental package tree (``isaaclab.* ↔
+  isaaclab_experimental.*``, ``isaaclab_tasks.* ↔
+  isaaclab_tasks_experimental.*``); missing twins are collected and reported
+  in one failure. No registration is needed.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` to adapt
+  its configuration in ``__init__`` via
+  :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.adapt_cfg`, so
+  registered warp task variants can derive from stable configurations instead
+  of duplicating them.
+* Changed the experimental warp ``RewardManager`` to merge dictionaries
+  returned by class-based reward term ``reset()`` into its episode-log extras
+  (persistent Warp buffer views, CUDA-graph safe); used to report
+  ``Metrics/success_rate`` under ``--frontend warp``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` to probe
+  :meth:`~isaaclab.sim.SimulationContext.has_active_visualizers` after the
+  ``get_setting`` API was reshaped.
+
+
+0.1.3 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+
 0.1.2 (2026-06-11)
 ~~~~~~~~~~~~~~~~~~
 

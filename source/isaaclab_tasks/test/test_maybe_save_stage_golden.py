@@ -32,6 +32,27 @@ def _usda_with_robot(translate: tuple[float, float, float] = (0.0, 0.0, 0.0), *,
     return f'#usda 1.0\ndef Xform "World"\n{{\n{robot}{extra}}}\n'
 
 
+def _usda_with_hydra_render_product(render_product_name: str, *, extra_prim: bool = False) -> str:
+    """Build a USDA stage with one Isaac RTX HydraTextures render product under ``/Render``."""
+    extra = '    def Xform "Extra"\n    {\n    }\n' if extra_prim else ""
+    return (
+        "#usda 1.0\n"
+        'def Xform "Render"\n'
+        "{\n"
+        '    def Xform "OmniverseKit"\n'
+        "    {\n"
+        '        def Xform "HydraTextures"\n'
+        "        {\n"
+        f'            def RenderProduct "{render_product_name}"\n'
+        "            {\n"
+        "            }\n"
+        "        }\n"
+        "    }\n"
+        f"{extra}"
+        "}\n"
+    )
+
+
 def _mock_export(stage_text: str | dict[str, str]):
     """Return a ``save_stage`` side effect that writes ``stage_text`` (or ``stage_text['text']``)."""
 
@@ -126,6 +147,22 @@ def test_compare_golden_stage_reports_structure_and_transform_diffs(tmp_path: Pa
     assert any("transform" in problem and "/World/Robot" in problem for problem in problems)
 
 
+def test_compare_golden_stage_canonicalizes_replicator_and_uuid_render_products(tmp_path: Path):
+    """Legacy ``Replicator`` and UUID ``rp_<hex>`` render-product names compare as equivalent."""
+    golden = tmp_path / "golden.usda"
+    result = tmp_path / "result.usda"
+
+    golden.write_text(_usda_with_hydra_render_product("Replicator"), encoding="utf-8")
+    result.write_text(_usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6"), encoding="utf-8")
+    assert compare_golden_stage(str(golden), str(result)) == []
+
+    result.write_text(
+        _usda_with_hydra_render_product("rp_fc992bfc10fd420fa593cd00a09f2ad6", extra_prim=True), encoding="utf-8"
+    )
+    problems = compare_golden_stage(str(golden), str(result))
+    assert any("added prim" in problem and "/Render/Extra" in problem for problem in problems)
+
+
 def test_maybe_save_stage_matches_golden_with_sublayer_result(golden_stage_dir: Path, tmp_path: Path):
     """Comparison still passes when save_stage writes a root layer with a sublayer reference.
 
@@ -160,3 +197,55 @@ def test_maybe_save_stage_noop_without_dump_or_compare(monkeypatch: pytest.Monke
 def test_golden_stages_directory_exists_in_repo():
     """The checked-in golden stage directory is present for LFS baselines."""
     assert os.path.isdir(_GOLDEN_STAGES_DIRECTORY)
+
+
+# ---------------------------------------------------------------------------
+# ISAAC_LAB_SAVE_STAGES path
+# ---------------------------------------------------------------------------
+
+
+def test_maybe_save_stage_writes_to_save_stages_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """maybe_save_stage writes a USDA file to ISAAC_LAB_SAVE_STAGES with the expected filename."""
+    out_dir = tmp_path / "stages"
+    monkeypatch.setenv("ISAAC_LAB_SAVE_STAGES", str(out_dir))
+    with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
+        save_stage_mock.side_effect = _mock_export(_usda_with_robot((1.0, 2.0, 3.0)))
+        maybe_save_stage("mytest", "physx", "rtx", "rgb")
+    assert (out_dir / "mytest-physx-rtx-rgb.usda").exists()
+
+
+def test_maybe_save_stage_save_stages_safe_test_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Slashes in test_name are replaced with underscores in the ISAAC_LAB_SAVE_STAGES filename."""
+    out_dir = tmp_path / "stages"
+    monkeypatch.setenv("ISAAC_LAB_SAVE_STAGES", str(out_dir))
+    with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
+        save_stage_mock.side_effect = _mock_export(_usda_with_robot())
+        maybe_save_stage("task/subtask", "physx", "rtx", "rgb")
+    assert (out_dir / "task_subtask-physx-rtx-rgb.usda").exists()
+    assert not (out_dir / "task/subtask-physx-rtx-rgb.usda").exists()
+
+
+def test_maybe_save_stage_save_stages_flattens_sublayers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """ISAAC_LAB_SAVE_STAGES output inlines sublayer prims so asset paths resolve independently.
+
+    Regression test for the bug where bare Nucleus-relative paths were written when the stage
+    had sublayer references — the fix adds Usd.Stage.Flatten() before exporting.
+    """
+    out_dir = tmp_path / "stages"
+    monkeypatch.setenv("ISAAC_LAB_SAVE_STAGES", str(out_dir))
+
+    sublayer = tmp_path / "sub.usda"
+    sublayer.write_text(_usda_with_robot((1.0, 2.0, 3.0)), encoding="utf-8")
+    root_usda = f"#usda 1.0\n(\n    subLayers = [\n        @{sublayer}@\n    ]\n)\n"
+
+    with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
+        save_stage_mock.side_effect = _mock_export(root_usda)
+        maybe_save_stage("mytest", "physx", "rtx", "rgb")
+
+    out_file = out_dir / "mytest-physx-rtx-rgb.usda"
+    assert out_file.exists()
+    content = out_file.read_text(encoding="utf-8")
+    # The prim from the sublayer must be present in the flattened output.
+    assert "Robot" in content
+    # The sublayer reference must not appear in the output — it was flattened/inlined.
+    assert str(sublayer) not in content

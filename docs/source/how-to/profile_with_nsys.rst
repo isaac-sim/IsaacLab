@@ -36,15 +36,31 @@ Running a Profile
 
 The following command shows how to capture a profile for the ``Isaac-Cartpole`` task via the ``rsl_rl`` training framework with 3 iterations:
 
-.. code-block:: bash
+.. tab-set::
 
-   nsys profile \
-       -t nvtx,cuda \
-       --python-functions-trace=scripts/benchmarks/nsys_trace.json \
-       -o my_profile \
-       ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole \
-           --max_iterations=3
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         nsys profile \
+             -t nvtx,cuda \
+             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
+             -o my_profile \
+             uv run isaaclab train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole \
+                 --max_iterations=3
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         nsys profile \
+             -t nvtx,cuda \
+             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
+             -o my_profile \
+             ./isaaclab.sh train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole \
+                 --max_iterations=3
 
 Flags:
 

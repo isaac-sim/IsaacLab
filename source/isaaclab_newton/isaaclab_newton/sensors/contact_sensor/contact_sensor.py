@@ -48,6 +48,10 @@ class ContactSensor(BaseContactSensor):
     useful when you want to report the contact forces between the sensors and a specific set of objects
     in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
 
+    When filter objects are configured, the sensor can additionally report the average contact position
+    per filter object by enabling :attr:`ContactSensorCfg.track_contact_points`. The data can be accessed
+    using the :attr:`ContactSensorData.contact_pos_w`.
+
     .. _Newton SensorContact: https://newton-physics.github.io/newton/api/_generated/newton.sensors.SensorContact.html
     """
 
@@ -149,12 +153,14 @@ class ContactSensor(BaseContactSensor):
             reset_contact_sensor_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                self.cfg.history_length,
+                self._history_length,
                 num_filter_objects,
                 env_mask,
                 self._data._net_forces_w,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._contact_pos_w,
             ],
             outputs=[
                 self._data._current_air_time,
@@ -323,14 +329,14 @@ class ContactSensor(BaseContactSensor):
         body_labels = self._get_model_labels("body")
         shape_labels = self._get_model_labels("shape")
 
-        s_kind = self.contact_view.sensing_obj_type
+        s_kind = self.contact_view.sensing_type
         if s_kind == "body":
             s_labels = body_labels
         elif s_kind == "shape":
             s_labels = shape_labels
         else:
-            raise RuntimeError(f"Unexpected Newton sensing_obj_type {s_kind!r}; expected 'body' or 'shape'.")
-        self._sensor_names = [s_labels[i].split("/")[-1] for i in self.contact_view.sensing_obj_idx]
+            raise RuntimeError(f"Unexpected Newton sensing_type {s_kind!r}; expected 'body' or 'shape'.")
+        self._sensor_names = [s_labels[i].split("/")[-1] for i in self.contact_view.sensing_indices]
         # Assumes the environments are processed in order.
         self._sensor_names = self._sensor_names[: self._num_sensors]
 
@@ -357,6 +363,8 @@ class ContactSensor(BaseContactSensor):
         force_matrix_shape = force_matrix.shape if force_matrix is not None else (total_sensor_count, 0)
         # Number of filter objects.
         self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
+        # Store effective history length (always >= 1 for consistent buffer shapes across backends).
+        self._history_length = max(self.cfg.history_length, 1)
         if self._num_filter_objects > 0 and force_matrix is None:
             raise RuntimeError("Filter counterparts present but Newton force_matrix is None.")
 
@@ -365,12 +373,32 @@ class ContactSensor(BaseContactSensor):
         self._newton_total_force_view = self.contact_view.total_force
         self._newton_force_matrix_view = force_matrix if self._num_filter_objects > 0 else None
 
+        # Contact positions are only reported per counterpart, so they require filter objects.
+        self._track_contact_points = self.cfg.track_contact_points and self._num_filter_objects > 0
+        if self.cfg.track_contact_points and not self._track_contact_points:
+            logger.warning(
+                f"'track_contact_points' was requested for contact sensor '{self.cfg.prim_path}' but the filter"
+                " expressions resolved to zero counterpart objects. Contact positions will not be tracked and"
+                " 'contact_pos_w' will be None."
+            )
+        if self._track_contact_points:
+            position_matrix = getattr(self.contact_view, "position_matrix", None)
+            if position_matrix is None:
+                raise RuntimeError(
+                    "Contact point tracking was requested but the installed Newton version does not report"
+                    " 'position_matrix' on its contact sensor."
+                )
+            self._newton_position_matrix_view = position_matrix
+        else:
+            self._newton_position_matrix_view = None
+
         # prepare data buffers
         logger.info(
             f"Creating buffers for contact sensor data with num_envs: {self._num_envs}, num_sensors:"
             f" {self._num_sensors}, num_filter_objects: {self._num_filter_objects}, history_length:"
-            f" {self.cfg.history_length}, generate_force_matrix: {self._generate_force_matrix}, track_air_time:"
-            f" {self.cfg.track_air_time}, track_pose: {self.cfg.track_pose}, device: {self._device}"
+            f" {self.cfg.history_length}, generate_force_matrix: {self._generate_force_matrix},"
+            f" track_contact_points: {self._track_contact_points}, track_air_time: {self.cfg.track_air_time},"
+            f" track_pose: {self.cfg.track_pose}, device: {self._device}"
         )
         self._data.create_buffers(
             self._num_envs,
@@ -381,6 +409,7 @@ class ContactSensor(BaseContactSensor):
             self.cfg.track_air_time,
             self.cfg.track_pose,
             self._device,
+            track_contact_points=self._track_contact_points,
         )
 
     def _get_model_labels(self, kind: str) -> list[str]:
@@ -411,11 +440,13 @@ class ContactSensor(BaseContactSensor):
                 self._num_sensors,
                 self._newton_total_force_view,
                 self._newton_force_matrix_view,
+                self._newton_position_matrix_view,
                 self._timestamp,
             ],
             outputs=[
                 self._data._net_forces_w,
                 self._data._force_matrix_w,
+                self._data._contact_pos_w,
             ],
             device=self._device,
         )
@@ -425,13 +456,16 @@ class ContactSensor(BaseContactSensor):
             update_contact_sensor_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                self.cfg.history_length,
+                self._history_length,
+                self._num_filter_objects,
                 self.cfg.force_threshold,
                 env_mask,
                 self._data._net_forces_w,
+                self._data._force_matrix_w,
                 self._timestamp,
                 self._timestamp_last_update,
                 self._data._net_forces_w_history,
+                self._data._force_matrix_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
                 self._data._last_air_time,

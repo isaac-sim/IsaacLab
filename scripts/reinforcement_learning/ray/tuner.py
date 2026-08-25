@@ -42,20 +42,20 @@ Usage:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py -h
+    uv run python scripts/reinforcement_learning/ray/tuner.py -h
 
     # Examples
     # Local
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py --run_mode local \
+    uv run python scripts/reinforcement_learning/ray/tuner.py --run_mode local \
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg
     # Local with a custom progress reporter
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \
+    uv run python scripts/reinforcement_learning/ray/tuner.py \
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --progress_reporter CustomCartpoleProgressReporter
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/submit_job.py \
+    uv run python scripts/reinforcement_learning/ray/submit_job.py \
     --aggregate_jobs tuner.py \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
@@ -396,10 +396,7 @@ if __name__ == "__main__":
         "--run_mode",
         choices=["local", "remote"],
         default="remote",
-        help=(
-            "Set to local to use ./isaaclab.sh -p python, set to "
-            "remote to use /workspace/isaaclab/isaaclab.sh -p python"
-        ),
+        help=("Set to local to use uv run python, set to remote to use /workspace/isaaclab/isaaclab.sh -p python"),
     )
     parser.add_argument(
         "--workflow",

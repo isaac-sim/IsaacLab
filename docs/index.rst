@@ -29,7 +29,8 @@ adaptability, and support for running in the cloud.
 
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
-and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
+and navigation tasks. Browse the registered tasks and build a command in the
+`environment browser <source/setup/environments>`_.
 
 Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
@@ -89,9 +90,17 @@ Table of Contents
 
    source/setup/ecosystem
    source/setup/installation/index
-   source/deployment/index
-   source/setup/installation/cloud_installation
-   source/refs/reference_architecture/index
+   source/setup/environments
+   source/setup/quickstart
+   source/migration/migrating_to_isaaclab_3-0
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Concepts
+
+   source/concepts/backends_and_presets
+   source/concepts/actuators
 
 
 .. toctree::
@@ -99,7 +108,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/setup/quickstart
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
@@ -115,11 +123,9 @@ Table of Contents
 
 
    source/overview/core-concepts/index
-   source/overview/environments
    source/overview/reinforcement-learning/index
    source/overview/imitation-learning/index
    source/overview/showroom
-   source/overview/simple_agents
 
 
 .. toctree::
@@ -127,6 +133,7 @@ Table of Contents
    :caption: Features
 
    source/features/isaac_teleop
+   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
@@ -151,17 +158,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Migration Guides
-   :titlesonly:
-
-   source/migration/migrating_to_isaaclab_3-0
-   source/migration/migrating_deformables
-   source/migration/migrating_from_isaacgymenvs
-   source/migration/migrating_from_omniisaacgymenvs
-   source/migration/migrating_from_orbit
-
-.. toctree::
-   :maxdepth: 1
    :caption: Source API
 
    source/api/index
@@ -174,7 +170,6 @@ Table of Contents
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
-   source/refs/migration
    source/refs/issues
    source/refs/release_notes
    source/refs/changelog

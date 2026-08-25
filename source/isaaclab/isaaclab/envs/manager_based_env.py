@@ -14,19 +14,16 @@ from typing import Any
 
 import torch
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import has_kit
 
-from .common import VecEnvObs
+from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 from .utils.video_recorder import VideoRecorder
 
@@ -91,9 +88,6 @@ class ManagerBasedEnv:
 
         # check that the config is valid
         cfg.validate()
-        # Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)
-        # to their default variant so that managers and scene builders see concrete cfg objects.
-        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables
@@ -104,6 +98,10 @@ class ManagerBasedEnv:
             self.cfg.seed = self.seed(self.cfg.seed)
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
+
+        # Backwards-compat: if the deprecated viewer field has non-default eye/lookat, apply
+        # them to sim.default_visualizer_cfg so the scene camera still matches user intent.
+        _apply_deprecated_viewer_cfg(self.cfg)
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
@@ -170,25 +168,12 @@ class ManagerBasedEnv:
         self.extras = {}
 
         # generate scene
-        with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
+        with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
-                self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
-
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
-        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -199,20 +184,12 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback Camera
-        # (used for state-based envs without an observation camera) is spawned into the USD
-        # stage and registered for the PHYSICS_READY callback before physics initialises.
-        # env_render_mode and eye/lookat are forwarded by subclasses (e.g. ManagerBasedRLEnv)
-        # into cfg.video_recorder before calling super().__init__().
-        if self.cfg.video_recorder is not None:
-            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
             with use_stage(self.sim.stage):
@@ -227,14 +204,19 @@ class ManagerBasedEnv:
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
         # add timeline event to load managers
+        report_activity("Setting up managers")
         self.load_managers()
+        report_activity(None)
+
+        # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
+        # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
+        # Skipped when truly headless (no GUI and no standalone visualizers active).
+        self.setup_manager_visualizers()
 
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
-            # setup live visualizers
-            self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -378,11 +360,27 @@ class ManagerBasedEnv:
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
+        """Wire manager terms into live plots for all active visualizer backends.
 
+        Calls :meth:`~isaaclab.visualizers.BaseVisualizer.add_live_plots` on every visualizer
+        registered with the simulation context.  For the Kit backend this also populates
+        :attr:`manager_visualizers` with :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer`
+        instances so that :class:`~isaaclab.envs.ui.BaseEnvWindow` can build the omni.ui panels.
+
+        Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
+        """
+        if not self.sim.has_gui and not self.sim.has_active_visualizers():
+            self.manager_visualizers = {}
+            return
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
+        # Populate manager_visualizers for the Kit window (BaseEnvWindow reads this attribute).
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -569,6 +567,10 @@ class ManagerBasedEnv:
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
+        # advance video recorders (after render, before obs)
+        for recorder in self.video_recorders:
+            recorder.step()
+
         # -- compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
         self.recorder_manager.record_post_step()
@@ -607,8 +609,11 @@ class ManagerBasedEnv:
             if isinstance(getattr(self, "obs_buf", None), dict):
                 self.obs_buf.clear()
 
+            # flush any buffered video frames
+            for recorder in getattr(self, "video_recorders", []):
+                recorder.close()
+
             # destructor is order-sensitive
-            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager
@@ -658,3 +663,5 @@ class ManagerBasedEnv:
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
+
+        self.sim.render_context.reset_scene_state_cadence()

@@ -7,17 +7,19 @@
 Setup:
     - bash tools/wheel_builder/build.sh
     - ./isaaclab.sh -u
-    - uv pip install <wheel>[all]
+    - uv pip install <wheel>[sb3,skrl,rsl-rl]
 Tests:
     - import isaaclab -> verify importable
     - from isaaclab import __version__ -> verify version matches wheel filename
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
-    - from isaaclab.envs import ViewerCfg -> verify importable
+    - from isaaclab.envs import VideoRecorderCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
     - import pinocchio -> verify importable
+    - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
+        -> verify the RL extras omit tetrahedralization dependencies
 """
 
 from __future__ import annotations
@@ -31,9 +33,10 @@ from utils import UV_Mixin, run_cmd
 
 @pytest.mark.smoke
 class Test_Wheel_Builder_Smoke(UV_Mixin):
-    """Test building the isaaclab wheel and installing it in a uv environment."""
+    """Test building and installing the Isaac Lab wheel with selected RL extras."""
 
     _wheel: str = ""
+    _extras: str = "[sb3,skrl,rsl-rl]"
 
     @classmethod
     def setup_class(cls):
@@ -65,7 +68,7 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         cls.env_path = self.env_path
         cls.python = self.python
         cls.cli_script = self.cli_script
-        result = self.run_in_uv_env(["uv", "pip", "install", cls._wheel + "[all]"])
+        result = self.run_in_uv_env(["uv", "pip", "install", cls._wheel + cls._extras])
         assert result.returncode == 0, f"uv pip install wheel failed:\n{result.stdout}\n{result.stderr}"
 
         yield
@@ -102,10 +105,10 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
-    # from isaaclab.envs import ViewerCfg
+    # from isaaclab.envs import VideoRecorderCfg
     def test_isaaclab_envs_importable(self):
         """Verify isaaclab.envs is importable."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import ViewerCfg"])
+        result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import VideoRecorderCfg"])
         assert result.returncode == 0, f"import isaaclab.envs failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
@@ -131,3 +134,16 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify pinocchio is importable and has the expected version."""
         result = self.run_in_uv_env(["python", "-c", "import pinocchio as pin; print(pin.__version__)"])
         assert result.returncode == 0, f"import pinocchio failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_extras_omits_tetrahedralization_dependencies(self):
+        """Verify the wheel's RL extras do not install pytetwild."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)",
+            ]
+        )
+        assert result.returncode == 0, (
+            f"pytetwild should not be installed by {self._extras}:\n{result.stdout}\n{result.stderr}"
+        )

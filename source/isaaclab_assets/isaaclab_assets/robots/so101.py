@@ -57,15 +57,15 @@ SO101_CFG = ArticulationCfg(
     actuators={
         "arm": ImplicitActuatorCfg(
             joint_names_expr=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
-            effort_limit_sim=10.0,
-            velocity_limit_sim=10.0,
+            joint_effort_limit=10.0,
+            joint_velocity_limit=10.0,
             stiffness=17.8,
             damping=0.60,
         ),
         "gripper": ImplicitActuatorCfg(
             joint_names_expr=["gripper"],
-            effort_limit_sim=10.0,
-            velocity_limit_sim=10.0,
+            joint_effort_limit=10.0,
+            joint_velocity_limit=10.0,
             stiffness=17.8,
             damping=0.60,
         ),

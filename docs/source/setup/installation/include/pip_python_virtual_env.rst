@@ -1,5 +1,4 @@
-Preparing a Python Environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Preparing a Python Environment
 
 Creating a dedicated Python environment is **strongly recommended**. It helps:
 

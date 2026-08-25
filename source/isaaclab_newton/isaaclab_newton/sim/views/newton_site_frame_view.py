@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import warp as wp
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import get_suffix, iter_clone_plan_matches, split_clone_template
+from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
@@ -268,17 +269,18 @@ class NewtonSiteFrameView(BaseFrameView):
                     f"FrameView prim '{path_expr}' is a Newton collision shape. "
                     "FrameView should only be used for non-physics frames."
                 )
-            matches = tuple(iter_clone_plan_matches(plan, path_expr)) if plan is not None else ()
+            matches = tuple(cloner.query.iter_sources(plan, path_expr)) if plan is not None else ()
             if matches:
                 for source_root, destination_template, source_path, env_ids in matches:
-                    source_prim = None
-                    if not any(token in source_path for token in "*[]()+?|\\"):
-                        source_prim = stage.GetPrimAtPath(source_path)
-                    if source_prim is None or not source_prim.IsValid():
-                        source_prim = sim_utils.find_first_matching_prim(source_path, stage)
-                    if source_prim is None or not source_prim.IsValid():
+                    source_pattern = re.compile(source_path)
+                    source_prims = sim_utils.get_all_matching_child_prims(
+                        source_root,
+                        lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
+                        stage=stage,
+                    )
+                    if not source_prims:
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{source_path}'.")
-                    specs.append(
+                    specs.extend(
                         self._resolve_source_prim(
                             source_prim,
                             validate_xform_ops,
@@ -288,14 +290,16 @@ class NewtonSiteFrameView(BaseFrameView):
                             use_clone_body_pattern,
                             stage,
                         )
+                        for source_prim in source_prims
                     )
                 continue
 
-            prim = sim_utils.find_first_matching_prim(path_expr, stage)
-            if prim is None or not prim.IsValid():
+            prims = sim_utils.find_matching_prims(path_expr, stage)
+            if not prims:
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
-            specs.append(
+            specs.extend(
                 self._resolve_source_prim(prim, validate_xform_ops, None, None, None, use_clone_body_pattern, stage)
+                for prim in prims
             )
 
         return specs
@@ -371,8 +375,8 @@ class NewtonSiteFrameView(BaseFrameView):
 
         ref_path = source_root
         if source_root is not None and destination_template is not None:
-            template_prefix, _ = split_clone_template(destination_template)
-            source_suffix = get_suffix(source_root, template_prefix + "{}")
+            template_prefix, _ = cloner.path.split(destination_template)
+            source_suffix = cloner.path.relativize(source_root, template_prefix + "{}")
             if source_suffix is not None:
                 ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None

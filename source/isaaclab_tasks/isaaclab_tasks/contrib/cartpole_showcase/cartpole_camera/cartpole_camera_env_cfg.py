@@ -11,11 +11,12 @@ from gymnasium import spaces
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
+from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -24,7 +25,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> CameraCfg:
     return CameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
+        prim_path="{ENV_REGEX_NS}/Camera",
         offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=[data_type],
         spawn=sim_utils.PinholeCameraCfg(
@@ -52,7 +53,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
 
     # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
@@ -65,9 +66,6 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     action_space = 1
     state_space = 0
     observation_space = [tiled_camera.height, tiled_camera.width, 3]
-
-    # change viewer settings
-    viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
@@ -85,6 +83,9 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_pos = -1.0
     rew_scale_cart_vel = -0.01
     rew_scale_pole_vel = -0.005
+
+    def __post_init__(self):
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
 
 ###

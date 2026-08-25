@@ -6,6 +6,7 @@
 """Package containing the core framework."""
 
 import importlib.metadata
+import importlib.util
 import os
 import sys
 
@@ -79,7 +80,33 @@ def _deprioritize_prebundle_paths():
         os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
 
 
+def _expose_mujoco_usd_schemas():
+    """Put the MuJoCo USD schemas on OpenUSD's plugin search path.
+
+    ``mujoco-usd-converter`` ships them as a codeless schema plugin that it registers when the
+    package is imported. OpenUSD builds its schema registry once, on the first schema query, and
+    ignores plugins registered after that -- so MJCF conversion fails with "Cannot find a valid
+    schema for ``MjcSceneAPI``" whenever anything touched a schema first. Adding the plugin to the
+    search path lets OpenUSD find it while building the registry, so importing the converter late
+    no longer matters.
+
+    OpenUSD reads the search path while building the registry, so this only helps while the
+    registry is still unbuilt. A host that queries a schema before importing Isaac Lab has to put
+    the plugin directory on ``PXR_PLUGINPATH_NAME`` itself.
+    """
+    spec = importlib.util.find_spec("mujoco_usd_converter")
+    if spec is None or spec.origin is None:
+        return
+    plugins = os.path.join(os.path.dirname(spec.origin), "plugins")
+    if not os.path.isdir(plugins):
+        return
+    search_path = os.environ.get("PXR_PLUGINPATH_NAME", "")
+    if plugins not in search_path.split(os.pathsep):
+        os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (search_path, plugins)))
+
+
 _deprioritize_prebundle_paths()
+_expose_mujoco_usd_schemas()
 
 
 try:

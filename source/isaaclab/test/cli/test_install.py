@@ -18,6 +18,8 @@ from isaaclab.cli.utils import (
     extract_isaacsim_path,
     extract_python_exe,
     get_pip_command,
+    run_command,
+    run_python_command,
 )
 
 pytestmark = pytest.mark.unit
@@ -33,6 +35,72 @@ def _python_for_conda(base: Path) -> Path:
     if sys.platform == "win32":
         return base / "python.exe"
     return base / "bin" / "python"
+
+
+# ---------------------------------------------------------------------------
+# run_command
+# ---------------------------------------------------------------------------
+
+
+def test_run_command_retries_a_failed_process():
+    """A command-level retry reruns a failed package-manager process."""
+    failure = subprocess.CalledProcessError(returncode=1, cmd=["pip", "install", "example"])
+    success = subprocess.CompletedProcess(args=["pip", "install", "example"], returncode=0)
+
+    with (
+        mock.patch("isaaclab.cli.utils.subprocess.run", side_effect=[failure, success]) as subprocess_run,
+        mock.patch("isaaclab.cli.utils.time.sleep") as sleep,
+    ):
+        result = run_command(
+            ["pip", "install", "example"],
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
+
+    assert result is success
+    assert subprocess_run.call_count == 2
+    sleep.assert_called_once_with(3.0)
+
+
+def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
+    """Direct uv launches must combine the live source build with the active Python."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    python_launcher = local_sim / "python.sh"
+    python_launcher.touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {}, clear=True),
+    ):
+        run_python_command("train.py", ["--task", "Cartpole"])
+
+    command = run.call_args.args[0]
+    assert command[0] == str(python_launcher)
+    assert Path(command[1]).name == "train.py"
+    assert command[2:] == ["--task", "Cartpole"]
+    assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
+
+
+def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
+    """The legacy wrapper path must not source the same Isaac Sim environment twice."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"ISAAC_PATH": str(local_sim)}, clear=True),
+    ):
+        run_python_command("script.py", [])
+
+    assert run.call_args.args[0] == [active_python, "script.py"]
 
 
 # ---------------------------------------------------------------------------
@@ -264,7 +332,7 @@ class TestEnsureNewton:
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
         install_args = install_cmds[-1]
-        assert any(arg.startswith("newton[sim,importers]") and arg.endswith(commit) for arg in install_args)
+        assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
         assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 
     def test_skips_when_commit_already_installed(self):

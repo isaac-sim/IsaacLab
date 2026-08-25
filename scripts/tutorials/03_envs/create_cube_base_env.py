@@ -22,7 +22,7 @@ The rest of the environment is similar to the previous tutorials.
 .. code-block:: bash
 
     # Run the script
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+    uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
 """
 
@@ -63,6 +63,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 ##
 # Custom action term
@@ -305,8 +306,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
         self.sim.device = args_cli.device
         # viewer settings
-        self.viewer.eye = (5.0, 5.0, 5.0)
-        self.viewer.lookat = (0.0, 0.0, 2.0)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
 
 
 def main():
