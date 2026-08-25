@@ -20,6 +20,18 @@ gym.register(
 )
 
 gym.register(
+    # The conventional Play suffix lets the pretrained-checkpoint resolver
+    # reuse the base Newton task's published policy automatically.
+    id="IsaacContrib-Conveyor-Franka-Newton-Play-v0",
+    entry_point=f"{__name__}.conveyor_franka_env:ConveyorFrankaEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.conveyor_franka_asset_env_cfg:ConveyorFrankaA09A12EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ConveyorFrankaPPORunnerCfg",
+    },
+)
+
+gym.register(
     # The native PhysxSurfaceVelocityAPI path is intentionally CPU-only. Keep
     # that execution contract visible in the public task ID so a CUDA launch is
     # never mistaken for a supported configuration.
