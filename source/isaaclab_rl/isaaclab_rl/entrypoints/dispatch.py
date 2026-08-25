@@ -116,7 +116,17 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
             return 0
         print(f"\n{action}: error: the following argument is required: --rl_library", file=sys.stderr)
         return 2
-    _run_backend(backends[selected.rl_library], backend_argv, run_as_script=action == "play")
+    try:
+        _run_backend(backends[selected.rl_library], backend_argv, run_as_script=action == "play")
+    except ModuleNotFoundError as exc:
+        # The backends import their RL library inside run(), so a skipped extra surfaces
+        # here rather than at module import. Name the extra instead of the bare error.
+        from isaaclab.utils.extras import missing_extra_hint
+
+        hint = missing_extra_hint(exc.name, command=f"isaaclab {action} {' '.join(argv)}")
+        if hint is None:
+            raise
+        raise SystemExit(hint) from exc
     return 0
 
 
