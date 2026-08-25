@@ -136,13 +136,11 @@ The bug is specific to the Isaac RTX (Kit) backend with
 :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` enabled.
 The OVRTX backend updates animated-curve bounding boxes correctly and is unaffected.
 
-.. note::
-
-   The culling is not currently observable in Isaac Lab's own cable environments. Cable points are
-   synced to Hydra through a CPU mirror because RTX Hydra ignores GPU Fabric ``BasisCurves`` points
-   (NVBug 6502662), and OMPE-105749 affects the GPU interop path. The workaround below is therefore
-   preventative: it matters for scenes that drive animated curves through GPU interop, and for
-   Isaac Lab once NVBug 6502662 is fixed and the CPU mirror is dropped.
+The displacement needed to trip the cull is the distance from the curve's spawn extent to the edge
+of its partition's bounding box, so it depends on what else shares the partition. Measured on Kit
+110.1.2: the cable in ``Isaac-Lift-Cable-Franka-Camera`` vanishes at 0.6 m of displacement, while a
+lone curve in a partition containing only itself and a camera survives to roughly 4 m. Smaller
+motions render normally, which is why a settled or lightly perturbed cable looks fine.
 
 There are two workarounds:
 
@@ -152,9 +150,9 @@ There are two workarounds:
   stays inside it wherever it moves. ``Isaac-Lift-Cable-Franka`` and
   ``Isaac-Lift-Cable-Franka-Camera`` ship this workaround as the
   ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries; copy
-  the pattern into custom cable environments. The markers are static visual prims without
-  colliders, so they do not participate in physics, and they are dropped automatically when
-  scene partitioning is off.
+  the pattern into custom cable environments. With the markers in place, cable visibility matches
+  an unpartitioned render exactly. The markers are static visual prims without colliders, so they
+  do not participate in physics, and they are dropped automatically when scene partitioning is off.
 
 * **Disable scene partitioning.** Set
   :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to

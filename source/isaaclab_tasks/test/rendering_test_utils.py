@@ -2342,11 +2342,24 @@ def rendering_test_franka_cable(
             env = None
 
 
-# Env-local offset the cable is teleported by. ``y = -0.4`` sits far outside the cable's initial
-# extent (measured: ``y`` spans only ±0.005 m at spawn) while staying inside both the camera frustum
-# and the box pinned by the partition-bounds markers. Verified in frame with scene partitioning both
-# enabled and disabled, so a zero count here means culling rather than a framing change.
-_CABLE_CULL_PROBE_OFFSET_Y = -0.4
+# Env-local offset the cable is teleported by, in metres along +y. Calibrated by sweeping the cable
+# out in 0.1 m steps on Kit 110.1.2 and comparing three configurations:
+#
+#   offset  partitioning off   markers absent   markers present
+#   0.50    414 px             414 px           414 px
+#   0.60    265 px               0 px           265 px   <- cull threshold without the markers
+#   0.70    151 px               0 px           151 px
+#   0.80     56 px               0 px            56 px
+#   0.90      0 px               0 px             0 px   <- cable leaves the frustum
+#
+# 0.7 m sits clear of the 0.6 m cull threshold and clear of the 0.9 m framing limit. Below 0.6 m the
+# probe cannot detect the bug at all, which is why the margin on both sides matters.
+_CABLE_CULL_PROBE_OFFSET_Y = 0.7
+
+# The shipped camera renders 128x128 and clips at 3 m, which is too tight to follow the cable to the
+# cull threshold and back. Widen both for this diagnostic so a zero count means culling, not framing.
+_CABLE_CULL_PROBE_CLIPPING_RANGE = (0.01, 60.0)
+_CABLE_CULL_PROBE_RESOLUTION = 512
 
 
 def _cable_visible_pixel_count(camera: Any) -> int:
@@ -2398,6 +2411,9 @@ def rendering_test_franka_cable_partition_visibility(physics_backend: str, rende
     env_cfg.scene.base_camera.renderer_cfg.colorize_instance_id_segmentation = False
     # Exercise the partitioned path regardless of the ambient env-var default.
     env_cfg.scene.base_camera.renderer_cfg.enable_scene_partitioning = True
+    env_cfg.scene.base_camera.spawn.clipping_range = _CABLE_CULL_PROBE_CLIPPING_RANGE
+    env_cfg.scene.base_camera.width = _CABLE_CULL_PROBE_RESOLUTION
+    env_cfg.scene.base_camera.height = _CABLE_CULL_PROBE_RESOLUTION
 
     # Spawn the cable deterministically, and stop the MDP resetting it once the probe pose puts it
     # outside the task's workspace bounds.
