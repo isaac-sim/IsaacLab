@@ -8,7 +8,7 @@
 
 # Base image
 ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
-ARG ISAACSIM_VERSION_ARG=6.0.0
+ARG ISAACSIM_VERSION_ARG=6.0.1
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
 ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
@@ -51,7 +51,9 @@ RUN apt-get update && \
     cmake \
     git \
     git-lfs \
-    wget
+    wget \
+    libvulkan1 \
+    libbsd0
 
 # Install the Carbonite environment shim that serializes glibc environment
 # access across Kit worker threads. Use /etc/ld.so.preload because Isaac Sim's
@@ -118,6 +120,8 @@ RUN touch /bin/nvidia-smi && \
 # enable video recording install MoviePy and its video backend explicitly.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install && \
+    ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install "isaacteleop[retargeters,ui,cloudxr]~=1.4.0" \
+        "dex-retargeting==0.5.0" && \
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y imageio-ffmpeg
 
 # HACK: Remove install of quadprog dependency

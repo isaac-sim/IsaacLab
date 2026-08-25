@@ -457,6 +457,13 @@ def main() -> None:  # noqa: C901
     # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
     haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
 
+    # Optional RTSP view that follows the XR headset pose. This is configured
+    # generically here so it works with any IsaacTeleop task, including the
+    # original GR1T2 hands, without coupling streaming to a custom action term.
+    from isaaclab_teleop.spectator_rtsp import EgocentricSpectatorRtsp
+
+    spectator_stream = EgocentricSpectatorRtsp(env)
+
     # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
     # carb input subscription is not garbage-collected; a headless run auto-starts
     # (in ``run_loop``) without it.
@@ -486,6 +493,7 @@ def main() -> None:  # noqa: C901
                 with torch.inference_mode():
                     # get device command
                     action = teleop_interface.advance()
+                    spectator_stream.update()
 
                     if use_isaac_teleop:
                         ctrl = poll_control_events(teleop_interface)
