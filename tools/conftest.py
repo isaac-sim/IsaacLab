@@ -60,6 +60,14 @@ legitimate slow launches.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
+OVRTX_LOG_DIR = "tests/ovrtx-logs"
+"""Where each test's renderer log and dumps are saved whole, relative to the workspace root.
+
+Under ``tests/`` alongside the JUnit reports, because that is what CI collects as a job artifact. The
+reports themselves quote only a bounded tail of the log and nothing else the renderer wrote; this is the
+copy a diagnosis reads when that tail is not enough.
+"""
+
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
@@ -444,6 +452,7 @@ def _make_crash_pass_result(
     if rebuilt is None:
         report = _create_error_report(prefix, pass_file_label, message, details)
         counters = {"errors": 1, "failures": 0, "skipped": 0, "tests": 1, "time_elapsed": fallback_time_elapsed}
+        culprit = None
         logger.warning(f"🔎 {pass_file_label}: no crash journal, reporting a single {prefix} entry")
     else:
         report, counters, culprit = rebuilt
@@ -452,6 +461,14 @@ def _make_crash_pass_result(
             f" ({counters['failures']} failed, {counters['skipped']} not run);"
             f" blamed {culprit or 'session shutdown (all tests completed teardown)'}"
         )
+
+    # The blamed test died before the fixture that saves its renderer output could run, leaving the one
+    # test in the run whose output is worth reading as the one missing from the artifact. Named after the
+    # test alone, as the fixture names its own, so the two sit together. Saved whole because the per-test
+    # offsets went with the process, and suppressed because a report matters more than an artifact.
+    blamed = culprit.rpartition("::")[2] if culprit else pass_file_label
+    with contextlib.suppress(OSError):
+        ovrtx_log.save_output(os.path.abspath(OVRTX_LOG_DIR), blamed)
 
     report.write(report_file)
     return (
@@ -950,7 +967,15 @@ def _run_one_pass(
     # at the fd level: a dump written to fd 2 is discarded with the rest of the captured output when the
     # process is killed, which is the only case it is ever written in.
     hang_dump_file = os.path.abspath(f"tests/test-hangdump-{report_slug}{suffix}.log")
-    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file, hang_dump.DUMP_PATH_ENV_VAR: hang_dump_file}
+    pass_env = {
+        **ctx.env,
+        JOURNAL_ENV_VAR: journal_file,
+        hang_dump.DUMP_PATH_ENV_VAR: hang_dump_file,
+        # Absolute for the same reason as the journal: the test process saves its renderer log from
+        # inside a fixture, so a test that changed directory would leave the artifact under the
+        # temporary cwd.
+        ovrtx_log.LOG_DIR_ENV_VAR: os.path.abspath(OVRTX_LOG_DIR),
+    }
 
     cmd = [
         sys.executable,
