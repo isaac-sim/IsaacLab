@@ -30,15 +30,32 @@ runs:
   steps:
     - name: NGC Login
       shell: sh
+      env:
+        BASE_IMAGE_REF: ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}
       run: |
         # Only attempt NGC login if API key is available
-        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+        if [ -n "${NGC_API_KEY:-}" ]; then
           echo "Logging into NGC registry..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          printf '%s' "${NGC_API_KEY}" | docker login -u '$oauthtoken' --password-stdin nvcr.io
           echo "✅ Successfully logged into NGC registry"
         else
           echo "⚠️ NGC_API_KEY not available - skipping NGC login"
           echo "This is normal for PRs from forks or when secrets are not configured"
+        fi
+
+        # NGC declines the runner's inherited private-org credentials a pull token
+        # for the public nvidia/* catalog, so keep those credentials only while
+        # they can read the base image this build was asked for.
+        if ! docker buildx imagetools inspect "${BASE_IMAGE_REF}" >/dev/null 2>&1; then
+          ANON_CONFIG_DIR=$(mktemp -d)
+          echo '{"credsStore":"","auths":{}}' > "${ANON_CONFIG_DIR}/config.json"
+          if DOCKER_CONFIG="${ANON_CONFIG_DIR}" docker buildx imagetools inspect \
+            "${BASE_IMAGE_REF}" >/dev/null 2>&1; then
+            echo "⚠️ Inherited credentials cannot read ${BASE_IMAGE_REF}; using anonymous access"
+            echo "DOCKER_CONFIG=${ANON_CONFIG_DIR}" >> "$GITHUB_ENV"
+          else
+            rm -rf "${ANON_CONFIG_DIR}"
+          fi
         fi
 
     - name: Build Docker Image
