@@ -191,8 +191,9 @@ class JointImpedanceController:
         if self.cfg.gravity_compensation:
             self._gravity.copy_(gravity)
 
-        # evaluate the impedance law on the Newton backend and return the torque view
-        self._controller.compute(self._controller_input, self._controller_output, None, None, self._time_step)
+        # evaluate the impedance law on the Newton backend and return the torque view;
+        # ``dt`` is unused by the impedance law and is accepted only for API symmetry
+        self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
         return self._joint_f
 
     """
@@ -208,20 +209,17 @@ class JointImpedanceController:
         from newton.controllers import ControllerJointImpedanceModelFree
 
         num_robots, num_dof = self.num_robots, self.num_dof
-        total_dofs = num_robots * num_dof
 
-        # homogeneous fleet: every robot exposes the same, contiguous block of DOFs
-        dofs_per_robot = wp.array(np.full(num_robots, num_dof, dtype=np.int32), dtype=wp.int32, device=self._device)
-        default_dof_indices = wp.array(np.arange(total_dofs, dtype=np.uint32), dtype=wp.uint32, device=self._device)
+        # homogeneous fleet: every robot contributes the same number of controlled DOFs
+        controlled_dofs_per_robot = wp.array(
+            np.full(num_robots, num_dof, dtype=np.int32), dtype=wp.int32, device=self._device
+        )
 
-        # gains are live input ports (updated per-step for the variable impedance modes)
+        # ``None`` keeps the gains as live input ports (updated per-step for the variable impedance modes)
         self._controller = ControllerJointImpedanceModelFree(
-            num_robots=num_robots,
-            dofs_per_robot=dofs_per_robot,
-            max_dofs=num_dof,
-            default_dof_indices=default_dof_indices,
-            stiffness="stiffness",
-            damping="damping",
+            controlled_dofs_per_robot=controlled_dofs_per_robot,
+            stiffness=None,
+            damping=None,
             use_gravity_compensation=self.cfg.gravity_compensation,
             use_coriolis_compensation=False,
             use_inertia_decoupling=self.cfg.inertial_compensation,
@@ -243,8 +241,8 @@ class JointImpedanceController:
         self._controller_input.joint_qd_des = wp.from_torch(self._joint_qd_des.view(-1))
 
         # gains bind directly to the schedule buffers so ``set_command`` updates propagate in place
-        self._controller_input.stiffness = wp.from_torch(self._p_gains)
-        self._controller_input.damping = wp.from_torch(self._d_gains)
+        self._controller_input.stiffness = wp.from_torch(self._p_gains.view(-1))
+        self._controller_input.damping = wp.from_torch(self._d_gains.view(-1))
 
         if self.cfg.gravity_compensation:
             self._gravity = torch.zeros(num_robots, num_dof, device=self._device)
@@ -255,4 +253,3 @@ class JointImpedanceController:
 
         # torque output aliases the controller's flat output port, reshaped to (num_robots, num_dof)
         self._joint_f = wp.to_torch(self._controller_output.joint_f).view(num_robots, num_dof)
-        self._time_step = wp.ones(1, dtype=wp.float32, device=self._device)
