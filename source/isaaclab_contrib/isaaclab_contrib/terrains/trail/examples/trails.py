@@ -46,8 +46,8 @@ class TrailTerrainGeneratorCfg(TerrainGeneratorCfg):
     size = (50.0, 40.0)  # length, width
     border_width = 0.0
     border_height: float = 0.0
-    num_rows = 10  # num terrain levels
-    num_cols = 100  # num terrain types
+    num_rows = 2  # num terrain levels
+    num_cols = 4  # num terrain types
     difficulty_range = (0.8, 1.0)  # 0 for easiest and 1.0 for hardest
     use_cache = False  # set this to True once you are happy with terrains (speed!!)
 
