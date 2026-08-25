@@ -1649,12 +1649,19 @@ class ArticulationData(BaseArticulationData):
                 "mujoco.tendon_damping",
                 SimulationManager.get_model(),
             )[:, 0]
+            self._sim_bind_fixed_tendon_pos_limits = self._root_view.get_attribute(
+                "mujoco.tendon_range",
+                SimulationManager.get_model(),
+            )[:, 0]
         else:
             self._sim_bind_fixed_tendon_stiffness = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
             self._sim_bind_fixed_tendon_damping = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_fixed_tendon_pos_limits = wp.zeros(
+                (self._num_instances, 0), dtype=wp.vec2f, device=self.device
             )
 
         # Re-pin ProxyArray wrappers to the newly created sim bindings.
@@ -1748,6 +1755,11 @@ class ArticulationData(BaseArticulationData):
         else:
             self._fixed_tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._fixed_tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+        # Unlike the properties above this is a per-step command, so it starts at zero rather than
+        # cloning a sim binding: MuJoCo holds the tendon's control in its own array, not on the tendon.
+        self._fixed_tendon_position_target = wp.zeros(
+            (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+        )
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
@@ -2351,6 +2363,7 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
             self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
             self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
+            self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
 
             # Category 2: TimestampedBuffer properties
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)

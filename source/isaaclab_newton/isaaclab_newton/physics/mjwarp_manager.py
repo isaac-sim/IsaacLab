@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model
+from newton import Contacts, Model, ModelBuilder
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
@@ -32,6 +32,17 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     _builder_attribute_solvers = (SolverMuJoCo,)
+
+    @classmethod
+    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+        """Register the MuJoCo attributes consumed by :class:`SolverMuJoCo`.
+
+        MuJoCo-specific USD entities, including native actuators and fixed tendons,
+        are imported through Newton custom attributes. These attributes must be
+        registered before :meth:`ModelBuilder.add_usd` traverses the stage.
+        """
+        if not builder.has_custom_attribute("mujoco:actuator_gainprm"):
+            SolverMuJoCo.register_custom_attributes(builder)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:

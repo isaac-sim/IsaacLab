@@ -1068,3 +1068,19 @@ def write_joint_state_data_mask(
         joint_vel[i, j] = vel_data[i, j]
         prev_joint_vel[i, j] = vel_data[i, j]
         joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def scatter_fixed_tendon_position_targets(
+    position_target: wp.array2d(dtype=wp.float32),
+    control_rows: wp.array2d(dtype=wp.int32),
+    ctrl: wp.array(dtype=wp.float32),
+) -> None:
+    """Scatter buffered fixed-tendon targets into the flat MuJoCo control array.
+
+    A tendon with no direct actuator carries row ``-1`` and is skipped.
+    """
+    env_id, fixed_tendon_id = wp.tid()
+    control_row = control_rows[env_id, fixed_tendon_id]
+    if control_row >= 0:
+        ctrl[control_row] = position_target[env_id, fixed_tendon_id]
