@@ -174,6 +174,7 @@ def _build_newton_builder_from_mapping(
         *replicate_args,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
+        env_ids=env_ids,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
     )
 

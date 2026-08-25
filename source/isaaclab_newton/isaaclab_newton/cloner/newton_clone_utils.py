@@ -186,6 +186,11 @@ def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     return np.concatenate([-_quat_rotate(quat_inv, xform[:3]), quat_inv])
 
 
+def _site_label(env_root: str | None, label: str) -> str:
+    """Site label, beneath *env_root* when it has one and bare otherwise."""
+    return f"{env_root}/{label}" if env_root else label
+
+
 def replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
@@ -195,12 +200,17 @@ def replicate_builder_mapping(
     source_builders: dict[str, ModelBuilder],
     *,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
-    env_root_sites: dict[str, wp.transform] | None = None,
+    env_root_sites: dict[str, tuple[wp.transform, str | None]] | None = None,
+    env_ids: torch.Tensor | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
-    """Replicate source builders into per-env Newton worlds."""
+    """Replicate source builders into per-env Newton worlds.
+
+    ``env_root_sites`` maps a label to its transform and the destination template naming its env.
+    """
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
+    env_ids_list = env_ids.tolist() if env_ids is not None else None
     num_worlds = mapping.size(1)
     local_site_map: dict[str, list[list[int]]] = {}
     positions_np = positions.detach().cpu().numpy().astype(np.float32, copy=False)
@@ -223,8 +233,12 @@ def replicate_builder_mapping(
         # by world_xforms[0] so R_w = world_xform_w * inv(world_xform_0) lands each
         # copy at world_xform_w * xform.
         site_local_indices: dict[str, list[int]] = {}
-        for label, xform in env_root_sites.items():
-            idx = source_builder.add_site(body=-1, xform=wp.transform_multiply(world_xforms[0], xform), label=label)
+        for label, (xform, destination_template) in env_root_sites.items():
+            # Every copy shares one label, so ``rename_builder_labels`` names them per env --
+            # exact here because ``can_batch`` requires the single row to cover every world.
+            root = sources[0] if destination_template and env_ids_list else None
+            site_xform = wp.transform_multiply(world_xforms[0], xform)
+            idx = source_builder.add_site(body=-1, xform=site_xform, label=_site_label(root, label))
             site_local_indices.setdefault(label, []).append(idx)
         for label, indices in source_site_indices.get(id(source_builder), {}).items():
             site_local_indices.setdefault(label, []).extend(indices)
@@ -248,7 +262,8 @@ def replicate_builder_mapping(
     # Per-world placements for every env-root site, composed up front so the per-world loop
     # below only indexes rows.
     root_site_xforms = {
-        label: _compose_world_xforms(positions_np, quaternions_np, xform) for label, xform in env_root_sites.items()
+        label: (_compose_world_xforms(positions_np, quaternions_np, xform), destination_template)
+        for label, (xform, destination_template) in env_root_sites.items()
     }
     # Same for the source placements, but only for the occupied ``(row, col)`` pairs of the
     # mapping: composing a dense ``num_rows x num_worlds`` table would blow up on heterogeneous
@@ -274,8 +289,11 @@ def replicate_builder_mapping(
     for col in range(num_worlds):
         builder.begin_world()
 
-        for label, world_site_xforms in root_site_xforms.items():
-            site_idx = builder.add_site(body=-1, xform=world_site_xforms[col], label=label)
+        for label, (world_site_xforms, destination_template) in root_site_xforms.items():
+            # Named here, not by ``rename_builder_labels``: that only rewrites labels in the
+            # worlds the requesting row covers, and an env-root site sits in every world.
+            env_root = destination_template.format(env_ids_list[col]) if destination_template and env_ids_list else None
+            site_idx = builder.add_site(body=-1, xform=world_site_xforms[col], label=_site_label(env_root, label))
             local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
 
         for row in rows_per_world[col]:

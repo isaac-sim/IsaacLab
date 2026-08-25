@@ -499,9 +499,9 @@ class NewtonManager(PhysicsManager):
     # CL: Cloning / Replication logic
     # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
     # Pending site requests from sensors.
-    # Key: (body_pattern, per_world, xform_floats), Value: (label, wp.transform)
-    # identical (body_pattern, per_world, transform) reuses the same site.
-    _cl_pending_sites: dict[tuple[str | None, bool, tuple[float, ...]], tuple[str, wp.transform]] = {}
+    # Key: (body_pattern, per_world, xform_floats, destination_template), Value: (label, wp.transform)
+    # identical keys reuse the same site.
+    _cl_pending_sites: dict[tuple[str | None, bool, tuple[float, ...], str | None], tuple[str, wp.transform]] = {}
 
     # Maps each site label to its resolved global or local site entry.
     _GlobalSite = tuple[int, None]
@@ -1203,14 +1203,21 @@ class NewtonManager(PhysicsManager):
         """
 
     @classmethod
-    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
+    def cl_register_site(
+        cls,
+        body_pattern: str | None,
+        xform: wp.transform,
+        *,
+        per_world: bool = False,
+        destination_template: str | None = None,
+    ) -> str:
         """Register a site request for injection into prototypes before replication.
 
         Sensors call this during ``__init__``. Sites are injected into prototype
         builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
         before ``add_builder``, so they replicate correctly per-world.
 
-        Identical ``(body_pattern, per_world, transform)`` registrations share sites.
+        Identical ``(body_pattern, per_world, transform, destination_template)`` registrations share sites.
 
         The *body_pattern* is matched against prototype-local body labels
         (e.g. ``"Robot/link.*"``) when replication is active, or against the
@@ -1225,14 +1232,19 @@ class NewtonManager(PhysicsManager):
             xform: Site transform relative to body.
             per_world: When ``True``, ``body_pattern`` must be ``None`` and one
                 bodyless site is created in each cloned world's frame.
+            destination_template: Destination template of the clone-plan row that requested a
+                ``per_world`` site, so its label names the environment it lands in. A site
+                registered without one reads the same in every environment.
 
         Returns:
             Assigned site label suffix.
         """
         if per_world and body_pattern is not None:
             raise ValueError("per_world site registration requires body_pattern=None.")
+        if destination_template is not None and not per_world:
+            raise ValueError("destination_template applies to per_world site registration.")
         xform_key = tuple(xform)
-        key = (body_pattern, per_world, xform_key)
+        key = (body_pattern, per_world, xform_key, destination_template)
         if key in cls._cl_pending_sites:
             return cls._cl_pending_sites[key][0]
         label = f"ft_{len(cls._cl_pending_sites)}"
@@ -1270,7 +1282,7 @@ class NewtonManager(PhysicsManager):
         cls,
         main_builder: ModelBuilder,
         source_builders: dict[str, ModelBuilder],
-    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
+    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, tuple[wp.transform, str | None]]]:
         """Inject registered sites into source builders before replication.
 
         Non-global sites are matched against source builder body labels using
@@ -1291,16 +1303,17 @@ class NewtonManager(PhysicsManager):
             Tuple of ``(global_site_indices, source_site_indices, env_root_sites)`` where
             *global_site_indices* maps ``{label: main_builder_shape_idx}``,
             *source_site_indices* maps ``{id(source_builder): {label: [source_local_shape_idx, ...]}}``,
-            and *env_root_sites* maps ``{label: env_root_relative_transform}``.
+            and *env_root_sites* maps ``{label: (env_root_relative_transform, destination_template)}``,
+            where *destination_template* names the environment the site lands in, or ``None``.
         """
         global_site_indices: dict[str, int] = {}
         source_site_indices: dict[int, dict[str, list[int]]] = {}
 
-        env_root_sites: dict[str, wp.transform] = {}
+        env_root_sites: dict[str, tuple[wp.transform, str | None]] = {}
 
-        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+        for (body_pattern, per_world, _xform_key, template), (label, xform) in cls._cl_pending_sites.items():
             if per_world:
-                env_root_sites[label] = xform
+                env_root_sites[label] = (xform, template)
                 continue
             if body_pattern is None:
                 site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
@@ -1348,7 +1361,7 @@ class NewtonManager(PhysicsManager):
         builder = cls._builder
         body_labels = list(builder.body_label)
 
-        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+        for (body_pattern, per_world, _xform_key, _template), (label, xform) in cls._cl_pending_sites.items():
             if per_world:
                 site_idx = builder.add_site(body=-1, xform=xform, label=label)
                 cls._cl_site_index_map[label] = (None, [[site_idx]])

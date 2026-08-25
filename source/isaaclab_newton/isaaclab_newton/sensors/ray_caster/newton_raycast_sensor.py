@@ -104,7 +104,10 @@ class _NewtonRayCasterPoseMixin:
             for destination_template in plan.destinations:
                 matched = cloner.path.match(prim_expr, destination_template)
                 if matched is not None and not matched.suffix:
-                    return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
+                    site = NewtonManager.cl_register_site(
+                        None, wp.transform(), per_world=True, destination_template=destination_template
+                    )
+                    return [site]
 
         try:
             body_expr, fixed_pos, fixed_quat = self._resolve_rigid_body_ancestor_expr()

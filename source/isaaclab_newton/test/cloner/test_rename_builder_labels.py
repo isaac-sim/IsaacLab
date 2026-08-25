@@ -400,7 +400,8 @@ class TestReplicateBuilderMapping(unittest.TestCase):
                 positions,
                 quaternions,
                 {_SRC: source},
-                env_root_sites={"origin": env_root_offset},
+                env_root_sites={"origin": (env_root_offset, None)},
+                env_ids=torch.arange(3, dtype=torch.long),
             )
 
         replicate.assert_called_once()
@@ -553,6 +554,43 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     [f"/World/envs/env_2/Object/{suffix}"],
                 ],
             )
+
+
+class TestEnvRootSiteLabels(unittest.TestCase):
+    """A per-world site names the environment it lands in, rather than repeating one name."""
+
+    _DST = "/World/envs/env_{}/Robot"
+    _WORLDS = 4
+
+    def _site_labels(self, sources, mapping):
+        """Replicate one env-root site across worlds and return its label in each, in world order."""
+        builder = newton.ModelBuilder()
+        env_ids = torch.arange(self._WORLDS, dtype=torch.long)
+        replicate_builder_mapping(
+            builder,
+            sources,
+            mapping,
+            torch.zeros((self._WORLDS, 3)),
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]] * self._WORLDS),
+            {source: newton.ModelBuilder() for source in sources},
+            env_root_sites={"ft_0": (wp.transform(), self._DST)},
+            env_ids=env_ids,
+        )
+        rename_builder_labels(builder, sources, [self._DST] * len(sources), env_ids, mapping)
+        return [label for label in builder.shape_label if label.endswith("ft_0")]
+
+    def _expected(self):
+        return [self._DST.format(env_id) + "/ft_0" for env_id in range(self._WORLDS)]
+
+    def test_one_row_covering_every_world_names_each_environment(self):
+        mapping = torch.ones(1, self._WORLDS, dtype=torch.bool)
+        self.assertEqual(self._site_labels(("/World/envs/env_0/Robot",), mapping), self._expected())
+
+    def test_rows_partitioning_the_worlds_name_each_environment(self):
+        """Prototype variants split the envs between them, so no single row covers every world."""
+        sources = ("/World/envs/env_0/Robot", "/World/envs/env_2/Robot")
+        mapping = torch.tensor([[True, True, False, False], [False, False, True, True]])
+        self.assertEqual(self._site_labels(sources, mapping), self._expected())
 
 
 if __name__ == "__main__":
