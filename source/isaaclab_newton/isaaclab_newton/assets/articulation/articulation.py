@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -27,7 +28,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
@@ -84,10 +85,11 @@ def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
 
 def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
     """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    root_prim_path_regex = path_expr_to_glob(_resolve_articulation_root_prim_path_expr(cfg)).replace("*", ".*")
+    root_prim_path_regex = _resolve_articulation_root_prim_path_expr(cfg)
     articulation_ids, _ = resolve_matching_names(
         root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
     )
+    source_dof_ids = None
     for articulation_id in articulation_ids:
         joint_start = builder.articulation_start[articulation_id]
         joint_end = builder.articulation_end[articulation_id]
@@ -106,6 +108,11 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
             for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
                 dof_ids.append(dof_id)
                 dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
+
+        if source_dof_ids is not None:
+            for source_dof_id, dof_id in zip(source_dof_ids, dof_ids, strict=True):
+                builder.joint_target_mode[dof_id] = builder.joint_target_mode[source_dof_id]
+            continue
 
         for actuator_cfg in cfg.actuators.values():
             matched_indices, matched_names = resolve_matching_names(
@@ -130,6 +137,7 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
                     if _is_implicit_actuator_cfg(actuator_cfg)
                     else JointTargetMode.EFFORT
                 )
+        source_dof_ids = dof_ids
 
 
 class Articulation(BaseArticulation):
@@ -3279,19 +3287,14 @@ class Articulation(BaseArticulation):
     """
 
     def _initialize_impl(self):
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-
         root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
-        self._root_view = ArticulationView(
+        self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = ArticulationView(
             SimulationManager.get_model(),
-            path_expr_to_glob(root_prim_path_expr),
+            re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
-        # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
-        SimulationManager.get_physics_sim_view().append(self._root_view)
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)

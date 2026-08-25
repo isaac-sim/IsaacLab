@@ -370,26 +370,15 @@ def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
     assert ovrtx_use_ovstage_enabled() is False
 
 
-def test_ovrtx_use_ovstage_enabled_when_requested_and_available(monkeypatch):
-    """Setting the variable to 1 selects the ovstage path when ovstage is importable."""
+def test_ovrtx_use_ovstage_enabled_when_requested(monkeypatch):
+    """Setting the variable to 1 selects the ovstage path."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
     assert ovrtx_use_ovstage_enabled() is True
-
-
-def test_ovrtx_use_ovstage_raises_when_requested_but_unavailable(monkeypatch):
-    """An explicit opt-in must fail loudly rather than silently falling back to the legacy path."""
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", False)
-
-    with pytest.raises(RuntimeError, match="uv run --extra ovrtx"):
-        ovrtx_use_ovstage_enabled()
 
 
 def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
     """Values other than 0/1 are a configuration error, not a silent disable."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
 
     with pytest.raises(ValueError, match="Expected 0 or 1"):
         ovrtx_use_ovstage_enabled()
