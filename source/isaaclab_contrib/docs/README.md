@@ -617,6 +617,8 @@ TRAIL_CFG = TrailTerrainGeneratorCfg(
 )
 ```
 
+A manger based RL environment is set up in isaaclab_tasks/contib/trail and can be run with `./isaaclab.sh -p scripts/environments/zero_agent.py --task IsaacContrib-Velocity-Trail-AnymalC --num_envs 4`
+
 ### Semantic Embedding
 
 The colors stored in `visual.vertex_colors` can be visualized by setting `visual_material=None` in the `TerrainImporterCfg`. Those colors can also be read directly with a color-sensitive ray caster. In this case, MDP components can be designed to digest semantic information extracted directly from the mesh. For instance, by coloring the initial platform, the final platform, the trail, and the trail objects uniquely, it is possible to

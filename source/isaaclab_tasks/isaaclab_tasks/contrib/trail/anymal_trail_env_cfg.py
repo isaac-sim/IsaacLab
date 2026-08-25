@@ -3,23 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
+"""Manager-based configuration for ANYmal-C on the contributed trail terrains."""
 
-Manager-based configuration for ANYmal-C on the contributed trail terrains.
-
-export PYTHONPATH=/workspace/isaaclab/source/isaaclab_contrib:$PYTHONPATH
-
-./isaaclab.sh -p scripts/environments/zero_agent.py \
-  --task IsaacContrib-Velocity-Trail-AnymalC \
-  --num_envs 4
-
-Install:
-pip install manifold3d
-"""
-
+import isaaclab.sim as sim_utils
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
+
 from isaaclab_contrib.terrains.trail.examples.trails import TRAIL_CFG
 
 
@@ -28,14 +18,11 @@ class AnymalCTrailEnvCfg(AnymalCRoughEnvCfg):
     """ManagerBasedRLEnvCfg for ANYmal-C walking over trail terrains."""
 
     def __post_init__(self) -> None:
-        """Configure ANYmal-C and replace the rough terrain with trail terrains."""
+        """Configure ANYmal-C and replace the rough terrain with trail terrain."""
         super().__post_init__()
-        # --------------------------------------------------
-        # overwrites go here...
         for trail_cfg in TRAIL_CFG.sub_terrains.values():
-            trail_cfg.training = False  # do not use simplified useful for training
-            trail_cfg.cut_objects_above = None  # do not cut objects
-        # --------------------------------------------------
+            trail_cfg.training = False
+            trail_cfg.cut_objects_above = None
         self.scene.terrain = TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="generator",
