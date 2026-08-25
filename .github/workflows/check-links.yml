@@ -110,6 +110,8 @@ jobs:
           --exclude 'andrew\.cmu\.edu/course/10-703/textbook/BartoSutton\.pdf'
           --exclude 'www\.nvidia\.com/en-us/security'
           --exclude 'bostondynamics\.com/reinforcement-learning-researcher-kit'
+          --exclude 'docs\.manus-meta\.com'
+          --exclude 'nvidia\.github\.io/IsaacTeleop'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20
