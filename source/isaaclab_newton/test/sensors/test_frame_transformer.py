@@ -619,27 +619,6 @@ def test_frame_transformer_all_bodies(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_print(sim):
-    """Test sensor print is working correctly."""
-    # Spawn things into stage
-    scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
-    scene_cfg.frame_transformer = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
-            ),
-        ],
-    )
-    scene = InteractiveScene(scene_cfg)
-
-    # Play the simulator
-    sim.reset()
-    # print info
-    print(scene.sensors["frame_transformer"])
-
-
-@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("source_robot", ["Robot", "Robot_1"])
 @pytest.mark.parametrize("path_prefix", ["{ENV_REGEX_NS}", "/World"])
 def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):

@@ -432,6 +432,18 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
     """Create kitless Franka rendering parameters."""
     params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    params = [
+        (
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[mark for mark in param.marks if mark.name != "skip"],
+            )
+            if tuple(param.values[1:]) == ("newton", "ovrtx_renderer", "motion_vectors")
+            else param
+        )
+        for param in params
+    ]
     instance_segmentation_skips = {
         tuple(param.values): "instance_segmentation crashes with the OVRTX renderer on Franka tasks (NVBUG#6463802)."
         for param in params
@@ -1890,6 +1902,18 @@ def rendering_test_lift_kuka(
     env_cfg.scene.base_camera.data_types = data_types
 
     motion_data_type = _motion_data_type(data_types)
+    if motion_data_type == "motion_vectors":
+        # Keep motion stable across hosts and test order. The seed covers future startup terms, while disabling
+        # current physics randomization removes backend-dependent draw sensitivity.
+        env_cfg.seed = 42
+        env_cfg.events.robot_physics_material = None
+        env_cfg.events.object_physics_material = None
+        env_cfg.events.object_physics_inertia = None
+        env_cfg.events.joint_stiffness_and_damping = None
+        env_cfg.events.joint_friction = None
+        env_cfg.events.object_scale_mass = None
+        env_cfg.events.finger_closing_speed = None
+
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
@@ -1913,7 +1937,10 @@ def rendering_test_lift_kuka(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        maybe_step_env_for_motion(env, renderer, motion_data_type)
+        if motion_data_type == "motion_vectors":
+            # Capture controlled joint motion instead of the first-step autoreset transient.
+            env.reset(seed=42)
+        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
         validate_camera_outputs(
             test_name,
@@ -2108,8 +2135,12 @@ def rendering_test_franka_cloth(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
+    is_newton_ovrtx_motion = (
+        physics_backend == "newton" and renderer == "ovrtx_renderer" and "motion_vectors" in data_types
+    )
     for data_type in data_types:
-        _skip_if_newton_motion_vectors(physics_backend, data_type)
+        if not (is_newton_ovrtx_motion and data_type == "motion_vectors"):
+            _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     if renderer == "ovrtx_renderer" and "instance_segmentation" in data_types:
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
@@ -2125,6 +2156,9 @@ def rendering_test_franka_cloth(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    if is_newton_ovrtx_motion:
+        initial_pos = env_cfg.scene.deformable.init_state.pos
+        env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2140,6 +2174,9 @@ def rendering_test_franka_cloth(
         # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
+        # TODO: Remove the extra step when NVBug 6565960 is fixed.
+        if is_newton_ovrtx_motion:
+            env.step(zero_actions)
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output

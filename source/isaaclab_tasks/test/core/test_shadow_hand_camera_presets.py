@@ -24,6 +24,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
+from isaaclab.sensors import CameraCfg
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
@@ -41,8 +42,9 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     The mock reuses the real validation logic from :class:`ShadowHandCameraEnvCfg`.
     """
     cfg = types.SimpleNamespace()
-    cfg.tiled_camera = types.SimpleNamespace(
-        renderer_cfg=types.SimpleNamespace(renderer_type=renderer_type),
+    cfg.tiled_camera = CameraCfg(
+        prim_path="/Camera",
+        renderer_cfg=RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None,
         data_types=data_types,
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
