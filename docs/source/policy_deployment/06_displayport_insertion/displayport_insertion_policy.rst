@@ -34,8 +34,6 @@ The task follows the same structure as the gear assembly deploy environments:
 - ``isaaclab_tasks/contrib/deploy/cable_insertion/displayport_insertion_env_cfg.py`` — shared task MDP (scene, assets, observations, rewards)
 - ``isaaclab_tasks/contrib/deploy/cable_insertion/insertion_env.py`` — environment class that logs insertion success metrics during training
 - ``isaaclab_tasks/contrib/deploy/cable_insertion/config/displayport_rizon_4s/`` — Flexiv Rizon 4s + Grav robot-specific overrides and gym registrations
-- ``isaaclab_tasks/contrib/deploy/cable_insertion/config/displayport_rizon_4s/sysid_cfg.py`` — tunable sim-to-real / SysID knobs (``env.sysid.*``)
-- ``isaaclab_tasks/contrib/deploy/mdp/delayed_joint_actions*.py`` — delayed / shaped / dynamics-aware joint actions
 - ``scripts/reinforcement_learning/train.py`` — unified trainer (pass ``--rl_library rsl_rl``)
 - ``scripts/reinforcement_learning/deploy/play_displayport_insertion.py`` — DisplayPort-specific inference / LEAPP validation / CSV logging
 
@@ -562,51 +560,6 @@ Defined in ``config/displayport_rizon_4s/agents/rsl_rl_ppo_cfg.py``.
      - Exploration noise. Lower for fine-tuning a near-working policy.
 
 **Suggested tuning order:** (1) confirm asset/physics quality, (2) curriculum depth and anneal schedule, (3) linear vs exponential reward balance, (4) socket pose DR and observation noise, (5) action scale, (6) PPO training length.
-
-
-Sim-to-Real / SysID Action Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The joint-space env exposes a tunable ``env.sysid`` block (``Sim2RealSysIdCfg`` in
-``config/displayport_rizon_4s/sysid_cfg.py``).
-It is **off by default** (plain ``RelativeJointPositionAction`` + stock PD + 240 Hz / decimation 8).
-When enabled it can independently mix:
-
-* **Control rate** — ``override_sim_rate``, ``physics_freq_hz``, ``decimation`` (default 200 Hz / 4 → 50 Hz)
-* **Latency** — ``enable_latency``, ``latency_s`` / ``latency_steps``
-* **Command shaping** — ``enable_velocity_limit`` / ``command_velocity_limit`` (rad/s),
-  ``enable_acceleration_limit`` / ``command_acceleration_limit`` (rad/s²)
-* **SysID PD** — ``enable_sysid_pd``, ``arm_stiffness``, ``arm_damping``
-* **Action mode** — ``shaped_delayed`` (default), ``delayed``, or ``dynamics_aware`` (needs mass matrix)
-
-Hydra examples:
-
-.. code-block:: bash
-
-   # Full ashwin-style deployment model
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
-     env.sysid.enabled=true
-
-   # Latency only (keep stock PD and 240 Hz)
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
-     env.sysid.enabled=true \
-     env.sysid.override_sim_rate=false \
-     env.sysid.enable_sysid_pd=false \
-     env.sysid.enable_velocity_limit=false \
-     env.sysid.enable_acceleration_limit=false \
-     env.sysid.latency_s=0.04
-
-   # Tune shaping without latency
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
-     env.sysid.enabled=true \
-     env.sysid.enable_latency=false \
-     env.sysid.command_velocity_limit=1.5 \
-     env.sysid.command_acceleration_limit=2.0
-
-The delayed / shaped action terms live under
-``source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/mdp/delayed_joint_actions*.py``.
-Shaped mode holds the shaped absolute target across PhysX substeps (no per-substep
-re-anchor), which is closer to the real robot's once-per-cycle command.
 
 
 Part 3: Training the Policy in Isaac Lab
