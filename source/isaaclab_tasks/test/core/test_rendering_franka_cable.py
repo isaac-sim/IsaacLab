@@ -20,6 +20,7 @@ from rendering_test_utils import (  # noqa: E402
     make_determinism_fixture,
     make_generate_html_report_fixture,
     rendering_test_franka_cable,
+    rendering_test_franka_cable_partition_visibility,
 )
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -35,3 +36,13 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 def test_rendering_franka_cable(physics_backend, renderer, data_types):
     """Test Franka cable rendering correctness across AOVs."""
     rendering_test_franka_cable(physics_backend, renderer, data_types, _COMPARISON_SCORES)
+
+
+@pytest.mark.parametrize("physics_backend", ["newton"])
+def test_rendering_franka_cable_partition_visibility(physics_backend):
+    """The cable stays visible after deforming outside its initial extent (OMPE-105749).
+
+    The AOV tests above capture a settled cable, so they never leave the bounding box that Kit RTX
+    computes for the curve at spawn and cannot catch the partition culling it after motion.
+    """
+    rendering_test_franka_cable_partition_visibility(physics_backend, "isaacsim_rtx_renderer")

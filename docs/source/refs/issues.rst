@@ -136,6 +136,14 @@ The bug is specific to the Isaac RTX (Kit) backend with
 :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` enabled.
 The OVRTX backend updates animated-curve bounding boxes correctly and is unaffected.
 
+.. note::
+
+   The culling is not currently observable in Isaac Lab's own cable environments. Cable points are
+   synced to Hydra through a CPU mirror because RTX Hydra ignores GPU Fabric ``BasisCurves`` points
+   (NVBug 6502662), and OMPE-105749 affects the GPU interop path. The workaround below is therefore
+   preventative: it matters for scenes that drive animated curves through GPU interop, and for
+   Isaac Lab once NVBug 6502662 is fixed and the CPU mirror is dropped.
+
 There are two workarounds:
 
 * **Pin the partition bounds.** Spawn a pair of millimetre-scale static cubes at
