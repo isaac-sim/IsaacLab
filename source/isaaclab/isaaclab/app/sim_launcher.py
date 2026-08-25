@@ -542,6 +542,13 @@ def launch_simulation(
         launcher_args, "visualizer_explicit", False
     )
 
+    # AppLauncher.__init__ prewarms the asset server, but it runs on the Kit path only. The
+    # kitless elif below is not enough: a run that passes no visualizer argument skips both.
+    if not needs_kit:
+        from isaaclab.utils.assets import _prewarm_asset_server
+
+        _prewarm_asset_server()
+
     close_fn: Any = None
     if needs_kit:
         _ensure_isaac_sim_available()
