@@ -230,7 +230,7 @@ OVERRIDES = {
         visualizers=("none",),
     ),
     "scripts/demos/sensors/ppisp_camera_ovrtx.py": ScriptOverride(
-        args=("--max_steps", "3", "--warmup_steps", "1"),
+        args=("--num_frames", "3", "--warmup_steps", "1"),
         visualizers=("none",),
         required_modules=("ovrtx",),
     ),

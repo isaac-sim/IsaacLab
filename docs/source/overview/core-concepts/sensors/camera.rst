@@ -459,6 +459,12 @@ RTX Gaussian settings such as ``--isaacrtx_render_mode``,
 ``--isaacrtx_enable_accumulation``; run the demo with ``--help`` for the full
 list.
 
+``scripts/demos/sensors/ppisp_camera_ovrtx.py`` runs the same workflow on the
+kit-less OVRTX renderer, with the same arguments, trajectory playback, and
+output layout minus the Kit-only options. It must be launched with
+``uv run python`` and is configured through ``OVRTX_*`` environment variables
+instead of ``--isaacrtx_*`` flags.
+
 Known limitations
 ^^^^^^^^^^^^^^^^^
 
