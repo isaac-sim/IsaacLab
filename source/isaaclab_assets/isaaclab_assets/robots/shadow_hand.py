@@ -26,36 +26,6 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-SHADOW_HAND_USD_PATH = os.environ.get(
-    "SHADOW_HAND_USD",
-    f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandMultiPhysics/shadow_hand_instanceable.usda",
-)
-"""The asset. Its ``Physics`` USD variant selects the engine.
-
-The published asset must carry the four PhysX tendon schemas the ``mujoco`` variant expresses as
-``MjcTendon`` prims, and a world weld PhysX honours -- MEASURED, an asset without them gives
-``fixed_base=False tendons=0`` where this configuration expects ``fixed_base=True joints=24
-tendons=4``. It publishes beside the existing ``ShadowHand`` rather than replacing it, so assets still
-referencing the single-engine hand keep working. ``SHADOW_HAND_USD`` points at a local copy
-until it lands.
-"""
-
-SHADOW_HAND_JOINT_ORDERING = "mjwarp"
-"""Public joint order, so both engines expose the hand's joints identically.
-
-Left unset each backend uses its own enumeration order, and MEASURED they differ: Newton walks
-depth-first per finger, PhysX breadth-first by joint level, so index 3 is ``rh_FFJ3`` on one and
-``rh_MFJ4`` on the other. Every observation past index 2 then names a different joint, and a policy
-trained on one engine scores 0.0005 on the other against a 0.6165 native baseline.
-
-``"mjwarp"`` makes Newton's order the public one, so PhysX permutes to match rather than the other
-way round. Actions were never affected -- the action terms resolve by name with
-``preserve_order`` -- so this only realigns the observations.
-"""
-
-SHADOW_HAND_BODY_ORDERING = "mjwarp"
-"""Public body order, chosen to match :attr:`joint_ordering` for the same reason."""
-
 SHADOW_HAND_JOINT_NAMES = [
     "rh_WRJ2",
     "rh_WRJ1",
@@ -110,29 +80,28 @@ SHADOW_HAND_FINGERTIP_NAMES = [
 
 SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=SHADOW_HAND_USD_PATH,
+        # The published asset must carry the four PhysX tendon schemas the mujoco variant
+        # expresses as MjcTendon prims, and a world weld; MEASURED, an asset without them
+        # gives fixed_base=False tendons=0 where this expects fixed_base=True tendons=4.
+        usd_path=os.environ.get(
+            "SHADOW_HAND_USD",
+            f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandMultiPhysics/shadow_hand_instanceable.usda",
+        ),
         variants={"Physics": "physx"},
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             # Shared with Allegro, the other hand in these tasks, and with most robot configs
             # (23/30 set disable_gravity, 27/30 set max_depenetration_velocity).
             disable_gravity=True,
             max_depenetration_velocity=1000.0,
-            # PhysX only, and inherited from the pre-unification Shadow Hand config.
-            # MEASURED 2026-08-20: dropping it does NOT reintroduce the divergence -- 160
-            # iterations of handover on PhysX, no NaN, where the earlier solver regression
-            # failed at iteration 3. But mean reward over iters 145-155 was 207 against the
-            # baseline's 258, and one seed cannot separate that from noise (that run's own
-            # spread was 153-254). Kept until a multi-seed comparison settles it.
+            # PhysX only. MEASURED: dropping it costs mean reward 258 -> 207 over one seed,
+            # inside that run's own 153-254 spread. Kept until multiple seeds settle it.
             retain_accelerations=True,
         ),
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True,
-                # MEASURED 2026-08-19: without these the hand diverges to non-finite
-                # observations at iteration 49 (reorient) and 3 (handover), reproducibly,
-                # while Allegro on the same backend trains clean. The scene-level
-                # `min_position_iteration_count` clamp does NOT substitute -- a run with it
-                # produced a byte-identical log.
+                # MEASURED: without these the hand reaches non-finite observations at iteration
+                # 49 (reorient) and 3 (handover). The scene-level clamp does not substitute.
                 solver_position_iteration_count=8,
                 solver_velocity_iteration_count=0,
                 sleep_threshold=0.005,
@@ -143,22 +112,18 @@ SHADOW_HAND_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
-        # Newton's importer bakes the root body's xformOp rotation into the root joint and
-        # cancels it during FK, so the orientation is re-applied here. Same value and same
-        # reason as the previous Newton asset, which trains this task to 0.926 success.
-        #
-        # MEASURED: of all 24 axis-aligned orientations scored by fingertip distance from
-        # that asset's imported pose, this one is 33 mm away and every other is 545-615 mm.
-        #
-        # Both engines take this one rotation. The asset pair this replaces needed two,
-        # because the PhysX asset baked a root orientation that the Newton one did not;
-        # this asset bakes none, so re-applying it here is right for either engine.
-        # MEASURED: the palm lands at the same env-local (0.0, -0.247, 0.51) on both.
+        # Newton's importer cancels the root xform during FK, so the orientation is re-applied.
+        # MEASURED: of the 24 axis-aligned orientations this is 33 mm from the reference pose and
+        # every other is 545-615 mm. One rotation serves both engines; the palm lands at the same
+        # env-local (0.0, -0.247, 0.51) on each.
         rot=(0.0, 0.0, -0.70710678118, 0.70710678118),
         joint_pos={".*": 0.0},
     ),
-    joint_ordering=SHADOW_HAND_JOINT_ORDERING,
-    body_ordering=SHADOW_HAND_BODY_ORDERING,
+    # Each backend enumerates differently -- MEASURED, index 3 is rh_FFJ3 on Newton and rh_MFJ4
+    # on PhysX, and a policy moved across scores 0.0005 against a 0.6165 native baseline.
+    # Newton's order is the public one, so PhysX permutes to match.
+    joint_ordering="mjwarp",
+    body_ordering="mjwarp",
     actuators={
         "direct_motors": ImplicitActuatorCfg(
             joint_names_expr=SHADOW_HAND_JOINT_NAMES,
@@ -182,38 +147,25 @@ SHADOW_HAND_CFG = ArticulationCfg(
                 "rh_THJ2": 1.5,
                 "rh_THJ1": 1.0,
             },
-            # Zeroing the damping on the grounds that the MuJoCo model supplies it is wrong for these
-            # joints: MEASURED, they end at damping 0.0 while only the tendon-coupled J1/J2 inherit the
-            # model's. A driven joint with stiffness and no damping is an undamped spring -- it rings
-            # rather than settles, and an object resting on it is flung.
+            # MEASURED: these joints do not inherit the model's damping (only the tendon-coupled
+            # J1/J2 do), and stiffness without damping rings rather than settles.
             damping={"rh_WRJ.*": 0.5, "rh_(FF|MF|RF|LF|TH)J.*": 0.1},
-            # The asset's own drivetrain values, restated because they do not survive import: the asset
-            # authors ``armature = 0.0002`` and ``frictionloss``/``jointFriction = 0.01`` in both its
-            # physx and mujoco payloads, but MEASURED, leaving these at None lands every joint at 0.0 --
-            # stiffness and damping do survive, armature and friction do not.
-            #
-            # An earlier revision forced ``armature = 2e-3``, the value the PREVIOUS asset's
-            # configuration used. That is ten times what this asset describes and reads as a heavier,
-            # slower hand.
+            # The asset's own values, restated because they do not survive import -- MEASURED,
+            # leaving them None lands every joint at 0.0 where stiffness and damping do survive.
             armature=2.0e-4,
             friction=1.0e-2,
         ),
         "coupled_joints": ImplicitActuatorCfg(
             joint_names_expr=["rh_(FF|MF|RF|LF)J(2|1)"],
-            # Bound what the tendon can apply. MEASURED, leaving this unset lands these eight joints at
-            # 3.4e38 -- float max -- while every directly driven joint gets 1 to 10 N-m. They are exactly
-            # the joints the tendon pulls, so an unbounded torque there is a route to a diverging
-            # velocity under contact. A PhysX fixed tendon has no force-range field of its own, so the
-            # joint's effort limit is the only place the model's cap can live: the MuJoCo payload caps
-            # each tendon actuator at ``mjc:forceRange`` +/-1, and the previous PhysX Shadow Hand gave
-            # these same physical joints 0.9 and 0.7245.
+            # A PhysX fixed tendon has no force range, so the joint's effort limit is where the
+            # model's cap lives. MEASURED: unset, these eight land at 3.4e38 while every directly
+            # driven joint gets 1-10 N-m.
             joint_effort_limit={
                 "rh_(FF|MF|RF|LF)J2": 0.9,
                 "rh_(FF|MF|RF|LF)J1": 0.7245,
             },
-            # These take no position command -- the tendon drives them -- so their stiffness and damping
-            # stay as the model authored them, which does survive import (None keeps the USD value).
-            # Armature and friction do not survive, so they are restated from the asset as above.
+            # The tendon drives these, so stiffness and damping stay as authored (None keeps the
+            # USD value); armature and friction are restated because they do not survive import.
             stiffness=None,
             damping=None,
             armature=2.0e-4,
@@ -223,15 +175,13 @@ SHADOW_HAND_CFG = ArticulationCfg(
 )
 """Shadow Hand on the asset's PhysX variant.
 
-One USD asset serves both engines and its ``Physics`` variant selects which; nothing else differs
-between them. Per-engine values that cannot be shared, such as the tendon gains each engine
-expresses in its own units, are authored in the asset's variants rather than restated here.
+One asset serves both engines; the ``Physics`` variant selects which, and per-engine values are
+authored in the asset rather than restated here.
 """
 
 SHADOW_HAND_NEWTON_CFG = SHADOW_HAND_CFG.copy()
 SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco"}
 """Shadow Hand on the asset's MuJoCo variant, for the Newton (MJWarp) solver.
 
-Identical to :data:`SHADOW_HAND_CFG` apart from the selected variant -- see it for why the spawn
-pose and both orderings are shared.
+Identical to :data:`SHADOW_HAND_CFG` apart from the selected variant.
 """

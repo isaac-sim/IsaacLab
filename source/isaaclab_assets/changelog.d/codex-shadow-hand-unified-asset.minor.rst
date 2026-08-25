@@ -10,8 +10,7 @@ Added
 ^^^^^
 
 * Added ``SHADOW_HAND_JOINT_NAMES``, ``SHADOW_HAND_TENDON_NAMES``,
-  ``SHADOW_HAND_TENDON_POSITION_LIMITS``, ``SHADOW_HAND_FINGERTIP_NAMES``,
-  ``SHADOW_HAND_JOINT_ORDERING`` and ``SHADOW_HAND_BODY_ORDERING`` to
+  ``SHADOW_HAND_TENDON_POSITION_LIMITS`` and ``SHADOW_HAND_FINGERTIP_NAMES`` to
   :mod:`~isaaclab_assets.robots.shadow_hand`, so a task can name the hand's sixteen joint-driving
   motors, its four tendon-driving motors and their commandable range without restating them.
   ``SHADOW_HAND_CFG`` and ``SHADOW_HAND_NEWTON_CFG`` select the PhysX and Newton variants.
