@@ -50,15 +50,17 @@ class SceneEntitySelectionCfg(SceneEntityCfg):
         """Map global environment IDs to physics-view instance rows.
 
         Args:
-            env_ids: Global environment IDs to select.
+            env_ids: Global environment IDs to select. Moved to the resolved entity's device.
             strict: Whether to reject environments that do not contain the entity. Defaults to False.
 
         Returns:
-            A tuple containing selected instance rows and their aligned global environment IDs.
+            A tuple containing selected instance rows and their aligned global environment IDs on the
+            resolved entity's device.
 
         Raises:
             ValueError: If ``strict`` is enabled and an environment does not contain the entity.
         """
+        env_ids = env_ids.to(self.instance_ids.device)
         instance_ids = self.instance_ids[env_ids]
         selected = instance_ids >= 0
         if strict and not bool(selected.all()):
@@ -73,7 +75,7 @@ class SceneEntitySelectionCfg(SceneEntityCfg):
             fill_value: Value assigned to environments that do not contain the entity. Defaults to 0.
 
         Returns:
-            Values in global environment order.
+            Values in global environment order on the same device as ``values``.
 
         Raises:
             ValueError: If the values do not have an instance dimension or its length does not match
@@ -85,7 +87,7 @@ class SceneEntitySelectionCfg(SceneEntityCfg):
             raise ValueError(f"Expected {self.env_ids.numel()} values for '{self.name}', got {values.shape[0]}.")
 
         result = values.new_full((self.instance_ids.numel(), *values.shape[1:]), fill_value)
-        result[self.env_ids] = values
+        result[self.env_ids.to(values.device)] = values
         return result
 
 

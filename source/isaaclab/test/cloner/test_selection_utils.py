@@ -8,6 +8,7 @@
 from types import SimpleNamespace
 
 import pytest
+import torch
 
 from isaaclab import cloner
 from isaaclab.cloner.selection_utils import SceneEntitySelectionCfg
@@ -24,11 +25,11 @@ class _View:
 class _Asset:
     """Scene-entity stand-in exposing the selection resolution contract."""
 
-    device = "cpu"
     joint_names = ["joint_0", "joint_1"]
     num_joints = 2
 
-    def __init__(self, prim_paths: list[str], num_bodies: int = 1):
+    def __init__(self, prim_paths: list[str], num_bodies: int = 1, device: str = "cpu"):
+        self.device = device
         self.root_view = _View(prim_paths)
         self.num_instances = len(prim_paths) // num_bodies
 
@@ -125,6 +126,22 @@ def test_select_maps_rows_and_reports_selected_env_ids() -> None:
         cfg.select(cfg.instance_ids.new_tensor([0, 1]), strict=True)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+def test_select_accepts_cpu_env_ids_for_cuda_entity() -> None:
+    """CPU environment IDs should be selected on the resolved entity's CUDA device."""
+    cfg = SceneEntitySelectionCfg("robot")
+    cfg.resolve(_Scene(_Asset(_slot_paths(0, [0, 2, 3]), device="cuda"), num_envs=5))
+
+    rows, selected_env_ids = cfg.select(torch.tensor([0, 1, 3]))
+
+    assert rows.device.type == "cuda"
+    assert selected_env_ids.device.type == "cuda"
+    assert rows.tolist() == [0, 2]
+    assert selected_env_ids.tolist() == [0, 3]
+    with pytest.raises(ValueError, match=r"Environments \[1\] contain no 'robot'"):
+        cfg.select(torch.tensor([0, 1]), strict=True)
+
+
 def test_scatter_to_envs_restores_global_order() -> None:
     """Physics-view values should be scattered to global order with the requested fill value."""
     cfg = SceneEntitySelectionCfg("robot")
@@ -136,6 +153,19 @@ def test_scatter_to_envs_restores_global_order() -> None:
 
     assert result.tolist() == [[0, 1], [-1, -1], [20, 21], [30, 31], [-1, -1]]
     assert mask.tolist() == [False, False, True, True, False]
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+def test_scatter_to_envs_accepts_cpu_values_for_cuda_entity() -> None:
+    """Scattering should preserve the values device when selection indices are on CUDA."""
+    cfg = SceneEntitySelectionCfg("robot")
+    cfg.resolve(_Scene(_Asset(_slot_paths(0, [3, 0, 2]), device="cuda"), num_envs=5))
+    values = torch.tensor([[30, 31], [0, 1], [20, 21]])
+
+    result = cfg.scatter_to_envs(values, fill_value=-1)
+
+    assert result.device.type == "cpu"
+    assert result.tolist() == [[0, 1], [-1, -1], [20, 21], [30, 31], [-1, -1]]
 
 
 def test_scatter_to_envs_rejects_misaligned_values() -> None:
