@@ -1,0 +1,9 @@
+Test and CI tooling only. A test that hung previously reported nothing but the timeout: the runner kills
+the process group with ``SIGKILL``, which no handler can catch, so nothing ever said where it was stuck.
+Adds ``tools/hang_dump.py``, a pytest plugin that registers a ``faulthandler`` handler for ``SIGUSR1``
+writing every thread's stack to the file named by ``ISAACLAB_HANG_DUMP``, and teaches the orchestrator in
+``tools/conftest.py`` to ask for those stacks and quote them in the failure report before killing the
+process. The handler is C-level and the dump goes to a file rather than stderr so it still reports a
+process whose GIL is held by a native Kit, CUDA, or renderer call, and survives pytest's fd-level capture.
+POSIX-only, and inert when the environment variable is unset, so local ``pytest`` runs are unaffected.
+No changes to the ``isaaclab`` package itself.
