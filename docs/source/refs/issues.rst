@@ -152,14 +152,13 @@ There are two workarounds:
   ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries; copy
   the pattern into custom cable environments. With the markers in place, cable visibility matches
   an unpartitioned render exactly. The markers are static visual prims without colliders, so they
-  do not participate in physics, and they are dropped automatically when scene partitioning is off.
+  do not participate in physics, and ``Isaac-Lift-Cable-Franka-Camera`` drops them when its
+  camera renderer has scene partitioning off.
 
 * **Disable scene partitioning.** Set
   :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to
-  ``False`` (or export ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0``) to opt
-  out of partitioning entirely, at the cost of the per-environment culling speedup.
-
-Both workarounds can be dropped once Kit updates bounding boxes for animated curves.
+  ``False`` to opt out of partitioning entirely, at the cost of the per-environment
+  culling.
 
 
 URDF Importer: Unresolved references for fixed joints

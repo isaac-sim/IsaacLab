@@ -9,8 +9,8 @@ Fixed
   ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries, two 1 mm static
   visual cubes at diagonally opposite corners of the workspace, which pin the partition bounds to the
   full workspace volume; cable visibility then matches an unpartitioned render exactly. The markers
-  carry no colliders and do not participate in physics, and they are set to ``None`` when scene
-  partitioning is disabled. Remove them once Kit updates animated-curve bounding boxes.
+  carry no colliders and do not participate in physics, and ``Isaac-Lift-Cable-Franka-Camera``
+  drops them when its camera renderer has ``enable_scene_partitioning`` off.
 
 Added
 ^^^^^
