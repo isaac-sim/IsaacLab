@@ -65,7 +65,7 @@ Suggested agent response:
 2. Read the China Storage Profile section from `asset_caching_details.inc`. Add its profile setting to the consolidated
    plan and explain that an existing `ISAACSIM_ASSET_ROOT` must be unset in the session for the profile to take effect.
 3. After the single confirmation, install normally and run the docs-defined verification with the profile selected.
-4. Before recommending an asset-bearing demo, check its full relative asset paths in the current availability manifest
-   and choose only assets marked `available`.
+4. Before recommending an asset-bearing demo, find all of its full relative asset paths in the current availability
+   manifest. Treat a missing row as not mirrored and choose only paths marked `available`.
 5. Hand over the profile-setting command with the normal activation, demo, log, and install-profile details. Do not
    persist shell settings or hard-code storage service URLs.

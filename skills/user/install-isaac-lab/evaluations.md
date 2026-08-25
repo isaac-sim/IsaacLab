@@ -105,8 +105,8 @@ Expected behavior:
   and handles an existing `ISAACSIM_ASSET_ROOT` according to its documented precedence.
 - Runs the normal verification with the profile selected, while stating that this does not prove every mirrored asset
   is available.
-- Checks full relative paths in the current availability manifest before recommending an asset-bearing example and
-  uses only entries marked `available`.
+- Finds every required full relative path in the current availability manifest before recommending an asset-bearing
+  example, treats a missing row as not mirrored, and uses only entries marked `available`.
 - Does not use geolocation, persist shell configuration without permission, or expose hard-coded storage endpoints.
 
 Known failure modes:

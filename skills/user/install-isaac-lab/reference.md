@@ -69,8 +69,9 @@ URLs into the skill.
   not edit shell startup files unless the user explicitly requests persistence.
 - If `ISAACSIM_ASSET_ROOT` is already set, explain that it takes precedence. When the user selected China storage,
   include the platform-appropriate session-local unset command in the consolidated plan before setting the profile.
-- Before running or recommending an example that loads assets, find each required full relative asset path in the
-  current manifest and require an `available` status. Use another available asset or a local asset pack when needed.
+- Before running or recommending an example that loads assets, find a manifest row for each required full relative
+  asset path. Treat a missing row as not mirrored, require an `available` status for every listed path, and use another
+  available asset or a local asset pack when needed.
 - Build asset URLs from profile-resolved Isaac Lab constants. Do not hard-code service endpoints in commands or
   generated code.
 - Treat the normal minimal installation verification as a runtime check, not proof that every asset is available in

@@ -116,15 +116,18 @@ Isaac Lab launchers and asset helpers apply the profile automatically. A standal
    configure_storage_profile()
 
 .. note::
-   Asset availability in the China service can differ from the global asset set and can change between releases.
+   The China service mirrors a subset of the global asset set, and that subset can change between releases.
    Check the `Isaac 6.0 asset availability manifest
-   <https://assets.simready.cn/manifests/isaac/6.0/asset-availability.csv>`__ before choosing an asset. An asset must
-   have an ``available`` status to load from the service. Use an available asset or a local asset pack when a workflow
-   references an unavailable path.
+   <https://assets.simready.cn/manifests/isaac/6.0/asset-availability.csv>`__ before choosing an asset. The manifest lists
+   service path records relative to the versioned ``Isaac`` folder. A path with no row is not mirrored, and a listed
+   path must have an ``available`` status to load from the service. Use an available asset or a local asset pack when
+   needed.
 
    Build paths from profile-resolved constants such as :attr:`~isaaclab.utils.assets.ISAAC_NUCLEUS_DIR` or
    :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR` instead of hard-coding bucket or CDN URLs. This keeps the
-   selected storage profile and asset release applicable when routing changes.
+   selected storage profile and asset release applicable when routing changes. Access the resolved paths through
+   Isaac Lab or ``omni.client``; opening the object-storage URL directly in a browser or with ``curl`` can return
+   HTTP 403 because it bypasses the profile's CDN routing.
 
 .. note::
    If you previously redirected Isaac Lab assets by editing ``persistent.isaac.asset_root.cloud`` in an
