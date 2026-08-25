@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .non_holonomic_actions import NonHolonomicAction
     from .surface_gripper_actions import SurfaceGripperBinaryAction
     from .task_space_actions import DifferentialInverseKinematicsAction, OperationalSpaceControllerAction
+    from .tendon_actions import FixedTendonPositionAction
 
 ##
 # Joint actions.
@@ -40,6 +41,29 @@ class JointActionCfg(ActionTermCfg):
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
     preserve_order: bool = False
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+
+
+@configclass
+class FixedTendonPositionActionCfg(ActionTermCfg):
+    """Configuration for a position action over an articulation's fixed tendons.
+
+    See :class:`FixedTendonPositionAction` for more details.
+    """
+
+    class_type: type[FixedTendonPositionAction] | str = "{DIR}.tendon_actions:FixedTendonPositionAction"
+
+    tendon_names: list[str] = MISSING
+    """Fixed tendon names or regular expressions the motors drive, in action order."""
+
+    scale: float = 1.0
+    """Scale mapping an action onto the tendon's commandable span. Defaults to 1.0."""
+
+    offset: float = 0.0
+    """Offset applied to an action after scaling. Defaults to 0.0.
+
+    A joint action term rescales to each joint's own position limits, which is what a joint limit
+    is for. A tendon carries no equivalent limit on every backend, so its span is configured here.
+    """
 
 
 @configclass

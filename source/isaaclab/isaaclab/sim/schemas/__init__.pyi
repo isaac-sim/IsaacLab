@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 __all__ = [
     "MESH_APPROXIMATION_TOKENS",
     "PHYSX_MESH_COLLISION_CFGS",
@@ -36,6 +35,8 @@ __all__ = [
     "modify_mesh_collision_properties",
     "modify_rigid_body_properties",
     "modify_spatial_tendon_properties",
+    "multiple_apply_property_names",
+    "resolve_applied_schema_instances",
     "ArticulationRootBaseCfg",
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
@@ -78,10 +79,10 @@ from .schemas import (
     activate_contact_sensors,
     apply_articulation_root_properties,
     apply_collision_properties,
-    apply_fixed_tendon_properties,
-    apply_mass_properties,
     apply_drive,
+    apply_fixed_tendon_properties,
     apply_joint_drive_properties,
+    apply_mass_properties,
     apply_mesh_collision,
     apply_mesh_collision_properties,
     apply_namespaced,
@@ -103,6 +104,8 @@ from .schemas import (
     modify_mesh_collision_properties,
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
+    multiple_apply_property_names,
+    resolve_applied_schema_instances,
 )
 from .schemas_actuators import (
     define_actuator_properties,
@@ -118,9 +121,9 @@ from .schemas_cfg import (
     DeformableBodyPropertiesCfg,
     FixedTendonFragment,
     JointDriveBaseCfg,
+    JointDriveFragment,
     MassCfg,
     MassFragment,
-    JointDriveFragment,
     MassPropertiesCfg,
     MeshCollisionBaseCfg,
     MeshCollisionFragment,
