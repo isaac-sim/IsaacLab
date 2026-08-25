@@ -51,7 +51,10 @@ from isaaclab.physics import PhysicsCfg
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG, SHADOW_HAND_NEWTON_CFG  # isort:skip
+from isaaclab_assets.robots.shadow_hand import (
+    SHADOW_HAND_CFG,
+    SHADOW_HAND_NEWTON_CFG,
+)
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
