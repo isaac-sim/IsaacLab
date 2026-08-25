@@ -9,6 +9,7 @@
 
       path
       query
+      selection_utils
 
    .. Rubric:: Classes
 
@@ -52,6 +53,13 @@ Query
 
 .. automodule:: isaaclab.cloner.query
    :members:
+
+Selection utils
+~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.cloner.selection_utils
+   :members:
+   :show-inheritance:
 
 Additional Public Classes
 -------------------------

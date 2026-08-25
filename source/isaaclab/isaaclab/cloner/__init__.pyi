@@ -23,12 +23,13 @@ __all__ = [
     "REPLICATION_QUEUE",
     "replicate",
     "queue_replication",
+    "selection_utils",
     "sequential",
     "UsdReplicateContext",
     "usd_replicate",
 ]
 
-from . import path, query
+from . import path, query, selection_utils
 from ._fabric_notices import disabled_fabric_change_notifies
 from .clone_plan import (
     ClonePlan,
