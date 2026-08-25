@@ -46,15 +46,14 @@ _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
 _VISUALIZER_ALIASES = {"newton": "newton_gl"}
 
 
-def _resolve_physics_cfg(physics_cfg: Any, use_isaac_sim: bool) -> PhysicsCfg:
+def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
         from isaaclab_physx.physics import PhysxCfg
 
         physics_cfg = PhysxCfg()
-
-    if not hasattr(physics_cfg, "class_type") and hasattr(physics_cfg, "default"):
-        physics_cfg = physics_cfg.default
+    elif not isinstance(physics_cfg, PhysicsCfg):
+        raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
 
     return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
@@ -356,7 +355,7 @@ class SimulationContext:
 
     @property
     def render_context(self) -> RenderContext:
-        """Shared :class:`~isaaclab.renderers.render_context.RenderContext` for camera renderers."""
+        """Shared rendering state for camera backends and visual materials."""
         return self._render_context
 
     @property
@@ -765,6 +764,7 @@ class SimulationContext:
             viz.reset(soft)
         # Initialize visualizers not prepared by a backend-specific pre-capture hook.
         self.initialize_visualizers()
+        self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
         self._is_playing = True

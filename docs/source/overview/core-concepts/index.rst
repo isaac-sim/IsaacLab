@@ -11,7 +11,6 @@ This section we introduce core concepts in Isaac Lab.
   physical-backends/index
   schema_cfgs
   task_workflows
-  actuators
   sensors/index.rst
   renderers
   motion_generators

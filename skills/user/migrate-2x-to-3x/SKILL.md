@@ -1,6 +1,6 @@
 ---
 name: isaaclab-migrating-2x-to-3x
-description: Migrates Isaac Lab 2.x projects to Isaac Lab 3.0 by routing agents through the official migration guide, current source APIs, and focused compatibility checks. Use when users mention Isaac Lab 3.0 migration, 2.x projects, quaternion order changes, ProxyArray data access, backend migration, Isaac Sim extension imports, or visualization CLI changes.
+description: Migrates Isaac Lab 2.x projects to Isaac Lab 3.0 by routing agents through the official migration guide, current source APIs, and focused compatibility checks. Use when users mention Isaac Lab 3.0 migration, 2.x projects, actuator collection changes, quaternion order changes, ProxyArray data access, backend migration, Isaac Sim extension imports, or visualization CLI changes.
 audience: user
 status: experimental
 owners:
@@ -18,7 +18,9 @@ Do not copy migration tables into answers from memory. Read the official migrati
 ## Workflow
 
 1. Read the official migration guide in `docs/source/migration/migrating_to_isaaclab_3-0.rst`.
-2. Identify which migration area applies: visualization CLI, backend packages, schema cfgs, quaternion order, `ProxyArray`, asset views, RSL-RL config, Isaac Sim extension enablement, or project-specific scripts.
+2. Identify which migration area applies: visualization CLI, backend packages, schema cfgs, actuator collection
+   ownership and runtime topology, quaternion order, `ProxyArray`, asset views, RSL-RL config, Isaac Sim extension
+   enablement, or project-specific scripts.
 3. Search the downstream project for old API symbols before editing.
 4. For user code that imports Isaac Sim extension modules directly:
    - Prefer an Isaac Lab in-tree API when the migration guide lists one.

@@ -66,7 +66,8 @@ class AnymalCEnv(DirectRLEnv):
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        global_paths = (self.cfg.terrain.prim_path,)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
         cloner.replicate(plan, stage=self.scene.stage)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
@@ -140,7 +141,7 @@ class AnymalCEnv(DirectRLEnv):
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         z_vel_error = torch.square(self._robot.data.root_lin_vel_b.torch[:, 2])
         ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.actuators.applied_effort.torch), dim=1)
         joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]

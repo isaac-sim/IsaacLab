@@ -31,7 +31,6 @@ from isaaclab.managers import CommandManager, EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +166,6 @@ class LeappDeploymentEnv:
 
         cfg.scene.num_envs = 1
         cfg.validate()
-        resolve_cfg_presets(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path

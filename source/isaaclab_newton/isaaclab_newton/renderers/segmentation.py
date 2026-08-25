@@ -28,6 +28,8 @@ import warp as wp
 
 # Colorization (host ``random_color_from_id`` / ``pack_rgba``) and the reserved BACKGROUND / UNLABELLED
 # ids are shared with the RTX and OVRTX renderers to keep colorized segmentation visually consistent.
+from isaaclab.cloner import path as cloner_path
+from isaaclab.cloner import query as cloner_query
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.utils.timer import Timer
 
@@ -35,6 +37,8 @@ if TYPE_CHECKING:
     import newton
 
     from pxr import Usd
+
+    from isaaclab.cloner import ClonePlan
 
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""
@@ -254,8 +258,8 @@ class NewtonSegmentationMapping:
 class NewtonSegmentationMapper:
     """Builds per-shape segmentation lookup tables from a Newton model and its USD stage."""
 
-    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg) -> None:
-        """Initialize the mapper from the Newton model, USD stage, and renderer config.
+    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, clone_plan: ClonePlan) -> None:
+        """Initialize the mapper from the Newton model, USD stage, renderer config, and clone plan.
 
         Construction is cheap — it only captures references and snapshots ``model.shape_label``.
         Call :meth:`build_mapping` to do the actual per-shape USD resolution and id assignment.
@@ -265,6 +269,9 @@ class NewtonSegmentationMapper:
             stage: The live USD stage used to read :class:`UsdSemantics.LabelsAPI` labels. May be
                 ``None`` in stageless setups, in which case every shape is treated as unlabelled.
             cfg: Renderer config exposing ``semantic_filter`` and ``semantic_segmentation_mapping``.
+            clone_plan: The scene's published :class:`~isaaclab.cloner.ClonePlan`, used to fall back
+                to the prototype env when a replicated shape has no prim on the stage (backend-only
+                replication). See :meth:`_resolve_via_prototype`.
         """
         self._model = model
         self._stage = stage
@@ -276,6 +283,7 @@ class NewtonSegmentationMapper:
         # Cache of prim path -> (matched_labels or None); labels resolved with ancestor inheritance.
         self._matched_cache: dict[str, tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None] = {}
         self._mappings: dict[tuple[str, bool], NewtonSegmentationMapping] = {}
+        self._clone_plan = clone_plan
 
     def build_mapping(self, kind: _SegKind, colorize: bool) -> None:
         """Build and cache the :class:`NewtonSegmentationMapping` for ``kind`` at the requested colorization."""
@@ -311,10 +319,28 @@ class NewtonSegmentationMapper:
         short-circuits the traversal immediately. All newly-visited paths are back-filled with
         ``result`` at the end, so sibling shapes that share an ancestry prefix resolve in O(1)
         on subsequent calls without re-walking the hierarchy or re-querying USD.
+
+        When the walk finds nothing, :meth:`_resolve_via_prototype` retries against the prototype
+        environment, covering scenes replicated only in the physics backend.
         """
         if prim_path in self._matched_cache:
             return self._matched_cache[prim_path]
 
+        result = self._walk_for_labels(prim_path)
+        if result is None:
+            result = self._resolve_via_prototype(prim_path)
+            # Overwrite the ``None`` the walk back-filled for this path; ancestors keep theirs so
+            # a sibling shape re-enters the prototype fallback rather than reusing a stale miss.
+            self._matched_cache[prim_path] = result
+        return result
+
+    def _walk_for_labels(self, prim_path: str) -> tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None:
+        """Walk ``prim_path`` up to the stage root for the nearest ancestor passing the filter.
+
+        The stage-only half of :meth:`_resolve_semantic_match`: it performs the traversal and the
+        cache back-fill described there, and returns ``None`` when no ancestor carries a matching
+        label — including when ``prim_path`` names no prim at all.
+        """
         result: tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None = None
         # Paths visited this traversal that were not already in the cache; back-filled at the end.
         traversed: list[str] = []
@@ -346,6 +372,52 @@ class NewtonSegmentationMapper:
         if prim_path not in self._matched_cache:
             self._matched_cache[prim_path] = result
         return result
+
+    def _resolve_via_prototype(
+        self, prim_path: str
+    ) -> tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None:
+        """Resolve a replicated shape's labels through the prototype env it was cloned from.
+
+        Newton replicates the *model*, rewriting each cloned shape's ``shape_label`` to its per-env
+        path (see ``isaaclab_newton.cloner.rename_builder_labels``), but a scene that spawns only
+        the prototype (:attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path`) authors USD prims —
+        and therefore :class:`UsdSemantics.LabelsAPI` labels — for that one env only. Those clones
+        would otherwise resolve to UNLABELLED, so their labels are read off the prototype instead.
+
+        The matched ancestor is rebased back onto the clone before being returned, because
+        ``instance_segmentation`` groups by that path: leaving it on the prototype side would
+        collapse every environment into a single instance id.
+
+        Returns:
+            The prototype's ``(filtered_labels, matched_ancestor_path)`` with the ancestor rebased
+            into ``prim_path``'s environment, or ``None`` when ``prim_path`` is not a clone, or the
+            prototype itself is unlabelled.
+
+        Raises:
+            ValueError: When ``prim_path`` is owned by multiple distinct, equally near destination
+                templates — a malformed clone plan, not a state to resolve around.
+        """
+        resolved = cloner_query.path_to_source(self._clone_plan, prim_path)
+        if resolved is None:
+            # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or
+            # other static prim) — nothing to fall back to, so it stays unlabelled.
+            return None
+        source_root, _, asset_suffix = resolved
+        prototype_path = source_root + asset_suffix
+        # The prototype path is where the labels actually live, so a plain stage walk — not another
+        # round of clone-plan resolution — is all that's needed here. When ``prim_path`` names the
+        # prototype's own env, this re-walks the same path the caller already walked; the cache it
+        # left behind makes that a cheap no-op rather than a correctness concern.
+        match = self._walk_for_labels(prototype_path)
+        if match is None:
+            return None
+        matched, ancestor_path = match
+        # ``asset_suffix`` is the part of ``prim_path`` below the destination template, so trimming
+        # it yields this clone's counterpart of ``source_root``. An ancestor above ``source_root``
+        # (a label authored outside the cloned subtree) is genuinely shared and ``rebase`` leaves
+        # it alone, keeping such shapes in one instance group across envs.
+        clone_root = prim_path[: len(prim_path) - len(asset_suffix)] if asset_suffix else prim_path
+        return matched, cloner_path.rebase(ancestor_path, source_root, clone_root)
 
     def _apply_filter(self, labels: dict[SemanticType, SemanticLabels]) -> dict[SemanticType, SemanticLabels]:
         """Restrict ``labels`` (``{type: [labels]}``) to the types/labels passing the semantic filter.

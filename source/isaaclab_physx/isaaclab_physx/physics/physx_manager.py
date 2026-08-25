@@ -978,6 +978,8 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def _invalidate_views(cls) -> None:
         """Invalidate and clear simulation views."""
+        for key in [key for key in cls.views if key[0] is cls]:
+            del cls.views[key]
         for view in (cls._view, cls._view_warp):
             if view:
                 view.invalidate()
