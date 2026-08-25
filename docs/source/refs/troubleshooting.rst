@@ -52,9 +52,13 @@ every difference:
     python3 tools/capture_env.py diff isaaclab-env-<host>-<timestamp>.zip
 
 Environment variables are captured by allowlist, limited to the names Isaac Lab and its runtime stack
-are known to read. Everything else is counted and left out, so a bundle cannot carry credentials or
-internal hostnames off the machine that produced it. Uncommitted source changes are excluded for the
-same reason; pass ``--include_diff`` to attach them.
+are known to read. The list is closed and matched by exact name, so a variable this project does not
+read is counted but never named or valued anywhere in the bundle. That is the whole of the guarantee:
+a bundle does record the hostname of the machine that produced it, in the archive name and in the
+manifest, the ``--command`` string as you typed it, and the values of allowlisted path variables such
+as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
+bundle before attaching it to a public issue. Uncommitted source changes are excluded by default;
+pass ``--include_diff`` to attach them.
 
 
 Reproducing a Reported Environment
