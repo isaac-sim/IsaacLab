@@ -105,18 +105,29 @@ def base_height_l2(
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     sensor_cfg: SceneEntityCfg | None = None,
 ) -> torch.Tensor:
-    """Penalize asset height from its target using L2 squared kernel.
+    """Penalize the asset height error using a squared L2 kernel.
 
-    Note:
-        For flat terrain, target height is in the world frame. For rough terrain,
-        sensor readings can adjust the target height to account for the terrain.
+    When :paramref:`sensor_cfg` is provided, the target height is relative to the mean height of the valid ray hits.
+    Non-finite ray hits are ignored. If all rays miss the terrain, the penalty is zero for that environment.
+
+    Args:
+        env: The environment.
+        target_height: Target asset height [m] relative to the terrain, or to the world origin when
+            :paramref:`sensor_cfg` is not provided.
+        asset_cfg: The asset whose height is penalized.
+        sensor_cfg: The ray-caster sensor used to estimate the terrain height.
+
+    Returns:
+        The squared height error [m²], shape (num_envs,).
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
-        # Adjust the target height using the sensor data
-        adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w.torch[..., 2], dim=1)
+        ray_hits_z = sensor.data.ray_hits_w.torch[..., 2]
+        terrain_height = torch.nanmean(ray_hits_z.masked_fill(torch.isinf(ray_hits_z), torch.nan), dim=1)
+        height_error = asset.data.root_pos_w.torch[:, 2] - target_height - terrain_height
+        return torch.square(height_error).masked_fill_(torch.isnan(terrain_height), 0.0)
     else:
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
