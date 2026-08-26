@@ -101,6 +101,7 @@ Table of Contents
 
    source/concepts/backends_and_presets
    source/concepts/actuators
+   source/concepts/sensors/index
 
 
 .. toctree::

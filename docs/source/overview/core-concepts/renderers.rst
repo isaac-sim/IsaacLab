@@ -33,6 +33,37 @@ Choosing a renderer backend
 | Newton Warp         | No (kit-less)                 | Newton backend, fast training   |
 +---------------------+-------------------------------+---------------------------------+
 
+.. _renderer-visual-comparison:
+
+Visual comparison
+-----------------
+
+The clips below render the same camera, lights, materials, and motion with each backend. Six spheres
+exercise mirror-like, transparent, semi-transparent, matte, glossy, and emissive materials. This is
+a qualitative comparison of feature coverage and image character, not a performance benchmark;
+renderer settings and hardware can change the result.
+
+.. figure:: ../../_static/overview/sensors/camera-renderer-newton.webp
+   :align: center
+   :width: 90%
+   :alt: Six material spheres falling onto a table, rendered by Newton Warp.
+
+   Newton Warp renderer
+
+.. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx.webp
+   :align: center
+   :width: 90%
+   :alt: Six material spheres falling onto a table, rendered by OVRTX.
+
+   OVRTX renderer
+
+.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx.webp
+   :align: center
+   :width: 90%
+   :alt: Six material spheres falling onto a table, rendered by Isaac RTX.
+
+   Isaac RTX renderer
+
 .. note::
 
    Visualization markers are not yet supported by Newton-based renderer backends,
