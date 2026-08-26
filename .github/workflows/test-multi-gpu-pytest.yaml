@@ -279,6 +279,11 @@ jobs:
           container-name: isaac-lab-mgpu-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_IMAGE_TAG }}
           pytest-options: -m "not kitless"
+          # Run the checkout, not the image's baked-in copy. ecr-build-push-pull serves a
+          # commit-tagged or deps-cache image, so on a cache hit the container carries source
+          # from whenever that image was built -- CI then reports a pass or fail for code this
+          # commit never contained. The shard launcher already bind-mounts for this reason.
+          volume-mount-source: ${{ github.workspace }}
 
       - name: Multi-GPU training smoke (kitless renderer)
         # Same tests as the step above with the marker inverted, but run in the kit-less image,
@@ -293,6 +298,8 @@ jobs:
           container-name: isaac-lab-mgpu-smoke-kitless-${{ github.run_id }}-${{ github.run_attempt }}
           image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
           pytest-options: -m kitless
+          # Same reason as the Kit step above.
+          volume-mount-source: ${{ github.workspace }}
 
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
