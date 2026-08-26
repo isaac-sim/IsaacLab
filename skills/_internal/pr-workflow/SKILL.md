@@ -3,7 +3,7 @@ name: isaaclab-preparing-pr-workflow
 description: Prepares Isaac Lab changes for review using the repository PR checklist, validation commands, commit rules, and changelog policy. Use when opening a PR, finishing a branch, preparing a commit, or checking contribution readiness.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team <isaaclab@nvidia.com>
+  author: Isaac Lab Team
 ---
 
 # Preparing PR Workflow
@@ -61,5 +61,5 @@ Keep this skill synchronized with `AGENTS.md`, `.github/PULL_REQUEST_TEMPLATE.md
 
 - [PR template](../../../.github/PULL_REQUEST_TEMPLATE.md)
 - [Contributing guide](../../../docs/source/refs/contributing.rst)
-- [Changelog skill](../../user/changelog-fragments/SKILL.md)
+- [Changelog skill](../changelog-fragments/SKILL.md)
 - [Examples](examples.md)

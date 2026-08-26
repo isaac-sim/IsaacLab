@@ -3,7 +3,7 @@ name: isaaclab-planning-manipulation-tasks
 description: Plans Isaac Lab manipulation tasks through phase gates for reaching, grasping, lifting, placing, insertion, and contact-rich workflows. Use when building or debugging manipulation environments where scene setup, reset geometry, action contracts, rewards, and validation must be staged.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team <isaaclab@nvidia.com>
+  author: Isaac Lab Team
 audience: user
 status: experimental
 owners:

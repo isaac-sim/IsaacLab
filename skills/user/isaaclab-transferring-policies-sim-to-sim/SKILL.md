@@ -3,7 +3,7 @@ name: isaaclab-transferring-policies-sim-to-sim
 description: Transfers Isaac Lab policies between PhysX and Newton MJWarp in both directions. Use when checking PresetCfg-resolved task and checkpoint compatibility, correcting cross-backend articulation joint and body ordering, handling Franka mimic-joint drive differences, matching cross-backend actuator behavior, adding transfer-oriented domain randomization, or running PhysX/PhysX, PhysX/Newton, Newton/Newton, and Newton/PhysX evaluations. Fully validated tasks include Isaac-Lift-Franka, Isaac-Velocity-Rough-G1, and Isaac-Velocity-Rough-AnymalD.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team <isaaclab@nvidia.com>
+  author: Isaac Lab Team
 audience: user
 status: experimental
 owners:
