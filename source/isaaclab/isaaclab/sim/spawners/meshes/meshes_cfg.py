@@ -75,18 +75,19 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no physics material will be added.
     """
 
+    edge_refinement: float = 10.0
+    """Mesh edge refinement factor.
+
+    The factor must be at least ``1.0``. For closed volume primitives, the maximum surface edge length is the
+    bounding-box diagonal divided by this value. Volume deformables use the same normalized target for automatic
+    tetrahedralization. For rectangles, the nearest integer sets the number of elements along each side, with halves
+    rounded up. Defaults to ``10.0``.
+    """
+
 
 @configclass
 class _MeshVolumeCfg(MeshCfg):
     """Shared configuration for closed volume mesh primitives."""
-
-    edge_refinement: float = 1.0
-    """Surface edge refinement factor relative to the bounding-box diagonal.
-
-    The maximum edge length is the diagonal divided by this value. The factor must be at least
-    ``1.0``. Volume deformables use the same normalized target for automatic tetrahedralization.
-    Defaults to ``1.0``, which leaves the base surface mesh unchanged.
-    """
 
 
 @configclass
@@ -177,5 +178,3 @@ class MeshRectangleCfg(MeshCfg):
 
     size: tuple[float, float] = MISSING
     """Edge lengths of the rectangle along the X and Y axes [m]."""
-    resolution: tuple[int, int] = (5, 5)
-    """Resolution of the rectangle (in elements/edges per side)."""

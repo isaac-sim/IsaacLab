@@ -1,5 +1,5 @@
 Added
 ^^^^^
 
-* Extended ``edge_refinement`` to control surface and automatically generated tetrahedral mesh resolution for all
-  closed mesh primitives.
+* Added ``MeshCfg.edge_refinement``, defaulting to ``10.0``, to control surface mesh resolution for all primitives and
+  automatically generated tetrahedral mesh resolution for closed volume deformables.

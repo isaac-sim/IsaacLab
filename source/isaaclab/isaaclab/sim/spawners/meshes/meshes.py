@@ -295,7 +295,10 @@ def spawn_mesh_rectangle(
         ValueError: If a prim already exists at the given path.
     """
     # create a 2D triangle mesh grid
-    vertices, faces = _create_triangle_mesh_grid(cfg.resolution)
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+    resolution = int(np.floor(cfg.edge_refinement + 0.5))
+    vertices, faces = _create_triangle_mesh_grid((resolution, resolution))
     vertices[:, 0] *= cfg.size[0]
     vertices[:, 1] *= cfg.size[1]
     grid = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
@@ -476,7 +479,10 @@ def _spawn_mesh_geom_from_mesh(
         if deformable_type == "volume" and isinstance(cfg, meshes_cfg._MeshVolumeCfg):
             deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
-            prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type,
+            prim_path,
+            cfg.deformable_props,
+            stage=stage,
+            deformable_type=deformable_type,
             **deformable_kwargs,
         )
         if cfg.collision_props is not None:
