@@ -14,6 +14,10 @@ on:
       # Top-level tools modules and their tests. Deliberately not "tools/**": the
       # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
       - "tools/*.py"
+      # tools/docs/ has no gate of its own, so its tests are gated here. media/ is left out
+      # deliberately - this job does not exercise it.
+      - "tools/docs/*.py"
+      - "tools/docs/test/**"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 

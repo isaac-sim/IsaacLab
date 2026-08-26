@@ -38,12 +38,14 @@ def _source_candidates(doc_path: str) -> list[Path]:
     Both suffixes are accepted because ``docs/conf.py`` registers ``.rst`` and ``.md``
     (myst-parser). The tree is almost entirely reStructuredText today, so the Markdown
     forms exist to avoid reporting a MyST page as missing.
+
+    ``<path>/index.rst`` is deliberately not a candidate: the default ``html`` builder
+    publishes it at ``<path>/index.html``, not ``<path>.html``, so accepting it here would
+    pass a link that 404s. Links written against ``.../index.html`` match directly.
     """
     return [
         DOCS_ROOT / f"{doc_path}.rst",
         DOCS_ROOT / f"{doc_path}.md",
-        DOCS_ROOT / doc_path / "index.rst",
-        DOCS_ROOT / doc_path / "index.md",
     ]
 
 
