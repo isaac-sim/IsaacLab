@@ -214,9 +214,7 @@ class Skill:
 
         if not isinstance(author, str) or not author:
             if isinstance(stray_top_level_author, str) and stray_top_level_author:
-                errors.append(
-                    f"{_display_path(self.path)}: 'author' must be nested under 'metadata:', not top-level"
-                )
+                errors.append(f"{_display_path(self.path)}: 'author' must be nested under 'metadata:', not top-level")
             else:
                 errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'metadata.author'")
 
@@ -336,9 +334,7 @@ class Skill:
                 if "Query:" not in scenario_text:
                     errors.append(f"{_display_path(evaluations)}: {scenario_name} must include a sample query")
                 if "Expected behavior:" not in scenario_text:
-                    errors.append(
-                        f"{_display_path(evaluations)}: {scenario_name} must include expected behavior"
-                    )
+                    errors.append(f"{_display_path(evaluations)}: {scenario_name} must include expected behavior")
                 if (
                     "Known failure modes:" not in scenario_text
                     and "Pass/fail" not in scenario_text
