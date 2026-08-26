@@ -554,6 +554,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
+        self._gaussian_particle_bindings: dict[tuple[str, tuple[str, ...]], Any] = {}
         self._particle_workaround_applied = False
         self._cable_points_binding = None
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
@@ -1597,6 +1598,9 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_points_binding = None
         _safe_unbind(self._cable_points_binding, "cable points")
         self._cable_points_binding = None
+        for (attribute_name, _), binding in self._gaussian_particle_bindings.items():
+            _safe_unbind(binding, f"Gaussian {attribute_name}")
+        self._gaussian_particle_bindings.clear()
 
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
@@ -1833,12 +1837,31 @@ class OVRTXRenderer(BaseRenderer):
             if self._use_ovstage:
                 self._update_gaussian_splat_particles_ovstage(prim_paths, attribute_name, tensors)
             else:
-                self._renderer.write_array_attribute(
-                    prim_paths=prim_paths,
-                    attribute_name=attribute_name,
-                    tensors=tensors,
-                    prim_mode=PrimMode.MUST_EXIST,
-                )
+                self._gaussian_particle_binding_legacy(attribute_name, prim_paths, components).write(cast(Any, tensors))
+
+    def _gaussian_particle_binding_legacy(self, attribute_name: str, prim_paths: list[str], components: int) -> Any:
+        """Return the persistent binding for one Gaussian particle column, creating it on first use.
+
+        A binding locks in its prim paths and element type, so they are cached per column and path
+        set and a caller that varies either gets its own. Reusing one keeps the per-frame write from
+        rebuilding the binding descriptor and re-resolving the paths, which is what
+        :meth:`_write_particle_q_slices` relies on for Newton particles.
+        """
+        key = (attribute_name, tuple(prim_paths))
+        binding = self._gaussian_particle_bindings.get(key)
+        if binding is None:
+            binding = self._renderer.bind_array_attribute(
+                prim_paths=list(prim_paths),
+                attribute_name=attribute_name,
+                dtype=np.float32,
+                shape=(components,),
+                prim_mode=PrimMode.MUST_EXIST,
+                flags=BindingFlag.OPTIMIZE,
+            )
+            if binding is None:
+                raise RuntimeError(f"Failed to create the OVRTX Gaussian {attribute_name} binding.")
+            self._gaussian_particle_bindings[key] = binding
+        return binding
 
     def update_camera(
         self,

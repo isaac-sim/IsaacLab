@@ -527,14 +527,32 @@ def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
     assert renderer._initialized_scene is True
 
 
+class _RecordingArrayBinding:
+    """Persistent array binding stub that records the tensors written through it."""
+
+    def __init__(self, prim_paths, attribute_name, dtype, shape, prim_mode, flags):
+        self.prim_paths = prim_paths
+        self.attribute_name = attribute_name
+        self.dtype = dtype
+        self.shape = shape
+        self.prim_mode = prim_mode
+        self.flags = flags
+        self.writes: list[list] = []
+
+    def write(self, tensors):
+        self.writes.append(tensors)
+
+
 class _RecordingArrayWriter:
-    """Legacy backend stub that records ``write_array_attribute`` calls."""
+    """Legacy backend stub that records the array bindings it hands out."""
 
     def __init__(self):
-        self.calls: list[tuple[list[str], str, list, object]] = []
+        self.bindings: list[_RecordingArrayBinding] = []
 
-    def write_array_attribute(self, prim_paths, attribute_name, tensors, prim_mode):
-        self.calls.append((prim_paths, attribute_name, tensors, prim_mode))
+    def bind_array_attribute(self, prim_paths, attribute_name, dtype, shape, prim_mode, flags):
+        binding = _RecordingArrayBinding(prim_paths, attribute_name, dtype, shape, prim_mode, flags)
+        self.bindings.append(binding)
+        return binding
 
 
 def _make_gaussian_renderer(backend: _RecordingArrayWriter) -> OVRTXRenderer:
@@ -543,6 +561,7 @@ def _make_gaussian_renderer(backend: _RecordingArrayWriter) -> OVRTXRenderer:
     renderer._use_ovstage = False
     renderer._initialized_scene = True
     renderer._renderer = backend
+    renderer._gaussian_particle_bindings = {}
     return renderer
 
 
@@ -560,14 +579,42 @@ def test_ovrtx_update_gaussian_splat_particles_writes_float32_columns():
 
     renderer.update_gaussian_splat_particles(paths, positions=[positions] * 2, orientations=[orientations] * 2)
 
-    assert [call[1] for call in backend.calls] == ["positions", "orientations"]
-    for call_paths, _, tensors, prim_mode in backend.calls:
-        assert call_paths == paths
+    assert [binding.attribute_name for binding in backend.bindings] == ["positions", "orientations"]
+    for binding, components in zip(backend.bindings, (3, 4), strict=True):
+        assert binding.prim_paths == paths
+        assert binding.dtype is np.float32
+        assert binding.shape == (components,)
+        assert binding.prim_mode is ovrtx_renderer_module.PrimMode.MUST_EXIST
+        tensors = binding.writes[0]
         assert len(tensors) == len(paths)
         assert all(tensor.dtype == np.float32 for tensor in tensors)
-        assert prim_mode is ovrtx_renderer_module.PrimMode.MUST_EXIST
-    np.testing.assert_array_equal(backend.calls[0][2][0], positions.astype(np.float32))
-    np.testing.assert_array_equal(backend.calls[1][2][0], orientations)
+    np.testing.assert_array_equal(backend.bindings[0].writes[0][0], positions.astype(np.float32))
+    np.testing.assert_array_equal(backend.bindings[1].writes[0][0], orientations)
+
+
+def test_ovrtx_update_gaussian_splat_particles_reuses_the_binding_across_frames():
+    """Per-frame writes reuse one binding per column so the descriptor is built only once."""
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+    paths = ["/World/gaussians"]
+
+    for _ in range(3):
+        renderer.update_gaussian_splat_particles(paths, positions=[np.zeros((4, 3), np.float32)])
+
+    assert [binding.attribute_name for binding in backend.bindings] == ["positions"]
+    assert len(backend.bindings[0].writes) == 3
+
+
+def test_ovrtx_update_gaussian_splat_particles_binds_per_path_set():
+    """A binding locks in its prim paths, so a different path set needs its own."""
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+    positions = [np.zeros((4, 3), np.float32)]
+
+    renderer.update_gaussian_splat_particles(["/World/a"], positions=positions)
+    renderer.update_gaussian_splat_particles(["/World/b"], positions=positions)
+
+    assert [binding.prim_paths for binding in backend.bindings] == [["/World/a"], ["/World/b"]]
 
 
 def test_ovrtx_update_gaussian_splat_particles_skips_omitted_column():
@@ -577,7 +624,7 @@ def test_ovrtx_update_gaussian_splat_particles_skips_omitted_column():
 
     renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=[np.zeros((3, 3), np.float32)])
 
-    assert [call[1] for call in backend.calls] == ["positions"]
+    assert [binding.attribute_name for binding in backend.bindings] == ["positions"]
 
 
 @pytest.mark.parametrize(
@@ -595,7 +642,7 @@ def test_ovrtx_update_gaussian_splat_particles_rejects_mismatched_arrays(positio
     with pytest.raises(ValueError, match=message):
         renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=positions)
 
-    assert backend.calls == []
+    assert backend.bindings == []
 
 
 def test_ovrtx_gaussian_updates_require_an_initialized_scene():
@@ -642,6 +689,7 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
     renderer._cable_points_binding = _RecordingBinding(events, "cable")
+    renderer._gaussian_particle_bindings = {("positions", ("/World/gaussians",)): _RecordingBinding(events, "gaussian")}
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
@@ -720,6 +768,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:deformable",
         "unbind:particle",
         "unbind:cable",
+        "unbind:gaussian",
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
@@ -728,6 +777,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None
+    assert renderer._gaussian_particle_bindings == {}
     assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []
