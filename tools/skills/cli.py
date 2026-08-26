@@ -89,6 +89,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str 
 
     data: dict[str, str | list[str]] = {}
     current_list_key: str | None = None
+    current_map_key: str | None = None
     for line in lines[1:end]:
         if not line.strip():
             continue
@@ -101,7 +102,14 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str 
                 return data, "\n".join(lines[end + 1 :]), f"mixed scalar/list value for {current_list_key!r}"
             current.append(value)
             continue
+        if line.startswith("  ") and current_map_key is not None and ":" in line:
+            # Nested `parent:\n  key: value` map entry. Flattened as `parent.key` so callers can
+            # distinguish it from a mistaken top-level `key: value`.
+            nested_key, nested_value = line.strip().split(":", 1)
+            data[f"{current_map_key}.{nested_key.strip()}"] = nested_value.strip().strip("\"'")
+            continue
         current_list_key = None
+        current_map_key = None
         if ":" not in line:
             return data, "\n".join(lines[end + 1 :]), f"invalid frontmatter line: {line!r}"
         key, value = line.split(":", 1)
@@ -116,6 +124,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str 
         else:
             data[key] = []
             current_list_key = key
+            current_map_key = key
 
     return data, "\n".join(lines[end + 1 :]), None
 
@@ -169,8 +178,10 @@ class Skill:
         name = metadata.get("name")
         description = metadata.get("description")
         license_ = metadata.get("license")
-        # The hand-rolled parser flattens `metadata:\n  author:` into top-level `author`.
-        author = metadata.get("author")
+        # The parser flattens `metadata:\n  author:` into a dotted `metadata.author` key so a
+        # mistaken top-level `author:` (not nested under `metadata:`) can be told apart from it.
+        author = metadata.get("metadata.author")
+        stray_top_level_author = metadata.get("author")
 
         if not isinstance(name, str) or not name:
             errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'name'")
@@ -202,7 +213,12 @@ class Skill:
             errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'license'")
 
         if not isinstance(author, str) or not author:
-            errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'metadata.author'")
+            if isinstance(stray_top_level_author, str) and stray_top_level_author:
+                errors.append(
+                    f"{_display_path(self.path)}: 'author' must be nested under 'metadata:', not top-level"
+                )
+            else:
+                errors.append(f"{_display_path(self.path)}: missing required frontmatter field 'metadata.author'")
 
         if self.is_internal:
             return errors
@@ -343,14 +359,25 @@ class Skill:
                 errors.append(f"{_display_path(evals_json)}: invalid JSON: {exc}")
                 return errors
             evals = data.get("evals", []) if isinstance(data, dict) else []
-            if len(evals) < 2:
+            valid_entries = [entry for entry in evals if isinstance(entry, dict)]
+            if len(valid_entries) < 2:
                 errors.append(f"{_display_path(evals_json)}: must contain at least two eval entries")
             for entry in evals:
                 if not isinstance(entry, dict):
+                    errors.append(f"{_display_path(evals_json)}: eval entry must be an object, got {entry!r}")
                     continue
-                for field in ("id", "prompt", "expected_skill"):
-                    if not entry.get(field) and entry.get(field) is not None:
+                for field in ("id", "prompt"):
+                    if not entry.get(field):
                         errors.append(f"{_display_path(evals_json)}: entry missing required field '{field}'")
+                # `expected_skill: null` is intentional for negative eval cases (no skill should
+                # trigger); only its key membership is required, not a truthy value.
+                if "expected_skill" not in entry:
+                    errors.append(f"{_display_path(evals_json)}: entry missing required field 'expected_skill'")
+                elif entry["expected_skill"] == "":
+                    errors.append(
+                        f"{_display_path(evals_json)}: 'expected_skill' must not be an empty string"
+                        " (use null for negative cases)"
+                    )
                 if "assertions" not in entry or not isinstance(entry["assertions"], list):
                     errors.append(
                         f"{_display_path(evals_json)}: entry {entry.get('id', '?')!r} missing 'assertions' list"
