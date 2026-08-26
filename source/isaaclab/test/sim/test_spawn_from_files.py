@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
+
 import pytest
 
 import omni.kit.app
@@ -133,12 +135,34 @@ def test_spawn_urdf(sim):
 def test_spawn_ground_plane(sim):
     """Test loading prim for the ground plane from grid world USD."""
     # Spawn ground plane
-    cfg = sim_utils.GroundPlaneCfg(color=(0.1, 0.1, 0.1), size=(10.0, 10.0))
-    prim = cfg.func("/World/ground_plane", cfg)
+    cfg = sim_utils.GroundPlaneCfg(color=(0.1, 0.1, 0.1), size=(10.0, 20.0))
+    prim = cfg.func(
+        "/World/ground_plane",
+        cfg,
+        translation=(1.0, 2.0, 0.0),
+        orientation=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)),
+    )
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/World/ground_plane").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+    mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath("/World/ground_plane/Environment/Geometry"))
+    shader = UsdShade.Shader(sim.stage.GetPrimAtPath("/World/ground_plane/Looks/theGrid/Shader"))
+    texture_scale = shader.GetInput("texture_scale").Get()
+    uvs = UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()
+    points = mesh.GetPointsAttr().Get()
+    face_vertex_indices = mesh.GetFaceVertexIndicesAttr().Get()
+    world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(mesh.GetPrim())
+    expected_uvs = [
+        (
+            world_xform.Transform(points[index])[0] * texture_scale[0],
+            world_xform.Transform(points[index])[1] * texture_scale[1],
+        )
+        for index in face_vertex_indices
+    ]
+    for uv, expected_uv in zip(uvs, expected_uvs, strict=True):
+        assert tuple(uv) == pytest.approx(expected_uv)
 
 
 @pytest.mark.isaacsim_ci

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import tempfile
 from contextlib import nullcontext
@@ -30,7 +31,7 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
@@ -235,6 +236,9 @@ def spawn_ground_plane(
         scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
         # apply scale to the mesh
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
+        # Preserve the projected grid density for renderers that consume only authored UVs.
+        if cfg.usd_path == f"{ISAAC_NUCLEUS_DIR}/Environments/Grid/default_environment.usd":
+            _author_ground_plane_fallback_uvs(prim_path, stage)
 
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
@@ -278,6 +282,50 @@ def spawn_ground_plane(
 """
 Helper functions.
 """
+
+
+def _author_ground_plane_fallback_uvs(prim_path: str, stage: Usd.Stage) -> None:
+    """Bake the default grid's world-space projection into fallback UV coordinates."""
+    from pxr import Gf, Sdf, UsdGeom, UsdShade  # noqa: PLC0415
+
+    mesh = UsdGeom.Mesh(stage.GetPrimAtPath(f"{prim_path}/Environment/Geometry"))
+    shader = UsdShade.Shader(stage.GetPrimAtPath(f"{prim_path}/Looks/theGrid/Shader"))
+    if not mesh or not shader:
+        return
+
+    project_uvw = shader.GetInput("project_uvw")
+    world_or_object = shader.GetInput("world_or_object")
+    if not project_uvw or not bool(project_uvw.Get()) or not world_or_object or not bool(world_or_object.Get()):
+        return
+
+    texture_scale_input = shader.GetInput("texture_scale")
+    texture_scale = texture_scale_input.Get() if texture_scale_input else Gf.Vec2f(1.0, 1.0)
+    scale_u, scale_v = float(texture_scale[0]), float(texture_scale[1])
+    if not math.isfinite(scale_u) or not math.isfinite(scale_v):
+        return
+
+    points = mesh.GetPointsAttr().Get()
+    face_vertex_indices = mesh.GetFaceVertexIndicesAttr().Get()
+    if not points or not face_vertex_indices:
+        return
+
+    world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(mesh.GetPrim())
+    world_points = [world_xform.Transform(point) for point in points]
+    z_coordinates = [float(point[2]) for point in world_points]
+    if max(z_coordinates) - min(z_coordinates) > 1.0e-6:
+        return
+
+    projected_uvs = [
+        Gf.Vec2f(float(world_points[index][0]) * scale_u, float(world_points[index][1]) * scale_v)
+        for index in face_vertex_indices
+    ]
+    st_primvar = UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st")
+    if not st_primvar:
+        st_primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+            "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying
+        )
+    st_primvar.Set(projected_uvs)
+    st_primvar.SetInterpolation(UsdGeom.Tokens.faceVarying)
 
 
 def _spawn_from_usd_file(
