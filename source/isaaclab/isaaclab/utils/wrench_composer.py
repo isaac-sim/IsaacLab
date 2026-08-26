@@ -66,6 +66,7 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        self._pose_dependent = False
         if hasattr(self._asset.data, "body_com_pos_w"):
             self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
         else:
@@ -265,6 +266,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._pose_dependent = self._pose_dependent or is_global
 
         wp.launch(
             add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
@@ -328,6 +330,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._pose_dependent = self._pose_dependent or is_global
 
         wp.launch(
             set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
@@ -388,6 +391,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._pose_dependent = self._pose_dependent or is_global
 
         wp.launch(
             add_forces_to_dual_buffers_mask,
@@ -453,6 +457,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._pose_dependent = self._pose_dependent or is_global
 
         wp.launch(
             set_forces_to_dual_buffers_mask,
@@ -493,6 +498,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._pose_dependent = self._pose_dependent or other._pose_dependent
 
         wp.launch(
             add_raw_wrench_buffers,
@@ -519,8 +525,12 @@ class WrenchComposer:
         body frame, then adds local-frame contributions. After this call, ``out_force_b`` and ``out_torque_b``
         contain the final composed wrench.
 
-        The dirty flag is cleared after composition.
+        The dirty flag is cleared after composition. Repeated calls reuse the composed output when all inputs are
+        local-frame wrenches. Global-frame wrenches are recomposed because their body-frame values depend on pose.
         """
+        if not self._dirty and not self._pose_dependent:
+            return
+
         com_pos_w = self._get_com_pos_fn()
         link_quat_w = self._get_link_quat_fn()
 
@@ -571,6 +581,7 @@ class WrenchComposer:
             self._out_torque_b.zero_()
             self._active = False
             self._dirty = False
+            self._pose_dependent = False
         elif env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,

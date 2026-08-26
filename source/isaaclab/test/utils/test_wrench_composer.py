@@ -1502,6 +1502,33 @@ def test_lazy_composition_tracks_dirty_flag(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(("is_global", "expected_launches"), [(False, 1), (True, 2)])
+def test_repeated_composition_caches_only_local_wrenches(
+    device: str, is_global: bool, expected_launches: int, monkeypatch: pytest.MonkeyPatch
+):
+    """Repeated composition skips only pose-independent local-frame wrenches."""
+    mock_asset = create_mock_asset(num_envs=2, num_bodies=1, device=device)
+    composer = WrenchComposer(mock_asset)
+    forces = wp.ones((2, 1), dtype=wp.vec3f, device=device)
+    composer.add_forces_and_torques_index(forces=forces, is_global=is_global)
+
+    launch_count = 0
+    original_launch = wp.launch
+
+    def count_launches(*args, **kwargs):
+        nonlocal launch_count
+        launch_count += 1
+        return original_launch(*args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", count_launches)
+
+    composer.compose_to_body_frame()
+    composer.compose_to_body_frame()
+
+    assert launch_count == expected_launches
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_compose_is_idempotent(device: str):
     """Calling compose_to_body_frame twice without intervening writes produces the same result."""
     rng = np.random.default_rng(seed=456)
