@@ -4,7 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Every test job runs on every PR.
+# Docker builds and their dependent tests run only on a labeled PR event or a
+# manual workflow dispatch. Do not filter the label with a job-level ``if``:
+# GitHub treats skipped required jobs as successful status checks.
+#
+# GitHub cannot filter label names at trigger time, so adding any label to a PR
+# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
+# other label events queue behind it so that a triage label cannot cancel a
+# build whose required checks have already been reported.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -47,7 +54,7 @@ name: Docker + Tests
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [labeled]
     branches:
       - main
       - develop
@@ -57,7 +64,7 @@ on:
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
