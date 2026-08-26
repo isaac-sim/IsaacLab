@@ -1,6 +1,6 @@
 ---
 name: isaaclab-triaging-issue-backlog
-description: Triages large batches of open GitHub issues into close/keep-open with drafted closing comments. Use when auditing the issue backlog, deciding which issues can be closed, or drafting closing responses at scale.
+description: Triages many open GitHub issues at once into close/keep-open with drafted closing comments. Use when auditing the whole issue backlog, running a bulk close pass, or reporting how many issues can be retired.
 audience: developer
 status: experimental
 owners:
@@ -11,77 +11,65 @@ owners:
 
 ## When To Use
 
-Use this skill when auditing many open issues at once and deciding which can be closed, and when drafting the closing comments that go with them.
+Use this skill when auditing many issues at once: a backlog sweep, a bulk close pass, or a report on how much of the backlog can be retired.
 
-Do not use it for a single issue you already understand. Do not use it to close issues purely because they are old — age is not evidence.
+For a single issue, use `isaaclab-auditing-an-issue` directly.
+
+**REQUIRED SUB-SKILL:** Use `isaaclab-auditing-an-issue` for every individual issue. This skill only adds batch orchestration; it does not restate the per-issue checks.
 
 ## Core Principle
 
-Agents triaging issues are fluent and confidently wrong. A drafted comment that reads well is not evidence that its claims are true. Every factual claim must be checked against current code before it is posted, and a human must decide what is lost by closing.
+Scale multiplies confident errors. A batch of drafted comments will read uniformly well whether or not the claims are true, so verification must be adversarial and the human review gate is not optional.
 
 ## Workflow
 
-1. Dump the open issues with metadata (`gh issue list --json number,title,author,createdAt,updatedAt,labels,comments,assignees`) and split into batches.
-2. For each issue, read the full thread (`gh issue view <n> --comments`), then verify it against current code: grep the referenced symbol, `git log -S` for a landed fix, `gh pr view` to confirm a cited PR actually merged.
-3. Run an adversarial pass over every close recommendation. Instruct the reviewer to refute, and to default to REFUTED or UNCERTAIN when it cannot confirm the evidence. Expect this to reject a meaningful share of recommendations.
-4. Fact-check the drafted comments against the checks below.
-5. Review every comment with a maintainer before posting anything.
+1. Dump the backlog with metadata and split it into batches:
 
-## Mandatory Checks Before Posting
+   ```bash
+   gh issue list --repo isaac-sim/IsaacLab --state open --limit 500 \
+     --json number,title,author,createdAt,updatedAt,labels,comments,assignees,url
+   ```
 
-| Claim shape | Required check |
+2. Audit each issue per `isaaclab-auditing-an-issue`, recording a verdict, the evidence, and a confidence level.
+3. Run an adversarial pass over every close recommendation. Instruct the reviewer to **refute**, and to return REFUTED or UNCERTAIN whenever it cannot independently confirm the evidence. Verify low-confidence recommendations as strictly as the rest — they refute at a far higher rate.
+4. Sweep the drafted comments for claims that a per-issue audit misses across a batch: capability assertions, citations whose PR does not match, and dead links.
+5. Review every comment with a maintainer, in batches, before anything is posted.
+6. Post only what a maintainer explicitly approved.
+
+## Batch Controls
+
+- **Never infer approval.** Approve on an explicit statement, not on a reply that merely discusses a batch. Record approvals so a resumed session cannot post something unreviewed.
+- **Keep one plan file** listing every issue to be closed with its final comment, plus appendices for held issues and for issues pulled out during review with their next steps.
+- **Re-show anything edited after approval.** Later passes rewrite earlier comments; approval does not survive a rewrite.
+- **Report what was excluded.** State how many issues were refuted, held, or pulled out, not only how many are closeable.
+
+## Expect These Failure Modes
+
+Measured over one full pass of the backlog; treat them as the default, not the exception.
+
+| Failure mode | What it looks like |
 |---|---|
-| "X is fixed / landed in #N" | `gh pr view N` returns MERGED, and its diff touches the relevant behavior. A generic "Merges changes from main" PR is never an acceptable citation. |
-| "Isaac Lab doesn't have X" | Grep `source/isaaclab_tasks/isaaclab_tasks/contrib/`, `source/isaaclab_contrib/` and the `*_experimental` packages. Features move to contrib and absence claims go stale. |
-| "`<symbol>` no longer exists" | `grep -rn "<symbol>" source/` — any live hit refutes it. |
-| "`<backend>` supports X" | Check that backend's own package. Backends differ; several classes raise `NotImplementedError` on one and not another. |
-| Behavioral claim about an error or limit | Write a temporary script and run it with `uv run python`. Reading the raise site is not enough — the guard may be narrower than it looks. |
-| Any URL | `curl -s -o /dev/null -w "%{http_code}" -L "<url>"` returns 200. |
-
-## URL Traps
-
-- `github.com/isaac-sim/IsaacLab/blob/main/...` **404s** for anything under `source/isaaclab_newton/`, `source/isaaclab_ov/`, `source/isaaclab_ovphysx/` or `isaaclab_contrib` — those packages are not on `main`. Use `blob/develop/...` or cite the path in backticks without a link.
-- `isaac-sim.github.io/IsaacLab/main/...` is the stale 2.x docs build. Use `release/3.0.0/...`, and check the anchor still exists — several 2.x anchors were removed in the 3.x reorganisation.
-
-## Do Not Close
-
-Closing is not free. Hold an issue when any of these apply, even if the stated close reason is technically defensible:
-
-- A maintainer asked the reporter a question and the thread is still recent.
-- It is pre-merge feedback on an open PR.
-- It is a duplicate of an issue that was itself closed without a fix.
-- The titled ask is unmet, even if a related bug in the thread was fixed.
-- It is blocked on upstream work that is planned but not landed. Confirm the upstream issue exists first; "file it upstream" is not a resolution if nobody has.
-
-## Comment Style
-
-- Thank the reporter by handle in the first sentence, specifically and briefly.
-- State what actually resolves it, with file paths in backticks and a verified PR link.
-- Invite a reopen if it still reproduces.
-- Do not assign fault. Avoid "we never heard back" (blames the reporter) and "nothing on our side" (blames a sibling team). Describe where the behaviour lives, not whose fault it is, and route rather than deflect.
-- Do not name a colleague as the source of a negative finding. Crediting a helpful answer is fine.
-- Mark AI-assisted triage explicitly, and do not claim human verification that has not happened.
+| Stale absence claims | "Isaac Lab doesn't support X" when X moved to `contrib/`. |
+| Mismatched citations | A merged PR whose title fits the topic but whose diff never touches the behavior. |
+| Capability drift | Asserting a backend or release supports something it does not. |
+| Answered-but-wrong | A usage answer that was correct when written and is now outdated. |
+| Blame framing | "We never heard back" or "nothing on our side", which read badly in public. |
+| Defensible but lossy | A close whose reason is sound but which discards the only record of a live problem. |
 
 ## Common Mistakes
 
-- Trusting a polished draft. Fluency correlates with neither accuracy nor completeness.
-- Answering "was a reply given?" instead of "is that answer still correct and complete?"
-- Citing a PR whose title matches the topic without reading its diff.
-- Closing an issue whose reason is sound but which is the only remaining record of a live problem.
+- Treating a high-confidence label as a substitute for verification.
+- Batching approval across issues that were edited at different times.
+- Reporting a reduction figure without the refuted and held counts.
+- Posting before a maintainer has read the specific comment being posted.
 
 ## Validation
 
-Verify every cited PR is merged and every URL resolves before posting:
+Before posting, confirm the batch is internally consistent: every comment ends with the intended marker, every cited PR is merged, and every URL resolves.
 
 ```bash
 gh pr view PR_NUMBER --repo isaac-sim/IsaacLab --json state,mergedAt,title
 curl -s -o /dev/null -w "%{http_code}" -L "URL"
-```
-
-For a behavioral claim, write a temporary script and run it:
-
-```bash
-uv run python PATH_TO_SCRIPT
 ```
 
 If skills changed, run:
@@ -92,9 +80,9 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep the URL traps table synchronized with the current package layout. When a package moves between `main` and `develop`, or the docs build version changes, update the table before it produces dead links in a public comment.
+Keep the per-issue checks in `isaaclab-auditing-an-issue` and do not duplicate them here. Update the failure-mode table when a new class of error survives verification into a posted comment.
 
 ## References
 
+- [Issue audit skill](../issue-audit/SKILL.md)
 - [Contributing guide](../../../docs/source/refs/contributing.rst)
-- [PR workflow skill](../pr-workflow/SKILL.md)
