@@ -170,7 +170,7 @@ class Sb3VecEnvWrapper(VecEnv):
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
                 " ManagerBasedRLEnvWarp. Environment type:"
-                f" {type(env)}"
+                f" {type(env.unwrapped)}"
             )
         # initialize the wrapper
         self.env = env
