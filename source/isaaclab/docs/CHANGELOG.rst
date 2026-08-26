@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+19.0.1 (2026-08-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added multi-GPU troubleshooting guidance for CUDA device ordering and NCCL P2P topology.
+* Added kitless asset-root and CDN routing for the ``ISAACSIM_STORAGE_PROFILE=china`` profile.
+
+Fixed
+^^^^^
+
+* Fixed ``LIVESTREAM=2`` (private WebRTC) failing to start the stream server on
+  Windows 11 with ``NVST_R_INTERNAL_ERROR`` / ``NVST_R_INVALID_OPERATION``.
+  ``AppLauncher`` now passes the required ``signalPort``, ``streamPort``, and
+  ``streamType`` arguments when enabling ``omni.kit.livestream.app``, matching
+  the configuration in ``isaacsim.exp.full.streaming.kit``.
+* Fixed ``NVST_R_BUSY`` errors emitted after a WebRTC client connects when the
+  OS resizes the application window. ``allowDynamicResize=true`` is now set for
+  both ``LIVESTREAM=1`` and ``LIVESTREAM=2`` so the stream adapts to resolution
+  changes instead of failing.
+
+
+19.0.0 (2026-08-25)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed late task-preset resolution from environment construction and the
+  :func:`isaaclab.utils.resolve_cfg_presets` helper. Compose registered tasks with
+  :func:`isaaclab_tasks.utils.resolve_task_config` or :func:`isaaclab_tasks.utils.parse_env_cfg`
+  before constructing an environment.
+* **Breaking:** Replaced ``run_config_from_presets`` with ``run_config_from_env_cfg`` in benchmark
+  capture. Pass the concrete composed environment configuration instead of inferring backends from
+  selector strings.
+
+
 18.0.1 (2026-08-24)
 ~~~~~~~~~~~~~~~~~~~
 

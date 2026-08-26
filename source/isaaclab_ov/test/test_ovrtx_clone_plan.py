@@ -100,6 +100,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._clone_plan = None
+    renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
     renderer._exported_usd_string = None
@@ -110,7 +111,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
-def _make_camera_render_spec(num_envs: int = 1) -> CameraRenderSpec:
+def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRenderSpec:
     spawn = PinholeCameraCfg(
         focal_length=24.0,
         focus_distance=400.0,
@@ -127,7 +128,7 @@ def _make_camera_render_spec(num_envs: int = 1) -> CameraRenderSpec:
     camera_paths = tuple(f"/World/envs/env_{env_idx}/Camera" for env_idx in range(num_envs))
     return CameraRenderSpec(
         cfg=cfg,
-        device="cpu",
+        device=device,
         num_instances=num_envs,
         camera_prim_paths=camera_paths,
         view_count=num_envs,
@@ -448,6 +449,26 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     assert 'def RenderProduct "RenderProduct"' in combined_text
     assert open_calls == [combined_text]
     assert renderer._exported_usd_string is None
+
+
+def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path: Path):
+    """The render product is pinned to the CUDA device whose Warp kernels read its render vars.
+
+    Without this, OVRTX picks the device itself and hands back buffers on ``cuda:0`` while the tile
+    extraction kernels launch on the simulation device.
+    """
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.cfg.temp_usd_dir = str(tmp_path)
+    renderer._exported_usd_string = "#usda 1.0\n"
+
+    renderer._renderer.open_usd_from_string = lambda _usd_string: None
+    renderer._renderer.bind_attribute = lambda **kwargs: object()
+    renderer._renderer.write_attribute = lambda **kwargs: None
+
+    renderer.create_render_data(_make_camera_render_spec(num_envs=1, device="cuda:1"))
+
+    combined_text = (tmp_path / _OVRTX_STAGE_FILE).read_text(encoding="utf-8")
+    assert "uint[] deviceIds = [1]" in combined_text
 
 
 def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():

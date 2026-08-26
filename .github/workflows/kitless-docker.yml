@@ -70,6 +70,8 @@ jobs:
     - name: Set up uv
       if: steps.detect.outputs.should_run == 'true'
       uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
 
     - name: Validate kit-less container profile
       if: steps.detect.outputs.should_run == 'true'

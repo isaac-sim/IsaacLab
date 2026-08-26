@@ -119,6 +119,48 @@ Until the upstream fix lands in Newton, please use the ``physx`` preset for
 Digit-based environments.
 
 
+.. _known-issues-animated-curve-scene-partition:
+
+Animated curves disappear under Isaac RTX scene partitioning
+-------------------------------------------------------------
+
+Cables are authored as ``UsdGeom.BasisCurves`` and animated every frame. Kit RTX
+computes a bounding box for a curve prim once and never refreshes it while the curve
+deforms (OMPE-105749). The per-environment scene partition is sized from the union of
+the bounding boxes of the prims it contains, so that union covers the cable's *initial*
+extent plus whatever static geometry shares the partition. Once the cable moves outside
+that union it is culled and vanishes from the tiled camera images -- for example a cable
+resting on a table can disappear the moment a robot arm pushes it off the edge.
+
+The bug is specific to the Isaac RTX (Kit) backend with
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` enabled.
+The OVRTX backend updates animated-curve bounding boxes correctly and is unaffected.
+
+The displacement needed to trip the cull is the distance from the curve's spawn extent to the edge
+of its partition's bounding box, so it depends on what else shares the partition. Measured on Kit
+110.1.2: the cable in ``Isaac-Lift-Cable-Franka-Camera`` vanishes at 0.6 m of displacement, while a
+lone curve in a partition containing only itself and a camera survives to roughly 4 m. Smaller
+motions render normally, which is why a settled or lightly perturbed cable looks fine.
+
+There are two workarounds:
+
+* **Pin the partition bounds.** Spawn a pair of millimetre-scale static cubes at
+  diagonally opposite corners of a box that conservatively envelops the environment's
+  workspace. They enlarge the partition's bounding-box union to that box, so the cable
+  stays inside it wherever it moves. ``Isaac-Lift-Cable-Franka`` and
+  ``Isaac-Lift-Cable-Franka-Camera`` ship this workaround as the
+  ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries; copy
+  the pattern into custom cable environments. With the markers in place, cable visibility matches
+  an unpartitioned render exactly. The markers are static visual prims without colliders, so they
+  do not participate in physics, and ``Isaac-Lift-Cable-Franka-Camera`` drops them when its
+  camera renderer has scene partitioning off.
+
+* **Disable scene partitioning.** Set
+  :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to
+  ``False`` to opt out of partitioning entirely, at the cost of the per-environment
+  culling.
+
+
 URDF Importer: Unresolved references for fixed joints
 -----------------------------------------------------
 

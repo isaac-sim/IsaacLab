@@ -85,6 +85,7 @@ from .ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
+from .ovrtx_mapping import cuda_device_id
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -517,6 +518,7 @@ class OVRTXRenderer(BaseRenderer):
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
+            device_id=cuda_device_id(self._device),
         )
         self._render_product_paths.append(render_product_path)
 
@@ -1363,10 +1365,10 @@ class OVRTXRenderer(BaseRenderer):
         if str(tiled_data.device) == output_device:
             return tiled_data
 
-        # FIXME: OVRTX render var mapping can select a different CUDA device
-        # than the camera/output buffers on MGPU systems. Keep this PPISP-only
-        # bridge until render var mapping can be constrained like transform
-        # bindings, whose maps pin ``device_id`` (see ``ovrtx_mapping``).
+        # The render product pins ``deviceIds`` to this renderer's CUDA device, so the mapping
+        # normally lands on the output device already. This stays as a fallback for the case OVRTX
+        # reports as "deviceIds ... not in the active device set" and falls back to automatic
+        # assignment.
         return wp.clone(tiled_data, device=output_device)
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
@@ -1760,6 +1762,7 @@ class OVRTXRenderer(BaseRenderer):
             data_types=data_types,
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
+            device_id=cuda_device_id(self._device),
         )
         self._render_product_paths.append(render_product_path)
 
