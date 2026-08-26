@@ -110,7 +110,7 @@ def test_spawn_cuboid(sim):
 
 def test_mesh_edge_refinement_default():
     """Test the default mesh edge refinement."""
-    assert sim_utils.MeshCfg().edge_refinement == 10.0
+    assert sim_utils.MeshCfg().edge_refinement == 1.0
 
 
 @pytest.mark.parametrize(
@@ -141,7 +141,7 @@ def test_spawn_mesh_with_edge_refinement(sim, cfg_type, kwargs, edge_refinement)
 @pytest.mark.parametrize(
     "cfg_type,geometry_kwargs,refinement_kwargs,expected_factor",
     [
-        (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {}, 0.1),
+        (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {}, 1.0),
         (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {"edge_refinement": 2.0}, 0.5),
         (sim_utils.MeshRectangleCfg, {"size": (1.0, 1.0)}, {}, None),
     ],
@@ -185,14 +185,19 @@ def test_spawn_sphere(sim):
 
 
 @pytest.mark.parametrize(
-    "edge_refinement,expected_vertices,expected_faces",
-    [(1.0, 4, 2), (2.4, 25, 32), (2.5, 25, 32), (10.0, 289, 512)],
+    "refinement_kwargs,expected_vertices,expected_faces",
+    [
+        ({}, 4, 2),
+        ({"edge_refinement": 2.4}, 25, 32),
+        ({"edge_refinement": 2.5}, 25, 32),
+        ({"edge_refinement": 10.0}, 289, 512),
+    ],
 )
 @pytest.mark.parametrize("size", [(1.0, 1.0), (1.5, 0.8)])
-def test_spawn_rectangle(sim, edge_refinement, expected_vertices, expected_faces, size):
+def test_spawn_rectangle(sim, refinement_kwargs, expected_vertices, expected_faces, size):
     """Test spawning of UsdGeomMesh as a rectangle prim."""
     # Spawn rectangle
-    cfg = sim_utils.MeshRectangleCfg(size=size, edge_refinement=edge_refinement)
+    cfg = sim_utils.MeshRectangleCfg(size=size, **refinement_kwargs)
     prim = cfg.func("/World/Rectangle", cfg)
 
     # Check validity
