@@ -1541,6 +1541,11 @@ class OVRTXRenderer(BaseRenderer):
             (self._cable_points_query, self._cable_paths_list),
         ):
             release(query, paths)
+        self._camera_xform_query = self._camera_paths_list = None
+        self._object_xform_query = self._object_paths_list = None
+        self._deformable_points_query = self._deformable_paths_list = None
+        self._particle_points_query = self._particle_paths_list = None
+        self._cable_points_query = self._cable_paths_list = None
         self._object_newton_indices = self._object_scales = None
         self._object_scales_by_path = {}
         self._deformable_particle_offsets = self._deformable_particle_counts = []
