@@ -10,10 +10,13 @@ fails a job and never gates publication. The point is to replace guesses about
 cache size and retention with measurements - module counts, artifact mix, and
 the spread of GPU targets a shared collection has accumulated.
 
-Usage: warp_cache_inventory.py <cache-dir> [label]
+Usage:
+    warp_cache_inventory.py <cache-dir> [label]
+    warp_cache_inventory.py <cache-dir> --fingerprint
 """
 
 import collections
+import hashlib
 import os
 import pathlib
 import re
@@ -22,8 +25,33 @@ import sys
 SM_PATTERN = re.compile(r"\.(sm\d+[a-z]?)\.")
 
 
+def fingerprint(root: pathlib.Path) -> str:
+    """Return a stable digest of every cache file's relative path and contents.
+
+    This lets the writer avoid publishing another immutable GitHub cache entry
+    when a warm run only read the previously restored files.
+    """
+    digest = hashlib.sha256()
+    for path in sorted(path for path in root.rglob("*") if path.is_file()):
+        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(b"\0")
+        file_digest = hashlib.sha256()
+        try:
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    file_digest.update(chunk)
+        except OSError:
+            continue
+        digest.update(file_digest.digest())
+    return digest.hexdigest()
+
+
 def main() -> int:
     root = pathlib.Path(sys.argv[1])
+    if len(sys.argv) > 2 and sys.argv[2] == "--fingerprint":
+        print(fingerprint(root))
+        return 0
+
     label = sys.argv[2] if len(sys.argv) > 2 else "Warp cache"
 
     if not root.is_dir():

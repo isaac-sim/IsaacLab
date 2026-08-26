@@ -450,22 +450,15 @@ _CPU_ONLY_TYPES_CANDIDATES: tuple = (
     DEFORMABLE_MATERIAL_THICKNESS,
     DEFORMABLE_MATERIAL_BENDING_DAMPING,
 )
-# Optional rigid-body CPU entries: only included when the wheel exposes them.
-_RIGID_BODY_OPTIONAL_CPU: tuple = tuple(
-    globals()[name] for name in ("RIGID_BODY_INV_MASS", "RIGID_BODY_INV_INERTIA") if name in globals()
-)
-# Per-shape material properties end in CPU PhysX calls, so their bindings are host
-# resident even on a GPU sim. Omitting them made get_attribute allocate on the
-# simulation device: OVPhysX 0.5 accepted that and staged the buffer to the host
-# behind the caller, which is a device round trip on every reset for the configs
-# that randomize materials with mode="reset". OVPhysX 0.6 removed that staging and
-# refuses the GPU tensor outright. Gated like the entries above because both types
-# are optional -- older wheels do not define them.
-_SHAPE_MATERIAL_OPTIONAL_CPU: tuple = tuple(
+# Optional CPU-native entries: only included when the wheel exposes them.
+_OPTIONAL_CPU_TYPES: tuple = tuple(
     globals()[name]
-    for name in ("SHAPE_FRICTION_AND_RESTITUTION", "RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION")
+    for name in (
+        "RIGID_BODY_INV_MASS",
+        "RIGID_BODY_INV_INERTIA",
+        "SHAPE_FRICTION_AND_RESTITUTION",
+        "RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION",
+    )
     if name in globals()
 )
-_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(
-    _CPU_ONLY_TYPES_CANDIDATES + _RIGID_BODY_OPTIONAL_CPU + _SHAPE_MATERIAL_OPTIONAL_CPU
-)
+_CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(_CPU_ONLY_TYPES_CANDIDATES + _OPTIONAL_CPU_TYPES)

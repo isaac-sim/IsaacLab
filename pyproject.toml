@@ -71,10 +71,6 @@ dependencies = [
     # one environment overwrite each other's files, and removing either then breaks ``pxr``.
     # usd-exchange 2.3.0 vendors USD 25.5, matching the Isaac Sim 6.0 wheel stack.
     "usd-exchange==2.3.0",
-    # Standalone URDF/MJCF importers, so conversion works without Isaac Sim. They install
-    # alongside it without displacing it: Kit serves ``isaacsim.asset`` from its extension
-    # roots when the runtime is present, and the standalone packages serve it otherwise.
-    "isaacsim-asset-isolated>=6.0,<6.1",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -117,6 +113,11 @@ dependencies = [
 tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
+
+importers = [
+    "isaacsim-asset-isolated>=6.0,<6.1",
+    "tinyobjloader==2.0.0rc13",
+]
 
 test = [
     "pytest",
@@ -187,10 +188,11 @@ teleop = [
 #   and it is NOT part of the OVPhysX 0.6 compatibility change that this
 #   branch exists to carry.
 #
-#   If you are picking up the OVPhysX 0.6 compatibility fix, take ONLY the
-#   commit titled "Support the OVPhysX 0.6 warmup entry point" and DROP the
-#   commit that adds this extra. The two are deliberately kept as separate,
-#   independently droppable commits so that this one is easy to leave behind.
+#   If you are evaluating the OVPhysX 0.6 compatibility changes, review the
+#   preceding warmup, destroy, and OVStage constructor commits independently
+#   and DROP this commit.
+#   The benchmark-only helper is deliberately kept last so it is easy to leave
+#   behind. The material-device fix is already upstream in develop via #7212.
 #
 #   What it is: a kitless teleop dependency closure. It is identical to the
 #   supported `teleop` extra above minus `isaacsim`, `isaaclab-mimic`, and the
@@ -218,12 +220,8 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
-# Every backend, RL library, and visualizer in one flag. No extra is forked in
-# [tool.uv].conflicts, so any combination resolves into a single environment. The
-# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp)
-# and the developer ``test`` tooling stay opt-in by name.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -415,8 +413,8 @@ environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 # Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
-# for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
-# pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
+# for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
+# ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",

@@ -207,26 +207,6 @@ def test_read_only_and_cpu_only_classification():
     assert not is_cpu_only("rigid_body_pose")
 
 
-def test_shape_material_is_classified_cpu_only():
-    """Per-shape material ends in CPU PhysX calls, so its binding is host resident.
-
-    Classifying it as device-resident made get_attribute allocate on the simulation
-    device. OVPhysX 0.5 hid that by staging the buffer to the host on every call;
-    0.6 refuses the GPU tensor instead. Both types are optional, so only assert on
-    the ones the installed wheel actually exposes.
-    """
-    import isaaclab_ov.tensor_types as tt
-
-    exposed = [
-        name
-        for name in ("SHAPE_FRICTION_AND_RESTITUTION", "RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION")
-        if hasattr(tt, name)
-    ]
-    assert exposed, "wheel exposes neither shape-material tensor type"
-    for name in exposed:
-        assert is_cpu_only(getattr(tt, name).name.lower()), name
-
-
 def test_cpu_only_names_match_canonical_set():
     # The view derives its CPU-only set from tensor_types so the two cannot drift.
     from isaaclab_ov.sim.views import ovphysx_view as mod
@@ -768,6 +748,23 @@ def test_get_attribute_cpu_only_property_returns_cpu_buffer_on_gpu_sim():
     # though the sim device is a GPU. (CPU allocation -> runs without a GPU.)
     view = _make_view(n=3, device="cuda:0")
     buf = view.get_attribute("rigid_body_mass")
+    assert str(buf.device) == "cpu"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        name
+        for name in ("articulation_shape_friction_and_restitution", "rigid_body_shape_friction_and_restitution")
+        if hasattr(TensorType, name.upper())
+    ],
+)
+def test_shape_material_property_returns_cpu_buffer_on_gpu_sim(name: str):
+    """Shape material properties must use their CPU-native bindings on GPU simulations."""
+    view = _make_view(n=3, device="cuda:0")
+
+    buf = view.get_attribute(name)
+
     assert str(buf.device) == "cpu"
 
 

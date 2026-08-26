@@ -76,10 +76,10 @@ def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCf
         ),
         actuators={
             "cart_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["slider_to_cart"], effort_limit_sim=400.0, stiffness=0.0, damping=10.0
+                joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0
             ),
             "pole_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["cart_to_pole"], effort_limit_sim=400.0, stiffness=0.0, damping=pole_damping
+                joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, stiffness=0.0, damping=pole_damping
             ),
         },
     )
@@ -229,6 +229,7 @@ def test_initialization_and_shapes(sim):
     assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
     assert sensor.body_names == robot.body_names
     assert sensor.find_bodies("Arm") == ([robot.body_names.index("Arm")], ["Arm"])
+    assert sensor._root_view is robot.root_view  # noqa: SLF001
     _assert_sensor_matches_physx_tensor(sensor)
 
 

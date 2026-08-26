@@ -60,7 +60,8 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
         Args:
             base_cfg: The base contact sensor configuration to copy from.
-            **kwargs: Newton-specific fields, e.g. ``filter_shape_prim_expr=["fingertip_.*"]``.
+            **kwargs: Newton-specific fields, e.g.
+                ``filter_shape_prim_expr=["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
 
         Returns:
             A new :class:`ContactSensorCfg` instance.
