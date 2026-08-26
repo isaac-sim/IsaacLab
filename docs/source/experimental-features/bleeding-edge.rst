@@ -36,6 +36,13 @@ only the dependencies needed for the features you use:
 Current Contributions
 ---------------------
 
+.. toctree::
+  :hidden:
+
+  visuo_tactile_sensor
+  rlinf_vla_posttraining
+  trail
+
 The following features are currently available in ``isaaclab_contrib``:
 
 .. list-table::
@@ -66,6 +73,9 @@ The following features are currently available in ``isaaclab_contrib``:
      - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
        including proxy coupling between MJWarp and VBD.
      - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`
+   * - **Trail Terrains**
+     - Library for colored trail terrains compatible with the terrain gerator.
+     - :doc:`trail`
 
 Contributing
 ------------

@@ -524,7 +524,7 @@ Semantic information is explicitly stored in the vertex colors. The exact RGB va
   Contains example code:
   - `trails.py`: trail terrain configuration used in the publication, ready for plug-and-play
 
-Decoration functions extract the `decoration_elements.zip/` folder, and build a `.glb` assets within `elements/`. Depending on the setup, there might exist two `.glb` , one detailed for playing and one simpliefied for training. If any deocration objects or pre-processing functions are changed, all `.glb` files need to be manually deleted to force a recomputation.
+Decoration functions extract the `decoration_elements.zip` archive and build `.glb` assets within the system temporary directory (under `<tmp_dir>/isaaclab_contrib/trail/`). Depending on the setup, there might exist two `.glb` files: one detailed for deployment/rendering and one simplified for training. If any decoration objects or pre-processing functions are changed, all `.glb` files in the temporary directory need to be manually deleted to force a recomputation.
 
 ### Available Terrains
 

@@ -16,20 +16,13 @@ import numpy as np
 
 from isaaclab.app import AppLauncher
 
-
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 import unittest
 
 import torch
-
-from isaaclab_contrib.terrains.trail.utils import (
-    colors,
-    math,
-    numpy_arrays,
-    transformations,
-)
+from isaaclab_contrib.terrains.trail.utils import colors, math, numpy_arrays, transformations
 
 
 class TestTrailUtilities(unittest.TestCase):
@@ -205,4 +198,3 @@ class TestTrailUtilities(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

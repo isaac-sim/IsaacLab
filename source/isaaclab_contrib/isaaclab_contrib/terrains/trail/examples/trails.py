@@ -11,22 +11,11 @@ from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
 from isaaclab.utils.configclass import configclass
 
 from ..elements import roll_functions as roll
-from ..trail_cfg import (
-    DropCurvesCfg,
-    JumpsCfg,
-    MultipleRampsCfg,
-    RampsCfg,
-    RootsCfg,
-    SinusoidalCurvesCfg,
-    SkinnyCfg,
-    SlalomCfg,
-    StonesCfg,
-    TerrainParameters,
-    WavesCfg,
-    WingCurvesCfg,
-)
+from ..trail_cfg import DropCurvesCfg, JumpsCfg, MultipleRampsCfg
 from ..trail_cfg import ObjectParameters as OP
+from ..trail_cfg import RampsCfg, RootsCfg, SinusoidalCurvesCfg, SkinnyCfg, SlalomCfg, StonesCfg, TerrainParameters
 from ..trail_cfg import WallParameters as WP
+from ..trail_cfg import WavesCfg, WingCurvesCfg
 
 # The following proportions were found iteratively.
 # If performance is poor on one type, the corresponding weight is increased
