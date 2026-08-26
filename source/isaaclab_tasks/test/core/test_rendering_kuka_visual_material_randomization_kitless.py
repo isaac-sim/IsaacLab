@@ -18,7 +18,6 @@ from rendering_test_utils import (
 )
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.arm_ci,
     pytest.mark.integration,
     pytest.mark.rendering,
