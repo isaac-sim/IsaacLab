@@ -17,8 +17,11 @@ use a local checkout.
 The robot model assets are copyright 2026 OneRobotics and licensed under
 CC BY 4.0. The source URDF currently identifies the Link7 mass and inertia as
 a v1 flange placeholder; those values are retained without modification.
+The actuator configuration keeps rated torque as model-facing metadata and
+uses the confirmed peak torque as the static solver limit. Peak duration and
+thermal derating are intentionally outside this simple saturation model.
 The review-stage source content was audited at commit
-``9e8beb4f1acdea73b1d8edce8919454d8c90d464`` and is protected by asset hashes
+``fe8df949c4c8c891e17a7c102b255db40af28df9`` and is protected by asset hashes
 in the focused tests. The loader follows the public repository's default branch
 until maintainers approve a final hosted asset URI.
 
@@ -59,6 +62,10 @@ _A1_4340_GEAR_RATIO = 48.19
 _A1_4310_GEAR_RATIO = 10.0
 _A1_4340_ARMATURE = _A1_MOTOR_ROTOR_INERTIA * _A1_4340_GEAR_RATIO**2
 _A1_4310_ARMATURE = _A1_MOTOR_ROTOR_INERTIA * _A1_4310_GEAR_RATIO**2
+_A1_4340_RATED_EFFORT = 15.0
+_A1_4310_RATED_EFFORT = 3.0
+_A1_4340_PEAK_EFFORT = 26.859
+_A1_4310_PEAK_EFFORT = 5.975
 _A1_4340_RATED_SPEED = 25.0 * 2.0 * math.pi / 60.0
 _A1_4310_RATED_SPEED = 120.0 * 2.0 * math.pi / 60.0
 
@@ -67,12 +74,12 @@ _A1_JOINT_DAMPING = {".*joint[1-4].*": 4.0, ".*joint[5-7].*": 1.0}
 
 
 def _a1_actuators() -> dict[str, ImplicitActuatorCfg]:
-    """Create the A1 implicit actuator groups from confirmed hardware values."""
+    """Create A1 actuator groups with rated metadata and peak solver limits."""
     return {
         "arm_4340": ImplicitActuatorCfg(
             joint_names_expr=[".*joint[1-3].*"],
-            actuator_effort_limit=15.0,
-            joint_effort_limit=15.0,
+            actuator_effort_limit=_A1_4340_RATED_EFFORT,
+            joint_effort_limit=_A1_4340_PEAK_EFFORT,
             actuator_velocity_limit=_A1_4340_RATED_SPEED,
             joint_velocity_limit=_A1_4340_RATED_SPEED,
             stiffness=150.0,
@@ -81,8 +88,8 @@ def _a1_actuators() -> dict[str, ImplicitActuatorCfg]:
         ),
         "arm_4310": ImplicitActuatorCfg(
             joint_names_expr=[".*joint[4-7].*"],
-            actuator_effort_limit=3.0,
-            joint_effort_limit=3.0,
+            actuator_effort_limit=_A1_4310_RATED_EFFORT,
+            joint_effort_limit=_A1_4310_PEAK_EFFORT,
             actuator_velocity_limit=_A1_4310_RATED_SPEED,
             joint_velocity_limit=_A1_4310_RATED_SPEED,
             stiffness={".*joint4.*": 150.0, ".*joint[5-7].*": 40.0},

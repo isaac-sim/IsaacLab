@@ -62,7 +62,7 @@ def test_asset_source_is_portable_attributed_and_aliased(unimanual_urdf: tuple[P
     assert ONEROBOTICS_A1_CFG is ONEROBOTICS_A1_UNIMANUAL_CFG
     assert "ONEROBOTICS_A1_ASSET_DIR" in source
     assert "https://github.com/katazen/onerobot_h1.git" in source
-    assert "9e8beb4f1acdea73b1d8edce8919454d8c90d464" in source
+    assert "fe8df949c4c8c891e17a7c102b255db40af28df9" in source
     assert "CC BY 4.0" in source
     assert "OneRobotics" in source
     assert "/home/" not in source
@@ -146,12 +146,14 @@ def test_unimanual_actuator_overlay_matches_confirmed_hardware():
     assert pytest.approx(10.0) == onerobotics._A1_4310_GEAR_RATIO
     assert pytest.approx(0.050927514873) == onerobotics._A1_4340_ARMATURE
     assert pytest.approx(0.002193) == onerobotics._A1_4310_ARMATURE
+    assert (onerobotics._A1_4340_RATED_EFFORT, onerobotics._A1_4340_PEAK_EFFORT) == (15.0, 26.859)
+    assert (onerobotics._A1_4310_RATED_EFFORT, onerobotics._A1_4310_PEAK_EFFORT) == (3.0, 5.975)
     assert pytest.approx(2.6179938779914944) == onerobotics._A1_4340_RATED_SPEED
     assert pytest.approx(12.566370614359172) == onerobotics._A1_4310_RATED_SPEED
 
     motor_4340 = cfg.actuators["arm_4340"]
     assert motor_4340.joint_names_expr == [".*joint[1-3].*"]
-    assert (motor_4340.actuator_effort_limit, motor_4340.joint_effort_limit) == (15.0, 15.0)
+    assert (motor_4340.actuator_effort_limit, motor_4340.joint_effort_limit) == (15.0, 26.859)
     assert motor_4340.actuator_velocity_limit == pytest.approx(2.6179938779914944)
     assert motor_4340.joint_velocity_limit == pytest.approx(2.6179938779914944)
     assert (motor_4340.stiffness, motor_4340.damping) == (150.0, 4.0)
@@ -159,7 +161,7 @@ def test_unimanual_actuator_overlay_matches_confirmed_hardware():
 
     motor_4310 = cfg.actuators["arm_4310"]
     assert motor_4310.joint_names_expr == [".*joint[4-7].*"]
-    assert (motor_4310.actuator_effort_limit, motor_4310.joint_effort_limit) == (3.0, 3.0)
+    assert (motor_4310.actuator_effort_limit, motor_4310.joint_effort_limit) == (3.0, 5.975)
     assert motor_4310.actuator_velocity_limit == pytest.approx(12.566370614359172)
     assert motor_4310.joint_velocity_limit == pytest.approx(12.566370614359172)
     assert motor_4310.stiffness == {".*joint4.*": 150.0, ".*joint[5-7].*": 40.0}
