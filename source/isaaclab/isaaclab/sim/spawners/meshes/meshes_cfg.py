@@ -84,8 +84,8 @@ class _MeshVolumeCfg(MeshCfg):
     """Surface edge refinement factor relative to the bounding-box diagonal.
 
     The maximum edge length is the diagonal divided by this value. The factor must be at least
-    ``1.0``. For volume deformables, this factor also scales the automatically generated tetrahedral
-    mesh target. Defaults to ``1.0``, which leaves the base mesh unchanged.
+    ``1.0``. Volume deformables use the same normalized target for automatic tetrahedralization.
+    Defaults to ``1.0``, which leaves the base surface mesh unchanged.
     """
 
 

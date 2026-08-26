@@ -148,7 +148,7 @@ def test_edge_refinement_sets_tetrahedralization_resolution(sim, monkeypatch):
     )
     cfg.func("/World/DeformableCube", cfg)
 
-    assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(0.05)
+    assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(0.5)
 
 
 def test_spawn_sphere(sim):

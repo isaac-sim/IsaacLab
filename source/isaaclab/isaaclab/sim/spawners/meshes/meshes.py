@@ -474,7 +474,7 @@ def _spawn_mesh_geom_from_mesh(
         )
         deformable_kwargs = {}
         if deformable_type == "volume" and isinstance(cfg, meshes_cfg._MeshVolumeCfg):
-            deformable_kwargs["tetrahedralization_edge_length_fac"] = 0.1 / cfg.edge_refinement
+            deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
             prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type,
             **deformable_kwargs,
