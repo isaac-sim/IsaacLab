@@ -235,10 +235,6 @@ def _scope_mask(scope: str | DeviceScope) -> str:
     return scope if isinstance(scope, str) else scope.mask
 
 
-#: How ``nvidia-smi topo -m`` link classes map to the interconnect distance that
-#: multi-GPU rendering is sensitive to. ``UNKNOWN`` is not a gap in the parser --
-#: those classes are genuinely unmeasured for the defect this classification
-#: exists to gate, so callers must skip rather than assume either verdict.
 def _list_available_devices() -> list[str]:
     """Return the host's visible devices in mask order: ``cpu`` then ``cuda:0, cuda:1, ...``.
 

@@ -120,13 +120,6 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install && \
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y imageio-ffmpeg
 
-# ``ov`` is in MANUAL_EXTRA_FEATURES, so neither a bare --install nor ``-i all`` selects it.
-# Install it separately, leaving the default set above untouched: the ovrtx renderer is a
-# supported backend, and an image that cannot import it cannot test it. Versions come from the
-# ``ov`` extra, the same source of truth the per-run pin resolution reads.
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install ov[all]
-
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
