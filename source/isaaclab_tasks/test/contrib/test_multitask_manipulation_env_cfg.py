@@ -118,7 +118,11 @@ def test_cabinet_action_clamps_targets_inside_soft_joint_limits() -> None:
     applied = {}
     asset = SimpleNamespace(
         data=SimpleNamespace(soft_joint_pos_limits=SimpleNamespace(torch=limits)),
-        set_joint_position_target_index=lambda target, joint_ids: applied.update(target=target, joint_ids=joint_ids),
+        actuators=SimpleNamespace(
+            target_command=SimpleNamespace(
+                set_position_index=lambda value, joint_ids: applied.update(target=value, joint_ids=joint_ids)
+            )
+        ),
     )
     action = SelectedJointPositionAction.__new__(SelectedJointPositionAction)
     action.cfg = SimpleNamespace(relative=False)

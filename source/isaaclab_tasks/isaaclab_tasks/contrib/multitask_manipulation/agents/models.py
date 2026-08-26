@@ -22,6 +22,49 @@ from tensordict import TensorDict
 from torch.distributions import Normal
 
 
+def _positive_dimensions(dimensions: Sequence[int], label: str) -> tuple[int, ...]:
+    """Return dimensions as a tuple after validating that every entry is positive."""
+    dimensions = tuple(dimensions)
+    if not dimensions or any(dimension <= 0 for dimension in dimensions):
+        raise ValueError(f"Expected positive {label} dimensions, got {dimensions}.")
+    return dimensions
+
+
+def _task_action_dimensions(dimensions: Sequence[int], output_dim: int) -> tuple[int, ...]:
+    """Validate task action dimensions against the fixed global action width."""
+    dimensions = _positive_dimensions(dimensions, "task action")
+    if sum(dimensions) != output_dim:
+        raise ValueError(f"Task action dimensions {dimensions} sum to {sum(dimensions)}, expected {output_dim}.")
+    return dimensions
+
+
+def _task_encoding_slice(encoding_slice: Sequence[int], input_dim: int, task_count: int) -> tuple[int, int]:
+    """Validate and return the task one-hot slice within a model input."""
+    if len(encoding_slice) != 2:
+        raise ValueError(f"Expected a two-element task encoding slice, got {encoding_slice}.")
+    resolved_slice = (int(encoding_slice[0]), int(encoding_slice[1]))
+    start, end = resolved_slice
+    if start < 0 or end > input_dim or end <= start:
+        raise ValueError(f"Task encoding slice {resolved_slice} is outside the {input_dim}D model input.")
+    if end - start != task_count:
+        raise ValueError(f"Task encoding slice {resolved_slice} has dimension {end - start}, expected {task_count}.")
+    return resolved_slice
+
+
+def _task_encoding(obs: TensorDict, obs_groups: Sequence[str], encoding_slice: tuple[int, int]) -> torch.Tensor:
+    """Extract the raw task one-hot before observation normalization."""
+    model_input = torch.cat([obs[obs_group] for obs_group in obs_groups], dim=-1)
+    return model_input[..., encoding_slice[0] : encoding_slice[1]]
+
+
+def _validate_task_encoding(task_encoding: torch.Tensor) -> None:
+    """Validate that each sample contains exactly one one-hot task identity."""
+    is_binary = torch.logical_or(task_encoding == 0.0, task_encoding == 1.0).all()
+    has_one_task = (task_encoding.sum(dim=-1) == 1.0).all()
+    if not bool(is_binary and has_one_task):
+        raise ValueError("Task encoding observations must be one-hot with exactly one active task per sample.")
+
+
 class TaskHeadedGaussianDistribution(Distribution):
     """Diagonal Gaussian distribution routed over contiguous task action heads."""
 
@@ -48,14 +91,7 @@ class TaskHeadedGaussianDistribution(Distribution):
             ValueError: If the task dimensions or standard-deviation configuration are invalid.
         """
         super().__init__(output_dim)
-        self.task_action_dims = tuple(task_action_dims)
-        if not self.task_action_dims or any(dim <= 0 for dim in self.task_action_dims):
-            raise ValueError(f"Expected positive task action dimensions, got {self.task_action_dims}.")
-        if sum(self.task_action_dims) != output_dim:
-            raise ValueError(
-                f"Task action dimensions {self.task_action_dims} sum to {sum(self.task_action_dims)},"
-                f" expected {output_dim}."
-            )
+        self.task_action_dims = _task_action_dimensions(task_action_dims, output_dim)
         if init_std <= 0.0:
             raise ValueError(f"Expected a positive initial standard deviation, got {init_std}.")
         if std_range[0] <= 0.0 or std_range[0] > std_range[1]:
@@ -100,7 +136,8 @@ class TaskHeadedGaussianDistribution(Distribution):
 
     def sample(self) -> torch.Tensor:
         """Sample the active task head and return zero in every inactive global dimension."""
-        return self._require_distribution().sample() * self._require_action_mask()
+        distribution, action_mask = self._require_state()
+        return distribution.sample() * action_mask
 
     def deterministic_output(self, mlp_output: torch.Tensor) -> torch.Tensor:
         """Return the routed means produced by the task-headed model."""
@@ -118,7 +155,7 @@ class TaskHeadedGaussianDistribution(Distribution):
     @property
     def mean(self) -> torch.Tensor:
         """Return the current routed global action mean."""
-        return self._require_distribution().mean
+        return self._require_state()[0].mean
 
     @property
     def std(self) -> torch.Tensor:
@@ -128,17 +165,19 @@ class TaskHeadedGaussianDistribution(Distribution):
     @property
     def entropy(self) -> torch.Tensor:
         """Return entropy summed only over the selected task head."""
-        return (self._require_distribution().entropy() * self._require_action_mask()).sum(dim=-1)
+        distribution, action_mask = self._require_state()
+        return (distribution.entropy() * action_mask).sum(dim=-1)
 
     @property
     def params(self) -> tuple[torch.Tensor, ...]:
         """Return mean, numerically valid standard deviation, and the active action mask."""
-        distribution = self._require_distribution()
-        return distribution.mean, distribution.stddev, self._require_action_mask()
+        distribution, action_mask = self._require_state()
+        return distribution.mean, distribution.stddev, action_mask
 
     def log_prob(self, outputs: torch.Tensor) -> torch.Tensor:
         """Return log-probability summed only over the selected task head."""
-        return (self._require_distribution().log_prob(outputs) * self._require_action_mask()).sum(dim=-1)
+        distribution, action_mask = self._require_state()
+        return (distribution.log_prob(outputs) * action_mask).sum(dim=-1)
 
     def kl_divergence(
         self,
@@ -159,17 +198,11 @@ class TaskHeadedGaussianDistribution(Distribution):
             stds = [torch.exp(param.clamp(self.log_std_range[0], self.log_std_range[1])) for param in self._std_params]
         return torch.cat(stds)
 
-    def _require_distribution(self) -> Normal:
-        """Return the current distribution or reject access before an update."""
-        if self._distribution is None:
+    def _require_state(self) -> tuple[Normal, torch.Tensor]:
+        """Return the current distribution and mask or reject access before an update."""
+        if self._distribution is None or self._action_mask is None:
             raise RuntimeError("The task-headed Gaussian distribution has not been updated.")
-        return self._distribution
-
-    def _require_action_mask(self) -> torch.Tensor:
-        """Return the current action mask or reject access before an update."""
-        if self._action_mask is None:
-            raise RuntimeError("The task-headed Gaussian distribution has not been updated.")
-        return self._action_mask
+        return self._distribution, self._action_mask
 
 
 class TaskHeadedMLPModel(MLPModel):
@@ -206,8 +239,7 @@ class TaskHeadedMLPModel(MLPModel):
             TypeError: If the configured distribution is not task-headed.
             ValueError: If dimensions or the initial task encoding are invalid.
         """
-        if not hidden_dims or any(dim <= 0 for dim in hidden_dims):
-            raise ValueError(f"Expected positive shared-backbone dimensions, got {hidden_dims}.")
+        hidden_dims = _positive_dimensions(hidden_dims, "shared-backbone")
 
         super().__init__(
             obs=obs,
@@ -220,29 +252,9 @@ class TaskHeadedMLPModel(MLPModel):
             distribution_cfg=None,
         )
 
-        self.task_action_dims = tuple(task_action_dims)
-        if not self.task_action_dims or any(dim <= 0 for dim in self.task_action_dims):
-            raise ValueError(f"Expected positive task action dimensions, got {self.task_action_dims}.")
-        if sum(self.task_action_dims) != output_dim:
-            raise ValueError(
-                f"Task action dimensions {self.task_action_dims} sum to {sum(self.task_action_dims)},"
-                f" expected {output_dim}."
-            )
-
-        if len(task_encoding_slice) != 2:
-            raise ValueError(f"Expected a two-element task encoding slice, got {task_encoding_slice}.")
-        self.task_encoding_slice = (int(task_encoding_slice[0]), int(task_encoding_slice[1]))
-        encoding_start, encoding_end = self.task_encoding_slice
-        if encoding_start < 0 or encoding_end > self.obs_dim or encoding_end <= encoding_start:
-            raise ValueError(
-                f"Task encoding slice {self.task_encoding_slice} is outside the {self.obs_dim}D model input."
-            )
-        if encoding_end - encoding_start != len(self.task_action_dims):
-            raise ValueError(
-                f"Task encoding slice {self.task_encoding_slice} has dimension {encoding_end - encoding_start},"
-                f" expected {len(self.task_action_dims)}."
-            )
-        self._validate_task_encoding(self._task_encoding(obs))
+        self.task_action_dims = _task_action_dimensions(task_action_dims, output_dim)
+        self.task_encoding_slice = _task_encoding_slice(task_encoding_slice, self.obs_dim, len(self.task_action_dims))
+        _validate_task_encoding(self._task_encoding(obs))
 
         # Replace the standard monolithic MLP with an activated shared backbone and task-local linear heads.
         del self.mlp
@@ -297,15 +309,7 @@ class TaskHeadedMLPModel(MLPModel):
 
     def _task_encoding(self, obs: TensorDict) -> torch.Tensor:
         """Extract the raw task one-hot before observation normalization."""
-        model_input = torch.cat([obs[obs_group] for obs_group in self.obs_groups], dim=-1)
-        return model_input[..., self.task_encoding_slice[0] : self.task_encoding_slice[1]]
-
-    def _validate_task_encoding(self, task_encoding: torch.Tensor) -> None:
-        """Validate one-hot task identities once when the model is constructed."""
-        is_binary = torch.logical_or(task_encoding == 0.0, task_encoding == 1.0).all()
-        has_one_task = (task_encoding.sum(dim=-1) == 1.0).all()
-        if not bool(is_binary and has_one_task):
-            raise ValueError("Task encoding observations must be one-hot with exactly one active task per sample.")
+        return _task_encoding(obs, self.obs_groups, self.task_encoding_slice)
 
 
 class TaskHeadedValueModel(MLPModel):
@@ -343,8 +347,7 @@ class TaskHeadedValueModel(MLPModel):
         """
         if output_dim != 1:
             raise ValueError(f"TaskHeadedValueModel requires a scalar output, got {output_dim}.")
-        if not hidden_dims or any(dim <= 0 for dim in hidden_dims):
-            raise ValueError(f"Expected positive shared-backbone dimensions, got {hidden_dims}.")
+        hidden_dims = _positive_dimensions(hidden_dims, "shared-backbone")
         if task_head_count <= 0:
             raise ValueError(f"Expected a positive task head count, got {task_head_count}.")
         if distribution_cfg is not None:
@@ -361,21 +364,9 @@ class TaskHeadedValueModel(MLPModel):
             distribution_cfg=None,
         )
 
-        if len(task_encoding_slice) != 2:
-            raise ValueError(f"Expected a two-element task encoding slice, got {task_encoding_slice}.")
-        self.task_encoding_slice = (int(task_encoding_slice[0]), int(task_encoding_slice[1]))
-        encoding_start, encoding_end = self.task_encoding_slice
-        if encoding_start < 0 or encoding_end > self.obs_dim or encoding_end <= encoding_start:
-            raise ValueError(
-                f"Task encoding slice {self.task_encoding_slice} is outside the {self.obs_dim}D model input."
-            )
-        if encoding_end - encoding_start != task_head_count:
-            raise ValueError(
-                f"Task encoding slice {self.task_encoding_slice} has dimension {encoding_end - encoding_start},"
-                f" expected {task_head_count}."
-            )
         self.task_head_count = task_head_count
-        self._validate_task_encoding(self._task_encoding(obs))
+        self.task_encoding_slice = _task_encoding_slice(task_encoding_slice, self.obs_dim, task_head_count)
+        _validate_task_encoding(self._task_encoding(obs))
 
         del self.mlp
         self.backbone = _make_backbone(self.obs_dim, hidden_dims, activation)
@@ -398,15 +389,7 @@ class TaskHeadedValueModel(MLPModel):
 
     def _task_encoding(self, obs: TensorDict) -> torch.Tensor:
         """Extract the raw task one-hot before observation normalization."""
-        model_input = torch.cat([obs[obs_group] for obs_group in self.obs_groups], dim=-1)
-        return model_input[..., self.task_encoding_slice[0] : self.task_encoding_slice[1]]
-
-    def _validate_task_encoding(self, task_encoding: torch.Tensor) -> None:
-        """Validate one-hot task identities once when the model is constructed."""
-        is_binary = torch.logical_or(task_encoding == 0.0, task_encoding == 1.0).all()
-        has_one_task = (task_encoding.sum(dim=-1) == 1.0).all()
-        if not bool(is_binary and has_one_task):
-            raise ValueError("Task encoding observations must be one-hot with exactly one active task per sample.")
+        return _task_encoding(obs, self.obs_groups, self.task_encoding_slice)
 
 
 class _TorchTaskHeadedMLPModel(nn.Module):

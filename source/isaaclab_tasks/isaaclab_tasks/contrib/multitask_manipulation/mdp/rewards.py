@@ -93,8 +93,8 @@ def lift_goal_tracking(
     return object_cfg.scatter_to_envs(reward)
 
 
-class LiftGoalTracking(ManagerTermBase):
-    """Reward OpenArm goal tracking and log sticky per-episode success."""
+class _LiftSuccessTerm(ManagerTermBase):
+    """Maintain and log sticky success state for lift reward terms."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv) -> None:
         super().__init__(cfg, env)
@@ -109,6 +109,10 @@ class LiftGoalTracking(ManagerTermBase):
         log = self._env.extras.setdefault("log", {})
         log["Metrics/lift_success_rate"] = self.succeeded[selected].float().mean().item()
         self.succeeded[selected] = False
+
+
+class LiftGoalTracking(_LiftSuccessTerm):
+    """Reward OpenArm goal tracking and log sticky per-episode success."""
 
     def __call__(
         self,
@@ -130,22 +134,8 @@ class LiftGoalTracking(ManagerTermBase):
         return object_cfg.scatter_to_envs(reward)
 
 
-class lift_success(ManagerTermBase):
+class LiftSuccess(_LiftSuccessTerm):
     """Reward lift-goal completion and log sticky episode success."""
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv) -> None:
-        super().__init__(cfg, env)
-        self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-
-    def reset(self, env_ids: torch.Tensor) -> None:
-        """Log and clear success for reset lift environments."""
-        object_cfg: SceneEntitySelectionCfg = self.cfg.params["object_cfg"]
-        selected = env_ids[object_cfg.instance_ids[env_ids] >= 0]
-        if selected.numel() == 0:
-            return
-        log = self._env.extras.setdefault("log", {})
-        log["Metrics/lift_success_rate"] = self.succeeded[selected].float().mean().item()
-        self.succeeded[selected] = False
 
     def __call__(
         self,
@@ -256,7 +246,7 @@ def cabinet_grasp_handle(
     return robot_cfg.scatter_to_envs(torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0))
 
 
-class cabinet_open_drawer_bonus(ManagerTermBase):
+class CabinetOpenDrawerBonus(ManagerTermBase):
     """Reward drawer opening and log cabinet-task success statistics."""
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv) -> None:
@@ -264,7 +254,7 @@ class cabinet_open_drawer_bonus(ManagerTermBase):
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         self.best_drawer_pos = torch.zeros(env.num_envs, device=env.device)
 
-    def reset(self, env_ids: torch.Tensor):
+    def reset(self, env_ids: torch.Tensor) -> None:
         """Log and clear episode statistics for reset cabinet environments."""
         cabinet_cfg: SceneEntitySelectionCfg = self.cfg.params["cabinet_cfg"]
         selected = env_ids[cabinet_cfg.instance_ids[env_ids] >= 0]

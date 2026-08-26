@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CabinetOpenDrawerBonus",
     "LiftGoalTracking",
+    "LiftSuccess",
     "SelectedBinaryJointPositionActionCfg",
     "SelectedJointPositionActionCfg",
     "SelectedUniformPoseCommandCfg",
@@ -17,7 +19,6 @@ __all__ = [
     "cabinet_ee_to_handle",
     "cabinet_grasp_handle",
     "cabinet_multi_stage_open",
-    "cabinet_open_drawer_bonus",
     "lift_ee_object_distance",
     "lift_goal_tracking",
     "lift_object_dropped",
@@ -25,7 +26,6 @@ __all__ = [
     "lift_object_out_of_bounds",
     "lift_object_position_b",
     "lift_object_pose_b",
-    "lift_success",
     "reach_orientation_error",
     "reach_position_error",
     "reach_success",
@@ -52,18 +52,18 @@ from .observations import (
     task_encoding,
 )
 from .rewards import (
+    CabinetOpenDrawerBonus,
     LiftGoalTracking,
+    LiftSuccess,
     cabinet_align_ee_handle,
     cabinet_align_grasp,
     cabinet_approach_ee_handle,
     cabinet_approach_gripper,
     cabinet_grasp_handle,
     cabinet_multi_stage_open,
-    cabinet_open_drawer_bonus,
     lift_ee_object_distance,
     lift_goal_tracking,
     lift_object_height,
-    lift_success,
     reach_orientation_error,
     reach_position_error,
     selected_action_l2,

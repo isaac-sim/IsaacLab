@@ -43,7 +43,7 @@ class SelectedUniformPoseCommand(CommandTerm):
         """Pose command, shape ``(num_envs, 7)``."""
         return self.pose_command
 
-    def _resample_command(self, env_ids: Sequence[int]):
+    def _resample_command(self, env_ids: Sequence[int]) -> None:
         global_env_ids = self._all_env_ids[env_ids]
         _, selected_env_ids = self._reference_cfg.select(global_env_ids)
         ranges = self.cfg.ranges
@@ -57,24 +57,22 @@ class SelectedUniformPoseCommand(CommandTerm):
         euler[:, 2].uniform_(*ranges.yaw)
         self.pose_command[selected_env_ids, 3:] = quat_unique(quat_from_euler_xyz(*euler.unbind(-1)))
 
-    def _update_metrics(self):
+    def _update_metrics(self) -> None:
         pass
 
-    def _update_command(self):
+    def _update_command(self) -> None:
         pass
 
-    def _set_debug_vis_impl(self, debug_vis: bool):
-        if debug_vis:
-            if not hasattr(self, "goal_pose_visualizer"):
-                self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
-                self.current_pose_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
-            self.goal_pose_visualizer.set_visibility(True)
-            self.current_pose_visualizer.set_visibility(True)
-        elif hasattr(self, "goal_pose_visualizer"):
-            self.goal_pose_visualizer.set_visibility(False)
-            self.current_pose_visualizer.set_visibility(False)
+    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
+        if debug_vis and not hasattr(self, "goal_pose_visualizer"):
+            self.goal_pose_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
+            self.current_pose_visualizer = VisualizationMarkers(self.cfg.current_pose_visualizer_cfg)
+        if not hasattr(self, "goal_pose_visualizer"):
+            return
+        self.goal_pose_visualizer.set_visibility(debug_vis)
+        self.current_pose_visualizer.set_visibility(debug_vis)
 
-    def _debug_vis_callback(self, event):
+    def _debug_vis_callback(self, event) -> None:
         if not self._reference.is_initialized or not self._tracked.is_initialized:
             return
 

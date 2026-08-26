@@ -38,9 +38,6 @@ _CABINET_ROBOT = "robot_1"
 _CABINET = "cabinet"
 _REACH_ROBOT = "robot_2"
 
-# Preserve OpenArm reward ratios while aligning its returns with the other tasks.
-_LIFT_REWARD_SCALE = 0.1
-
 
 def _selection(name: str, **kwargs) -> SceneEntitySelectionCfg:
     """Create a selection-aware scene entity configuration."""
@@ -276,17 +273,17 @@ class RewardsCfg:
 
     lift_approach = RewTerm(
         func=mdp.lift_ee_object_distance,
-        weight=1.1 * _LIFT_REWARD_SCALE,
+        weight=0.11,
         params={"robot_cfg": _lift_robot_cfg(), "object_cfg": _lift_object_cfg(), "std": 0.1},
     )
     lift_height = RewTerm(
         func=mdp.lift_object_height,
-        weight=15.0 * _LIFT_REWARD_SCALE,
+        weight=1.5,
         params={"object_cfg": _lift_object_cfg(), "minimum_height": 0.04},
     )
     lift_goal = RewTerm(
         func=mdp.LiftGoalTracking,
-        weight=16.0 * _LIFT_REWARD_SCALE,
+        weight=1.6,
         params={
             "robot_cfg": _lift_robot_cfg(),
             "object_cfg": _lift_object_cfg(),
@@ -298,7 +295,7 @@ class RewardsCfg:
     )
     lift_goal_fine = RewTerm(
         func=mdp.lift_goal_tracking,
-        weight=5.0 * _LIFT_REWARD_SCALE,
+        weight=0.5,
         params={
             "robot_cfg": _lift_robot_cfg(),
             "object_cfg": _lift_object_cfg(),
@@ -309,7 +306,7 @@ class RewardsCfg:
     )
     lift_action_rate = RewTerm(
         func=mdp.selected_action_rate_l2,
-        weight=-0.0001 * _LIFT_REWARD_SCALE,
+        weight=-0.00001,
         params={
             "task_asset_cfg": _selection(_LIFT_ROBOT),
             "action_term_names": ("lift_arm_action", "lift_gripper_action"),
@@ -317,7 +314,7 @@ class RewardsCfg:
     )
     lift_joint_vel = RewTerm(
         func=mdp.selected_joint_vel_l2,
-        weight=-0.0001 * _LIFT_REWARD_SCALE,
+        weight=-0.00001,
         params={"asset_cfg": _lift_joint_cfg()},
     )
 
@@ -352,7 +349,7 @@ class RewardsCfg:
         },
     )
     cabinet_open = RewTerm(
-        func=mdp.cabinet_open_drawer_bonus,
+        func=mdp.CabinetOpenDrawerBonus,
         weight=7.5,
         params={
             "robot_cfg": _cabinet_robot_cfg(),
@@ -451,7 +448,7 @@ class CurriculumCfg:
         func=base_mdp.modify_reward_weight,
         params={
             "term_name": "lift_action_rate",
-            "weight": -0.1 * _LIFT_REWARD_SCALE,
+            "weight": -0.01,
             "num_steps": 10000,
         },
     )
@@ -459,7 +456,7 @@ class CurriculumCfg:
         func=base_mdp.modify_reward_weight,
         params={
             "term_name": "lift_joint_vel",
-            "weight": -0.1 * _LIFT_REWARD_SCALE,
+            "weight": -0.01,
             "num_steps": 10000,
         },
     )

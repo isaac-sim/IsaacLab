@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-def _reset_root(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_ids: torch.Tensor):
+def _reset_root(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_ids: torch.Tensor) -> None:
     """Write an asset's default root state for selected global environments."""
     asset: Articulation | RigidObject = env.scene[asset_cfg.name]
     rows, selected_env_ids = asset_cfg.select(env_ids)
@@ -30,7 +30,7 @@ def _reset_root(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_id
     asset.write_root_velocity_to_sim_index(root_velocity=asset.data.default_root_vel.torch[rows], env_ids=rows)
 
 
-def _reset_joints_default(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_ids: torch.Tensor):
+def _reset_joints_default(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_ids: torch.Tensor) -> None:
     """Write default articulation joint states for selected global environments."""
     asset: Articulation = env.scene[asset_cfg.name]
     rows, _ = asset_cfg.select(env_ids)
@@ -40,8 +40,8 @@ def _reset_joints_default(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionC
     joint_vel = asset.data.default_joint_vel.torch[rows].clone()
     asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=rows)
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=rows)
-    asset.set_joint_position_target_index(target=joint_pos, env_ids=rows)
-    asset.set_joint_velocity_target_index(target=joint_vel, env_ids=rows)
+    asset.actuators.target_command.set_position_index(value=joint_pos, env_ids=rows)
+    asset.actuators.target_command.set_velocity_index(value=joint_vel, env_ids=rows)
 
 
 def _randomize_joint_offset(
@@ -49,7 +49,7 @@ def _randomize_joint_offset(
     asset_cfg: SceneEntitySelectionCfg,
     env_ids: torch.Tensor,
     position_range: tuple[float, float],
-):
+) -> None:
     """Reset articulation joints with uniform offsets from their defaults."""
     asset: Articulation = env.scene[asset_cfg.name]
     rows, _ = asset_cfg.select(env_ids)
@@ -62,7 +62,7 @@ def _randomize_joint_offset(
     joint_vel = torch.zeros_like(joint_pos)
     asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=rows)
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=rows)
-    asset.set_joint_position_target_index(target=joint_pos, env_ids=rows)
+    asset.actuators.target_command.set_position_index(value=joint_pos, env_ids=rows)
 
 
 def _randomize_joint_scale(
@@ -70,7 +70,7 @@ def _randomize_joint_scale(
     asset_cfg: SceneEntitySelectionCfg,
     env_ids: torch.Tensor,
     position_range: tuple[float, float],
-):
+) -> None:
     """Reset articulation joints by uniformly scaling their default positions."""
     asset: Articulation = env.scene[asset_cfg.name]
     rows, _ = asset_cfg.select(env_ids)
@@ -83,7 +83,7 @@ def _randomize_joint_scale(
     joint_vel = torch.zeros_like(joint_pos)
     asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=rows)
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=rows)
-    asset.set_joint_position_target_index(target=joint_pos, env_ids=rows)
+    asset.actuators.target_command.set_position_index(value=joint_pos, env_ids=rows)
 
 
 def reset_multitask_scene(
@@ -95,7 +95,7 @@ def reset_multitask_scene(
     cabinet_robot_cfg: SceneEntitySelectionCfg,
     cabinet_cfg: SceneEntitySelectionCfg,
     reach_robot_cfg: SceneEntitySelectionCfg,
-):
+) -> None:
     """Reset active assets and apply task-specific initial-state randomization."""
     for asset_cfg in root_asset_cfgs:
         _reset_root(env, asset_cfg, env_ids)
