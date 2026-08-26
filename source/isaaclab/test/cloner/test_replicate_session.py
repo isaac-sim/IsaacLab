@@ -23,13 +23,13 @@ def test_sensor_default_does_not_request_a_cloning_context():
 
 
 @pytest.mark.parametrize(
-    ("kit_available", "explicit_request", "expected_instances"),
-    [(False, False, 0), (False, True, 1), (True, False, 1)],
+    ("kit_available", "explicit_request", "replicate_physics", "expected_instances"),
+    [(False, False, True, 0), (False, True, True, 1), (True, False, True, 1), (False, False, False, 1)],
 )
 def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
-    monkeypatch, kit_available, explicit_request, expected_instances
+    monkeypatch, kit_available, explicit_request, replicate_physics, expected_instances
 ):
-    """Kit gates automatic USD cloning without overriding an explicit cfg request."""
+    """Kit or disabled physics replication enables automatic USD cloning."""
 
     class FakeUsdContext:
         replicate_priority = 100
@@ -68,7 +68,7 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
         global_paths=("/World/Ground", "/World/Light"),
     )
 
-    replicate_session.replicate(plan, stage=object())
+    replicate_session.replicate(plan, stage=object(), replicate_physics=replicate_physics)
 
     assert len(FakeUsdContext.instances) == expected_instances
     if FakeUsdContext.instances:

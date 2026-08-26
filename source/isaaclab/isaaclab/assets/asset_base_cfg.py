@@ -54,7 +54,8 @@ class AssetBaseCfg:
     (for example, ``isaaclab_physx.cloner.PHYSICS_CONTEXT`` or
     ``isaaclab_ov.cloner.PHYSICS_CONTEXT``). An empty tuple requests no explicit context.
     :class:`~isaaclab.cloner.UsdReplicateContext` is still added automatically when ``spawn``
-    is set and Kit is available; listing it explicitly forces USD replication even without Kit.
+    is set and Kit is available or physics replication is disabled. Listing it explicitly forces
+    USD replication otherwise.
     """
 
     prim_path: str = MISSING

@@ -52,9 +52,9 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     Physics contexts come from :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when
     set, otherwise from the backend's ``PHYSICS_CONTEXT`` class.
     :class:`~isaaclab.cloner.UsdReplicateContext` is added automatically when the cfg has a
-    spawner and Kit is available. Explicit contexts are honored regardless of Kit availability.
-    With ``replicate_physics=False`` physics contexts are dropped; USD replication still fires
-    when the spawner+Kit condition is met or the cfg explicitly requests it.
+    spawner and Kit is available, or when physics replication is disabled. Explicit contexts
+    are honored regardless of Kit availability. With ``replicate_physics=False`` physics
+    contexts are dropped and replication is USD-only.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
@@ -65,7 +65,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         plan: Replication layout to dispatch.
         stage: USD stage to author replicated prim specs into.
         replicate_physics: Whether physics replication clones each environment. If False,
-            cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
+            spawned assets are cloned through USD only.
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
@@ -92,7 +92,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         if not replicate_physics:
             contexts = [c for c in contexts if c is UsdReplicateContext]
         ctx_set = dict.fromkeys(contexts)
-        if cfg.spawn is not None and kit_available:
+        if cfg.spawn is not None and (kit_available or not replicate_physics):
             ctx_set.setdefault(UsdReplicateContext, None)
         for BackendCtxCls in ctx_set:
             backend_rows.setdefault(BackendCtxCls, set()).update(rows)
