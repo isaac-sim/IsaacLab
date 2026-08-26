@@ -24,7 +24,7 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
 
          ./isaaclab.sh --help
 
-         usage: isaaclab.sh [-h] [-i [INSTALL]] [-f] [-p ...] [-s ...] [-t ...] [-o ...] [-v] [-d] [-n ...] [-c [CONDA]] [-u [UV]]
+         usage: isaaclab.sh [-h] [-i [INSTALL]] [-f] [-p ...] [-s ...] [-t ...] [-o ...] [-v] [-d] [-n ...] [-c [CONDA]] [-u [UV]] [--isaacsim_source PATH]
 
          Isaac Lab CLI
 
@@ -55,6 +55,9 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
            -c [CONDA], --conda [CONDA]
                                  Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.
            -u [UV], --uv [UV]    Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.
+           --isaacsim_source PATH
+                                 Incrementally build the Isaac Sim source checkout at PATH and link its live release
+                                 tree as '_isaac_sim'. Python commands keep using the active uv environment.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -63,7 +66,7 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
 
          isaaclab.bat --help
 
-         usage: isaaclab.bat [-h] [-i [INSTALL]] [-f] [-p ...] [-s ...] [-t ...] [-o ...] [-v] [-d] [-n ...] [-c [CONDA]] [-u [UV]]
+         usage: isaaclab.bat [-h] [-i [INSTALL]] [-f] [-p ...] [-s ...] [-t ...] [-o ...] [-v] [-d] [-n ...] [-c [CONDA]] [-u [UV]] [--isaacsim_source PATH]
 
          Isaac Lab CLI
 
@@ -94,3 +97,6 @@ We provide helper executables at the repository root — ``./isaaclab.sh`` (Linu
            -c [CONDA], --conda [CONDA]
                                  Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.
            -u [UV], --uv [UV]    Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.
+           --isaacsim_source PATH
+                                 Incrementally build the Isaac Sim source checkout at PATH and link its live release
+                                 tree as '_isaac_sim'. Python commands keep using the active uv environment.

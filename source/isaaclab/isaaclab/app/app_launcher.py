@@ -851,12 +851,21 @@ class AppLauncher:
                     f"--/exts/omni.kit.livestream.app/primaryStream/publicIp={public_ip_env}",
                     "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
                     "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
+                    "--/exts/omni.kit.livestream.app/primaryStream/allowDynamicResize=true",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamType=webrtc",
                     "--enable",
                     "omni.kit.livestream.app",
                 ]
             elif self._livestream == 2:
                 # WebRTC private network
+                # Signal/stream ports and allowDynamicResize must be set explicitly; without
+                # them NVST cannot bind its server socket (NVST_R_INTERNAL_ERROR) and any
+                # subsequent window resize after a client connects triggers NVST_R_BUSY.
                 self._livestream_args += [
+                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
+                    "--/exts/omni.kit.livestream.app/primaryStream/allowDynamicResize=true",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamType=webrtc",
                     "--enable",
                     "omni.kit.livestream.app",
                 ]

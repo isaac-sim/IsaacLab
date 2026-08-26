@@ -880,6 +880,23 @@ def test_go2_rough_legacy_newton_alias_resolves_to_newton_mjwarp():
     assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
 
 
+def test_velocity_events_newton_mjwarp_keeps_base_com_randomization():
+    """MJWarp velocity configs should retain base center-of-mass randomization."""
+    from isaaclab_tasks.core.velocity import mdp
+    from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg
+
+    events = resolve_presets(EventsCfg(), {"newton_mjwarp"})
+
+    assert events.base_com is not None
+    assert events.base_com.func is mdp.randomize_rigid_body_com
+    assert events.base_com.mode == "startup"
+    assert events.base_com.params["com_range"] == {
+        "x": (-0.05, 0.05),
+        "y": (-0.05, 0.05),
+        "z": (-0.01, 0.01),
+    }
+
+
 # =============================================================================
 # Tests: PresetCfg inside deeply nested dicts (e.g., event term params)
 # =============================================================================

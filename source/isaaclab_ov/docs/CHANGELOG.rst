@@ -1,6 +1,85 @@
 Changelog
 ---------
 
+2.2.2 (2026-08-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an illegal memory access (CUDA error 700) when rendering with OVRTX on a device other than
+  ``cuda:0``. The OVRTX render product is now pinned to the renderer's CUDA device through its
+  ``deviceIds`` attribute, so its render var buffers are allocated on the same device as the Warp
+  kernels that extract camera tiles from them. Previously OVRTX chose the device itself, which on a
+  multi-GPU machine placed the buffers on ``cuda:0`` while the extraction kernels ran on the
+  simulation device.
+
+
+2.2.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX object and camera transform updates to write a caller-owned GPU buffer instead of mapping and unmapping OVRTX memory every frame.
+
+
+2.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes for both OVRTX detached-scene APIs.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX ovstage path to write object transforms, camera transforms and deformable or
+  particle points straight from their Warp GPU buffers as CUDA DLTensors, removing the per-frame
+  host copies that ``ovstage 0.1.0`` required.
+* Changed those writes to be ordered by handing ovstage the producing Warp stream
+  (``write_attribute(cuda_stream=...)``), replacing the device-wide ``wp.synchronize_device`` with
+  stream-scoped producer ordering, and matching the legacy OVRTX binding path. The write is still
+  awaited, so the calling thread can block; the gain is the removed host copy and the narrower
+  synchronization scope, not a nonblocking handoff.
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+  requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
+
+Fixed
+^^^^^
+
+* Cleared ``ContactSensorData.force_matrix_w_history`` when resetting an
+  OVPhysX contact sensor.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` authoring only one pixel render var when a
+  camera requested several data types, which left every other requested output empty. The render
+  product now authors one render var per requested data type, so combinations such as ``rgb`` with
+  ``normals``, ``albedo``, ``motion_vectors``, segmentation, and depth are rendered together.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` filling ``depth``,
+  ``distance_to_image_plane``, and ``distance_to_camera`` from a single depth render var, which
+  returned euclidean distance for the image-plane outputs (or the reverse) when they were requested
+  together. Each output is now extracted from the source that measures it.
+
+
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
 2.1.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 

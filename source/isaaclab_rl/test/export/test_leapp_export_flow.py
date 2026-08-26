@@ -11,6 +11,7 @@ backend/task export then runs in its own subprocess against those checkpoints.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,11 @@ _CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkp
 _SUBPROCESS_TIMEOUT = 600
 _CHECKPOINT_BATCH_TIMEOUT = 1200
 _OUTPUT_TAIL_CHARS = 5000
+# TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases can
+# corrupt the heap while parsing the Newton Franka payload concurrently. OpenUSD
+# reads PXR_WORK_THREAD_LIMIT during process startup, before AppLauncher can apply
+# its matching SimulationApp limit.
+_LEAPP_TEST_CPU_THREAD_LIMIT = 1
 
 
 @dataclass(frozen=True)
@@ -129,6 +135,7 @@ def _run_checked(
             list(cmd),
             cwd=_REPO_ROOT,
             capture_output=True,
+            env={**os.environ, "PXR_WORK_THREAD_LIMIT": str(_LEAPP_TEST_CPU_THREAD_LIMIT)},
             text=True,
             timeout=timeout,
         )
@@ -207,6 +214,8 @@ def _run_export(backend: ExportFlowBackend, task_name: str, checkpoint_path: Pat
         "--export_save_path",
         str(export_root),
         "--disable_graph_visualization",
+        "--limit_cpu_threads",
+        str(_LEAPP_TEST_CPU_THREAD_LIMIT),
     ]
     preset = _preset_for_task(task_name)
     if preset is not None:
@@ -259,6 +268,15 @@ def test_initialized_checkpoints(initialized_checkpoints: Path):
         if not resolved_path_file(task_checkpoint_dir(initialized_checkpoints, backend_id, task_name)).is_file()
     ]
     assert not missing, f"Missing initialized checkpoints for: {', '.join(missing)}"
+
+
+def test_openusd_thread_limit_is_set_before_subprocess_startup():
+    """Assert LEAPP subprocesses start with OpenUSD concurrency disabled."""
+    result = _run_checked(
+        [sys.executable, "-c", "import os; print(os.environ['PXR_WORK_THREAD_LIMIT'])"],
+        label="OpenUSD thread-limit probe",
+    )
+    assert result.stdout.strip() == str(_LEAPP_TEST_CPU_THREAD_LIMIT)
 
 
 @pytest.mark.parametrize(("backend", "task_name"), _export_cases())

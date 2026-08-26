@@ -229,6 +229,7 @@ def test_initialization_and_shapes(sim):
     assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
     assert sensor.body_names == robot.body_names
     assert sensor.find_bodies("Arm") == ([robot.body_names.index("Arm")], ["Arm"])
+    assert sensor._root_view is robot.root_view  # noqa: SLF001
     _assert_sensor_matches_physx_tensor(sensor)
 
 

@@ -88,7 +88,7 @@ Collect five demonstrations by running the following command:
 
 
 .. note::
-   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
+   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :doc:`/source/setup/environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
 
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
