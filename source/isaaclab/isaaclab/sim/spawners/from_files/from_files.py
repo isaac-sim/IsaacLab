@@ -236,6 +236,7 @@ def spawn_ground_plane(
         scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
         # apply scale to the mesh
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
+        # TODO: Remove this fallback after adopting the Newton fix tracked by OMPE-107347.
         # Preserve the projected grid density for renderers that consume only authored UVs.
         if cfg.usd_path == f"{ISAAC_NUCLEUS_DIR}/Environments/Grid/default_environment.usd":
             _author_ground_plane_fallback_uvs(prim_path, stage)
