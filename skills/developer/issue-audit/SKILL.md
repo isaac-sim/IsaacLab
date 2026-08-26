@@ -65,7 +65,44 @@ When holding, record the concrete next step and the evidence, so the next audit 
 - Invite a reopen if it still reproduces on a current release.
 - Do not assign fault. Avoid "we never heard back" (blames the reporter) and "nothing on our side" (blames a sibling team). Describe where the behavior lives, and route rather than deflect.
 - Do not name a colleague as the source of a negative finding. Crediting a helpful answer is fine.
-- If the reply was AI-assisted, say so, and do not claim human verification that has not happened.
+- If the reply was AI-assisted, end with the disclaimer footer below, and do not claim a level of human review that did not happen.
+
+### Disclaimer Footer
+
+End an AI-assisted reply with a horizontal rule and a one-line footer:
+
+```markdown
+---
+*🤖 This issue was reviewed as part of an AI-assisted triage of the Isaac Lab backlog, with automated verification against the current codebase. If we got this wrong, please reopen — we'd rather hear about it!*
+```
+
+Match the claim to what actually happened. "with automated verification against the current codebase" is accurate for a machine-checked reply. Only say "verified by a maintainer" if a maintainer read that specific comment.
+
+### Worked Example
+
+A close for a bug that was genuinely fixed:
+
+```markdown
+Thanks @Mitchell-Torok for catching that `reset_joints_by_offset` ignored the `joint_names` you passed in `SceneEntityCfg`.
+
+It's fixed: both `reset_joints_by_offset` and `reset_joints_by_scale` in `isaaclab/envs/mdp/events.py` now index the default joint state and the soft-limit clamp with `asset_cfg.joint_ids` (broadcasting `env_ids[:, None]` for subsets), so only the named joints are touched. Shipped in https://github.com/isaac-sim/IsaacLab/pull/2899. Sorry for the delay — please reopen if extra joints still move on a current release.
+
+---
+*🤖 This issue was reviewed as part of an AI-assisted triage of the Isaac Lab backlog, with automated verification against the current codebase. If we got this wrong, please reopen — we'd rather hear about it!*
+```
+
+Each part is doing work: the handle and the specific symptom in sentence one, the mechanism plus file path so the comment stands alone in search results, a PR link confirmed MERGED, a three-word apology rather than a paragraph, and a reopen invitation tied to a current release.
+
+### Fault Assignment
+
+The rewrites below are the difference between a reply that reads as closure and one that reads as a brush-off.
+
+| Instead of | Write |
+|---|---|
+| "We asked twice and never heard back." | "We weren't able to get to the bottom of this at the time, and a lot has changed since." |
+| "There's nothing on our side to fix." | "That code path lives in `<component>`, so `<tracker>` is the better home for it." |
+| "This is an Isaac Sim bug that their team owns." | "The `sim.reset()` requirement lives in that layer and is tracked there." |
+| "As @SomeDev confirmed, it's broken." | State the finding directly, without attributing it to a colleague. |
 
 ## Common Mistakes
 
