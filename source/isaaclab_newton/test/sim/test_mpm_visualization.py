@@ -64,8 +64,9 @@ def test_particle_clouds_ignore_the_inherited_environment_transform(monkeypatch)
 
 
 def test_prim_path_count_must_match_environment_count(monkeypatch):
-    """A path-per-environment mismatch is rejected instead of silently dropping environments."""
-    monkeypatch.setattr(sim_utils, "get_current_stage", Usd.Stage.CreateInMemory)
+    """A path-per-environment mismatch is rejected before any prim is authored."""
+    stage = Usd.Stage.CreateInMemory()
+    monkeypatch.setattr(sim_utils, "get_current_stage", lambda: stage)
 
     with pytest.raises(ValueError, match="one particle visualization prim path per environment"):
         create_mpm_particle_visualization(
@@ -74,6 +75,8 @@ def test_prim_path_count_must_match_environment_count(monkeypatch):
             widths=_WIDTHS,
             color=_COLOR,
         )
+
+    assert not any(stage.GetPrimAtPath(prim_path).IsValid() for prim_path in _PRIM_PATHS)
 
 
 def test_missing_visual_material_prim_falls_back_to_display_color(monkeypatch):
