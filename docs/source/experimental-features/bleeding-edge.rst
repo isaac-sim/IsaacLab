@@ -36,13 +36,6 @@ only the dependencies needed for the features you use:
 Current Contributions
 ---------------------
 
-.. toctree::
-  :hidden:
-
-  visuo_tactile_sensor
-  rlinf_vla_posttraining
-  trail
-
 The following features are currently available in ``isaaclab_contrib``:
 
 .. list-table::
