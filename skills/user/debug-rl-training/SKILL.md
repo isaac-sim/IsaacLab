@@ -3,7 +3,7 @@ name: isaaclab-debugging-rl-training
 description: Diagnoses Isaac Lab reinforcement learning behavior, rewards, metrics, checkpoints, and training experiments. Use when reward curves look wrong, policies fail despite training, checkpoints mismatch, or RL changes need focused ablations.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team <isaaclab@nvidia.com>
+  author: Isaac Lab Team
 audience: user
 status: experimental
 owners:

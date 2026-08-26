@@ -3,7 +3,7 @@ name: isaaclab-migrating-2x-to-3x
 description: Migrates Isaac Lab 2.x projects to Isaac Lab 3.0 by routing agents through the official migration guide, current source APIs, and focused compatibility checks. Use when users mention Isaac Lab 3.0 migration, 2.x projects, actuator collection changes, quaternion order changes, ProxyArray data access, backend migration, Isaac Sim extension imports, or visualization CLI changes.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team <isaaclab@nvidia.com>
+  author: Isaac Lab Team
 ---
 
 # Migrating 2.x To 3.x
