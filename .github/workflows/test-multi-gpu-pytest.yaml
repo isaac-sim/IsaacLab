@@ -167,8 +167,10 @@ jobs:
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
     needs: [config, build, build-kitless, changes]
-    # ``build-kitless`` is skipped when only the unit gate fires, so do not require its success.
-    if: needs.build.result == 'success'
+    # ``always()`` is load-bearing: ``build-kitless`` is skipped when only the unit gate fires,
+    # and GitHub skips a job whose dependency skipped unless the condition carries a status
+    # function. Without it a unit-only change would silently skip the shards too.
+    if: always() && needs.build.result == 'success'
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
     # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
@@ -284,6 +286,22 @@ jobs:
           # from whenever that image was built -- CI then reports a pass or fail for code this
           # commit never contained. The shard launcher already bind-mounts for this reason.
           volume-mount-source: ${{ github.workspace }}
+
+      - name: Pull kit-less image from ECR
+        # ``build-kitless`` pushes to ECR from whichever multi-GPU runner it landed on, so the
+        # image is not necessarily present locally here. Without this the kitless step's
+        # ``docker run`` fails with ``pull access denied`` whenever the two jobs are scheduled
+        # on different runners.
+        if: always() && needs.changes.outputs.smoke == 'true' && needs.build-kitless.result == 'success'
+        uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.kitless
+          cache-tag: cache-kitless
 
       - name: Multi-GPU training smoke (kitless renderer)
         # Same tests as the step above with the marker inverted, but run in the kit-less image,
