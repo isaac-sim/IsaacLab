@@ -25,7 +25,7 @@ entry for each non-root articulation body:
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
-   :lines: 91-95
+   :lines: 78-82
 
 Manager-based environments can select a body subset through
 :class:`~isaaclab.managers.SceneEntityCfg` and use
@@ -33,7 +33,7 @@ Manager-based environments can select a body subset through
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
-   :lines: 133-142
+   :lines: 122-131
 
 Read the data
 -------------

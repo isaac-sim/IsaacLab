@@ -52,8 +52,15 @@ Add the configuration to an :class:`~isaaclab.scene.InteractiveSceneCfg`:
        )
 
 ``update_period=0.0`` samples every physics step. ``history_length`` stores earlier force samples.
-Enable optional pose, contact-point, friction-force, and air-time buffers only when they are needed.
-Contact-rich scenes may require a larger ``max_contact_data_count_per_prim``.
+Enable optional buffers only when they are needed. Their backend support differs:
+
+* Isaac Sim PhysX supports pose, filtered contact-point, and filtered friction-force tracking.
+* OvPhysX supports pose tracking for a single sensor body per environment, but not contact-point or
+  friction-force tracking.
+* Newton supports filtered contact-point tracking, but not pose or friction-force tracking.
+
+Filtered contact points and friction forces require ``filter_prim_paths_expr``. Contact-rich Isaac
+Sim PhysX scenes may require a larger ``max_contact_data_count_per_prim``.
 
 Read the data
 -------------
@@ -79,15 +86,17 @@ principal Torch views have these contracts:
      - Normal force [N] from each filtered partner
    * - ``contact_pos_w.torch``
      - ``(E, S, F, 3)``
-     - Average filtered contact position [m] in world frame
+     - Average filtered contact position [m] in world frame; unavailable on OvPhysX
    * - ``friction_forces_w.torch``
      - ``(E, S, F, 3)``
-     - Filtered friction force [N] in world frame
+     - Filtered friction force [N] in world frame; Isaac Sim PhysX only
    * - ``current_air_time.torch`` / ``current_contact_time.torch``
      - ``(E, S)``
      - Current mode duration [s]
 
-Optional buffers are ``None`` unless their matching tracking option or filter is enabled.
+Supported optional buffers are ``None`` unless their matching tracking option or filter is enabled.
+Requesting an unsupported tracking option, or reading an unsupported data property, raises
+``NotImplementedError``.
 
 .. code-block:: python
 

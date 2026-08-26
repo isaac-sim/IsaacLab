@@ -85,8 +85,9 @@ A camera can spawn a pinhole or fisheye camera prim, or bind to a camera already
        renderer_cfg=NewtonWarpRendererCfg(),
    )
 
-The renderer instance is shared by cameras that use the same renderer type. Camera configurations,
-including output types and backgrounds, remain per sensor.
+A renderer instance is reused only when cameras use equal renderer configurations of the same
+concrete configuration type. Different renderer settings create distinct instances. Camera
+configurations, including output types and backgrounds, remain per sensor.
 
 Read camera data
 ----------------
