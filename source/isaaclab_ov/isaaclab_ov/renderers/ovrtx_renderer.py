@@ -26,7 +26,7 @@ import os
 import re
 import sys
 import weakref
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -208,6 +208,24 @@ if _OVSTAGE_AVAILABLE:
         """
         dtype = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=values.shape[1])
         return ovstage.make_dltensor(values.reshape(-1), dtype=dtype, shape=[values.shape[0]])
+
+
+def _warp_array_layout(
+    array: wp.array, scalar_dtype: type, vector_dtype: type, element_shape: tuple[int, ...]
+) -> tuple[int, ...] | None:
+    """Return ``array``'s leading shape if it holds ``element_shape`` elements, else ``None``.
+
+    Both warp spellings of the same memory are accepted: an array of ``vector_dtype`` and a
+    ``scalar_dtype`` array whose trailing dimensions are ``element_shape``. A non-contiguous array
+    is rejected because the write reads it in place rather than gathering it.
+    """
+    if not array.is_contiguous:
+        return None
+    if array.dtype is vector_dtype:
+        return tuple(array.shape) if array.ndim == 1 else None
+    if array.dtype is scalar_dtype and tuple(array.shape[-len(element_shape) :]) == element_shape:
+        return tuple(array.shape[: -len(element_shape)])
+    return None
 
 
 def ovrtx_use_ovstage_enabled() -> bool:
@@ -554,7 +572,8 @@ class OVRTXRenderer(BaseRenderer):
         self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
-        self._gaussian_particle_bindings: dict[tuple[str, tuple[str, ...]], Any] = {}
+        self._gaussian_bindings: dict[tuple[str, tuple[str, ...]], Any] = {}
+        self._gaussian_pending_writes: dict[tuple[str, tuple[str, ...]], Any] = {}
         self._particle_workaround_applied = False
         self._cable_points_binding = None
         # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
@@ -1598,9 +1617,17 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_points_binding = None
         _safe_unbind(self._cable_points_binding, "cable points")
         self._cable_points_binding = None
-        for (attribute_name, _), binding in self._gaussian_particle_bindings.items():
+        # In-flight writes reference the caller's buffers and the binding, so drain them first.
+        for (attribute_name, _), pending in self._gaussian_pending_writes.items():
+            try:
+                if pending is not None:
+                    pending.wait()
+            except Exception as e:
+                logger.warning("Error waiting on the pending Gaussian %s write: %s", attribute_name, e)
+        self._gaussian_pending_writes.clear()
+        for (attribute_name, _), binding in self._gaussian_bindings.items():
             _safe_unbind(binding, f"Gaussian {attribute_name}")
-        self._gaussian_particle_bindings.clear()
+        self._gaussian_bindings.clear()
 
         self._deformable_particle_offsets = []
         self._deformable_particle_counts = []
@@ -1752,7 +1779,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._update_geometries_legacy()
 
-    def update_gaussian_splat_transforms(self, prim_paths: list[str], local_transforms: np.ndarray) -> None:
+    def update_gaussian_splat_transforms(self, prim_paths: list[str], local_transforms: wp.array) -> None:
         """Update local transforms for populated Gaussian-splat prims.
 
         This hook is for authored rigid Gaussian animation.  ``omni:xform`` is OVRTX's local
@@ -1760,9 +1787,14 @@ class OVRTXRenderer(BaseRenderer):
         row-vector convention.  OVRTX propagates the local transform through the hierarchy and
         marks the prim transform dirty for the next render.
 
+        The transforms stay wherever the caller allocated them: a device array is ingested without a
+        host round-trip.  See :meth:`update_gaussian_splat_particles` for the write's asynchrony and
+        the buffer lifetime it requires of the caller.
+
         Args:
             prim_paths: Existing Gaussian-splat prim paths in the OVRTX scene.
-            local_transforms: One ``(4, 4)`` float64 matrix per path, with shape ``(N, 4, 4)``.
+            local_transforms: One ``(4, 4)`` matrix per path as a warp ``float64`` array of shape
+                ``(num_paths, 4, 4)``, or the ``wp.mat44d`` equivalent of shape ``(num_paths,)``.
 
         Raises:
             RuntimeError: If the OVRTX scene has not been initialized yet.
@@ -1770,30 +1802,39 @@ class OVRTXRenderer(BaseRenderer):
         """
         if not self._initialized_scene or self._renderer is None:
             raise RuntimeError("OVRTX Gaussian transforms can be updated only after the scene is initialized.")
-        transforms = np.asarray(local_transforms, dtype=np.float64)
-        if transforms.shape != (len(prim_paths), 4, 4):
+        if not isinstance(local_transforms, wp.array):
+            raise ValueError(f"local_transforms must be a warp array, received {type(local_transforms).__name__}.")
+        if _warp_array_layout(local_transforms, wp.float64, wp.mat44d, (4, 4)) != (len(prim_paths),):
             raise ValueError(
-                f"local_transforms must have shape ({len(prim_paths)}, 4, 4), received {tuple(transforms.shape)}."
+                f"local_transforms must have shape ({len(prim_paths)}, 4, 4), received {tuple(local_transforms.shape)}."
             )
         if not prim_paths:
             return
 
         if self._use_ovstage:
-            self._update_gaussian_splat_transforms_ovstage(prim_paths, transforms)
+            # ovstage needs the 16-lane override that make_dltensor only accepts for host numpy, so
+            # this path cannot take the device tensor. See _update_gaussian_splat_particles_ovstage.
+            self._update_gaussian_splat_transforms_ovstage(prim_paths, local_transforms.numpy().reshape(-1, 4, 4))
         else:
-            self._renderer.write_attribute(
-                prim_paths=prim_paths,
-                attribute_name="omni:xform",
-                tensor=np.ascontiguousarray(transforms),
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.MUST_EXIST,
+            key = ("omni:xform", tuple(prim_paths))
+            binding = self._gaussian_binding(
+                key,
+                # The semantic fixes the element layout, so ovrtx rejects an explicit dtype/shape here.
+                lambda: self._renderer.bind_attribute(
+                    prim_paths=list(prim_paths),
+                    attribute_name="omni:xform",
+                    semantic=Semantic.XFORM_MAT4x4,
+                    prim_mode=PrimMode.MUST_EXIST,
+                    flags=BindingFlag.OPTIMIZE,
+                ),
             )
+            self._write_gaussian_binding_async(key, binding, cast(Any, local_transforms), local_transforms.device)
 
     def update_gaussian_splat_particles(
         self,
         prim_paths: list[str],
-        positions: list[np.ndarray] | None = None,
-        orientations: list[np.ndarray] | None = None,
+        positions: list[wp.array] | None = None,
+        orientations: list[wp.array] | None = None,
     ) -> None:
         """Update per-particle arrays for populated Gaussian-splat prims.
 
@@ -1803,65 +1844,110 @@ class OVRTXRenderer(BaseRenderer):
         are converted at population and have no column of their own.  The arrays are in the
         Gaussian prim's local frame, so duplicated envs can share one sample.
 
+        The arrays stay wherever the caller allocated them.  A device array is ingested in place,
+        without a copy and without a host round-trip, and the write is issued asynchronously: it is
+        only waited on when the next write to the same column arrives.  Two obligations follow for
+        the caller:
+
+        * the array must stay alive and unmodified until then, which a ring of buffers deep enough
+          to cover one frame satisfies, and
+        * work that produced the data on another stream must be visible, which is handled by
+          submitting the write on the array's own warp stream.
+
         Args:
             prim_paths: Existing Gaussian-splat prim paths in the OVRTX scene.
-            positions: Particle positions [m] per path, each of shape ``(num_particles, 3)``.
+            positions: Particle positions [m] per path, each a warp ``float32`` array of shape
+                ``(num_particles, 3)`` or the ``wp.vec3f`` equivalent of shape ``(num_particles,)``.
                 Particle counts may differ between paths. Omit to leave the column untouched.
             orientations: Particle orientation quaternions in ``(x, y, z, w)`` order per path, each
-                of shape ``(num_particles, 4)``. Omit to leave the column untouched.
+                a warp ``float32`` array of shape ``(num_particles, 4)`` or the ``wp.vec4f``
+                equivalent of shape ``(num_particles,)``. Omit to leave the column untouched.
 
         Raises:
             RuntimeError: If the OVRTX scene has not been initialized yet.
-            ValueError: If a supplied array list does not have one entry per prim path, or an entry
-                has the wrong number of components.
+            ValueError: If a supplied array list does not have one entry per prim path, an entry is
+                not a warp array of the column's element type, or the entries do not share a device.
         """
         if not self._initialized_scene or self._renderer is None:
             raise RuntimeError("OVRTX Gaussian particles can be updated only after the scene is initialized.")
         if not prim_paths:
             return
 
-        for attribute_name, values, components in (("positions", positions, 3), ("orientations", orientations, 4)):
+        # One particle is a float32 3-vector of position and a float32 quaternion of orientation.
+        columns = (("positions", positions, 3, wp.vec3f), ("orientations", orientations, 4, wp.vec4f))
+        for attribute_name, values, components, element_dtype in columns:
             if values is None:
                 continue
             if len(values) != len(prim_paths):
                 raise ValueError(
                     f"{attribute_name} must have one array per prim path ({len(prim_paths)}), received {len(values)}."
                 )
-            tensors = [np.ascontiguousarray(value, dtype=np.float32) for value in values]
-            for tensor in tensors:
-                if tensor.ndim != 2 or tensor.shape[1] != components:
+            for value in values:
+                if not isinstance(value, wp.array):
                     raise ValueError(
-                        f"each {attribute_name} array must have shape (num_particles, {components}), received"
-                        f" {tuple(tensor.shape)}."
+                        f"each {attribute_name} array must be a warp array, received {type(value).__name__}."
                     )
-            if self._use_ovstage:
-                self._update_gaussian_splat_particles_ovstage(prim_paths, attribute_name, tensors)
-            else:
-                self._gaussian_particle_binding_legacy(attribute_name, prim_paths, components).write(cast(Any, tensors))
+                if _warp_array_layout(value, wp.float32, element_dtype, (components,)) is None:
+                    raise ValueError(
+                        f"each {attribute_name} array must have shape (num_particles, {components}) and dtype"
+                        f" float32, received shape {tuple(value.shape)} of {value.dtype.__name__}."
+                    )
+            devices = {str(value.device) for value in values}
+            if len(devices) > 1:
+                raise ValueError(f"all {attribute_name} arrays must share one device, received {sorted(devices)}.")
 
-    def _gaussian_particle_binding_legacy(self, attribute_name: str, prim_paths: list[str], components: int) -> Any:
-        """Return the persistent binding for one Gaussian particle column, creating it on first use.
+            if self._use_ovstage:
+                self._update_gaussian_splat_particles_ovstage(
+                    prim_paths, attribute_name, [value.numpy().reshape(-1, components) for value in values]
+                )
+            else:
+                key = (attribute_name, tuple(prim_paths))
+                binding = self._gaussian_binding(
+                    key,
+                    lambda: self._renderer.bind_array_attribute(
+                        prim_paths=list(prim_paths),
+                        attribute_name=attribute_name,
+                        dtype=np.float32,
+                        shape=(components,),
+                        prim_mode=PrimMode.MUST_EXIST,
+                        flags=BindingFlag.OPTIMIZE,
+                    ),
+                )
+                self._write_gaussian_binding_async(key, binding, cast(Any, list(values)), values[0].device)
+
+    def _gaussian_binding(self, key: tuple[str, tuple[str, ...]], create: Callable[[], Any]) -> Any:
+        """Return the persistent binding for one Gaussian column, creating it on first use.
 
         A binding locks in its prim paths and element type, so they are cached per column and path
         set and a caller that varies either gets its own. Reusing one keeps the per-frame write from
         rebuilding the binding descriptor and re-resolving the paths, which is what
         :meth:`_write_particle_q_slices` relies on for Newton particles.
         """
-        key = (attribute_name, tuple(prim_paths))
-        binding = self._gaussian_particle_bindings.get(key)
+        binding = self._gaussian_bindings.get(key)
         if binding is None:
-            binding = self._renderer.bind_array_attribute(
-                prim_paths=list(prim_paths),
-                attribute_name=attribute_name,
-                dtype=np.float32,
-                shape=(components,),
-                prim_mode=PrimMode.MUST_EXIST,
-                flags=BindingFlag.OPTIMIZE,
-            )
+            binding = create()
             if binding is None:
-                raise RuntimeError(f"Failed to create the OVRTX Gaussian {attribute_name} binding.")
-            self._gaussian_particle_bindings[key] = binding
+                raise RuntimeError(f"Failed to create the OVRTX Gaussian {key[0]} binding.")
+            self._gaussian_bindings[key] = binding
         return binding
+
+    def _write_gaussian_binding_async(self, key: tuple, binding: Any, data: Any, device: wp.Device) -> None:
+        """Issue a non-blocking write through a persistent Gaussian binding.
+
+        The previous write to the same binding is waited on first: at most one is ever in flight, so
+        a caller cycling through a ring of buffers only has to keep each one alive for a single
+        frame. ``DataAccess.ASYNC`` lets OVRTX read the caller's buffer in place instead of copying
+        it, and passing the array's warp stream hands OVRTX a GPU-side dependency on whatever
+        produced the data, rather than forcing a host-side synchronization here.
+        """
+        pending = self._gaussian_pending_writes.pop(key, None)
+        if pending is not None:
+            pending.wait()
+        self._gaussian_pending_writes[key] = binding.write_async(
+            data,
+            data_access=DataAccess.ASYNC,
+            cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
+        )
 
     def update_camera(
         self,

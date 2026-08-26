@@ -65,6 +65,15 @@ for the whole demo.
 
 parser = argparse.ArgumentParser(description="Kit-less OVRTX demo for USD-authored PPISP camera output.")
 parser.add_argument(
+    "--gaussian_ring_slots",
+    type=int,
+    default=3,
+    help=(
+        "Ring slots per animated Gaussian column. Frames are streamed to the GPU through this ring;"
+        " num_slots - 2 frames of upload run ahead of the frame being rendered. Minimum 2."
+    ),
+)
+parser.add_argument(
     "--input_scene",
     type=str,
     default=DEFAULT_INPUT_SCENE,
@@ -183,6 +192,8 @@ if args_cli.physics_dt <= 0.0:
     parser.error("--physics_dt must be positive.")
 if args_cli.num_frames is not None and args_cli.num_frames < 1:
     parser.error("--num_frames must be at least 1.")
+if args_cli.gaussian_ring_slots < 2:
+    parser.error("--gaussian_ring_slots must be at least 2.")
 
 
 @configclass
@@ -368,7 +379,7 @@ def freeze_env_camera_ancestor_xforms(source_stage: Usd.Stage, source_camera_pri
     """Collapse the xform chain above each duplicated env camera to a static pose at :data:`STAGE_TIME_CODE`.
 
     Capture scenes animate the camera rig rather than the camera prim itself. Re-evaluating those animated
-    xforms per frame would overwrite the camera poses written by :func:`set_env_camera_world_poses`, so each
+    xforms per frame would overwrite the camera poses written by :class:`CameraTrajectory`, so each
     ancestor is rewritten with the static transform already evaluated at :data:`STAGE_TIME_CODE`. This makes
     the runtime pose writes authoritative without changing the pose that is rendered.
     """
@@ -426,39 +437,42 @@ def get_ovrtx_renderer(sim: sim_utils.SimulationContext) -> Any:
     return renderer
 
 
-def play_animated_gaussian_tracks(
-    renderer: Any,
-    source_stage: Usd.Stage,
-    tracks: list[gaussian_anim.AnimatedGaussianTrack],
-    time_code: float,
-) -> None:
-    """Advance the Gaussian tracks to ``time_code`` through OVRTX's public update hooks.
+class CameraTrajectory:
+    """Per-env camera world poses for every frame, prebaked once and kept on the GPU.
 
-    Rigid tracks are played by writing the animated ancestor's local transform; deformable tracks by
-    writing the sampled per-particle arrays, which every duplicated env shares because the samples
-    are in the Gaussian prim's local frame.
+    Resolving the camera's USD transform per frame put a Python loop over envs and a host allocation
+    inside the profiled section. Sampling every frame up front instead leaves the render loop with a
+    slice of a device tensor. The poses are handed to the sensor as torch views of the warp buffers,
+    which :func:`warp.to_torch` aliases rather than copies, so nothing crosses the bus per frame.
     """
-    if not tracks:
-        return
-    default_prim = gaussian_anim.require_default_prim(source_stage)
-    default_prefix = f"{default_prim.GetPath().pathString}/"
-    for track in tracks:
-        for xform_rel_path in track.animated_xform_rel_paths:
-            source_prim = source_stage.GetPrimAtPath(f"{default_prefix}{xform_rel_path}")
-            local_transform = UsdGeom.Xformable(source_prim).GetLocalTransformation(Usd.TimeCode(time_code))
-            paths = [gaussian_anim.env_prim_path(env_id, xform_rel_path) for env_id in range(args_cli.num_envs)]
-            transforms = np.broadcast_to(np.asarray(local_transform, dtype=np.float64), (len(paths), 4, 4)).copy()
-            renderer.update_gaussian_splat_transforms(paths, transforms)
 
-        if not track.is_deformable:
-            continue
-        positions, orientations = gaussian_anim.sample_track_particles(source_stage, track, time_code)
-        paths = [gaussian_anim.env_prim_path(env_id, track.gaussian_rel_path) for env_id in range(args_cli.num_envs)]
-        renderer.update_gaussian_splat_particles(
-            paths,
-            positions=None if positions is None else [positions] * len(paths),
-            orientations=None if orientations is None else [orientations] * len(paths),
+    def __init__(
+        self,
+        source_stage: Usd.Stage,
+        source_camera_prim_path: str,
+        frame_time_codes: list[float],
+        scene_world_transforms: list[Gf.Matrix4d],
+        device: str,
+    ):
+        samples = [
+            compute_env_camera_world_poses(source_stage, source_camera_prim_path, time_code, scene_world_transforms)
+            for time_code in frame_time_codes
+        ]
+        self._positions = wp.to_torch(
+            wp.array(np.stack([positions for positions, _ in samples]), dtype=wp.float32, device=device)
         )
+        self._orientations = wp.to_torch(
+            wp.array(np.stack([orientations for _, orientations in samples]), dtype=wp.float32, device=device)
+        )
+
+    def apply(self, cameras: list[Camera], frame_index: int) -> None:
+        """Write frame ``frame_index``'s poses through every sensor view.
+
+        A USD camera transform is expressed in the OpenGL convention (forward -Z, up +Y). Every camera
+        sensor keeps its own view state, so a shared prim batch has to be updated once per sensor.
+        """
+        for camera in cameras:
+            camera.set_world_poses(self._positions[frame_index], self._orientations[frame_index], convention="opengl")
 
 
 def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float) -> None:
@@ -467,7 +481,7 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
     This seeds the initial pose on the stage and must run before the camera sensors are created and before
     :meth:`SimulationContext.reset`. The Newton backend samples the camera prim's USD transform once while
     building its model, and the Fabric path is populated from USD at reset, so later USD edits do not reach
-    the renderer. Runtime trajectory playback goes through :func:`set_env_camera_world_poses` instead.
+    the renderer. Runtime trajectory playback goes through :class:`CameraTrajectory` instead.
 
     The pose is written through :func:`~isaaclab.sim.utils.standardize_xform_ops` so the prims keep the
     canonical ``[translate, orient, scale]`` op order that the sensor frame views require; authoring a
@@ -531,16 +545,6 @@ def compute_env_camera_world_poses(
         positions[env_id] = (translation[0], translation[1], translation[2])
         orientations[env_id] = (imaginary[0], imaginary[1], imaginary[2], rotation.GetReal())
     return positions, orientations
-
-
-def set_env_camera_world_poses(cameras: list[Camera], positions: np.ndarray, orientations: np.ndarray) -> None:
-    """Write camera world poses through the sensor view so the render backend observes them.
-
-    A USD camera transform is expressed in the OpenGL convention (forward -Z, up +Y). Every camera
-    sensor keeps its own view state, so a shared prim batch has to be updated once per sensor.
-    """
-    for camera in cameras:
-        camera.set_world_poses(positions, orientations, convention="opengl")
 
 
 def get_render_product_resolution(render_product_prim: Usd.Prim | None) -> tuple[int, int] | None:
@@ -783,6 +787,18 @@ def run_simulator(
     # The baseline and PPISP sensors share the same camera prims but keep independent view state.
     cameras = [ppisp_camera] if baseline_camera is None else [baseline_camera, ppisp_camera]
     scene_world_transforms = get_env_scene_world_transforms()
+    # Prebaked once so the profiled loop below only slices device buffers.
+    camera_trajectory = CameraTrajectory(
+        source_stage, source_camera_prim_path, frame_time_codes, scene_world_transforms, str(sim.device)
+    )
+    gaussian_playback = gaussian_anim.GaussianTrackPlayback(
+        source_stage,
+        gaussian_tracks,
+        frame_time_codes,
+        args_cli.num_envs,
+        str(sim.device),
+        num_slots=args_cli.gaussian_ring_slots,
+    )
     output_dir = resolve_output_dir()
     comparison_dir = os.path.join(output_dir, "comparison")
     baseline_dir = os.path.join(output_dir, "baseline")
@@ -804,7 +820,15 @@ def run_simulator(
         print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
     # Seed the first pose before warmup, so a nonzero first USD animation sample is represented in
     # all renderer-startup frames too.
-    play_animated_gaussian_tracks(ovrtx_renderer, source_stage, gaussian_tracks, frame_time_codes[0])
+    if not gaussian_playback.is_empty:
+        ring_bytes = gaussian_playback.device_bytes
+        ring_size = f"{ring_bytes / 1024**2:.1f} MiB" if ring_bytes >= 1024**2 else f"{ring_bytes / 1024:.1f} KiB"
+        print(
+            f"[INFO] Streaming animated Gaussian tracks through {args_cli.gaussian_ring_slots} ring slot(s) using"
+            f" {ring_size} of device memory.",
+            flush=True,
+        )
+    gaussian_playback.play(ovrtx_renderer, 0)
     for _ in range(args_cli.warmup_steps):
         sim.step()
         for camera in cameras:
@@ -813,13 +837,10 @@ def run_simulator(
     for frame_index, time_code in enumerate(frame_time_codes):
         with profile_section(profile, "total_frame", profile_device):
             with profile_section(profile, "camera_pose_update", profile_device):
-                positions, orientations = compute_env_camera_world_poses(
-                    source_stage, source_camera_prim_path, time_code, scene_world_transforms
-                )
-                set_env_camera_world_poses(cameras, positions, orientations)
+                camera_trajectory.apply(cameras, frame_index)
 
             with profile_section(profile, "gaussian_animation_update", profile_device):
-                play_animated_gaussian_tracks(ovrtx_renderer, source_stage, gaussian_tracks, time_code)
+                gaussian_playback.play(ovrtx_renderer, frame_index)
 
             with profile_section(profile, "simulation_step", profile_device):
                 for physics_step in range(physics_steps_per_frame):

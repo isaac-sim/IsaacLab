@@ -487,6 +487,12 @@ only on the first one. Without that the splats are missing from every frame that
 renders while a load is in flight, which is most of them for a deformable track.
 The wait costs frame time only while geometry is actually streaming.
 
+The OVRTX hooks take Warp arrays and write them asynchronously, reading the
+caller's buffer in place instead of copying it. The demo therefore samples the
+whole animation once up front into pinned host memory and streams it through a
+small device ring buffer, so a playback frame costs one host-to-device copy of
+one frame and no USD or Python work. ``--gaussian_ring_slots`` sizes that ring.
+
 Known limitations
 ^^^^^^^^^^^^^^^^^
 

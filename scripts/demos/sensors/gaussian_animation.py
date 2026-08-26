@@ -21,9 +21,10 @@ are needed:
   the only authority that survives a frame. Writing the values into Fabric directly is silently
   overwritten, and scrubbing the Kit timeline is not an option either because Isaac Lab's physics
   manager owns its play state.
-* :func:`sample_track_transform_in_default` and :func:`sample_track_particles` return plain numeric
-  samples for a renderer that ingests the Gaussians once and is then driven through its own API,
-  which is how the OVRTX demo updates them.
+* :class:`GaussianTrackPlayback` prebakes the whole animation once and streams it to the GPU, for a
+  renderer that ingests the Gaussians once and is then driven through its own API, which is how the
+  OVRTX demo updates them. Nothing is resolved from USD while the render loop runs, so a profile of
+  that loop measures the renderer rather than this module.
 
 The Newton Warp renderer has no Gaussian-splat path, so it cannot play tracks back at all.
 
@@ -34,8 +35,10 @@ the app, because it imports :mod:`isaaclab.sim`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
@@ -159,62 +162,6 @@ def collect_authored_times(source_stage: Usd.Stage, tracks: list[AnimatedGaussia
     return sorted(times)
 
 
-def sample_track_transform_in_default(
-    source_stage: Usd.Stage, track: AnimatedGaussianTrack, time_code: float
-) -> Gf.Matrix4d:
-    """Return the track's Gaussian prim transform relative to the source ``defaultPrim`` at ``time_code``.
-
-    The whole ancestor chain is composed, so a track animated several levels above the Gaussian prim
-    resolves correctly. Compose the result with the duplicated env's ``Scene`` world transform to get
-    the world matrix a renderer expects.
-    """
-    default_prim = require_default_prim(source_stage)
-    gaussian_prim = source_stage.GetPrimAtPath(f"{default_prim.GetPath().pathString}/{track.gaussian_rel_path}")
-    if not gaussian_prim or not gaussian_prim.IsValid():
-        raise RuntimeError(f"Gaussian prim not found in source stage: {track.gaussian_rel_path}")
-
-    cache = UsdGeom.XformCache(Usd.TimeCode(time_code))
-    return cache.GetLocalToWorldTransform(gaussian_prim) * cache.GetLocalToWorldTransform(default_prim).GetInverse()
-
-
-def sample_track_particles(
-    source_stage: Usd.Stage, track: AnimatedGaussianTrack, time_code: float
-) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """Sample a deformable track's per-particle arrays at ``time_code``.
-
-    The values are in the Gaussian prim's local frame, so every duplicated env shares one sample.
-
-    Args:
-        source_stage: Opened source scene.
-        track: Track to sample.
-        time_code: USD time code to sample at. USD interpolates between authored samples.
-
-    Returns:
-        A tuple of particle positions [m] with shape (num_particles, 3) and orientation quaternions
-        in ``(x, y, z, w)`` order with shape (num_particles, 4), both ``float32``. Either entry is
-        ``None`` when the corresponding attribute is not animated on this track.
-    """
-    default_prim = require_default_prim(source_stage)
-    gaussian_prim = source_stage.GetPrimAtPath(f"{default_prim.GetPath().pathString}/{track.gaussian_rel_path}")
-    if not gaussian_prim or not gaussian_prim.IsValid():
-        raise RuntimeError(f"Gaussian prim not found in source stage: {track.gaussian_rel_path}")
-
-    positions = None
-    if track.positions_attr_name is not None:
-        values = gaussian_prim.GetAttribute(track.positions_attr_name).Get(Usd.TimeCode(time_code))
-        positions = np.asarray(values, dtype=np.float32).reshape(-1, 3)
-
-    orientations = None
-    if track.orientations_attr_name is not None:
-        values = gaussian_prim.GetAttribute(track.orientations_attr_name).Get(Usd.TimeCode(time_code))
-        # Gf quaternions iterate as (real, imaginary); the renderers all expect (x, y, z, w).
-        orientations = np.empty((len(values), 4), dtype=np.float32)
-        for index, quat in enumerate(values):
-            imaginary = quat.GetImaginary()
-            orientations[index] = (imaginary[0], imaginary[1], imaginary[2], quat.GetReal())
-    return positions, orientations
-
-
 def bake_env_track_state(
     source_stage: Usd.Stage,
     tracks: list[AnimatedGaussianTrack],
@@ -268,6 +215,181 @@ def bake_env_track_state(
             for env_id in range(num_envs):
                 env_prim = _require_env_prim(stage, env_id, track.gaussian_rel_path)
                 env_prim.GetAttribute(attr_name).Set(values, target_time_code)
+
+
+class GaussianTrackPlayback:
+    """Plays animated Gaussian tracks back on the GPU, without touching USD or the host per frame.
+
+    Every animated column of every track is resolved from USD once, at construction, into pinned host
+    staging shaped ``(num_frames, ...)``. Playing frame ``i`` then costs one asynchronous host-to-device
+    copy per column into ring slot ``i % num_slots``, followed by the renderer's own asynchronous
+    write of that slot. The render loop therefore does no USD value resolution, no host allocation and
+    no per-particle Python -- the per-particle work happens once per column, vectorized, at construction.
+
+    The ring lets the copy for the next frame overlap the render of the current one. Slot reuse is what
+    bounds how far ahead it may run: with ``num_slots`` slots, one holds the frame being written and one
+    guards the previous frame whose write the renderer may still be reading, leaving ``num_slots - 2``
+    frames of prefetch. Two slots are therefore the minimum, and the default of three buys one frame of
+    overlap. Slot reuse is also why playback runs forward: :meth:`play` refuses a frame the ring has
+    already moved past rather than overwrite a slot the renderer may still be reading.
+
+    Args:
+        source_stage: Opened source scene, sampled once per frame time code.
+        tracks: Tracks to play, as returned by :func:`find_animated_gaussian_tracks`.
+        frame_time_codes: USD time codes of the frames that will be played, in play order.
+        num_envs: Number of duplicated envs on the current stage.
+        device: Warp device the ring buffers are allocated on.
+        num_slots: Number of ring slots per column. Must be at least 2.
+
+    Raises:
+        ValueError: If ``num_slots`` is less than 2.
+    """
+
+    def __init__(
+        self,
+        source_stage: Usd.Stage,
+        tracks: list[AnimatedGaussianTrack],
+        frame_time_codes: list[float],
+        num_envs: int,
+        device: str,
+        num_slots: int = 3,
+    ):
+        if num_slots < 2:
+            raise ValueError(f"num_slots must be at least 2 to double-buffer the upload, received {num_slots}.")
+        self._num_slots = num_slots
+        self._prefetch_depth = num_slots - 2
+        self._num_frames = len(frame_time_codes)
+        # Frame each slot currently holds, so a frame already uploaded is not uploaded again.
+        self._resident: list[int | None] = [None] * num_slots
+        self._last_played = 0
+        self._columns: list[_AnimationColumn] = []
+
+        default_prefix = f"{require_default_prim(source_stage).GetPath().pathString}/"
+        for track in tracks:
+            for xform_rel_path in track.animated_xform_rel_paths:
+                source_prim = source_stage.GetPrimAtPath(f"{default_prefix}{xform_rel_path}")
+                xformable = UsdGeom.Xformable(source_prim)
+                # Every env shares the track's local transform, so one sample is broadcast to all of
+                # them and the renderer receives the one-matrix-per-path layout it requires.
+                frames = np.stack(
+                    [
+                        np.broadcast_to(
+                            np.asarray(xformable.GetLocalTransformation(Usd.TimeCode(time_code)), dtype=np.float64),
+                            (num_envs, 4, 4),
+                        )
+                        for time_code in frame_time_codes
+                    ]
+                )
+                self._columns.append(
+                    _AnimationColumn(
+                        prim_paths=[env_prim_path(env_id, xform_rel_path) for env_id in range(num_envs)],
+                        kind="xform",
+                        host=wp.array(frames, dtype=wp.float64, device="cpu", pinned=True),
+                        ring=wp.zeros((num_slots, num_envs, 4, 4), dtype=wp.float64, device=device),
+                    )
+                )
+
+            if not track.is_deformable:
+                continue
+            gaussian_prim = source_stage.GetPrimAtPath(f"{default_prefix}{track.gaussian_rel_path}")
+            prim_paths = [env_prim_path(env_id, track.gaussian_rel_path) for env_id in range(num_envs)]
+            for kind, attr_name, components in (
+                ("positions", track.positions_attr_name, 3),
+                ("orientations", track.orientations_attr_name, 4),
+            ):
+                if attr_name is None:
+                    continue
+                attribute = gaussian_prim.GetAttribute(attr_name)
+                # Vt converts a quaternion array to (imaginary, real) components, which is already the
+                # (x, y, z, w) order the renderers expect, so both columns are a plain vectorized cast.
+                frames = np.stack(
+                    [
+                        np.asarray(attribute.Get(Usd.TimeCode(time_code))).astype(np.float32, copy=False)
+                        for time_code in frame_time_codes
+                    ]
+                )
+                if frames.shape[1:] != (track.num_particles, components):
+                    raise RuntimeError(
+                        f"{attr_name} on {track.gaussian_rel_path} sampled as shape {frames.shape[1:]}, expected"
+                        f" ({track.num_particles}, {components})."
+                    )
+                self._columns.append(
+                    _AnimationColumn(
+                        prim_paths=prim_paths,
+                        kind=kind,
+                        host=wp.array(frames, dtype=wp.float32, device="cpu", pinned=True),
+                        ring=wp.zeros((num_slots, track.num_particles, components), dtype=wp.float32, device=device),
+                    )
+                )
+
+    @property
+    def device_bytes(self) -> int:
+        """Total size [B] of the device ring buffers, for the demo's startup report."""
+        return sum(column.ring.size * wp.types.type_size_in_bytes(column.ring.dtype) for column in self._columns)
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether there is nothing to play, i.e. no track animates anything."""
+        return not self._columns
+
+    def play(self, renderer: Any, frame_index: int) -> None:
+        """Advance every track to ``frame_index`` through the renderer's Gaussian update hooks.
+
+        Uploads whatever frames the ring is allowed to run ahead on and does not already hold, then
+        writes the requested frame's slot. Both the copies and the renderer's writes are
+        asynchronous, so this returns without waiting on the GPU. Replaying the frame the ring is
+        already on is free, which is what lets the caller seed a pose before its warmup steps.
+
+        Args:
+            renderer: Renderer exposing the ``update_gaussian_splat_*`` hooks.
+            frame_index: Frame to show, as an index into the frame time codes. Playback runs forward:
+                a frame the ring has already moved past cannot be played again.
+
+        Raises:
+            ValueError: If ``frame_index`` is behind the last played frame.
+        """
+        if not self._columns:
+            return
+        if frame_index < self._last_played:
+            raise ValueError(
+                f"frame {frame_index} is behind the last played frame {self._last_played}: playback runs forward,"
+                " because rewinding would overwrite a slot the renderer may still be reading."
+            )
+        for index in range(frame_index, min(frame_index + self._prefetch_depth, self._num_frames - 1) + 1):
+            upload_slot = index % self._num_slots
+            if self._resident[upload_slot] == index:
+                continue
+            for column in self._columns:
+                wp.copy(column.ring[upload_slot], column.host[index])
+            self._resident[upload_slot] = index
+        self._last_played = frame_index
+
+        slot = frame_index % self._num_slots
+        for column in self._columns:
+            values = column.ring[slot]
+            if column.kind == "xform":
+                renderer.update_gaussian_splat_transforms(column.prim_paths, values)
+            else:
+                # Every env shares the sample: the arrays are in the Gaussian prim's local frame.
+                shared = [values] * len(column.prim_paths)
+                renderer.update_gaussian_splat_particles(column.prim_paths, **{column.kind: shared})
+
+
+@dataclass(frozen=True)
+class _AnimationColumn:
+    """One animated column of one track: its prebaked host frames and the device ring they stream through."""
+
+    prim_paths: list[str]
+    """Duplicated-env prim paths the column is written to."""
+
+    kind: str
+    """Which renderer hook the column feeds: ``xform``, ``positions`` or ``orientations``."""
+
+    host: wp.array
+    """Pinned host staging holding every frame, shape ``(num_frames, ...)``."""
+
+    ring: wp.array
+    """Device ring the frames are streamed through, shape ``(num_slots, ...)``."""
 
 
 def env_prim_path(env_id: int, rel_path: str) -> str:

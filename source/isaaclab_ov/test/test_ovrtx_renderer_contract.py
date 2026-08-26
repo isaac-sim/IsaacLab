@@ -527,69 +527,129 @@ def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
     assert renderer._initialized_scene is True
 
 
+class _RecordingOperation:
+    """Async write handle stub that records when the caller waits on it."""
+
+    def __init__(self):
+        self.waited = False
+
+    def wait(self) -> None:
+        self.waited = True
+
+
 class _RecordingArrayBinding:
-    """Persistent array binding stub that records the tensors written through it."""
+    """Persistent binding stub that records the tensors written through it and how."""
 
-    def __init__(self, prim_paths, attribute_name, dtype, shape, prim_mode, flags):
-        self.prim_paths = prim_paths
-        self.attribute_name = attribute_name
-        self.dtype = dtype
-        self.shape = shape
-        self.prim_mode = prim_mode
-        self.flags = flags
-        self.writes: list[list] = []
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.attribute_name = kwargs["attribute_name"]
+        self.prim_paths = kwargs["prim_paths"]
+        self.writes: list[dict] = []
+        self.operations: list[_RecordingOperation] = []
 
-    def write(self, tensors):
-        self.writes.append(tensors)
+    def write_async(self, data, data_access=None, cuda_stream=None):
+        self.writes.append({"data": data, "data_access": data_access, "cuda_stream": cuda_stream})
+        # Recorded in issue order so a test can assert the previous write was waited on first.
+        operation = _RecordingOperation()
+        self.operations.append(operation)
+        return operation
 
 
 class _RecordingArrayWriter:
-    """Legacy backend stub that records the array bindings it hands out."""
+    """Legacy backend stub that records the bindings it hands out."""
 
     def __init__(self):
         self.bindings: list[_RecordingArrayBinding] = []
 
-    def bind_array_attribute(self, prim_paths, attribute_name, dtype, shape, prim_mode, flags):
-        binding = _RecordingArrayBinding(prim_paths, attribute_name, dtype, shape, prim_mode, flags)
+    def _bind(self, **kwargs):
+        binding = _RecordingArrayBinding(**kwargs)
         self.bindings.append(binding)
         return binding
 
+    def bind_array_attribute(self, **kwargs):
+        return self._bind(**kwargs)
+
+    def bind_attribute(self, **kwargs):
+        return self._bind(**kwargs)
+
 
 def _make_gaussian_renderer(backend: _RecordingArrayWriter) -> OVRTXRenderer:
-    """Build a legacy-path renderer ready for Gaussian particle writes."""
+    """Build a legacy-path renderer ready for Gaussian writes."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = False
     renderer._initialized_scene = True
     renderer._renderer = backend
-    renderer._gaussian_particle_bindings = {}
+    renderer._gaussian_bindings = {}
+    renderer._gaussian_pending_writes = {}
     return renderer
 
 
-def test_ovrtx_update_gaussian_splat_particles_writes_float32_columns():
-    """Both particle columns are written as float32, one array per prim, and half input is converted.
+@pytest.mark.parametrize(
+    "positions, orientations",
+    [
+        (wp.zeros((2, 3), dtype=wp.float32, device="cpu"), wp.zeros((2, 4), dtype=wp.float32, device="cpu")),
+        (wp.zeros(2, dtype=wp.vec3f, device="cpu"), wp.zeros(2, dtype=wp.vec4f, device="cpu")),
+    ],
+    ids=["scalar_columns", "vector_columns"],
+)
+def test_ovrtx_update_gaussian_splat_particles_writes_the_caller_arrays_in_place(positions, orientations):
+    """Both warp spellings of a particle column reach the backend as the caller's own array.
 
-    The scene-DB columns are float32 regardless of the USD spelling they were populated from, so a
-    caller passing the half arrays an asset authored must still reach the backend as float32.
+    The columns are float32 with a per-column lane count, and the arrays are handed over without
+    being copied or coerced: passing the array through unchanged is what keeps a device-resident
+    caller off the host.
     """
     backend = _RecordingArrayWriter()
     renderer = _make_gaussian_renderer(backend)
     paths = ["/World/envs/env_0/Scene/gaussians", "/World/envs/env_1/Scene/gaussians"]
-    positions = np.arange(6, dtype=np.float16).reshape(2, 3)
-    orientations = np.arange(8, dtype=np.float32).reshape(2, 4)
 
     renderer.update_gaussian_splat_particles(paths, positions=[positions] * 2, orientations=[orientations] * 2)
 
     assert [binding.attribute_name for binding in backend.bindings] == ["positions", "orientations"]
-    for binding, components in zip(backend.bindings, (3, 4), strict=True):
+    for binding, (components, column) in zip(backend.bindings, ((3, positions), (4, orientations)), strict=True):
         assert binding.prim_paths == paths
-        assert binding.dtype is np.float32
-        assert binding.shape == (components,)
-        assert binding.prim_mode is ovrtx_renderer_module.PrimMode.MUST_EXIST
-        tensors = binding.writes[0]
-        assert len(tensors) == len(paths)
-        assert all(tensor.dtype == np.float32 for tensor in tensors)
-    np.testing.assert_array_equal(backend.bindings[0].writes[0][0], positions.astype(np.float32))
-    np.testing.assert_array_equal(backend.bindings[1].writes[0][0], orientations)
+        assert binding.kwargs["dtype"] is np.float32
+        assert binding.kwargs["shape"] == (components,)
+        assert binding.kwargs["prim_mode"] is ovrtx_renderer_module.PrimMode.MUST_EXIST
+        assert binding.writes[0]["data"] == [column] * len(paths)
+
+
+def test_ovrtx_update_gaussian_splat_particles_writes_asynchronously():
+    """Writes are issued without a host wait, and only one is ever in flight per column.
+
+    ``DataAccess.ASYNC`` means OVRTX reads the caller's buffer rather than copying it, so the caller
+    needs to know exactly how long that buffer must stay alive: the contract is that the previous
+    write is waited on when the next one is issued, and no earlier.
+    """
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+    paths = ["/World/gaussians"]
+
+    renderer.update_gaussian_splat_particles(paths, positions=[wp.zeros((4, 3), dtype=wp.float32, device="cpu")])
+    binding = backend.bindings[0]
+    assert binding.writes[0]["data_access"] is ovrtx_renderer_module.DataAccess.ASYNC
+    assert binding.operations[0].waited is False
+
+    renderer.update_gaussian_splat_particles(paths, positions=[wp.zeros((4, 3), dtype=wp.float32, device="cpu")])
+    assert binding.operations[0].waited is True
+    assert binding.operations[1].waited is False
+    assert len(renderer._gaussian_pending_writes) == 1
+
+
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="requires a CUDA device")
+def test_ovrtx_update_gaussian_splat_particles_hands_over_the_device_stream():
+    """A device array's warp stream is passed to OVRTX, which orders the read GPU-side.
+
+    Without it OVRTX cannot know the upload that produced the data has landed, and the alternative
+    to a GPU-side dependency is a host synchronization on the caller's critical path.
+    """
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+    positions = wp.zeros((4, 3), dtype=wp.float32, device="cuda:0")
+
+    renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=[positions])
+
+    assert backend.bindings[0].writes[0]["cuda_stream"] == wp.get_stream("cuda:0").cuda_stream
 
 
 def test_ovrtx_update_gaussian_splat_particles_reuses_the_binding_across_frames():
@@ -599,7 +659,7 @@ def test_ovrtx_update_gaussian_splat_particles_reuses_the_binding_across_frames(
     paths = ["/World/gaussians"]
 
     for _ in range(3):
-        renderer.update_gaussian_splat_particles(paths, positions=[np.zeros((4, 3), np.float32)])
+        renderer.update_gaussian_splat_particles(paths, positions=[wp.zeros((4, 3), dtype=wp.float32, device="cpu")])
 
     assert [binding.attribute_name for binding in backend.bindings] == ["positions"]
     assert len(backend.bindings[0].writes) == 3
@@ -609,7 +669,7 @@ def test_ovrtx_update_gaussian_splat_particles_binds_per_path_set():
     """A binding locks in its prim paths, so a different path set needs its own."""
     backend = _RecordingArrayWriter()
     renderer = _make_gaussian_renderer(backend)
-    positions = [np.zeros((4, 3), np.float32)]
+    positions = [wp.zeros((4, 3), dtype=wp.float32, device="cpu")]
 
     renderer.update_gaussian_splat_particles(["/World/a"], positions=positions)
     renderer.update_gaussian_splat_particles(["/World/b"], positions=positions)
@@ -622,7 +682,9 @@ def test_ovrtx_update_gaussian_splat_particles_skips_omitted_column():
     backend = _RecordingArrayWriter()
     renderer = _make_gaussian_renderer(backend)
 
-    renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=[np.zeros((3, 3), np.float32)])
+    renderer.update_gaussian_splat_particles(
+        ["/World/gaussians"], positions=[wp.zeros((3, 3), dtype=wp.float32, device="cpu")]
+    )
 
     assert [binding.attribute_name for binding in backend.bindings] == ["positions"]
 
@@ -630,12 +692,20 @@ def test_ovrtx_update_gaussian_splat_particles_skips_omitted_column():
 @pytest.mark.parametrize(
     "positions, message",
     [
-        ([np.zeros((3, 3), np.float32)] * 2, "one array per prim path"),
-        ([np.zeros((3, 4), np.float32)], "num_particles, 3"),
+        ([wp.zeros((3, 3), dtype=wp.float32, device="cpu")] * 2, "one array per prim path"),
+        ([wp.zeros((3, 4), dtype=wp.float32, device="cpu")], "num_particles, 3"),
+        ([wp.zeros((3, 3), dtype=wp.float64, device="cpu")], "num_particles, 3"),
+        ([wp.zeros((3, 4), dtype=wp.float32, device="cpu")[:, :3]], "num_particles, 3"),
+        ([np.zeros((3, 3), dtype=np.float32)], "must be a warp array"),
     ],
+    ids=["path_count", "components", "dtype", "non_contiguous", "not_warp"],
 )
-def test_ovrtx_update_gaussian_splat_particles_rejects_mismatched_arrays(positions, message):
-    """A per-path count or component-count mismatch is rejected before it reaches the backend."""
+def test_ovrtx_update_gaussian_splat_particles_rejects_unwritable_arrays(positions, message):
+    """Anything the write cannot ingest in place is rejected before it reaches the backend.
+
+    A non-contiguous or wrongly typed array would be read as garbage by an in-place write, and a
+    host container silently reintroduces the copy the warp-only signature exists to avoid.
+    """
     backend = _RecordingArrayWriter()
     renderer = _make_gaussian_renderer(backend)
 
@@ -653,17 +723,49 @@ def test_ovrtx_gaussian_updates_require_an_initialized_scene():
     renderer._renderer = _RecordingArrayWriter()
 
     with pytest.raises(RuntimeError, match="scene is initialized"):
-        renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=[np.zeros((3, 3), np.float32)])
+        renderer.update_gaussian_splat_particles(
+            ["/World/gaussians"], positions=[wp.zeros((3, 3), dtype=wp.float32, device="cpu")]
+        )
     with pytest.raises(RuntimeError, match="scene is initialized"):
-        renderer.update_gaussian_splat_transforms(["/World/gaussians"], np.eye(4).reshape(1, 4, 4))
+        renderer.update_gaussian_splat_transforms(["/World/gaussians"], wp.zeros((1, 4, 4), dtype=wp.float64))
 
 
-def test_ovrtx_update_gaussian_splat_transforms_rejects_mismatched_shape():
-    """One local matrix per prim path is required; anything else is a caller bug."""
+@pytest.mark.parametrize(
+    "transforms",
+    [wp.zeros((2, 4, 4), dtype=wp.float64, device="cpu"), wp.zeros(2, dtype=wp.mat44d, device="cpu")],
+    ids=["scalar_matrices", "matrix_dtype"],
+)
+def test_ovrtx_update_gaussian_splat_transforms_writes_the_caller_array_in_place(transforms):
+    """Rigid animation goes through a persistent ``omni:xform`` binding, asynchronously and uncopied."""
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+    paths = ["/World/a", "/World/b"]
+
+    renderer.update_gaussian_splat_transforms(paths, transforms)
+    renderer.update_gaussian_splat_transforms(paths, transforms)
+
+    binding = backend.bindings[0]
+    assert len(backend.bindings) == 1
+    assert binding.attribute_name == "omni:xform"
+    # The semantic fixes the element layout; ovrtx rejects an explicit dtype/shape alongside it.
+    assert binding.kwargs.keys() == {"prim_paths", "attribute_name", "semantic", "prim_mode", "flags"}
+    assert binding.kwargs["semantic"] is ovrtx_renderer_module.Semantic.XFORM_MAT4x4
+    assert binding.writes[0]["data"] is transforms
+    assert binding.writes[0]["data_access"] is ovrtx_renderer_module.DataAccess.ASYNC
+    assert binding.operations[0].waited is True
+
+
+@pytest.mark.parametrize(
+    "transforms",
+    [wp.zeros((1, 4, 4), dtype=wp.float64, device="cpu"), wp.zeros((2, 3, 3), dtype=wp.float64, device="cpu")],
+    ids=["path_count", "matrix_shape"],
+)
+def test_ovrtx_update_gaussian_splat_transforms_rejects_mismatched_shape(transforms):
+    """One local 4x4 matrix per prim path is required; anything else is a caller bug."""
     renderer = _make_gaussian_renderer(_RecordingArrayWriter())
 
     with pytest.raises(ValueError, match=r"shape \(2, 4, 4\)"):
-        renderer.update_gaussian_splat_transforms(["/a", "/b"], np.eye(4).reshape(1, 4, 4))
+        renderer.update_gaussian_splat_transforms(["/a", "/b"], transforms)
 
 
 class _RecordingBinding:
@@ -689,7 +791,8 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
     renderer._cable_points_binding = _RecordingBinding(events, "cable")
-    renderer._gaussian_particle_bindings = {("positions", ("/World/gaussians",)): _RecordingBinding(events, "gaussian")}
+    renderer._gaussian_bindings = {("positions", ("/World/gaussians",)): _RecordingBinding(events, "gaussian")}
+    renderer._gaussian_pending_writes = {("positions", ("/World/gaussians",)): _RecordingOperation()}
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
@@ -777,7 +880,8 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
     assert renderer._cable_points_binding is None
-    assert renderer._gaussian_particle_bindings == {}
+    assert renderer._gaussian_bindings == {}
+    assert renderer._gaussian_pending_writes == {}
     assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []

@@ -3,7 +3,10 @@ Added
 
 * Added :meth:`~isaaclab_ov.renderers.OVRTXRenderer.update_gaussian_splat_transforms` and
   :meth:`~isaaclab_ov.renderers.OVRTXRenderer.update_gaussian_splat_particles`, which play back rigid and
-  deformable animated Gaussian-splat tracks on the OVRTX renderer.
+  deformable animated Gaussian-splat tracks on the OVRTX renderer. Both take Warp arrays and write them
+  through a persistent binding without copying them, so a device-resident caller never touches the host.
+  The write is asynchronous: the caller's buffer must stay unmodified until the following write to the same
+  attribute, which is where the previous write is awaited.
 
 Changed
 ^^^^^^^
