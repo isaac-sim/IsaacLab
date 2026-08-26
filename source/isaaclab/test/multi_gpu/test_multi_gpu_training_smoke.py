@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -127,6 +128,35 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
 
+def _free_port() -> int:
+    """Return a port that is free right now, for this run's torchrun rendezvous.
+
+    Cases run sequentially in one CI job and a killed rank releases the port asynchronously,
+    so reusing torchrun's default 29500 makes the next case abort with "The server socket has
+    failed to listen on any local network address".
+    """
+    with socket.socket() as probe:
+        probe.bind(("", 0))
+        return probe.getsockname()[1]
+
+
+def _gpu_state() -> str:
+    """Return a one-line per-GPU snapshot: index, model, used and total memory.
+
+    A failing run reports only what it could not allocate, which is not enough to tell a
+    device that is genuinely full from one that is too small for the workload. Captured on
+    failure so the report carries the hardware it ran on.
+    """
+    probe = subprocess.run(
+        ["nvidia-smi", "--query-gpu=index,name,memory.used,memory.total", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0:
+        return "nvidia-smi unavailable"
+    return " | ".join(line.strip() for line in probe.stdout.splitlines() if line.strip())
+
+
 def _run_training(
     devices: tuple[int, ...] | None,
     task: str,
@@ -167,6 +197,9 @@ def _run_training(
         str(num_gpus),
         # Without this only rank 0 is printed; when another rank dies the log carries no evidence.
         "--log_all_ranks",
+        # Never torchrun's default 29500: see :func:`_free_port`.
+        "--master_port",
+        str(_free_port()),
         "--rl_library",
         "rsl_rl",
         "--task",
@@ -241,7 +274,7 @@ def _kill_process_group(process: subprocess.Popen) -> None:
 def _assert_training_passed(outcome: str, output: str, devices: tuple[int, ...] | None = None) -> None:
     """Assert a training subprocess actually trained, not merely exited cleanly."""
     where = f" on CUDA_VISIBLE_DEVICES={devices}" if devices is not None else " with no device mask"
-    assert outcome == "passed", f"outcome={outcome}{where}\n{output[-2000:]}"
+    assert outcome == "passed", f"outcome={outcome}{where}\ngpus: {_gpu_state()}\n{output[-2000:]}"
 
 
 def _require_devices(count: int) -> None:
