@@ -60,8 +60,9 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "lift_kuka_homo": 8.0,
     "lift_kuka_hetero": 8.0,
     "kuka_visual_material_randomization": 4.0,
-    # A dense MPM cloud is thousands of small point sprites, so anti-aliasing noise along their
-    # silhouettes covers far more of the frame than a solid body's edges do.
+    # Starting allowance carried over from the other deformable scenes rather than a measured
+    # need: repeat runs on one machine reproduce these goldens exactly. Tighten it if the
+    # cross-machine spread turns out to be smaller than a dense point cloud suggests.
     "mpm_particles": 8.0,
 }
 
@@ -2311,6 +2312,19 @@ def rendering_test_mpm_particles(
     ``sim.physics`` directly rather than exposing physics presets; only the renderer is selected
     through Hydra here. The camera is attached test-locally so the contrib task keeps its
     state-only public config.
+
+    Two properties of this suite are worth knowing before debugging a failure here:
+
+    * The retry from ``_FLAKY_MARK`` cannot rescue a failure. Only the first environment built in
+      a process reproduces the goldens; a second one renders RTX colour differently and lands
+      ~37 % of pixels away on ``rgb``/``rgba`` while the geometry AOVs still match exactly. Two
+      separate processes agree with each other, so a real regression and a retried failure look
+      alike. Compare a fresh process against the goldens rather than trusting the retries.
+    * ``semantic_segmentation`` and ``instance_segmentation`` carry only silhouette-level signal.
+      Nothing in this scene is semantically tagged, so the pile shares one unlabelled region with
+      the table and would barely move those AOVs if it stopped rendering. ``rgb``/``rgba`` and
+      ``instance_id_segmentation_fast``, where the pile is its own instance, are what actually
+      gate the particle path.
     """
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
