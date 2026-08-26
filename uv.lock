@@ -1764,12 +1764,12 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "16.4.0"
+version = "19.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "0.6.4"
+version = "0.6.5"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1788,7 +1788,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "2.0.0"
+version = "2.0.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1916,6 +1916,9 @@ ovrtx = [
     { name = "ovrtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "ovstage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
+policy-debug = [
+    { name = "isaaclab-policy-debug", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
 rerun = [
     { name = "pyarrow", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "rerun-sdk", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2023,6 +2026,7 @@ requires-dist = [
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
     { name = "isaaclab-physx", editable = "source/isaaclab_physx" },
+    { name = "isaaclab-policy-debug", marker = "extra == 'policy-debug'", editable = "source/isaaclab_policy_debug" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
@@ -2122,7 +2126,7 @@ requires-dist = [
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "warp-lang", specifier = "==1.16.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "importers", "test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "policy-debug", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -2154,7 +2158,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "5.3.0"
+version = "5.4.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2165,7 +2169,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "2.1.0"
+version = "2.2.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2180,7 +2184,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "5.1.0"
+version = "5.2.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2188,6 +2192,23 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+
+[[package]]
+name = "isaaclab-policy-debug"
+version = "0.1.0"
+source = { editable = "source/isaaclab_policy_debug" }
+dependencies = [
+    { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-rl", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-visualizers", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
+    { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
+]
 
 [[package]]
 name = "isaaclab-ppisp"
@@ -2202,7 +2223,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.16.0"
+version = "0.16.1"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2219,7 +2240,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "17.0.0"
+version = "19.0.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2260,7 +2281,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.7.0"
+version = "1.8.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },

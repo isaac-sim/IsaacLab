@@ -46,6 +46,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Aditya Ajay
 * Advait Jayant
 * Agon Serifi
 * Alessandro Assirelli

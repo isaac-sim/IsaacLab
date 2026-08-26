@@ -104,9 +104,8 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
 def test_setup_preset_cli_does_not_mutate_sys_argv(monkeypatch):
     """``setup_preset_cli`` must not mutate ``sys.argv`` -- mutation is the
     caller's responsibility. Locks the contract that ``rsl_rl/{train,play}.py``
-    rely on so an ``--external_callback`` hook invoked after ``setup_preset_cli``
-    can still read the user's original command line and return tokens that the
-    caller intersects against the remainder."""
+    rely on when an ``--external_callback`` reads the user's original command
+    line and returns tokens that the caller intersects against the remainder."""
     original = ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "env.sim.dt=0.001"]
     monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli

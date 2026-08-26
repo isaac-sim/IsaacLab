@@ -211,6 +211,205 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
 
+def test_newton_visualizer_queues_policy_debug_viewer_mutations():
+    calls = []
+
+    class _Gui:
+        def frame_camera_on_model(self):
+            calls.append(("frame",))
+
+    class _FakeViewer:
+        gui = _Gui()
+        layer = SimpleNamespace(layer_id="__default__")
+
+        def set_layer_visible(self, layer_id, visible):
+            calls.append(("layer_visible", layer_id, visible))
+
+        def log_state(self, state):
+            calls.append(("log_state", state))
+
+        def activate(self, layer_id):
+            self.layer = SimpleNamespace(layer_id=layer_id)
+            calls.append(("activate", layer_id))
+
+        def set_model(self, model):
+            calls.append(("model", model))
+
+        def set_visible_worlds(self, worlds):
+            calls.append(("worlds", list(worlds)))
+
+        def set_world_offsets(self, spacing):
+            calls.append(("offsets", spacing))
+
+        def set_layer_transform(self, layer_id, translation):
+            calls.append(("transform", layer_id, translation))
+
+        def set_layer_render_style(self, layer_id, style):
+            calls.append(("style", layer_id, style))
+
+        def set_layer_shape_visibility(self, layer_id, visibility):
+            calls.append(("shape_visibility", layer_id, visibility))
+
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer._viewer = _FakeViewer()
+    visualizer._model = object()
+    visualizer._state = object()
+    origins = torch.tensor([[1.0, -1.0, 0.0], [1.0, 1.0, 0.0], [-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]])
+    visualizer._scene_data_provider = SimpleNamespace(
+        num_envs=4,
+        get_interactive_scene=lambda: SimpleNamespace(env_origins=origins),
+    )
+    styles = (object(),) * 4
+    visibility = (None, (True, False), None, (False, True))
+
+    visualizer.configure_environment_layers([1, 3])
+    visualizer.set_visible_environment_ids([1, 3])
+    visualizer.set_environment_layout("overlay")
+    visualizer.set_environment_render_styles(styles)
+    visualizer.set_environment_shape_visibility(visibility)
+    visualizer.frame_visible_environments()
+    assert calls == []
+
+    visualizer._apply_pending_viewer_commands()
+
+    assert visualizer._environment_layers == {1: "environment_1", 3: "environment_3"}
+    assert calls[:2] == [("layer_visible", "__default__", False), ("log_state", visualizer._state)]
+    assert ("worlds", [1]) in calls
+    assert ("worlds", [3]) in calls
+    assert ("offsets", (0.0, 0.0, 0.0)) in calls
+    assert ("layer_visible", "environment_1", True) in calls
+    assert ("layer_visible", "environment_3", True) in calls
+    assert ("style", "environment_1", styles[1]) in calls
+    assert ("style", "environment_3", styles[3]) in calls
+    assert ("shape_visibility", "environment_1", visibility[1]) in calls
+    assert ("shape_visibility", "environment_3", visibility[3]) in calls
+    assert ("frame",) in calls
+
+    transforms = {call[1]: call[2] for call in calls if call[0] == "transform"}
+    np.testing.assert_allclose(transforms["environment_1"], -origins.numpy()[1])
+    np.testing.assert_allclose(transforms["environment_3"], -origins.numpy()[3])
+
+
+def test_newton_visualizer_resolves_scene_assets_to_shape_visibility():
+    scene = {
+        "robot": SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot")),
+        "cube": SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Cube")),
+    }
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer._model = SimpleNamespace(
+        shape_count=6,
+        shape_label=[
+            "/World/envs/env_0/Robot/link0",
+            "/World/envs/env_0/Cube/mesh",
+            "/World/envs/env_0/Table/mesh",
+            "/World/envs/env_1/Robot/link0",
+            "/World/envs/env_1/Cube/mesh",
+            "/World/envs/env_1/TargetPad/mesh",
+        ],
+    )
+    visualizer._scene_data_provider = SimpleNamespace(get_interactive_scene=lambda: scene)
+
+    visibility = visualizer.scene_asset_shape_visibility(("robot", "cube"))
+
+    assert visibility == (True, True, False, True, True, False)
+
+
+def test_newton_visualizer_grid_layout_restores_zero_layer_transforms():
+    calls = []
+    origins = np.array([[1.0, -1.0, 0.0], [1.0, 1.0, 0.0]], dtype=np.float32)
+
+    class _FakeViewer:
+        def set_layer_transform(self, layer_id, translation):
+            calls.append((layer_id, translation))
+
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer._viewer = _FakeViewer()
+    visualizer._environment_layers = {0: "environment_0", 1: "environment_1"}
+    visualizer._resolved_visible_env_ids = [0, 1]
+    visualizer._scene_data_provider = SimpleNamespace(
+        num_envs=2,
+        get_interactive_scene=lambda: SimpleNamespace(env_origins=origins),
+    )
+
+    visualizer.set_environment_layout("grid")
+    visualizer._apply_pending_viewer_commands()
+
+    assert calls == [
+        ("environment_0", (0.0, 0.0, 0.0)),
+        ("environment_1", (0.0, 0.0, 0.0)),
+    ]
+
+
+def test_newton_visualizer_grid_layout_compacts_sparse_environment_layers():
+    calls = []
+    origins = np.array(
+        [[-1.0, -1.0, 0.0], [-1.0, 1.0, 0.0], [1.0, -1.0, 0.0], [1.0, 1.0, 0.0]],
+        dtype=np.float32,
+    )
+
+    class _FakeViewer:
+        def set_layer_transform(self, layer_id, translation):
+            calls.append((layer_id, translation))
+
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer._viewer = _FakeViewer()
+    visualizer._environment_layers = {
+        0: "environment_0",
+        1: "environment_1",
+        2: "environment_2",
+        3: "environment_3",
+    }
+    visualizer._resolved_visible_env_ids = [1, 3]
+    visualizer._scene_data_provider = SimpleNamespace(
+        num_envs=4,
+        get_interactive_scene=lambda: SimpleNamespace(env_origins=origins),
+    )
+
+    visualizer.set_environment_layout("grid")
+    visualizer._apply_pending_viewer_commands()
+
+    transforms = {layer_id: translation for layer_id, translation in calls}
+    np.testing.assert_allclose(transforms["environment_1"], origins[0] - origins[1])
+    np.testing.assert_allclose(transforms["environment_3"], origins[1] - origins[3])
+
+
+def test_newton_visualizer_only_refreshes_visible_and_newly_hidden_layers():
+    calls = []
+
+    class _FakeViewer:
+        def activate(self, layer_id):
+            calls.append(("activate", layer_id))
+
+        def log_state(self, state):
+            calls.append(("log_state", state))
+
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg(enable_markers=False))
+    visualizer._viewer = _FakeViewer()
+    visualizer._state = object()
+    visualizer._environment_layers = {0: "environment_0", 1: "environment_1", 2: "environment_2"}
+    visualizer._resolved_visible_env_ids = [1]
+    visualizer._environment_layers_requiring_log = {0}
+    visualizer._log_streaming_image = lambda: None
+    visualizer._render_live_plots = lambda: None
+    visualizer._log_scene_contact_sensor_arrows = lambda _num_envs: None
+
+    visualizer._log_simulation_state(contacts=None, num_envs=3)
+    visualizer._log_simulation_state(contacts=None, num_envs=3)
+
+    activated_layers = [call[1] for call in calls if call[0] == "activate"]
+    assert activated_layers == ["environment_0", "environment_1", "environment_1"]
+    assert visualizer._environment_layers_requiring_log == set()
+
+
+def test_newton_visualizer_registers_sidebar_callbacks_before_initialization():
+    callback = Mock()
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+
+    visualizer.register_sidebar_callback(callback)
+
+    assert visualizer._sidebar_callbacks == [callback]
+
+
 def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exists(monkeypatch):
     """Auto-create mode should not silently replace its configured view with a scene camera."""
     existing_camera = SimpleNamespace(

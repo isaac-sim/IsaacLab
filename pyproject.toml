@@ -172,6 +172,10 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+policy_debug = [
+    "isaaclab-policy-debug",
+]
+
 teleop = [
     "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
@@ -421,6 +425,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-policy-debug" = { path = "source/isaaclab_policy_debug", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-physx" = { path = "source/isaaclab_physx", editable = true }

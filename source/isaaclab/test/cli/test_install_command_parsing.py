@@ -126,8 +126,9 @@ class TestInstallConstants:
         assert set(CORE_ISAACLAB_SUBMODULES) == expected
 
     def test_optional_submodules_contains_expected_packages(self):
-        assert set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) == {"mimic", "teleop"}
+        assert set(OPTIONAL_ISAACLAB_SUBMODULES.keys()) == {"mimic", "policy_debug", "teleop"}
         assert OPTIONAL_ISAACLAB_SUBMODULES["mimic"] == ("isaaclab_teleop", "isaaclab_mimic")
+        assert OPTIONAL_ISAACLAB_SUBMODULES["policy_debug"] == ("isaaclab_policy_debug",)
         assert OPTIONAL_ISAACLAB_SUBMODULES["teleop"] == ("isaaclab_teleop",)
 
     def test_valid_extra_features(self):
@@ -343,6 +344,13 @@ class TestCommandInstallDispatch:
         assert "isaaclab_mimic" in installed
         mocks["_install_extra_feature"].assert_not_called()
         mocks["_install_optional_submodule_extra_dependencies"].assert_not_called()
+
+    def test_policy_debug_adds_optional_package(self):
+        mocks = self._run("policy_debug")
+        installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
+        assert "isaaclab_policy_debug" in installed
+        mocks["_install_extra_feature"].assert_not_called()
+        mocks["_install_root_extra"].assert_called_once_with("policy_debug")
 
     def test_ov_without_selector_dispatches_manual_extra_feature(self):
         mocks = self._run("ov")

@@ -89,22 +89,57 @@ parser.add_argument(
     help="Play with the training environment configuration as-is, skipping play-mode overrides.",
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
+parser.add_argument(
+    "--policy_debug",
+    "--policy-debug",
+    type=str,
+    default=None,
+    help="Watch an RSL-RL run folder and interactively compare its direct *.pt checkpoints.",
+)
+parser.add_argument(
+    "--policy_debug_max_policies",
+    "--policy-debug-max-policies",
+    type=int,
+    default=8,
+    help="Fixed policy-debug simulation capacity (default: 8).",
+)
+parser.add_argument(
+    "--policy_debug_adapter",
+    "--policy-debug-adapter",
+    type=str,
+    default=None,
+    help="Fully qualified PolicyDebugScenarioAdapter factory, overriding the task registration.",
+)
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
 add_frontend_args(parser)
+
+# External packages must register their Gym tasks before typed agent-preset discovery
+# asks Gym for the selected task specification.
+external_callback_parser = argparse.ArgumentParser(add_help=False)
+external_callback_parser.add_argument("--external_callback", default=None)
+external_callback_args, _ = external_callback_parser.parse_known_args()
+remaining_args_env_registration = None
+if external_callback_args.external_callback:
+    external_callback_function = string_to_callable(external_callback_args.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
 args_cli, remaining_args = setup_preset_cli(parser, agent_library="rsl_rl")
 args_cli.task = resolve_play_task_name(args_cli.task)
+
+if args_cli.policy_debug:
+    try:
+        from isaaclab_policy_debug.cli import configure_policy_debug_args
+    except ImportError as exc:
+        raise RuntimeError(
+            "--policy_debug requires the optional isaaclab_policy_debug package. "
+            "Install it with ./isaaclab.sh -i policy_debug."
+        ) from exc
+    configure_policy_debug_args(args_cli)
 
 if args_cli.video:
     args_cli.enable_cameras = True
 
-
-# an external callback lets downstream code register its environments; it returns
-# the arguments it did not consume
-remaining_args_env_registration = None
-if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
 
 # hand the arguments consumed by neither this parser nor the callback over to Hydra
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
@@ -116,6 +151,19 @@ installed_version = metadata.version("rsl-rl-lib")
 @hydra_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
+    policy_debug_cfg = None
+    scenario_adapter = None
+    if args_cli.policy_debug:
+        from isaaclab_policy_debug import PolicyDebugCfg, resolve_scenario_adapter
+
+        policy_debug_cfg = PolicyDebugCfg(
+            run_dir=args_cli.policy_debug,
+            max_policies=args_cli.policy_debug_max_policies,
+        )
+        scenario_adapter = resolve_scenario_adapter(args_cli.task, args_cli.policy_debug_adapter)
+        scenario_adapter.configure_run(policy_debug_cfg.run_dir)
+        scenario_adapter.configure_environment(env_cfg, policy_debug_cfg.max_policies)
+
     pre_launch_video_config(env_cfg, args_cli=args_cli)
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
@@ -133,35 +181,38 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env_cfg.seed = agent_cfg.seed
             env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-            log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
-            log_root_path = os.path.abspath(log_root_path)
-            print(f"[INFO] Loading experiment from directory: {log_root_path}")
-            if args_cli.checkpoint == "pretrained":
-                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
-                if not resume_path:
-                    return
-            elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
-                resume_path = resolve_checkpoint_selector(
-                    log_root_path,
-                    args_cli.checkpoint,
-                    library="rsl_rl",
-                    task=train_task_name,
-                    checkpoint_pattern=r"model_.*\.pt",
-                    metadata={"agent": args_cli.agent},
-                )
-            elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
-                resume_path = get_checkpoint_path(
-                    os.path.dirname(args_cli.checkpoint),
-                    os.path.basename(args_cli.checkpoint),
-                    agent_cfg.load_checkpoint,
-                )
-            elif args_cli.checkpoint:
-                resume_path = retrieve_file_path(args_cli.checkpoint)
+            resume_path = None
+            if policy_debug_cfg is not None:
+                log_dir = str(policy_debug_cfg.run_dir)
             else:
-                resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-
-            log_dir = os.path.dirname(resume_path)
+                log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
+                log_root_path = os.path.abspath(log_root_path)
+                print(f"[INFO] Loading experiment from directory: {log_root_path}")
+                if args_cli.checkpoint == "pretrained":
+                    backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                    resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
+                    if not resume_path:
+                        return
+                elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                    resume_path = resolve_checkpoint_selector(
+                        log_root_path,
+                        args_cli.checkpoint,
+                        library="rsl_rl",
+                        task=train_task_name,
+                        checkpoint_pattern=r"model_.*\.pt",
+                        metadata={"agent": args_cli.agent},
+                    )
+                elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+                    resume_path = get_checkpoint_path(
+                        os.path.dirname(args_cli.checkpoint),
+                        os.path.basename(args_cli.checkpoint),
+                        agent_cfg.load_checkpoint,
+                    )
+                elif args_cli.checkpoint:
+                    resume_path = retrieve_file_path(args_cli.checkpoint)
+                else:
+                    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+                log_dir = os.path.dirname(resume_path)
 
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
@@ -174,8 +225,32 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            screen.stage("Loading policy")
+            screen.stage("Loading policies" if policy_debug_cfg is not None else "Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+
+            if policy_debug_cfg is not None:
+                from isaaclab_policy_debug.cli import find_newton_visualizer
+                from isaaclab_policy_debug.manager import PolicyDebugManager
+                from isaaclab_policy_debug.rsl_rl import RslRlPolicyFactory
+                from isaaclab_policy_debug.ui import PolicyDebugUiController
+
+                visualizer = find_newton_visualizer(env)
+                policy_factory = RslRlPolicyFactory(env, agent_cfg, agent_cfg.device)
+                manager = PolicyDebugManager(
+                    policy_debug_cfg,
+                    env,
+                    visualizer,
+                    scenario_adapter,
+                    policy_factory,
+                    env.num_actions,
+                )
+                visualizer.register_sidebar_callback(PolicyDebugUiController(manager).draw)
+                screen.close()
+                try:
+                    manager.run()
+                finally:
+                    env.close()
+                return
 
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
             if agent_cfg.class_name == "OnPolicyRunner":
