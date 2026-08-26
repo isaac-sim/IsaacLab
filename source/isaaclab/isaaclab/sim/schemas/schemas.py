@@ -2063,6 +2063,7 @@ def define_deformable_body_properties(
     stage: Usd.Stage | None = None,
     deformable_type: str = "volume",
     sim_mesh_prim_path: str | None = None,
+    tetrahedralization_edge_length_fac: float = 0.1,
 ):
     """Apply the deformable body schema on the input prim and set its properties. The input prim should
     have a visual surface mesh as child. Volume deformables will have their simulation tetrahedral mesh
@@ -2092,6 +2093,8 @@ def define_deformable_body_properties(
         sim_mesh_prim_path: Optional override for the simulation mesh creation prim path.
             Ignored when pre-tetrahedralized mesh is found for volume deformables.
             If None, it is set to ``{prim_path}/sim_mesh``.
+        tetrahedralization_edge_length_fac: Relative target edge length for automatic tetrahedralization.
+            Defaults to ``0.1``.
 
     Raises:
         ValueError: When the prim path is not valid.
@@ -2221,7 +2224,7 @@ def define_deformable_body_properties(
             tet_mesh_points, tet_mesh_indices = tetrahedralize(
                 vertices,
                 faces.reshape(-1, 3),
-                edge_length_fac=0.1,
+                edge_length_fac=tetrahedralization_edge_length_fac,
                 simplify=False,
                 epsilon=1e-2,
                 coarsen=True,

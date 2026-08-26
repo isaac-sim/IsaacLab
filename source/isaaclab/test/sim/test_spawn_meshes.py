@@ -18,6 +18,7 @@ import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.spawners.meshes import meshes as mesh_spawner
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -107,21 +108,47 @@ def test_spawn_cuboid(sim):
     assert len(prim.GetAttribute("faceVertexCounts").Get()) == 12
 
 
-def test_spawn_cuboid_with_edge_refinement(sim):
-    """Test cuboid surface edge refinement."""
-    size = (1.0, 2.0, 3.0)
-    edge_refinement = 3.0
-    cfg = sim_utils.MeshCuboidCfg(size=size, edge_refinement=edge_refinement)
-    cfg.func("/World/RefinedCube", cfg)
-
-    prim = sim.stage.GetPrimAtPath("/World/RefinedCube/geometry/mesh")
+@pytest.mark.parametrize(
+    "cfg_type,kwargs,edge_refinement",
+    [
+        (sim_utils.MeshSphereCfg, {"radius": 1.0}, 25.0),
+        (sim_utils.MeshCuboidCfg, {"size": (1.0, 2.0, 3.0)}, 3.0),
+        (sim_utils.MeshCylinderCfg, {"radius": 1.0, "height": 2.0}, 3.0),
+        (sim_utils.MeshCapsuleCfg, {"radius": 1.0, "height": 2.0}, 3.0),
+        (sim_utils.MeshConeCfg, {"radius": 1.0, "height": 2.0}, 3.0),
+    ],
+)
+def test_spawn_mesh_with_edge_refinement(sim, cfg_type, kwargs, edge_refinement):
+    """Test surface edge refinement for volumetric mesh primitives."""
+    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement)
+    cfg.func("/World/Refined", cfg)
+    prim = sim.stage.GetPrimAtPath("/World/Refined/geometry/mesh")
     points = np.asarray(prim.GetAttribute("points").Get())
     faces = np.asarray(prim.GetAttribute("faceVertexIndices").Get()).reshape(-1, 3)
     edges = points[faces[:, [0, 1, 1, 2, 2, 0]]].reshape(-1, 2, 3)
+    max_edge = np.linalg.norm(edges[:, 0] - edges[:, 1], axis=1).max()
+    diagonal = np.linalg.norm(points.max(axis=0) - points.min(axis=0))
 
-    assert len(points) > 8
-    assert len(faces) > 12
-    assert np.linalg.norm(edges[:, 0] - edges[:, 1], axis=1).max() <= np.linalg.norm(size) / edge_refinement
+    assert cfg.edge_refinement == edge_refinement
+    assert max_edge <= diagonal / edge_refinement
+
+
+def test_edge_refinement_sets_tetrahedralization_resolution(sim, monkeypatch):
+    """Test edge refinement is forwarded to volume tetrahedralization."""
+    captured_kwargs = {}
+
+    def capture_deformable_properties(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+
+    monkeypatch.setattr(mesh_spawner.schemas, "define_deformable_body_properties", capture_deformable_properties)
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(1.0, 1.0, 1.0),
+        edge_refinement=2.0,
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+    )
+    cfg.func("/World/DeformableCube", cfg)
+
+    assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(0.05)
 
 
 def test_spawn_sphere(sim):

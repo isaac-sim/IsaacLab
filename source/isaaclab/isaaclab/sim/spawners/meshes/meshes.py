@@ -101,17 +101,9 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
-        ValueError: If :attr:`~isaaclab.sim.MeshCuboidCfg.edge_refinement` is less than ``1.0``.
     """
-    if cfg.edge_refinement < 1.0:
-        raise ValueError(f"Cuboid mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-
     # create a trimesh box
     box = trimesh.creation.box(cfg.size)
-    if cfg.edge_refinement > 1.0:
-        max_edge = float(np.linalg.norm(box.bounding_box.extents)) / cfg.edge_refinement
-        vertices, faces = trimesh.remesh.subdivide_to_size(box.vertices, box.faces, max_edge=max_edge)
-        box = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -405,6 +397,7 @@ def _spawn_mesh_geom_from_mesh(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If edge refinement is less than ``1.0``.
         ValueError: If both deformable and rigid properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
@@ -412,6 +405,14 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    if isinstance(cfg, meshes_cfg._MeshVolumeCfg):
+        if cfg.edge_refinement < 1.0:
+            raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+        if cfg.edge_refinement > 1.0:
+            max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
+            vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+            mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
@@ -471,8 +472,12 @@ def _spawn_mesh_geom_from_mesh(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
+        deformable_kwargs = {}
+        if deformable_type == "volume" and isinstance(cfg, meshes_cfg._MeshVolumeCfg):
+            deformable_kwargs["tetrahedralization_edge_length_fac"] = 0.1 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
-            prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
+            prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type,
+            **deformable_kwargs,
         )
         if cfg.collision_props is not None:
             _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)

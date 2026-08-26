@@ -77,7 +77,20 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
 
 @configclass
-class MeshSphereCfg(MeshCfg):
+class _MeshVolumeCfg(MeshCfg):
+    """Shared configuration for closed volume mesh primitives."""
+
+    edge_refinement: float = 1.0
+    """Surface edge refinement factor relative to the bounding-box diagonal.
+
+    The maximum edge length is the diagonal divided by this value. The factor must be at least
+    ``1.0``. For volume deformables, this factor also scales the automatically generated tetrahedral
+    mesh target. Defaults to ``1.0``, which leaves the base mesh unchanged.
+    """
+
+
+@configclass
+class MeshSphereCfg(_MeshVolumeCfg):
     """Configuration parameters for a sphere mesh prim with deformable properties.
 
     See :meth:`spawn_mesh_sphere` for more information.
@@ -90,7 +103,7 @@ class MeshSphereCfg(MeshCfg):
 
 
 @configclass
-class MeshCuboidCfg(MeshCfg):
+class MeshCuboidCfg(_MeshVolumeCfg):
     """Configuration parameters for a cuboid mesh prim with deformable properties.
 
     See :meth:`spawn_mesh_cuboid` for more information.
@@ -101,16 +114,9 @@ class MeshCuboidCfg(MeshCfg):
     size: tuple[float, float, float] = MISSING
     """Size of the cuboid [m]."""
 
-    edge_refinement: float = 1.0
-    """Surface edge refinement factor relative to the bounding-box diagonal.
-
-    The maximum edge length is the diagonal divided by this value. The factor must be at least
-    ``1.0``. Defaults to ``1.0``, which leaves the base mesh unchanged.
-    """
-
 
 @configclass
-class MeshCylinderCfg(MeshCfg):
+class MeshCylinderCfg(_MeshVolumeCfg):
     """Configuration parameters for a cylinder mesh prim with deformable properties.
 
     See :meth:`spawn_cylinder` for more information.
@@ -127,7 +133,7 @@ class MeshCylinderCfg(MeshCfg):
 
 
 @configclass
-class MeshCapsuleCfg(MeshCfg):
+class MeshCapsuleCfg(_MeshVolumeCfg):
     """Configuration parameters for a capsule mesh prim.
 
     See :meth:`spawn_capsule` for more information.
@@ -144,7 +150,7 @@ class MeshCapsuleCfg(MeshCfg):
 
 
 @configclass
-class MeshConeCfg(MeshCfg):
+class MeshConeCfg(_MeshVolumeCfg):
     """Configuration parameters for a cone mesh prim.
 
     See :meth:`spawn_cone` for more information.
