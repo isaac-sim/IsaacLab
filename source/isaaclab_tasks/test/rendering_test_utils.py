@@ -60,6 +60,9 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "lift_kuka_homo": 8.0,
     "lift_kuka_hetero": 8.0,
     "kuka_visual_material_randomization": 4.0,
+    # A dense MPM cloud is thousands of small point sprites, so anti-aliasing noise along their
+    # silhouettes covers far more of the frame than a solid body's edges do.
+    "mpm_particles": 8.0,
 }
 
 # OVRTX 0.4.1 rendering fixes allow a tighter tolerance for data types that
@@ -412,6 +415,15 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(PHYSICS_RENDERER_AOV_COMBINATIONS)
+
+# MPM particles are simulated only by Newton's coupled MPM solver, so there is no PhysX or OVPhysX arm.
+# Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
+# rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
+MPM_PARTICLE_AOV_COMBINATIONS = [
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+]
+
+MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
@@ -2262,6 +2274,123 @@ def rendering_test_franka_soft(
         maybe_step_env_for_motion(env, renderer, _motion_data_type(data_types), action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage={
+                data_type: _max_different_pixels_percentage(test_name, renderer, data_type) for data_type in data_types
+            },
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def rendering_test_mpm_particles(
+    physics_backend: str,
+    renderer: str,
+    data_types: list[str],
+    comparison_scores: list[dict],
+) -> None:
+    """Golden-image AOV coverage for USD-stage MPM particle rendering.
+
+    Covers the ``UsdGeom.Points`` clouds authored by
+    :func:`~isaaclab_newton.sim.spawners.mpm.visualization.create_mpm_particle_visualization`
+    and re-synced every frame by ``NewtonManager.sync_particles_to_usd``. The camera frames the
+    UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
+
+    MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins
+    ``sim.physics`` directly rather than exposing physics presets; only the renderer is selected
+    through Hydra here. The camera is attached test-locally so the contrib task keeps its
+    state-only public config.
+    """
+    for data_type in data_types:
+        _skip_if_newton_motion_vectors(physics_backend, data_type)
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    # The reset event calls back into UR10ParticlePushEnv.randomize_push_scene, which places the
+    # pile, so the task's own env class is required here rather than a plain ManagerBasedRLEnv.
+    from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env import UR10ParticlePushEnv
+    from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import (
+        UR10ParticlePushEnvCfg,
+        UR10ParticlePushSceneCfg,
+    )
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    # Orientation is the quaternion for eye (1.05, -0.50, 0.35) looking at the pile centre
+    # (0.70, 0.0, 0.03), i.e. the value create_rotation_matrix_from_view yields for that view.
+    particle_camera_cfg = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(
+            pos=(1.05, -0.50, 0.35),
+            rot=(0.493575, 0.155586, 0.257249, 0.816088),
+            convention="opengl",
+        ),
+        data_types=list(data_types),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+        width=128,
+        height=128,
+        renderer_cfg=MultiBackendRendererCfg(),
+    )
+
+    @configclass
+    class TestMPMParticleCameraSceneCfg(UR10ParticlePushSceneCfg):
+        """UR10 particle-push scene with a test-local camera on the pile."""
+
+        base_camera: CameraCfg = particle_camera_cfg
+
+    @configclass
+    class TestMPMParticleCameraEnvCfg(UR10ParticlePushEnvCfg):
+        """Particle-push env pinned to a single deterministic reset for golden capture.
+
+        ``num_envs`` is set on the scene default so ``__post_init__`` sizes the sparse MPM
+        capacities for the reduced env count rather than the training default of 64.
+
+        Every random draw in ``UR10ParticlePushEnv.randomize_push_scene`` is pinned, otherwise
+        each run renders a different robot pose and pile: ``reset_cycle`` replaces the random
+        pose-bank and shape-profile draws with a cursor walk from zero, the two magnitudes zero
+        out the pile yaw and per-particle jitter, and a single curriculum level fixes which slice
+        of the pose bank the cursor walks. Seeding alone is not enough because the pose bank is
+        built once per process, so a retry in the same process would draw different entries.
+        """
+
+        scene: TestMPMParticleCameraSceneCfg = TestMPMParticleCameraSceneCfg(
+            num_envs=4,
+            env_spacing=3.0,
+            replicate_physics=True,
+            clone_in_fabric=True,
+        )
+        reset_cycle: bool = True
+        reset_particle_max_yaw: float = 0.0
+        reset_particle_jitter: float = 0.0
+        reset_level_probabilities: tuple[float, ...] = (1.0, 0.0, 0.0)
+
+    env_cfg = TestMPMParticleCameraEnvCfg()
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={renderer}"])
+
+    test_name = "mpm_particles"
+    env = None
+
+    try:
+        env = UR10ParticlePushEnv(env_cfg)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
+
+        # Step once so the pile settles onto the work surface and the particle prims are synced
+        # from Newton state at least once, rather than capturing the spawn-time positions.
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,
