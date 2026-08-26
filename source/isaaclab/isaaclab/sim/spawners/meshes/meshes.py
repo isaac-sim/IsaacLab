@@ -297,7 +297,8 @@ def spawn_mesh_rectangle(
     # create a 2D triangle mesh
     half_x, half_y = cfg.size[0] / 2, cfg.size[1] / 2
     vertices = np.array(
-        [(-half_x, -half_y, 0.0), (half_x, -half_y, 0.0), (half_x, half_y, 0.0), (-half_x, half_y, 0.0)]
+        [(-half_x, -half_y, 0.0), (half_x, -half_y, 0.0), (half_x, half_y, 0.0), (-half_x, half_y, 0.0)],
+        dtype=np.float32,
     )
     rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
 
@@ -445,7 +446,7 @@ def _spawn_mesh_geom_from_mesh(
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
         deformable_kwargs = {}
-        if deformable_type == "volume" and not isinstance(cfg, meshes_cfg.MeshRectangleCfg):
+        if deformable_type == "volume":
             deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
             prim_path,
