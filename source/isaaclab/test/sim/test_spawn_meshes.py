@@ -94,7 +94,7 @@ def test_spawn_cylinder(sim):
 def test_spawn_cuboid(sim):
     """Test spawning of UsdGeomMesh as a cuboid prim."""
     # Spawn cuboid
-    cfg = sim_utils.MeshCuboidCfg(size=(1.0, 2.0, 3.0))
+    cfg = sim_utils.MeshCuboidCfg(size=(1.0, 2.0, 3.0), edge_refinement=1.0)
     prim = cfg.func("/World/Cube", cfg)
 
     # Check validity
@@ -110,7 +110,7 @@ def test_spawn_cuboid(sim):
 
 def test_mesh_edge_refinement_default():
     """Test the default mesh edge refinement."""
-    assert sim_utils.MeshCfg().edge_refinement == 1.0
+    assert sim_utils.MeshCfg().edge_refinement == 4.0
     assert not hasattr(sim_utils.MeshRectangleCfg(size=(1.0, 1.0)), "resolution")
 
 
@@ -142,7 +142,7 @@ def test_spawn_mesh_with_edge_refinement(sim, cfg_type, kwargs, edge_refinement)
 @pytest.mark.parametrize(
     "cfg_type,geometry_kwargs,refinement_kwargs,physics_material,expected_factor",
     [
-        (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {}, None, 1.0),
+        (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {}, None, 0.25),
         (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {"edge_refinement": 2.0}, None, 0.5),
         (sim_utils.MeshRectangleCfg, {"size": (1.0, 1.0)}, {}, sim_utils.PhysxSurfaceDeformableBodyMaterialCfg(), None),
     ],

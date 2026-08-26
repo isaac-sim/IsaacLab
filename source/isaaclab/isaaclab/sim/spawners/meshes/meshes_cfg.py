@@ -75,11 +75,13 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no physics material will be added.
     """
 
-    edge_refinement: float = 1.0
+    edge_refinement: float = 4.0
     """Mesh edge refinement factor.
 
     The maximum surface edge length is the bounding-box diagonal divided by this value. Volume deformables use the
-    same normalized target for automatic tetrahedralization. The factor must be at least ``1.0``. Defaults to ``1.0``.
+    same normalized target for automatic tetrahedralization. The factor must be at least ``1.0``. For volume
+    deformables, values near ``1.0`` should be avoided because they can make TetWild tetrahedralization significantly
+    slower. Defaults to ``4.0``.
     """
 
 
