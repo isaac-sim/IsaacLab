@@ -56,16 +56,6 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     parser.add_argument(
         "--experiment_name", type=str, default=None, help="Name of the experiment folder used to locate checkpoints."
     )
-    parser.add_argument(
-        "--task_space_contract",
-        action="store_true",
-        help=(
-            "Export the task-space I/O contract used by Isaac ROS Deploy: split the 18D actor"
-            " observation into named pose tensors (eef_pos, eef_rot_6d, socket_kp_pos,"
-            " socket_kp_rot_6d) and emit the clipped, scaled Cartesian delta as 'arm_action'."
-            " Requires an operational-space action term exposing position/orientation scales."
-        ),
-    )
     # setup_preset_cli attaches the preset-selection help group then parses;
     # remainder still carries typed selectors (physics=/renderer=/presets=)
     # verbatim for run_export_with_hydra to fold before invoking Hydra.
@@ -146,90 +136,6 @@ def get_actor_memory_module(policy):
     if hasattr(policy, "rnn"):
         return policy.rnn
     return None
-
-
-TASK_SPACE_EXPORT_MODEL_NAME = "DisplayPortTaskSpace"
-
-_TASK_SPACE_ROT6D_ELEMENTS = ["r00", "r01", "r02", "r10", "r11", "r12"]
-_TASK_SPACE_INPUT_SPEC = (
-    ("eef_pos", slice(0, 3), ["x", "y", "z"], "eef_pose_pos", "state/body/position"),
-    ("eef_rot_6d", slice(3, 9), _TASK_SPACE_ROT6D_ELEMENTS, "eef_pose_rot6d", "state/body/rotation_6d"),
-    ("socket_kp_pos", slice(9, 12), ["x", "y", "z"], "socket_kp_pose_pos", "state/body/position"),
-    (
-        "socket_kp_rot_6d",
-        slice(12, 18),
-        _TASK_SPACE_ROT6D_ELEMENTS,
-        "socket_kp_pose_rot6d",
-        "state/body/rotation_6d",
-    ),
-)
-
-
-def task_space_policy_obs(obs):
-    """Return the 18D actor observation tensor from an RSL-RL TensorDict."""
-    if "policy" not in obs.keys():
-        raise KeyError(f"Expected a 'policy' observation group, got keys: {list(obs.keys())}")
-    policy_obs = obs["policy"]
-    if policy_obs.shape[-1] != 18:
-        raise ValueError(f"Expected 18D task-space actor observation, got shape {tuple(policy_obs.shape)}")
-    return policy_obs
-
-
-def split_and_annotate_task_space_obs(task_name: str, policy_obs):
-    """Expose the exact 18D trained observation as four Deploy-facing inputs."""
-    from leapp.utils.tensor_description import TensorSemantics
-
-    parts = []
-    for name, index, element_names, source, kind in _TASK_SPACE_INPUT_SPEC:
-        parts.append(
-            annotate.input_tensors(
-                task_name,
-                TensorSemantics(
-                    name=name,
-                    ref=policy_obs[:, index],
-                    kind=kind,
-                    element_names=[element_names],
-                    extra={"source": source},
-                ),
-            )
-        )
-    return torch.cat(parts, dim=-1)
-
-
-def export_task_space_action(task_name: str, tensor, export_method: str):
-    """Annotate the deploy-facing processed task-space action."""
-    from leapp.utils.tensor_description import TensorSemantics
-
-    annotate.output_tensors(
-        task_name,
-        TensorSemantics(
-            name="arm_action",
-            ref=tensor,
-            kind="target/body/pose_relative",
-            element_names=[
-                [
-                    "delta_x",
-                    "delta_y",
-                    "delta_z",
-                    "delta_axis_angle_x",
-                    "delta_axis_angle_y",
-                    "delta_axis_angle_z",
-                ]
-            ],
-            extra={
-                "isaaclab_connection": "action:arm_action:pose_rel",
-                "target_types": ["pose_rel"],
-            },
-        ),
-        export_with=export_method,
-    )
-
-
-def task_space_action_scale(env_cfg, device, dtype):
-    """Return ``[pos_scale] * 3 + [rot_scale] * 3`` from the task configuration."""
-    action_cfg = env_cfg.actions.arm_action
-    scale_values = [float(action_cfg.position_scale)] * 3 + [float(action_cfg.orientation_scale)] * 3
-    return torch.tensor(scale_values, device=device, dtype=dtype).unsqueeze(0)
 
 
 def is_actor_recurrent_policy(policy) -> bool:
@@ -363,13 +269,6 @@ def export_rsl_rl_agent(
 
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
-        if args_cli.task_space_contract and not args_cli.export_task_name:
-            graph_name = TASK_SPACE_EXPORT_MODEL_NAME
-        if args_cli.task_space_contract:
-            # The contract publishes inputs/outputs under ``graph_name``; the recurrent-state
-            # annotations must target that same node or LEAPP cannot find it.
-            policy_node_name = graph_name
-
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
             export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             # Patch only the observation groups consumed by the actor policy.
@@ -379,16 +278,11 @@ def export_rsl_rl_agent(
                 required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
             else:
                 required_obs_groups = {"policy"}
-            # The task-space contract annotates its own inputs/outputs under a dedicated graph
-            # node, so the automatic patcher must stay out of the way: it would annotate the
-            # same observation tensors under a node named after the task id, and LEAPP refuses
-            # to mix two active tracing contexts for one tensor.
-            if not args_cli.task_space_contract:
-                patch_env_for_export(
-                    env,
-                    export_method=export_method,
-                    required_obs_groups=required_obs_groups,
-                )
+            patch_env_for_export(
+                env,
+                export_method=export_method,
+                required_obs_groups=required_obs_groups,
+            )
         elif args_cli.export_method is not None:
             raise ValueError(
                 "--export_method is only supported for manager-based environments. For direct environments, "
@@ -422,24 +316,8 @@ def export_rsl_rl_agent(
             while not simulation_app.is_running():
                 time.sleep(0.5)
 
-        task_space_scale = None
-        if args_cli.task_space_contract:
-            task_space_scale = task_space_action_scale(
-                env.unwrapped.cfg, env.unwrapped.device, next(policy.parameters()).dtype
-            )
-            print(f"[INFO] Exporting processed task-space action with scale: {task_space_scale.flatten().tolist()}")
-
         for _ in range(max(args_cli.validation_steps, 2)):
             with torch.inference_mode():
-                # Inputs must be annotated before ``state_tensors``: the first ``input_tensors``
-                # call is what creates the graph node the recurrent state attaches to.
-                if args_cli.task_space_contract:
-                    policy_obs = task_space_policy_obs(obs).to(dtype=next(policy.parameters()).dtype)
-                    obs_for_policy = obs.clone()
-                    obs_for_policy["policy"] = split_and_annotate_task_space_obs(graph_name, policy_obs)
-                else:
-                    obs_for_policy = obs
-
                 if is_actor_recurrent_policy(policy):
                     actor_hidden = ensure_actor_hidden_state_initialized(
                         policy,
@@ -453,7 +331,7 @@ def export_rsl_rl_agent(
                     )
                     set_actor_hidden_state(policy, actor_hidden_from_registered(registered_state, actor_hidden))
 
-                actions = policy(obs_for_policy)
+                actions = policy(obs)
 
                 if is_actor_recurrent_policy(policy):
                     actor_hidden_after = get_actor_hidden_state(policy)
@@ -462,14 +340,7 @@ def export_rsl_rl_agent(
                         state_dict_from_actor_hidden(actor_hidden_after),
                     )
 
-                if args_cli.task_space_contract:
-                    processed_action = torch.clamp(actions, -1.0, 1.0) * task_space_scale
-                    export_task_space_action(graph_name, processed_action, args_cli.export_method)
-                    # Refresh inputs without invoking the action manager, which would apply the
-                    # raw (unscaled) action and desynchronise the traced graph.
-                    obs = env.get_observations()
-                else:
-                    obs, _, _, _ = env.step(actions)
+                obs, _, _, _ = env.step(actions)
 
         leapp.stop()
         leapp_started = False
