@@ -25,10 +25,16 @@ Changed
   the spawn prim together with its descendants. Entries apply in insertion order, so on
   overlapping targets later entries override earlier ones per attribute. Pass
   ``{"(/.*)?": [...]}`` to recover the previous fragment-list behavior. A bare fragment or
-  list of fragments is accepted as shorthand for ``{"": [...]}``, targeting the anchor prim.
+  list of fragments is accepted as shorthand: on the shape and mesh spawners it targets the
+  anchor prim, and on the file spawners it targets the spawn prim together with its
+  descendants, keeping the reach the legacy nested writers had.
   Legacy single-cfg values are unaffected.
 * **Breaking:** Changed the fragment schema writers to no longer apply their defining
-  USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. For
+  USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. The file
+  spawners keep doing so on the user's behalf for the bare-fragment shorthand when the
+  spawn prim's subtree carries no prim with the family's defining API, so pointing
+  :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg` at an art asset that ships without
+  physics schemas still turns it into a single body. For
   articulation roots, anchoring on the spawn prim needs an entry targeting it in
   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props` together with
   ``articulation_props_create_if_missing=True`` on the spawner configuration.

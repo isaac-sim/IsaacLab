@@ -21,7 +21,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.sim.schemas import MassCfg
+from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
 pytestmark = pytest.mark.integration
 
@@ -404,3 +404,57 @@ def test_bare_fragment_on_usd_asset_reaches_nested_bodies(tmp_path):
         link = stage.GetPrimAtPath(f"/World/Robot/{link_rel_path}")
         assert abs(link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() - 5.0) < 1e-6
         assert abs(link.GetAttribute("physics:mass").Get() - 2.0) < 1e-6
+
+
+def _author_prop_usd(path: str) -> None:
+    """Author a rigid prop that carries no physics schemas, as authored art assets usually do.
+
+    Task configurations point ``UsdFileCfg`` at meshes like this and rely on the spawner to turn
+    the asset into a single rigid body, so nothing in the subtree carries ``RigidBodyAPI``,
+    ``CollisionAPI``, or ``MassAPI``.
+    """
+    stage = Usd.Stage.CreateNew(path)
+    prop = UsdGeom.Xform.Define(stage, "/Prop")
+    UsdGeom.Cube.Define(stage, "/Prop/geometry")
+    stage.SetDefaultPrim(prop.GetPrim())
+    stage.Save()
+
+
+def _spawn_prop(tmp_path, prim_path: str, **cfg_kwargs):
+    """Author the schema-free prop asset and spawn it through the production USD spawn path."""
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "prop.usda")
+    _author_prop_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, **cfg_kwargs)
+    _spawn_from_usd_file(prim_path, usd_path, cfg)
+    return sim_utils.get_current_stage()
+
+
+def test_bare_fragment_makes_a_schema_free_asset_a_single_rigid_body(tmp_path):
+    """A bare fragment on an asset that carries no physics schema must author the spawn prim.
+
+    Art assets ship without physics APIs, so there is nothing in the subtree to modify. The
+    convenience form has to fall back to making the spawn prim itself the body, otherwise the
+    asset reaches the backend with no rigid body at all.
+    """
+    stage = _spawn_prop(
+        tmp_path,
+        "/World/Prop",
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=MassCfg(mass=0.05),
+        collision_props=UsdPhysicsCollisionCfg(collision_enabled=True),
+    )
+
+    prop = stage.GetPrimAtPath("/World/Prop")
+    assert prop.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert prop.HasAPI(UsdPhysics.MassAPI)
+    assert prop.HasAPI(UsdPhysics.CollisionAPI)
+    assert prop.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert abs(prop.GetAttribute("physics:mass").Get() - 0.05) < 1e-6
+    assert prop.GetAttribute("physics:collisionEnabled").Get() is True
+    # the geometry below the spawn prim must not become a second, nested body
+    assert not stage.GetPrimAtPath("/World/Prop/geometry").HasAPI(UsdPhysics.RigidBodyAPI)

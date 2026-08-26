@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from filelock import FileLock
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
+from isaaclab.sim.spawners._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
 from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import (
@@ -281,6 +281,33 @@ Helper functions.
 """
 
 
+def _body_family_targeting(value, prim_path: str, api_type) -> tuple[dict | None, bool]:
+    """Resolve the target mapping and API-creation flag for one body schema family.
+
+    Assets that already carry the family's defining API are tuned in place, wherever the carriers
+    sit in the subtree. Authored art assets ship without physics schemas, though, and a task
+    configuration turns one into a simulated body simply by handing the spawner a fragment. For
+    that convenience form the family falls back to the spawn prim: the API is created there and
+    the fragments are authored onto it, so the asset becomes a single body rather than silently
+    reaching the backend with none. An explicit mapping is always honored as written.
+
+    Args:
+        value: The value of the family's spawner-configuration field.
+        prim_path: The path of the spawn prim that anchors the target patterns.
+        api_type: The USD API schema that defines the family (e.g. ``UsdPhysics.RigidBodyAPI``).
+
+    Returns:
+        A tuple ``(mapping, create_if_missing)``. The mapping is None when the value is a legacy
+        configuration that must route to the legacy writers.
+    """
+    mapping = fragment_mapping(value, "(/.*)?")
+    if mapping is None or not mapping or not bare_fragments(value):
+        return mapping, False
+    if subtree_carries_api(prim_path, api_type, get_current_stage()):
+        return mapping, False
+    return {"": next(iter(mapping.values()))}, True
+
+
 def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -> None:
     """Author the rigid-body, collision, and mass schema families on the spawned asset.
 
@@ -291,31 +318,41 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
         prim_path: The path of the spawn prim that anchors the target patterns.
         cfg: The file spawner configuration carrying the schema fields.
     """
+    from pxr import UsdPhysics  # noqa: PLC0415
+
     # modify rigid body properties
     if cfg.rigid_props is not None:
-        rigid_props_mapping = fragment_mapping(cfg.rigid_props, "(/.*)?")
+        rigid_props_mapping, rigid_props_create = _body_family_targeting(
+            cfg.rigid_props, prim_path, UsdPhysics.RigidBodyAPI
+        )
         if rigid_props_mapping is not None:
             for pattern, fragments in rigid_props_mapping.items():
-                schemas.apply_rigid_body_properties(props_expr(prim_path, pattern), fragments)
+                schemas.apply_rigid_body_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=rigid_props_create
+                )
         else:
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
-        collision_props_mapping = fragment_mapping(cfg.collision_props, "(/.*)?")
+        collision_props_mapping, collision_props_create = _body_family_targeting(
+            cfg.collision_props, prim_path, UsdPhysics.CollisionAPI
+        )
         if collision_props_mapping is not None:
             for pattern, fragments in collision_props_mapping.items():
-                schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments)
+                schemas.apply_collision_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=collision_props_create
+                )
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
     # modify mass properties
     if cfg.mass_props is not None:
-        mass_props_mapping = fragment_mapping(cfg.mass_props, "(/.*)?")
+        mass_props_mapping, mass_props_create = _body_family_targeting(cfg.mass_props, prim_path, UsdPhysics.MassAPI)
         if mass_props_mapping is not None:
             for pattern, fragments in mass_props_mapping.items():
                 schemas.apply_mass_properties(
                     props_expr(prim_path, pattern),
                     fragments,
-                    create_if_missing=cfg.mass_props_create_if_missing,
+                    create_if_missing=cfg.mass_props_create_if_missing or mass_props_create,
                 )
         else:
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
