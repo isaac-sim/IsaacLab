@@ -56,11 +56,16 @@ are known to read. The list is closed and matched by exact name, so a variable t
 read is counted but never named or valued anywhere in the bundle. That is the whole of the guarantee:
 a bundle does record the hostname of the machine that produced it, in the archive name and in the
 manifest, the ``--command`` string as you typed it, and the values of allowlisted path variables such
-as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Git remotes are recorded because the reproduction needs a
-clone command, with any embedded credential stripped first, but the host and path of a private remote
-survive. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the bundle before attaching it to a
-public issue. Uncommitted source changes are excluded by default; pass ``--include_diff`` to attach
-them.
+as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
+bundle before attaching it to a public issue.
+
+Two things a checkout knows about are left out of the default bundle, each behind its own flag.
+Uncommitted source changes are excluded because a dirty tree can hold code you are not free to share;
+pass ``--include_diff`` to attach them. Git remote URLs are excluded because a fork's URL names a
+host, an organisation, and a repository that the reproduction does not need -- a commit reachable
+from a public remote is reached by cloning Isaac Lab, and one that is not has to come from you
+either way, which is what the document says when the recorded commit is on no remote branch. Pass
+``--include_remotes`` to attach them; any credential embedded in a URL is stripped even then.
 
 
 Reproducing a Reported Environment
@@ -77,7 +82,8 @@ machine that produced the bundle and yours. Unpack it and read what it prescribe
 
 The steps follow the same order every time, with the details filled in from the capture:
 
-1. Check out the recorded commit. If it is on no remote branch, the document says so rather than
+1. Check out the recorded commit. The clone URL is Isaac Lab itself unless the reporter passed
+   ``--include_remotes``. If the commit is on no remote branch, the document says so rather than
    emitting a ``git checkout`` that cannot succeed.
 2. Copy the captured ``pyproject.toml`` and ``uv.lock`` over the checkout and sync with the extras the
    captured environment was built with. Take the command from the document rather than typing

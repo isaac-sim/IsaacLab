@@ -1313,7 +1313,7 @@ def collect_links(repo_root: Path, venv: Path | None) -> dict:
     return {"symlinks": symlinks}
 
 
-def collect_repo(repo_root: Path, include_diff: bool) -> tuple[dict, dict[str, str]]:
+def collect_repo(repo_root: Path, include_diff: bool, include_remotes: bool = False) -> tuple[dict, dict[str, str]]:
     """Return the repository's git state and the pinned versions declared in ``pyproject.toml``.
 
     Args:
@@ -1321,6 +1321,10 @@ def collect_repo(repo_root: Path, include_diff: bool) -> tuple[dict, dict[str, s
         include_diff: Whether to store the working-tree patch. Off by default because a
             dirty tree can hold code the person sending the bundle is not free to share; the
             diffstat is always included so the omission is visible rather than silent.
+        include_remotes: Whether to store the configured remote URLs. Off by default because
+            a fork's URL names an organisation, a host, and a repository that the reproduction
+            does not need: a commit reachable from a public remote is reached by cloning Isaac
+            Lab, and one that is not has to come from the reporter either way.
 
     Returns:
         The manifest section and the raw files to store alongside it.
@@ -1354,10 +1358,11 @@ def collect_repo(repo_root: Path, include_diff: bool) -> tuple[dict, dict[str, s
         "diff_included": False,
     }
 
-    # Remotes are recorded because the clone step needs one, but a checkout cloned over HTTPS
-    # with a token holds that token here. Redacting on the way in keeps it out of the manifest,
-    # the stored listing, and the clone command derived from them.
-    remotes = _git(repo_root, ["remote", "-v"])
+    # Even opted in, a checkout cloned over HTTPS with a token holds that token here, so the
+    # listing is redacted on the way in rather than on the way out: the manifest, the stored
+    # file, and the clone command derived from them all read the sanitized form.
+    git_info["remotes_included"] = include_remotes
+    remotes = _git(repo_root, ["remote", "-v"]) if include_remotes else None
     if remotes:
         listing, urls, redacted = sanitize_remote_listing(remotes)
         artifacts["repo/git-remote.txt"] = listing
@@ -1777,6 +1782,7 @@ def build_manifest(
     command: str | None = None,
     include_diff: bool = False,
     include_logs: bool = False,
+    include_remotes: bool = False,
     skip_integrity: bool = False,
 ) -> tuple[dict, dict[str, str]]:
     """Capture an environment into a manifest and its supporting files.
@@ -1787,6 +1793,7 @@ def build_manifest(
         command: The command whose behaviour prompted the capture, recorded verbatim.
         include_diff: Store the working-tree patch.
         include_logs: Store tails of the most recent renderer and Omniverse logs.
+        include_remotes: Store the configured git remote URLs.
         skip_integrity: Skip the ``RECORD``-against-disk check.
 
     Returns:
@@ -1804,13 +1811,14 @@ def build_manifest(
             "command_under_test": command,
             "include_diff": include_diff,
             "include_logs": include_logs,
+            "include_remotes": include_remotes,
         },
     }
 
     # Collected before the loop because the Isaac Sim section needs the package inventory to
     # tell a wheel install from a linked one, and the sync plan needs both it and the lockfile.
     python_section, python_artifacts = collect_python(venv, skip_integrity=skip_integrity)
-    repo_section, repo_artifacts = collect_repo(repo_root, include_diff=include_diff)
+    repo_section, repo_artifacts = collect_repo(repo_root, include_diff=include_diff, include_remotes=include_remotes)
     distributions = python_section["distributions"]
 
     for key, (section, files) in {
@@ -1895,7 +1903,14 @@ def _render_checkout_step(git: dict, remote: str) -> list[str]:
             lines.append(f"# machine that produced this bundle, or ask for branch {git.get('branch')}.")
         lines.append(f"git checkout {git['commit']}")
     lines.append("```")
-    if git.get("remotes_redacted"):
+    if not git.get("remotes_included"):
+        lines.append("")
+        lines.append(
+            "The captured remotes were not recorded, so the URL above is Isaac Lab itself. If the"
+            " commit is not there, it came from a fork: ask the reporter which one, or for the"
+            " commit as a patch."
+        )
+    elif git.get("remotes_redacted"):
         lines.append("")
         lines.append(
             "A credential embedded in one of the captured remote URLs was removed. Supply your own"
@@ -2641,23 +2656,35 @@ def render_diff(baseline: dict, current: dict) -> str:
             lines.append("Identical.")
     lines.append("")
 
-    # Keyed by code and summary together: one code covers many findings -- `missing-package-files`
-    # is raised once per damaged distribution -- and collapsing by code alone reports two
-    # environments broken in different places as agreeing.
-    def findings(manifest: dict) -> set[tuple[str, str]]:
-        return {(finding["code"], finding["summary"]) for finding in manifest.get("findings", [])}
+    # Keyed by code and summary together, and carrying the detail: one code covers many findings
+    # -- `missing-package-files` is raised once per damaged distribution -- so collapsing by code
+    # alone reports two environments broken in different places as agreeing, and dropping the
+    # detail hides that they are broken to a different extent.
+    def findings(manifest: dict) -> dict[tuple[str, str], tuple[str, ...]]:
+        return {
+            (finding["code"], finding["summary"]): tuple(finding.get("detail") or ())
+            for finding in manifest.get("findings", [])
+        }
 
     before_findings, after_findings = findings(baseline), findings(current)
+    only_before = sorted(set(before_findings) - set(after_findings))
+    only_after = sorted(set(after_findings) - set(before_findings))
+    detail_changed = sorted(
+        key for key in set(before_findings) & set(after_findings) if before_findings[key] != after_findings[key]
+    )
     lines.append("## Findings")
     lines.append("")
-    only_before = sorted(before_findings - after_findings)
-    only_after = sorted(after_findings - before_findings)
-    if only_before or only_after:
-        differences += len(only_before) + len(only_after)
+    if only_before or only_after or detail_changed:
+        differences += len(only_before) + len(only_after) + len(detail_changed)
         for code, summary in only_before:
             lines.append(f"- Only on `{baseline_label}`: **{code}** -- {summary}")
         for code, summary in only_after:
             lines.append(f"- Only on `{current_label}`: **{code}** -- {summary}")
+        for key in detail_changed:
+            lines.append(f"- Reported by both with different detail: **{key[0]}** -- {key[1]}")
+            for label, detail in ((baseline_label, before_findings[key]), (current_label, after_findings[key])):
+                lines.append(f"    - on `{label}`:")
+                lines.extend(f"        {line}" for line in (detail or ("*no detail*",)))
     else:
         shared = sorted({code for code, _ in before_findings})
         lines.append(
@@ -2698,6 +2725,7 @@ def command_capture(args: argparse.Namespace) -> int:
         command=args.command,
         include_diff=args.include_diff,
         include_logs=args.include_logs,
+        include_remotes=args.include_remotes,
         skip_integrity=args.skip_integrity,
     )
     document = render_document(manifest, artifacts)
@@ -2794,6 +2822,11 @@ def parse_cli_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--include_logs",
         action="store_true",
         help="Attach tails of the most recent renderer, Omniverse, and Isaac Lab logs.",
+    )
+    capture.add_argument(
+        "--include_remotes",
+        action="store_true",
+        help="Attach the configured git remote URLs. Off by default: a fork's URL names a host and an organisation.",
     )
     capture.add_argument(
         "--skip_integrity",

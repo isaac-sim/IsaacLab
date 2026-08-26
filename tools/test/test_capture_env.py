@@ -234,8 +234,16 @@ class TestEnvironmentAllowlist:
         assert all(name == name.upper() and not name.startswith("_") for name in ISAAC_LAB_ENV_VARS)
 
 
+def _stub_remotes(monkeypatch, remotes: str) -> None:
+    """Make ``git remote -v`` return ``remotes`` and every other git command return nothing."""
+    monkeypatch.setattr(
+        "capture_env._git",
+        lambda root, args, timeout=15: remotes if args[:2] == ["remote", "-v"] else "",
+    )
+
+
 class TestRemoteSanitization:
-    """A remote is recorded without the credential a checkout may have stored in it."""
+    """A remote is recorded only on request, and never with the credential a checkout stored."""
 
     @pytest.mark.parametrize(
         "url, expected",
@@ -264,17 +272,25 @@ class TestRemoteSanitization:
         """The clone step is only actionable if a key-authenticated remote is left usable."""
         assert sanitize_remote_url(url) == url
 
-    def test_neither_the_manifest_nor_the_stored_listing_carries_the_token(self, tmp_path, monkeypatch):
-        remotes = (
-            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (fetch)\n"
-            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (push)\n"
-        )
-        monkeypatch.setattr(
-            "capture_env._git",
-            lambda root, args, timeout=15: remotes if args[:2] == ["remote", "-v"] else "",
-        )
+    def test_remotes_are_omitted_by_default(self, tmp_path, monkeypatch):
+        """A fork's URL names a host and an organisation the reproduction does not need."""
+        _stub_remotes(monkeypatch, "origin\thttps://github.corp.internal/team/repo.git (fetch)")
 
         section, artifacts = collect_repo(tmp_path, include_diff=False)
+
+        assert section["git"]["remotes_included"] is False
+        assert "remotes" not in section["git"]
+        assert "repo/git-remote.txt" not in artifacts
+        assert "github.corp.internal" not in json.dumps(section)
+
+    def test_neither_the_manifest_nor_the_stored_listing_carries_the_token(self, tmp_path, monkeypatch):
+        _stub_remotes(
+            monkeypatch,
+            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (fetch)\n"
+            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (push)\n",
+        )
+
+        section, artifacts = collect_repo(tmp_path, include_diff=False, include_remotes=True)
 
         assert section["git"]["remotes"] == ["https://github.com/org/repo.git"]
         assert section["git"]["remotes_redacted"] is True
@@ -282,14 +298,9 @@ class TestRemoteSanitization:
         assert "ghp_TOKEN" not in json.dumps(section)
 
     def test_a_remote_with_nothing_to_redact_is_not_reported_as_redacted(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "capture_env._git",
-            lambda root, args, timeout=15: (
-                "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)" if args[:2] == ["remote", "-v"] else ""
-            ),
-        )
+        _stub_remotes(monkeypatch, "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)")
 
-        section, artifacts = collect_repo(tmp_path, include_diff=False)
+        section, artifacts = collect_repo(tmp_path, include_diff=False, include_remotes=True)
 
         assert section["git"]["remotes_redacted"] is False
         assert artifacts["repo/git-remote.txt"] == "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)"
@@ -912,6 +923,28 @@ class TestDiff:
         assert "usd-core is gutted" in report
         assert "isaacsim-core is gutted" in report
         assert "2 difference(s) recorded" in report
+
+    def test_a_finding_reported_by_both_with_different_detail_is_a_difference(self):
+        """The same summary over a different set of missing files is not the same state."""
+
+        def missing(*paths):
+            return _manifest(
+                findings=[
+                    {
+                        "level": "error",
+                        "code": "missing-package-files",
+                        "summary": "usd-core is missing 2 of 78 files",
+                        "detail": [f"  missing: {path}" for path in paths],
+                    }
+                ]
+            )
+
+        report = render_diff(missing("pxr/Usd/__init__.py", "pxr/Sdf/__init__.py"), missing("pxr/Gf/__init__.py"))
+
+        assert "Reported by both with different detail" in report
+        assert "pxr/Usd/__init__.py" in report
+        assert "pxr/Gf/__init__.py" in report
+        assert "1 difference(s) recorded" in report
 
     def test_identical_captures_report_no_differences(self):
         report = render_diff(_manifest(), _manifest())
