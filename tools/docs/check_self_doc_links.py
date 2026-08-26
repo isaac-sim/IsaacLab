@@ -7,9 +7,10 @@
 
 The external link checker resolves URLs against the deployed site, which still serves the
 previous build while a pull request is open. A change that deletes or moves a page therefore
-passes its own run and breaks every later pull request instead. This check resolves the same
-URLs against ``docs/`` in the working tree, so the page and the reference to it are compared
-in one state.
+passes its own run and breaks every later pull request instead. This check resolves the
+``develop`` URLs -- the build this tree produces -- against ``docs/`` in the working tree, so
+the page and the reference to it are compared in one state. Links to other refs stay with the
+live checker; see ``SELF_DOC_URL``.
 
 Run directly, or via the ``check-self-doc-links`` pre-commit hook::
 
@@ -27,9 +28,11 @@ DOCS_ROOT = REPO_ROOT / "docs"
 SKIP_DIRS = {"_build", ".venv", ".git", "node_modules", "_isaac_sim"}
 
 # Published page URLs, e.g. https://isaac-sim.github.io/IsaacLab/develop/source/setup/index.html
-SELF_DOC_URL = re.compile(
-    r"https://isaac-sim\.github\.io/IsaacLab/(?:develop|main|release/[^/]+)/(source/[^)\s\"'>#]+?)\.html"
-)
+#
+# Only develop is matched: main, release/* and the vX.Y.Z tag builds are made from a different
+# source state, so this tree cannot judge them. The lychee run in check-links.yml resolves those
+# against the live site, which is the correct oracle for a build this tree does not produce.
+SELF_DOC_URL = re.compile(r"https://isaac-sim\.github\.io/IsaacLab/develop/(source/[^)\s\"'>#]+?)\.html")
 
 
 def _source_candidates(doc_path: str) -> list[Path]:
