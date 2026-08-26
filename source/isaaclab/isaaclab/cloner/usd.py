@@ -12,6 +12,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .path import split
 
 
@@ -30,7 +31,7 @@ class UsdReplicateContext:
 
     replicate_priority = 100
 
-    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = ()):
+    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = (), env_template: str = DEFAULT_ENV_TEMPLATE):
         """Initialize the context.
 
         Args:

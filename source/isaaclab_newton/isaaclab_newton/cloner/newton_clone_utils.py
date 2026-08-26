@@ -16,6 +16,7 @@ from newton import GeoType, ModelBuilder, ShapeFlags
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import path as clone_path
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -191,6 +192,32 @@ def _site_label(env_root: str | None, label: str) -> str:
     return f"{env_root}/{label}" if env_root else label
 
 
+def _rebase_to_env(builder: ModelBuilder, env_root: str) -> bool:
+    """Rewrite every entity label relative to its environment root, in place.
+
+    Replication makes N copies that differ only in the environment they sit in, so a label is
+    ``<env><within-env>`` and only the first part varies. Returns whether every label could be
+    written that way: one outside the environment, or one naming the environment root itself,
+    has no within-environment part a per-world prefix could carry.
+    """
+    rebased = []
+    for labels in (
+        builder.body_label,
+        builder.joint_label,
+        builder.shape_label,
+        builder.articulation_label,
+        builder.constraint_mimic_label,
+    ):
+        for index, label in enumerate(labels):
+            suffix = clone_path.relative_to(label, env_root) if isinstance(label, str) else None
+            if not suffix:
+                return False
+            rebased.append((labels, index, suffix.lstrip("/")))
+    for labels, index, suffix in rebased:
+        labels[index] = suffix
+    return True
+
+
 def replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
@@ -202,11 +229,20 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, tuple[wp.transform, str | None]] | None = None,
     env_ids: torch.Tensor | None = None,
+    env_template: str = DEFAULT_ENV_TEMPLATE,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
-) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], bool]:
     """Replicate source builders into per-env Newton worlds.
 
-    ``env_root_sites`` maps a label to its transform and the destination template naming its env.
+    Returns the per-env site indices, the per-env world transforms, and whether replication
+    already named each entity for the env it landed in.
+
+    Args:
+        env_root_sites: Site transform and the destination template naming its env, per label.
+        env_ids: Environment ids for the destination worlds. Given with an environment that
+            owns the prototype, replication names each copy and the caller does not have to
+            rewrite the entity labels afterwards.
+        env_template: Destination template for one environment, from the clone plan.
     """
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
@@ -234,9 +270,9 @@ def replicate_builder_mapping(
         # copy at world_xform_w * xform.
         site_local_indices: dict[str, list[int]] = {}
         for label, (xform, destination_template) in env_root_sites.items():
-            # Every copy shares one label, so ``rename_builder_labels`` names them per env --
-            # exact here because ``can_batch`` requires the single row to cover every world.
-            root = sources[0] if destination_template and env_ids_list else None
+            # Every copy shares one label; the env name is applied after, by ``label_prefixes``
+            # below or by ``rename_builder_labels``. ``can_batch`` makes either one exact.
+            root = sources[0] if destination_template else None
             site_xform = wp.transform_multiply(world_xforms[0], xform)
             idx = source_builder.add_site(body=-1, xform=site_xform, label=_site_label(root, label))
             site_local_indices.setdefault(label, []).append(idx)
@@ -248,14 +284,22 @@ def replicate_builder_mapping(
         stride = source_builder.shape_count
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions_np, quaternions_np, source_xform_inv)
-        builder.replicate(source_builder, num_worlds, xforms=xforms)
+
+        # One source populating every world is the shape replication can name itself: rebase the
+        # prototype's labels once -- a few hundred entries -- and let each copy carry its own
+        # env root, instead of rewriting every label in every world afterwards.
+        label_prefixes = None
+        prototype_env = clone_path.match(sources[0], env_template) if env_ids is not None else None
+        if prototype_env is not None and _rebase_to_env(source_builder, env_template.format(prototype_env.instance)):
+            label_prefixes = [env_template.format(env_id) for env_id in env_ids.tolist()]
+        builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=label_prefixes)
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
                 [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        return local_site_map, world_xforms
+        return local_site_map, world_xforms, label_prefixes is not None
 
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1).tolist()
 
@@ -309,7 +353,7 @@ def replicate_builder_mapping(
             hook(builder, col, xform_rows[col][:3], xform_rows[col][3:])
         builder.end_world()
 
-    return local_site_map, world_xforms
+    return local_site_map, world_xforms, False
 
 
 _BUILTIN_LABEL_TYPES: tuple[str, ...] = (
@@ -328,8 +372,17 @@ def rename_builder_labels(
     destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
+    *,
+    skip_entity_labels: bool = False,
 ) -> list[tuple[str, int]]:
-    """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
+    """Rewrite source-root labels to per-env destination roots and return Fabric body bindings.
+
+    Args:
+        skip_entity_labels: Whether the entity labels already name the env they are in, as they
+            do when replication was given the per-env prefixes. Only the string custom
+            attributes are rewritten then, since Newton cannot tell which of those name
+            entities.
+    """
     fabric_body_bindings: list[tuple[str, int]] = []
     bound_body_indices: set[int] = set()
     env_ids_list = env_ids.tolist()
@@ -364,14 +417,15 @@ def rename_builder_labels(
                         fabric_body_bindings.append((renamed_value, index))
                         bound_body_indices.add(index)
 
-        for labels, worlds, collect_body_bindings in (
-            (builder.body_label, builder.body_world, True),
-            (builder.joint_label, builder.joint_world, False),
-            (builder.shape_label, builder.shape_world, False),
-            (builder.articulation_label, builder.articulation_world, False),
-            (builder.constraint_mimic_label, builder.constraint_mimic_world, False),
-        ):
-            _rename_pair(labels, worlds, collect_body_bindings=collect_body_bindings)
+        if not skip_entity_labels:
+            for labels, worlds, collect_body_bindings in (
+                (builder.body_label, builder.body_world, True),
+                (builder.joint_label, builder.joint_world, False),
+                (builder.shape_label, builder.shape_world, False),
+                (builder.articulation_label, builder.articulation_world, False),
+                (builder.constraint_mimic_label, builder.constraint_mimic_world, False),
+            ):
+                _rename_pair(labels, worlds, collect_body_bindings=collect_body_bindings)
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}

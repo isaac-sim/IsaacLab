@@ -1957,7 +1957,7 @@ class NewtonManager(PhysicsManager):
             quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
             mapping = torch.ones((1, len(env_paths)), dtype=torch.bool)
             replicate_args = (builder, (proto_path,), mapping, positions, quaternions, source_builders)
-            local_site_map, world_xforms = replicate_builder_mapping(
+            local_site_map, world_xforms, _ = replicate_builder_mapping(
                 *replicate_args,
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,

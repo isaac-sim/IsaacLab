@@ -1,0 +1,1 @@
+Signature-only: the replication context accepts the clone plan's env_template alongside global_paths, and ignores it.

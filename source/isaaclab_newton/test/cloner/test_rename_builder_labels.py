@@ -364,7 +364,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _ = replicate_builder_mapping(
+            local_site_map, _, _ = replicate_builder_mapping(
                 builder,
                 (_SRC,),
                 torch.ones((1, 3), dtype=torch.bool),
@@ -393,7 +393,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _ = replicate_builder_mapping(
+            local_site_map, _, _ = replicate_builder_mapping(
                 builder,
                 (_SRC,),
                 torch.ones((1, 3), dtype=torch.bool),
@@ -591,6 +591,150 @@ class TestEnvRootSiteLabels(unittest.TestCase):
         sources = ("/World/envs/env_0/Robot", "/World/envs/env_2/Robot")
         mapping = torch.tensor([[True, True, False, False], [False, False, True, True]])
         self.assertEqual(self._site_labels(sources, mapping), self._expected())
+
+
+class TestReplicationNamesItsCopies:
+    """Replication naming each copy must give exactly what rewriting afterwards gives."""
+
+    _SRC, _DST, _WORLDS = "/World/envs/env_0/Robot", "/World/envs/env_{}/Robot", 4
+    _ENV = "/World/envs/env_{}"
+
+    @classmethod
+    def _prototype(cls) -> newton.ModelBuilder:
+        source = newton.ModelBuilder()
+        body = source.add_link(xform=wp.transform(), label=cls._SRC)
+        source.add_shape_box(body=body, label=f"{cls._SRC}/base")
+        child = source.add_link(xform=wp.transform(), label=f"{cls._SRC}/link")
+        source.add_joint_revolute(parent=body, child=child, axis=(0.0, 0.0, 1.0), label=f"{cls._SRC}/hinge")
+        source.add_articulation([0], label=cls._SRC)
+        return source
+
+    def _run(self, *, delegate: bool, env_root_site: bool = False):
+        builder = newton.ModelBuilder()
+        env_ids = torch.arange(self._WORLDS, dtype=torch.long)
+        mapping = torch.ones(1, self._WORLDS, dtype=torch.bool)
+        positions = torch.zeros((self._WORLDS, 3), dtype=torch.float32)
+        quaternions = torch.zeros((self._WORLDS, 4), dtype=torch.float32)
+        quaternions[:, 3] = 1.0
+        extra = {"env_ids": env_ids, "env_template": self._ENV} if delegate else {}
+        sites = {"ft_0": (wp.transform(), self._DST)} if env_root_site else {}
+        _, _, named = replicate_builder_mapping(
+            builder,
+            [self._SRC],
+            mapping,
+            positions,
+            quaternions,
+            {self._SRC: self._prototype()},
+            env_root_sites=sites,
+            **extra,
+        )
+        rename_builder_labels(builder, [self._SRC], [self._DST], env_ids, mapping, skip_entity_labels=named)
+        return builder, named
+
+    @staticmethod
+    def _labels(builder) -> dict[str, list[str]]:
+        return {
+            name: list(getattr(builder, name))
+            for name in ("body_label", "joint_label", "shape_label", "articulation_label")
+        }
+
+    def test_every_label_matches_the_rewritten_path(self):
+        delegated, named = self._run(delegate=True)
+        rewritten, _ = self._run(delegate=False)
+
+        assert named is True
+        assert self._labels(delegated) == self._labels(rewritten)
+
+    def test_an_env_root_site_matches_too(self):
+        delegated, named = self._run(delegate=True, env_root_site=True)
+        rewritten, _ = self._run(delegate=False, env_root_site=True)
+
+        assert named is True
+        assert self._labels(delegated) == self._labels(rewritten)
+
+    def test_each_copy_names_its_own_environment(self):
+        builder, _ = self._run(delegate=True)
+
+        assert builder.shape_label == [f"{self._DST.format(env_id)}/base" for env_id in range(self._WORLDS)]
+
+    def test_a_prototype_outside_the_environments_is_not_delegated(self):
+        """A prototype that is not an instance of the env template has no env to prefix with."""
+        builder = newton.ModelBuilder()
+        env_ids = torch.arange(self._WORLDS, dtype=torch.long)
+        mapping = torch.ones(1, self._WORLDS, dtype=torch.bool)
+        positions = torch.zeros((self._WORLDS, 3), dtype=torch.float32)
+        quaternions = torch.zeros((self._WORLDS, 4), dtype=torch.float32)
+        quaternions[:, 3] = 1.0
+        source = newton.ModelBuilder()
+        source.add_link(xform=wp.transform(), label="/Sources/protoA")
+
+        _, _, named = replicate_builder_mapping(
+            builder,
+            ["/Sources/protoA"],
+            mapping,
+            positions,
+            quaternions,
+            {"/Sources/protoA": source},
+            env_ids=env_ids,
+            env_template="/World/envs/env_{}",
+        )
+
+        assert named is False
+
+    def test_a_label_outside_the_prototype_is_not_delegated(self):
+        """Replication prefixes every label, so one that is not under the split cannot be spelled."""
+        source = self._prototype()
+        source.add_link(xform=wp.transform(), label="/elsewhere/beacon")
+
+        builder = newton.ModelBuilder()
+        env_ids = torch.arange(self._WORLDS, dtype=torch.long)
+        mapping = torch.ones(1, self._WORLDS, dtype=torch.bool)
+        positions = torch.zeros((self._WORLDS, 3), dtype=torch.float32)
+        quaternions = torch.zeros((self._WORLDS, 4), dtype=torch.float32)
+        quaternions[:, 3] = 1.0
+        _, _, named = replicate_builder_mapping(
+            builder,
+            [self._SRC],
+            mapping,
+            positions,
+            quaternions,
+            {self._SRC: source},
+            env_ids=env_ids,
+            env_template=self._ENV,
+        )
+
+        assert named is False
+        assert "/elsewhere/beacon" in builder.body_label
+
+    def test_a_generated_sibling_of_the_root_is_rebased(self):
+        """add_body derives "<root>_free_joint", which the split above the leaf still covers."""
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform(), label=self._SRC)
+
+        builder = newton.ModelBuilder()
+        env_ids = torch.arange(self._WORLDS, dtype=torch.long)
+        mapping = torch.ones(1, self._WORLDS, dtype=torch.bool)
+        positions = torch.zeros((self._WORLDS, 3), dtype=torch.float32)
+        quaternions = torch.zeros((self._WORLDS, 4), dtype=torch.float32)
+        quaternions[:, 3] = 1.0
+        _, _, named = replicate_builder_mapping(
+            builder,
+            [self._SRC],
+            mapping,
+            positions,
+            quaternions,
+            {self._SRC: source},
+            env_ids=env_ids,
+            env_template=self._ENV,
+        )
+
+        assert named is True
+        assert builder.joint_label == [f"{self._DST.format(env_id)}_free_joint" for env_id in range(self._WORLDS)]
+
+    def test_without_a_plan_the_caller_still_rewrites(self):
+        _, named = self._run(delegate=False)
+
+        assert named is False
 
 
 if __name__ == "__main__":

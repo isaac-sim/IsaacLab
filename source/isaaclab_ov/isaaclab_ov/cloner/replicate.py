@@ -28,6 +28,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 
@@ -80,7 +81,7 @@ class OvPhysxReplicateContext:
 
     replicate_priority = 0
 
-    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = ()):
+    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = (), env_template: str = DEFAULT_ENV_TEMPLATE):
         """Initialize the context.
 
         Args:
