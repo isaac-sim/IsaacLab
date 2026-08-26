@@ -308,7 +308,7 @@ class OVRTXRenderer(BaseRenderer):
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         # Resolved by create_render_data(spec); every render-product device id and CUDA sync stream
         # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
-        self._warp_device: wp.context.Device | None = None
+        self._warp_device: wp.Device | None = None
         self._render_product_paths = []
         # Shared by both paths. The legacy-only binding handles that pair with these live in
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
