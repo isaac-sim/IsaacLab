@@ -394,6 +394,7 @@ class OVRTXRenderer(BaseRenderer):
     def _capture_object_scales(self, stage: Any) -> None:
         self._object_scales_by_path.clear()
         from pxr import Gf, Usd, UsdGeom
+
         envs_prim = stage.GetPrimAtPath("/World/envs")
         if not envs_prim.IsValid():
             return
@@ -707,6 +708,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
             return
         from isaaclab_newton.physics import NewtonManager
+
         newton_state = NewtonManager.get_state()
         if newton_state is None:
             raise RuntimeError("Newton state should not be None")
@@ -747,6 +749,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _write_particle_q_slices(self, binding: Any, particle_offsets: list[int], particle_counts: list[int]) -> None:
         from isaaclab_newton.physics import NewtonManager
+
         state = NewtonManager.get_state()
         if state is None:
             raise RuntimeError("Newton state should not be None")
@@ -754,8 +757,7 @@ class OVRTXRenderer(BaseRenderer):
         if particle_q is None:
             raise RuntimeError("Newton state has no particle_q but particle geometry bindings exist")
         particle_slices = [
-            particle_q[offset : offset + count]
-            for offset, count in zip(particle_offsets, particle_counts, strict=True)
+            particle_q[offset : offset + count] for offset, count in zip(particle_offsets, particle_counts, strict=True)
         ]
         binding.write(
             cast(Any, particle_slices),
@@ -920,7 +922,9 @@ class OVRTXRenderer(BaseRenderer):
             if depth_type in output_buffers:
                 self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
 
-    def _extract_hdr_color_tiles(self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict) -> None:
+    def _extract_hdr_color_tiles(
+        self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict
+    ) -> None:
         if "rgb_hdr" not in output_buffers:
             return
         if tiled_data.dtype not in (wp.float16, wp.float32):
@@ -1007,9 +1011,7 @@ class OVRTXRenderer(BaseRenderer):
         try:
             if material_writer is not None:
                 material_writer.publish()
-            products = self._renderer.step(
-                render_products=set(self._render_product_paths), delta_time=1.0 / 60.0
-            )
+            products = self._renderer.step(render_products=set(self._render_product_paths), delta_time=1.0 / 60.0)
         finally:
             if material_writer is not None:
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
@@ -1033,6 +1035,7 @@ class OVRTXRenderer(BaseRenderer):
             except Exception as exc:
                 if "destroyed" not in str(exc).lower():
                     logger.warning("Error unbinding %s: %s", name, exc)
+
         for attr, name in (
             ("_camera_xform_binding", "camera transforms"),
             ("_object_xform_binding", "object transforms"),
@@ -1074,7 +1077,9 @@ class OVRTXRenderer(BaseRenderer):
         self._setup_xform_bindings_ovstage() if self._use_ovstage else self._setup_xform_bindings_legacy()
 
     def _setup_deformable_bindings(self, num_envs: int) -> None:
-        self._setup_deformable_bindings_ovstage(num_envs) if self._use_ovstage else self._setup_deformable_bindings_legacy(num_envs)
+        self._setup_deformable_bindings_ovstage(
+            num_envs
+        ) if self._use_ovstage else self._setup_deformable_bindings_legacy(num_envs)
 
     def _setup_particle_bindings(self) -> None:
         self._setup_particle_bindings_ovstage() if self._use_ovstage else self._setup_particle_bindings_legacy()
@@ -1109,6 +1114,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _compute_cable_points_world(self) -> None:
         from isaaclab_newton.physics import NewtonManager
+
         model = NewtonManager.get_model()
         state = NewtonManager.get_state()
         if state is None:
@@ -1392,6 +1398,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._object_xform_query is None or self._object_newton_indices is None or self._object_scales is None:
             return
         from isaaclab_newton.physics import NewtonManager
+
         state = NewtonManager.get_state()
         if state is None:
             raise RuntimeError("Newton state should not be None")
@@ -1417,6 +1424,7 @@ class OVRTXRenderer(BaseRenderer):
     def _update_geometries_ovstage(self) -> None:
         if self._deformable_points_query is not None or self._particle_points_query is not None:
             from isaaclab_newton.physics import NewtonManager
+
             state = NewtonManager.get_state()
             if state is None or getattr(state, "particle_q", None) is None:
                 raise RuntimeError("Newton state has no particle_q but particle geometry queries exist")
@@ -1473,7 +1481,9 @@ class OVRTXRenderer(BaseRenderer):
             src=orientations.warp, dst=converted, origin="world", target="opengl", device=self._device
         )
         transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
-        wp.launch(create_camera_transforms_kernel, num_envs, inputs=[positions, converted, transforms], device=self._device)
+        wp.launch(
+            create_camera_transforms_kernel, num_envs, inputs=[positions, converted, transforms], device=self._device
+        )
         if self._camera_xform_query is not None:
             self._stage.write_attribute(
                 self._camera_xform_query,
@@ -1522,6 +1532,7 @@ class OVRTXRenderer(BaseRenderer):
             if paths is not None and self._stage_paths is not None:
                 with contextlib.suppress(Exception):
                     self._stage_paths.destroy_path_list(paths)
+
         for query, paths in (
             (self._camera_xform_query, self._camera_paths_list),
             (self._object_xform_query, self._object_paths_list),
