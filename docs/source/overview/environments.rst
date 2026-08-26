@@ -241,8 +241,9 @@ for the lift-cube environment:
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |multitask-manip|       | |multitask-manip-link|       | Train one task-conditioned policy across OpenArm lift, Franka drawer, and   |                                         |
+    | |multitask-manip|       | |multitask-manip-link|       | Train one task-conditioned policy across OpenArm lift, Franka drawer, and   | **physics=** ``isaacsim_physx``         |
     |                         |                              | UR10 reach layouts in a heterogeneous environment batch                     |                                         |
+    |                         |                              | Currently, this multitask environment supports PhysX only                   |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                                         |
     |                         |                              | This policy has been deployed to a real robot                               |                                         |
