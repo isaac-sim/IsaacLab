@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.16.1 (2026-08-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed run summaries to report the concrete physics and renderer backends directly, without
+  reparsing preset selectors after task composition.
+
+
 0.16.0 (2026-08-18)
 ~~~~~~~~~~~~~~~~~~~
 
