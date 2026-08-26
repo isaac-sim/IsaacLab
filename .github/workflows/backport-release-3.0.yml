@@ -261,7 +261,7 @@ jobs:
           TARGET_SHA: ${{ steps.source.outputs.target_sha }}
         run: |
           set -euo pipefail
-          python -m pip install pre-commit
+          python -m pip install pre-commit==4.6.2
 
           set +e
           pre-commit run --show-diff-on-failure --color=always --all-files
