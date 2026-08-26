@@ -155,8 +155,14 @@ def mesh_trail_segment(
             local_path = np.stack([s, s * 0.0, s * 0.0], axis=1)
             local_path += object_location
         # add vertices at start and end of object
+        elif object is not None:
+                local_path = get_bounding_box(object_3d.vertices)
+                local_path[:, 1:3] = trail_path[-1, 1:3]
+        # no object available (flat segment)
         else:
-            local_path = get_bounding_box(object_3d.vertices)
+            s = np.array([0.0, object_length])
+            local_path = np.stack([s, s * 0.0, s * 0.0], axis=1)
+            local_path += object_location
             local_path[:, 1:3] = trail_path[-1, 1:3]
         # remember x coordinates under the object
         xs = np.array([[local_path[0, 0], local_path[-1, 0]]])
