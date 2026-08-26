@@ -492,7 +492,7 @@ class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
     def validate_config(self) -> None:
         """Validate the minimum batch size required to instantiate all task views."""
         if self.scene.num_envs < 3:
-            raise ValueError("Isaac-Multitask-Manipulation requires at least three environments, one per task.")
+            raise ValueError("IsaacContrib-Multitask-Manipulation requires at least three environments, one per task.")
 
     def play_mode(self):
         """Enable short episodes and task command markers during policy playback."""

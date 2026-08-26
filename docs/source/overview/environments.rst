@@ -241,6 +241,9 @@ for the lift-cube environment:
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
+    | |multitask-manip|       | |multitask-manip-link|       | Train one task-conditioned policy across OpenArm lift, Franka drawer, and   |                                         |
+    |                         |                              | UR10 reach layouts in a heterogeneous environment batch                     |                                         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                                         |
     |                         |                              | This policy has been deployed to a real robot                               |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
@@ -446,10 +449,12 @@ for the lift-cube environment:
 .. |reach_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_reach.jpg
 .. |lift_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_lift.jpg
 .. |cabi_openarm_uni| image:: ../_static/tasks/manipulation/openarm_uni_open_drawer.jpg
+.. |multitask-manip| image:: ../_static/tasks/manipulation/multitask_manipulation.png
 .. |g1_assemble_trocar| image:: ../_static/tasks/manipulation/g1_assemble_trocar.jpg
 
 .. |reach-franka-link| replace:: :isaaclab-source:`Isaac-Reach-Franka <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/franka_reach_env_cfg.py>`
 .. |reach-ur10-link| replace:: :isaaclab-source:`Isaac-Reach-UR10 <source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`
+.. |multitask-manip-link| replace:: :isaaclab-source:`IsaacContrib-Multitask-Manipulation <source/isaaclab_tasks/isaaclab_tasks/contrib/multitask_manipulation/multitask_env_cfg.py>`
 .. |deploy-reach-ur10e-link| replace:: :isaaclab-source:`IsaacContrib-Deploy-Reach-UR10e <source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`
 .. |lift-cube-link| replace:: :isaaclab-source:`IsaacContrib-Lift-Cube-Franka <source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/joint_pos_env_cfg.py>`
 .. |lift-cube-ik-abs-link| replace:: :isaaclab-source:`IsaacContrib-Lift-Cube-Franka-IK-Abs <source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_abs_env_cfg.py>`
@@ -1441,6 +1446,10 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Lift-Cube-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
+      -
+    * - IsaacContrib-Multitask-Manipulation
+      - Manager Based
+      - **rsl_rl** (PPO)
       -
     * - IsaacContrib-Navigation-3DObstacles-ARL-Robot-1
       - Manager Based

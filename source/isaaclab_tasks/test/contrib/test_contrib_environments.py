@@ -67,5 +67,5 @@ def _contrib_environment_params() -> list:
 
 @pytest.mark.parametrize("task_name", _contrib_environment_params())
 def test_contrib_environments(task_name):
-    num_envs = 3 if task_name == "Isaac-Multitask-Manipulation" else 2
+    num_envs = 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2
     _run_environments(task_name, device="cuda", num_envs=num_envs)

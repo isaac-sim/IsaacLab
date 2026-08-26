@@ -11,7 +11,7 @@ from . import agents
 
 
 gym.register(
-    id="Isaac-Multitask-Manipulation",
+    id="IsaacContrib-Multitask-Manipulation",
     entry_point=f"{__name__}.multitask_env:MultitaskManipulationEnv",
     disable_env_checker=True,
     kwargs={

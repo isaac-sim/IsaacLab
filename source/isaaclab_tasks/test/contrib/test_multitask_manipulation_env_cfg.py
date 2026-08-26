@@ -39,7 +39,7 @@ from isaaclab_tasks.contrib.multitask_manipulation.selection_utils import SceneE
 def test_registry_uses_task_specific_manager_environment() -> None:
     """The task should customize reset behavior without changing the core environment."""
     assert (
-        gym.spec("Isaac-Multitask-Manipulation").entry_point
+        gym.spec("IsaacContrib-Multitask-Manipulation").entry_point
         == "isaaclab_tasks.contrib.multitask_manipulation.multitask_env:MultitaskManipulationEnv"
     )
 
