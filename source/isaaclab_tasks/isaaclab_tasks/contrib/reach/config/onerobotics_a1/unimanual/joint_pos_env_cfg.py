@@ -10,9 +10,9 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 
-from isaaclab_assets import ONEROBOTICS_A1_CFG  # isort: skip
+from isaaclab_assets import ONEROBOTICS_A1_UNIMANUAL_CFG  # isort: skip
 
-from . import mdp as a1_mdp
+from .. import mdp as a1_mdp
 
 _A1_JOINT_PATTERNS = [f".*joint{index}.*" for index in range(1, 8)]
 _A1_END_EFFECTOR_PATTERN = ".*Link7.*"
@@ -33,7 +33,12 @@ class OneRoboticsA1ReachEnvCfg(ReachEnvCfg):
         # The source integration is validated with Isaac Sim PhysX; do not expose unvalidated backends.
         self.sim.physics = self.sim.physics.isaacsim_physx
 
-        self.scene.robot = ONEROBOTICS_A1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = ONEROBOTICS_A1_UNIMANUAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+        # Match the confirmed A1 control stack: 200 Hz implicit servo and 50 Hz actions.
+        self.sim.dt = 1.0 / 200.0
+        self.decimation = 4
+        self.sim.render_interval = self.decimation
 
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = [_A1_END_EFFECTOR_PATTERN]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = [_A1_END_EFFECTOR_PATTERN]

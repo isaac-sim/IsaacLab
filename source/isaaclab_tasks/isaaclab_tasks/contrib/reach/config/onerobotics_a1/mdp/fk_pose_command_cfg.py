@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
@@ -23,17 +22,20 @@ KinematicChainEntry = tuple[
     tuple[float, float, float],
 ]
 
-_HALF_PI = math.pi / 2.0
 A1_RIGHT_CHAIN: list[KinematicChainEntry] = [
-    (".*joint1.*", (0.0, 0.0, 0.0315), (0.0, 0.0, 0.0)),
-    (".*joint2.*", (0.0, 0.0, 0.12745), (_HALF_PI, _HALF_PI, 0.0)),
-    (".*joint3.*", (0.0, -0.09325, 0.0), (_HALF_PI, -_HALF_PI, 0.0)),
-    (".*joint4.*", (0.0, 0.001, 0.14025), (-_HALF_PI, 0.0, 0.0)),
-    (".*joint5.*", (0.0, -0.088, -0.001), (_HALF_PI, 0.0, 0.0)),
-    (".*joint6.*", (0.0, -0.0005, 0.133), (_HALF_PI, 0.0, 0.0)),
-    (".*joint7.*", (0.0, 0.112, -0.0005), (_HALF_PI, 0.0, math.pi)),
+    (".*joint1.*", (0.0, 0.0, 0.0125), (0.0, 0.0, 0.0)),
+    (".*joint2.*", (0.0, 0.0, 0.12745), (1.5708, 1.5708, 0.0)),
+    (".*joint3.*", (0.0, -0.09325, -0.0001), (1.5708, 1.5708, 0.0)),
+    (
+        ".*joint4.*",
+        (0.0, -0.000999999996676215, 0.140249999995695),
+        (1.57079632678358, 0.0, -6.73358220455809e-5),
+    ),
+    (".*joint5.*", (0.0, 0.08800000000195, -0.00100000000141642), (-1.57079632679444, 0.0, 0.0)),
+    (".*joint6.*", (0.0, 0.0005, 0.133), (-1.5708, 0.0, 0.0)),
+    (".*joint7.*", (0.0, -0.112, 0.00025), (1.5708, 0.0, 0.0)),
 ]
-"""A1 right-arm kinematic chain from ``base_link`` through ``Link7``."""
+"""A1 2026 right-arm kinematic chain from ``base_link`` through ``Link7``."""
 
 
 @configclass

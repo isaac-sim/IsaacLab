@@ -33,14 +33,17 @@ _HOME_POSITION = [0.0, -0.6, 0.0, 1.0, 0.0, 0.5, 0.0]
 _JOINT_LIMITS = [
     [-1.04, 3.14],
     [-3.14, 0.26],
-    [-2.75, 2.75],
+    [-2.76, 2.76],
     [-1.92, 1.92],
-    [-2.75, 2.75],
+    [-2.23, 2.23],
     [-1.57, 1.57],
-    [-2.75, 2.75],
+    [-2.76, 2.76],
 ]
-_JOINT_EFFORT_LIMITS = [30.0] * 4 + [12.0] * 3
-_JOINT_VELOCITY_LIMITS = [3.0] * 7
+_JOINT_EFFORT_LIMITS = [15.0] * 3 + [3.0] * 4
+_JOINT_VELOCITY_LIMITS = [2.6179938779914944] * 3 + [12.566370614359172] * 4
+_JOINT_STIFFNESS = [150.0] * 4 + [40.0] * 3
+_JOINT_DAMPING = [4.0] * 4 + [1.0] * 3
+_JOINT_ARMATURE = [0.050927514873] * 3 + [0.002193] * 4
 _TF32_REGRESSION_JOINT_POSITION = [
     0.8695318698883057,
     -1.2529727220535278,
@@ -80,6 +83,9 @@ def test_task_registration_and_configuration():
     assert env_cfg.commands.ee_pose.body_name == ".*Link7.*"
     assert env_cfg.commands.ee_pose.joint_range_scale == 0.8
     assert len(env_cfg.commands.ee_pose.chain) == 7
+    assert env_cfg.sim.dt == 1.0 / 200.0
+    assert env_cfg.decimation == 4
+    assert env_cfg.sim.render_interval == 4
     assert env_cfg.rewards.end_effector_position_tracking.weight == -0.2
     assert env_cfg.rewards.end_effector_orientation_tracking.weight == -0.1
 
@@ -110,8 +116,10 @@ def test_environment_reset_zero_and_random_steps_are_finite():
         assert len(joint_ids) == 7
         assert [f"joint{index}" in name for index, name in enumerate(joint_names, start=1)] == [True] * 7
         assert len(body_ids) == 1 and "Link7" in body_names[0]
-        assert set(robot.actuators) == {"arm_proximal", "arm_distal"}
+        assert set(robot.actuators) == {"arm_4340", "arm_4310"}
         assert env.unwrapped.action_manager.total_action_dim == 7
+        assert env.unwrapped.physics_dt == 1.0 / 200.0
+        assert env.unwrapped.step_dt == 1.0 / 50.0
         torch.testing.assert_close(
             robot.data.default_joint_pos.torch[0, joint_ids],
             torch.tensor(_HOME_POSITION, device=env.unwrapped.device),
@@ -129,6 +137,22 @@ def test_environment_reset_zero_and_random_steps_are_finite():
         torch.testing.assert_close(
             robot.data.joint_velocity_limits.torch[0, joint_ids],
             torch.tensor(_JOINT_VELOCITY_LIMITS, device=env.unwrapped.device),
+        )
+        torch.testing.assert_close(
+            robot.data.soft_joint_vel_limits.torch[0, joint_ids],
+            torch.tensor(_JOINT_VELOCITY_LIMITS, device=env.unwrapped.device),
+        )
+        torch.testing.assert_close(
+            robot.data.joint_stiffness.torch[0, joint_ids],
+            torch.tensor(_JOINT_STIFFNESS, device=env.unwrapped.device),
+        )
+        torch.testing.assert_close(
+            robot.data.joint_damping.torch[0, joint_ids],
+            torch.tensor(_JOINT_DAMPING, device=env.unwrapped.device),
+        )
+        torch.testing.assert_close(
+            robot.data.joint_armature.torch[0, joint_ids],
+            torch.tensor(_JOINT_ARMATURE, device=env.unwrapped.device),
         )
 
         # Cross-check the hard-coded kinematic chain against the spawned Link7 pose.
@@ -220,6 +244,11 @@ def test_environment_reset_zero_and_random_steps_are_finite():
         assert torch.equal(random_transition[2], env.unwrapped.termination_manager.get_term("success"))
         assert not random_transition[3].any()
         _assert_finite(robot.data.joint_pos.torch)
+        _assert_finite(robot.actuators.applied_effort.torch)
+        assert torch.all(
+            torch.abs(robot.actuators.applied_effort.torch[:, joint_ids])
+            <= torch.tensor(_JOINT_EFFORT_LIMITS, device=env.unwrapped.device) + 1.0e-5
+        )
     finally:
         if env is not None:
             env.close()
