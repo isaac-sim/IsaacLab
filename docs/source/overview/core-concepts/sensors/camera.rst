@@ -465,6 +465,28 @@ output layout minus the Kit-only options. It must be launched with
 ``uv run python`` and is configured through ``OVRTX_*`` environment variables
 instead of ``--isaacrtx_*`` flags.
 
+Animated Gaussian splats
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both demos play back animated ``ParticleField3DGaussianSplat`` tracks authored
+the way NuRec exports them, in either of two forms:
+
+* **rigid** — an ancestor ``Xform`` time-samples its transform, moving the whole
+  splat;
+* **deformable** — the Gaussian prim time-samples its per-particle
+  ``positions`` / ``orientations`` arrays (or their half-precision spellings).
+
+On Isaac RTX the sampled state is re-authored on the stage each frame. On OVRTX
+it is written through
+:meth:`~isaaclab_ov.renderers.OVRTXRenderer.update_gaussian_splat_transforms`
+and :meth:`~isaaclab_ov.renderers.OVRTXRenderer.update_gaussian_splat_particles`.
+
+Writing the per-particle arrays makes OVRTX stream the prim's geometry again, so
+the render product waits for ``AllLoadingFinished`` on every frame rather than
+only on the first one. Without that the splats are missing from every frame that
+renders while a load is in flight, which is most of them for a deformable track.
+The wait costs frame time only while geometry is actually streaming.
+
 Known limitations
 ^^^^^^^^^^^^^^^^^
 
@@ -484,6 +506,9 @@ Known limitations
   color. Mixing this with RTX-side exposure authoring is not supported.
 * Auto-discovery resolves at camera construction; later authoring of
   ``ppisp:*`` camera attributes on the stage is not picked up.
+* Animated Gaussian splats are supported on the Isaac RTX and OVRTX backends
+  only. The Newton renderer has no Gaussian-splat path at all, so the demos
+  raise instead of silently rendering a static scene.
 
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~

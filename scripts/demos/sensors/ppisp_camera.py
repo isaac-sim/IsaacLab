@@ -260,6 +260,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import gaussian_animation as gaussian_anim
 import matplotlib.pyplot as plt
 import numpy as np
 import warp as wp
@@ -606,6 +607,37 @@ def freeze_env_camera_ancestor_xforms(source_stage: Usd.Stage, source_camera_pri
     )
 
 
+def resolve_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[gaussian_anim.AnimatedGaussianTrack]:
+    """Discover the input scene's animated Gaussian tracks and check the renderer can play them.
+
+    The Newton Warp renderer has no Gaussian-splat path at all, so an animated track is reported as
+    unsupported there instead of being silently dropped.
+    """
+    tracks = gaussian_anim.find_animated_gaussian_tracks(source_stage)
+    if not tracks:
+        return []
+    print(f"[INFO] Animated Gaussian track(s): {gaussian_anim.format_tracks(tracks)}", flush=True)
+    if args_cli.renderer != "isaac_rtx":
+        raise RuntimeError(
+            f"Input scene animates {len(tracks)} Gaussian track(s), which only --renderer isaac_rtx can play"
+            f" back: {gaussian_anim.format_tracks(tracks)}."
+        )
+    return tracks
+
+
+def play_animated_gaussian_tracks(
+    source_stage: Usd.Stage, tracks: list[gaussian_anim.AnimatedGaussianTrack], time_code: float
+) -> None:
+    """Advance every animated Gaussian track of every duplicated env to ``time_code``.
+
+    The Isaac RTX Fabric population re-reads an animated prim's time-sampled attributes from USD
+    before each render, so the sampled state has to be re-authored on the stage -- at
+    :data:`STAGE_TIME_CODE`, where the renderer resolves it -- rather than written into Fabric.
+    """
+    if tracks:
+        gaussian_anim.bake_env_track_state(source_stage, tracks, args_cli.num_envs, time_code, STAGE_TIME_CODE)
+
+
 def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float) -> None:
     """Bake a USD camera pose at ``time_code`` into duplicated env camera prims.
 
@@ -907,6 +939,7 @@ def run_simulator(
     source_stage: Usd.Stage,
     source_camera_prim_path: str,
     frame_time_codes: list[float],
+    gaussian_tracks: list[gaussian_anim.AnimatedGaussianTrack],
 ) -> None:
     """Play the camera trajectory and periodically save rendered images."""
     render_dt = 1.0 / args_cli.fps
@@ -949,6 +982,9 @@ def run_simulator(
                     source_stage, source_camera_prim_path, time_code, scene_world_transforms
                 )
                 set_env_camera_world_poses(cameras, positions, orientations)
+
+            with profile_section(profile, "gaussian_animation_update", profile_device):
+                play_animated_gaussian_tracks(source_stage, gaussian_tracks, time_code)
 
             with profile_section(profile, "simulation_step", profile_device):
                 for physics_step in range(physics_steps_per_frame):
@@ -1053,18 +1089,28 @@ def main() -> None:
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
     scene = create_duplicated_env_scene()
+    gaussian_tracks = resolve_animated_gaussian_tracks(source_stage)
     trajectory_times = get_trajectory_time_samples(source_stage, source_camera_prim_path)
+    if trajectory_times:
+        print(
+            f"[INFO] Resampled {len(trajectory_times)} camera trajectory time sample(s) at {args_cli.fps:g} FPS: "
+            f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+            flush=True,
+        )
+    else:
+        # A scene may animate only its Gaussians, in which case their time samples drive the frames.
+        trajectory_times = gaussian_anim.collect_authored_times(source_stage, gaussian_tracks)
+        if trajectory_times:
+            print(
+                f"[INFO] Static camera; playing {len(trajectory_times)} Gaussian animation time sample(s): "
+                f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+                flush=True,
+            )
     if not trajectory_times:
         trajectory_times = [args_cli.camera_time_code]
         print(
             f"[INFO] No USD xform time samples found; playing the static camera at USD time "
             f"{args_cli.camera_time_code:g}.",
-            flush=True,
-        )
-    else:
-        print(
-            f"[INFO] Resampled {len(trajectory_times)} camera trajectory time sample(s) at {args_cli.fps:g} FPS: "
-            f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
             flush=True,
         )
     frame_time_codes = trajectory_times
@@ -1077,6 +1123,8 @@ def main() -> None:
     # rig above them so runtime pose writes stick, then seed the first trajectory pose.
     freeze_env_camera_ancestor_xforms(source_stage, source_camera_prim_path)
     bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path, frame_time_codes[0])
+    # Seed the Gaussian tracks too, so the first render already shows the first frame's state.
+    play_animated_gaussian_tracks(source_stage, gaussian_tracks, frame_time_codes[0])
 
     baseline_camera = None
     if not args_cli.render_only:
@@ -1096,6 +1144,7 @@ def main() -> None:
         source_stage,
         source_camera_prim_path,
         frame_time_codes,
+        gaussian_tracks,
     )
     del scene
 

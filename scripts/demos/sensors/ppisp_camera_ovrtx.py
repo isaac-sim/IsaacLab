@@ -32,6 +32,7 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
+import gaussian_animation as gaussian_anim
 import matplotlib.pyplot as plt
 import numpy as np
 import warp as wp
@@ -219,10 +220,7 @@ def make_renderer_cfg() -> Any:
             "Run it from an environment with isaaclab_ov and ovrtx installed."
         ) from exc
 
-    return OVRTXRendererCfg(
-        log_level=args_cli.ovrtx_log_level,
-        log_file_path=args_cli.ovrtx_log_file,
-    )
+    return OVRTXRendererCfg(log_level=args_cli.ovrtx_log_level, log_file_path=args_cli.ovrtx_log_file)
 
 
 def make_sim_cfg() -> sim_utils.SimulationCfg:
@@ -404,6 +402,65 @@ def freeze_env_camera_ancestor_xforms(source_stage: Usd.Stage, source_camera_pri
     )
 
 
+def resolve_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[gaussian_anim.AnimatedGaussianTrack]:
+    """Discover the animated Gaussian tracks to play back on OVRTX."""
+    tracks = gaussian_anim.find_animated_gaussian_tracks(source_stage)
+    if tracks:
+        print(f"[INFO] Animated Gaussian track(s): {gaussian_anim.format_tracks(tracks)}", flush=True)
+    return tracks
+
+
+def get_ovrtx_renderer(sim: sim_utils.SimulationContext) -> Any:
+    """Return the simulation's shared OVRTX renderer after a camera initialized it.
+
+    The cfg must match the one the camera sensors were created with.
+    """
+    try:
+        from isaaclab_ov.renderers import OVRTXRenderer
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError("Animated Gaussian playback requires the optional OVRTX renderer stack.") from exc
+
+    renderer = sim.render_context.get_renderer(make_renderer_cfg())
+    if not isinstance(renderer, OVRTXRenderer):
+        raise RuntimeError(f"Expected the OVRTX renderer, received {type(renderer).__name__}.")
+    return renderer
+
+
+def play_animated_gaussian_tracks(
+    renderer: Any,
+    source_stage: Usd.Stage,
+    tracks: list[gaussian_anim.AnimatedGaussianTrack],
+    time_code: float,
+) -> None:
+    """Advance the Gaussian tracks to ``time_code`` through OVRTX's public update hooks.
+
+    Rigid tracks are played by writing the animated ancestor's local transform; deformable tracks by
+    writing the sampled per-particle arrays, which every duplicated env shares because the samples
+    are in the Gaussian prim's local frame.
+    """
+    if not tracks:
+        return
+    default_prim = gaussian_anim.require_default_prim(source_stage)
+    default_prefix = f"{default_prim.GetPath().pathString}/"
+    for track in tracks:
+        for xform_rel_path in track.animated_xform_rel_paths:
+            source_prim = source_stage.GetPrimAtPath(f"{default_prefix}{xform_rel_path}")
+            local_transform = UsdGeom.Xformable(source_prim).GetLocalTransformation(Usd.TimeCode(time_code))
+            paths = [gaussian_anim.env_prim_path(env_id, xform_rel_path) for env_id in range(args_cli.num_envs)]
+            transforms = np.broadcast_to(np.asarray(local_transform, dtype=np.float64), (len(paths), 4, 4)).copy()
+            renderer.update_gaussian_splat_transforms(paths, transforms)
+
+        if not track.is_deformable:
+            continue
+        positions, orientations = gaussian_anim.sample_track_particles(source_stage, track, time_code)
+        paths = [gaussian_anim.env_prim_path(env_id, track.gaussian_rel_path) for env_id in range(args_cli.num_envs)]
+        renderer.update_gaussian_splat_particles(
+            paths,
+            positions=None if positions is None else [positions] * len(paths),
+            orientations=None if orientations is None else [orientations] * len(paths),
+        )
+
+
 def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float) -> None:
     """Bake a USD camera pose at ``time_code`` into duplicated env camera prims.
 
@@ -547,7 +604,13 @@ def make_matched_camera_prims_visible(stage: Usd.Stage, camera_prim_path: str) -
         UsdGeom.Imageable(prim).MakeVisible()
 
 
-def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int, height: int) -> Camera:
+def make_camera(
+    camera_prim_path: str,
+    *,
+    ppisp_cfg: PpispCfg | None,
+    width: int,
+    height: int,
+) -> Camera:
     """Create a baseline or PPISP camera sensor for the duplicated-env camera batch."""
     return Camera(
         CameraCfg(
@@ -707,9 +770,11 @@ def run_simulator(
     sim: sim_utils.SimulationContext,
     baseline_camera: Camera | None,
     ppisp_camera: Camera,
+    ovrtx_renderer: Any,
     source_stage: Usd.Stage,
     source_camera_prim_path: str,
     frame_time_codes: list[float],
+    gaussian_tracks: list[gaussian_anim.AnimatedGaussianTrack],
 ) -> None:
     """Play the camera trajectory and periodically save rendered images."""
     render_dt = 1.0 / args_cli.fps
@@ -737,6 +802,9 @@ def run_simulator(
     )
     if args_cli.warmup_steps > 0:
         print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
+    # Seed the first pose before warmup, so a nonzero first USD animation sample is represented in
+    # all renderer-startup frames too.
+    play_animated_gaussian_tracks(ovrtx_renderer, source_stage, gaussian_tracks, frame_time_codes[0])
     for _ in range(args_cli.warmup_steps):
         sim.step()
         for camera in cameras:
@@ -749,6 +817,9 @@ def run_simulator(
                     source_stage, source_camera_prim_path, time_code, scene_world_transforms
                 )
                 set_env_camera_world_poses(cameras, positions, orientations)
+
+            with profile_section(profile, "gaussian_animation_update", profile_device):
+                play_animated_gaussian_tracks(ovrtx_renderer, source_stage, gaussian_tracks, time_code)
 
             with profile_section(profile, "simulation_step", profile_device):
                 for physics_step in range(physics_steps_per_frame):
@@ -850,18 +921,28 @@ def main() -> None:
     sim = sim_utils.SimulationContext(sim_cfg)
 
     scene = create_duplicated_env_scene()
+    gaussian_tracks = resolve_animated_gaussian_tracks(source_stage)
     trajectory_times = get_trajectory_time_samples(source_stage, source_camera_prim_path)
+    if trajectory_times:
+        print(
+            f"[INFO] Resampled {len(trajectory_times)} camera trajectory time sample(s) at {args_cli.fps:g} FPS: "
+            f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+            flush=True,
+        )
+    else:
+        # A scene may animate only its Gaussians, in which case their time samples drive the frames.
+        trajectory_times = gaussian_anim.collect_authored_times(source_stage, gaussian_tracks)
+        if trajectory_times:
+            print(
+                f"[INFO] Static camera; playing {len(trajectory_times)} Gaussian animation time sample(s): "
+                f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+                flush=True,
+            )
     if not trajectory_times:
         trajectory_times = [args_cli.camera_time_code]
         print(
             f"[INFO] No USD xform time samples found; playing the static camera at USD time "
             f"{args_cli.camera_time_code:g}.",
-            flush=True,
-        )
-    else:
-        print(
-            f"[INFO] Resampled {len(trajectory_times)} camera trajectory time sample(s) at {args_cli.fps:g} FPS: "
-            f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
             flush=True,
         )
     frame_time_codes = trajectory_times
@@ -879,23 +960,27 @@ def main() -> None:
     # Create the PPISP sensor before the baseline sensor: when two OVRTX camera sensors share the same
     # camera prims, only the first one created gets a working HDR source, and a PPISP sensor created
     # second renders black.
-    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
+    camera_kwargs = {"width": width, "height": height}
+    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, **camera_kwargs)
     baseline_camera = None
     if not args_cli.render_only:
-        baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
+        baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, **camera_kwargs)
     print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
     print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
 
     try:
         sim.reset()
         print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
+        ovrtx_renderer = get_ovrtx_renderer(sim)
         run_simulator(
             sim,
             baseline_camera,
             ppisp_camera,
+            ovrtx_renderer,
             source_stage,
             source_camera_prim_path,
             frame_time_codes,
+            gaussian_tracks,
         )
     finally:
         del ppisp_camera

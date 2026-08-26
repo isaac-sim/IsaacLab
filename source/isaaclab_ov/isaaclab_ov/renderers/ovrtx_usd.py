@@ -249,7 +249,7 @@ def Scope "Render"
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
-        token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
+        token[] omni:rtx:waitForEvents = ["AllLoadingFinished"]
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
     }}

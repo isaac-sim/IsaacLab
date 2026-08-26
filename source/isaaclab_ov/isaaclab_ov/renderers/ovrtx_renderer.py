@@ -156,6 +156,60 @@ _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 
 
+if _OVSTAGE_AVAILABLE:
+    # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
+    # as one 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
+    _OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=64, lanes=16)
+
+    def _xform_tensor_from_numpy(xforms: np.ndarray) -> Any:
+        """Wrap a ``(N, 4, 4)`` float64 array as a 16-lane DLTensor for ``omni:xform`` writes.
+
+        Args:
+            xforms: Array of shape ``(N, 4, 4)`` with dtype ``float64``.
+
+        Returns:
+            A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=16``.
+        """
+        flat = np.ascontiguousarray(xforms, dtype=np.float64).reshape(-1)
+        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_XFORM_DTYPE, shape=[xforms.shape[0]])
+
+    # DLDataType for a float32 3-vector (``points`` column). ovstage stores ``point3f[] points``
+    # as one 3-lane float32 element per vertex; a warp ``vec3f`` array exports as ``(N, 3)`` lanes=1
+    # via DLPack, so a lanes=3 override on a host numpy array is required to match the column.
+    _OVSTAGE_POINT_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=3)
+
+    def _points_tensor_from_numpy(points: np.ndarray) -> Any:
+        """Wrap an ``(N, 3)`` float32 array as a 3-lane DLTensor for ``points`` writes.
+
+        Args:
+            points: Array of shape ``(N, 3)`` with dtype ``float32``.
+
+        Returns:
+            A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
+        """
+        flat = np.ascontiguousarray(points, dtype=np.float32).reshape(-1)
+        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_POINT_DTYPE, shape=[points.shape[0]])
+
+    # Gaussian-splat particle columns are float32 with a per-column lane count: 3 for ``positions``
+    # and 4 for ``orientations``, so the DLDataType is built per array rather than shared.
+    _OVSTAGE_GAUSSIAN_PARTICLE_SEMANTICS = {
+        "positions": ovstage.AttributeSemantic.POINT,
+        "orientations": ovstage.AttributeSemantic.QUATERNION,
+    }
+
+    def _gaussian_particle_tensor_from_numpy(values: np.ndarray) -> Any:
+        """Wrap an ``(N, C)`` float32 array as a C-lane DLTensor for Gaussian particle writes.
+
+        Args:
+            values: Array of shape ``(N, C)`` with dtype ``float32``.
+
+        Returns:
+            A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=C``.
+        """
+        dtype = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=values.shape[1])
+        return ovstage.make_dltensor(values.reshape(-1), dtype=dtype, shape=[values.shape[0]])
+
+
 def ovrtx_use_ovstage_enabled() -> bool:
     """Return whether the ovstage scene-ownership path should be used.
 
@@ -1694,6 +1748,98 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._update_geometries_legacy()
 
+    def update_gaussian_splat_transforms(self, prim_paths: list[str], local_transforms: np.ndarray) -> None:
+        """Update local transforms for populated Gaussian-splat prims.
+
+        This hook is for authored rigid Gaussian animation.  ``omni:xform`` is OVRTX's local
+        transform alias, so callers must pass each prim's local (not world) transform in USD's
+        row-vector convention.  OVRTX propagates the local transform through the hierarchy and
+        marks the prim transform dirty for the next render.
+
+        Args:
+            prim_paths: Existing Gaussian-splat prim paths in the OVRTX scene.
+            local_transforms: One ``(4, 4)`` float64 matrix per path, with shape ``(N, 4, 4)``.
+
+        Raises:
+            RuntimeError: If the OVRTX scene has not been initialized yet.
+            ValueError: If the paths and transforms do not have the required one-to-one layout.
+        """
+        if not self._initialized_scene or self._renderer is None:
+            raise RuntimeError("OVRTX Gaussian transforms can be updated only after the scene is initialized.")
+        transforms = np.asarray(local_transforms, dtype=np.float64)
+        if transforms.shape != (len(prim_paths), 4, 4):
+            raise ValueError(
+                f"local_transforms must have shape ({len(prim_paths)}, 4, 4), received {tuple(transforms.shape)}."
+            )
+        if not prim_paths:
+            return
+
+        if self._use_ovstage:
+            self._update_gaussian_splat_transforms_ovstage(prim_paths, transforms)
+        else:
+            self._renderer.write_attribute(
+                prim_paths=prim_paths,
+                attribute_name="omni:xform",
+                tensor=np.ascontiguousarray(transforms),
+                semantic=Semantic.XFORM_MAT4x4,
+                prim_mode=PrimMode.MUST_EXIST,
+            )
+
+    def update_gaussian_splat_particles(
+        self,
+        prim_paths: list[str],
+        positions: list[np.ndarray] | None = None,
+        orientations: list[np.ndarray] | None = None,
+    ) -> None:
+        """Update per-particle arrays for populated Gaussian-splat prims.
+
+        This hook is for authored deformable Gaussian animation.  The values are written to the
+        ``positions`` and ``orientations`` columns, which are ``float32`` regardless of the USD
+        spelling they were populated from: the half spellings (``positionsh``, ``orientationsh``)
+        are converted at population and have no column of their own.  The arrays are in the
+        Gaussian prim's local frame, so duplicated envs can share one sample.
+
+        Args:
+            prim_paths: Existing Gaussian-splat prim paths in the OVRTX scene.
+            positions: Particle positions [m] per path, each of shape ``(num_particles, 3)``.
+                Particle counts may differ between paths. Omit to leave the column untouched.
+            orientations: Particle orientation quaternions in ``(x, y, z, w)`` order per path, each
+                of shape ``(num_particles, 4)``. Omit to leave the column untouched.
+
+        Raises:
+            RuntimeError: If the OVRTX scene has not been initialized yet.
+            ValueError: If a supplied array list does not have one entry per prim path, or an entry
+                has the wrong number of components.
+        """
+        if not self._initialized_scene or self._renderer is None:
+            raise RuntimeError("OVRTX Gaussian particles can be updated only after the scene is initialized.")
+        if not prim_paths:
+            return
+
+        for attribute_name, values, components in (("positions", positions, 3), ("orientations", orientations, 4)):
+            if values is None:
+                continue
+            if len(values) != len(prim_paths):
+                raise ValueError(
+                    f"{attribute_name} must have one array per prim path ({len(prim_paths)}), received {len(values)}."
+                )
+            tensors = [np.ascontiguousarray(value, dtype=np.float32) for value in values]
+            for tensor in tensors:
+                if tensor.ndim != 2 or tensor.shape[1] != components:
+                    raise ValueError(
+                        f"each {attribute_name} array must have shape (num_particles, {components}), received"
+                        f" {tuple(tensor.shape)}."
+                    )
+            if self._use_ovstage:
+                self._update_gaussian_splat_particles_ovstage(prim_paths, attribute_name, tensors)
+            else:
+                self._renderer.write_array_attribute(
+                    prim_paths=prim_paths,
+                    attribute_name=attribute_name,
+                    tensors=tensors,
+                    prim_mode=PrimMode.MUST_EXIST,
+                )
+
     def update_camera(
         self,
         render_data: OVRTXRenderData,
@@ -2272,6 +2418,42 @@ class OVRTXRenderer(BaseRenderer):
 
         if self._cable_points_query is not None:
             self._write_cable_points_ovstage()
+
+    def _update_gaussian_splat_transforms_ovstage(self, prim_paths: list[str], local_transforms: np.ndarray) -> None:
+        """Write Gaussian local transforms through a short-lived ovstage query."""
+        paths = self._stage_paths.create_path_list_from_strings(prim_paths)
+        query = self._stage.query_from_path_list(paths)
+        try:
+            self._stage.write_attribute(
+                query,
+                "omni:xform",
+                ordinal=self._current_ordinal,
+                tensors=_xform_tensor_from_numpy(local_transforms),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+            ).wait()
+        finally:
+            self._stage.release_query(query).wait()
+            self._stage_paths.destroy_path_list(paths)
+
+    def _update_gaussian_splat_particles_ovstage(
+        self, prim_paths: list[str], attribute_name: str, tensors: list[np.ndarray]
+    ) -> None:
+        """Write one Gaussian particle column through a short-lived ovstage query."""
+        paths = self._stage_paths.create_path_list_from_strings(prim_paths)
+        query = self._stage.query_from_path_list(paths)
+        try:
+            self._stage.write_attribute(
+                query,
+                attribute_name,
+                ordinal=self._current_ordinal,
+                tensors=[_gaussian_particle_tensor_from_numpy(tensor) for tensor in tensors],
+                is_array=True,
+                semantic=_OVSTAGE_GAUSSIAN_PARTICLE_SEMANTICS[attribute_name],
+            ).wait()
+        finally:
+            self._stage.release_query(query).wait()
+            self._stage_paths.destroy_path_list(paths)
 
     def _write_particle_q_slices_ovstage(
         self,

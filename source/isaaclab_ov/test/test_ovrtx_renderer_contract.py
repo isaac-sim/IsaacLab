@@ -10,6 +10,7 @@ import importlib.util
 import sys
 import types
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -524,6 +525,98 @@ def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
 
     assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
     assert renderer._initialized_scene is True
+
+
+class _RecordingArrayWriter:
+    """Legacy backend stub that records ``write_array_attribute`` calls."""
+
+    def __init__(self):
+        self.calls: list[tuple[list[str], str, list, object]] = []
+
+    def write_array_attribute(self, prim_paths, attribute_name, tensors, prim_mode):
+        self.calls.append((prim_paths, attribute_name, tensors, prim_mode))
+
+
+def _make_gaussian_renderer(backend: _RecordingArrayWriter) -> OVRTXRenderer:
+    """Build a legacy-path renderer ready for Gaussian particle writes."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = False
+    renderer._initialized_scene = True
+    renderer._renderer = backend
+    return renderer
+
+
+def test_ovrtx_update_gaussian_splat_particles_writes_float32_columns():
+    """Both particle columns are written as float32, one array per prim, and half input is converted.
+
+    The scene-DB columns are float32 regardless of the USD spelling they were populated from, so a
+    caller passing the half arrays an asset authored must still reach the backend as float32.
+    """
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+    paths = ["/World/envs/env_0/Scene/gaussians", "/World/envs/env_1/Scene/gaussians"]
+    positions = np.arange(6, dtype=np.float16).reshape(2, 3)
+    orientations = np.arange(8, dtype=np.float32).reshape(2, 4)
+
+    renderer.update_gaussian_splat_particles(paths, positions=[positions] * 2, orientations=[orientations] * 2)
+
+    assert [call[1] for call in backend.calls] == ["positions", "orientations"]
+    for call_paths, _, tensors, prim_mode in backend.calls:
+        assert call_paths == paths
+        assert len(tensors) == len(paths)
+        assert all(tensor.dtype == np.float32 for tensor in tensors)
+        assert prim_mode is ovrtx_renderer_module.PrimMode.MUST_EXIST
+    np.testing.assert_array_equal(backend.calls[0][2][0], positions.astype(np.float32))
+    np.testing.assert_array_equal(backend.calls[1][2][0], orientations)
+
+
+def test_ovrtx_update_gaussian_splat_particles_skips_omitted_column():
+    """Omitting a column leaves it untouched instead of writing a default."""
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+
+    renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=[np.zeros((3, 3), np.float32)])
+
+    assert [call[1] for call in backend.calls] == ["positions"]
+
+
+@pytest.mark.parametrize(
+    "positions, message",
+    [
+        ([np.zeros((3, 3), np.float32)] * 2, "one array per prim path"),
+        ([np.zeros((3, 4), np.float32)], "num_particles, 3"),
+    ],
+)
+def test_ovrtx_update_gaussian_splat_particles_rejects_mismatched_arrays(positions, message):
+    """A per-path count or component-count mismatch is rejected before it reaches the backend."""
+    backend = _RecordingArrayWriter()
+    renderer = _make_gaussian_renderer(backend)
+
+    with pytest.raises(ValueError, match=message):
+        renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=positions)
+
+    assert backend.calls == []
+
+
+def test_ovrtx_gaussian_updates_require_an_initialized_scene():
+    """Both Gaussian hooks refuse to write before the prims they target exist."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = False
+    renderer._initialized_scene = False
+    renderer._renderer = _RecordingArrayWriter()
+
+    with pytest.raises(RuntimeError, match="scene is initialized"):
+        renderer.update_gaussian_splat_particles(["/World/gaussians"], positions=[np.zeros((3, 3), np.float32)])
+    with pytest.raises(RuntimeError, match="scene is initialized"):
+        renderer.update_gaussian_splat_transforms(["/World/gaussians"], np.eye(4).reshape(1, 4, 4))
+
+
+def test_ovrtx_update_gaussian_splat_transforms_rejects_mismatched_shape():
+    """One local matrix per prim path is required; anything else is a caller bug."""
+    renderer = _make_gaussian_renderer(_RecordingArrayWriter())
+
+    with pytest.raises(ValueError, match=r"shape \(2, 4, 4\)"):
+        renderer.update_gaussian_splat_transforms(["/a", "/b"], np.eye(4).reshape(1, 4, 4))
 
 
 class _RecordingBinding:
