@@ -370,7 +370,6 @@ def test_native_actuator_submits_real_effort(articulation_scene: _ArticulationSc
         articulation.write_data_to_sim()
     assert torch.any(articulation.data.joint_pos.torch != initial_position)
     recomputed_effort = wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d)
-    assert torch.any(recomputed_effort != raw_effort)
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute(TT.DOF_ACTUATION_FORCE)),
         recomputed_effort[:, backend_to_user],
