@@ -95,8 +95,9 @@ principal Torch views have these contracts:
      - Current mode duration [s]
 
 Supported optional buffers are ``None`` unless their matching tracking option or filter is enabled.
-Requesting an unsupported tracking option, or reading an unsupported data property, raises
-``NotImplementedError``.
+OvPhysX rejects unsupported tracking options during initialization. Newton disables
+``track_friction_forces`` with a warning, while reading its unsupported pose or friction data
+properties raises ``NotImplementedError``.
 
 .. code-block:: python
 
