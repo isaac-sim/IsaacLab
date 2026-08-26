@@ -6,11 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Shared mocked rigid-object-collection backend factories for interface tests."""
+"""Shared mocked rigid-object-collection backend factories for contract tests."""
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+from ._contract_boot import simulation_app
+from .capabilities import available_backends
 
 import numpy as np
 import warp as wp
@@ -19,9 +20,11 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS: list[str] = []
+from ._manager_patch_scope import patch_contract_manager
 
-try:
+BACKENDS = available_backends("api")
+
+if "physx" in BACKENDS:
     from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as PhysXRigidObjectCollection,
     )
@@ -30,17 +33,8 @@ try:
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
-except ImportError:
-    pass
-else:
-    # PhysX data classes need gravity even though interface tests do not create a physics scene.
-    _mock_physics_sim_view = MagicMock()
-    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-    BACKENDS.append("physx")
-
-try:
+if "newton" in BACKENDS:
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import (
         RigidObjectCollection as NewtonRigidObjectCollection,
     )
@@ -48,12 +42,8 @@ try:
         RigidObjectCollectionData as NewtonRigidObjectCollectionData,
     )
     from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView as NewtonMockCollectionView
-except ImportError:
-    pass
-else:
-    BACKENDS.append("newton")
 
-try:
+if "ovphysx" in BACKENDS:
     import ovphysx  # noqa: F401
 
     from isaaclab_ov.assets.rigid_object_collection.rigid_object_collection import (
@@ -63,11 +53,39 @@ try:
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
-except ImportError:
-    pass
-else:
-    if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
-        BACKENDS.append("ovphysx")
+
+
+def _install_physx_recording_setters(mock_view) -> None:
+    """Install contract-local PhysX setters that record and apply staged rows."""
+    storage_by_method = {
+        "set_transforms": "_transforms",
+        "set_velocities": "_velocities",
+        "set_masses": "_masses",
+        "set_coms": "_coms",
+        "set_inertias": "_inertias",
+    }
+    mock_view._contract_write_calls = []
+
+    def make_setter(method_name: str, storage_name: str):
+        def setter(values: wp.array, indices: wp.array | None = None) -> None:
+            values_np = values.numpy().copy()
+            indices_np = None if indices is None else indices.numpy().astype(np.int64, copy=True)
+            mock_view._contract_write_calls.append((method_name, values_np.copy(), indices_np))
+            stored_np = getattr(mock_view, storage_name).numpy()
+            if indices_np is None:
+                stored_np[...] = values_np.reshape(stored_np.shape)
+            else:
+                if values_np.size == stored_np.size:
+                    normalized = values_np.reshape(stored_np.shape)
+                else:
+                    normalized = values_np.reshape(len(indices_np), *stored_np.shape[1:])
+                staged_rows = normalized[indices_np] if normalized.shape[0] == stored_np.shape[0] else normalized
+                stored_np[indices_np] = staged_rows
+
+        return setter
+
+    for method_name, storage_name in storage_by_method.items():
+        setattr(mock_view, method_name, make_setter(method_name, storage_name))
 
 
 def create_physx_rigid_object_collection(
@@ -76,6 +94,11 @@ def create_physx_rigid_object_collection(
     device: str = "cuda:0",
 ):
     """Create a test RigidObjectCollection instance with mocked dependencies."""
+    mock_physics_sim_view = MagicMock()
+    mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    patch_contract_manager(
+        SimulationManager, "get_physics_sim_view", MagicMock(return_value=mock_physics_sim_view)
+    )
     collection = object.__new__(PhysXRigidObjectCollection)
 
     rigid_objects = {f"object_{i}": RigidObjectCfg(prim_path=f"/World/Object_{i}") for i in range(num_bodies)}
@@ -87,7 +110,8 @@ def create_physx_rigid_object_collection(
         device=device,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    mock_view._noop_setters = False
+    _install_physx_recording_setters(mock_view)
 
     object.__setattr__(collection, "_root_view", mock_view)
     object.__setattr__(collection, "_device", device)
@@ -122,10 +146,12 @@ def create_physx_rigid_object_collection(
     object.__setattr__(collection, "_ALL_VIEW_INDICES", all_view_ids)
     object.__setattr__(collection, "_sim_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device=device))
     object.__setattr__(collection, "_sim_view_ids_views", {})
-    cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+    cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
     wp.copy(cpu_all_view_ids, all_view_ids)
     object.__setattr__(collection, "_cpu_all_view_ids", cpu_all_view_ids)
-    object.__setattr__(collection, "_cpu_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(
+        collection, "_cpu_view_ids", wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
+    )
     object.__setattr__(collection, "_cpu_view_ids_views", {})
 
     return collection, mock_view
@@ -150,7 +176,7 @@ def create_newton_rigid_object_collection(
         body_names=body_names,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    mock_view._noop_setters = False
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
@@ -170,16 +196,9 @@ def create_newton_rigid_object_collection(
     mock_manager.get_control.return_value = mock_control
 
     # Patch SimulationManager in both data and collection modules
-    original_data_manager = newton_data_module.SimulationManager
-    original_coll_manager = newton_coll_module.SimulationManager
-    newton_data_module.SimulationManager = mock_manager
-    newton_coll_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
-    finally:
-        newton_data_module.SimulationManager = original_data_manager
-        newton_coll_module.SimulationManager = original_coll_manager
+    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
+    patch_contract_manager(newton_coll_module, "SimulationManager", mock_manager)
+    data = NewtonRigidObjectCollectionData(mock_view, num_bodies, device)
 
     # Create collection shell (bypass __init__)
     collection = object.__new__(NewtonRigidObjectCollection)

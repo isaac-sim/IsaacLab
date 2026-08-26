@@ -42,6 +42,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _infer_deformable_type(material_schemas: Sequence[str], *, has_tetmesh: bool, has_mesh: bool) -> str | None:
+    """Infer the PhysX deformable view family from material schemas or mesh topology."""
+    if "PhysxSurfaceDeformableMaterialAPI" in material_schemas:
+        return "surface"
+    if "PhysxDeformableMaterialAPI" in material_schemas:
+        return "volume"
+    if has_tetmesh:
+        return "volume"
+    if has_mesh:
+        return "surface"
+    return None
+
+
 class DeformableObject(AssetBase):
     """A deformable object asset class.
 
@@ -605,11 +618,6 @@ class DeformableObject(AssetBase):
                     mat_prim = root_prim.GetStage().GetPrimAtPath(mat_path)
                     if "OmniPhysicsDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
                         material_prim = mat_prim
-                        # determine deformable material type
-                        if "PhysxSurfaceDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
-                            self._deformable_type = "surface"
-                        elif "PhysxDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
-                            self._deformable_type = "volume"
                         break
 
         if material_prim is None:
@@ -620,16 +628,17 @@ class DeformableObject(AssetBase):
                 "bound to the deformable body."
             )
 
-        # fall back to prim hierarchy heuristic when material type detection was inconclusive
-        if self._deformable_type is None:
+        material_schemas = () if material_prim is None else tuple(material_prim.GetAppliedSchemas())
+        has_tetmesh = False
+        has_mesh = False
+        # Avoid walking the hierarchy when the bound material already identifies the view family.
+        if _infer_deformable_type(material_schemas, has_tetmesh=False, has_mesh=False) is None:
             # volume deformables must have a tetmesh in the hierarchy
             has_tetmesh = (
                 len(sim_utils.get_all_matching_child_prims(root_prim.GetPath(), lambda p: p.GetTypeName() == "TetMesh"))
                 > 0
             )
-            if has_tetmesh:
-                self._deformable_type = "volume"
-            else:
+            if not has_tetmesh:
                 # surface deformables must have a mesh in the hierarchy
                 has_mesh = (
                     len(
@@ -637,8 +646,7 @@ class DeformableObject(AssetBase):
                     )
                     > 0
                 )
-                if has_mesh:
-                    self._deformable_type = "surface"
+        self._deformable_type = _infer_deformable_type(material_schemas, has_tetmesh=has_tetmesh, has_mesh=has_mesh)
 
         # -- object view
         if self._deformable_type == "surface":

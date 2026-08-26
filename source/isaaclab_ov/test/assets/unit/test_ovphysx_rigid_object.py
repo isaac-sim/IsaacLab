@@ -19,6 +19,8 @@ import warp as wp
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+pytestmark = pytest.mark.unit
+
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 

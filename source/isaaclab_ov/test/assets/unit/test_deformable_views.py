@@ -13,6 +13,8 @@ import pytest
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+pytestmark = pytest.mark.unit
+
 import warp as wp  # noqa: E402
 from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView  # noqa: E402
 from isaaclab_ov.sim.views import OvPhysxView  # noqa: E402

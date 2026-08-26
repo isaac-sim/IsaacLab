@@ -14,6 +14,8 @@ import pytest
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+pytestmark = pytest.mark.unit
+
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402

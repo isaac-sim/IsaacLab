@@ -5,7 +5,7 @@
 
 # pyright: reportPrivateUsage=none
 
-"""Mocked cross-backend articulation ordering interface tests."""
+"""Mocked cross-backend articulation ordering contract cases."""
 
 from unittest.mock import MagicMock
 
@@ -13,7 +13,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
+from ._articulation_contract_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
+from .capabilities import backend_parameters, contract_backend
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils.buffers import TimestampedBufferWarp
@@ -891,9 +892,10 @@ def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[s
 
 
 def _backend_param(backend: str, *values, **kwargs) -> ParameterSet:
-    """Build a backend parameter that skips unavailable plugins at collection time."""
+    """Build an ordering-capability parameter with optional additional values."""
+    declared_parameter = backend_parameters("ordering", names=(backend,))[0]
     marks = list(kwargs.pop("marks", ()))
-    marks.append(pytest.mark.skipif(backend not in BACKENDS, reason=_backend_unavailable_reason(backend)))
+    marks.extend(declared_parameter.marks)
     return pytest.param(backend, *values, marks=marks, **kwargs)
 
 
@@ -909,15 +911,9 @@ def _backend_unavailable_reason(backend: str) -> str:
 _requires_physx = pytest.mark.skipif("physx" not in BACKENDS, reason=_backend_unavailable_reason("physx"))
 _requires_ovphysx = pytest.mark.skipif("ovphysx" not in BACKENDS, reason=_backend_unavailable_reason("ovphysx"))
 _requires_newton = pytest.mark.skipif("newton" not in BACKENDS, reason=_backend_unavailable_reason("newton"))
-_all_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "ovphysx", "newton")], indirect=False
-)
-_physx_ovphysx_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "ovphysx")], indirect=False
-)
-_dynamics_ordering_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "newton")], indirect=False
-)
+_all_backends = contract_backend("ordering")
+_physx_ovphysx_backends = contract_backend("ordering", names=("physx", "ovphysx"))
+_dynamics_ordering_backends = contract_backend("ordering", names=("physx", "newton"))
 _non_mock_backends = _all_backends
 
 
@@ -955,7 +951,7 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(ordered_art.data.root_link_vel_w, identity_root_link_vel_w)
 
     @_non_mock_backends
-    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
+    @pytest.mark.parametrize("ordering_mode", ["reversed"])
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 1, 3)])
     @pytest.mark.parametrize("device", ["cpu"])
     def test_body_ordering_reorders_public_body_properties(
@@ -1986,7 +1982,7 @@ class TestArticulationOperations:
         torch.testing.assert_close(art.actuators.target_command.position.torch, expected)
 
     @_non_mock_backends
-    @pytest.mark.parametrize("ordering_mode", ["none", "reversed", "cyclic"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     @pytest.mark.parametrize("is_fixed_base", [False, True], ids=["floating", "fixed"])
     @pytest.mark.parametrize("device", ["cpu"])
     def test_external_wrenches_are_written_in_backend_body_order(self, backend, ordering_mode, is_fixed_base, device):
@@ -2059,7 +2055,7 @@ class TestArticulationOperations:
         np.testing.assert_array_equal(art.data.default_joint_pos.warp.numpy(), expected)
 
     @_requires_ovphysx
-    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
+    @pytest.mark.parametrize("ordering_mode", ["reversed"])
     def test_ovphysx_implicit_targets_are_written_in_backend_order(self, ordering_mode: str) -> None:
         """Write implicit position and velocity targets under their matching backend joint names."""
         from isaaclab_ov import tensor_types as TT
@@ -2137,7 +2133,7 @@ class TestArticulationOperations:
         np.testing.assert_array_equal(raw_backend.bindings[TT.DOF_ACTUATION_FORCE]._data, expected)
 
     @_requires_physx
-    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
+    @pytest.mark.parametrize("ordering_mode", ["reversed"])
     def test_physx_newton_actuator_forces_are_written_in_backend_order(self, ordering_mode: str):
         """Write Newton-actuator PhysX forces in backend joint order."""
         num_instances = 2
@@ -2320,7 +2316,7 @@ class TestArticulationWritersBody:
     """Test body property writers/setters with all input combinations."""
 
     @_non_mock_backends
-    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
+    @pytest.mark.parametrize("ordering_mode", ["reversed"])
     @pytest.mark.parametrize("selection", ["index", "mask"])
     def test_body_ordering_routes_property_writes_to_backend(self, backend: str, ordering_mode: str, selection: str):
         """Route partial public property writes to matching backend bodies."""

@@ -363,10 +363,10 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("device", "gpu_index", "expected_cpu_mode", "expected_active_cuda_gpus"),
-    [("cpu", 0, True, None), ("gpu", 2, False, "2")],
+    ("device", "gpu_index", "expected_active_cuda_gpus"),
+    [("cpu", 0, None), ("gpu", 2, "2")],
 )
-def test_manager_supports_pinned_runtime_api(device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus):
+def test_manager_supports_pinned_runtime_api(device, gpu_index, expected_active_cuda_gpus):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ov.physics import OvPhysxManager
 
@@ -400,7 +400,7 @@ def test_manager_supports_pinned_runtime_api(device, gpu_index, expected_cpu_mod
     OvPhysxManager._step_physx(physx, dt=0.02)
     OvPhysxManager._reset_physx_stage(physx)
 
-    assert PinnedPhysX.cpu_mode is expected_cpu_mode
+    assert PinnedPhysX.cpu_mode is None
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
