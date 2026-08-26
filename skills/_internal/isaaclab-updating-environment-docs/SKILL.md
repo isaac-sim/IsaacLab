@@ -3,7 +3,7 @@ name: isaaclab-updating-environment-docs
 description: Keeps the generated environment browser synchronized with task registrations and preset selectors. Use when adding or renaming an Isaac Lab environment, changing its physics, renderer, or domain presets, or reviewing environment documentation completeness.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---
 
 # Updating Environment Documentation
