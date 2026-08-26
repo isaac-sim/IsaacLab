@@ -7,6 +7,8 @@ name: Run Docker CI Command
 run-name: Run Docker CI for PR #${{ github.event.issue.number }}
 
 on:
+  # GitHub always runs ``issue_comment`` workflows from the repository default
+  # branch, so this file has to land there for the ``run-ci`` command to work.
   issue_comment:
     types: [created]
 
@@ -28,9 +30,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Authorize the request
+        id: authorize
         env:
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
-          COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
           REPOSITORY: ${{ github.repository }}
@@ -58,16 +60,7 @@ jobs:
             esac
           fi
 
-          # The label starts Docker CI against whatever the PR head is at that
-          # moment, so a comment older than the head commit would run code the
-          # commenter never saw. Push first, then ask for CI.
-          head_committed_at="$(
-            gh api "repos/$REPOSITORY/commits/$head_sha" --jq '.commit.committer.date'
-          )"
-          if [ "$(date -u -d "$COMMENT_CREATED_AT" +%s)" -le "$(date -u -d "$head_committed_at" +%s)" ]; then
-            echo "::error::Head commit ${head_sha:0:7} ($head_committed_at) is not older than this comment ($COMMENT_CREATED_AT). Comment 'run-ci' again to test the current head."
-            exit 1
-          fi
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
 
       - name: Create isaaclab-bot token
         id: app-token
@@ -79,6 +72,7 @@ jobs:
 
       - name: Trigger Docker CI
         env:
+          EXPECTED_HEAD_SHA: ${{ steps.authorize.outputs.head_sha }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           LABEL: ci:run-docker
           PR_NUMBER: ${{ github.event.issue.number }}
@@ -86,9 +80,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          # The label starts Docker CI against whatever the PR head is at that
+          # moment, so a push that lands while this request is being processed
+          # would be built without anyone asking for it.
+          head_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          if [ "$head_sha" != "$EXPECTED_HEAD_SHA" ]; then
+            echo "::error::PR #$PR_NUMBER moved from ${EXPECTED_HEAD_SHA:0:7} to ${head_sha:0:7} while this request was processed. Comment 'run-ci' again to test the current head."
+            exit 1
+          fi
+
           endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
           gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
           gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
           gh api --method DELETE "$endpoint/$LABEL" --silent
 
-          echo "Requested Docker CI for PR #$PR_NUMBER." >> "$GITHUB_STEP_SUMMARY"
+          echo "Requested Docker CI for PR #$PR_NUMBER at ${head_sha:0:7}." >> "$GITHUB_STEP_SUMMARY"
