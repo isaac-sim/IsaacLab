@@ -65,9 +65,9 @@ class TaskBalancedPPOCfg(RslRlPpoAlgorithmCfg):
 class MultitaskManipulationPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL PPO configuration for the heterogeneous manipulation task."""
 
-    num_steps_per_env = 64
+    num_steps_per_env = 16
     init_at_random_ep_len = False
-    max_iterations = 3000
+    max_iterations = 2000
     save_interval = 100
     experiment_name = "multitask_manipulation"
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
