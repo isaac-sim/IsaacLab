@@ -3,7 +3,7 @@ name: isaaclab-writing-changelog-fragments
 description: Writes and validates Isaac Lab package changelog fragments using the repository fragment format and bump rules. Use when source package changes need release notes, migration guidance, or changelog validation.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---
 
 # Writing Changelog Fragments

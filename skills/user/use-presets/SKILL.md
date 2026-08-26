@@ -3,7 +3,7 @@ name: isaaclab-using-presets
 description: Defines and uses Isaac Lab preset configurations for multi-backend tasks. Use when adding PhysX/Newton variants, renderer variants, domain presets, or deciding whether a task needs PresetCfg.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 audience: user
 status: experimental
 owners:

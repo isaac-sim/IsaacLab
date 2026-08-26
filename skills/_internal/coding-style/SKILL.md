@@ -3,7 +3,7 @@ name: isaaclab-following-coding-style
 description: Applies Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions. Use when writing or reviewing Isaac Lab Python code, public APIs, config classes, module exports, or documentation strings.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---
 
 # Following Coding Style

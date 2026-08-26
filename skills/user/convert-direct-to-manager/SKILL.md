@@ -3,7 +3,7 @@ name: isaaclab-converting-direct-to-manager
 description: Converts validated Isaac Lab direct workflow environments into manager-based task configurations. Use when a direct Isaac Lab environment or Isaac Gym migration already resets, steps, and trains, and the user wants reusable observations, rewards, commands, events, curricula, or terminations.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 audience: user
 status: experimental
 owners:

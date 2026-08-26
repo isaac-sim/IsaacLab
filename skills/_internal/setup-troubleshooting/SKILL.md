@@ -3,7 +3,7 @@ name: isaaclab-setup-troubleshooting
 description: Routes Isaac Lab installation, verification, and common troubleshooting issues to official docs and canonical commands. Use when installing Isaac Lab, verifying setup, debugging launch failures, or diagnosing environment problems.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 ---
 
 # Setup Troubleshooting

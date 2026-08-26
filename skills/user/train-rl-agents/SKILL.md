@@ -3,7 +3,7 @@ name: isaaclab-training-rl-agents
 description: Configures and runs Isaac Lab reinforcement learning workflows. Use when selecting RL frameworks, wiring agent configs, launching training, resuming runs, or troubleshooting training setup for Isaac Lab tasks.
 license: BSD-3-Clause
 metadata:
-  author: Isaac Lab Team
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 audience: user
 status: experimental
 owners:
