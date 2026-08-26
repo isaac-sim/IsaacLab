@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -38,6 +39,9 @@ def _write_skill(root: Path, audience: str = "user", name: str = "isaaclab-testi
         f"name: {name}\n"
         "description: Tests Isaac Lab skill validation behavior. "
         "Use when validating skill fixtures or testing skill rules.\n"
+        "license: BSD-3-Clause\n"
+        "metadata:\n"
+        "  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>\n"
         f"audience: {audience}\n"
         "status: stable\n"
         "owners:\n"
@@ -295,3 +299,95 @@ def test_validate_rejects_windows_paths(tmp_path):
     skill.write_text(text, encoding="utf-8")
     errors = cli.Skill(skill).validate()
     assert any("forward-slash paths" in error for error in errors)
+
+
+def test_validate_rejects_top_level_author_not_nested_under_metadata(tmp_path):
+    skill = _write_skill(tmp_path)
+    text = skill.read_text(encoding="utf-8").replace(
+        "metadata:\n  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>\n",
+        "author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>\n",
+    )
+    skill.write_text(text, encoding="utf-8")
+    errors = cli.Skill(skill).validate()
+    assert any("must be nested under 'metadata:'" in error for error in errors)
+
+
+def test_validate_internal_skill_skips_audience_but_requires_author(tmp_path):
+    skill_dir = tmp_path / "_internal" / "example"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "reference.md").write_text("# Reference\n\n## Contents\n\n- Workflow\n", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text(
+        "---\n"
+        "name: isaaclab-internal-testing-skill\n"
+        "description: Tests Isaac Lab internal skill validation. Use when validating internal skill fixtures.\n"
+        "license: BSD-3-Clause\n"
+        "---\n\n"
+        "# Internal Example Skill\n\n"
+        "## When To Use\n\nUse for tests.\n\n"
+        "## Workflow\n\n1. Follow the test workflow.\n\n"
+        "## Validation\n\nRun the validator.\n\n"
+        "## Maintenance\n\nKeep this synchronized with test fixtures.\n\n"
+        "## References\n\n- [Reference](reference.md)\n",
+        encoding="utf-8",
+    )
+    errors = cli.Skill(skill_dir / "SKILL.md").validate()
+    assert any("metadata.author" in error for error in errors)
+    assert not any("audience must be one of" in error for error in errors)
+
+
+def test_validate_rejects_evals_json_missing_expected_skill_key(tmp_path):
+    skill = _write_skill(tmp_path)
+    evals_dir = skill.parent / "evals"
+    evals_dir.mkdir()
+    (evals_dir / "evals.json").write_text(
+        json.dumps(
+            {
+                "evals": [
+                    {"id": "t1", "prompt": "p1", "expected_skill": "isaaclab-testing-skill", "assertions": ["a"]},
+                    {"id": "t2", "prompt": "p2", "assertions": ["a"]},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    errors = cli.Skill(skill).validate()
+    assert any("expected_skill" in error for error in errors)
+
+
+def test_validate_accepts_evals_json_null_expected_skill_for_negative_case(tmp_path):
+    skill = _write_skill(tmp_path)
+    evals_dir = skill.parent / "evals"
+    evals_dir.mkdir()
+    (evals_dir / "evals.json").write_text(
+        json.dumps(
+            {
+                "evals": [
+                    {"id": "t1", "prompt": "p1", "expected_skill": "isaaclab-testing-skill", "assertions": ["a"]},
+                    {"id": "t2-neg", "prompt": "p2", "expected_skill": None, "assertions": ["a"]},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    errors = cli.Skill(skill).validate()
+    assert not any("expected_skill" in error for error in errors)
+
+
+def test_validate_rejects_non_object_eval_entries_and_excludes_them_from_minimum(tmp_path):
+    skill = _write_skill(tmp_path)
+    evals_dir = skill.parent / "evals"
+    evals_dir.mkdir()
+    (evals_dir / "evals.json").write_text(
+        json.dumps(
+            {
+                "evals": [
+                    {"id": "t1", "prompt": "p1", "expected_skill": "isaaclab-testing-skill", "assertions": ["a"]},
+                    "not-an-object",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    errors = cli.Skill(skill).validate()
+    assert any("must be an object" in error for error in errors)
+    assert any("at least two eval entries" in error for error in errors)
