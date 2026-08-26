@@ -93,8 +93,8 @@ This guide demonstrates how to customize the RTX rendering settings.
 Working with Simulation Data
 ----------------------------
 
-This guide explains how to read and write simulation state using the :class:`~isaaclab.utils.warp.ProxyArray`
-dual-access wrapper that all data classes return.
+This guide explains how to consume asset and sensor data through the Torch and Warp representations
+provided by :class:`~isaaclab.utils.warp.ProxyArray`, and how to keep retained views valid.
 
 .. toctree::
     :maxdepth: 1
