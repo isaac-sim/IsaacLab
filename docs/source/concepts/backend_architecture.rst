@@ -94,7 +94,8 @@ to a :class:`torch.Tensor` view. Use those accessors when an API specifically
 requires one representation. Passing a ``ProxyArray`` to ``wp.to_torch()`` is
 supported only by a deprecated compatibility shim; new code should use
 ``proxy_array.torch``. Backend-native and internal storage may still use raw
-Warp arrays.
+Warp arrays. See :ref:`working-with-simulation-data` for usage and buffer
+lifetime guidance.
 
 Portable renderer and scene-data interfaces
 -------------------------------------------

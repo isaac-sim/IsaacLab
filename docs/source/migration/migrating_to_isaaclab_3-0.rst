@@ -1412,17 +1412,14 @@ quaternions in XYZW format:
 - And all other quaternion utilities
 
 
-ProxyArray Backend for Asset and Sensor Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _torcharray-migration:
 
-All ``.data.*`` properties on asset and sensor classes now return
-:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. ``ProxyArray`` wraps
-the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
-change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
-:class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
-:class:`~isaaclab.assets.DeformableObject`) and all sensor classes
-(:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
-:class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
+Migrate Asset and Sensor Data to ProxyArray
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Public asset and sensor data properties that returned ``torch.Tensor`` in Isaac Lab 2.x now return
+:class:`~isaaclab.utils.warp.ProxyArray`. The wrapper exposes the underlying ``wp.array`` through
+``.warp`` and a cached, zero-copy ``torch.Tensor`` view through ``.torch``.
 
 To use a data property as a ``torch.Tensor``, append ``.torch``:
 
@@ -1465,43 +1462,17 @@ Common patterns that need updating:
    # After:
    torch.testing.assert_close(robot.data.root_pos_w.torch, expected)
 
-.. list-table:: Affected classes
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Class
-     - Package
-   * - :class:`~isaaclab.assets.Articulation`
-     - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab.assets.RigidObject`
-     - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab.assets.RigidObjectCollection`
-     - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab.assets.DeformableObject`
-     - ``isaaclab`` / ``isaaclab_physx`` / ``isaaclab_newton``
-   * - :class:`~isaaclab_physx.sensors.ContactSensor`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.Imu`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.Pva`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.FrameTransformer`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab.sensors.RayCaster`
-     - ``isaaclab``
-   * - :class:`~isaaclab.sensors.RayCasterCamera`
-     - ``isaaclab``
-   * - :class:`~isaaclab.sensors.MultiMeshRayCaster`
-     - ``isaaclab``
-   * - :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
-     - ``isaaclab``
+Warp kernel calls do not need to change because :class:`~isaaclab.utils.warp.ProxyArray` implements
+``__cuda_array_interface__`` and can be passed directly to ``wp.launch()``. If an API requires an
+actual ``warp.array``, use ``.warp``.
 
 .. note::
 
-   ``wp.to_torch(proxy_array)`` is temporarily supported by a compatibility shim. It returns
-   the same zero-copy tensor as ``proxy_array.torch`` and emits a one-time
-   ``DeprecationWarning``. This shim exists for older migration code and will be removed in a
-   future release; prefer ``.torch`` in new code.
+   Implicit Torch operations and ``wp.to_torch(proxy_array)`` are temporarily supported by
+   compatibility shims. They emit a one-time ``DeprecationWarning`` and will be removed in a future
+   release. Migrate to explicit ``.torch`` access now.
+
+For day-to-day usage and buffer lifetime guidance, see :ref:`working-with-simulation-data`.
 
 
 Ray Caster Warp Backend
@@ -2392,60 +2363,6 @@ The old classes still exist and will issue ``DeprecationWarning`` when used:
 
 Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
 compatibility. These will be removed in a future release.
-
-
-.. _torcharray-migration:
-
-ProxyArray Interop and Temporary Compatibility
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Asset and sensor data class properties return :class:`~isaaclab.utils.warp.ProxyArray`, a
-lightweight wrapper with explicit ``.torch`` and ``.warp`` accessors:
-
-.. code-block:: python
-
-   # BEFORE (2.x) — properties returned torch.Tensor directly
-   joint_pos = robot.data.joint_pos          # torch.Tensor
-   root_pos = robot.data.root_pos_w          # torch.Tensor
-
-   # AFTER (3.0) — properties return ProxyArray, use .torch for the tensor
-   joint_pos = robot.data.joint_pos.torch    # cached zero-copy torch.Tensor
-   root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
-   joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
-
-**Automatic interop — in many cases, no changes are needed:**
-
-- **Warp kernels:** ``ProxyArray`` implements ``__cuda_array_interface__``, so it can be passed
-  directly to ``wp.launch()`` without calling ``.warp``:
-
-  .. code-block:: python
-
-     # Just works — no .warp needed
-     wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)
-
-- **Torch functions:** ``ProxyArray`` implements ``__torch_function__``, so ``torch.*`` operations
-  accept it directly. During the deprecation period this emits a one-time warning, but works:
-
-  .. code-block:: python
-
-     # Works (emits DeprecationWarning once, then silent)
-     mean_pos = torch.mean(robot.data.joint_pos, dim=1)
-     clipped = torch.clamp(robot.data.joint_pos, -3.14, 3.14)
-
-**What to change:**
-
-1. Append ``.torch`` where you need an explicit ``torch.Tensor`` (e.g., for indexing, slicing,
-   or passing to non-torch libraries).
-2. Warp kernel calls need no changes — ``ProxyArray`` works transparently.
-3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
-4. Replace legacy ``wp.to_torch(proxy_array)`` calls with ``proxy_array.torch``.
-
-.. note::
-
-   The ``__torch_function__`` bridge and the temporary ``wp.to_torch(proxy_array)`` shim will
-   be removed in a future release. We recommend migrating to explicit ``.torch`` access now.
-
-For a complete guide, see :doc:`/source/how-to/proxy_array`.
 
 
 Migration off Deprecated Isaac Sim APIs
