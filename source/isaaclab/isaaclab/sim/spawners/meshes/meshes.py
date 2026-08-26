@@ -294,49 +294,19 @@ def spawn_mesh_rectangle(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # create a 2D triangle mesh grid
-    if cfg.edge_refinement < 1.0:
-        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-    resolution = int(np.floor(cfg.edge_refinement + 0.5))
-    vertices, faces = _create_triangle_mesh_grid((resolution, resolution))
-    vertices[:, 0] *= cfg.size[0]
-    vertices[:, 1] *= cfg.size[1]
-    grid = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    # create a 2D triangle mesh
+    half_x, half_y = cfg.size[0] / 2, cfg.size[1] / 2
+    vertices = np.array(
+        [(-half_x, -half_y, 0.0), (half_x, -half_y, 0.0), (half_x, half_y, 0.0), (-half_x, half_y, 0.0)]
+    )
+    rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
 
     # obtain stage handle
     stage = get_current_stage()
     # spawn the rectangle as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, grid, translation, orientation, None, stage=stage)
+    _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation, None, stage=stage)
     # return the prim
     return stage.GetPrimAtPath(prim_path)
-
-
-def _create_triangle_mesh_grid(resolution: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
-    """Create a centered triangle grid for :class:`MeshRectangleCfg`."""
-    if resolution[0] < 1 or resolution[1] < 1:
-        raise ValueError(f"Rectangle mesh resolution must be positive, got {resolution}.")
-
-    num_x, num_y = resolution
-    xs = np.linspace(-0.5, 0.5, num_x + 1, dtype=np.float32)
-    ys = np.linspace(-0.5, 0.5, num_y + 1, dtype=np.float32)
-    vertices = np.array([(x, y, 0.0) for y in ys for x in xs], dtype=np.float32)
-
-    faces = []
-    row_stride = num_x + 1
-    for iy in range(num_y):
-        for ix in range(num_x):
-            v0 = iy * row_stride + ix
-            v1 = v0 + 1
-            v2 = v0 + row_stride
-            v3 = v2 + 1
-            if (ix % 2 == 0) != (iy % 2 == 0):
-                faces.append((v0, v1, v2))
-                faces.append((v1, v3, v2))
-            else:
-                faces.append((v0, v1, v3))
-                faces.append((v0, v3, v2))
-
-    return vertices, np.asarray(faces, dtype=np.int64)
 
 
 """
@@ -408,13 +378,12 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
-    if isinstance(cfg, meshes_cfg._MeshVolumeCfg):
-        if cfg.edge_refinement < 1.0:
-            raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-        if cfg.edge_refinement > 1.0:
-            max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
-            vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
-            mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+    if cfg.edge_refinement > 1.0:
+        max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
+        vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
@@ -476,7 +445,7 @@ def _spawn_mesh_geom_from_mesh(
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
         deformable_kwargs = {}
-        if deformable_type == "volume" and isinstance(cfg, meshes_cfg._MeshVolumeCfg):
+        if deformable_type == "volume" and not isinstance(cfg, meshes_cfg.MeshRectangleCfg):
             deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
             prim_path,

@@ -138,9 +138,16 @@ def test_spawn_mesh_with_edge_refinement(sim, cfg_type, kwargs, edge_refinement)
     assert max_edge <= diagonal / edge_refinement
 
 
-@pytest.mark.parametrize("refinement_kwargs,expected_factor", [({}, 0.1), ({"edge_refinement": 2.0}, 0.5)])
+@pytest.mark.parametrize(
+    "cfg_type,geometry_kwargs,refinement_kwargs,expected_factor",
+    [
+        (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {}, 0.1),
+        (sim_utils.MeshCuboidCfg, {"size": (1.0, 1.0, 1.0)}, {"edge_refinement": 2.0}, 0.5),
+        (sim_utils.MeshRectangleCfg, {"size": (1.0, 1.0)}, {}, None),
+    ],
+)
 def test_edge_refinement_sets_tetrahedralization_resolution(
-    sim, monkeypatch, refinement_kwargs, expected_factor
+    sim, monkeypatch, cfg_type, geometry_kwargs, refinement_kwargs, expected_factor
 ):
     """Test edge refinement is forwarded to volume tetrahedralization."""
     captured_kwargs = {}
@@ -149,14 +156,17 @@ def test_edge_refinement_sets_tetrahedralization_resolution(
         captured_kwargs.update(kwargs)
 
     monkeypatch.setattr(mesh_spawner.schemas, "define_deformable_body_properties", capture_deformable_properties)
-    cfg = sim_utils.MeshCuboidCfg(
-        size=(1.0, 1.0, 1.0),
+    cfg = cfg_type(
         deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        **geometry_kwargs,
         **refinement_kwargs,
     )
-    cfg.func("/World/DeformableCube", cfg)
+    cfg.func("/World/Deformable", cfg)
 
-    assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(expected_factor)
+    if expected_factor is None:
+        assert "tetrahedralization_edge_length_fac" not in captured_kwargs
+    else:
+        assert captured_kwargs["tetrahedralization_edge_length_fac"] == pytest.approx(expected_factor)
 
 
 def test_spawn_sphere(sim):
@@ -174,9 +184,12 @@ def test_spawn_sphere(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
 
 
-@pytest.mark.parametrize("edge_refinement,expected_resolution", [(1.0, 1), (2.4, 2), (2.5, 3)])
+@pytest.mark.parametrize(
+    "edge_refinement,expected_vertices,expected_faces",
+    [(1.0, 4, 2), (2.4, 25, 32), (2.5, 25, 32), (10.0, 289, 512)],
+)
 @pytest.mark.parametrize("size", [(1.0, 1.0), (1.5, 0.8)])
-def test_spawn_rectangle(sim, edge_refinement, expected_resolution, size):
+def test_spawn_rectangle(sim, edge_refinement, expected_vertices, expected_faces, size):
     """Test spawning of UsdGeomMesh as a rectangle prim."""
     # Spawn rectangle
     cfg = sim_utils.MeshRectangleCfg(size=size, edge_refinement=edge_refinement)
@@ -189,8 +202,8 @@ def test_spawn_rectangle(sim, edge_refinement, expected_resolution, size):
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Rectangle/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
-    assert len(prim.GetAttribute("points").Get()) == (expected_resolution + 1) ** 2
-    assert len(prim.GetAttribute("faceVertexCounts").Get()) == 2 * expected_resolution**2
+    assert len(prim.GetAttribute("points").Get()) == expected_vertices
+    assert len(prim.GetAttribute("faceVertexCounts").Get()) == expected_faces
 
 
 @pytest.mark.parametrize(
