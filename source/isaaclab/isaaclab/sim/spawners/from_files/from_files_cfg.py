@@ -7,12 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from pathlib import Path
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+_DEFAULT_GROUND_PLANE_USD = str(Path(__file__).parent / "data" / "default_ground_plane" / "default_ground_plane.usda")
 
 
 @configclass
@@ -299,18 +301,18 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
 class GroundPlaneCfg(SpawnerCfg):
     """Create a ground plane prim.
 
-    This uses the USD for the standard grid-world ground plane from Isaac Sim by default.
+    This uses Isaac Lab's warm-white ground plane with NVIDIA-green metric grid lines by default.
     """
 
     func: Callable | str = "{DIR}.from_files:spawn_ground_plane"
 
-    usd_path: str = f"{ISAAC_NUCLEUS_DIR}/Environments/Grid/default_environment.usd"
-    """Path to the USD file to spawn asset from. Defaults to the grid-world ground plane."""
+    usd_path: str = _DEFAULT_GROUND_PLANE_USD
+    """Path to the USD file to spawn asset from. Defaults to Isaac Lab's bundled ground plane."""
 
-    color: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
-    """The color of the ground plane. Defaults to (0.0, 0.0, 0.0).
+    color: tuple[float, float, float] | None = None
+    """The color tint of the ground plane. Defaults to None.
 
-    If None, then the color remains unchanged.
+    If None, the authored material colors remain unchanged.
     """
 
     size: tuple[float, float] = (100.0, 100.0)

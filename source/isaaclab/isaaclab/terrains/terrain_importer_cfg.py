@@ -77,15 +77,17 @@ class TerrainImporterCfg:
       This parameter is used only when the :attr:`terrain type` is "generator".
     """
 
-    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
-    """The visual material of the terrain. Defaults to a dark gray color material.
+    visual_material: sim_utils.VisualMaterialCfg | None = None
+    """The visual material of the terrain. Defaults to None.
 
     This parameter is used for both the "generator" and "plane" terrains.
 
     - If the ``terrain_type`` is "generator", then the material is created at the path
-      ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.
-    - If the ``terrain_type`` is "plane", then the diffuse color of the material is set to
-      to the grid color of the imported ground plane.
+      ``{prim_path}/visualMaterial`` and applied to all the sub-terrains. A dark material is used
+      when this parameter is None, preserving the historical generated-terrain appearance.
+    - If the ``terrain_type`` is "plane" and the material defines a diffuse color, then that color
+      tints the imported ground plane. If no material is provided, the ground plane's authored
+      appearance is preserved.
     """
 
     physics_material: (

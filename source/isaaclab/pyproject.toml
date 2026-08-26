@@ -40,3 +40,4 @@ include = ["isaaclab", "isaaclab.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab.sim.spawners.from_files" = ["data/default_ground_plane/*"]

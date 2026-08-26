@@ -214,16 +214,15 @@ class TerrainImporter:
         self.terrain_prim_paths.append(prim_path)
 
         # obtain ground plane color from the configured visual material
-        color = (0.0, 0.0, 0.0)
+        color = None
         if self.cfg.visual_material is not None:
             material = self.cfg.visual_material.to_dict()
-            # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:
                 logger.warning(
                     "Visual material specified for ground plane but no diffuse color found."
-                    " Using default color: (0.0, 0.0, 0.0)"
+                    " Preserving the ground plane's authored material."
                 )
 
         # get the mesh
@@ -254,9 +253,15 @@ class TerrainImporter:
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
+        # Preserve the historical dark material for generated terrains while allowing plane terrains
+        # to keep the ground plane's authored appearance by default.
+        visual_material = self.cfg.visual_material
+        if visual_material is None and self.cfg.terrain_type == "generator":
+            visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
+
         # import the mesh
         create_prim_from_mesh(
-            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
+            prim_path, mesh, visual_material=visual_material, physics_material=self.cfg.physics_material
         )
 
     def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
