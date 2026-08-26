@@ -3,9 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manager-based configuration for ANYmal-C on the contributed trail terrains."""
+"""Manager-based configuration for ANYmal-C on the contributed trail terrains. 
+Note that the training environment is only an example of how to integrate the trail terrains. 
+The MDP formulation in the current tasks may not solve any particular problem statement, but rather serves as an example for the terrain integration.
+.. code-block:: bash
+    # Example Usage
+    /isaaclab.sh -p scripts/environments/zero_agent.py --task IsaacContrib-Velocity-Trail-AnymalC --num_envs 4
+"""
 
-import isaaclab.sim as sim_utils
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
