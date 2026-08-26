@@ -22,8 +22,11 @@ from typing import Any
 import warp as wp
 
 
-def _cuda_device_id(device: str) -> int:
+def cuda_device_id(device: str) -> int:
     """CUDA device index parsed from a Warp device string, e.g. ``"cuda:1"`` -> ``1``.
+
+    Shared by the attribute mappings below and by the render product's ``deviceIds``, so both
+    resolve the renderer's device the same way.
 
     TODO: A bare ``"cuda"`` parses to ``0`` while Warp enqueues fill work on its *current* CUDA
     device, so the mapping and the fill can target different GPUs on multi-GPU processes. The
@@ -64,7 +67,7 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     # already imported by the time this runs.
     from ovrtx import Device  # noqa: PLC0415
 
-    attr_mapping = binding.map(device=Device.CUDA, device_id=_cuda_device_id(device))
+    attr_mapping = binding.map(device=Device.CUDA, device_id=cuda_device_id(device))
     try:
         yield wp.from_dlpack(attr_mapping.tensor, dtype=dtype)
     finally:
