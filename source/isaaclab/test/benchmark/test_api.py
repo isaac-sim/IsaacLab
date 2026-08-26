@@ -151,6 +151,7 @@ def test_play_request_uses_backend_arguments(backend: str, monkeypatch) -> None:
     assert args.warmup_steps == 12
     assert args.video is True
     assert args.video_length == 37
+    assert args.frontend == "torch"
     assert args.enable_cameras is True
     assert remaining_args == []
 
@@ -201,6 +202,56 @@ def test_play_backend_configures_video_before_environment_creation(
                 "--video",
                 "--video_length",
                 "37",
+            ]
+        )
+
+
+def test_rsl_play_converts_direct_marl_task_before_wrapping(monkeypatch, tmp_path) -> None:
+    """RSL-RL play should convert a DirectMARLEnv task before constructing its wrapper."""
+
+    class MultiAgentConversionRequested(Exception):
+        pass
+
+    class FakeMultiAgentEnvironment:
+        def __init__(self, cfg):
+            self.cfg = cfg
+            self.unwrapped = self
+
+        def close(self) -> None:
+            pass
+
+    entrypoint = importlib.import_module(dispatch._workflow_module("play", "rsl_rl"))
+    monkeypatch.setattr(entrypoint._common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
+
+    import gymnasium as gym
+
+    import isaaclab.app as app
+    import isaaclab.envs as envs
+
+    @contextlib.contextmanager
+    def launch_simulation(env_cfg, args):
+        yield
+
+    def make_environment(task, *, cfg):
+        assert task == "Isaac-Shadow-Handover-Direct"
+        return FakeMultiAgentEnvironment(cfg)
+
+    def convert_environment(env):
+        raise MultiAgentConversionRequested
+
+    monkeypatch.setattr(app, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(gym, "make", make_environment)
+    monkeypatch.setattr(envs, "multi_agent_to_single_agent", convert_environment)
+
+    with pytest.raises(MultiAgentConversionRequested):
+        entrypoint.run(
+            [
+                "--task",
+                "Isaac-Shadow-Handover-Direct",
+                "--checkpoint",
+                "/tmp/checkpoint",
+                "--output_path",
+                str(tmp_path),
             ]
         )
 

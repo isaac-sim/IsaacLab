@@ -85,6 +85,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         ),
     )
     add_launcher_args(parser)
+    _common.add_frontend_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
     _common.enable_cameras_for_video(args)
@@ -104,7 +105,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     import os
     import time
 
-    import gymnasium as gym
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
@@ -183,7 +183,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             )
 
             env_t0 = time.perf_counter_ns()
-            env = gym.make(args.task, cfg=env_cfg)
+            env = _common.create_isaaclab_env(args.task, env_cfg, args, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 

@@ -91,6 +91,7 @@ def _parse_args(argv: list[str]):
         ),
     )
     add_launcher_args(parser)
+    _common.add_frontend_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
     _common.enable_cameras_for_video(args_cli)
@@ -109,7 +110,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     import contextlib
     import os
 
-    import gymnasium as gym
     from stable_baselines3 import PPO
     from stable_baselines3.common.vec_env import VecNormalize
 
@@ -186,7 +186,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             )
 
             env_t0 = time.perf_counter_ns()
-            env = gym.make(args_cli.task, cfg=env_cfg)
+            env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 
