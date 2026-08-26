@@ -802,13 +802,15 @@ Fixed deployment poses for the socket and plug are set in ``config/displayport_r
 Exporting a Task-Space Policy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A **task-space** checkpoint (trained on ``...-Grav-TaskSpace-v0``) is exported with the standard LEAPP exporter
-plus the ``--task_space_contract`` flag, because its action is a scaled 6-DoF Cartesian pose delta rather than
-joint targets:
+A **task-space** checkpoint (trained on ``...-Grav-TaskSpace-v0``) is exported with the DisplayPort-specific
+exporter :file:`scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py` and its
+``--task_space_contract`` flag, because its action is a scaled 6-DoF Cartesian pose delta rather than joint
+targets. That script reuses the generic RSL-RL export flow and only substitutes the export routine, so the
+generic entry point stays task-agnostic:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+    ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
         --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
         --export_save_path <output_dir> \

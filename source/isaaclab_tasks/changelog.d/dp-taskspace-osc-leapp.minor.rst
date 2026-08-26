@@ -9,3 +9,6 @@ Added
   :class:`~isaaclab_tasks.contrib.deploy.mdp.DeployRelativeJointPositionActionCfg`, and
   :class:`~isaaclab_tasks.contrib.deploy.mdp.DeployDifferentialInverseKinematicsActionCfg`, which export the scaled
   pose/joint deltas needed to run task-space policies through LEAPP.
+* Added :file:`scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py`, a DisplayPort-specific
+  LEAPP exporter that reuses the generic RSL-RL export flow and adds the ``--task_space_contract`` option, which
+  publishes the Isaac ROS Deploy task-space I/O contract (four named pose inputs and a scaled Cartesian pose delta).

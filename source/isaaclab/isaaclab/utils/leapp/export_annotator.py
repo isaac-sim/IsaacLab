@@ -434,21 +434,6 @@ class ExportPatcher:
             self._captured_write_term_names.clear()
             original_apply()
 
-            processed_action_terms = {
-                term_name
-                for term_name, term in action_manager._terms.items()
-                if getattr(term, "_leapp_export_processed_actions", False)
-                and getattr(term, "processed_actions", None) is not None
-            }
-            if processed_action_terms:
-                self._action_output_cache[:] = [
-                    output
-                    for output in self._action_output_cache
-                    if output.name not in processed_action_terms
-                    and not any(output.name.startswith(f"{term_name}_") for term_name in processed_action_terms)
-                ]
-                self._captured_write_term_names.difference_update(processed_action_terms)
-
             self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
             if self._uses_last_action_state:
@@ -674,23 +659,18 @@ class ExportPatcher:
             if processed is None:
                 continue
             if isinstance(processed, torch.Tensor):
-                element_names = getattr(term, "_leapp_processed_action_element_names", None)
-                kind = getattr(term, "_leapp_processed_action_kind", None)
-                extra = getattr(term, "_leapp_processed_action_extra", None)
-                if element_names is None and kind is None:
-                    logger.warning(
-                        "Action term '%s' did not write to any asset directly. Falling back to processed_actions as the"
-                        " export output.\nIf you wish to add semantic data to this policy, you need to manually"
-                        " annotate it with output_tensors.",
-                        term_name,
-                    )
+                logger.warning(
+                    "Action term '%s' did not write to any asset directly. Falling back to processed_actions as the"
+                    " export output.\nIf you wish to add semantic data to this policy, you need to manually annotate it"
+                    " with output_tensors.",
+                    term_name,
+                )
                 tensors.append(
                     TensorSemantics(
                         name=term_name,
-                        ref=processed,
-                        kind=kind,
-                        element_names=element_names,
-                        extra=extra,
+                        ref=processed.clone(),
+                        kind=None,
+                        element_names=None,
                     )
                 )
                 fallback_terms.add(term_name)
