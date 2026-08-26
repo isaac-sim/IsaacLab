@@ -12,10 +12,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.cloner.path import match
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
-
-from .path import match
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
