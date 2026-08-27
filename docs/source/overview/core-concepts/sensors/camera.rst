@@ -420,7 +420,7 @@ Use ``--renderer isaac_rtx`` or ``--renderer ovrtx`` to run the same workflow on
 the other backends. Pass ``--input_scene`` for a custom scene and
 ``--camera_prim_path`` if the stage contains multiple cameras with PPISP
 attributes. If a config or command selects a visualizer, force-disable all
-visualizers with ``--visualizer none``.
+visualizers with ``--visualizer none`` or ``--viz none``.
 
 Because OVRTX runs kit-less, the demo does not launch the Kit app for
 ``--renderer ovrtx``; run that combination with ``uv run python`` rather than
