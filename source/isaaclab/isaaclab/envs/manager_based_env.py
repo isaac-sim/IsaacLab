@@ -245,8 +245,7 @@ class ManagerBasedEnv:
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        # ``_is_closed`` is missing if ``__init__`` raised before assigning it. Default to closed so the
-        # original error surfaces instead of an AttributeError from this destructor.
+        # ``_is_closed`` is missing if ``__init__`` raised before assigning it.
         if not getattr(self, "_is_closed", True) and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
