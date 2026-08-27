@@ -21,11 +21,11 @@ This environment has been successfully deployed and tested on a real Flexiv Rizo
 The DisplayPort insertion policy operates as follows:
 
 1. **Initial State**: The policy assumes the DisplayPort plug is already grasped by the gripper at the start of the episode
-2. **Input Observations**: The policy receives the current state of the robot together with the pose of the socket insertion point (position and orientation) from a separate perception pipeline. The robot state is the arm joint angles in the joint-space variants, or the gripper flange / end-effector pose in the task-space variants
+2. **Input Observations**: The policy receives the current state of the robot together with the pose of the socket insertion point (position and orientation) from a separate perception pipeline. The robot state is the arm joint angles in the joint-space variants, or the flange / end-effector pose in the task-space variants
 3. **Policy Output**: The policy outputs an incremental command each step — delta joint positions (incremental changes to arm joint angles) in the joint-space variants, or a 6-DoF Cartesian end-effector pose delta in the task-space variants
 4. **Task Goal**: Insert the DisplayPort plug into a fixed socket until the mate point aligns within the success threshold
 
-Both control spaces are supported end to end. **Task space is the recommended route for real-robot deployment**;
+Both control spaces are supported end-to-end. **Task space is the recommended route for real-robot deployment**;
 see :ref:`choosing-control-space` for the trade-offs and for the extra robot-calibration step joint space requires.
 
 **Scope of This Tutorial:**
@@ -74,7 +74,7 @@ The DisplayPort plug and socket assets used by these environments have been iter
 5. **Mate-point alignment**: Verify ``SOCKET_INSERTION_OFFSET``, ``PLUG_INSERTION_OFFSET``, and ``PLUG_GOAL_ROT`` in ``displayport_insertion_env_cfg.py`` match the intended physical mate frame. Reward and success metrics are computed from these offsets; a mismatch here looks like a perception error on the real robot.
 
 **The robot asset matters too.** The checks above concern the plug and socket, but the arm's USD must also
-represent *your* robot — particularly its kinematic parameters, which vary unit to unit. This matters most for
+represent *your* robot — particularly its kinematic parameters, which may vary unit to unit. This matters most for
 joint-space training, where the policy commands joints directly. Flexiv's
 `flexiv_calibration <https://github.com/flexivrobotics/flexiv_ros2/tree/release/lyrical-v1.9.3/flexiv_calibration>`__
 workflow exports a calibrated robot description for a specific arm; convert the result to USD and select it with the
@@ -110,7 +110,7 @@ Observation Specification
 The DisplayPort insertion environment uses proprioceptive and exteroceptive (vision) observations. In every
 variant the actor sees **the current state of the robot** plus **the socket insertion (mate) point** supplied by
 perception. What differs between the two control spaces is how the robot state is represented: joint angles for
-the joint-space environments, and the gripper flange / end-effector pose for the task-space environments.
+the joint-space environments, and the flange / end-effector pose for the task-space environments.
 
 .. tab-set::
 
@@ -146,6 +146,20 @@ the joint-space environments, and the gripper flange / end-effector pose for the
 
       **Training configuration with joint velocity** (``Grav`` variants without ``NoJointVel``): **21** policy dimensions.
 
+      .. note::
+
+         **Within joint space, prefer the NoJointVel variants.** Policies trained with ``joint_vel`` in the actor
+         observation can achieve slightly higher success rates in simulation, but we consistently observe less
+         stable behavior on the real Flexiv robot (jittery motions, inconsistent contact during insertion).
+
+         The ``NoJointVel`` configs remove ``joint_vel`` from the actor observation while keeping it in the critic
+         observation group. This matches deployment setups where joint velocity is not exposed to the policy
+         network but can still help the value function during training.
+
+         This is a choice *among the joint-space variants*; the task-space environments are recommended over
+         joint space generally (see :ref:`choosing-control-space`), and they do not expose joint velocity to the
+         actor at all.
+
    .. tab-item:: Task space
 
       .. list-table:: Task-Space Observations (Flexiv Rizon 4s)
@@ -158,11 +172,11 @@ the joint-space environments, and the gripper flange / end-effector pose for the
            - Noise
          * - ``eef_pos`` (TCP position)
            - 3
-           - Robot controller (forward kinematics)
+           - Robot controller
            - None
          * - ``eef_rot_6d`` (TCP orientation)
            - 6
-           - Robot controller (forward kinematics)
+           - Robot controller
            - None
          * - ``socket_kp_pos`` (insertion mate point)
            - 3
@@ -183,12 +197,6 @@ the joint-space environments, and the gripper flange / end-effector pose for the
       The end-effector position is reported at the **tool center point (TCP)**, i.e. the ``flange`` body offset
       along its local +Z by ``_TCP_OFFSET`` in ``task_space_env_cfg.py``. Note that the observation is taken at the
       TCP while the action is applied at the flange; see :ref:`taskspace-action-space`.
-
-.. note::
-
-   **Sim-to-real recommendation: use the NoJointVel variant.** Policies trained with ``joint_vel`` in the actor observation can achieve slightly higher success rates in simulation, but we consistently observe less stable behavior on the real Flexiv robot (jittery motions, inconsistent contact during insertion). For deployment, train and ship with the ``NoJointVel`` environments.
-
-   The ``NoJointVel`` configs remove ``joint_vel`` from the actor observation while keeping it in the critic observation group. This matches deployment setups where joint velocity is not exposed to the policy network but can still help the value function during training.
 
 **Implementation (base class):**
 
@@ -540,7 +548,7 @@ Unlike gear assembly, this task uses a custom environment class (``DisplayportIn
 Tuning Hyperparameters for Better Performance
 ----------------------------------------------
 
-After asset quality and physics look correct, the following hyperparameters are the main levers for improving training speed, final success rate, and sim-to-real robustness. Defaults below are the shipped Flexiv Rizon 4s values; adjust one group at a time and monitor ``Metrics/success_rate`` in TensorBoard.
+After asset quality and physics look correct, the following hyperparameters are the main levers for improving training speed, final success rate, and sim-to-real robustness. Defaults below are the shipped Flexiv Rizon 4s values; adjust one group at a time and monitor ``Metrics/terminal_success_rate`` in TensorBoard.
 
 Reward Weights
 ~~~~~~~~~~~~~~
@@ -710,30 +718,41 @@ Part 3: Training the Policy in Isaac Lab
 Registered Gym Environments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+**Train on the** ``-ROS-Inference-v0`` **ids.** They are the environments used to produce the policies deployed on
+hardware: in addition to the plain training configuration, they declare the observation/action metadata Isaac
+Manipulator and LEAPP consume (``obs_order``, ``policy_action_space``, ``observation_space``, ``action_space``,
+``action_scale``) and pin the plug, socket and seed joint pose to the real deployment station. Training on them
+means the environment you trained in and the contract you export are the same thing, so a checkpoint can be
+exported and deployed with Isaac ROS without swapping configurations.
+
 .. list-table:: Flexiv Rizon 4s DisplayPort Insertion Environments
    :widths: 55 45
    :header-rows: 1
 
    * - Environment ID
      - Purpose
+   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0``
+     - **Task-space training and deployment — recommended.** Carries the ROS / LEAPP export contract.
+   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0``
+     - Task-space training without deployment metadata (ablations, experiments)
+   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play-v0``
+     - Task-space evaluation / visualization (observation corruption disabled)
+   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0``
+     - **Joint-space training and deployment.** Carries the ROS / LEAPP export contract (14-dim actor obs).
    * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0``
-     - **Training** (recommended for deployment)
+     - Joint-space training without deployment metadata
    * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play-v0``
      - Evaluation / visualization (observation corruption disabled)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0``
-     - ROS / Isaac Manipulator / LEAPP export metadata
+   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference-v0``
+     - Joint-space ROS inference with joint velocity in actor obs (21-dim)
    * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-v0``
      - Training with joint velocity in actor obs (21-dim)
    * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-Play-v0``
      - Evaluation with joint velocity in actor obs
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference-v0``
-     - ROS inference with joint velocity in actor obs
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0``
-     - **Task-space training** (Operational Space Control; Cartesian pose-delta actions)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play-v0``
-     - Task-space evaluation / visualization (observation corruption disabled)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0``
-     - Task-space ROS inference / LEAPP export metadata
+
+The plain training ids remain useful when you are experimenting and do not intend to deploy that particular
+checkpoint — for example when sweeping rewards or randomization. If you later want to ship such a checkpoint, export
+it against the matching ``-ROS-Inference-v0`` id so the traced layout matches deployment.
 
 .. note::
 
@@ -757,7 +776,7 @@ for the control space you intend to deploy — task space is the recommended cho
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
               --num_envs 4 \
               --max_iterations 100 \
               --visualizer kit
@@ -767,7 +786,7 @@ for the control space you intend to deploy — task space is the recommended cho
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
               --num_envs 4 \
               --max_iterations 100 \
               --visualizer kit
@@ -805,7 +824,7 @@ Launch full training in headless mode with video recording:
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
               --num_envs 256 \
               --headless \
               --video --video_length 200 --video_interval 76800
@@ -815,7 +834,7 @@ Launch full training in headless mode with video recording:
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
               --num_envs 256 \
               --headless \
               --video --video_length 200 --video_interval 76800
@@ -832,9 +851,9 @@ Launch full training in headless mode with video recording:
         agent.max_iterations=<MAX_ITERS> \
         --video --video_length 200 --video_interval 25600
 
-For ROS-aligned observation / action metadata during training (optional), use the corresponding
-``-ROS-Inference-v0`` task id instead of the plain training id — ``...-NoJointVel-ROS-Inference-v0`` in joint
-space, ``...-TaskSpace-ROS-Inference-v0`` in task space.
+The commands above train on the ``-ROS-Inference-v0`` ids so the trained environment already carries the
+deployment contract. Swap in the plain ``...-NoJointVel-v0`` / ``...-TaskSpace-v0`` ids only for experiments you do
+not intend to deploy.
 
 **Command breakdown:**
 
@@ -884,8 +903,8 @@ what the policy outputs and what the real robot must reproduce.
      - Joint servo behavior must match sim; benefits from joint-level system identification
      - Task-space bridge that reproduces the OSC contract and the TCP-observe / flange-control split
    * - Training ids
-     - ``...-Grav-NoJointVel-v0``, ``...-Grav-v0``
-     - ``...-Grav-TaskSpace-v0``
+     - ``...-Grav-NoJointVel-ROS-Inference-v0`` (deployable), ``...-Grav-NoJointVel-v0``
+     - ``...-Grav-TaskSpace-ROS-Inference-v0`` (deployable), ``...-Grav-TaskSpace-v0``
 
 **Task space is the recommended route.** In our sim-to-real testing on the Flexiv Rizon 4s, task-space policies
 transfer better than joint-space ones: commanding a Cartesian pose delta keeps the policy independent of the arm's
@@ -914,19 +933,20 @@ kinematics.
    the observed end-effector pose rather than being injected straight into the commanded joint targets. Getting the
    kinematics right is still worthwhile in both cases.
 
-In each case the ``-Play-v0`` id is used for evaluation and the ``-ROS-Inference-v0`` id provides the metadata used
-by the LEAPP export flow described below. The task-space environment already uses the LEAPP-exportable
-:class:`~isaaclab_tasks.contrib.deploy.mdp.DeployOperationalSpaceControllerActionCfg` action, so a trained
-checkpoint can be exported directly (see :ref:`export-taskspace-leapp`).
+In each case, train on the ``-ROS-Inference-v0`` id so the trained environment carries the deployment contract,
+and use the ``-Play-v0`` id for evaluation and visualization. The task-space environment already uses the
+LEAPP-exportable :class:`~isaaclab_tasks.contrib.deploy.mdp.DeployOperationalSpaceControllerActionCfg` action, so a
+trained checkpoint can be exported directly (see :ref:`export-taskspace-leapp`).
 
 Step 3: Export and Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Recommended workflow:** export the trained policy with **LEAPP**, validate the export in simulation, then deploy the LEAPP package with Isaac ROS / Isaac Manipulator on the Flexiv robot.
 
-Always export from the matching ``-ROS-Inference-v0`` task id so the traced observation and action layout matches
-deployment. In joint space, use a **NoJointVel** variant so the observation space matches real hardware (14-dim
-actor input); in task space, use the ``-TaskSpace-ROS-Inference-v0`` variant (18-dim actor input).
+Export from the ``-ROS-Inference-v0`` task id so the traced observation and action layout matches deployment. If
+you followed the training steps above this is the same id you trained on, and no configuration swap is needed. In
+joint space that is a **NoJointVel** variant (14-dim actor input); in task space it is
+``-TaskSpace-ROS-Inference-v0`` (18-dim actor input).
 
 Export with LEAPP (Recommended)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
