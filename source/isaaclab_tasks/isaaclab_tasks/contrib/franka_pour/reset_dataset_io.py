@@ -238,8 +238,22 @@ def _validate_contract_subset(actual: Mapping[str, Any], expected: Mapping[str, 
             if not isinstance(actual_value, Mapping):
                 raise ValueError(f"Reset dataset task contract field {field_path!r} is not a mapping.")
             _validate_contract_subset(actual_value, expected_value, path=field_path)
-        elif reset_dataset_digest(actual_value) != reset_dataset_digest(expected_value):
-            raise ValueError(f"Reset dataset task contract field {field_path!r} does not match the runtime.")
+        else:
+            actual_value = _normalize_task_contract_value(actual_value, path=field_path)
+            expected_value = _normalize_task_contract_value(expected_value, path=field_path)
+            if reset_dataset_digest(actual_value) != reset_dataset_digest(expected_value):
+                raise ValueError(f"Reset dataset task contract field {field_path!r} does not match the runtime.")
+
+
+def _normalize_task_contract_value(value: Any, *, path: str) -> Any:
+    """Normalize legacy host-specific task-contract values."""
+    if path != "metadata.task_contract.robot_asset" or not isinstance(value, str):
+        return value
+    normalized = value.replace("\\", "/")
+    asset_root_marker = "/IsaacLab/"
+    if asset_root_marker in normalized:
+        return f"IsaacLab/{normalized.rsplit(asset_root_marker, 1)[1]}"
+    return normalized
 
 
 def _validate_state_tensors(states: Mapping[str, Any]):

@@ -52,6 +52,21 @@ def test_minimal_runtime_artifact_is_accepted():
     assert layouts is payload["particle_layouts"]
 
 
+def test_legacy_absolute_robot_asset_matches_relative_contract():
+    """Artifacts generated against staging remain valid under another configured asset root."""
+    payload = _payload()
+    payload["metadata"]["task_contract"]["robot_asset"] = (
+        "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/"
+        "Robots/FrankaEmika/franka_panda.usda"
+    )
+    payload["content_sha256"] = reset_dataset_content_digest(payload)
+
+    reset_dataset_validate_runtime(
+        payload,
+        expected_task_contract={"robot_asset": "IsaacLab/Robots/FrankaEmika/franka_panda.usda"},
+    )
+
+
 def test_nonfinite_state_is_rejected_after_digest_verification():
     payload = _payload()
     payload["states"]["arm_joint_position"][0, 0] = torch.nan

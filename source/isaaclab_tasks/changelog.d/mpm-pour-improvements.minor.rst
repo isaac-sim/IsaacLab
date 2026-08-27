@@ -16,3 +16,5 @@ Fixed
 * Stabilized the taller default particle payload with two MPM entry substeps
   and particle-backed automatic warm starting, and increased the proxy mass
   scale to prevent unphysical rigid-cup recoil.
+* Made the Franka Pour reset artifact portable across configured asset roots by
+  storing an asset-relative robot identity while accepting the legacy staging URL.
