@@ -318,6 +318,11 @@ jobs:
           pytest-options: -m kitless
           # Same reason as the Kit step above.
           volume-mount-source: ${{ github.workspace }}
+          # OVRTX caches shaders and textures inside its own site-packages directory, which the
+          # image owns as uid 1000 while a volume-mounted run executes as the runner's uid. Kit's
+          # equivalent caches are already covered by the action's runtime storage; this is the one
+          # path that is not, and without it HydraEngine fails to initialise.
+          host-writable-dir: /opt/isaaclab-venv/lib/python3.12/site-packages/ovrtx/bin/cache
 
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
