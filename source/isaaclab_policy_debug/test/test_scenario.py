@@ -19,12 +19,10 @@ class _RegisteredAdapter(PolicyDebugScenarioAdapter):
         return None
 
 
-def test_adapter_resolution_prefers_explicit_instance():
+def test_adapter_resolution_precedence(monkeypatch):
     explicit = _RegisteredAdapter()
     assert resolve_scenario_adapter("unused", explicit) is explicit
 
-
-def test_adapter_resolution_uses_registered_entry_point(monkeypatch):
     monkeypatch.setattr(
         gym,
         "spec",
@@ -32,8 +30,6 @@ def test_adapter_resolution_uses_registered_entry_point(monkeypatch):
     )
     assert isinstance(resolve_scenario_adapter("registered"), _RegisteredAdapter)
 
-
-def test_adapter_resolution_falls_back_to_verified_manager_adapter(monkeypatch):
     monkeypatch.setattr(gym, "spec", lambda _task_id: SimpleNamespace(kwargs={}))
     assert isinstance(resolve_scenario_adapter("generic"), ManagerBasedSeededScenarioAdapter)
 

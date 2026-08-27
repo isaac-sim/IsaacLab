@@ -85,9 +85,6 @@ The following classes form the public ``isaaclab_policy_debug`` API:
    PolicyDebugCfg
    PolicyDebugManager
    PolicyDebugScenarioAdapter
-   CheckpointCatalog
-   CheckpointEntry
-   CheckpointLoader
    resolve_scenario_adapter
 
 isaaclab_contrib extension

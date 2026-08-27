@@ -61,33 +61,20 @@ def test_corrupt_checkpoint_is_retryable_after_file_changes(tmp_path: Path):
         loader.load(entry)
     assert entry.status == "error"
 
-    torch.save({"model_state_dict": {"weight": torch.zeros(2)}, "iter": 7}, path)
+    torch.save(
+        {
+            "actor_state_dict": {"mlp.weight": torch.zeros(4, 3)},
+            "critic_state_dict": {"mlp.weight": torch.zeros(1, 3)},
+            "iter": 7,
+            "infos": {"production_contract": "test-contract"},
+        },
+        path,
+    )
     catalog.scan()
     assert entry.error is None and not entry.ready
     catalog.scan()
     loaded = loader.load(entry)
     assert loaded.iteration == 7
-    assert loaded.parameter_shapes == {"weight": (2,)}
-
-
-def test_loader_supports_current_rsl_rl_actor_critic_schema(tmp_path: Path):
-    path = tmp_path / "model_42.pt"
-    torch.save(
-        {
-            "actor_state_dict": {"mlp.weight": torch.zeros(4, 3)},
-            "critic_state_dict": {"mlp.weight": torch.zeros(1, 3)},
-            "iter": 42,
-            "infos": {"production_contract": "test-contract"},
-        },
-        path,
-    )
-    entry = CheckpointCatalog(tmp_path).scan()[0]
-    entry.ready = True
-
-    loaded = CheckpointLoader().load(entry)
-
-    assert loaded.iteration == 42
-    assert loaded.state_dict is loaded.payload["actor_state_dict"]
     assert loaded.metadata == {"production_contract": "test-contract"}
     assert loaded.parameter_shapes == {
         "actor.mlp.weight": (4, 3),

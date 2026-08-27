@@ -6,7 +6,7 @@
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_policy_debug.cli import configure_policy_debug_args, find_newton_visualizer
+from isaaclab_policy_debug.cli import configure_policy_debug_args
 
 
 def _args(path, **overrides):
@@ -29,12 +29,6 @@ def test_policy_debug_forces_newton_and_capacity(tmp_path):
     assert args.visualizer == ["newton_gl"]
     assert args.visualizer_explicit
     assert args.max_visible_envs == 8
-
-
-def test_find_newton_visualizer_accepts_newton_gl():
-    visualizer = SimpleNamespace(cfg=SimpleNamespace(visualizer_type="newton_gl"))
-    env = SimpleNamespace(unwrapped=SimpleNamespace(sim=SimpleNamespace(visualizers=[visualizer])))
-    assert find_newton_visualizer(env) is visualizer
 
 
 @pytest.mark.parametrize(

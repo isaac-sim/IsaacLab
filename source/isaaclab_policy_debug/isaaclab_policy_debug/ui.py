@@ -41,7 +41,9 @@ class PolicyDebugUiController:
                 if slot is not None:
                     tint = self.manager.ghost_tint(slot)
                     if tint is not None:
-                        _draw_color_swatch(imgui, f"##tint-{entry.path}", tint)
+                        color = imgui.ImVec4(*tint, 1.0)
+                        flags = imgui.ColorEditFlags_.no_tooltip | imgui.ColorEditFlags_.no_drag_drop
+                        imgui.color_button(f"##tint-{entry.path}", color, flags, imgui.ImVec2(0.0, 0.0))
                         imgui.same_line()
                     marker = f"[{slot.slot} reference]" if self.manager.overlay and tint is None else f"[{slot.slot}]"
                 else:
@@ -54,11 +56,3 @@ class PolicyDebugUiController:
 
         if imgui.button("Rescan"):
             self.manager.rescan()
-
-
-def _draw_color_swatch(imgui, item_id: str, tint: tuple[float, float, float]) -> None:
-    """Draw a compact, non-editable checkpoint color swatch."""
-    color = imgui.ImVec4(float(tint[0]), float(tint[1]), float(tint[2]), 1.0)
-    size = imgui.ImVec2(0.0, 0.0)
-    flags = imgui.ColorEditFlags_.no_tooltip | imgui.ColorEditFlags_.no_drag_drop
-    imgui.color_button(item_id, color, flags, size)

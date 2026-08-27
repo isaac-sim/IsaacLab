@@ -693,12 +693,14 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
 # declare dependencies). Derived from OPTIONAL_ISAACLAB_SUBMODULES rather than
 # redefined: each ``isaaclab_<name>`` source dir maps to the same-named root
 # extra (so ``mimic`` pulls in the ``teleop`` stack as well, matching the
-# editable-install behavior it replaces). The extra names are validated against
-# the root pyproject by :func:`_root_extra_dependencies` at install time.
+# editable-install behavior it replaces). Policy debug also needs the existing
+# RSL-RL runtime extra. Names are validated against the root pyproject by
+# :func:`_root_extra_dependencies` at install time.
 OPTIONAL_SUBMODULE_ROOT_EXTRAS: dict[str, tuple[str, ...]] = {
     submodule: tuple(directory.removeprefix("isaaclab_") for directory in directories)
     for submodule, directories in OPTIONAL_ISAACLAB_SUBMODULES.items()
 }
+OPTIONAL_SUBMODULE_ROOT_EXTRAS["policy_debug"] += ("rsl-rl",)
 
 # Extra feature sets that install optional heavy dependencies on top of the
 # always-installed core submodules. Each name corresponds to one or more

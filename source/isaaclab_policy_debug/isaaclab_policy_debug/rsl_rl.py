@@ -109,8 +109,8 @@ class RslRlPolicyFactory:
 
     def create(self, checkpoint: LoadedCheckpoint) -> RslRlPolicyAdapter:
         cfg = self.agent_cfg.to_dict() if hasattr(self.agent_cfg, "to_dict") else dict(self.agent_cfg)
-        legacy_state_dicts = self._legacy_state_dicts(checkpoint)
-        if legacy_state_dicts is not None:
+        state = checkpoint.payload.get("model_state_dict")
+        if isinstance(state, dict) and any(name.startswith("actor.") for name in state):
             policy = LegacyRslRlInferencePolicy(checkpoint, cfg, self.env.unwrapped.device)
             self._validate_legacy_policy_io(policy)
             return RslRlPolicyAdapter(policy, policy)
@@ -167,37 +167,14 @@ class RslRlPolicyFactory:
                 f"checkpoint {shape}, task (*, {expected_actions})"
             )
 
-    @staticmethod
-    def _legacy_state_dicts(checkpoint: LoadedCheckpoint) -> dict[str, dict[str, Any]] | None:
-        state_dict = checkpoint.payload.get("model_state_dict")
-        if not isinstance(state_dict, dict) or not any(name.startswith("actor.") for name in state_dict):
-            return None
-
-        actor: dict[str, Any] = {}
-        critic: dict[str, Any] = {}
-        for name, value in state_dict.items():
-            if name.startswith("actor."):
-                actor[f"mlp.{name.removeprefix('actor.')}"] = value
-            elif name.startswith("actor_obs_normalizer."):
-                actor[f"obs_normalizer.{name.removeprefix('actor_obs_normalizer.')}"] = value
-            elif name == "log_std":
-                actor["distribution.log_std_param"] = value
-            elif name == "std":
-                actor["distribution.std_param"] = value
-            elif name.startswith("critic."):
-                critic[f"mlp.{name.removeprefix('critic.')}"] = value
-            elif name.startswith("critic_obs_normalizer."):
-                critic[f"obs_normalizer.{name.removeprefix('critic_obs_normalizer.')}"] = value
-            else:
-                raise ValueError(f"Unsupported legacy RSL-RL model parameter: {name}")
-        if not actor or not critic:
-            raise ValueError("Legacy RSL-RL checkpoint must contain both actor and critic parameters")
-        return {"actor": actor, "critic": critic}
-
     @classmethod
     def _runner_models(cls, runner: Any, checkpoint: LoadedCheckpoint) -> dict[str, Any]:
         algorithm = runner.alg
-        groups = CheckpointLoaderGroups.from_payload(checkpoint.payload)
+        groups = {
+            name
+            for name in ("actor", "critic", "student", "teacher")
+            if isinstance(checkpoint.payload.get(f"{name}_state_dict"), dict)
+        }
         if groups == {"actor", "critic"}:
             if hasattr(algorithm, "_raw_actor") and hasattr(algorithm, "_raw_critic"):
                 return {"actor": algorithm._raw_actor, "critic": algorithm._raw_critic}
@@ -221,15 +198,3 @@ class RslRlPolicyFactory:
             if model is not None:
                 return model
         raise ValueError("Unable to locate the RSL-RL policy model for shape validation")
-
-
-class CheckpointLoaderGroups:
-    """Small schema helper kept independent of torch and RSL-RL imports."""
-
-    @staticmethod
-    def from_payload(payload: dict[str, Any]) -> set[str]:
-        return {
-            name
-            for name in ("actor", "critic", "student", "teacher")
-            if isinstance(payload.get(f"{name}_state_dict"), dict)
-        }

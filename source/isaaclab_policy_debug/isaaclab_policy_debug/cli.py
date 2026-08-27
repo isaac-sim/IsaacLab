@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from .config import PolicyDebugCfg
 
 
 def configure_policy_debug_args(args) -> None:
@@ -22,18 +22,9 @@ def configure_policy_debug_args(args) -> None:
     if getattr(args, "headless", False):
         conflicts.append("--headless")
     if conflicts:
-        raise ValueError(f"--policy_debug cannot be combined with {', '.join(conflicts)}")
-    if args.policy_debug_max_policies <= 0:
-        raise ValueError("--policy_debug_max_policies must be greater than zero")
-
-    run_dir = Path(args.policy_debug).expanduser().resolve()
-    if not run_dir.is_dir():
-        raise ValueError(f"--policy_debug folder does not exist or is not a directory: {run_dir}")
-    try:
-        next(run_dir.iterdir(), None)
-    except OSError as exc:
-        raise ValueError(f"--policy_debug folder is not readable: {run_dir}: {exc}") from exc
-    args.policy_debug = str(run_dir)
+        raise ValueError(f"--policy-debug cannot be combined with {', '.join(conflicts)}")
+    cfg = PolicyDebugCfg(args.policy_debug, max_policies=args.policy_debug_max_policies)
+    args.policy_debug = str(cfg.run_dir)
     args.visualizer = ["newton_gl"]
     args.visualizer_explicit = True
     args.max_visible_envs = args.policy_debug_max_policies

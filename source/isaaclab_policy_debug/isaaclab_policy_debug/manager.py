@@ -55,7 +55,7 @@ class PolicyDebugManager:
         self.scenario_adapter = scenario_adapter
         self.policy_factory = policy_factory
         self.action_dim = action_dim
-        self.catalog = CheckpointCatalog(cfg.run_dir, stable_scans=cfg.stable_scans)
+        self.catalog = CheckpointCatalog(cfg.run_dir)
         self.loader = CheckpointLoader()
         self.slots = SlotAllocator(cfg.max_policies)
         self.active: dict[Path, ActivePolicy] = {}
@@ -198,8 +198,7 @@ class PolicyDebugManager:
             self._observations, _, dones, _ = self.env.step(actions.detach())
         finally:
             self.scenario_adapter.after_step(self.env, slots)
-        failure_hook = getattr(self.scenario_adapter, "rollout_failures", None)
-        failures = failure_hook(self.env, self.active_slots) if failure_hook is not None else {}
+        failures = self.scenario_adapter.rollout_failures(self.env, self.active_slots)
         if failures:
             self._deactivate_slots_with_error(failures)
             try:
@@ -219,7 +218,7 @@ class PolicyDebugManager:
 
     def _maybe_scan(self) -> None:
         now = time.monotonic()
-        if now - self._last_scan >= self.cfg.scan_interval:
+        if now - self._last_scan >= 1.0:
             self.catalog.scan()
             self._last_scan = now
 

@@ -20,7 +20,3 @@ class SlotAllocator:
 
     def release(self, slot: int) -> None:
         self._owners.pop(slot, None)
-
-    @property
-    def active_count(self) -> int:
-        return len(self._owners)

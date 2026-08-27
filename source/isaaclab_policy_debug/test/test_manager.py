@@ -6,12 +6,10 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 import torch
 from isaaclab_policy_debug.catalog import CheckpointEntry, LoadedCheckpoint
 from isaaclab_policy_debug.config import PolicyDebugCfg
-from isaaclab_policy_debug.manager import PolicyDebugManager, _intersect_visibility_masks, slice_observation
-from isaaclab_policy_debug.slots import SlotAllocator
+from isaaclab_policy_debug.manager import PolicyDebugManager
 
 
 class _Visualizer:
@@ -57,8 +55,10 @@ class _Policy:
     def __init__(self, value):
         self.value = value
         self.resets = 0
+        self.observations = []
 
     def __call__(self, obs):
+        self.observations.append(obs)
         return torch.full((1, 1), self.value)
 
     def reset(self):
@@ -87,7 +87,7 @@ class _ParameterFactory:
 class _Loader:
     def load(self, entry):
         entry.iteration = entry.filename_iteration
-        return LoadedCheckpoint(entry.path, {}, {}, entry.iteration, {}, {})
+        return LoadedCheckpoint(entry.path, {}, entry.iteration, {}, {})
 
 
 class _Scenario:
@@ -125,7 +125,7 @@ class _Scenario:
 
 class _Env:
     def __init__(self, capacity):
-        self.observations = torch.arange(capacity, dtype=torch.float32).unsqueeze(1)
+        self.observations = {"policy": torch.arange(capacity, dtype=torch.float32).unsqueeze(1)}
         self.unwrapped = SimpleNamespace(device="cpu", sim=SimpleNamespace(render=lambda: None))
         self.last_actions = None
         self.done_slot = None
@@ -147,14 +147,6 @@ def _entry(path: Path, iteration: int) -> CheckpointEntry:
     return CheckpointEntry(path, 1, path.stat().st_mtime_ns, stable_scans=2, ready=True, iteration=iteration)
 
 
-def test_slot_allocator_reuses_lowest_slot():
-    slots = SlotAllocator(2)
-    assert slots.allocate("a") == 0
-    assert slots.allocate("b") == 1
-    slots.release(0)
-    assert slots.allocate("c") == 0
-
-
 def test_manager_activates_manually_routes_rows_and_zeroes_inactive_actions(tmp_path: Path):
     cfg = PolicyDebugCfg(tmp_path, max_policies=3)
     env = _Env(3)
@@ -173,6 +165,8 @@ def test_manager_activates_manually_routes_rows_and_zeroes_inactive_actions(tmp_
     assert scenario.resets == [[0, 1]]
     assert env.last_actions[:, 0].tolist() == [2.0, 8.0, 0.0]
     assert all(active.policy.resets == 1 for active in manager.active.values())
+    assert manager.active[first.path].policy.observations[0]["policy"].tolist() == [[0.0]]
+    assert manager.active[second.path].policy.observations[0]["policy"].tolist() == [[1.0]]
 
     manager.set_checkpoint_enabled(first, False)
     assert manager.active_slots == [1]
@@ -279,19 +273,3 @@ def test_manager_detaches_policy_actions_before_environment_step(tmp_path: Path)
 
     assert env.last_actions is not None
     assert env.last_actions.requires_grad is False
-
-
-def test_slice_observation_preserves_single_row_for_nested_values():
-    obs = {"policy": torch.arange(6).reshape(3, 2), "history": (torch.arange(3),)}
-    sliced = slice_observation(obs, 1)
-    assert sliced["policy"].shape == (1, 2)
-    assert sliced["policy"].tolist() == [[2, 3]]
-    assert sliced["history"][0].tolist() == [1]
-
-
-def test_visibility_masks_intersect_and_validate_shape_count():
-    assert _intersect_visibility_masks(None, (True, False)) == (True, False)
-    assert _intersect_visibility_masks((False, True), None) == (False, True)
-    assert _intersect_visibility_masks((True, True), (True, False)) == (True, False)
-    with pytest.raises(ValueError, match="differ in length"):
-        _intersect_visibility_masks((True,), (True, False))

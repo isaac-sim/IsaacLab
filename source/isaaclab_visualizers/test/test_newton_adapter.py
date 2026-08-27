@@ -314,32 +314,6 @@ def test_newton_visualizer_resolves_scene_assets_to_shape_visibility():
     assert visibility == (True, True, False, True, True, False)
 
 
-def test_newton_visualizer_grid_layout_restores_zero_layer_transforms():
-    calls = []
-    origins = np.array([[1.0, -1.0, 0.0], [1.0, 1.0, 0.0]], dtype=np.float32)
-
-    class _FakeViewer:
-        def set_layer_transform(self, layer_id, translation):
-            calls.append((layer_id, translation))
-
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
-    visualizer._viewer = _FakeViewer()
-    visualizer._environment_layers = {0: "environment_0", 1: "environment_1"}
-    visualizer._resolved_visible_env_ids = [0, 1]
-    visualizer._scene_data_provider = SimpleNamespace(
-        num_envs=2,
-        get_interactive_scene=lambda: SimpleNamespace(env_origins=origins),
-    )
-
-    visualizer.set_environment_layout("grid")
-    visualizer._apply_pending_viewer_commands()
-
-    assert calls == [
-        ("environment_0", (0.0, 0.0, 0.0)),
-        ("environment_1", (0.0, 0.0, 0.0)),
-    ]
-
-
 def test_newton_visualizer_grid_layout_compacts_sparse_environment_layers():
     calls = []
     origins = np.array(
@@ -373,41 +347,13 @@ def test_newton_visualizer_grid_layout_compacts_sparse_environment_layers():
     np.testing.assert_allclose(transforms["environment_3"], origins[1] - origins[3])
 
 
-def test_newton_visualizer_only_refreshes_visible_and_newly_hidden_layers():
-    calls = []
-
-    class _FakeViewer:
-        def activate(self, layer_id):
-            calls.append(("activate", layer_id))
-
-        def log_state(self, state):
-            calls.append(("log_state", state))
-
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg(enable_markers=False))
-    visualizer._viewer = _FakeViewer()
-    visualizer._state = object()
-    visualizer._environment_layers = {0: "environment_0", 1: "environment_1", 2: "environment_2"}
-    visualizer._resolved_visible_env_ids = [1]
-    visualizer._environment_layers_requiring_log = {0}
-    visualizer._log_streaming_image = lambda: None
-    visualizer._render_live_plots = lambda: None
-    visualizer._log_scene_contact_sensor_arrows = lambda _num_envs: None
-
-    visualizer._log_simulation_state(contacts=None, num_envs=3)
-    visualizer._log_simulation_state(contacts=None, num_envs=3)
-
-    activated_layers = [call[1] for call in calls if call[0] == "activate"]
-    assert activated_layers == ["environment_0", "environment_1", "environment_1"]
-    assert visualizer._environment_layers_requiring_log == set()
-
-
 def test_newton_visualizer_registers_sidebar_callbacks_before_initialization():
     callback = Mock()
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
 
     visualizer.register_sidebar_callback(callback)
 
-    assert visualizer._sidebar_callbacks == [callback]
+    assert visualizer._sidebar_callback is callback
 
 
 def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exists(monkeypatch):

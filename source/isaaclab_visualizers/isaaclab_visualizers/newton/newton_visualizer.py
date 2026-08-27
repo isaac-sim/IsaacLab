@@ -975,9 +975,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._scene_camera_names: list[str] = []
         self._active_camera_idx: int = 0
         self._pending_viewer_commands: deque[tuple[str, Callable[[NewtonViewerGL], None]]] = deque()
-        self._sidebar_callbacks: list[Callable[[object], None]] = []
+        self._sidebar_callback: Callable[[object], None] | None = None
         self._environment_layers: dict[int, str] = {}
-        self._environment_layers_requiring_log: set[int] = set()
 
     # ------------------------------------------------------------------
     # Shared lifecycle
@@ -1055,8 +1054,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.picking_enabled = self._picking_enabled
 
             self._apply_viewer_post_init()
-            for callback in self._sidebar_callbacks:
-                self._viewer.register_ui_callback(callback, position="side")
+            if self._sidebar_callback is not None:
+                self._viewer.register_ui_callback(self._sidebar_callback, position="side")
 
         self._setup_streaming_view(num_envs)
 
@@ -1188,17 +1187,13 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         visible_env_ids = self._resolved_visible_env_ids
-        env_ids_to_log = set(visible_env_ids)
-        env_ids_to_log.update(self._environment_layers_requiring_log)
-        logged_env_ids: set[int] = set()
         try:
-            for env_id in sorted(env_ids_to_log):
+            for env_id in visible_env_ids:
                 layer_id = self._environment_layers.get(env_id)
                 if layer_id is None:
                     continue
                 self._viewer.activate(layer_id)
                 self._viewer.log_state(self._state)
-                logged_env_ids.add(env_id)
                 self._resolved_visible_env_ids = [env_id]
                 if contacts is not None:
                     self._viewer.log_contacts(contacts, self._state)
@@ -1208,7 +1203,6 @@ class NewtonVisualizer(BaseVisualizer):
                     render_newton_visualization_markers(self._viewer, [env_id], num_envs=num_envs)
         finally:
             self._resolved_visible_env_ids = visible_env_ids
-            self._environment_layers_requiring_log.difference_update(logged_env_ids)
         self._log_streaming_image()
         self._render_live_plots()
 
@@ -1220,7 +1214,7 @@ class NewtonVisualizer(BaseVisualizer):
         """
         if not callable(callback):
             raise TypeError("callback must be callable")
-        self._sidebar_callbacks.append(callback)
+        self._sidebar_callback = callback
         if self._viewer is not None:
             self._viewer.register_ui_callback(callback, position="side")
 
@@ -1276,17 +1270,15 @@ class NewtonVisualizer(BaseVisualizer):
 
         def apply(viewer: NewtonViewerGL) -> None:
             if not self._environment_layers:
-                viewer.set_visible_worlds(ids)
-                self._resolved_visible_env_ids = list(ids)
-                return
+                raise RuntimeError(
+                    "configure_environment_layers() must be called before selecting visible environments"
+                )
             unknown = set(ids).difference(self._environment_layers)
             if unknown:
                 raise ValueError(f"environment layers are not configured for indices: {sorted(unknown)}")
             visible = set(ids)
-            previously_visible = set(self._resolved_visible_env_ids)
             for env_id, layer_id in self._environment_layers.items():
                 viewer.set_layer_visible(layer_id, env_id in visible)
-            self._environment_layers_requiring_log.update(previously_visible - visible)
             self._resolved_visible_env_ids = list(ids)
 
         self._pending_viewer_commands.append(("visible environments", apply))
@@ -1438,8 +1430,8 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer.wind = None
             self._viewer._register_isaaclab_ui_callbacks()
-            for callback in self._sidebar_callbacks:
-                self._viewer.register_ui_callback(callback, position="side")
+            if self._sidebar_callback is not None:
+                self._viewer.register_ui_callback(self._sidebar_callback, position="side")
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_model_visualization_options()

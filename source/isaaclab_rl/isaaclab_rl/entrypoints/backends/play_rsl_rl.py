@@ -90,21 +90,18 @@ parser.add_argument(
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 parser.add_argument(
-    "--policy_debug",
     "--policy-debug",
     type=str,
     default=None,
     help="Watch an RSL-RL run folder and interactively compare its direct *.pt checkpoints.",
 )
 parser.add_argument(
-    "--policy_debug_max_policies",
     "--policy-debug-max-policies",
     type=int,
     default=8,
     help="Fixed policy-debug simulation capacity (default: 8).",
 )
 parser.add_argument(
-    "--policy_debug_adapter",
     "--policy-debug-adapter",
     type=str,
     default=None,
@@ -132,7 +129,7 @@ if args_cli.policy_debug:
         from isaaclab_policy_debug.cli import configure_policy_debug_args
     except ImportError as exc:
         raise RuntimeError(
-            "--policy_debug requires the optional isaaclab_policy_debug package. "
+            "--policy-debug requires the optional isaaclab_policy_debug package. "
             "Install it with ./isaaclab.sh -i policy_debug."
         ) from exc
     configure_policy_debug_args(args_cli)

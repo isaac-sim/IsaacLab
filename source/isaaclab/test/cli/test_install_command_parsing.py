@@ -21,6 +21,7 @@ from isaaclab.cli.commands.install import (
     CORE_ISAACLAB_SUBMODULES,
     MANUAL_EXTRA_FEATURES,
     OPTIONAL_ISAACLAB_SUBMODULES,
+    OPTIONAL_SUBMODULE_ROOT_EXTRAS,
     VALID_EXTRA_FEATURES,
     _install_extra_feature,
     _install_ov_extra_dependencies,
@@ -130,6 +131,7 @@ class TestInstallConstants:
         assert OPTIONAL_ISAACLAB_SUBMODULES["mimic"] == ("isaaclab_teleop", "isaaclab_mimic")
         assert OPTIONAL_ISAACLAB_SUBMODULES["policy_debug"] == ("isaaclab_policy_debug",)
         assert OPTIONAL_ISAACLAB_SUBMODULES["teleop"] == ("isaaclab_teleop",)
+        assert OPTIONAL_SUBMODULE_ROOT_EXTRAS["policy_debug"] == ("policy_debug", "rsl-rl")
 
     def test_valid_extra_features(self):
         expected = {"contrib", "newton", "ov", "rl", "tetrahedralization", "visualizer"}
