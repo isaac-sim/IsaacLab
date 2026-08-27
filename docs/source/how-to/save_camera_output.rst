@@ -75,8 +75,9 @@ to create a point cloud from the depth image and transform it to the world frame
    :start-at: # Derive pointcloud from camera at camera_index
    :end-before: # In the first few steps, things are still being instanced and Camera.data
 
-The resulting point cloud can be visualized using the :mod:`isaacsim.util.debug_draw` extension from Isaac Sim.
-This makes it easy to visualize the point cloud in the 3D space.
+The resulting point cloud can be visualized with Isaac Lab's :class:`~isaaclab.markers.VisualizationMarkers`.
+The accompanying tutorial uses ``RAY_CASTER_MARKER_CFG`` and calls
+:meth:`~isaaclab.markers.VisualizationMarkers.visualize` to draw the points in the viewport.
 
 .. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
    :language: python
@@ -92,10 +93,10 @@ To run the accompanying script, execute the following command:
 .. code-block:: bash
 
    # Usage with saving and drawing
-   python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw
+   uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --viz kit
 
    # Usage with saving only (no visualizer)
-   python scripts/tutorials/04_sensors/run_usd_camera.py --save
+   uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save
 
 
 The simulation should start, and you can observe different objects falling down. An output folder will be created
