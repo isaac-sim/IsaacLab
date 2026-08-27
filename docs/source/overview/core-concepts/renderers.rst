@@ -38,31 +38,18 @@ Choosing a renderer backend
 Visual comparison
 -----------------
 
-The clips below render the same camera, lights, materials, and motion with each backend. Six spheres
-exercise mirror-like, transparent, semi-transparent, matte, glossy, and emissive materials. This is
-a qualitative comparison of feature coverage and image character, not a performance benchmark;
-renderer settings and hardware can change the result.
+The galleries below use the same authored scene, camera, lights, materials, and initial conditions.
+Six spheres exercise mirror-like, transparent, semi-transparent, matte, glossy, and emissive
+materials. The RGB output is animated to show the spheres falling onto the table; the remaining
+outputs are representative still frames from the same run.
 
-.. figure:: ../../_static/overview/sensors/camera-renderer-newton.webp
-   :align: center
-   :width: 90%
-   :alt: Six material spheres falling onto a table, rendered by Newton Warp.
+Treat the images as a qualitative comparison of feature coverage and image character, not a
+performance benchmark. The kit-less renderers use Newton physics while Isaac RTX uses PhysX, so
+the exact sphere poses can differ. Display-only color maps make scalar, vector, and label outputs
+readable here; camera sensors still return their documented raw tensors. Closely related aliases
+and distance or ID variants are omitted because they do not add a visually distinct mode.
 
-   Newton Warp renderer
-
-.. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx.webp
-   :align: center
-   :width: 90%
-   :alt: Six material spheres falling onto a table, rendered by OVRTX.
-
-   OVRTX renderer
-
-.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx.webp
-   :align: center
-   :width: 90%
-   :alt: Six material spheres falling onto a table, rendered by Isaac RTX.
-
-   Isaac RTX renderer
+.. include:: _renderer_gallery.rst
 
 .. note::
 
