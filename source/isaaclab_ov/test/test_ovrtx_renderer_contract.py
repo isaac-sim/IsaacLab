@@ -498,9 +498,9 @@ def test_cuda_device_id_parses_the_device_string(device, expected):
     """The mapping device index is parsed from the string; a bare ``"cuda"`` parses to 0.
 
     The bare-``"cuda"`` case intentionally preserves pre-existing behavior even though Warp
-    resolves it to its current CUDA device -- see the TODO on ``_cuda_device_id``.
+    resolves it to its current CUDA device -- see the TODO on ``cuda_device_id``.
     """
-    assert ovrtx_mapping._cuda_device_id(device) == expected
+    assert ovrtx_mapping.cuda_device_id(device) == expected
 
 
 def test_map_attribute_for_warp_writes_commits_on_the_producer_stream(monkeypatch):
