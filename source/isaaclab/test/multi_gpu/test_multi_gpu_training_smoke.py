@@ -52,6 +52,11 @@ _STEADY_IDLE_TIMEOUT_S = 120
 _HARD_TIMEOUT_S = 1800
 # rsl_rl logs this once per iteration; its first appearance is what ends the startup phase.
 _ITERATION_MARKER = "Learning iteration"
+# Tail of the child's output kept in the failure message. Sized against torchrun rather than
+# guessed: when a rank dies, its ChildFailedError block alone runs past 2000 characters, so a
+# smaller budget reports only that torchrun noticed a failure and drops the rank's own error --
+# the one line that says what actually went wrong.
+_FAILURE_OUTPUT_CHARS = 8000
 
 _PHYSICS_ONLY_TASK = "Isaac-Cartpole-Direct"
 _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
@@ -259,7 +264,7 @@ def _kill_process_group(process: subprocess.Popen) -> None:
 def _assert_training_passed(outcome: str, output: str, devices: tuple[int, ...] | None = None) -> None:
     """Assert a training subprocess actually trained, not merely exited cleanly."""
     where = f" on CUDA_VISIBLE_DEVICES={devices}" if devices is not None else " with no device mask"
-    assert outcome == "passed", f"outcome={outcome}{where}\ngpus: {_gpu_state()}\n{output[-2000:]}"
+    assert outcome == "passed", f"outcome={outcome}{where}\ngpus: {_gpu_state()}\n{output[-_FAILURE_OUTPUT_CHARS:]}"
 
 
 def _require_devices(count: int) -> None:
