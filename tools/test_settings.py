@@ -121,8 +121,10 @@ TESTS_TO_SKIP = [
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
-    # Exercises tools/conftest.py itself, including a hang that has to be waited out. Needs no Isaac
-    # Sim, so it runs in the tools-tests CI job rather than spending GPU container time here.
+    # Exercises tools/conftest.py itself, including a hang that has to be waited out in real time.
+    # Needs no Isaac Sim and is not worth the CI spend. To run it when changing the orchestrator:
+    #   PYTHONPATH=tools:source/isaaclab pytest --noconftest \
+    #     source/isaaclab/test/cli/test_test_orchestrator_result_handling.py
     "test_test_orchestrator_result_handling.py",
 ]
 """A list of tests to skip in CI (see conftest.py)."""
