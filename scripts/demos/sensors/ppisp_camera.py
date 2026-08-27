@@ -10,19 +10,26 @@ the Newton Warp or Isaac RTX renderer.
 .. code-block:: bash
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
-    uv run python scripts/demos/sensors/ppisp_camera.py \
+    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer newton_renderer --visualizer none --max_steps 60
 
     # Run the same saved-image workflow with Isaac RTX.
-    uv run python scripts/demos/sensors/ppisp_camera.py \
+    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer isaac_rtx --visualizer none --max_steps 60
+
+    # Follow xform time samples on the selected camera or its parent rig at 30 simulation/render FPS.
+    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+        --input_scene /path/to/scene.usd --renderer isaac_rtx \
+        --fps 30 --write_fps 10 --visualizer none
 
 """
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import json
 import os
+import time
 from typing import Any
 
 from isaaclab.app import AppLauncher
@@ -48,7 +55,13 @@ parser.add_argument(
     "--camera_time_code",
     type=float,
     default=0.0,
-    help="USD time code used to bake the selected camera pose into duplicated env cameras for Newton.",
+    help="USD time code used for a static camera when no xform trajectory is authored.",
+)
+parser.add_argument(
+    "--fps",
+    type=float,
+    default=30.0,
+    help="Simulation and camera-render FPS; also used to resample the USD camera trajectory.",
 )
 parser.add_argument(
     "--num_envs",
@@ -73,13 +86,73 @@ parser.add_argument(
     help="Camera renderer backend to use. Newton Warp is the default for this PPISP smoke.",
 )
 parser.add_argument(
+    "--render_only",
+    action="store_true",
+    help="Render and save only the PPISP camera output; skip baseline, comparison, and diff outputs.",
+)
+isaacrtx_settings_group = parser.add_argument_group("Isaac RTX Gaussian settings")
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_gaussian_max_intersections",
+    type=int,
+    default=None,
+    help=(
+        "Maximum number of Gaussian intersections evaluated along each ray before traversal stops; lower values "
+        "reduce RTX work but may omit farther Gaussian contributions, while -1 means unlimited."
+    ),
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_gaussian_self_shadow_distance",
+    type=float,
+    default=None,
+    help="RTX Gaussian self-shadow distance in Gaussian-radius units; 0 disables the filter.",
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_enable_accumulation",
+    action="store_true",
+    help="Enable RTX ray-tracing accumulation.",
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_accumulation_limit",
+    type=int,
+    default=None,
+    help="Maximum RTX ray-tracing accumulation iterations/frames.",
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_gaussian_depth_all_hits",
+    action="store_true",
+    help=(
+        "Use all hits when accumulating RTPT Gaussian depth only; this does not affect Gaussian color/albedo "
+        "or general RTX accumulation."
+    ),
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_gaussian_accumulated_albedo",
+    action="store_true",
+    help="Accumulate Gaussian SH0 color as albedo in RTPT.",
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_gaussian_skip_tonemapping",
+    action="store_true",
+    help="Skip tonemapping for Gaussian pixels in RTPT.",
+)
+isaacrtx_settings_group.add_argument(
+    "--isaacrtx_render_mode",
+    choices=["RayTracedLighting", "RealTimePathTracing", "PathTracing"],
+    default=None,
+    help="Isaac RTX render mode; RTPT-only Gaussian options require RealTimePathTracing.",
+)
+parser.add_argument(
     "--warmup_steps",
     type=int,
     default=None,
     help="Simulation/render steps to run before saving images. Defaults to 32 for Isaac RTX and 0 for Newton.",
 )
-parser.add_argument("--max_steps", type=int, default=120, help="Maximum simulation steps before exiting.")
-parser.add_argument("--save_interval", type=int, default=20, help="Interval, in steps, for saving comparison images.")
+parser.add_argument(
+    "--write_fps",
+    type=float,
+    default=None,
+    help="Output image writing rate in FPS. Defaults to --fps.",
+)
 parser.add_argument(
     "--ppisp_responsivity",
     type=float,
@@ -91,6 +164,11 @@ parser.add_argument(
     type=str,
     default=None,
     help="Directory to write comparison images. Defaults to scripts/demos/sensors/output/ppisp_camera.",
+)
+parser.add_argument(
+    "--profile",
+    action="store_true",
+    help="Profile simulation, camera updates, GPU transfers, and disk writes.",
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -112,11 +190,35 @@ if args_cli.warmup_steps is None:
     args_cli.warmup_steps = 32 if args_cli.renderer == "isaac_rtx" else 0
 if args_cli.warmup_steps < 0:
     parser.error("--warmup_steps must be non-negative.")
-if args_cli.max_steps < 1:
-    parser.error("--max_steps must be at least 1.")
-if args_cli.save_interval < 1:
-    parser.error("--save_interval must be at least 1.")
-
+if args_cli.fps <= 0.0:
+    parser.error("--fps must be positive.")
+if args_cli.write_fps is None:
+    args_cli.write_fps = args_cli.fps
+if args_cli.write_fps <= 0.0:
+    parser.error("--write_fps must be positive.")
+if args_cli.isaacrtx_gaussian_max_intersections is not None and args_cli.isaacrtx_gaussian_max_intersections < -1:
+    parser.error("--isaacrtx_gaussian_max_intersections must be -1 or non-negative.")
+if (
+    args_cli.isaacrtx_gaussian_self_shadow_distance is not None
+    and args_cli.isaacrtx_gaussian_self_shadow_distance < 0.0
+):
+    parser.error("--isaacrtx_gaussian_self_shadow_distance must be non-negative.")
+if args_cli.isaacrtx_accumulation_limit is not None and args_cli.isaacrtx_accumulation_limit < 1:
+    parser.error("--isaacrtx_accumulation_limit must be positive.")
+isaacrtx_settings_requested = any(
+    [
+        args_cli.isaacrtx_gaussian_max_intersections is not None,
+        args_cli.isaacrtx_gaussian_self_shadow_distance is not None,
+        args_cli.isaacrtx_enable_accumulation,
+        args_cli.isaacrtx_accumulation_limit is not None,
+        args_cli.isaacrtx_gaussian_depth_all_hits,
+        args_cli.isaacrtx_gaussian_accumulated_albedo,
+        args_cli.isaacrtx_gaussian_skip_tonemapping,
+        args_cli.isaacrtx_render_mode is not None,
+    ]
+)
+if isaacrtx_settings_requested and args_cli.renderer != "isaac_rtx":
+    parser.error("Isaac RTX settings require --renderer isaac_rtx.")
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -125,7 +227,7 @@ simulation_app = app_launcher.app
 
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
+import warp as wp
 from isaaclab_ppisp._demo_utils import (
     find_ppisp_camera_bindings,
     format_available_ppisp_cameras,
@@ -189,11 +291,99 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
         physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
 
     return sim_utils.SimulationCfg(
-        dt=0.005,
+        dt=1.0 / args_cli.fps,
         device=args_cli.device,
         physics=physics_cfg,
         use_fabric=not args_cli.disable_fabric,
     )
+
+
+def log_current_isaacrtx_settings(prefix: str = "[INFO] Verified settings") -> None:
+    """Log the current Isaac RTX settings after USD and renderer initialization."""
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    settings = get_settings_manager()
+    if args_cli.renderer != "isaac_rtx":
+        return
+    aa_op = settings.get("/rtx/post/aa/op")
+    aa_op_names = {0: "None", 1: "TAA", 2: "FXAA", 3: "DLSS", 4: "RTXAA"}
+    aa_op_name = aa_op_names.get(aa_op, "unknown")
+    dlss_denoiser_enabled = settings.get("/rtx-transient/dldenoiser/enabled")
+    registered_invert_color_correction = settings.get("/rtx/post/registeredCompositing/invertColorCorrection")
+    print(
+        f"{prefix}: "
+        f"renderMode={settings.get('/rtx/rendermode')!r}, "
+        f"aaOp={aa_op_name}({aa_op!r}), "
+        f"dlssDenoiserEnabled={dlss_denoiser_enabled!r}, "
+        f"dlssHistoryCandidate={aa_op in (3, 4) and dlss_denoiser_enabled!r}, "
+        f"pathTracingDlssEnabled={settings.get('/rtx/pathtracing/dlss/enabled')!r}, "
+        f"rt2Enabled={settings.get('/rtx-transient/rt2Enabled')!r}, "
+        f"gaussianEnabled={settings.get('/rtx/geometry/gaussian/enabled')!r}, "
+        f"maxIntersections={settings.get('/rtx/raytracing/gaussian/maxIntersections')!r}, "
+        f"selfShadowDistance={settings.get('/rtx/raytracing/gaussian/selfShadowDistance')!r}, "
+        f"accumulationEnabled={settings.get('/rtx/raytracing/enableAccumulation')!r}, "
+        f"accumulationLimit={settings.get('/rtx/raytracing/accumulationLimit')!r}, "
+        f"gaussianDepthAllHits={settings.get('/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled')!r}, "
+        f"gaussianAccumulatedAlbedo={settings.get('/rtx/rtpt/gaussian/accumulatedAlbedo/enabled')!r}, "
+        f"gaussianSkipTonemapping={settings.get('/rtx/rtpt/gaussian/skipTonemapping/enabled')!r}, "
+        f"disableNuRecPostProcessings={settings.get('/omni/rtx/nre/compositing/disableNuRecPostProcessings')!r}, "
+        f"nurecCompositingLogLevel={settings.get('/omni/rtx/nre/compositing/logLevel')!r}, "
+        f"registeredCompositingInvertColorCorrection={registered_invert_color_correction!r}, "
+        f"registeredCompositingInvertToneMap={settings.get('/rtx/post/registeredCompositing/invertToneMap')!r}",
+        flush=True,
+    )
+
+
+def apply_rtx_settings() -> None:
+    """Apply the default and optional Isaac RTX settings requested on the command line."""
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    if args_cli.renderer != "isaac_rtx":
+        return
+
+    settings = get_settings_manager()
+    settings.set_bool("/omni/rtx/nre/compositing/disableNuRecPostProcessings", True)
+    settings.set_int("/omni/rtx/nre/compositing/logLevel", 4)
+    settings.set_int("/omni/rtx/nre/compositing/rendererHints", 0)
+    settings.set_bool("/rtx/post/registeredCompositing/invertColorCorrection", False)
+    settings.set_bool("/rtx/post/registeredCompositing/invertToneMap", False)
+    applied = [
+        "disableNuRecPostProcessings=true",
+        "nreCompositingLogLevel=4",
+        "nreCompositingRendererHints=0",
+        "registeredCompositingInvertColorCorrection=false",
+        "registeredCompositingInvertToneMap=false",
+    ]
+
+    if args_cli.isaacrtx_gaussian_max_intersections is not None:
+        settings.set_int("/rtx/raytracing/gaussian/maxIntersections", args_cli.isaacrtx_gaussian_max_intersections)
+        applied.append(f"maxIntersections={args_cli.isaacrtx_gaussian_max_intersections}")
+    if args_cli.isaacrtx_gaussian_self_shadow_distance is not None:
+        settings.set_float(
+            "/rtx/raytracing/gaussian/selfShadowDistance", args_cli.isaacrtx_gaussian_self_shadow_distance
+        )
+        applied.append(f"selfShadowDistance={args_cli.isaacrtx_gaussian_self_shadow_distance:g}")
+    if args_cli.isaacrtx_enable_accumulation:
+        settings.set_bool("/rtx/raytracing/enableAccumulation", True)
+        applied.append("enableAccumulation=true")
+    if args_cli.isaacrtx_accumulation_limit is not None:
+        settings.set_int("/rtx/raytracing/accumulationLimit", args_cli.isaacrtx_accumulation_limit)
+        applied.append(f"accumulationLimit={args_cli.isaacrtx_accumulation_limit}")
+    if args_cli.isaacrtx_gaussian_depth_all_hits:
+        settings.set_bool("/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled", True)
+        applied.append("gaussianDepthAllHits=true")
+    if args_cli.isaacrtx_gaussian_accumulated_albedo:
+        settings.set_bool("/rtx/rtpt/gaussian/accumulatedAlbedo/enabled", True)
+        applied.append("gaussianAccumulatedAlbedo=true")
+    if args_cli.isaacrtx_gaussian_skip_tonemapping:
+        settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", True)
+        applied.append("gaussianSkipTonemapping=true")
+    if args_cli.isaacrtx_render_mode is not None:
+        settings.set_string("/rtx/rendermode", args_cli.isaacrtx_render_mode)
+        applied.append(f"renderMode={args_cli.isaacrtx_render_mode}")
+
+    if applied:
+        print("[INFO] Applied RTX/Gaussian settings: " + ", ".join(applied), flush=True)
 
 
 def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim]:
@@ -259,8 +449,45 @@ def source_camera_path_to_env_regex(source_stage: Usd.Stage, source_camera_prim_
     return f"/World/envs/env_.*/Scene/{camera_rel_path}"
 
 
-def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str) -> None:
-    """Bake the selected USD camera pose at ``camera_time_code`` into duplicated env camera prims."""
+def get_trajectory_time_samples(source_stage: Usd.Stage, source_camera_prim_path: str) -> list[float]:
+    """Return uniformly spaced USD times spanning the camera and parent-rig xform samples."""
+    default_prim = source_stage.GetDefaultPrim()
+    if not default_prim:
+        raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
+
+    prim = source_stage.GetPrimAtPath(source_camera_prim_path)
+    if not prim or not prim.IsValid():
+        raise RuntimeError(f"Camera prim not found: {source_camera_prim_path}")
+
+    time_samples = set()
+    while prim and prim.IsValid():
+        xformable = UsdGeom.Xformable(prim)
+        for xform_op in xformable.GetOrderedXformOps():
+            time_samples.update(float(value) for value in xform_op.GetAttr().GetTimeSamples())
+        if prim == default_prim:
+            break
+        prim = prim.GetParent()
+
+    authored_times = sorted(time_samples)
+    if not authored_times:
+        return []
+    start_time = authored_times[0]
+    end_time = authored_times[-1]
+    time_codes_per_second = source_stage.GetTimeCodesPerSecond()
+    if time_codes_per_second <= 0.0:
+        time_codes_per_second = 24.0
+    time_step = time_codes_per_second / args_cli.fps
+    sample_count = int(np.floor((end_time - start_time) / time_step)) + 1
+    trajectory_times = [start_time + index * time_step for index in range(sample_count)]
+    if trajectory_times[-1] < end_time:
+        trajectory_times.append(end_time)
+    return trajectory_times
+
+
+def bake_source_camera_pose_to_envs(
+    source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float | None = None, *, log: bool = True
+) -> None:
+    """Bake a USD camera pose at ``time_code`` into duplicated env camera prims."""
     default_prim = source_stage.GetDefaultPrim()
     if not default_prim:
         raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
@@ -269,8 +496,9 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
     if not source_camera_prim or not source_camera_prim.IsValid():
         raise RuntimeError(f"Camera prim not found: {source_camera_prim_path}")
 
-    time_code = Usd.TimeCode(args_cli.camera_time_code)
-    source_cache = UsdGeom.XformCache(time_code)
+    if time_code is None:
+        time_code = args_cli.camera_time_code
+    source_cache = UsdGeom.XformCache(Usd.TimeCode(time_code))
     source_default_world = source_cache.GetLocalToWorldTransform(default_prim)
     source_camera_world = source_cache.GetLocalToWorldTransform(source_camera_prim)
     source_camera_in_default = source_camera_world * source_default_world.GetInverse()
@@ -302,10 +530,11 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
         xformable.SetXformOpOrder([xform_op])
         authored_count += 1
 
-    print(
-        f"[INFO] Baked camera pose at USD time {args_cli.camera_time_code:g} into {authored_count} env camera(s).",
-        flush=True,
-    )
+    if log:
+        print(
+            f"[INFO] Baked camera pose at USD time {time_code:g} into {authored_count} env camera(s).",
+            flush=True,
+        )
 
 
 def get_render_product_resolution(render_product_prim: Usd.Prim | None) -> tuple[int, int] | None:
@@ -379,8 +608,21 @@ def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int
     )
 
 
+@wp.kernel
+def compute_rgb_diff(
+    baseline: wp.array(dtype=wp.uint8, ndim=4),
+    ppisp: wp.array(dtype=wp.uint8, ndim=4),
+    diff: wp.array(dtype=wp.float32, ndim=4),
+) -> None:
+    """Compute normalized RGB absolute difference on the camera array's device."""
+    env_id, row, col, channel = wp.tid()
+    diff[env_id, row, col, channel] = (
+        wp.abs(wp.float32(ppisp[env_id, row, col, channel]) - wp.float32(baseline[env_id, row, col, channel])) / 255.0
+    )
+
+
 def save_images_grid(
-    images: list[torch.Tensor],
+    images: list[np.ndarray],
     nrow: int = 1,
     subtitles: list[str] | None = None,
     title: str | None = None,
@@ -397,7 +639,7 @@ def save_images_grid(
         axes = np.array([axes])
 
     for idx, (img, ax) in enumerate(zip(images, axes)):
-        ax.imshow(img.detach().cpu().clamp(0.0, 1.0).numpy())
+        ax.imshow(np.clip(img, 0.0, 1.0))
         ax.axis("off")
         if subtitles:
             ax.set_title(subtitles[idx])
@@ -412,81 +654,214 @@ def save_images_grid(
     plt.close()
 
 
-def make_tiled_image(images: torch.Tensor) -> torch.Tensor:
+def make_tiled_image(images: np.ndarray) -> np.ndarray:
     """Stack a camera batch vertically into one image."""
-    return torch.cat([image for image in images], dim=0)
+    return np.concatenate([image for image in images], axis=0)
 
 
-def save_tensor_image(image: torch.Tensor, filename: str) -> None:
-    """Save a tensor image in [0, 1] without axes, titles, or layout scaling."""
+def save_array_image(image: np.ndarray, filename: str) -> None:
+    """Save an array image in [0, 1] without axes, titles, or layout scaling."""
     os.makedirs(os.path.dirname(filename), exist_ok=True)
-    plt.imsave(filename, image.detach().cpu().clamp(0.0, 1.0).numpy())
+    plt.imsave(filename, np.clip(image, 0.0, 1.0))
 
 
-def corner_center_ratio(rgb: torch.Tensor) -> float:
+def corner_center_ratio(rgb: np.ndarray) -> float:
     """Return the average corner brightness divided by center brightness for one RGB image."""
     h, w = rgb.shape[:2]
     patch = max(4, min(h, w) // 8)
     cy, cx = h // 2 - patch // 2, w // 2 - patch // 2
-    center = rgb[cy : cy + patch, cx : cx + patch, :3].float().mean()
-    corners = torch.stack(
+    center = rgb[cy : cy + patch, cx : cx + patch, :3].astype(np.float32).mean()
+    corners = np.stack(
         [
-            rgb[:patch, :patch, :3].float().mean(),
-            rgb[:patch, -patch:, :3].float().mean(),
-            rgb[-patch:, :patch, :3].float().mean(),
-            rgb[-patch:, -patch:, :3].float().mean(),
+            rgb[:patch, :patch, :3].astype(np.float32).mean(),
+            rgb[:patch, -patch:, :3].astype(np.float32).mean(),
+            rgb[-patch:, :patch, :3].astype(np.float32).mean(),
+            rgb[-patch:, -patch:, :3].astype(np.float32).mean(),
         ]
     ).mean()
-    return (corners / center.clamp_min(1.0)).item()
+    return float(corners / max(center, 1.0))
 
 
-def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppisp_camera: Camera) -> None:
-    """Run the simulator and periodically save baseline-vs-PPISP images."""
+def profile_sync(device: str | None) -> None:
+    """Synchronize a device only when profiling GPU work."""
+    if args_cli.profile and device is not None and device.startswith("cuda"):
+        wp.synchronize_device(device)
+
+
+def profile_record(profile: dict[str, dict[str, float]], name: str, elapsed: float) -> None:
+    """Accumulate profiling measurements in seconds."""
+    if not args_cli.profile:
+        return
+    entry = profile.setdefault(name, {"count": 0.0, "total_seconds": 0.0, "max_seconds": 0.0})
+    entry["count"] += 1.0
+    entry["total_seconds"] += elapsed
+    entry["max_seconds"] = max(entry["max_seconds"], elapsed)
+
+
+def report_profile(profile: dict[str, dict[str, float]], output_dir: str, num_steps: int) -> None:
+    """Print and save profiling results when profiling is enabled."""
+    if not args_cli.profile:
+        return
+    results = {
+        "steps": num_steps,
+        "sections": {
+            name: {
+                **values,
+                "average_seconds": values["total_seconds"] / values["count"] if values["count"] else 0.0,
+            }
+            for name, values in profile.items()
+        },
+    }
+    print("[PROFILE] section                         total(s)   avg(ms)   max(ms)", flush=True)
+    for name, values in results["sections"].items():
+        print(
+            f"[PROFILE] {name:<32} {values['total_seconds']:>8.3f} "
+            f"{values['average_seconds'] * 1000.0:>9.3f} {values['max_seconds'] * 1000.0:>9.3f}",
+            flush=True,
+        )
+    profile_path = os.path.join(output_dir, "profile.json")
+    os.makedirs(os.path.dirname(profile_path), exist_ok=True)
+    with open(profile_path, "w", encoding="utf-8") as profile_file:
+        json.dump(results, profile_file, indent=2)
+    print(f"[PROFILE] Saved profile to {profile_path}", flush=True)
+
+
+def run_simulator(
+    sim: sim_utils.SimulationContext,
+    baseline_camera: Camera | None,
+    ppisp_camera: Camera,
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    trajectory_times: list[float],
+) -> None:
+    """Run the simulator through the trajectory and periodically save rendered images."""
     sim_dt = sim.get_physics_dt()
+    write_interval = max(1, int(round(1.0 / (args_cli.write_fps * sim_dt))))
     output_dir = args_cli.output_dir
     if output_dir is None:
         output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ppisp_camera")
     os.makedirs(output_dir, exist_ok=True)
+    comparison_dir = os.path.join(output_dir, "comparison")
+    baseline_dir = os.path.join(output_dir, "baseline")
+    ppisp_dir = os.path.join(output_dir, "ppisp")
+    diff_dir = os.path.join(output_dir, "diff")
 
     if args_cli.warmup_steps > 0:
         print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
+    bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path, trajectory_times[0], log=False)
     for _ in range(args_cli.warmup_steps):
         sim.step()
-        baseline_camera.update(sim_dt)
-        ppisp_camera.update(sim_dt)
+        if baseline_camera is not None:
+            baseline_camera.update(sim_dt, force_recompute=True)
+        ppisp_camera.update(sim_dt, force_recompute=True)
 
     count = 0
     reported_shape = False
+    profile: dict[str, dict[str, float]] = {}
+    profile_device = str(ppisp_camera.data.output["rgb"].warp.device)
+    reported_post_load_settings = False
+    target_steps = max(len(trajectory_times), write_interval)
+    next_write_step = write_interval
+    print(
+        f"[INFO] Simulation dt={sim_dt:g}s ({1.0 / sim_dt:g} FPS), "
+        f"writing at {args_cli.write_fps:g} FPS (every {write_interval} render step(s)).",
+        flush=True,
+    )
     while simulation_app.is_running():
+        step_start = time.perf_counter() if args_cli.profile else 0.0
+        section_start = time.perf_counter() if args_cli.profile else 0.0
+        trajectory_index = min(count, len(trajectory_times) - 1)
+        bake_source_camera_pose_to_envs(
+            source_stage, source_camera_prim_path, trajectory_times[trajectory_index], log=False
+        )
+        profile_sync(profile_device)
+        profile_record(profile, "trajectory_bake", time.perf_counter() - section_start)
+
+        profile_sync(profile_device)
+        section_start = time.perf_counter() if args_cli.profile else 0.0
         sim.step()
-        baseline_camera.update(sim_dt)
-        ppisp_camera.update(sim_dt)
+        profile_sync(profile_device)
+        profile_record(profile, "simulation_step", time.perf_counter() - section_start)
+
+        if baseline_camera is not None:
+            section_start = time.perf_counter() if args_cli.profile else 0.0
+            baseline_camera.update(sim_dt, force_recompute=True)
+            profile_sync(profile_device)
+            profile_record(profile, "baseline_camera_update", time.perf_counter() - section_start)
+
+        section_start = time.perf_counter() if args_cli.profile else 0.0
+        ppisp_camera.update(sim_dt, force_recompute=True)
+        profile_sync(profile_device)
+        profile_record(profile, "ppisp_camera_update", time.perf_counter() - section_start)
+        if not reported_post_load_settings:
+            log_current_isaacrtx_settings("[INFO] Post-load verified settings")
+            reported_post_load_settings = True
         count += 1
 
-        if count % args_cli.save_interval == 0:
-            baseline = baseline_camera.data.output["rgb"][..., :3]
-            ppisp = ppisp_camera.data.output["rgb"][..., :3]
-            diff = (ppisp.float() - baseline.float()).abs() / 255.0
+        is_final_step = count >= target_steps
+        if count == next_write_step or is_final_step:
+            ppisp_wp = ppisp_camera.data.output["rgb"].warp
+            if args_cli.render_only:
+                section_start = time.perf_counter() if args_cli.profile else 0.0
+                ppisp = ppisp_wp.numpy()
+                profile_record(profile, "gpu_to_cpu_transfer", time.perf_counter() - section_start)
+                if not reported_shape:
+                    print(f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}", flush=True)
+                    reported_shape = True
+                per_env_ppisp_mean = ppisp.astype(np.float32).mean(axis=(1, 2, 3))
+                print(
+                    f"[INFO] step={count} mean_ppisp="
+                    + ", ".join(f"{value:.2f}" for value in per_env_ppisp_mean.tolist()),
+                    flush=True,
+                )
+                section_start = time.perf_counter() if args_cli.profile else 0.0
+                save_array_image(
+                    make_tiled_image(ppisp / 255.0),
+                    os.path.join(ppisp_dir, f"ppisp_camera_{count:06d}.png"),
+                )
+                profile_record(profile, "disk_writes", time.perf_counter() - section_start)
+                profile_record(profile, "total_step", time.perf_counter() - step_start)
+                if count >= target_steps:
+                    break
+                next_write_step += write_interval
+                continue
+
+            baseline_wp = baseline_camera.data.output["rgb"].warp
+            section_start = time.perf_counter() if args_cli.profile else 0.0
+            diff_wp = wp.empty(ppisp_wp.shape, dtype=wp.float32, device=ppisp_wp.device)
+            wp.launch(
+                compute_rgb_diff,
+                dim=ppisp_wp.shape,
+                inputs=[baseline_wp, ppisp_wp, diff_wp],
+                device=ppisp_wp.device,
+            )
+            profile_sync(profile_device)
+            profile_record(profile, "warp_difference", time.perf_counter() - section_start)
+
+            # Transfer image buffers to NumPy only at the disk-writing boundary.
+            section_start = time.perf_counter() if args_cli.profile else 0.0
+            baseline = baseline_wp.numpy()
+            ppisp = ppisp_wp.numpy()
+            diff = diff_wp.numpy()
+            profile_record(profile, "gpu_to_cpu_transfer", time.perf_counter() - section_start)
             if not reported_shape:
                 print(f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}", flush=True)
                 reported_shape = True
-            mean_abs_delta = diff.mean().item() * 255.0
+            mean_abs_delta = float(diff.mean()) * 255.0
             ratios = [corner_center_ratio(ppisp[i]) for i in range(ppisp.shape[0])]
             ratio = sum(ratios) / len(ratios)
-            per_env_delta = diff.mean(dim=(1, 2, 3)) * 255.0
-            per_env_ppisp_mean = ppisp.float().mean(dim=(1, 2, 3))
+            per_env_delta = diff.mean(axis=(1, 2, 3)) * 255.0
+            per_env_ppisp_mean = ppisp.astype(np.float32).mean(axis=(1, 2, 3))
             print(
                 f"[INFO] step={count} mean_abs_delta={mean_abs_delta:.2f} mean_ppisp_corner_center_ratio={ratio:.3f}",
                 flush=True,
             )
             print(
-                "[INFO] per-env mean_abs_delta="
-                + ", ".join(f"{value:.2f}" for value in per_env_delta.detach().cpu().tolist()),
+                "[INFO] per-env mean_abs_delta=" + ", ".join(f"{value:.2f}" for value in per_env_delta.tolist()),
                 flush=True,
             )
             print(
-                "[INFO] per-env ppisp_mean="
-                + ", ".join(f"{value:.2f}" for value in per_env_ppisp_mean.detach().cpu().tolist()),
+                "[INFO] per-env ppisp_mean=" + ", ".join(f"{value:.2f}" for value in per_env_ppisp_mean.tolist()),
                 flush=True,
             )
             images = []
@@ -494,34 +869,41 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
             for env_id in range(ppisp.shape[0]):
                 images.extend(
                     [
-                        baseline[env_id].float() / 255.0,
-                        ppisp[env_id].float() / 255.0,
+                        baseline[env_id] / 255.0,
+                        ppisp[env_id] / 255.0,
                         diff[env_id],
                     ]
                 )
                 subtitles.extend([f"env {env_id} baseline", f"env {env_id} PPISP", f"env {env_id} diff"])
+            section_start = time.perf_counter() if args_cli.profile else 0.0
             save_images_grid(
                 images,
                 nrow=ppisp.shape[0],
                 subtitles=subtitles,
                 title="USD-authored PPISP on duplicated Gaussian scene envs",
-                filename=os.path.join(output_dir, f"ppisp_camera_{count:04d}.png"),
+                filename=os.path.join(comparison_dir, f"ppisp_camera_{count:06d}.png"),
             )
-            save_tensor_image(
-                make_tiled_image(baseline.float() / 255.0),
-                os.path.join(output_dir, f"ppisp_camera_{count:04d}_baseline_tiled.png"),
+            save_array_image(
+                make_tiled_image(baseline / 255.0),
+                os.path.join(baseline_dir, f"ppisp_camera_{count:06d}.png"),
             )
-            save_tensor_image(
-                make_tiled_image(ppisp.float() / 255.0),
-                os.path.join(output_dir, f"ppisp_camera_{count:04d}_ppisp_tiled.png"),
+            save_array_image(
+                make_tiled_image(ppisp / 255.0),
+                os.path.join(ppisp_dir, f"ppisp_camera_{count:06d}.png"),
             )
-            save_tensor_image(
+            save_array_image(
                 make_tiled_image(diff),
-                os.path.join(output_dir, f"ppisp_camera_{count:04d}_diff_tiled.png"),
+                os.path.join(diff_dir, f"ppisp_camera_{count:06d}.png"),
             )
+            profile_record(profile, "disk_writes", time.perf_counter() - section_start)
 
-        if args_cli.max_steps is not None and count >= args_cli.max_steps:
+            next_write_step += write_interval
+
+        profile_record(profile, "total_step", time.perf_counter() - step_start)
+
+        if count >= target_steps:
             break
+    report_profile(profile, output_dir, count)
 
 
 def main() -> None:
@@ -536,20 +918,44 @@ def main() -> None:
 
     sim_utils.create_new_stage()
     sim_cfg = make_sim_cfg()
+    apply_rtx_settings()
     sim = sim_utils.SimulationContext(sim_cfg)
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
     scene = create_duplicated_env_scene()
-    if args_cli.renderer == "newton_renderer":
-        bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path)
-    baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
+    trajectory_times = get_trajectory_time_samples(source_stage, source_camera_prim_path)
+    if not trajectory_times:
+        trajectory_times = [args_cli.camera_time_code]
+        print(
+            f"[INFO] No USD xform time samples found; rendering the static camera for "
+            f"at least one image at {args_cli.write_fps:g} write FPS.",
+            flush=True,
+        )
+    else:
+        print(
+            f"[INFO] Found {len(trajectory_times)} camera trajectory time sample(s): "
+            f"{trajectory_times[0]:g}..{trajectory_times[-1]:g}.",
+            flush=True,
+        )
+    baseline_camera = None
+    if not args_cli.render_only:
+        baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
     ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
+    # Apply after RTX/Replicator camera construction, but before reset, warmup, and the first render.
+    apply_rtx_settings()
     print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
     print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
 
     sim.reset()
     print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
-    run_simulator(sim, baseline_camera, ppisp_camera)
+    run_simulator(
+        sim,
+        baseline_camera,
+        ppisp_camera,
+        source_stage,
+        source_camera_prim_path,
+        trajectory_times,
+    )
     del scene
 
 
