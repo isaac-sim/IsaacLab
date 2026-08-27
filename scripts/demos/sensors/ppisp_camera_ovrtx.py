@@ -7,12 +7,11 @@
 This script demonstrates USD-authored PPISP on a Gaussian scene through the kit-less OVRTX renderer.
 
 It mirrors ``ppisp_camera.py``: the same CLI arguments, trajectory playback, and output layout, minus the
-Kit-only options. OVRTX settings are configured through ``OVRTX_*`` environment variables instead.
+Kit-only options.
 
 .. code-block:: bash
 
     # Run a finite smoke and save comparison images.
-    OVRTX_rtx_rtpt_gaussian_skipTonemapping_enabled=0 \
     uv run python scripts/demos/sensors/ppisp_camera_ovrtx.py \
         --input_scene /path/to/scene.usdz --num_frames 3 --num_envs 8
 

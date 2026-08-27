@@ -203,12 +203,9 @@ class Camera(SensorBase):
         elif renderer_type == "ovrtx" and require_hdr_output:
             from isaaclab.app.settings_manager import get_settings_manager
 
+            # OVRTX has no carb.settings to delegate to, so this is recorded in the settings manager
+            # and forwarded to the RTX runtime by the OVRTX renderer's constructor.
             get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings set_bool is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
