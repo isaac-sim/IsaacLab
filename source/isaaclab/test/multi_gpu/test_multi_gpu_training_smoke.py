@@ -54,6 +54,8 @@ _STEADY_IDLE_TIMEOUT_S = 120
 _HARD_TIMEOUT_S = 1800
 # rsl_rl logs this once per iteration; its first appearance is what ends the startup phase.
 _ITERATION_MARKER = "Learning iteration"
+# How often to record which process holds memory on which GPU while the run is alive.
+_GPU_SAMPLE_INTERVAL_S = 15
 # Tail of the child's output kept in the failure message. Sized against torchrun rather than
 # guessed: when a rank dies, its ChildFailedError block alone runs past 2000 characters, so a
 # smaller budget reports only that torchrun noticed a failure and drops the rank's own error --
@@ -146,6 +148,28 @@ def _gpu_state() -> str:
     return " | ".join(line.strip() for line in probe.stdout.splitlines() if line.strip())
 
 
+def _gpu_processes() -> str:
+    """Return which process holds how much memory on which GPU, as ``pid@bus=used``.
+
+    Sampled while the child is alive: a totals-only snapshot taken after cleanup shows empty
+    devices, so it cannot separate a workload too large for the card from ranks allocating on a
+    device that is not theirs.
+    """
+    probe = subprocess.run(
+        ["nvidia-smi", "--query-compute-apps=pid,gpu_bus_id,used_memory", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0:
+        return "nvidia-smi unavailable"
+    entries = []
+    for line in probe.stdout.splitlines():
+        fields = [field.strip() for field in line.split(",")]
+        if len(fields) == 3:
+            entries.append(f"{fields[0]}@{fields[1][-7:]}={fields[2]}")
+    return " | ".join(entries) or "no compute processes"
+
+
 def _run_training(
     devices: tuple[int, ...] | None,
     task: str,
@@ -166,8 +190,9 @@ def _run_training(
         num_gpus: Number of ranks to launch.
 
     Returns:
-        ``(outcome, output)`` where outcome is ``"passed"``, ``"failed"`` or ``"hung"``, and
-        output is the combined stdout/stderr captured so far.
+        ``(outcome, output, gpu_processes)`` where outcome is ``"passed"``, ``"failed"`` or
+        ``"hung"``, output is the combined stdout/stderr captured so far, and gpu_processes is the
+        last per-process GPU placement sampled while the child was alive.
     """
     env = dict(os.environ)
     # Docker's --gpus flag is unavailable from inside the test process, so devices are selected
@@ -203,6 +228,8 @@ def _run_training(
     last_output = started
     lines: list[str] = []
     iterating = False
+    last_sampled = started
+    gpu_processes = "not sampled"
     # Own process group: train_multigpu.py spawns torchrun, which spawns the rank workers.
     # Killing only the wrapper leaves Kit ranks alive holding GPU memory and the rendezvous port.
     process = subprocess.Popen(
@@ -220,12 +247,15 @@ def _run_training(
         while True:
             line = process.stdout.readline()  # type: ignore[union-attr]
             now = time.monotonic()
+            if now - last_sampled > _GPU_SAMPLE_INTERVAL_S:
+                gpu_processes = _gpu_processes()
+                last_sampled = now
             # Checked every iteration, not only when the pipe is quiet: a child that floods stdout
             # would otherwise never reach the backstop and could grow ``lines`` without bound.
             idle_budget = _STEADY_IDLE_TIMEOUT_S if iterating else _STARTUP_IDLE_TIMEOUT_S
             if now - started > _HARD_TIMEOUT_S or now - last_output > idle_budget:
                 _kill_process_group(process)
-                return "hung", "".join(lines)
+                return "hung", "".join(lines), gpu_processes
             if line:
                 lines.append(line)
                 last_output = now
@@ -246,7 +276,7 @@ def _run_training(
         # Load-bearing: a run that OOMs or exits early can still return 0.
         and "Training time:" in output
     )
-    return ("passed" if passed else "failed"), output
+    return ("passed" if passed else "failed"), output, gpu_processes
 
 
 def _kill_process_group(process: subprocess.Popen) -> None:
@@ -263,10 +293,15 @@ def _kill_process_group(process: subprocess.Popen) -> None:
         process.wait(timeout=30)
 
 
-def _assert_training_passed(outcome: str, output: str, devices: tuple[int, ...] | None = None) -> None:
+def _assert_training_passed(
+    outcome: str, output: str, gpu_processes: str, devices: tuple[int, ...] | None = None
+) -> None:
     """Assert a training subprocess actually trained, not merely exited cleanly."""
     where = f" on CUDA_VISIBLE_DEVICES={devices}" if devices is not None else " with no device mask"
-    assert outcome == "passed", f"outcome={outcome}{where}\ngpus: {_gpu_state()}\n{output[-_FAILURE_OUTPUT_CHARS:]}"
+    assert outcome == "passed", (
+        f"outcome={outcome}{where}\ngpus: {_gpu_state()}\nlast live placement: {gpu_processes}\n"
+        f"{output[-_FAILURE_OUTPUT_CHARS:]}"
+    )
 
 
 def _require_devices(count: int) -> None:
