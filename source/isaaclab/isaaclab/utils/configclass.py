@@ -241,10 +241,10 @@ def _add_annotation_types(cls):
                 hints[key] = f"type[{value.__name__}]"
         # add members that only have a type annotation and no default value
         # note: these members are not present in the class ``__dict__``, so they cannot be
-        #   positioned among the other members. They are appended in their annotation order.
+        #   positioned among the other members. Re-assigning an existing key preserves its
+        #   position, so a subclass can still refine the annotation of an inherited member.
         for key in ann:
-            if key not in hints:
-                hints[key] = ann[key]
+            hints[key] = ann[key]
 
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.
