@@ -10,7 +10,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG
-from isaaclab.sensors.contact_sensor import visualization
+from isaaclab.sensors.contact_sensor import contact_force_marker
 
 
 class _FakeVisualizationMarkers:
@@ -30,10 +30,10 @@ class _FakeVisualizationMarkers:
 
 def test_contact_force_visualizer(monkeypatch):
     """Test arrow direction, scaling, thresholding, and tail offset."""
-    monkeypatch.setattr(visualization, "VisualizationMarkers", _FakeVisualizationMarkers)
+    monkeypatch.setattr(contact_force_marker, "VisualizationMarkers", _FakeVisualizationMarkers)
     cfg = BLUE_ARROW_X_MARKER_CFG.copy()
     cfg.markers["arrow"].scale = (0.04, 0.04, 0.2)
-    visualizer = visualization.ContactForceVisualizer(cfg, force_scale=0.5)
+    visualizer = contact_force_marker.ContactForceVisualizer(cfg, force_scale=0.5)
 
     positions = torch.zeros((3, 3))
     forces = torch.tensor([[2.0, 0.0, 0.0], [0.0, 0.0, 3.0], [0.5, 0.0, 0.0]])

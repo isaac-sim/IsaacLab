@@ -18,7 +18,7 @@ from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
-from isaaclab.sensors.contact_sensor.visualization import ContactForceVisualizer
+from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager
@@ -538,14 +538,13 @@ class ContactSensor(BaseContactSensor):
         sensing_transforms = wp.to_torch(self.contact_view.sensing_obj_transforms)
         positions = sensing_transforms.reshape(self._num_envs, self._num_sensors, 7)[..., :3]
         normal_forces = self._data.net_normal_forces_w.torch
-        friction_forces = wp.to_torch(self._newton_total_force_friction_view).reshape(
-            self._num_envs, self._num_sensors, 3
-        )
+        friction_forces = self._data.net_friction_forces_w
 
         assert self.cfg.force_threshold is not None
         force_threshold = self.cfg.force_threshold
         self.normal_force_visualizer.visualize(positions, normal_forces, force_threshold)
-        self.friction_force_visualizer.visualize(positions, friction_forces, force_threshold)
+        if friction_forces is not None:
+            self.friction_force_visualizer.visualize(positions, friction_forces.torch, force_threshold)
 
     """
     Internal simulation callbacks.

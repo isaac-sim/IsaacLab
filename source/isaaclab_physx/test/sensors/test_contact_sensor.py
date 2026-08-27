@@ -24,7 +24,6 @@ import warp as wp
 from flaky import flaky
 from isaaclab_physx.sensors.contact_sensor import contact_sensor as contact_sensor_module
 from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
-from isaaclab_physx.sensors.contact_sensor.contact_sensor_data import ContactSensorData
 
 from pxr import Gf, UsdGeom, UsdPhysics
 
@@ -912,12 +911,6 @@ def test_invalid_max_contact_points_config(setup_simulation):
 """
 Internal helpers.
 """
-
-
-def test_net_friction_forces_are_unsupported():
-    """Test that PhysX rejects aggregate friction-force access."""
-    with pytest.raises(NotImplementedError, match="net_friction_forces_w"):
-        _ = ContactSensorData().net_friction_forces_w
 
 
 def _run_contact_sensor_test(

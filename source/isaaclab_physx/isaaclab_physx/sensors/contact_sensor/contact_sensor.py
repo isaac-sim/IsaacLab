@@ -22,7 +22,7 @@ import omni.physics.tensors as physx
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sensors.contact_sensor.visualization import ContactForceVisualizer
+from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
