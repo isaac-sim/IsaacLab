@@ -132,7 +132,7 @@ class PegInsert(FactoryTask):
     engage_threshold: float = 0.9
 
     fixed_asset: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/FixedAsset",
+        prim_path="{ENV_REGEX_NS}/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=fixed_asset_cfg.usd_path,
             activate_contact_sensors=True,
@@ -157,7 +157,7 @@ class PegInsert(FactoryTask):
         actuators={},
     )
     held_asset: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/HeldAsset",
+        prim_path="{ENV_REGEX_NS}/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=held_asset_cfg.usd_path,
             activate_contact_sensors=True,
@@ -212,7 +212,7 @@ class GearMesh(FactoryTask):
     large_gear_usd = f"{ASSET_DIR}/factory_gear_large.usd"
 
     small_gear_cfg: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/SmallGearAsset",
+        prim_path="{ENV_REGEX_NS}/SmallGearAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=small_gear_usd,
             activate_contact_sensors=True,
@@ -238,7 +238,7 @@ class GearMesh(FactoryTask):
     )
 
     large_gear_cfg: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/LargeGearAsset",
+        prim_path="{ENV_REGEX_NS}/LargeGearAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=large_gear_usd,
             activate_contact_sensors=True,
@@ -290,7 +290,7 @@ class GearMesh(FactoryTask):
     engage_threshold: float = 0.9
 
     fixed_asset: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/FixedAsset",
+        prim_path="{ENV_REGEX_NS}/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=fixed_asset_cfg.usd_path,
             activate_contact_sensors=True,
@@ -315,7 +315,7 @@ class GearMesh(FactoryTask):
         actuators={},
     )
     held_asset: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/HeldAsset",
+        prim_path="{ENV_REGEX_NS}/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=held_asset_cfg.usd_path,
             activate_contact_sensors=True,
@@ -396,7 +396,7 @@ class NutThread(FactoryTask):
     keypoint_scale: float = 0.05
 
     fixed_asset: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/FixedAsset",
+        prim_path="{ENV_REGEX_NS}/FixedAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=fixed_asset_cfg.usd_path,
             activate_contact_sensors=True,
@@ -421,7 +421,7 @@ class NutThread(FactoryTask):
         actuators={},
     )
     held_asset: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/HeldAsset",
+        prim_path="{ENV_REGEX_NS}/HeldAsset",
         spawn=sim_utils.UsdFileCfg(
             usd_path=held_asset_cfg.usd_path,
             activate_contact_sensors=True,

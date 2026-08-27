@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 
 import numpy as np
@@ -32,6 +31,16 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
+    _builder_attribute_solvers = (SolverMuJoCo,)
+
+    @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
+        """Construct the configured MuJoCo Warp solver."""
+        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
+        # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
+        kwargs.pop("ls_parallel", None)
+        return SolverMuJoCo(model, **kwargs)
+
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
         """Construct :class:`SolverMuJoCo` and populate the base-class slots.
@@ -42,12 +51,10 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        ignored = {"class_type", "solver_type", "ls_parallel"}
-        valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"} - ignored
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
-        NewtonManager._solver = SolverMuJoCo(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+        NewtonManager._supports_rigid_body_force_input = True
 
         cfg = PhysicsManager._cfg
         # Cross-config validation that needs both halves.
@@ -102,9 +109,9 @@ class NewtonMJWarpManager(NewtonManager):
         step.
 
         Args:
-            world_mask: Per-world bool mask of shape ``(world_count,)``;
-                ``True`` for worlds that need their MJWarp internals cleared.
-                ``None`` is treated as a no-op.
+            world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
+                Entries before the last select local worlds; the final entry
+                selects global entities in world -1. ``None`` is a no-op.
         """
         if world_mask is None:
             return

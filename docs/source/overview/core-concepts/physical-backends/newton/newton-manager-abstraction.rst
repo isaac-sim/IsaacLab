@@ -86,12 +86,12 @@ solver actually needs it:
 
 * ``_initialize_contacts()``: allocate custom contact buffers or support an
   internal contact detector.
-* ``_step_solver(state_0, state_1, control, substep_dt)``: change one substep of
+* ``_step_solver(state_0, state_1, control, contacts, substep_dt)``: change one substep of
   solver execution while keeping the base simulation loop.
 * ``_simulate_physics_only()``: add per-step work around the base substep loop,
   such as rebuilding a BVH.
-* ``step()``: handle solver-specific reset masks, graph capture, or model-change
-  notification before delegating to the base manager.
+* ``_reset_solver_internals(world_mask)``: clear solver-owned state for reset
+  environments.
 * ``start_simulation()`` or ``instantiate_builder_from_stage()``: customize model
   building or post-finalize setup.
 * ``_register_builder_attributes(builder)``: register solver-specific Newton
@@ -108,10 +108,18 @@ solver actually needs it:
   inertia on kinematic bodies so implicit MPM treats them as massless colliders.
 * ``_supports_cuda_graph_capture()``: return ``False`` to opt the solver out of
   CUDA graph capture and fall back to eager execution. Defaults to ``True``;
-  :class:`~isaaclab_newton.physics.NewtonMPMManager` returns ``True`` only for a
-  fixed grid, since sparse/dense MPM grids reallocate as particles move.
+  :class:`~isaaclab_newton.physics.NewtonMPMManager` accepts fixed and
+  capacity-bounded rebuildable sparse grids.
+* ``_requires_initial_reset_before_graph_capture()``: delay headless CUDA graph
+  capture until the first post-reset step when solver resources depend on
+  reset-authored state.
 * ``_solver_specific_clear()``: release any class-level state owned by the
   solver manager.
+
+For implicit MPM, use a fixed grid or follow Newton's rebuildable-sparse capture
+requirements, including a positive ``max_active_cell_count``. Dense and
+unbounded sparse grids fall back to eager execution with a warning when
+``NewtonCfg.use_cuda_graph`` is enabled.
 
 Keep the manager name prefixed with ``Newton`` and the solver config grouped
 with the other Newton solver configs so autocomplete and backend discovery stay
@@ -130,15 +138,17 @@ component solvers can stay unchanged.
 
 The MJWarp + VBD deformable manager is a concrete example:
 
-* :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` stores a
+* :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` stores a
   ``rigid_solver_cfg`` for :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, a
-  ``soft_solver_cfg`` for :class:`~isaaclab_contrib.deformable.VBDSolverCfg`,
+  ``soft_solver_cfg`` for :class:`~isaaclab_newton.physics.VBDSolverCfg`,
   and a ``coupling_mode``.
 * ``NewtonCoupledMJWarpVBDManager._build_solver()`` constructs
   ``SolverMuJoCo`` and ``SolverVBD`` from those sub-configs.
 * ``_step_solver()`` dispatches to either one-way or two-way coupling.
+* ``_reset_solver_internals()`` and ``_solver_specific_clear()`` forward the
+  solver-specific lifecycle to both sub-solvers.
 * The base ``NewtonManager`` still owns state allocation, substep iteration,
-  Fabric synchronization, and reset/clear lifecycle.
+  Fabric synchronization, and the outer lifecycle.
 
 The two-way MJWarp + VBD substep stays compact because it is expressed as a
 short coupling algorithm:
@@ -152,32 +162,26 @@ short coupling algorithm:
    **Output:** updated rigid body and deformable particle state for one Newton
    substep.
 
-   1. **Reset force accumulators.**
-      Clear the rigid body and particle force buffers before evaluating the
-      next contact pass.
+   1. **Clear output force accumulators.**
+      Clear the next-state force buffers before evaluating contact.
 
    2. **Detect coupled contacts.**
       Run Newton collision detection once over the current rigid and
       deformable state.
 
    3. **Apply soft-to-rigid reactions.**
-      Inject body-particle contact reactions into ``body_f`` so the rigid
-      bodies can be pushed back by the deformable contact penalties.
+      Inject body-particle contact reactions into ``body_f`` before the rigid
+      solve.
 
    4. **Advance the rigid solver.**
-      Step the MJWarp rigid solver with the coupled contact forces applied.
+      Step MJWarp with the coupled contact forces applied.
 
-   5. **Preserve shared contacts for the soft solve.**
-      Clear particle forces written during the rigid step while keeping the
-      detected contact information available.
-
-   6. **Advance the deformable solver.**
-      Step the VBD soft solver against the same coupled contacts.
+   5. **Advance the deformable solver.**
+      Step VBD against the same contacts and the updated rigid poses.
 
 
-This keeps the custom part focused on the coupling policy. The manager does not
-need to reimplement scene loading, asset buffers, reset handling, or the outer
-simulation loop.
+This keeps the custom part focused on the coupling policy. The manager does not need to reimplement scene loading, asset buffers, or the
+outer simulation loop.
 
 .. figure:: ../../../../_static/newton/franka-mjwarp-vbd-coupling.png
    :align: center
@@ -188,18 +192,32 @@ simulation loop.
    Franka manipulation using MJWarp for rigid bodies and VBD for the deformable
    object.
 
-You can exercise this coupling path with the Franka soft-body lifting task:
+.. note::
 
-.. code-block:: bash
+   This volume soft-body task requires automatic tetrahedralization. Run commands for it
+   with the ``tetrahedralization`` extra:
 
-   ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
+   .. code-block:: bash
 
-For the surface-deformable cloth variant, use ``--task Isaac-Lift-Cloth-Franka``.
+      uv run --extra tetrahedralization <command>
 
+   With the legacy installer:
 
-This environment configures
-:class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` with
-``coupling_mode="two_way"``.
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
+
+The opt-in example is registered only when its registration module is imported:
+
+.. code-block:: python
+
+   import isaaclab_contrib.custom_coupling.tasks
+
+The import registers ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which
+selects the ``newton_mjwarp_vbd`` preset and uses ``coupling_mode="two_way"``.
+The core ``Isaac-Lift-Soft-Franka`` and ``Isaac-Lift-Cloth-Franka`` tasks default
+to the ``newton_mjwarp_vbd_proxy`` preset backed by
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` instead.
 
 Tuning the Franka Soft-Body Lift
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -214,15 +232,20 @@ Tune the coupled contact behavior before training a policy:
 * Lower the arm actuator stiffness enough that the arm can respond to contact
   penalties. Prefer the arm being pushed back over the gripper clipping into the
   deformable.
-* Tune :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_ke`
+* Tune :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_ke`
   first. Increase it only as much as needed to prevent clipping, then adjust
-  :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_mu` so the
+  :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_mu` so the
   gripper can carry the object without requiring an obviously unphysical
   friction value. Use
-  :attr:`~isaaclab_contrib.deformable.NewtonModelCfg.soft_contact_kd` for
+  :attr:`~isaaclab_newton.physics.NewtonSoftContactCfg.soft_contact_kd` for
   stabilization if contacts chatter.
-* Tune the ``soft_contact_*`` values together with ``shape_material_*`` values
-  because rigid shape material parameters also affect the effective contact.
+  Set this configuration on the outer
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg` field.
+* Tune the ``soft_contact_*`` values together with the rigid shape contact
+  material, because the shape's ``ke``/``kd``/``mu`` also affect the effective
+  contact. Set shape defaults via
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg` on ``NewtonCfg.default_shape_cfg``,
+  or override per asset through the asset's Newton contact material.
 * If ``soft_contact_ke`` is not sufficient, or ``soft_contact_mu`` must be
   unphysically high, tune the Franka arm and hand actuator stiffness and maximum
   effort. For the gripper command, fully close the fingers and let the actuator
@@ -233,7 +256,7 @@ Tune the coupled contact behavior before training a policy:
   increase ``particle_radius`` in the deformable material so contact is detected
   earlier from a larger distance.
 * If the rigid shapes still clip through the deformable, increase
-  :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.iterations`; more VBD
+  :attr:`~isaaclab_newton.physics.VBDSolverCfg.iterations`; more VBD
   iterations can improve contact convergence.
 
 

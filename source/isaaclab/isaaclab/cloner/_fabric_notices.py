@@ -9,10 +9,9 @@ Acquires the ``omni::fabric::IFabricUsd`` carb interface directly from the Carbo
 framework so cloning can suspend Fabric's USD notice listener without depending on
 ``isaacsim.core.simulation_manager``.
 
-Mirrors the in-tree pattern in :mod:`isaaclab_newton.physics._cubric` for
-``omni::cubric::IAdapter`` — same problem (base-Kit Carbonite interface with no
-Python binding), same solution. When Kit exposes this from Python, replace this
-module with a one-line import.
+This is a temporary shim for a base-Kit Carbonite interface that has no Python
+binding yet. When Kit exposes this from Python, replace this module with a
+one-line import.
 """
 
 from __future__ import annotations

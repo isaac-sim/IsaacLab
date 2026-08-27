@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -21,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
+from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
 from isaaclab.sim.utils.transforms import resolve_prim_pose
@@ -55,6 +58,9 @@ class SensorBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
+        # expand the namespace macro for sensors built outside the scene, which has already
+        # expanded it for the ones it collects
+        cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
         self._source_cfg = cfg
         self.cfg = cfg.copy()
@@ -74,9 +80,16 @@ class SensorBase(ABC):
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
-    def __del__(self):
-        """Unsubscribe from the callbacks."""
-        # clear physics events handles
+    def __del__(self, _sys=sys):
+        """Unsubscribe from the callbacks.
+
+        Skips cleanup during interpreter shutdown. ``sys`` is bound as a default argument so it
+        survives module teardown. Running :meth:`_clear_callbacks` after import machinery is gone
+        can lazy-import ``isaaclab.sim`` and raise ``ImportError: sys.meta_path is None``, which
+        then masks the exception that actually aborted the process.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         self._clear_callbacks()
 
     """
@@ -230,18 +243,16 @@ class SensorBase(ABC):
         clone_plan = self._clone_plan
         clone_plan_matches = ()
         if clone_plan is not None:
-            from isaaclab.cloner.cloner_utils import iter_clone_plan_matches  # noqa: PLC0415
-
-            clone_plan_matches = tuple(iter_clone_plan_matches(clone_plan, self.cfg.prim_path))
+            clone_plan_matches = tuple(cloner.query.iter_sources(clone_plan, self.cfg.prim_path))
         if clone_plan_matches:
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
         elif clone_plan is not None:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = int(clone_plan.env_ids.numel())
         else:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
@@ -435,7 +446,7 @@ class SensorBase(ABC):
 
         1. When an active :class:`~isaaclab.cloner.ClonePlan` exists, the
            source-side env path is taken from the plan via
-           :func:`~isaaclab.cloner.resolve_clone_plan_source`, the rigid-body ancestor
+           :func:`~isaaclab.cloner.query.path_to_source`, the rigid-body ancestor
            is located on that source env, and the destination expression is
            reconstructed by trimming the sensor-relative suffix from the plan's
            destination glob.
@@ -448,7 +459,7 @@ class SensorBase(ABC):
 
         The returned expression may still contain regex-style wildcards (e.g.
         ``.*``); callers are responsible for converting to glob form for their
-        physics view (e.g. ``.replace(".*", "*")``).
+        physics view (e.g. via :func:`~isaaclab.sim.utils.path_expr_to_glob`).
 
         Returns:
             A tuple of:

@@ -93,8 +93,10 @@ Isaac Sim version before installing Isaac Lab.
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Include the RL framework: ``./isaaclab.sh -i rsl_rl``, or use
-``./isaaclab.sh -i`` to install all frameworks.
+RSL-RL is included in the default uv environment. Retry the command with ``uv run``, which
+syncs missing default dependencies before running it. For the legacy installer, use
+``./isaaclab.sh -i 'rl[rsl-rl]'`` or ``./isaaclab.sh -i`` to install all
+frameworks.
 
 Crash in ``libusd_tf`` / USD Symbol Collision with OVRTX
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,7 +105,7 @@ If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
 1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
-   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`installation-selective-install`)
+   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`modularized installation <installation-selective-install>`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 
@@ -151,60 +153,40 @@ allows for recording of data of PhysX simulations, which can often help simulati
 
 To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the command line prompt when launching an Isaac Lab process
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run --extra isaacsim python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
 Joints actuate in PhysX but not in a Newton-based backend
 ---------------------------------------------------------
 
-If your robot's joints move under PhysX but appear unactuated under one of the
-Newton-based backends (MuJoCo Warp, XPBD, Featherstone, Semi-implicit) — even
-though you have authored an :class:`~isaaclab.actuators.ImplicitActuatorCfg`
-with non-zero ``stiffness`` and ``damping`` — the cause is almost always that
-the USD asset ships with zero authored drive gains.
+Newton resolves target modes for joints covered by an Isaac Lab actuator
+configuration before constructing the solver. For an
+:class:`~isaaclab.actuators.ImplicitActuatorCfg`, stiffness-only, damping-only,
+both-gain, and zero-gain configurations select position, velocity, combined
+position/velocity, and effort modes respectively. ``None`` retains the
+corresponding imported USD gain. Explicit actuator configurations use effort
+mode because Isaac Lab computes their effort directly.
 
-Newton's USD importer only materialises a solver actuator when the authored
-``PhysicsDriveAPI`` reports a non-zero stiffness *or* damping. Many existing
-assets leave both at ``0`` on purpose, expecting the actuator gains to come from
-an :class:`~isaaclab.actuators.ImplicitActuatorCfg` at runtime. PhysX creates
-the actuator regardless and lets the runtime gain writes take effect, so the
-asset works there; Newton drops the actuator before the runtime writes can
-attach to it.
-
-The fix is to set
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` to
-``True`` on the spawn config. This writes a minimal placeholder stiffness
-(``1e-3``) to any drive whose authored stiffness *and* damping are both zero,
-which is enough for Newton's importer to create the actuator. The actual gains
-are then overwritten by the actuator model at runtime, so the placeholder has
-no effect on the simulated dynamics.
-
-.. code:: python
-
-   from isaaclab.actuators import ImplicitActuatorCfg
-   from isaaclab.assets import ArticulationCfg
-   import isaaclab.sim as sim_utils
-
-   ROBOT_CFG = ArticulationCfg(
-       spawn=sim_utils.UsdFileCfg(
-           usd_path="...",
-           joint_drive_props=sim_utils.JointDrivePropertiesCfg(ensure_drives_exist=True),
-       ),
-       actuators={
-           "legs": ImplicitActuatorCfg(
-               joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-               effort_limit_sim=120.0,
-               velocity_limit_sim=7.5,
-               stiffness={".*": 40.0},
-               damping={".*": 5.0},
-           ),
-       },
-   )
-
-See :ref:`import-new-asset-ensure-drives-exist` for the underlying USD-import
-details and the equivalent fix when authoring a new asset.
+Joints not covered by an Isaac Lab actuator configuration retain their imported
+USD target modes. Thus, zero-gain USD drives no longer require
+:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+to make a configured joint actuate in Newton. The option remains available for
+workflows that need to author placeholder drives independently of an Isaac Lab
+actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for
+details.
 
 
 Checking the internal logs from the simulator
@@ -246,10 +228,21 @@ To obtain more detailed logs, you can run your application with the following fl
 
 For instance, to run a standalone script with verbose logging, you can use the following command:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Run the standalone script with info logging
-    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+          # Run the standalone script with info logging
+          uv run python scripts/tutorials/00_sim/create_empty.py --info
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+          # Run the standalone script with info logging
+          ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

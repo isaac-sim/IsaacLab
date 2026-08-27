@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Hold-pose environment for the Disney DR Legs closed-loop biped (Kamino solver).
+"""Hold-pose environment for the Disney DR Legs closed-loop biped.
 
 The robot must keep its pelvis upright at a target height.
 """
 
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -19,9 +20,11 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -46,28 +49,18 @@ _PHYSICS_MATERIAL = sim_utils.RigidBodyMaterialCfg(
 
 
 def _kamino_newton_cfg() -> NewtonCfg:
-    """Kamino solver preset for DR Legs (closed-loop, implicit PD)."""
+    """Kamino P-ADMM solver preset for DR Legs."""
     return NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            sparse_jacobian=True,
-            sparse_dynamics=False,
-            use_collision_detector=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
+        solver_cfg=KaminoPADMMSolverCfg(
             use_fk_solver=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1.0e-5,
-            padmm_dual_tolerance=1.0e-5,
-            padmm_compl_tolerance=1.0e-5,
-            padmm_rho_0=0.02,
-            padmm_eta=1.0e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
             max_contacts_per_world=32,
+            sparse_jacobian=True,
+            dynamics_solver_cfg=KaminoPADMMCfg(
+                primal_tolerance=1.0e-5,
+                dual_tolerance=1.0e-5,
+                compl_tolerance=1.0e-5,
+                rho_0=0.02,
+            ),
         ),
         use_cuda_graph=True,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.001),
@@ -76,10 +69,12 @@ def _kamino_newton_cfg() -> NewtonCfg:
 
 @configclass
 class DrLegsPhysicsCfg(PresetCfg):
-    """Physics backend preset (DR Legs runs only under the Kamino solver)."""
+    """Physics backend presets for DR Legs."""
 
     default: NewtonCfg = _kamino_newton_cfg()
     newton_kamino: NewtonCfg = _kamino_newton_cfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
 
 ##
@@ -116,6 +111,23 @@ class ActionsCfg:
         scale=0.3,
         use_default_offset=True,
     )
+
+
+def _physx_actions_cfg() -> ActionsCfg:
+    """Return the reduced PhysX joint-target action profile."""
+    cfg = ActionsCfg()
+    cfg.joint_pos.scale = 0.1
+    return cfg
+
+
+@configclass
+class DrLegsActionsCfg(PresetCfg):
+    """Backend-specific DR Legs action presets."""
+
+    default: ActionsCfg = ActionsCfg()
+    newton_kamino: ActionsCfg = ActionsCfg()
+    physx: ActionsCfg = _physx_actions_cfg()
+    isaacsim_physx: ActionsCfg = physx
 
 
 @configclass
@@ -221,6 +233,24 @@ class EventCfg:
     )
 
 
+def _physx_event_cfg() -> EventCfg:
+    """Return the PhysX reset profile with assembled joint coordinates."""
+    cfg = EventCfg()
+    cfg.reset_robot_joints.params["position_range"] = (0.0, 0.0)
+    cfg.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
+    return cfg
+
+
+@configclass
+class DrLegsEventCfg(PresetCfg):
+    """Backend-specific DR Legs event presets."""
+
+    default: EventCfg = EventCfg()
+    newton_kamino: EventCfg = EventCfg()
+    physx: EventCfg = _physx_event_cfg()
+    isaacsim_physx: EventCfg = physx
+
+
 @configclass
 class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=5.0)
@@ -240,6 +270,8 @@ class RewardsCfg:
         weight=-2.0,
         params={"asset_cfg": _ACTUATED_JOINT_CFG},
     )
+    # Success metric (zero-weight, metric only): survived the full episode without falling/tilting.
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass
@@ -256,12 +288,12 @@ class TerminationsCfg:
 
 @configclass
 class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
-    """DR Legs hold-pose environment (Newton/Kamino backend)."""
+    """DR Legs hold-pose environment."""
 
     scene: HoldPoseSceneCfg = HoldPoseSceneCfg(num_envs=_NUM_ENVS, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
+    actions: DrLegsActionsCfg = DrLegsActionsCfg()
+    events: DrLegsEventCfg = DrLegsEventCfg()
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
@@ -274,5 +306,4 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         self.decimation = 3
         self.episode_length_s = 10.0
-        self.viewer.eye = (1.5, 0.5, 0.5)
-        self.viewer.lookat = (0.0, 0.0, 0.265)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, 0.5, 0.5), lookat=(0.0, 0.0, 0.265))

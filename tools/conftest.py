@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import contextlib
+import logging
 import os
-import re
 import select
 import signal
 import subprocess
@@ -21,8 +21,13 @@ from prettytable import PrettyTable
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
+import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
+from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -54,6 +59,14 @@ legitimate slow launches.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
+OVRTX_LOG_DIR = "tests/ovrtx-logs"
+"""Where each test's renderer log and dumps are saved whole, relative to the workspace root.
+
+Under ``tests/`` alongside the JUnit reports, because that is what CI collects as a job artifact. The
+reports themselves quote only a bounded tail of the log and nothing else the renderer wrote; this is the
+copy a diagnosis reads when that tail is not enough.
+"""
+
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
@@ -74,6 +87,58 @@ full hard timeout, we give the process a short grace period to exit, then
 kill it.  The test results are taken from the report file (pass/fail), not
 from the kill.
 """
+
+EXIT_TESTS_FAILED = 1
+"""Exit code for a run that completed with at least one failing assertion."""
+
+EXIT_CRASHED = 20
+"""Exit code for a run where a test process died without writing its report."""
+
+EXIT_TIMEOUT = 21
+"""Exit code for a run where a test reached its hard timeout."""
+
+EXIT_STARTUP_HANG = 22
+"""Exit code for a run where a test never finished starting up."""
+
+EXIT_CODE_LABELS = {
+    0: "all tests passed",
+    EXIT_TESTS_FAILED: "test failures",
+    EXIT_CRASHED: "crashed process",
+    EXIT_TIMEOUT: "timeout",
+    EXIT_STARTUP_HANG: "startup hang",
+}
+"""Label for each exit code, printed with the result summary."""
+
+
+def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_startup_hang: int) -> int:
+    """Return the exit code for a finished run, based on how it failed.
+
+    A crashed process, a hang and a failing assertion have different owners, so
+    each reports its own code rather than a shared ``1``; the code alone is then
+    enough to route a red job.  When a run hits more than one, the code reports
+    the outcome that proved the least: a process that died never reached the
+    assertion a failing test did.  ``1`` still means failing assertions, so
+    callers that only check for a non-zero code are unaffected.
+
+    Args:
+        num_failing: Test files that ran and reported a failing assertion.
+        num_timeout: Test files killed at their hard timeout.
+        num_crashed: Test files whose process exited without writing a report.
+        num_startup_hang: Test files killed before startup finished.
+
+    Returns:
+        ``0`` when nothing failed, otherwise the code for the highest-precedence
+        mode present: crash, then timeout, then startup hang, then assertion.
+    """
+    if num_crashed:
+        return EXIT_CRASHED
+    if num_timeout:
+        return EXIT_TIMEOUT
+    if num_startup_hang:
+        return EXIT_STARTUP_HANG
+    if num_failing:
+        return EXIT_TESTS_FAILED
+    return 0
 
 
 def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
@@ -247,6 +312,112 @@ def _create_error_report(prefix, file_name, message, details):
     report = JUnitXml()
     report.add_testsuite(suite)
     return report
+
+
+def _make_crash_pass_result(
+    journal_file,
+    prefix,
+    pass_file_label,
+    message,
+    details,
+    report_file,
+    result,
+    wall_time,
+    fallback_time_elapsed=0.0,
+):
+    """Persist and return the pass result for a run that produced no JUnit report.
+
+    Prefers a report rebuilt from the crash journal so the real per-test verdicts survive, and
+    falls back to the single-entry :func:`_create_error_report` only when the run died before
+    journaling anything (a true startup hang, or an old image without the journaling conftest).
+    """
+    rebuilt = create_crash_report(journal_file, os.path.splitext(pass_file_label)[0], message, details)
+    if rebuilt is None:
+        report = _create_error_report(prefix, pass_file_label, message, details)
+        counters = {"errors": 1, "failures": 0, "skipped": 0, "tests": 1, "time_elapsed": fallback_time_elapsed}
+        culprit = None
+        logger.warning(f"🔎 {pass_file_label}: no crash journal, reporting a single {prefix} entry")
+    else:
+        report, counters, culprit = rebuilt
+        logger.info(
+            f"🔎 {pass_file_label}: recovered {counters['tests']} test result(s) from the crash journal"
+            f" ({counters['failures']} failed, {counters['skipped']} not run);"
+            f" blamed {culprit or 'session shutdown (all tests completed teardown)'}"
+        )
+
+    # The blamed test died before the fixture that saves its renderer output could run, leaving the one
+    # test in the run whose output is worth reading as the one missing from the artifact. Named after the
+    # test alone, as the fixture names its own, so the two sit together. Saved whole because the per-test
+    # offsets went with the process, and suppressed because a report matters more than an artifact.
+    blamed = culprit.rpartition("::")[2] if culprit else pass_file_label
+    with contextlib.suppress(OSError):
+        ovrtx_log.save_output(os.path.abspath(OVRTX_LOG_DIR), blamed)
+
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": counters["errors"],
+            "failures": counters["failures"],
+            "skipped": counters["skipped"],
+            "tests": counters["tests"],
+            "result": result,
+            "time_elapsed": counters["time_elapsed"],
+            "wall_time": wall_time,
+        },
+        True,
+    )
+
+
+def _make_missing_report_result(
+    *,
+    journal_file,
+    prefix,
+    pass_file_label,
+    log_label,
+    report_file,
+    returncode,
+    kill_reason,
+    stdout_data,
+    stderr_data,
+    wall_time,
+):
+    """Build the ``CRASHED`` pass result for a run that exited without writing a JUnit report.
+
+    Shared by the initial invocation and the fresh-process retries: a retry that dies before
+    ``pytest_sessionfinish`` has no report of its own, and reusing the previous attempt's results
+    would report the run as merely failed and lose the test that took the process down.
+    """
+    if kill_reason:
+        reason = f"Process killed ({kill_reason}) before it produced a report"
+    elif returncode < 0:
+        reason = _signal_description(-returncode)
+    else:
+        reason = f"Process exited with code {returncode} but produced no report"
+    diag = _get_diagnostics()
+    logger.warning(f"⚠️  {log_label}: {reason}")
+    logger.info(diag)
+
+    details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 2000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 2000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+    # The process died before it could replay anything, so this tail is the only renderer output.
+    details += ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
+
+    return _make_crash_pass_result(
+        journal_file,
+        prefix,
+        pass_file_label,
+        reason,
+        details,
+        report_file,
+        "CRASHED",
+        wall_time,
+    )
 
 
 def _get_diagnostics(pre_kill_diag=""):
@@ -439,6 +610,7 @@ def _retry_failed_test_in_fresh_process(
     env,
     startup_deadline,
     report_file,
+    journal_file,
     report,
     errors,
     failures,
@@ -452,31 +624,49 @@ def _retry_failed_test_in_fresh_process(
     wall_time,
     pre_kill_diag,
 ):
-    """Retry selected failed test files in a fresh subprocess."""
+    """Retry selected failed test files in a fresh subprocess.
+
+    ``env`` must carry :data:`JOURNAL_ENV_VAR`, and ``journal_file`` must be the path it names:
+    each attempt starts from an empty journal so a retry that crashes is reconstructed from its
+    own verdicts rather than from the ones the previous attempt left behind.
+    """
     has_test_failures = errors > 0 or failures > 0
     process_failure_attempts = 0
     max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
 
     while has_test_failures and process_failure_attempts < max_process_failure_retries:
         process_failure_attempts += 1
-        print(
+        logger.warning(
             f"⚠️  {test_file}: failed in subprocess"
             f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
         )
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(report_file)
+        # The renderer log goes too: a retry that dies has its log quoted in the rebuilt report, and a
+        # leftover from the previous attempt would be attributed to this one.
+        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(stale_file)
 
-        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+        (
+            returncode,
+            stdout_data,
+            stderr_data,
+            kill_reason,
+            retry_wall_time,
+            pre_kill_diag,
+        ) = capture_test_output_with_timeout(
             cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
         )
+        wall_time += retry_wall_time
         if not os.path.exists(report_file):
+            # The attempt died before pytest wrote its report; the caller rebuilds the result from
+            # this attempt's journal.
             break
 
         try:
             report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
             has_test_failures = errors > 0 or failures > 0
         except Exception as e:
-            print(f"Error reading retry test report {report_file}: {e}")
+            logger.error(f"Error reading retry test report {report_file}: {e}")
             has_test_failures = True
             errors = 1
             failures = 0
@@ -538,6 +728,8 @@ _RESULT_PRIORITY = {
     "TIMEOUT": 3,
     "FAILED": 2,
     "passed (shutdown hanged)": 1,
+    "passed (module skipped)": 0,
+    "passed (no tests selected)": 0,
     "passed": 0,
 }
 
@@ -562,6 +754,46 @@ def _merge_pass_status(prev: dict | None, new: dict) -> dict:
         if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
         else new["result"],
     }
+
+
+def _make_failed_pass_result(
+    prefix: str,
+    pass_file_label: str,
+    message: str,
+    report_file: str,
+    stdout_data: bytes,
+    stderr_data: bytes,
+    time_elapsed: float,
+    wall_time: float,
+    report: JUnitXml | None = None,
+    tests: int = 0,
+    skipped: int = 0,
+) -> tuple[JUnitXml, dict, bool]:
+    """Append and persist a synthetic failure without discarding existing results."""
+    details = message + "\n\n"
+    if stdout_data:
+        details += "=== STDOUT (last 5000 chars) ===\n"
+        details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if stderr_data:
+        details += "=== STDERR (last 5000 chars) ===\n"
+        details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+    if report is None:
+        report = JUnitXml()
+    report += _create_error_report(prefix, pass_file_label, message, details)
+    report.write(report_file)
+    return (
+        report,
+        {
+            "errors": 1,
+            "failures": 0,
+            "skipped": skipped,
+            "tests": tests + 1,
+            "result": "FAILED",
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        True,
+    )
 
 
 def _run_one_pass(
@@ -596,14 +828,30 @@ def _run_one_pass(
     # shutdown_hang detections in sibling shards via the report-file existence check.
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
     report_file = f"tests/test-reports-{report_slug}{suffix}.xml"
+    # Crash-durable progress log. pytest writes its JUnit XML only at session end, so this is
+    # the only record of what passed, failed, and was in flight when a run dies before that.
+    #
+    # Absolute, because the repo-root conftest reopens this path from inside the test process on
+    # every journal write. A test that changes directory (``monkeypatch.chdir``, or any fixture
+    # that does the same) would otherwise send its verdicts to a journal under the temporary cwd
+    # and, once teardown restored the cwd, resume writing to this one — so the rebuilt report
+    # would show a test that ran and passed as never having been reached.
+    journal_file = os.path.abspath(f"tests/test-journal-{report_slug}{suffix}.jsonl")
+    # pytest creates the report directory in ``pytest_sessionfinish``, which a crashed run never
+    # reaches; without this the journal's first write fails and ``_journal_write`` swallows it.
+    os.makedirs(os.path.dirname(journal_file), exist_ok=True)
+    # Absolute for the same reason as the journal: the test process saves its renderer log from inside
+    # a fixture, so a test that changed directory would leave the artifact under the temporary cwd.
+    pass_env = {**ctx.env, JOURNAL_ENV_VAR: journal_file, ovrtx_log.LOG_DIR_ENV_VAR: os.path.abspath(OVRTX_LOG_DIR)}
 
     cmd = [
         sys.executable,
         "-m",
         "pytest",
-        "-s",
+        # Keep pytest capture enabled so Kit startup logs are only shown for failed tests.
         "-v",  # per-test names in the log: if a file hangs, the last name pinpoints the culprit
         "--no-header",
+        "--show-capture=all",
         f"--config-file={ctx.workspace_root}/pyproject.toml",
         f"--junitxml={report_file}",
         "--tb=short",
@@ -621,59 +869,70 @@ def _run_one_pass(
     # -- Run with retry on startup hang or hard timeout -----------------
     returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
     wall_time, pre_kill_diag = 0.0, ""
+    total_wall_time = 0.0
     startup_hang_attempts = 0
     timeout_attempts = 0
     while True:
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(report_file)
+        # Clear the renderer log too: read after the subprocess dies, it is the only renderer output a
+        # crash, hang, or timeout reports, and a leftover would be attributed to the wrong run.
+        for stale_file in (report_file, journal_file, ovrtx_log.LOG_PATH):
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(stale_file)
 
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
-            cmd, ctx.timeout, ctx.env, startup_deadline=ctx.startup_deadline, report_file=report_file
+            cmd, ctx.timeout, pass_env, startup_deadline=ctx.startup_deadline, report_file=report_file
         )
+        total_wall_time += wall_time
 
         has_report = os.path.exists(report_file)
 
         if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
             startup_hang_attempts += 1
-            print(
+            logger.warning(
                 f"⚠️  {ctx.test_file}{suffix}: startup hang detected after {ctx.startup_deadline}s"
                 f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
             )
             if stderr_data:
-                print("=== STDERR (last 5000 chars) ===")
-                print(stderr_data.decode("utf-8", errors="replace")[-5000:])
+                logger.info(
+                    f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
             diag = pre_kill_diag or _capture_system_diagnostics()
             if len(diag) > 10000:
                 diag = diag[:10000] + "\n... (truncated)"
-            print(diag)
+            logger.info(diag)
             continue
 
         if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
             timeout_attempts += 1
-            print(
+            logger.warning(
                 f"⚠️  {ctx.test_file}{suffix}: timeout detected after {ctx.timeout}s"
                 f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
             )
             if stdout_data:
-                print("=== STDOUT (last 5000 chars) ===")
-                print(stdout_data.decode("utf-8", errors="replace")[-5000:])
+                logger.info(
+                    f"=== STDOUT (last 5000 chars) ===\n{stdout_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
             if stderr_data:
-                print("=== STDERR (last 5000 chars) ===")
-                print(stderr_data.decode("utf-8", errors="replace")[-5000:])
+                logger.info(
+                    f"=== STDERR (last 5000 chars) ===\n{stderr_data.decode('utf-8', errors='replace')[-5000:]}"
+                )
             diag = pre_kill_diag or _capture_system_diagnostics()
             if len(diag) > 10000:
                 diag = diag[:10000] + "\n... (truncated)"
-            print(diag)
+            logger.info(diag)
             continue
         break
+
+    wall_time = total_wall_time
 
     # -- Resolve result from kill_reason and report file ----------------
     has_report = os.path.exists(report_file)
 
     if kill_reason == "startup_hang":
         diag = _get_diagnostics(pre_kill_diag)
-        print(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
-        print(diag)
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
+        logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Startup hang after {ctx.startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -683,27 +942,24 @@ def _run_one_pass(
         if stdout_data:
             details += "=== STDOUT (last 2000 chars) ===\n"
             details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+        details += ovrtx_log_section
 
-        error_report = _create_error_report("startup_hang", pass_file_label, msg, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "STARTUP_HANG",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "startup_hang",
+            pass_file_label,
+            msg,
+            details,
+            report_file,
+            "STARTUP_HANG",
+            wall_time,
         )
 
     if kill_reason == "timeout" and not has_report:
         diag = _get_diagnostics(pre_kill_diag)
-        print(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
-        print(diag)
+        logger.warning(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
+        logger.info(diag)
+        ovrtx_log_section = ovrtx_log.format_log_section(ovrtx_log.LOG_PATH, pass_file_label)
 
         msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
         details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
@@ -713,65 +969,44 @@ def _run_one_pass(
         if stderr_data:
             details += "=== STDERR (last 5000 chars) ===\n"
             details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        details += ovrtx_log_section
 
-        error_report = _create_error_report("timeout", pass_file_label, msg, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "TIMEOUT",
-                "time_elapsed": ctx.timeout,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_crash_pass_result(
+            journal_file,
+            "timeout",
+            pass_file_label,
+            msg,
+            details,
+            report_file,
+            "TIMEOUT",
+            wall_time,
+            fallback_time_elapsed=ctx.timeout,
         )
 
     if not has_report:
-        reason = (
-            _signal_description(-returncode)
-            if returncode < 0
-            else f"Process exited with code {returncode} but produced no report"
-        )
-        diag = _get_diagnostics()
-        print(f"⚠️  {ctx.test_file}{suffix}: {reason}")
-        print(diag)
-
-        details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-        if stdout_data:
-            details += "=== STDOUT (last 2000 chars) ===\n"
-            details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-        if stderr_data:
-            details += "=== STDERR (last 2000 chars) ===\n"
-            details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-
-        error_report = _create_error_report("crash", pass_file_label, reason, details)
-        error_report.write(report_file)
-        return (
-            error_report,
-            {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "CRASHED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            },
-            True,
+        return _make_missing_report_result(
+            journal_file=journal_file,
+            prefix="crash",
+            pass_file_label=pass_file_label,
+            log_label=f"{ctx.test_file}{suffix}",
+            report_file=report_file,
+            returncode=returncode,
+            kill_reason=kill_reason,
+            stdout_data=stdout_data,
+            stderr_data=stderr_data,
+            wall_time=wall_time,
         )
 
     # -- Report file exists: parse actual test results -----------------
     if kill_reason in ("shutdown_hang", "timeout"):
-        print(f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)")
+        logger.warning(
+            f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)"
+        )
 
     try:
         report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, pass_file_label)
     except Exception as e:
-        print(f"Error reading test report {report_file}: {e}")
+        logger.error(f"Error reading test report {report_file}: {e}")
         return (
             None,
             {
@@ -784,6 +1019,24 @@ def _run_one_pass(
                 "wall_time": wall_time,
             },
             True,
+        )
+
+    exact_node_selection = any("::" in target for target in ctx.pytest_targets)
+    if exact_node_selection and tests == 0:
+        msg = f"Configured test node IDs selected zero tests: {', '.join(ctx.pytest_targets)}"
+        logger.error(msg)
+        return _make_failed_pass_result(
+            "selection",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
         )
 
     (
@@ -805,9 +1058,10 @@ def _run_one_pass(
         file_name=ctx.file_name,
         cmd=cmd,
         timeout=ctx.timeout,
-        env=ctx.env,
+        env=pass_env,
         startup_deadline=ctx.startup_deadline,
         report_file=report_file,
+        journal_file=journal_file,
         report=report,
         errors=errors,
         failures=failures,
@@ -822,7 +1076,60 @@ def _run_one_pass(
         pre_kill_diag=pre_kill_diag,
     )
 
+    if not os.path.exists(report_file):
+        # A retry died before pytest wrote its report. Keeping the earlier attempt's parsed results
+        # would report the file as FAILED and drop the crash, so the retry's journal is what the
+        # result is rebuilt from — including the test that was in flight when the process died.
+        return _make_missing_report_result(
+            journal_file=journal_file,
+            prefix="retry_crash",
+            pass_file_label=pass_file_label,
+            log_label=f"{ctx.test_file}{suffix} (fresh-process retry)",
+            report_file=report_file,
+            returncode=returncode,
+            kill_reason=kill_reason,
+            stdout_data=stdout_data,
+            stderr_data=stderr_data,
+            wall_time=wall_time,
+        )
+
     shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    no_tests_collected = returncode == pytest.ExitCode.NO_TESTS_COLLECTED
+    expected_empty_selection = k_expr is not None or ctx.ci_marker or skipped > 0
+    if no_tests_collected and expected_empty_selection:
+        result = "passed (module skipped)" if skipped else "passed (no tests selected)"
+        logger.warning(f"⚠️  {ctx.test_file}{suffix}: no tests collected — {result}")
+        return (
+            report,
+            {
+                "errors": errors,
+                "failures": failures,
+                "skipped": skipped,
+                "tests": tests,
+                "result": result,
+                "time_elapsed": time_elapsed,
+                "wall_time": wall_time,
+            },
+            False,
+        )
+
+    if returncode != 0 and not shutdown_hanged and not has_test_failures:
+        msg = f"pytest exited with code {returncode} without reporting a test failure"
+        logger.error(f"{ctx.test_file}{suffix}: {msg}")
+        return _make_failed_pass_result(
+            "pytest_exit",
+            pass_file_label,
+            msg,
+            report_file,
+            stdout_data,
+            stderr_data,
+            time_elapsed,
+            wall_time,
+            report=report,
+            tests=tests,
+            skipped=skipped,
+        )
+
     was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
 
     if shutdown_hanged:
@@ -861,13 +1168,13 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     test_node_ids_by_file = test_node_ids_by_file or {}
     global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
     if global_k_expr is not None:
-        print(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
+        logger.info(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
 
     queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
     file_source = _queued_files(queue_path) if queue_path else test_files
 
     for test_file in file_source:
-        print(f"\n\n🚀 Running {test_file} independently...\n")
+        logger.info(f"\n\n🚀 Running {test_file} independently...\n")
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
@@ -900,7 +1207,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
             cold_cache_applied = True
-            print(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
+            logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
 
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
         startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
@@ -927,7 +1234,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         if _inject_shard_select:
             passes = [("", None)]
         elif is_device_split_file(test_file, source=test_content):
-            print(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
+            logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
             passes = DEVICE_SPLIT_PASSES
         else:
             passes = [("", None)]
@@ -954,7 +1261,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         if queue_path:
             _mark_queued_file_done(queue_path, test_file)
 
-    print("~~~~~~~~~~~~ Finished running all tests")
+    logger.info("~~~~~~~~~~~~ Finished running all tests")
 
     return failed_tests, test_status, xml_reports
 
@@ -971,7 +1278,7 @@ def _collect_test_files(
     test_files = []
     for source_dir in source_dirs:
         if not os.path.exists(source_dir):
-            print(f"Error: source directory not found at {source_dir}")
+            logger.error(f"Error: source directory not found at {source_dir}")
             pytest.exit("Source directory not found", returncode=1)
 
         for root, _, files in os.walk(source_dir):
@@ -997,19 +1304,19 @@ def _collect_test_files(
                     # dedicated jobs (e.g. test-environments-training) to run tests that
                     # are otherwise excluded from general CI runs.
                     if file in test_settings.TESTS_TO_SKIP and file not in include_files:
-                        print(f"Skipping {file} as it's in the skip list")
+                        logger.debug(f"Skipping {file} as it's in the skip list")
                         continue
 
                 full_path = os.path.join(root, file)
 
                 if filter_pattern and filter_pattern not in full_path:
-                    print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
+                    logger.debug(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
                     continue
                 if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
-                    print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
+                    logger.debug(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
                 if include_files and file not in include_files:
-                    print(f"Skipping {full_path} (not in include files list)")
+                    logger.debug(f"Skipping {full_path} (not in include files list)")
                     continue
 
                 test_files.append(full_path)
@@ -1026,7 +1333,7 @@ def _collect_test_files(
         shard_index = int(shard_index)
         shard_count = int(shard_count)
         test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
-        print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
+        logger.info(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
 
     return test_files
 
@@ -1091,7 +1398,35 @@ def _write_empty_report():
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
     report = JUnitXml()
     report.write(f"tests/{result_file}")
-    print(f"Wrote empty report to tests/{result_file}")
+    logger.info(f"Wrote empty report to tests/{result_file}")
+
+
+def _format_test_file_results(test_files: list[str], test_status: dict[str, dict], run_device: str) -> str:
+    """Format all per-file test results as a table."""
+    summary = "\n\n=====================\n"
+    summary += "All Test File Results\n"
+    summary += "=====================\n"
+
+    table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
+    table.align["Test Path"] = "l"
+    table.align["Test (s)"] = "r"
+    table.align["Wall (s)"] = "r"
+    sorted_test_files = sorted(test_files, key=lambda path: test_status[path]["wall_time"], reverse=True)
+    for test_path in sorted_test_files:
+        status = test_status[test_path]
+        num_tests_passed = status["tests"] - status["failures"] - status["errors"] - status["skipped"]
+        table.add_row(
+            [
+                test_path,
+                run_device,
+                status["result"],
+                f"{status['time_elapsed']:0.2f}",
+                f"{status['wall_time']:0.2f}",
+                f"{num_tests_passed}/{status['tests']}",
+            ]
+        )
+
+    return summary + table.get_string()
 
 
 def pytest_sessionstart(session):
@@ -1135,24 +1470,24 @@ def pytest_sessionstart(session):
     if hasattr(session.config, "option") and hasattr(session.config.option, "exclude_pattern"):
         exclude_pattern = exclude_pattern or getattr(session.config.option, "exclude_pattern", "")
 
-    print("=" * 50)
-    print("CONFTEST.PY DEBUG INFO")
-    print("=" * 50)
-    print(f"Filter pattern: '{filter_pattern}'")
-    print(f"Exclude pattern: '{exclude_pattern}'")
-    print(f"Include files: {include_files if include_files else 'none'}")
-    print(f"Test node IDs: {sum(len(node_ids) for node_ids in test_node_ids_by_file.values())}")
-    print(f"Quarantined-only mode: {quarantined_only}")
-    print(f"Curobo-only mode: {curobo_only}")
-    print(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
-    print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
-    print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
-    print(f"TEST_NODE_IDS env var: '{'SET' if os.environ.get('TEST_NODE_IDS') else 'NOT_SET'}'")
-    print(f"TEST_NODE_IDS_FILE env var: '{os.environ.get('TEST_NODE_IDS_FILE', 'NOT_SET')}'")
-    print(f"TEST_NODE_IDS_KEY env var: '{os.environ.get('TEST_NODE_IDS_KEY', 'NOT_SET')}'")
-    print(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
-    print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
-    print("=" * 50)
+    logger.debug("=" * 50)
+    logger.debug("CONFTEST.PY DEBUG INFO")
+    logger.debug("=" * 50)
+    logger.debug(f"Filter pattern: '{filter_pattern}'")
+    logger.debug(f"Exclude pattern: '{exclude_pattern}'")
+    logger.debug(f"Include files: {include_files if include_files else 'none'}")
+    logger.debug(f"Test node IDs: {sum(len(node_ids) for node_ids in test_node_ids_by_file.values())}")
+    logger.debug(f"Quarantined-only mode: {quarantined_only}")
+    logger.debug(f"Curobo-only mode: {curobo_only}")
+    logger.debug(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
+    logger.debug(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
+    logger.debug(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
+    logger.debug(f"TEST_NODE_IDS env var: '{'SET' if os.environ.get('TEST_NODE_IDS') else 'NOT_SET'}'")
+    logger.debug(f"TEST_NODE_IDS_FILE env var: '{os.environ.get('TEST_NODE_IDS_FILE', 'NOT_SET')}'")
+    logger.debug(f"TEST_NODE_IDS_KEY env var: '{os.environ.get('TEST_NODE_IDS_KEY', 'NOT_SET')}'")
+    logger.debug(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
+    logger.debug(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
+    logger.debug("=" * 50)
 
     # Get all test files in the source directories
     test_files = _collect_test_files(
@@ -1199,22 +1534,21 @@ def pytest_sessionstart(session):
 
     if not test_files:
         if quarantined_only:
-            print("No quarantined tests configured — nothing to run.")
+            logger.info("No quarantined tests configured — nothing to run.")
             _write_empty_report()
             pytest.exit("No quarantined tests configured", returncode=0)
         if filter_pattern:
-            print(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
+            logger.info(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
             _write_empty_report()
             pytest.exit("No test files found for filter", returncode=0)
-        print("No test files found in source directory")
+        logger.warning("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 
-    print(f"Found {len(test_files)} test files after filtering:")
+    logger.info(f"Found {len(test_files)} test files after filtering")
     for test_file in test_files:
-        print(f"  - {test_file}")
-        if test_node_ids_by_file:
-            for node_id in test_node_ids_by_file[os.path.normpath(test_file)]:
-                print(f"      {node_id}")
+        node_ids = test_node_ids_by_file.get(os.path.normpath(test_file), []) if test_node_ids_by_file else []
+        suffix = f" ({', '.join(node_ids)})" if node_ids else ""
+        logger.info(f"  - {test_file}{suffix}")
 
     # Run all tests individually. CI_MARKER takes precedence when both env
     # vars are set; falls back to "isaacsim_ci" when only ISAACSIM_CI_SHORT
@@ -1228,19 +1562,19 @@ def pytest_sessionstart(session):
     if os.environ.get("ISAACLAB_TEST_QUEUE"):
         test_files = list(test_status)
 
-    print("failed tests:", failed_tests)
+    logger.info(f"failed tests: {failed_tests}")
 
     # Collect reports
-    print("~~~~~~~~~ Collecting final report...")
+    logger.info("~~~~~~~~~ Collecting final report...")
 
     # Merge in-memory report objects collected during the test run.  Reading the
     # on-disk files again risks losing <failure> elements if the junitparser
     # read/write round-trip does not preserve them faithfully.
     full_report = JUnitXml()
     for xml_report in xml_reports:
-        print(xml_report)
+        logger.debug(xml_report)
         full_report += xml_report
-    print("~~~~~~~~~~~~ Writing final report...")
+    logger.info("~~~~~~~~~~~~ Writing final report...")
     # write content to full report
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
     full_report_path = f"tests/{result_file}"
@@ -1248,9 +1582,9 @@ def pytest_sessionstart(session):
     # from the work queue (per-test JUnit XMLs are what normally create
     # ``tests/``; with no tests run there is nothing to create it).
     os.makedirs("tests", exist_ok=True)
-    print(f"Using result file: {result_file}")
+    logger.info(f"Using result file: {result_file}")
     full_report.write(full_report_path)
-    print("~~~~~~~~~~~~ Report written to", full_report_path)
+    logger.info(f"~~~~~~~~~~~~ Report written to {full_report_path}")
 
     # print test status in a nice table
     # Calculate the number and percentage of passing tests
@@ -1280,6 +1614,9 @@ def pytest_sessionstart(session):
     summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
+    exit_code = resolve_exit_code(num_failing, num_timeout, num_crashed, num_startup_hang)
+    summary_str += f"Exit Code: {exit_code} ({EXIT_CODE_LABELS[exit_code]})\n"
+
     total_wall = sum(test_status[test_path]["wall_time"] for test_path in test_files)
     total_test = sum(test_status[test_path]["time_elapsed"] for test_path in test_files)
 
@@ -1290,66 +1627,10 @@ def pytest_sessionstart(session):
     # device mask is unset.
     run_device = resolve_test_sim_device()
 
-    summary_str += "\n\n=======================\n"
-    summary_str += "Per File Result Summary\n"
-    summary_str += "=======================\n"
-
-    per_file_result_table = PrettyTable(field_names=["Test Path", "GPU", "Result", "Test (s)", "Wall (s)", "# Tests"])
-    per_file_result_table.align["Test Path"] = "l"
-    per_file_result_table.align["Test (s)"] = "r"
-    per_file_result_table.align["Wall (s)"] = "r"
-    for test_path in test_files:
-        num_tests_passed = (
-            test_status[test_path]["tests"]
-            - test_status[test_path]["failures"]
-            - test_status[test_path]["errors"]
-            - test_status[test_path]["skipped"]
-        )
-        per_file_result_table.add_row(
-            [
-                test_path,
-                run_device,
-                test_status[test_path]["result"],
-                f"{test_status[test_path]['time_elapsed']:0.2f}",
-                f"{test_status[test_path]['wall_time']:0.2f}",
-                f"{num_tests_passed}/{test_status[test_path]['tests']}",
-            ]
-        )
-
-    summary_str += per_file_result_table.get_string()
-
-    # Per-test run times, slowest first, from the merged JUnit report. The
-    # device is read from the test id params (e.g. ``...[size0-cuda:1]``),
-    # falling back to the run's boot device.
-    summary_str += "\n\n=================\n"
-    summary_str += "Per Test Run Time\n"
-    summary_str += "=================\n"
-
-    per_test_time_table = PrettyTable(field_names=["Test", "Device", "Time (s)"])
-    per_test_time_table.align["Test"] = "l"
-    per_test_time_table.align["Time (s)"] = "r"
-    test_times = []
-    for suite in full_report:
-        for case in suite:
-            full_name = f"{case.classname}::{case.name}" if case.classname else case.name
-            device = run_device
-            bracket = re.search(r"\[(.*)\]", full_name)
-            if bracket:
-                dev_match = re.search(r"cuda:\d+|\bcpu\b", bracket.group(1))
-                if dev_match:
-                    device = dev_match.group(0)
-            elapsed = float(case.time) if case.time is not None else 0.0
-            test_times.append((full_name, device, elapsed))
-    for full_name, device, elapsed in sorted(test_times, key=lambda row: row[2], reverse=True):
-        per_test_time_table.add_row([full_name, device, f"{elapsed:0.3f}"])
-
-    summary_str += per_test_time_table.get_string()
+    summary_str += _format_test_file_results(test_files, test_status, run_device)
 
     # Print summary to console and log file
-    print(summary_str)
+    logger.info(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit(
-        "Custom test execution completed",
-        returncode=0 if (num_failing == 0 and num_timeout == 0 and num_crashed == 0 and num_startup_hang == 0) else 1,
-    )
+    pytest.exit("Custom test execution completed", returncode=exit_code)

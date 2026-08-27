@@ -128,6 +128,14 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no visual material will be added.
     """
 
+    visual_material_bindings: dict[str, str] = {}
+    """Visual material bindings for selected asset-relative prims.
+
+    Keys name prims below the spawned asset. Relative values name materials below that asset,
+    so native clone backends remap their bindings with each clone. Absolute values name global
+    materials shared by every clone.
+    """
+
     physics_material_path: str = "material"
     """Path to the physics material to use for the prim. Defaults to "material".
 
@@ -189,6 +197,17 @@ class UsdFileCfg(FileCfg):
     This can either be a configclass object, in which case each attribute is used as a variant set name and
     its specified value, or a dictionary mapping between the two. Please check the
     :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
+    """
+
+    make_uninstanceable: bool = False
+    """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
+
+    Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
+    when a recursive override, such as :attr:`physics_material`, has to author properties on those
+    descendants. Disabling instancing makes them editable at the cost of stage memory, so leave this
+    option disabled unless an override requires it.
+
+    Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """
 
 
@@ -301,7 +320,7 @@ class GroundPlaneCfg(SpawnerCfg):
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = materials.RigidBodyMaterialCfg()
+    ) = materials.RigidBodyMaterialBaseCfg()
     """Physics material properties. Defaults to the default rigid body material.
 
     The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a

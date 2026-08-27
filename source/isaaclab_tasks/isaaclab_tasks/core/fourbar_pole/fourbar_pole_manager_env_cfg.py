@@ -7,7 +7,11 @@ import copy
 import math
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMCfg,
+    KaminoPADMMSolverCfg,
+    NewtonCfg,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -23,7 +27,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.fourbar_pole.mdp as mdp
-from isaaclab_tasks.core.fourbar_pole.mdp.rewards import UprightSuccessRateCommandCfg
 from isaaclab_tasks.utils import PresetCfg
 
 ##
@@ -49,14 +52,11 @@ class FourbarPolePhysicsCfg(PresetCfg):
 
     default: NewtonCfg = MISSING
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
+        solver_cfg=KaminoPADMMSolverCfg(
             integrator="euler",
             use_fk_solver=True,
             sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_rho_0=0.1,
-            padmm_warmstart_mode="containers",
+            dynamics_solver_cfg=KaminoPADMMCfg(rho_0=0.1),
         ),
         num_substeps=1,
         debug_mode=False,
@@ -96,17 +96,6 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
-
-
-@configclass
-class CommandsCfg:
-    """Command specifications for the MDP."""
-
-    # Command term to track pole upright success rate
-    upright = UprightSuccessRateCommandCfg(
-        asset_cfg=SceneEntityCfg("robot", joint_names=["coupler_to_pole"]),
-        threshold=0.95,
-    )
 
 
 @configclass
@@ -187,11 +176,15 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # (1) Primary task: swing the pole up and keep it upright (cos is maximal upright)
+    # (1) Primary task + success tracking: swing the pole up and keep it upright (cos is maximal upright)
     pole_upright = RewTerm(
         func=mdp.pole_upright,
         weight=1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"])},
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["coupler_to_pole"]),
+            "success_threshold": 0.9,
+            "hold_time_s": 0.5,
+        },
     )
     # (2) Shaping: damp the pole angular velocity to settle at the top
     pole_vel = RewTerm(
@@ -234,7 +227,6 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
     events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
@@ -246,10 +238,8 @@ class FourbarPoleSwingupEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 2
         self.episode_length_s = 5
-        # viewer settings
-        self.viewer.eye = (12.0, 0.0, 4.0)
         # Match Newton GL / --video camera to the task viewport when --viz newton creates the visualizer.
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=self.viewer.eye, lookat=self.viewer.lookat)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(12.0, 0.0, 4.0))
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation

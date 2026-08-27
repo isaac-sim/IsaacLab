@@ -5,7 +5,10 @@
 
 """Tests for the OVRTX renderer output contract."""
 
+import contextlib
 import importlib.util
+import sys
+import types
 
 import pytest
 import torch
@@ -19,7 +22,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -28,11 +30,22 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderData, OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
+        OVRTXRenderData,
+        OVRTXRenderer,
+        _gpu_side_render_var_sync_enabled,
+        ovrtx_use_ovstage_enabled,
+    )
 else:
     OVRTXRenderData = None
     OVRTXRenderer = None
     OVRTXRendererCfg = None
+    ovrtx_renderer_module = None
+    ovrtx_use_ovstage_enabled = None
+    _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
+    _gpu_side_render_var_sync_enabled = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -69,6 +82,25 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch):
+    """OVRTX 0.4.1 options are passed directly to ``RendererConfig``."""
+    config_kwargs: dict[str, object] = {}
+
+    class RecordingRendererConfig:
+        def __init__(self, **kwargs):
+            config_kwargs.update(kwargs)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: object())  # noqa: ARG005
+    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: False)
+
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
+
+    assert renderer._renderer is not None
+    assert config_kwargs["suppress_deprecation_warnings"] is True
+    assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
+
+
 def test_ovrtx_supported_output_types_key_set():
     """OVRTX publishes the documented key set and per-output spec."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -83,8 +115,7 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL,
         RenderBufferKind.SIMPLE_SHADING_FULL_MDL,
         RenderBufferKind.SEMANTIC_SEGMENTATION,
-        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
-        RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
         RenderBufferKind.DEPTH,
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.DISTANCE_TO_CAMERA,
@@ -311,3 +342,330 @@ def test_ovrtx_semantic_spec_follows_colorize_flag():
     assert non_colorized.supported_output_types()[RenderBufferKind.SEMANTIC_SEGMENTATION] == RenderBufferSpec(
         1, wp.int32
     )
+
+
+def test_ovrtx_instance_segmentation_spec_follows_colorize_flag():
+    """Instance segmentation output spec is colorized RGBA (uint8) or raw int32 IDs per the cfg flag."""
+    colorized = OVRTXRenderer.__new__(OVRTXRenderer)
+    colorized.cfg = OVRTXRendererCfg(colorize_instance_segmentation=True)
+    assert colorized.supported_output_types()[RenderBufferKind.INSTANCE_SEGMENTATION] == RenderBufferSpec(4, wp.uint8)
+
+    non_colorized = OVRTXRenderer.__new__(OVRTXRenderer)
+    non_colorized.cfg = OVRTXRendererCfg(colorize_instance_segmentation=False)
+    assert non_colorized.supported_output_types()[RenderBufferKind.INSTANCE_SEGMENTATION] == RenderBufferSpec(
+        1, wp.int32
+    )
+
+
+def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
+    """The ovstage path is off unless explicitly opted into, so existing deployments are unaffected."""
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    assert ovrtx_use_ovstage_enabled() is False
+
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
+    assert ovrtx_use_ovstage_enabled() is False
+
+
+def test_ovrtx_use_ovstage_enabled_when_requested(monkeypatch):
+    """Setting the variable to 1 selects the ovstage path."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
+    assert ovrtx_use_ovstage_enabled() is True
+
+
+def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
+    """Values other than 0/1 are a configuration error, not a silent disable."""
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true")
+
+    with pytest.raises(ValueError, match="Expected 0 or 1"):
+        ovrtx_use_ovstage_enabled()
+
+
+@pytest.mark.parametrize("platform", ["win32", "darwin"])
+def test_ovrtx_render_var_sync_is_gpu_side_off_linux(monkeypatch, platform):
+    """Everywhere but Linux the mapping is ordered by a GPU-side wait on the Warp stream."""
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
+    assert _gpu_side_render_var_sync_enabled() is True
+
+
+def test_ovrtx_render_var_sync_waits_on_host_on_linux(monkeypatch):
+    """Linux blocks the calling thread instead, which measures faster there."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
+    assert _gpu_side_render_var_sync_enabled() is False
+
+
+def test_ovrtx_render_var_sync_is_gpu_side_on_linux_when_disabled(monkeypatch):
+    """Opting out of the host wait puts Linux on the same GPU-side wait as every other platform."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "1")
+    assert _gpu_side_render_var_sync_enabled() is True
+
+
+def test_ovrtx_render_var_sync_keeps_host_wait_when_explicitly_enabled(monkeypatch):
+    """``0`` is the default, so setting it explicitly must not change anything."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "0")
+    assert _gpu_side_render_var_sync_enabled() is False
+
+
+@pytest.mark.parametrize("value", ["", "true", "yes", "2"])
+def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
+    """Values other than 0/1 are a configuration error, not a silent fallback to the host wait."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, value)
+    with pytest.raises(ValueError, match="Expected 0 or 1"):
+        _gpu_side_render_var_sync_enabled()
+
+
+class _RecordingRenderVar:
+    """Stand-in for an OVRTX ``RenderVarOutput`` that records how the read was ordered.
+
+    Any of OVRTX's ordering mechanisms counts, so the test stays about *whether* the read is
+    ordered rather than which call carries it.
+    """
+
+    def __init__(self):
+        self.ordering: list[str] = []
+
+    def map(self, *, device, sync_stream):
+        if sync_stream:
+            self.ordering.append("gpu")
+        recorder = self
+
+        class _Mapping:
+            def wait(self):
+                recorder.ordering.append("host")
+
+            def wait_on(self, stream):
+                recorder.ordering.append("gpu")
+
+        return contextlib.nullcontext(_Mapping())
+
+
+@pytest.mark.parametrize(("gpu_side", "expected"), [(True, "gpu"), (False, "host")])
+def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypatch, gpu_side, expected):
+    """The read is ordered exactly once -- by a GPU-side barrier or a host block, never by neither.
+
+    Ordering by neither is a silent race on half-written render output rather than a failure, so
+    this asserts which mechanism ran and not which API call carries it.
+    """
+    sentinel = object()
+    render_var = _RecordingRenderVar()
+    monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cuda:0"
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
+    with renderer._map_render_var_to_dlpack(render_var) as array:
+        assert array is sentinel
+
+    assert render_var.ordering == [expected]
+
+
+def test_ovrtx_cleanup_releases_only_the_given_render_data():
+    """``cleanup`` releases the render data's own buffers and leaves the renderer usable.
+
+    The stage queries, tensor bindings and render products the renderer holds are shared with
+    every other camera that resolved to it, so a single camera's cleanup must not take them.
+    """
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._initialized_scene = True
+
+    render_data = _make_ovrtx_render_data()
+    render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
+    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
+    render_data.ppisp_pipeline = object()
+
+    renderer.cleanup(render_data)
+
+    assert render_data.warp_buffers == {}
+    assert render_data.renderer_info == {}
+    assert render_data.ppisp_pipeline is None
+
+    assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
+    assert renderer._initialized_scene is True
+
+
+def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
+    """``cleanup(None)`` has nothing to release and must not disturb the renderer."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._initialized_scene = True
+
+    renderer.cleanup(None)
+
+    assert renderer._render_product_paths == ["/Render/RenderProduct_camera"]
+    assert renderer._initialized_scene is True
+
+
+class _RecordingBinding:
+    def __init__(self, events: list[str], name: str):
+        self._events = events
+        self._name = name
+
+    def unbind(self) -> None:
+        self._events.append(f"unbind:{self._name}")
+
+
+def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
+    """Build a legacy-path renderer whose backend calls are recorded into ``events``."""
+
+    class Backend:
+        def reset_stage(self) -> None:
+            events.append("reset_stage")
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = False
+    renderer._camera_xform_binding = _RecordingBinding(events, "camera")
+    renderer._object_xform_binding = _RecordingBinding(events, "object")
+    renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
+    renderer._particle_points_binding = _RecordingBinding(events, "particle")
+    renderer._cable_points_binding = _RecordingBinding(events, "cable")
+    renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particle_counts = [1]
+    renderer._particle_visual_offsets = [0]
+    renderer._particle_visual_counts = [1]
+    renderer._particle_workaround_applied = True
+    renderer._cable_segment_counts = [1]
+    renderer._renderer = Backend()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._output_id_color_buffers = {"semantic_segmentation": object()}
+    renderer._initialized_scene = True
+    return renderer
+
+
+def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
+    """Build an ovstage-path renderer whose backend calls are recorded into ``events``."""
+
+    class Completion:
+        def wait(self) -> None:
+            return
+
+    class Stage:
+        def release_query(self, query):
+            events.append(f"release_query:{query}")
+            return Completion()
+
+    class StagePaths:
+        def destroy_path_list(self, path_list) -> None:
+            events.append(f"destroy_path_list:{path_list}")
+
+    class Backend:
+        def detach_ovstage(self) -> None:
+            events.append("detach_ovstage")
+
+    class ExitStack:
+        def close(self) -> None:
+            events.append("exit_stack_close")
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = True
+    renderer._stage = Stage()
+    renderer._stage_paths = StagePaths()
+    renderer._camera_xform_query = "camera"
+    renderer._camera_paths_list = "camera"
+    renderer._object_xform_query = "object"
+    renderer._object_paths_list = "object"
+    renderer._deformable_points_query = "deformable"
+    renderer._deformable_paths_list = "deformable"
+    renderer._particle_points_query = "particle"
+    renderer._particle_paths_list = "particle"
+    renderer._cable_points_query = "cable"
+    renderer._cable_paths_list = "cable"
+    renderer._object_newton_indices = object()
+    renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particle_counts = [1]
+    renderer._particle_visual_offsets = [0]
+    renderer._particle_visual_counts = [1]
+    renderer._renderer = Backend()
+    renderer._ovstage_exit_stack = ExitStack()
+    renderer._render_product_paths = ["/Render/RenderProduct_camera"]
+    renderer._output_id_color_buffers = {"semantic_segmentation": object()}
+    renderer._initialized_scene = True
+    renderer._current_ordinal = 7
+    return renderer
+
+
+def test_ovrtx_close_releases_legacy_renderer_state():
+    """``close`` unbinds the tensor bindings and resets the stage the renderer owns."""
+    events: list[str] = []
+    renderer = _make_legacy_renderer_with_backend(events)
+
+    renderer.close()
+
+    assert events == [
+        "unbind:camera",
+        "unbind:object",
+        "unbind:deformable",
+        "unbind:particle",
+        "unbind:cable",
+        "reset_stage",
+    ]
+    assert renderer._camera_xform_binding is None
+    assert renderer._object_xform_binding is None
+    assert renderer._object_transform_buffer is None
+    assert renderer._deformable_points_binding is None
+    assert renderer._particle_points_binding is None
+    assert renderer._cable_points_binding is None
+    assert renderer._particle_workaround_applied is False
+    assert renderer._renderer is None
+    assert renderer._render_product_paths == []
+    assert renderer._output_id_color_buffers == {}
+    assert renderer._initialized_scene is False
+
+
+def test_ovrtx_close_releases_ovstage_renderer_state():
+    """``close`` releases the queries and path lists, then detaches before closing the ExitStack.
+
+    The ExitStack owns the ovstage ``Stage`` and ``PathDictionary`` as context managers, so it is the
+    only thing that releases them — ``ExitStack`` has no finalizer, and garbage collection never
+    invokes ``__exit__``. Detaching first avoids a use-after-free while the renderer still references
+    the stage.
+    """
+    events: list[str] = []
+    renderer = _make_ovstage_renderer_with_backend(events)
+
+    renderer.close()
+
+    assert events == [
+        "release_query:camera",
+        "destroy_path_list:camera",
+        "release_query:object",
+        "destroy_path_list:object",
+        "release_query:deformable",
+        "destroy_path_list:deformable",
+        "release_query:particle",
+        "destroy_path_list:particle",
+        "release_query:cable",
+        "destroy_path_list:cable",
+        "detach_ovstage",
+        "exit_stack_close",
+    ]
+    assert renderer._camera_xform_query is None
+    assert renderer._particle_paths_list is None
+    assert renderer._cable_points_query is None
+    assert renderer._cable_paths_list is None
+    assert renderer._object_newton_indices is None
+    assert renderer._renderer is None
+    assert renderer._ovstage_exit_stack is None
+    assert renderer._stage is None
+    assert renderer._stage_paths is None
+    assert renderer._render_product_paths == []
+    assert renderer._output_id_color_buffers == {}
+    assert renderer._initialized_scene is False
+    assert renderer._current_ordinal == 0
+
+
+def test_ovrtx_close_is_idempotent():
+    """A second ``close`` releases nothing again, so a repeated teardown cannot double-free."""
+    events: list[str] = []
+    renderer = _make_ovstage_renderer_with_backend(events)
+
+    renderer.close()
+    events.clear()
+    renderer.close()
+
+    assert events == []

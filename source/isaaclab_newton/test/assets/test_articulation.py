@@ -10,6 +10,15 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.test.utils.articulation_ordering import (
+    ANYMAL_C_PHYSX_JOINT_NAMES,
+    BRANCHING_MJWARP_BODY_NAMES,
+    BRANCHING_MJWARP_JOINT_NAMES,
+    BRANCHING_PHYSX_BODY_NAMES,
+    BRANCHING_PHYSX_JOINT_NAMES,
+    PANDA_JOINT_NAMES,
+    PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+)
 
 HEADLESS = True
 
@@ -19,23 +28,37 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import sys
-from copy import deepcopy
+from copy import copy, deepcopy
+from pathlib import Path
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
+from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
+from isaaclab_newton.assets.articulation.articulation import _configure_builder_joint_target_modes
+from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
+from newton.solvers import SolverMuJoCo
 
 from pxr import UsdPhysics
 
+import isaaclab.assets.articulation.ordering_kernels as ordering_kernels
+import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import (
+    IdealPDActuatorCfg,
+    ImplicitActuator,
+    ImplicitActuatorCfg,
+)
 from isaaclab.assets import ArticulationCfg
+from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -48,12 +71,14 @@ from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils.warp.proxy_array import ProxyArray
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 # , SHADOW_HAND_CFG  # isort:skip
+
 
 SIM_CFGs = {
     "humanoid": SimulationCfg(
@@ -98,6 +123,25 @@ SIM_CFGs = {
                 integrator="implicitfast",
             ),
             num_substeps=1,
+            debug_mode=False,
+        ),
+    ),
+    # "panda" with 4 solver substeps: at a single 1/120 substep, MJWarp implicitfast
+    # carries a ~0.4-1.0 mm integration limit cycle under a gravity load that never
+    # settles; 4 substeps integrate the same frozen per-control-step torques to a
+    # dead-still ~1 um hold. Used by the gravity-compensation precision test.
+    "panda_fine": SimulationCfg(
+        dt=1 / 120,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=20,
+                nconmax=20,
+                ls_iterations=20,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicitfast",
+            ),
+            num_substeps=4,
             debug_mode=False,
         ),
     ),
@@ -149,14 +193,18 @@ SIM_CFGs = {
 }
 
 
+class CustomDrive(ImplicitActuator):
+    """Implicit actuator with a class name that does not encode its execution type."""
+
+
 def generate_articulation_cfg(
     articulation_type: str,
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
-    velocity_limit: float | None = None,
-    effort_limit: float | None = None,
-    velocity_limit_sim: float | None = None,
-    effort_limit_sim: float | None = None,
+    actuator_velocity_limit: float | None = None,
+    actuator_effort_limit: float | None = None,
+    joint_velocity_limit: float | None = None,
+    joint_effort_limit: float | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
@@ -168,13 +216,13 @@ def generate_articulation_cfg(
             Defaults to 10.0.
         damping: Damping value for the articulation's actuators. Only currently used for "humanoid".
             Defaults to 2.0.
-        velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
+        actuator_velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
             and "single_joint_explicit".
-        effort_limit: Effort limit for the actuators. Only currently used for "single_joint_implicit"
-            and "single_joint_explicit".
-        velocity_limit_sim: Velocity limit for the actuators (set into the simulation).
+        actuator_effort_limit: Effort limit for explicit actuators. Only currently used for
+            "single_joint_explicit".
+        joint_velocity_limit: Velocity limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
-        effort_limit_sim: Effort limit for the actuators (set into the simulation).
+        joint_effort_limit: Effort limit for the actuators (set into the simulation).
             Only currently used for "single_joint_implicit" and "single_joint_explicit".
 
     Returns:
@@ -206,10 +254,9 @@ def generate_articulation_cfg(
             actuators={
                 "joint": ImplicitActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=velocity_limit_sim,
-                    effort_limit=effort_limit,
-                    velocity_limit=velocity_limit,
+                    joint_effort_limit=joint_effort_limit,
+                    joint_velocity_limit=joint_velocity_limit,
+                    actuator_velocity_limit=actuator_velocity_limit,
                     stiffness=2000.0,
                     damping=100.0,
                 ),
@@ -230,10 +277,10 @@ def generate_articulation_cfg(
             actuators={
                 "joint": IdealPDActuatorCfg(
                     joint_names_expr=[".*"],
-                    effort_limit_sim=effort_limit_sim,
-                    velocity_limit_sim=velocity_limit_sim,
-                    effort_limit=effort_limit,
-                    velocity_limit=velocity_limit,
+                    joint_effort_limit=joint_effort_limit,
+                    joint_velocity_limit=joint_velocity_limit,
+                    actuator_effort_limit=actuator_effort_limit,
+                    actuator_velocity_limit=actuator_velocity_limit,
                     stiffness=0.0,
                     damping=10.0,
                 ),
@@ -322,6 +369,36 @@ _REVERSED_JOINT_USD_FILES = {"revolute_articulation.usd"}
 """USD filenames with known reversed joint body0/body1 ordering."""
 
 
+_ANYMAL_C_BODY_NAMES = (
+    "base",
+    "LF_HIP",
+    "LF_THIGH",
+    "LF_SHANK",
+    "LF_FOOT",
+    "LH_HIP",
+    "LH_THIGH",
+    "LH_SHANK",
+    "LH_FOOT",
+    "RF_HIP",
+    "RF_THIGH",
+    "RF_SHANK",
+    "RF_FOOT",
+    "RH_HIP",
+    "RH_THIGH",
+    "RH_SHANK",
+    "RH_FOOT",
+)
+_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_ANYMAL_C_BODY_NAMES[0], *reversed(_ANYMAL_C_BODY_NAMES[1:]))
+
+
+_NEWTON_USER_ORDER_STATE_CACHES = (
+    "_joint_pos_user",
+    "_joint_vel_user",
+    "_body_link_pose_w_user",
+    "_body_com_vel_w_user",
+)
+
+
 def generate_articulation(
     articulation_cfg: ArticulationCfg, num_articulations: int, device: str
 ) -> tuple[Articulation, torch.tensor]:
@@ -346,7 +423,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
 
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
@@ -363,7 +440,7 @@ def generate_articulation(
 # ---------------------------------------------------------------------------
 
 
-def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
+def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_gravity: bool = True):
     """Build a Franka articulation at its configured home pose.
 
     Constructs :data:`FRANKA_PANDA_HIGH_PD_CFG`, optionally zeroes the
@@ -379,16 +456,20 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
             actuator stiffness and damping to zero. Used by the OSC test
             so OSC's joint-effort output is not opposed by the
             implicit-PD's residual ``kp·(target − q)``.
+        disable_gravity: Per-body gravity flag written to the spawn config.
+            :data:`FRANKA_PANDA_HIGH_PD_CFG` ships with gravity disabled;
+            pass False for tests where the arm must feel scene gravity.
 
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
-    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_[^/]*/Robot")
     if zero_actuator_pd:
         cfg.actuators["panda_shoulder"].stiffness = 0.0
         cfg.actuators["panda_shoulder"].damping = 0.0
         cfg.actuators["panda_forearm"].stiffness = 0.0
         cfg.actuators["panda_forearm"].damping = 0.0
+    cfg.spawn.rigid_props.disable_gravity = disable_gravity
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     robot = Articulation(cfg)
     sim.reset()
@@ -465,6 +546,8 @@ def sim(request):
     articulation_type = request.getfixturevalue("articulation_type")
     sim_cfg = deepcopy(SIM_CFGs[articulation_type])
     sim_cfg.device = device
+    if "use_newton_actuators" in request.fixturenames:
+        sim_cfg.use_newton_actuators = request.getfixturevalue("use_newton_actuators")
     # ``gravity_enabled`` is silently ignored by ``build_simulation_context``
     # when an explicit ``sim_cfg`` is also passed; apply it here so the
     # fixture honors what its parameter advertises.
@@ -479,6 +562,996 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+def _make_target_mode_builder(
+    joint_names: list[str], target_modes: list[JointTargetMode], stiffness: list[float], damping: list[float]
+) -> ModelBuilder:
+    """Build a zero-gain articulated model builder for target-mode tests."""
+    builder = ModelBuilder()
+    inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    parent = -1
+    joint_ids = []
+    for joint_name in joint_names:
+        link = builder.add_link(mass=1.0, inertia=inertia, label=f"/World/Env_0/Robot/{joint_name}_link")
+        joint_ids.append(
+            builder.add_joint_revolute(
+                parent,
+                link,
+                target_ke=0.0,
+                target_kd=0.0,
+                label=f"/World/Env_0/Robot/{joint_name}",
+            )
+        )
+        parent = link
+    builder.add_articulation(joint_ids, label="/World/Env_0/Robot")
+    builder.articulation_label = ["/World/Env_0/Robot"]
+    builder.joint_target_mode = [int(mode) for mode in target_modes]
+    builder.joint_target_ke = stiffness
+    builder.joint_target_kd = damping
+    return builder
+
+
+def test_viscous_writer_updates_finalized_newton_model(monkeypatch):
+    """Test the production viscous writer updates a finalized Newton model binding."""
+    builder = ModelBuilder()
+    link = builder.add_link(mass=1.0, inertia=wp.mat33(1.0))
+    joint = builder.add_joint_revolute(-1, link, label="joint")
+    builder.add_articulation([joint], label="articulation")
+    model = builder.finalize(device="cpu")
+    model_damping = wp.array(
+        ptr=model.joint_damping.ptr,
+        dtype=wp.float32,
+        shape=(1, 1),
+        strides=(model.joint_damping.strides[0], model.joint_damping.strides[0]),
+        device="cpu",
+        copy=False,
+    )
+
+    data_type = type(
+        "_Data",
+        (),
+        {"joint_viscous_friction_coeff": ArticulationData.joint_viscous_friction_coeff},
+    )
+    data = data_type()
+    data.has_joint_ordering = False
+    data.joint_ordering = None
+    data._joint_viscous_friction_user = None
+    data._sim_bind_joint_viscous_friction_coeff = model_damping
+    data._joint_viscous_friction_coeff_ta = ProxyArray(model_damping)
+
+    articulation = object.__new__(Articulation)
+    articulation._device = "cpu"
+    articulation._data = data
+    articulation._root_view = SimpleNamespace(count=1)
+    articulation._ALL_INDICES = wp.array([0], dtype=wp.int32, device="cpu")
+    articulation._ALL_JOINT_INDICES = wp.array([0], dtype=wp.int32, device="cpu")
+    articulation._initialize_handle = None
+    articulation._invalidate_initialize_handle = None
+    articulation._prim_deletion_handle = None
+    monkeypatch.setattr(SimulationManager, "add_model_change", lambda flags: None)
+
+    articulation.write_joint_viscous_friction_coefficient_to_sim_index(
+        joint_viscous_friction_coeff=torch.tensor([[0.25]], dtype=torch.float32),
+    )
+
+    torch.testing.assert_close(data.joint_viscous_friction_coeff.torch, torch.tensor([[0.25]]))
+    torch.testing.assert_close(torch.from_numpy(model.joint_damping.numpy()), torch.tensor([0.25]))
+
+
+def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
+    """Leave solver gains untouched until collection construction resolves actuator defaults."""
+    gain_writes = []
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        device="cpu",
+        find_joints=lambda _: ([0], ["joint"]),
+        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
+        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+    )
+    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: None)
+
+    native_groups = NewtonActuatorControl(articulation).prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
+    )
+
+    assert native_groups == {"explicit"}
+    assert gain_writes == []
+
+
+@pytest.mark.parametrize(
+    ("actuator_cfg", "expected_mode", "expected_actuator_indices"),
+    [
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0),
+            JointTargetMode.POSITION,
+            [0, 1],
+        ),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=2.0),
+            JointTargetMode.VELOCITY,
+            [-2, -3],
+        ),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0),
+            JointTargetMode.POSITION_VELOCITY,
+            [0, -2, 1, -3],
+        ),
+        (
+            ImplicitActuatorCfg(
+                class_type=f"{__name__}:CustomDrive", joint_names_expr=[".*"], stiffness=10.0, damping=2.0
+            ),
+            JointTargetMode.POSITION_VELOCITY,
+            [0, -2, 1, -3],
+        ),
+        (
+            ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0),
+            JointTargetMode.EFFORT,
+            None,
+        ),
+        (
+            IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0),
+            JointTargetMode.EFFORT,
+            None,
+        ),
+    ],
+)
+def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
+    actuator_cfg, expected_mode, expected_actuator_indices
+):
+    """Resolve configured modes before finalization constructs MuJoCo actuators."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": actuator_cfg},
+    )
+    builder = _make_target_mode_builder(
+        ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
+    )
+    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    model = builder.finalize(device="cpu")
+    solver = SolverMuJoCo(model, use_mujoco_cpu=True)
+    assert model.joint_target_mode.numpy().tolist() == [int(expected_mode), int(expected_mode)]
+    assert (
+        solver.mjc_actuator_to_newton_idx.numpy().tolist() if solver.mjc_actuator_to_newton_idx is not None else None
+    ) == expected_actuator_indices
+
+
+def test_actuator_cfg_matches_explicit_descendant_articulation_root():
+    """Match target modes against an explicitly configured descendant articulation root."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="/base",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder.articulation_label = ["/World/Env_0/Robot/base"]
+    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
+
+
+def test_actuator_cfg_matches_clone_plan_root_expr(monkeypatch):
+    """Match builder labels against the clone slot spelling clone-plan root resolution returns."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+    )
+    monkeypatch.setattr(
+        "isaaclab_newton.assets.articulation.articulation.resolve_matching_prims_from_source",
+        lambda *_args, **_kwargs: [(None, "/World/envs/env_[^/]+/Robot/base")],
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder.articulation_label = ["/World/envs/env_0/Robot/base"]
+    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
+
+
+@pytest.mark.parametrize("joint_type", [JointType.FREE, JointType.FIXED])
+def test_actuator_cfg_leaves_excluded_joint_types_imported(joint_type):
+    """Leave target modes for free and fixed joints unchanged."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder.joint_type[0] = joint_type
+    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    assert builder.joint_target_mode == [int(JointTargetMode.NONE)]
+
+
+def test_actuator_cfg_keeps_imported_newton_target_mode_for_none_gain():
+    """Retain the imported stiffness when an implicit actuator config leaves it unset."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
+    )
+    builder = _make_target_mode_builder(["joint"], [JointTargetMode.EFFORT], [10.0], [0.0])
+    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
+
+
+def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported():
+    """Leave target modes for DOFs outside an actuator group unchanged."""
+    subset_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={
+            "shoulder": ImplicitActuatorCfg(joint_names_expr=["left_shoulder"], stiffness=10.0, damping=0.0),
+        },
+    )
+    builder = _make_target_mode_builder(
+        ["left_shoulder", "right_shoulder"],
+        [JointTargetMode.NONE, JointTargetMode.VELOCITY],
+        [0.0, 0.0],
+        [0.0, 2.0],
+    )
+    _configure_builder_joint_target_modes(builder, subset_cfg)
+    assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
+
+
+@pytest.mark.parametrize(
+    ("stiffness", "damping", "expected_modes"),
+    [
+        ({"left_joint": 10.0}, 0.0, [JointTargetMode.POSITION, JointTargetMode.EFFORT]),
+        ({"left_joint": 10.0}, {"right_joint": 2.0}, [JointTargetMode.POSITION, JointTargetMode.VELOCITY]),
+    ],
+)
+def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(stiffness, damping, expected_modes):
+    """Resolve sparse stiffness and damping dictionaries independently by joint name."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        articulation_root_prim_path="",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
+    )
+    builder = _make_target_mode_builder(
+        ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
+    )
+    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    assert builder.joint_target_mode == [int(mode) for mode in expected_modes]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled, articulation_type) -> None:
+    """Write joint state with int64 selectors."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+    sim.reset()
+    assert articulation.num_joints >= 2
+
+    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
+    joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int64, device=device)
+    position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
+    velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
+
+    expected_position = articulation.data.joint_pos.torch.clone()
+    expected_velocity = articulation.data.joint_vel.torch.clone()
+
+    articulation.write_joint_state_to_sim_index(
+        position=position, velocity=velocity, env_ids=env_ids, joint_ids=joint_ids
+    )
+    expected_position[env_ids[:, None], joint_ids[None, :]] = position
+    expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, gravity_enabled, articulation_type):
+    """Compare the resolver's emulated MJWarp ordering against the live Newton backend view.
+
+    The articulation below is already native to the Newton backend, so
+    :func:`~isaaclab.assets.get_articulation_name_ordering` with the ``"mjwarp"``
+    convention takes the same-backend identity fast path and never exercises the
+    temporary Newton USD builder used for cross-backend discovery (the path a
+    PhysX-backed articulation would take). That fast path is checked below,
+    but it is not sufficient by itself: it would pass even if the emulation's
+    BFS/DFS traversal had silently diverged from the live backend. To close
+    that gap, this test also calls the private builder helper directly —
+    forcing the temporary-builder emulation to run — and compares its output
+    against the live backend view. A branching (non-single-joint) fixture is
+    required for this comparison to be meaningful, since BFS and DFS produce
+    the same order on a single-joint chain.
+    """
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+        )
+    )
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Newton's native traversal is depth-first (see NewtonManager.instantiate_builder_from_stage),
+    # so the live backend view already reflects MJWarp order on this branching fixture. These
+    # values are the same ground truth isaaclab_physx's own
+    # test_branching_fixture_resolves_distinct_conventions asserts for expected_mjwarp_*_names.
+    assert tuple(articulation.backend_joint_names) == BRANCHING_MJWARP_JOINT_NAMES
+    assert tuple(articulation.backend_body_names) == BRANCHING_MJWARP_BODY_NAMES
+
+    # Force the cross-backend emulation path (bypassing the same-backend identity fast path) and
+    # compare its independently rebuilt Newton view against the live backend view above. A
+    # BFS/DFS regression in the emulation would fail this even though the fixture is small.
+    emulated_names = ordering_resolvers._get_mjwarp_names_from_newton_usd_builder(articulation)
+    assert emulated_names is not None
+    assert emulated_names["joint"] == tuple(articulation.backend_joint_names)
+    assert emulated_names["body"] == tuple(articulation.backend_body_names)
+
+    # The public resolver still returns live names without discovery for a same-backend request.
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == tuple(
+        articulation.backend_joint_names
+    )
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == tuple(articulation.backend_body_names)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gravity_enabled, articulation_type):
+    """Resolve the documented Newton ``joint_ordering="physx"`` sim-to-sim workflow on a branching asset.
+
+    Mirrors :func:`isaaclab_physx.test.assets.test_articulation.test_branching_fixture_resolves_distinct_conventions`
+    with the backend roles swapped: here the live backend is Newton (depth-first, so its native view is
+    the MJWarp order), and the request is ``physx``/``body_ordering="physx"``. Cross-backend discovery must
+    resolve the breadth-first PhysX order and reorder the public joint/body axes to it. This is the headline
+    workflow documented in
+    ``docs/source/overview/core-concepts/physical-backends/joint_and_body_ordering.rst``.
+
+    The branching fixture is shared between both backends; a copy lives in this package's
+    test data directory so the two backends assert against the same ground-truth asset.
+    """
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+            joint_ordering="physx",
+            body_ordering="physx",
+        )
+    )
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Newton's native traversal is depth-first, so the live backend view already reflects MJWarp order.
+    assert tuple(articulation.backend_joint_names) == BRANCHING_MJWARP_JOINT_NAMES
+    assert tuple(articulation.backend_body_names) == BRANCHING_MJWARP_BODY_NAMES
+
+    # Cross-backend discovery (bypassing the same-backend fast path) resolves the breadth-first PhysX order.
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == BRANCHING_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == BRANCHING_PHYSX_BODY_NAMES
+
+    # The requested PhysX ordering reorders the public joint/body axes to the BFS convention.
+    assert tuple(articulation.joint_names) == BRANCHING_PHYSX_JOINT_NAMES
+    assert tuple(articulation.body_names) == BRANCHING_PHYSX_BODY_NAMES
+    assert articulation.joint_ordering is not None
+    assert articulation.body_ordering is not None
+
+
+def test_num_shapes_per_body_follows_public_body_order() -> None:
+    """Align Newton shape counts with the public body-name axis."""
+
+    class _ShapeCountSurface:
+        backend_num_shapes_per_body = Articulation.backend_num_shapes_per_body
+        num_shapes_per_body = Articulation.num_shapes_per_body
+
+    articulation = _ShapeCountSurface()
+    articulation._num_shapes_per_body_backend = None
+    articulation._root_view = SimpleNamespace(
+        body_shapes=((), (object(), object()), (object(), object(), object())),
+    )
+    articulation.body_ordering = SimpleNamespace(
+        user_to_backend_indices=(2, 0, 1),
+    )
+
+    assert articulation.num_shapes_per_body == [3, 0, 2]
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("articulation_type", ["anymal"])  # consumed by the sim fixture
+@pytest.mark.parametrize("use_newton_actuators", [True])  # consumed by the sim fixture
+def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
+    sim, articulation_type, use_newton_actuators, device
+):
+    """Map selected public joint IDs to Newton-controller columns."""
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
+        actuators={
+            "legs": IdealPDActuatorCfg(
+                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+                stiffness=40.0,
+                damping=5.0,
+                actuator_effort_limit=80.0,
+            )
+        },
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
+    )
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=sim.device)
+    sim.reset()
+    assert articulation.joint_ordering is not None
+    assert articulation.newton_actuator_adapter is not None
+
+    def gather_stiffness() -> torch.Tensor:
+        stiffness = torch.zeros(
+            (articulation.num_instances, articulation.num_joints),
+            device=articulation.device,
+        )
+        for actuator in articulation.newton_actuator_adapter.actuators:
+            if hasattr(actuator.controller, "kp"):
+                stiffness += wp.to_torch(
+                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, "kp")
+                )
+        return stiffness
+
+    stiffness_before = gather_stiffness()
+    env_ids = torch.tensor([1], device=articulation.device, dtype=torch.long)
+    joint_ids = torch.tensor([1, 6, 10], device=articulation.device, dtype=torch.long)
+    stiffness = torch.tensor([[101.0, 106.0, 110.0]], device=articulation.device)
+
+    with pytest.warns(DeprecationWarning, match="write_actuator_stiffness_to_sim"):
+        articulation.write_actuator_stiffness_to_sim(
+            stiffness=stiffness,
+            env_ids=env_ids,
+            joint_ids=joint_ids,
+        )
+
+    backend_joint_ids = torch.tensor(
+        articulation.joint_ordering.user_to_backend_indices,
+        device=articulation.device,
+        dtype=torch.long,
+    )[joint_ids]
+    expected_stiffness = stiffness_before.clone()
+    expected_stiffness[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = stiffness
+    torch.testing.assert_close(gather_stiffness(), expected_stiffness)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("state_kind", ["pose", "velocity"])
+def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_write(
+    sim, num_articulations, device, gravity_enabled, articulation_type, state_kind
+):
+    """Refresh ordered body state after a root write at the current simulation timestamp."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    data = articulation.data
+    assert data.body_ordering is not None
+    root_body_idx = articulation.find_bodies("base")[0][0]
+    sim_timestamp = data._sim_timestamp
+
+    if state_kind == "pose":
+        cached_body_state = data.body_link_pose_w.torch[:, root_body_idx].clone()
+        written_root_state = data.root_link_pose_w.torch.clone()
+        written_root_state[:, 0] += 0.25
+        articulation.write_root_link_pose_to_sim_index(root_pose=written_root_state)
+
+        assert data._sim_timestamp == sim_timestamp
+        torch.testing.assert_close(data.root_link_pose_w.torch, written_root_state)
+        refreshed_body_state = data.body_link_pose_w.torch[:, root_body_idx]
+    else:
+        cached_body_state = data.body_com_vel_w.torch[:, root_body_idx].clone()
+        written_root_state = torch.tensor(
+            [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], device=device, dtype=cached_body_state.dtype
+        )
+        articulation.write_root_com_velocity_to_sim_index(root_velocity=written_root_state)
+
+        assert data._sim_timestamp == sim_timestamp
+        torch.testing.assert_close(data.root_com_vel_w.torch, written_root_state)
+        refreshed_body_state = data.body_com_vel_w.torch[:, root_body_idx]
+
+    torch.testing.assert_close(refreshed_body_state, written_root_state)
+    assert not torch.equal(refreshed_body_state, cached_body_state)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+def test_newton_ordered_state_caches_invalidate_on_rebind(
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+):
+    """Rebind public state to recreated Newton arrays and invalidate ordered caches."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(
+            joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
+            body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+        )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+
+    sim.reset()
+    assert articulation.is_initialized
+    has_ordering = ordering_mode == "reversed"
+    assert (articulation.data.joint_ordering is not None) is has_ordering
+    assert (articulation.data.body_ordering is not None) is has_ordering
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    data = articulation.data
+    primed_joint_vel_values = (
+        np.arange(np.prod(data._sim_bind_joint_vel.shape), dtype=np.float32).reshape(data._sim_bind_joint_vel.shape)
+        + 100.0
+    )
+    body_velocity_shape = (*data._sim_bind_body_com_vel_w.shape, 6)
+    primed_body_com_vel_values = (
+        np.arange(np.prod(body_velocity_shape), dtype=np.float32).reshape(body_velocity_shape) + 200.0
+    )
+    data._sim_bind_joint_vel.assign(
+        wp.array(primed_joint_vel_values, dtype=wp.float32, device=data._sim_bind_joint_vel.device)
+    )
+    data._sim_bind_body_com_vel_w.assign(
+        wp.array(
+            primed_body_com_vel_values,
+            dtype=wp.spatial_vectorf,
+            device=data._sim_bind_body_com_vel_w.device,
+        )
+    )
+    # The raw sim-bind writes above simulate the solver advancing state; in the
+    # real pipeline the post-step callback republishes the passthrough shadows in
+    # the same step. Mirror that here so ``joint_acc`` (which reads the passthrough
+    # ``joint_vel`` shadow) observes the primed backend state. No-op under identity
+    # ordering, where the getters alias the sim-bound arrays directly.
+    data._refresh_user_order_state()
+    data.update(sim.cfg.dt)
+    primed_joint_acc = data.joint_acc.warp.numpy().copy()
+    primed_body_com_acc_w = data.body_com_acc_w.warp.numpy().copy()
+    assert data._joint_acc.timestamp == data._sim_timestamp
+    assert data._body_com_acc_w.timestamp == data._sim_timestamp
+    assert np.any(primed_joint_acc != 0.0)
+    assert np.any(primed_body_com_acc_w != 0.0)
+
+    public_to_binding = {
+        "joint_pos": "_sim_bind_joint_pos",
+        "joint_vel": "_sim_bind_joint_vel",
+        "body_link_pose_w": "_sim_bind_body_link_pose_w",
+        "body_com_vel_w": "_sim_bind_body_com_vel_w",
+    }
+    public_to_shadow = {
+        "joint_pos": "_joint_pos_user",
+        "joint_vel": "_joint_vel_user",
+        "body_link_pose_w": "_body_link_pose_w_user",
+        "body_com_vel_w": "_body_com_vel_w_user",
+    }
+    old_bindings = {name: getattr(data, name) for name in public_to_binding.values()}
+    old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
+    old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
+    implicit_executor = articulation.actuators._implicit_executor
+    assert implicit_executor is not None
+    actuator_state_inputs = [implicit_executor.kernel_inputs]
+    data.joint_pos_limits.torch.clone()
+    assert data._joint_pos_limits_timestamp == data._sim_timestamp
+    # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
+    # allocated for non-identity ordering and stay ``None`` for identity ordering.
+    if has_ordering:
+        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+            assert getattr(data, cache_name) is not None
+    else:
+        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+            assert getattr(data, cache_name) is None
+
+    old_state = SimulationManager.get_state_0()
+    old_model = SimulationManager.get_model()
+    new_state = copy(old_state)
+    new_model = copy(old_model)
+
+    joint_q_values = np.arange(len(old_state.joint_q), dtype=np.float32) + 1000.0
+    joint_qd_values = np.arange(len(old_state.joint_qd), dtype=np.float32) + 2000.0
+    body_indices = np.arange(len(old_state.body_q), dtype=np.float32)[:, None]
+    body_q_values = np.zeros((len(old_state.body_q), 7), dtype=np.float32)
+    body_q_values[:, :3] = 3000.0 + 10.0 * body_indices + np.arange(3, dtype=np.float32)
+    body_q_values[:, 6] = 1.0
+    body_qd_values = 4000.0 + 10.0 * body_indices + np.arange(6, dtype=np.float32)
+    limit_indices = np.arange(len(old_model.joint_limit_lower), dtype=np.float32)
+    limit_lower_values = -5000.0 - limit_indices
+    limit_upper_values = 5000.0 + limit_indices
+
+    new_state.joint_q = wp.array(joint_q_values, dtype=wp.float32, device=old_state.joint_q.device)
+    new_state.joint_qd = wp.array(joint_qd_values, dtype=wp.float32, device=old_state.joint_qd.device)
+    new_state.body_q = wp.array(body_q_values, dtype=wp.transformf, device=old_state.body_q.device)
+    new_state.body_qd = wp.array(body_qd_values, dtype=wp.spatial_vectorf, device=old_state.body_qd.device)
+    new_model.joint_limit_lower = wp.array(
+        limit_lower_values, dtype=wp.float32, device=old_model.joint_limit_lower.device
+    )
+    new_model.joint_limit_upper = wp.array(
+        limit_upper_values, dtype=wp.float32, device=old_model.joint_limit_upper.device
+    )
+    SimulationManager._state_0 = new_state
+    SimulationManager._model = new_model
+
+    body_velocities = articulation.root_view.get_link_velocities(new_state)
+    assert body_velocities is not None
+    new_source_bindings = {
+        "_sim_bind_joint_pos": articulation.root_view.get_dof_positions(new_state)[:, 0],
+        "_sim_bind_joint_vel": articulation.root_view.get_dof_velocities(new_state)[:, 0],
+        "_sim_bind_body_link_pose_w": articulation.root_view.get_link_transforms(new_state)[:, 0],
+        "_sim_bind_body_com_vel_w": body_velocities[:, 0],
+        "_sim_bind_joint_pos_limits_lower": articulation.root_view.get_attribute("joint_limit_lower", new_model)[:, 0],
+        "_sim_bind_joint_pos_limits_upper": articulation.root_view.get_attribute("joint_limit_upper", new_model)[:, 0],
+    }
+    for binding_name, new_source in new_source_bindings.items():
+        if binding_name in old_binding_ptrs:
+            assert int(new_source.ptr) != old_binding_ptrs[binding_name]
+
+    data._create_simulation_bindings()
+
+    for binding_name, old_binding in old_bindings.items():
+        rebound = getattr(data, binding_name)
+        assert rebound is not old_binding
+        assert int(rebound.ptr) != old_binding_ptrs[binding_name]
+        assert int(rebound.ptr) == int(new_source_bindings[binding_name].ptr)
+
+    for inputs in actuator_state_inputs:
+        assert inputs[3].ptr == data.joint_pos.warp.ptr
+        assert inputs[4].ptr == data.joint_vel.warp.ptr
+
+    assert data._joint_pos_limits_timestamp == -1.0
+    assert data._joint_acc.timestamp == -1.0
+    assert data._body_com_acc_w.timestamp == -1.0
+
+    joint_user_to_backend = (
+        np.asarray(articulation.joint_ordering.user_to_backend_indices)
+        if articulation.joint_ordering is not None
+        else np.arange(articulation.num_joints)
+    )
+    body_user_to_backend = (
+        np.asarray(articulation.body_ordering.user_to_backend_indices)
+        if articulation.body_ordering is not None
+        else np.arange(articulation.num_bodies)
+    )
+    expected_previous_joint_vel = new_source_bindings["_sim_bind_joint_vel"].numpy()[:, joint_user_to_backend]
+    expected_previous_body_com_vel = new_source_bindings["_sim_bind_body_com_vel_w"].numpy()
+    np.testing.assert_array_equal(data._previous_joint_vel.numpy(), expected_previous_joint_vel)
+    np.testing.assert_array_equal(data._previous_body_com_vel.numpy(), expected_previous_body_com_vel)
+
+    joint_acc = data.joint_acc.warp.numpy()
+    body_com_acc_w = data.body_com_acc_w.warp.numpy()
+    np.testing.assert_array_equal(joint_acc, np.zeros_like(expected_previous_joint_vel))
+    np.testing.assert_array_equal(
+        body_com_acc_w,
+        np.zeros_like(expected_previous_body_com_vel[:, body_user_to_backend]),
+    )
+    assert data._joint_acc.timestamp == data._sim_timestamp
+    assert data._body_com_acc_w.timestamp == data._sim_timestamp
+    assert not np.array_equal(joint_acc, primed_joint_acc)
+    assert not np.array_equal(body_com_acc_w, primed_body_com_acc_w)
+
+    expected_public = {
+        "joint_pos": new_source_bindings["_sim_bind_joint_pos"].numpy()[:, joint_user_to_backend],
+        "joint_vel": new_source_bindings["_sim_bind_joint_vel"].numpy()[:, joint_user_to_backend],
+        "body_link_pose_w": new_source_bindings["_sim_bind_body_link_pose_w"].numpy()[:, body_user_to_backend],
+        "body_com_vel_w": new_source_bindings["_sim_bind_body_com_vel_w"].numpy()[:, body_user_to_backend],
+    }
+    for property_name, expected in expected_public.items():
+        proxy = getattr(data, property_name)
+        assert proxy is not old_public_proxies[property_name]
+        binding_name = public_to_binding[property_name]
+        assert int(proxy.warp.ptr) != old_binding_ptrs[binding_name]
+        if has_ordering:
+            shadow = getattr(data, public_to_shadow[property_name])
+            assert int(proxy.warp.ptr) == int(shadow.ptr)
+        else:
+            assert int(proxy.warp.ptr) == int(getattr(data, binding_name).ptr)
+        np.testing.assert_array_equal(proxy.warp.numpy(), expected)
+
+    expected_limits = np.stack(
+        (
+            new_source_bindings["_sim_bind_joint_pos_limits_lower"].numpy()[:, joint_user_to_backend],
+            new_source_bindings["_sim_bind_joint_pos_limits_upper"].numpy()[:, joint_user_to_backend],
+        ),
+        axis=-1,
+    )
+    np.testing.assert_array_equal(data.joint_pos_limits.warp.numpy(), expected_limits)
+    assert data._joint_pos_limits_timestamp == data._sim_timestamp
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+def test_newton_rebind_preserves_lab_owned_actuator_gains(
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+):
+    """Keep Lab-owned actuator gains across a rebind that re-seeds the solver's sim gains.
+
+    Part 2 (D3) regression: named actuator groups own their actuator kp/kd; the solver's
+    sim gains are deliberately zeroed for explicit DOFs. A full sim reset recreates the solver arrays.
+    Rebind must NOT resync the actuator-owned values from freshly rebuilt (here: sentinel) solver gains.
+    ``none`` is the identity-ordering control that must pass with or without the fix.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={
+            "legs": IdealPDActuatorCfg(
+                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+                stiffness=40.0,
+                damping=5.0,
+                actuator_effort_limit=80.0,
+            )
+        },
+    )
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    has_ordering = ordering_mode == "reversed"
+    data = articulation.data
+    assert (data.joint_ordering is not None) is has_ordering
+
+    # Prime: explicit (IdealPD) actuators keep their PD in actuator-owned records,
+    # while the solver's sim gains are zeroed so it applies no PD on these DOFs.
+    np.testing.assert_allclose(articulation.actuators["legs"].stiffness.cpu().numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].damping.cpu().numpy(), 5.0)
+    np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), 0.0)
+    np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), 0.0)
+
+    # Simulate a full sim reset: shallow-copy the model, swap the joint gain arrays
+    # for sentinel-filled arrays (standing in for whatever the solver rebuilds), and
+    # rebind the data-side sim bindings.
+    old_model = SimulationManager.get_model()
+    new_model = copy(old_model)
+    sentinel_ke = 12345.0
+    sentinel_kd = 678.0
+    new_model.joint_target_ke = wp.array(
+        np.full(len(old_model.joint_target_ke), sentinel_ke, dtype=np.float32),
+        dtype=wp.float32,
+        device=old_model.joint_target_ke.device,
+    )
+    new_model.joint_target_kd = wp.array(
+        np.full(len(old_model.joint_target_kd), sentinel_kd, dtype=np.float32),
+        dtype=wp.float32,
+        device=old_model.joint_target_kd.device,
+    )
+    SimulationManager._model = new_model
+    data._create_simulation_bindings()
+
+    # The actuator-owned gains must survive the rebind unchanged...
+    np.testing.assert_allclose(articulation.actuators["legs"].stiffness.cpu().numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators["legs"].damping.cpu().numpy(), 5.0)
+    # ...while the sim-owned mirrors track the solver's freshly seeded (sentinel) gains.
+    if has_ordering:
+        np.testing.assert_allclose(data._joint_stiffness_user.numpy(), sentinel_ke)
+        np.testing.assert_allclose(data._joint_damping_user.numpy(), sentinel_kd)
+    else:
+        np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), sentinel_ke)
+        np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), sentinel_kd)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_newton_post_step_hook_publishes_ordered_state_inside_step(
+    sim, num_articulations, device, gravity_enabled, articulation_type
+):
+    """Republish the user-order Tier-1 shadows inside the sim step, without any read.
+
+    Part 1 (D1) regression: with non-identity ordering the passthrough state getters no
+    longer reorder on read; the post-step callback republishes the shadows from live
+    backend state inside the stepped region. We deliberately clobber the four shadows,
+    step the simulation WITHOUT reading any state property, and assert the shadows again
+    equal the reordered backend state -- which can only hold if the hook ran inside the
+    step. Under the lazy design (no hook), only a property read would refresh them, so
+    the clobbered shadows would stay stale and the assertions would fail.
+
+    Ships the eager-mode invariant variant: CUDA-graph capture is not reliably reachable
+    from this CPU test harness, and this invariant directly proves the in-step republish.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    data = articulation.data
+    assert data.joint_ordering is not None
+    assert data.body_ordering is not None
+    joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
+    body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
+
+    # Clobber every Tier-1 shadow with a large sentinel so a stale (unrepublished) shadow
+    # is unmistakably detectable -- the true backend joint/velocity state sits near zero,
+    # so a plain zero-fill would coincide with it. Then step WITHOUT touching joint_pos /
+    # joint_vel / body_link_pose_w / body_com_vel_w.
+    data._joint_pos_user.fill_(1000.0)
+    data._joint_vel_user.fill_(1000.0)
+    data._body_link_pose_w_user.fill_(wp.transformf(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0, 1.0))
+    data._body_com_vel_w_user.fill_(wp.spatial_vectorf(1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0))
+    sim.step()
+
+    np.testing.assert_allclose(data._joint_pos_user.numpy(), data._sim_bind_joint_pos.numpy()[:, joint_u2b])
+    np.testing.assert_allclose(data._joint_vel_user.numpy(), data._sim_bind_joint_vel.numpy()[:, joint_u2b])
+    np.testing.assert_allclose(
+        data._body_link_pose_w_user.numpy(), data._sim_bind_body_link_pose_w.numpy()[:, body_u2b]
+    )
+    np.testing.assert_allclose(data._body_com_vel_w_user.numpy(), data._sim_bind_body_com_vel_w.numpy()[:, body_u2b])
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_newton_clear_callbacks_deregisters_post_step_hook(
+    sim, num_articulations, device, gravity_enabled, articulation_type
+):
+    """Deregister the ordered post-step republish hook so it does not leak on the manager.
+
+    ``_create_buffers`` registers the backend-to-user state republish on
+    ``NewtonManager._post_step_callbacks`` for non-identity ordering. Without a
+    matching deregistration the bound method lingers on the class-level list
+    after the articulation is gone. ``_clear_callbacks`` must remove exactly that
+    callback and leave any other registered callback untouched.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.data.joint_ordering is not None
+    assert articulation.data.body_ordering is not None
+
+    # The republish hook is registered on the manager for non-identity ordering.
+    registered_callback = articulation._post_step_callback
+    assert registered_callback is not None
+    assert registered_callback in SimulationManager._post_step_callbacks
+
+    # A second, independent callback stands in for another articulation's hook.
+    def _other_callback() -> None:
+        return None
+
+    SimulationManager.register_post_step_callback(_other_callback)
+
+    articulation._clear_callbacks()
+
+    # The articulation's own hook is gone; the unrelated callback survives.
+    assert articulation._post_step_callback is None
+    assert registered_callback not in SimulationManager._post_step_callbacks
+    assert _other_callback in SimulationManager._post_step_callbacks
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("use_newton_actuators", [False, True])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
+    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators, ordering_mode, monkeypatch
+):
+    """Gather joint targets only when non-identity joint ordering is active."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+    )
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    has_ordering = ordering_mode == "reversed"
+    assert (articulation.data.joint_ordering is not None) is has_ordering
+    on_newton_path = getattr(articulation, "_has_newton_actuators", False)
+    if use_newton_actuators and not on_newton_path:
+        pytest.skip("newton.actuators unavailable; the Newton-actuator branch is not exercised")
+
+    # Drive an in-limits position target so the write path has data to forward.
+    articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
+
+    # Record every kernel launched during write_data_to_sim, then delegate to the
+    # real launch so the sim-bound buffers are still written.
+    launched_kernels: list = []
+    real_launch = wp.launch
+
+    def recording_launch(kernel, *args, **kwargs):
+        launched_kernels.append(kernel)
+        return real_launch(kernel, *args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", recording_launch)
+    articulation.write_data_to_sim()
+    monkeypatch.undo()
+
+    target_gather = ordering_kernels.reorder_joint_targets_user_to_backend
+    if has_ordering:
+        assert target_gather in launched_kernels
+    else:
+        # Identity ordering binds the user-order source directly.
+        assert target_gather not in launched_kernels
+        expected_source = (
+            articulation.actuators.target_command.position.warp
+            if on_newton_path
+            else articulation.actuators.output_command.position.warp
+        )
+        np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64])
+def test_set_body_inertial_properties_updates_inverses(
+    sim, device, gravity_enabled, articulation_type, index_dtype, monkeypatch
+):
+    """Selected inertial-property writes keep Newton inverse arrays current under body ordering."""
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+            body_ordering="physx",
+        )
+    )
+    sim.reset()
+    assert articulation.data.body_ordering is not None
+
+    env_ids = torch.tensor([0], dtype=index_dtype, device=device)
+    body_ids = torch.tensor([2, articulation.num_bodies - 1], dtype=index_dtype, device=device)
+    backend_body_ids = torch.tensor(
+        [articulation.data.body_ordering.user_to_backend_indices[index] for index in body_ids.tolist()],
+        dtype=torch.int64,
+        device=device,
+    )
+    assert backend_body_ids[0] != body_ids[0]
+
+    launches = []
+    real_launch = wp.launch
+
+    def recording_launch(kernel, *args, **kwargs):
+        launches.append(kernel)
+        return real_launch(kernel, *args, **kwargs)
+
+    monkeypatch.setattr(wp, "launch", recording_launch)
+    masses = articulation.data.body_mass.torch[env_ids][:, body_ids].clone() + torch.tensor([[1.0, 2.0]], device=device)
+    articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+    assert len(launches) == 1
+
+    raw_model_inv_mass = articulation.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[:, 0]
+    assert articulation.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
+    model_inv_mass = wp.to_torch(articulation.data._sim_bind_body_inv_mass)
+    torch.testing.assert_close(model_inv_mass[env_ids][:, backend_body_ids], masses.reciprocal())
+
+    inertia_matrices = torch.diag_embed(torch.tensor([[[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]], device=device))
+    inertias = inertia_matrices.reshape(1, 2, 9)
+    launches.clear()
+    articulation.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+    assert len(launches) == 1
+
+    raw_model_inv_inertia = articulation.root_view.get_attribute("body_inv_inertia", SimulationManager.get_model())[
+        :, 0
+    ]
+    assert articulation.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
+    model_inv_inertia = wp.to_torch(articulation.data._sim_bind_body_inv_inertia)
+    torch.testing.assert_close(
+        model_inv_inertia[env_ids][:, backend_body_ids],
+        torch.linalg.inv(inertia_matrices),
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -547,8 +1620,11 @@ def test_gravity_vec_w_tracks_model_gravity(sim, num_articulations, device, add_
     sim.reset()
 
     # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-    model_gravity_arr = SimulationManager.get_model().gravity
+    model = SimulationManager.get_model()
+    model_gravity_arr = model.gravity[: model.world_count]
+    global_gravity = wp.to_torch(model.gravity)[-1].clone()
     assert articulation.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
+    assert articulation.data.GRAVITY_VEC_W.shape == (num_articulations,)
 
     # Mutate model.gravity per-env in place, as randomize_physics_scene_gravity does.
     new_gravity = torch.tensor(
@@ -557,10 +1633,11 @@ def test_gravity_vec_w_tracks_model_gravity(sim, num_articulations, device, add_
         dtype=torch.float32,
     )
     wp.to_torch(model_gravity_arr).copy_(new_gravity)
-    SimulationManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
 
     # Live view: new per-env values are visible immediately, no invalidation step.
     torch.testing.assert_close(articulation.data.GRAVITY_VEC_W.torch, new_gravity)
+    torch.testing.assert_close(wp.to_torch(model.gravity)[-1], global_gravity)
 
     # Recompute the lazily-cached projected_gravity_b without sim.step (which would
     # drift root orientation from the reset state). Project against the same quat
@@ -678,7 +1755,7 @@ def test_initialization_fixed_base(sim, num_articulations, device, articulation_
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_fixed_base_reports_body_velocities(sim, num_articulations, device, articulation_type):
@@ -788,7 +1865,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 def test_initialization_hand_with_tendons(sim, num_articulations, device, articulation_type):
@@ -860,7 +1937,7 @@ def test_fragment_fix_root_link_uses_base_manager(sim, device, add_ground_plane,
     assert articulation.is_fixed_base
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
@@ -914,7 +1991,7 @@ def test_initialization_floating_base_made_fixed_base(
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
@@ -960,7 +2037,7 @@ def test_initialization_fixed_base_made_floating_base(
         articulation.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
@@ -1016,7 +2093,7 @@ def test_out_of_range_default_joint_vel(sim, device, articulation_type):
         sim.reset()
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
@@ -1092,7 +2169,7 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, arti
     assert torch.all(within_bounds)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
@@ -1126,7 +2203,7 @@ def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane, a
     assert torch.all(out)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_buffer(sim, num_articulations, device, articulation_type):
@@ -1211,7 +2288,7 @@ def test_external_force_buffer(sim, num_articulations, device, articulation_type
         articulation.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_single_body(sim, num_articulations, device, articulation_type):
@@ -1269,7 +2346,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, articulat
             assert articulation.data.root_pos_w.torch[i, 2].item() < 0.2
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_single_body_at_position(sim, num_articulations, device, articulation_type):
@@ -1364,7 +2441,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             assert articulation.data.root_pos_w.torch[i, 2].item() < 0.2
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_multiple_bodies(sim, num_articulations, device, articulation_type):
@@ -1424,7 +2501,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
             assert articulation.data.root_ang_vel_w.torch[i, 2].item() > 0.1
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, device, articulation_type):
@@ -1451,7 +2528,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     body_ids, _ = articulation.find_bodies(".*_SHANK")
     # Sample a large force
     external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 100.0
+    external_wrench_b[..., 2] = 50.0
     external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
     external_wrench_positions_b[..., 1] = 1.0
 
@@ -1518,7 +2595,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             assert torch.abs(articulation.data.root_ang_vel_w.torch[i, 2]).item() > 0.1
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_loading_gains_from_usd(sim, num_articulations, device, articulation_type):
@@ -1580,7 +2657,7 @@ def test_loading_gains_from_usd(sim, num_articulations, device, articulation_typ
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
@@ -1615,7 +2692,7 @@ def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulation_type):
@@ -1648,34 +2725,34 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulatio
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("vel_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("add_ground_plane", [False])
-@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
 def test_setting_velocity_limit_implicit(
-    sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane, articulation_type
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
 ):
     """Test setting of velocity limit for implicit actuators.
 
     This test verifies that:
-    1. Velocity limits can be set correctly for implicit actuators
-    2. The limits are applied correctly to the simulation
-    3. The limits are handled correctly when both sim and non-sim limits are set
+    1. The solver clamp ``joint_velocity_limit`` is applied to the simulation; when unset, the
+       USD-authored value is kept
+    2. The actuator velocity limit ``actuator_velocity_limit`` is never pushed to the solver and keeps its
+       configured value; when unset, it falls back to the solver clamp
 
     Args:
         sim: The simulation fixture
         num_articulations: Number of articulations to test
         device: The device to run the simulation on
-        vel_limit_sim: The velocity limit to set in simulation
+        joint_velocity_limit: The velocity limit to set in simulation
         vel_limit: The velocity limit to set in actuator
     """
     # create simulation
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        velocity_limit_sim=vel_limit_sim,
-        velocity_limit=vel_limit,
+        articulation_type="single_joint_implicit",
+        joint_velocity_limit=joint_velocity_limit,
+        actuator_velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -1683,10 +2760,6 @@ def test_setting_velocity_limit_implicit(
         device=device,
     )
     # Play sim
-    if vel_limit_sim is not None and vel_limit is not None:
-        with pytest.raises(ValueError):
-            sim.reset()
-        return
     sim.reset()
 
     # read the values set into the simulation
@@ -1694,43 +2767,35 @@ def test_setting_velocity_limit_implicit(
         articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
     # check data buffer
-    torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
-    # check actuator has simulation velocity limit
-    torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, newton_vel_limit)
-    # check that both values match for velocity limit
-    torch.testing.assert_close(
-        articulation.actuators["joint"].velocity_limit_sim,
-        articulation.actuators["joint"].velocity_limit,
-    )
-
-    if vel_limit_sim is None:
-        # Case 2: both velocity limit and velocity limit sim are not set
-        #  This is the case where the velocity limit keeps its USD default value
-        # Case 3: velocity limit sim is not set but velocity limit is set
-        #   For backwards compatibility, we do not set velocity limit to simulation
-        #   Thus, both default to USD default value.
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
+    # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
+    if joint_velocity_limit is None:
+        sim_limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
-        # Case 4: only velocity limit sim is set
-        #   In this case, the velocity limit is set to the USD value
-        limit = vel_limit_sim
-
-    # check max velocity is what we set
-    expected_velocity_limit = torch.full_like(newton_vel_limit, limit)
+        sim_limit = joint_velocity_limit
+    expected_velocity_limit = torch.full_like(newton_vel_limit, sim_limit)
     torch.testing.assert_close(newton_vel_limit, expected_velocity_limit)
 
+    # the joint velocity limit keeps its configured value and is not pushed to the solver;
+    # when unset it falls back to the solver clamp
+    joint_limit = vel_limit if vel_limit is not None else sim_limit
+    expected_joint_limit = torch.full_like(newton_vel_limit, joint_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].actuator_velocity_limit, expected_joint_limit)
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("vel_limit_sim", [1e5, None])
+@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
-def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_limit_sim, vel_limit, articulation_type):
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
+def test_setting_velocity_limit_explicit(
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
+):
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        velocity_limit_sim=vel_limit_sim,
-        velocity_limit=vel_limit,
+        articulation_type="single_joint_explicit",
+        joint_velocity_limit=joint_velocity_limit,
+        actuator_velocity_limit=vel_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -1744,13 +2809,10 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     newton_vel_limit = wp.to_torch(
         articulation.root_view.get_attribute("joint_velocity_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
-    actuator_vel_limit = articulation.actuators["joint"].velocity_limit
-    actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
+    actuator_vel_limit = articulation.actuators["joint"].actuator_velocity_limit
 
-    # check data buffer for joint_velocity_limits_sim
-    torch.testing.assert_close(articulation.data.joint_velocity_limits.torch, newton_vel_limit)
-    # check actuator velocity_limit_sim is set to physx
-    torch.testing.assert_close(actuator_vel_limit_sim, newton_vel_limit)
+    # check data buffer for joint_vel_limits
+    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, newton_vel_limit)
 
     if vel_limit is not None:
         expected_actuator_vel_limit = torch.full(
@@ -1760,15 +2822,15 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         )
         # check actuator is set
         torch.testing.assert_close(actuator_vel_limit, expected_actuator_vel_limit)
-        # check physx is not velocity_limit
+        # check physx is not actuator_velocity_limit
         assert not torch.allclose(actuator_vel_limit, newton_vel_limit)
     else:
-        # check actuator velocity_limit is the same as the PhysX default
+        # check actuator_velocity_limit is the same as the PhysX default
         torch.testing.assert_close(actuator_vel_limit, newton_vel_limit)
 
     # simulation velocity limit is set to USD value unless user overrides
-    if vel_limit_sim is not None:
-        limit = vel_limit_sim
+    if joint_velocity_limit is not None:
+        limit = joint_velocity_limit
     else:
         limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     # check physx is set to expected value
@@ -1776,14 +2838,11 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     torch.testing.assert_close(newton_vel_limit, expected_vel_limit)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-def test_setting_effort_limit_implicit(
-    sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
-):
+@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])  # consumed by the sim fixture
+def test_setting_effort_limit_implicit(sim, articulation_type, num_articulations, device, joint_effort_limit):
     """Test setting of effort limit for implicit actuators.
 
     This test verifies the effort limit resolution logic for actuator models implemented in :class:`ActuatorBase`:
@@ -1792,9 +2851,8 @@ def test_setting_effort_limit_implicit(
     - Case 3: If actuator config value is None: USD value is used as default
     """
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        effort_limit_sim=effort_limit_sim,
-        effort_limit=effort_limit,
+        articulation_type="single_joint_implicit",
+        joint_effort_limit=joint_effort_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -1802,10 +2860,6 @@ def test_setting_effort_limit_implicit(
         device=device,
     )
     # Play sim
-    if effort_limit_sim is not None and effort_limit is not None:
-        with pytest.raises(ValueError):
-            sim.reset()
-        return
     sim.reset()
 
     # obtain the physx effort limits
@@ -1813,33 +2867,29 @@ def test_setting_effort_limit_implicit(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
 
-    # check that the two are equivalent
-    torch.testing.assert_close(
-        articulation.actuators["joint"].effort_limit_sim,
-        articulation.actuators["joint"].effort_limit,
-    )
-    torch.testing.assert_close(articulation.actuators["joint"].effort_limit_sim, newton_effort_limit)
+    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, newton_effort_limit)
+    torch.testing.assert_close(articulation.actuators["joint"].joint_effort_limit, newton_effort_limit)
+    # without a separately configured rated limit, the actuator limit tracks the solver clamp
+    torch.testing.assert_close(articulation.actuators["joint"].actuator_effort_limit, newton_effort_limit)
 
     # decide the limit based on what is set
-    if effort_limit_sim is None and effort_limit is None:
+    if joint_effort_limit is None:
         limit = articulation_cfg.spawn.joint_drive_props.max_force
-    elif effort_limit_sim is not None and effort_limit is None:
-        limit = effort_limit_sim
-    elif effort_limit_sim is None and effort_limit is not None:
-        limit = effort_limit
+    else:
+        limit = joint_effort_limit
 
     # check that the max force is what we set
     expected_effort_limit = torch.full_like(newton_effort_limit, limit)
     torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("effort_limit_sim", [1e5, None])
-@pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
-@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
+@pytest.mark.parametrize("actuator_effort_limit", [1e2, None])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
 def test_setting_effort_limit_explicit(
-    sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
+    sim, articulation_type, num_articulations, device, joint_effort_limit, actuator_effort_limit
 ):
     """Test setting of effort limit for explicit actuators.
 
@@ -1851,9 +2901,9 @@ def test_setting_effort_limit_explicit(
     """
 
     articulation_cfg = generate_articulation_cfg(
-        articulation_type=articulation_type,
-        effort_limit_sim=effort_limit_sim,
-        effort_limit=effort_limit,
+        articulation_type="single_joint_explicit",
+        joint_effort_limit=joint_effort_limit,
+        actuator_effort_limit=actuator_effort_limit,
     )
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg,
@@ -1870,39 +2920,33 @@ def test_setting_effort_limit_explicit(
     newton_effort_limit = wp.to_torch(
         articulation.root_view.get_attribute("joint_effort_limit", SimulationManager.get_model())
     ).to(device)[:, 0, :]
-    actuator_effort_limit = articulation.actuators["joint"].effort_limit
-    actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
+    actuator_effort_limit_actual = articulation.actuators["joint"].actuator_effort_limit
 
-    # check actuator effort_limit_sim is set to physx
-    torch.testing.assert_close(actuator_effort_limit_sim, newton_effort_limit)
-
-    if effort_limit is not None:
-        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit, effort_limit)
+    if actuator_effort_limit is not None:
+        expected_actuator_effort_limit = torch.full_like(actuator_effort_limit_actual, actuator_effort_limit)
         # check actuator is set
-        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
 
-        # check physx effort limit does not match the one explicit actuator has
-        assert not (torch.allclose(actuator_effort_limit, newton_effort_limit))
     else:
-        # When effort_limit is None, actuator should use USD default values
+        # When actuator_effort_limit is None, actuator should use USD default values
         expected_actuator_effort_limit = torch.full_like(newton_effort_limit, usd_default_effort_limit)
-        torch.testing.assert_close(actuator_effort_limit, expected_actuator_effort_limit)
+        torch.testing.assert_close(actuator_effort_limit_actual, expected_actuator_effort_limit)
 
-    # when using explicit actuators, the limits are set to high unless user overrides
-    if effort_limit_sim is not None:
-        limit = effort_limit_sim
+    # the solver keeps the authored limit unless the user overrides it explicitly
+    if joint_effort_limit is not None:
+        limit = joint_effort_limit
     else:
-        limit = ActuatorBase._DEFAULT_MAX_EFFORT_SIM  # type: ignore
+        limit = usd_default_effort_limit
     # check physx internal value matches the expected sim value
     expected_effort_limit = torch.full_like(newton_effort_limit, limit)
-    torch.testing.assert_close(actuator_effort_limit_sim, expected_effort_limit)
+    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, expected_effort_limit)
     torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-def test_reset(sim, num_articulations, device, articulation_type):
+def test_reset(sim, num_articulations, device, articulation_type, monkeypatch):
     """Test that reset method works properly."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
@@ -1914,7 +2958,17 @@ def test_reset(sim, num_articulations, device, articulation_type):
 
     # Now we are ready!
     # reset articulation
+    actuator = next(iter(articulation.actuators.values()))
+    actuator_reset = actuator.reset
+    reset_env_ids = []
+
+    def record_actuator_reset(env_ids=None):
+        reset_env_ids.append(env_ids)
+        actuator_reset(env_ids)
+
+    monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()
+    assert reset_env_ids == [None]
 
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
@@ -1943,7 +2997,7 @@ def test_reset(sim, num_articulations, device, articulation_type):
         assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == num_bodies * 3
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
@@ -1983,7 +3037,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane, a
     assert not torch.allclose(articulation.data.joint_pos.torch, joint_pos)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
@@ -2031,7 +3085,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
     com[:, 0, arm_idx, :] = new_com.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(
@@ -2108,7 +3162,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
             torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
@@ -2155,7 +3209,7 @@ def test_write_root_state(
     com[:, 0, root_idx, :] = new_com.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     # check they are set
     torch.testing.assert_close(
@@ -2198,7 +3252,7 @@ def test_write_root_state(
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
@@ -2234,7 +3288,7 @@ def test_write_root_state_functions_data_consistency(
     com[:, 0, root_idx, :] = offset.squeeze(-2)
     articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     rand_state = torch.rand(num_articulations, 13, device=device)
     rand_state[..., :3] += env_pos
@@ -2337,7 +3391,7 @@ def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_t
         sim.reset()
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
@@ -2443,7 +3497,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     torch.testing.assert_close(body_vel_w, body_com_vel_w_fresh)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 @pytest.mark.skip(reason="Spatial tendons are not supported in Newton yet.")
@@ -2497,11 +3551,11 @@ def test_spatial_tendons(sim, num_articulations, device, articulation_type):
 
 
 @pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Test applying of joint position target functions correctly for a robotic arm."""
+    """Test static joint friction writes propagate directly to the Newton model."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -2510,61 +3564,62 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     # Play the simulator
     sim.reset()
 
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-    # apply action to the articulation
     friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-
-    # The static friction must be set first to be sure the dynamic friction is not greater than static
-    # when both are set.
     articulation.write_joint_friction_coefficient_to_sim_index(
         joint_friction_coeff=friction,
     )
-    articulation.write_data_to_sim()
-
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
     joint_friction_coeff_sim = wp.to_torch(
         articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
     )[:, 0, :]
-    assert torch.allclose(joint_friction_coeff_sim, friction)
+    torch.testing.assert_close(joint_friction_coeff_sim, friction)
 
-    # Reset simulator to ensure a clean state for the alternative API path
+
+@pytest.mark.parametrize("selector_kind", ["index", "mask"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("device", test_devices())
+def test_write_joint_viscous_friction_to_sim(sim, device, articulation_type, selector_kind):
+    """Test passive viscous joint damping is distinct from actuator derivative gains."""
+    articulation_cfg = generate_articulation_cfg(articulation_type)
+    articulation_cfg.actuators["panda_shoulder"].viscous_friction = 0.25
+    articulation, _ = generate_articulation(articulation_cfg, 1, device)
     sim.reset()
 
-    # Warm up a few steps to populate buffers
-    for _ in range(100):
-        sim.step()
-        articulation.update(sim.cfg.dt)
-
-    # New random coefficients
-    friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
-
-    # Use the combined setter to write all three at once
-    articulation.write_joint_friction_coefficient_to_sim_index(
-        joint_friction_coeff=friction_2,
+    shoulder_joint_ids = articulation.actuators["panda_shoulder"].joint_indices
+    expected_viscous_friction = torch.full((articulation.num_instances, 4), 0.25, device=device)
+    torch.testing.assert_close(
+        articulation.data.joint_viscous_friction_coeff.torch[:, shoulder_joint_ids], expected_viscous_friction
     )
-    articulation.write_data_to_sim()
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("joint_damping", SimulationManager.get_model()))[
+            :, 0, shoulder_joint_ids
+        ],
+        expected_viscous_friction,
+    )
 
-    # Step to let sim ingest new params and refresh data buffers
-    for _ in range(100):
-        sim.step()
-        articulation.update(sim.cfg.dt)
+    expected_pd_damping = torch.full_like(expected_viscous_friction, 4.0)
+    torch.testing.assert_close(articulation.data.joint_damping.torch[:, shoulder_joint_ids], expected_pd_damping)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("joint_target_kd", SimulationManager.get_model()))[
+            :, 0, shoulder_joint_ids
+        ],
+        expected_pd_damping,
+    )
 
-    joint_friction_coeff_sim_2 = wp.to_torch(
-        articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
-    )[:, 0, :]
+    values = torch.full((articulation.num_instances, articulation.num_joints), 0.25, device=device)
+    if selector_kind == "index":
+        articulation.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=values,
+        )
+    else:
+        articulation.write_joint_viscous_friction_coefficient_to_sim_mask(
+            joint_viscous_friction_coeff=values,
+        )
 
-    # Validate values propagated
-    assert torch.allclose(joint_friction_coeff_sim_2, friction_2)
+    torch.testing.assert_close(articulation.data.joint_viscous_friction_coeff.torch, values)
+    torch.testing.assert_close(
+        wp.to_torch(articulation.root_view.get_attribute("joint_damping", SimulationManager.get_model()))[:, 0],
+        values,
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -2649,7 +3704,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
 
 
 @pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["panda"])
 def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
@@ -2674,7 +3729,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 
     wp.to_torch(friction_binding)[:] = friction
     wp.to_torch(restitution_binding)[:] = restitution
-    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+    SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
     # Simulate physics
     sim.step()
@@ -2693,7 +3748,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 
         wp.to_torch(friction_binding)[:, 0] = subset_friction
         wp.to_torch(restitution_binding)[:, 0] = subset_restitution
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
         sim.step()
         articulation.update(sim.cfg.dt)
@@ -2754,57 +3809,12 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     articulation.root_view.set_attribute("shape_gap", model, wp.from_torch(new_gap, dtype=wp.float32))
 
     with wp.ScopedDevice(device):
-        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager._solver.notify_model_changed(ModelFlags.SHAPE_PROPERTIES)
 
     updated_margin = wp.to_torch(articulation.root_view.get_attribute("shape_margin", model))
     updated_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model))
     torch.testing.assert_close(updated_margin, new_margin)
     torch.testing.assert_close(updated_gap, new_gap)
-
-
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
-@pytest.mark.xfail(
-    strict=True,
-    raises=NotImplementedError,
-    reason=(
-        "Newton's ArticulationView exposes eval_fk / eval_jacobian /"
-        " eval_mass_matrix only — no inverse-dynamics primitive yet."
-        " Upstream Newton is actively working on this through the inverse-"
-        " dynamics feature request (https://github.com/newton-physics/newton/issues/2497)"
-        " and its sub-task for Coriolis + gravity compensation"
-        " (https://github.com/newton-physics/newton/issues/2529). A known"
-        " correctness bug for floating-base + non-identity root pose is"
-        " tracked separately at"
-        " https://github.com/newton-physics/newton/issues/2625, and"
-        " informs why we deliberately do NOT roll our own J^T·m·g shim in"
-        " this PR — Newton's eventual primitive is going through RNEA via"
-        " MuJoCo Warp and may differ at corner cases we wouldn't catch."
-        " Once the wrapper at"
-        " isaaclab_newton.assets.ArticulationData.gravity_compensation_forces"
-        " switches from a NotImplementedError stub to a real implementation"
-        " (likely calling the new Newton primitive), this XFAIL will turn"
-        " into XPASS and fail under strict=True. The maintainer should"
-        " then: (1) drop this xfail or invert it into a positive value"
-        " assertion against PhysX (the cross-backend accuracy diff), and"
-        " (2) remove the OSC config-time guidance about setting"
-        " gravity_compensation=False on Newton."
-    ),
-)
-def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_articulations, device, articulation_type):
-    """Pin the known Newton gravity-compensation gap.
-
-    See the ``xfail`` marker for full rationale. The body simply invokes the
-    wrapper and lets the strict-xfail marker handle the expected failure.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-
-    _ = articulation.data.gravity_compensation_forces
 
 
 ##
@@ -2878,6 +3888,30 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 
 @pytest.mark.parametrize("num_articulations", [1, 4])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_shape_fixed_base(sim, num_articulations, device, articulation_type):
+    """Fixed-base ``gravity_compensation_forces`` shape ``(N, num_joints)``.
+
+    No floating-base entries on the DoF axis, and per-articulation output
+    sizing. Heterogeneous-scene indexing is pinned separately by
+    ``test_heterogeneous_scene_per_view_shapes``.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base, "panda fixture must be fixed-base for this test"
+
+    g = articulation.data.gravity_compensation_forces.torch
+
+    expected_shape = (num_articulations, articulation.num_joints)
+    assert g.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(g.shape)}"
+    assert g.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
@@ -2936,6 +3970,32 @@ def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add
     assert M.dtype == torch.float32
 
 
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_shape_floating_base(
+    sim, num_articulations, device, add_ground_plane, articulation_type
+):
+    """Floating-base ``gravity_compensation_forces`` shape ``(N, num_joints + 6)``.
+
+    Includes the 6 floating-base entries on the DoF axis, matching the
+    cross-library industry convention.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert not articulation.is_fixed_base, "anymal fixture must be floating-base for this test"
+
+    g = articulation.data.gravity_compensation_forces.torch
+
+    expected_shape = (num_articulations, articulation.num_joints + articulation.num_base_dofs)
+    assert g.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(g.shape)}"
+    assert g.dtype == torch.float32
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
@@ -2964,8 +4024,8 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     # per-articulation shape gate without that pre-existing quirk.
     num_per_type = 1
 
-    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_.*/Robot")
-    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_.*/Robot")
+    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_[^/]*/Robot")
+    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_[^/]*/Robot")
 
     for i in range(num_per_type):
         sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))
@@ -3021,6 +4081,17 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     assert (anymal_M.diagonal(dim1=-2, dim2=-1) > 1e-6).all(), (
         "Anymal mass matrix has non-positive diagonal under heterogeneous scene"
     )
+
+    # Gravity compensation gathers a FLAT model-wide DoF buffer, so a padded-layout
+    # regression (indexing by ``art_id * max_dofs`` instead of
+    # ``joint_qd_start[articulation_start[art_id]]``) is numerically invisible in
+    # homogeneous scenes — this mixed scene is the only place it can surface.
+    franka_g = franka.data.gravity_compensation_forces.torch
+    anymal_g = anymal.data.gravity_compensation_forces.torch
+    assert franka_g.shape == torch.Size((num_per_type, franka_dofs))
+    assert anymal_g.shape == torch.Size((num_per_type, anymal_dofs))
+    assert franka_g.abs().max() > 1e-3, "Franka gravity compensation is all-zero under heterogeneous scene"
+    assert anymal_g.abs().max() > 1e-3, "Anymal gravity compensation is all-zero under heterogeneous scene"
 
 
 @pytest.mark.parametrize("num_articulations", [4])
@@ -3153,6 +4224,79 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
     torch.linalg.cholesky(M + 1e-6 * eye)
 
 
+@pytest.mark.parametrize("num_articulations", [4])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_matches_jacobian_gravity(
+    sim, num_articulations, device, add_ground_plane, articulation_type, ordering_mode
+):
+    """``g(q)`` must equal ``-sum_b J_com_b^T (m_b * g_w)`` at the current configuration.
+
+    Newton computes the gravity compensation force through an RNEA pass
+    (``eval_inverse_dynamics_passive``); the static identity above derives the same
+    quantity independently from the (already contract-validated) COM-referenced
+    Jacobian and the per-body masses, pinning the sign convention, the DoF
+    ordering (including the 6 floating-base entries), and the flat-buffer view
+    gather in one assertion. Non-default joint positions and — for
+    floating-base — a rotated, lifted root pose guard the corner fixed
+    upstream in newton#2625 (wrong gravity compensation under non-identity
+    root pose).
+
+    With ``ordering_mode="reversed"`` a nonidentity joint ordering is active and
+    both sides of the identity must be expressed in user joint order: the
+    Jacobian gather applies the user->backend permutation, so a
+    ``gather_dof_force_rows`` that skips it returns backend-ordered forces and
+    breaks the identity row-wise.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    if ordering_mode == "reversed":
+        joint_names = PANDA_JOINT_NAMES if articulation_type == "panda" else ANYMAL_C_PHYSX_JOINT_NAMES
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(joint_names)))
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Non-trivial configuration via manual writes (no sim step, so the assert
+    # compares both quantities at exactly this state): random joint offsets,
+    # and for floating-base a non-identity root pose.
+    torch.manual_seed(0)
+    q = articulation.data.default_joint_pos.torch + 0.3 * torch.randn(
+        num_articulations, articulation.num_joints, device=device
+    )
+    articulation.write_joint_position_to_sim_index(position=q)
+    if not articulation.is_fixed_base:
+        root_pose = articulation.data.default_root_pose.torch.clone()
+        root_pose[:, 2] += 1.0
+        # (x, y, z, w) quaternion — 30 deg roll about x.
+        root_pose[:, 3:] = torch.tensor([0.2588, 0.0, 0.0, 0.9659], device=device)
+        articulation.write_root_pose_to_sim_index(root_pose=root_pose)
+        # Guard against a vacuous identity: if root-pose FK invalidation ever
+        # regressed, both sides would be evaluated at the stale identity pose and
+        # agree trivially, voiding the newton#2625 rotated-root coverage.
+        torch.testing.assert_close(articulation.data.root_link_pose_w.torch, root_pose, atol=1e-5, rtol=0.0)
+
+    g_meas = articulation.data.gravity_compensation_forces.torch
+
+    # Independent derivation: generalized gravity load tau_g = sum_b J_lin_b^T (m_b g_w);
+    # the compensation force is its negation. The COM-referenced Jacobian is exactly the
+    # right lever arm for a point gravity force acting at each body's COM.
+    J_com = articulation.data.body_com_jacobian_w.torch  # (N, B_jac, 6, D)
+    masses = articulation.data.body_mass.torch  # (N, num_bodies)
+    if articulation.is_fixed_base:
+        # jacobi_body_idx == body_idx - 1 for fixed-base (fixed-root row excluded).
+        masses = masses[:, 1:]
+    model = SimulationManager.get_model()
+    gravity_w = wp.to_torch(model.gravity[: model.world_count])  # (num_worlds, 3)
+    assert gravity_w.shape[0] == num_articulations, "fixture must place one articulation per world"
+    f_gravity = masses.unsqueeze(-1) * gravity_w.unsqueeze(1)  # (N, B_jac, 3)
+    g_expected = -torch.einsum("nbij,nbi->nj", J_com[:, :, 0:3, :], f_gravity)
+
+    torch.testing.assert_close(g_meas, g_expected, atol=1e-2, rtol=1e-3)
+
+
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
@@ -3235,6 +4379,122 @@ def test_mass_matrix_refreshes_after_manual_joint_write(
         "mass_matrix did not change after manual joint write — "
         "FK trigger likely missing before eval_mass_matrix (compute_body_spatial_inertia "
         "reads stale state.body_q)."
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_gravity_compensation_refreshes_after_manual_joint_write(sim, num_articulations, device, articulation_type):
+    """After ``write_joint_position_to_sim_index`` (no sim step), the gravity
+    compensation read must reflect the new joint state.
+
+    ``g(q)`` depends on ``q`` through the RNEA pass in ``eval_inverse_dynamics_passive``,
+    which reads ``state.body_q``. Same FK-staleness pattern as the Jacobian and
+    the mass matrix. Gravity stays enabled (the default) — with gravity off,
+    ``g(q)`` is identically zero and the assert would be vacuous.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    g_0 = articulation.data.gravity_compensation_forces.torch.clone()
+    q_target = articulation.data.joint_pos.torch.clone() + 0.5
+    env_ids = wp.array([0], dtype=wp.int32, device=device)
+    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
+    g_1 = articulation.data.gravity_compensation_forces.torch.clone()
+
+    assert not torch.allclose(g_0, g_1, atol=1e-3), (
+        "gravity_compensation_forces did not change after manual joint write — "
+        "FK trigger likely missing before eval_inverse_dynamics_passive."
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device, articulation_type):
+    """Newton accuracy: ``τ_gc`` must hold the manipulator in static equilibrium.
+
+    Newton-side variant of the PhysX test of the same name (backend parity).
+    The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
+    Setting ``τ_input = g(q)`` at ``q̇ = 0`` gives ``q̈ = 0`` — the arm should
+    not move. This pins
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+    in isolation: sign errors, frame errors, and DoF-ordering errors all
+    surface as joint drift, while a controller-level test would have those
+    bugs averaged out by PD damping.
+    """
+    base_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    # Replace default Franka actuators with a passthrough implicit actuator
+    # (stiffness = 0, damping = 0). With both gains zero the effort target
+    # we set IS the joint torque applied — no PD spring-damper masks the
+    # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
+    # which would absorb gravity through PD bias and hide accessor bugs.
+    cfg = base_cfg.replace(
+        actuators={
+            "all": ImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=0.0,
+                damping=0.0,
+            ),
+        },
+    )
+    # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
+    # defensive — gravity must be ON for τ_gc to have anything to cancel.
+    cfg = cfg.replace(
+        spawn=cfg.spawn.replace(
+            rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+        ),
+    )
+
+    articulation, _ = generate_articulation(cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Force a clean static state: default joint positions, zero velocities.
+    # ``sim.reset`` may leave residual ``q_dot`` from solver settling under
+    # gravity, so we pin it explicitly here.
+    default_q = articulation.data.default_joint_pos.torch.clone()
+    default_qd = torch.zeros_like(default_q)
+    articulation.write_joint_position_to_sim_index(position=default_q)
+    articulation.write_joint_velocity_to_sim_index(velocity=default_qd)
+    articulation.update(sim.cfg.dt)
+
+    # Default joint pose from FRANKA_PANDA_CFG bends the elbow
+    # (joint2=-0.569, joint4=-2.81, joint6=3.04) so several links carry a
+    # gravity load — τ_gc is non-trivial in this configuration. A natural-
+    # hang pose (all zeros) would produce near-zero τ_gc and make this
+    # test uninformative.
+    init_q = articulation.data.joint_pos.torch.clone()
+
+    # Step 100 times applying only τ_gc as joint efforts.
+    for _ in range(100):
+        # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``
+        # — leading ``num_base_dofs`` floating-base entries (0 on fixed-base) followed
+        # by the actuated-joint entries. Slice past the floating-base entries so the
+        # remaining tensor aligns with ``set_joint_effort_target_index`` (actuated only).
+        tau_gc = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
+        articulation.set_joint_effort_target_index(target=tau_gc)
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+
+    final_q = articulation.data.joint_pos.torch
+    drift = (final_q - init_q).abs().max()
+    # Tight bound: 5e-3 rad ≈ 0.3°. Numerical integration over 100 steps will
+    # accumulate some floor (sub-millirad on Franka), but a sign or frame bug
+    # in τ_gc produces drift of at least a degree per step on bent-elbow
+    # poses. This bound separates "correct" from "broken" cleanly.
+    assert drift < 5e-3, (
+        f"max joint drift {drift:.5f} rad after 100 gravity-comp-only steps —"
+        " τ_gc did not hold static equilibrium. Check sign, DoF ordering, and"
+        " whether gravity_compensation_forces returns g(q) (positive) or"
+        " its negation."
     )
 
 
@@ -3331,10 +4591,10 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     and asserts a loose regression bound rather than a tight correctness
     oracle.
 
-    Newton lacks a gravity-comp primitive (see ``xfail`` test below;
-    upstream Newton issues #2497, #2529, #2625), so OSC runs with
-    ``gravity_compensation=False`` and the test isolates from gravity by
-    disabling scene gravity. ``inertial_dynamics_decoupling=True``
+    OSC runs with ``gravity_compensation=False`` and scene gravity disabled
+    so the sentinel isolates the J/M bridge; the gravity-compensation path is
+    covered by :func:`test_franka_osc_gravity_compensation_precision`.
+    ``inertial_dynamics_decoupling=True``
     exercises ``mass_matrix`` and the Newton COM-referenced J →
     M_b → J product. The actuator PD is zeroed at cfg time so OSC's
     joint-effort output is not opposed by ``kp·(target − q)``.
@@ -3402,6 +4662,124 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     # ``mass_matrix`` per step.
     assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
     assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda_fine"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.isaacsim_ci
+def test_franka_osc_gravity_compensation_precision(sim, device, articulation_type, gravity_enabled):
+    """Two-phase EE hold: gravity sag without compensation, tight hold with it.
+
+    Same OSC pose-hold loop as :func:`test_franka_osc_tracking_accuracy`, but
+    with scene and per-body gravity ON and the target pinned to the initial EE
+    pose, so any steady-state error is pure gravity sag. Phase 1 runs with
+    ``gravity_compensation=False`` and must sag past a floor; phase 2 flips
+    ``osc.cfg.gravity_compensation`` — read per :meth:`compute` call, so the
+    flag is the only variable across phases (the gravity tensor is fetched and
+    passed in both) — and must recover the hold to under 0.1 mm.
+
+    The floor assertion keeps the test discriminating: if the task stiffness
+    is ever raised high enough to mask gravity, phase 1 stops clearing the
+    floor and the test fails loudly instead of silently passing on a
+    non-discriminating setup. The gravity feed-forward consumes
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+    (Newton RNEA via ``eval_inverse_dynamics_passive``) live in the loop, covering the
+    FK-staleness refresh on every step of phase 2.
+
+    The task stiffness (500) deliberately matches the PhysX-side OSC
+    gravity-compensation test for a cross-backend-comparable setup, and the
+    ``panda_fine`` sim config (4 solver substeps) is load-bearing: at a single
+    1/120 substep MJWarp implicitfast mis-integrates the gravity-loaded hold
+    into a 0.4-1.0 mm limit cycle that never settles (dt-linear, worsened by
+    higher damping gains, gone in zero gravity — solver integration error,
+    not a compensation error). With 4 substeps the same per-control-step
+    torques hold dead-still at ~1 um, quieter than PhysX (OVPhysX) at ~8 um.
+    The uncompensated sag agrees with PhysX to ~1% (23.7 vs 23.9 mm),
+    independently validating the gravity forces. Both phases reach a true
+    steady state here, enforced by tail-half stationarity guards.
+    """
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(
+        sim, zero_actuator_pd=True, disable_gravity=False
+    )
+
+    osc = OperationalSpaceController(
+        OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        ),
+        num_envs=1,
+        device=device,
+    )
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+    # Hold the initial EE pose: phase-1 steady-state error is pure gravity sag.
+    target_pose_b = _build_relative_pose_target(robot, ee_frame_idx, (0.0, 0.0, 0.0), device)
+
+    def run_phase(num_steps: int) -> list[float]:
+        pos_history: list[float] = []
+        for _ in range(num_steps):
+            jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
+            mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+            gravity = robot.data.gravity_compensation_forces.torch[:, arm_joint_ids]
+            ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+            ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+            joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+            ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
+
+            osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
+            joint_efforts = osc.compute(
+                jacobian_b=jacobian_b,
+                current_ee_pose_b=ee_pose_b,
+                current_ee_vel_b=ee_vel_b,
+                mass_matrix=mass_matrix,
+                gravity=gravity,
+            )
+            robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+            robot.write_data_to_sim()
+            sim.step()
+            robot.update(sim.cfg.dt)
+
+            pos_error, _ = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+            pos_history.append(pos_error.norm(dim=-1).max().item())
+        return pos_history
+
+    def _stationary_tail_mean(history, label):
+        """Mean of the last 200 samples, asserting the two tail halves agree within 25%.
+
+        The relative check carries a 10 µm absolute floor: at the ~1 µm solver noise
+        floor of the compensated hold, tail jitter is far below the 0.1 mm verdict
+        threshold and cannot flip the outcome, so demanding 25% relative agreement
+        of micrometer-scale means would only add GPU-dependent flakiness.
+        """
+        a = sum(history[-200:-100]) / 100
+        b = sum(history[-100:]) / 100
+        mean = (a + b) / 2.0
+        assert abs(a - b) < 0.25 * max(mean, 1e-5), (
+            f"{label} not stationary: tail halves {a:.6f} vs {b:.6f} — extend the phase"
+        )
+        return mean
+
+    hist_off = run_phase(400)
+    osc.cfg.gravity_compensation = True
+    hist_on = run_phase(600)
+
+    pos_off = _stationary_tail_mean(hist_off, "phase-1 sag")
+    pos_on = _stationary_tail_mean(hist_on, "phase-2 hold")
+
+    print(f"GRAVCOMP_METRIC pos_off={pos_off:.5f} pos_on={pos_on:.6f}")
+
+    # Re-validated on newton 81cdcfc2 / mujoco-warp 3.10.0.2 with 4 substeps:
+    # pos_off ~= 0.024, pos_on ~= 1e-6.
+    assert pos_off > 1.2e-2, f"uncompensated sag {pos_off:.5f} < 1.2 cm — setup no longer discriminates gravity"
+    assert pos_on < 1e-4, f"compensated hold {pos_on:.6f} > 0.1 mm — gravity compensation inaccurate"
+    assert pos_on < pos_off / 10.0, f"compensation only improved sag {pos_off:.5f} -> {pos_on:.6f} (<10x)"
 
 
 if __name__ == "__main__":

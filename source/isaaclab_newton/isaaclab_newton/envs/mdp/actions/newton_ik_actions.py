@@ -18,8 +18,8 @@ from newton.selection import ArticulationView
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.cloner import resolve_clone_plan_source
 from isaaclab.managers.action_manager import ActionTerm
 
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
@@ -167,8 +167,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
         if not self._asset.is_fixed_base:
             raise ValueError("NewtonInverseKinematicsAction currently supports fixed-base articulations only.")
 
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
-        self._joint_ids_warp = wp.array(self._joint_ids, dtype=wp.int32, device=self.device)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._joint_ids = joint_ids.warp
 
         pose_cfgs = [obj for obj in self.cfg.objectives if isinstance(obj, NewtonIKPoseObjectiveCfg)]
         if not pose_cfgs:
@@ -178,7 +178,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         # single-env prototype builder the cloner already retained -- the same
         # source resolution other Newton consumers use, no bespoke registry.
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        source_path, _, asset_suffix = resolve_clone_plan_source(self._asset.cfg.prim_path, plan)
+        source_path, _, asset_suffix = cloner.query.path_to_source(plan, self._asset.cfg.prim_path)
         # The proto builder is keyed by the bare clone source; the articulation
         # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot").
         self._source_path = source_path + asset_suffix
@@ -321,7 +321,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
             inputs=[solved, self._controlled_ids, self._joint_pos_des],
             device=self.device,
         )
-        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids_warp)
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         env_ids = slice(None) if env_ids is None else env_ids

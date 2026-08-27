@@ -3,31 +3,48 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark script for the PhysX contact sensor update.
+"""Benchmark the PhysX contact sensor update cadence.
 
-Measures the time spent in :meth:`ContactSensor.update` for a scene of cubes resting on a
-flat ground plane. By default the warp kernels of the sensor update are captured into CUDA
-graphs and replayed; pass ``--disable_graph`` to measure the eager (non-graphed) update for
-comparison.
+Measures synchronized sensor work over one environment step while excluding physics simulation.
+Each timed cadence advances the sensor by --decimation physics steps and reads the data once.
+Use --history_length 0 for lazy on-read updates and a positive value for physics-step history
+updates. Warp kernels use CUDA graphs by default; pass --disable_graph for eager execution.
 
 Usage:
-    # Graphed update (default)
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096
+    # Lazy update once per environment step
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py
+        --num_envs 4096 --history_length 0
 
-    # Eager update (baseline)
-    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096 --disable_graph
+    # History update at each of four physics steps
+    uv run python source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py
+        --num_envs 4096 --history_length 3 --decimation 4
 """
 
 from __future__ import annotations
 
 import argparse
+import traceback
+from functools import partial
 
 from isaaclab.app import AppLauncher
+from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark.sensor_suites import (
+    add_sensor_benchmark_args,
+    create_contact_sensor_scene_cfg,
+    run_contact_sensor_workload,
+)
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX contact sensor update.")
-parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments to simulate.")
-parser.add_argument("--num_steps", type=int, default=500, help="Number of timed simulation steps.")
-parser.add_argument("--warmup_steps", type=int, default=50, help="Number of untimed warm-up steps.")
+add_sensor_benchmark_args(
+    parser,
+    physics_variants=("physx",),
+    default_physics_variant="physx",
+    add_device=False,
+)
+parser.add_argument("--decimation", type=parse_positive_int, default=4, help="Physics steps per timed sensor cadence.")
+parser.add_argument(
+    "--history_length", type=parse_non_negative_int, default=0, help="Number of contact history frames."
+)
 parser.add_argument("--disable_graph", action="store_true", help="Disable CUDA graph capture of the sensor update.")
 
 AppLauncher.add_app_launcher_args(parser)
@@ -38,41 +55,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import statistics
-import time
-
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
-from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
-
-
-@configclass
-class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
-    """Scene with one cube per environment and a contact sensor on the cube."""
-
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
-            activate_contact_sensors=True,
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
-    )
-
-    contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        track_air_time=True,
-        update_period=0.0,
-    )
+from isaaclab.scene import InteractiveScene
 
 
 def main():
@@ -80,7 +66,10 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=sim_dt, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
 
-    scene_cfg = ContactSensorBenchmarkSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, lazy_sensor_update=False)
+    scene_cfg = create_contact_sensor_scene_cfg(
+        history_length=args_cli.history_length,
+        num_envs=args_cli.num_envs,
+    )
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     scene.reset()
@@ -89,45 +78,42 @@ def main():
     if args_cli.disable_graph:
         sensor._use_graph = False
 
-    # warm-up: let the cubes settle on the ground and trigger the graph capture (if enabled)
-    for _ in range(args_cli.warmup_steps):
-        sim.step(render=False)
-        sensor.update(sim_dt, force_recompute=True)
-    wp.synchronize_device(sim.device)
-
-    # timed loop: per-call latency of the sensor update (synchronized)
-    update_times_ms = []
-    total_wall_ms = 0.0
-    for _ in range(args_cli.num_steps):
-        sim.step(render=False)
-        wp.synchronize_device(sim.device)
-        t_start = time.perf_counter()
-        sensor.update(sim_dt, force_recompute=True)
-        t_submit = time.perf_counter()
-        wp.synchronize_device(sim.device)
-        t_end = time.perf_counter()
-        update_times_ms.append((t_end - t_start) * 1000.0)
-        total_wall_ms += (t_submit - t_start) * 1000.0
-
+    synchronize_device = partial(wp.synchronize_device, sim.device)
     mode = "eager" if args_cli.disable_graph else "graph"
-    print("-" * 80)
-    print("Contact sensor update benchmark (PhysX)")
-    print(f"  mode              : {mode}")
-    print(f"  device            : {sim.device}")
-    print(f"  num_envs          : {args_cli.num_envs}")
-    print(f"  num_steps         : {args_cli.num_steps}")
-    print(f"  update mean (sync): {statistics.mean(update_times_ms):.3f} ms")
-    print(f"  update p50  (sync): {statistics.median(update_times_ms):.3f} ms")
-    print(f"  update min  (sync): {min(update_times_ms):.3f} ms")
-    print(f"  submit mean (cpu) : {total_wall_ms / args_cli.num_steps:.3f} ms")
-    print("-" * 80)
-
-    # sanity check: cubes rest on the ground, so every sensor must report an upward net force
-    net_forces = sensor.data.net_forces_w.torch
-    num_in_contact = int((net_forces.norm(dim=-1) > 0.1).sum().item())
-    print(f"  sensors in contact: {num_in_contact} / {args_cli.num_envs}")
+    run_contact_sensor_workload(
+        benchmark_name="physx_contact_sensor",
+        formatter_type=args_cli.benchmark_formatter,
+        output_path=args_cli.output_path,
+        metadata={
+            "physics_variant": args_cli.physics_variant,
+            "label": args_cli.label,
+            "mode": mode,
+            "device": str(sim.device),
+            "num_envs": args_cli.num_envs,
+            "num_steps": args_cli.num_steps,
+            "warmup_steps": args_cli.warmup_steps,
+            "decimation": args_cli.decimation,
+            "history_length": args_cli.history_length,
+        },
+        num_steps=args_cli.num_steps,
+        warmup_steps=args_cli.warmup_steps,
+        decimation=args_cli.decimation,
+        expected_contacts=args_cli.num_envs,
+        step=lambda: sim.step(render=False),
+        update=lambda: sensor.update(sim_dt),
+        read=lambda: getattr(sensor, "data"),
+        count_contacts=lambda: int((sensor.data.net_forces_w.torch.norm(dim=-1) > 0.1).sum().item()),
+        synchronize=synchronize_device,
+    )
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    try:
+        main()
+    except BaseException:
+        if simulation_app.config.get("fast_shutdown", False):
+            traceback.print_exc()
+        simulation_app.close(exit_code=1)
+        raise
+    else:
+        simulation_app.close()

@@ -10,6 +10,7 @@ Covers all combinations of:
 - Isaac Sim installation methods: local _isaac_sim symlink, pip-installed isaacsim, none
 """
 
+import os
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -21,6 +22,7 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_prebundle,
@@ -71,29 +73,89 @@ def _make_site_packages(
     return site_pkgs
 
 
+def test_kernel_only_install_adds_extras_at_installed_version():
+    with (
+        mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+        mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
+        mock.patch(
+            "isaaclab.cli.commands.install.run_command",
+            side_effect=[_cp(0, "1.2.3+local"), _cp(1), _cp(0)],
+        ) as mock_run,
+    ):
+        _install_isaacsim()
+
+    assert mock_run.call_args.args[0] == [
+        "uv",
+        "pip",
+        "install",
+        "isaacsim[all,extscache]==1.2.3+local",
+        "--extra-index-url",
+        install_cmd.NVIDIA_INDEX_URL,
+        "--index-strategy",
+        "unsafe-best-match",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _arm_cmake_policy_compatibility
+# ---------------------------------------------------------------------------
+
+
+class TestArmCmakePolicyCompatibility:
+    """Tests for legacy CMake dependency builds on ARM."""
+
+    def test_sets_policy_minimum_during_arm_install(self):
+        """ARM installs allow nlopt and egl-probe CMake projects to configure."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
+            mock.patch.dict("os.environ", {"PATH": "/bin"}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.5"
+            assert "CMAKE_POLICY_VERSION_MINIMUM" not in os.environ
+
+    def test_restores_existing_policy_minimum_after_arm_install(self):
+        """An existing user setting is restored after the installer finishes."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
+            mock.patch.dict("os.environ", {"CMAKE_POLICY_VERSION_MINIMUM": "3.10"}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.5"
+            assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.10"
+
+    def test_leaves_environment_unchanged_outside_arm(self):
+        """Non-ARM installs do not receive the compatibility setting."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert "CMAKE_POLICY_VERSION_MINIMUM" not in os.environ
+
+
 # ---------------------------------------------------------------------------
 # _install_isaaclab_submodules targeted dependency upgrades
 # ---------------------------------------------------------------------------
 
 
 class TestInstallSubmodulesTargetedDependencyUpgrades:
-    """Tests for extension.toml-driven dependency upgrades."""
+    """Tests for pyproject.toml-driven dependency upgrades."""
 
-    def _make_extension(self, tmp_path, extension_toml: str) -> Path:
+    def _make_extension(self, tmp_path, pyproject_toml: str) -> Path:
         """Create a minimal installable extension fixture."""
         source_dir = tmp_path / "source"
         extension_dir = source_dir / "isaaclab_teleop"
-        config_dir = extension_dir / "config"
-        config_dir.mkdir(parents=True)
+        extension_dir.mkdir(parents=True)
         (extension_dir / "setup.py").write_text("# test fixture\n", encoding="utf-8")
-        (config_dir / "extension.toml").write_text(extension_toml, encoding="utf-8")
+        (extension_dir / "pyproject.toml").write_text(pyproject_toml, encoding="utf-8")
         return extension_dir
 
     def test_installs_editable_then_upgrades_declared_dependency_from_metadata(self, tmp_path):
         """An opted-in dependency is upgraded using the requirement recorded in installed metadata."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = ["isaacteleop"]\n',
         )
 
         python_exe = str(tmp_path / "python")
@@ -121,7 +183,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
         """uv upgrades only the declared package rather than using a global upgrade."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = ["isaacteleop"]\n',
         )
 
         python_exe = str(tmp_path / "python")
@@ -191,11 +253,16 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
                 ["isaacteleop", "IsaacTeleop"],
             )
 
-        mock_run.assert_called_once_with(pip_cmd + ["install", "--upgrade", req])
+        mock_run.assert_called_once_with(
+            pip_cmd + ["install", "--upgrade", req],
+            check=True,
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
 
     def test_skips_when_toml_has_no_upgrade_dependencies(self, tmp_path):
         """Extensions without pip upgrade opt-ins do not trigger metadata probes."""
-        extension_dir = self._make_extension(tmp_path, "[isaac_lab_settings]\n")
+        extension_dir = self._make_extension(tmp_path, "[tool.isaaclab]\n")
 
         assert install_cmd._get_extension_pip_upgrade_dependencies(extension_dir) == []
 
@@ -203,7 +270,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
         """Invalid TOML value types warn and disable targeted upgrades."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = "isaacteleop"\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = "isaacteleop"\n',
         )
 
         with mock.patch("isaaclab.cli.commands.install.print_warning") as mock_warning:
@@ -945,3 +1012,30 @@ class TestRePointPrebundlePackages:
 
         assert (prebundle / pkg_name).is_symlink(), f"{pkg_name} should be repointed"
         assert (prebundle / pkg_name).resolve() == (site_pkgs / pkg_name).resolve()
+
+
+class TestInstallRootExtraExcludesIsaacSim:
+    """The ``teleop`` extra lists Isaac Sim for uv, but pip must never resolve it inline."""
+
+    def test_root_extra_dependencies_exclude_isaacsim(self):
+        """pip has no override mechanism, so isaacsim + isaacteleop in one pass cannot resolve."""
+        dependencies = install_cmd._root_extra_dependencies("teleop")
+
+        assert not any(d.startswith("isaacsim") for d in dependencies)
+        assert any(d.startswith("isaacteleop") for d in dependencies)
+
+    def test_install_root_extra_omits_isaacsim_from_the_pip_command(self, tmp_path):
+        """``./isaaclab.sh -i teleop`` must not hand Isaac Sim to pip alongside Isaac Teleop."""
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+
+        with (
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_root_extra("teleop")
+
+        installed = " ".join(" ".join(call.args[0]) for call in mock_run.call_args_list)
+        assert "isaacsim[all,extscache]" not in installed
+        assert "isaacteleop" in installed

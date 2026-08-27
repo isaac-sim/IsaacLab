@@ -1,6 +1,392 @@
 Changelog
 ---------
 
+2.2.3 (2026-08-27)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``isaaclab_ov.renderers.ovrtx_mapping`` module
+  (:func:`map_attribute_for_warp_writes` and ``cuda_device_id``). Nothing calls it since GPU
+  transform updates moved to caller-owned buffers with
+  ``binding.write(data_access=DataAccess.ASYNC, cuda_stream=...)``, and mapping OVRTX attribute
+  memory for per-frame GPU writes is an anti-pattern: every map/unmap cycle is a hidden
+  ``cudaMalloc``/``cudaFree``, and the API is deprecated in ovrtx and refused in BORROW attach
+  mode. Migration: write into a persistent caller-owned Warp buffer and hand it to
+  ``binding.write(..., cuda_stream=<producing Warp stream>)``; if mapping is unavoidable, pass the
+  producing stream explicitly via ``unmap(stream=...)`` — the mapping's context manager commits
+  without any CUDA sync.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer re-deriving its CUDA device per call site from the device string, which
+  split a bare ``"cuda"`` across GPUs on multi-GPU processes: render-product device ids parsed it
+  to device 0 while Warp resolved kernel launches and sync streams on its current CUDA device. The
+  renderer now resolves the Warp device once when the render spec arrives, normalizes its device
+  string from it, and derives the render-product device ids and every CUDA sync stream — attribute
+  writes on both the legacy and ovstage paths, and render-var reads — from the cached device.
+
+
+2.2.2 (2026-08-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an illegal memory access (CUDA error 700) when rendering with OVRTX on a device other than
+  ``cuda:0``. The OVRTX render product is now pinned to the renderer's CUDA device through its
+  ``deviceIds`` attribute, so its render var buffers are allocated on the same device as the Warp
+  kernels that extract camera tiles from them. Previously OVRTX chose the device itself, which on a
+  multi-GPU machine placed the buffers on ``cuda:0`` while the extraction kernels ran on the
+  simulation device.
+
+
+2.2.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX object and camera transform updates to write a caller-owned GPU buffer instead of mapping and unmapping OVRTX memory every frame.
+
+
+2.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes for both OVRTX detached-scene APIs.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX ovstage path to write object transforms, camera transforms and deformable or
+  particle points straight from their Warp GPU buffers as CUDA DLTensors, removing the per-frame
+  host copies that ``ovstage 0.1.0`` required.
+* Changed those writes to be ordered by handing ovstage the producing Warp stream
+  (``write_attribute(cuda_stream=...)``), replacing the device-wide ``wp.synchronize_device`` with
+  stream-scoped producer ordering, and matching the legacy OVRTX binding path. The write is still
+  awaited, so the calling thread can block; the gain is the removed host copy and the narrower
+  synchronization scope, not a nonblocking handoff.
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+  requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
+
+Fixed
+^^^^^
+
+* Cleared ``ContactSensorData.force_matrix_w_history`` when resetting an
+  OVPhysX contact sensor.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` authoring only one pixel render var when a
+  camera requested several data types, which left every other requested output empty. The render
+  product now authors one render var per requested data type, so combinations such as ``rgb`` with
+  ``normals``, ``albedo``, ``motion_vectors``, segmentation, and depth are rendered together.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` filling ``depth``,
+  ``distance_to_image_plane``, and ``distance_to_camera`` from a single depth render var, which
+  returned euclidean distance for the image-plane outputs (or the reverse) when they were requested
+  together. Each output is now extracted from the source that measures it.
+
+
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
+2.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX execution of supported native explicit actuators through the
+  shared host adapter when
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
+* Added OVRTX cable curve point updates driven by Newton segment shapes.
+* Added :func:`~isaaclab_ov.renderers.map_attribute_for_warp_writes`, a context manager that maps
+  an OVRTX attribute binding for CUDA writes and unmaps it with the producing Warp stream as the
+  CUDA sync. Use it instead of ``with binding.map(...)`` for GPU writes: the binding's own context
+  manager unmaps without a CUDA sync, so OVRTX's commit is not ordered against the fill.
+
+Changed
+^^^^^^^
+
+* Routed OVPhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` dropping authored USD scale when syncing
+  Newton body transforms into OVRTX, which rendered scaled assets (for example Shadow Hand) at
+  unit scale.
+* Fixed the OVRTX renderer's GPU transform writes (object and camera ``omni:xform`` mappings)
+  committing without CUDA synchronization against the Warp kernels that fill the mapped buffers.
+  The commit is now ordered on the producing Warp stream, as the OVRTX API contract requires;
+  previously the ordering held only through CUDA legacy default-stream serialization, an
+  implementation detail the contract does not promise.
+
+
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
+2.0.4 (2026-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved OVRTX camera-output throughput on Linux. A render var has to be read in an order that
+  respects render completion, and on Linux blocking the calling thread on the render-completion
+  event measures faster than a GPU-side wait. Camera outputs are now read that way on Linux, worth
+  15-70% more end-to-end throughput depending on task and environment count. Other platforms order
+  the read on the consuming Warp stream, which Linux can also be switched to by setting
+  ``ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC=1``. Camera outputs themselves are unchanged.
+
+
+2.0.3 (2026-08-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Constrained the optional OVRTX runtime to ``ovrtx>0.4.0,<0.4.1`` to retain the validated
+  OVRTX 0.4.0 rendering outputs. Users with OVRTX 0.4.1 should downgrade until its output
+  changes are adopted with updated rendering baselines.
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to suppress the OVRTX deprecation warnings
+  emitted for the legacy stage API. Isaac Lab still drives that API until the ovstage path becomes
+  the default, so the warnings were noise no user of this renderer could act on. The option is set
+  only when the installed OVRTX build exposes it, so older wheels are unaffected.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX environment placement by authoring root translations from the clone plan after
+  cloning instead of capturing transforms from the USD stage.
+
+
+2.0.2 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX deformable render bindings leaving the environment slot unresolved, so they
+  bound against a path expression instead of the concrete per-environment mesh prims.
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+
+
+2.0.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` attaching its OVStage at an
+  unsealed write ordinal. ``ovstage.population.open_usd_from_string()`` only
+  completes population; it never commits the ordinal it wrote to. Newer
+  ``ovphysx`` releases fail the parse when attaching at an unsealed ordinal and
+  yield an empty scene, so every articulation, rigid body, and sensor binding
+  resolved to zero prims. The manager now calls ``advance_write_floor().wait()``
+  to seal the ordinal before ``attach_ovstage()``.
+
+
+2.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_ovphysx`` distribution into
+  ``isaaclab_ov``. Install ``isaaclab_ov`` and replace
+  ``isaaclab_ovphysx`` imports with ``isaaclab_ov``.
+
+
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
+0.10.2 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX missing-runtime errors to recommend supported uv-managed and
+  direct-wheel commands.
+
+
+0.10.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing OVRTX runtime error to recommend the uv-managed ``ovrtx`` extra.
+
+
+0.10.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an opt-in ovstage scene-ownership path to :class:`~isaaclab_ov.renderers.OVRTXRenderer`,
+  enabled by setting ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` with the ``ovstage`` wheel installed. Under
+  this split-ownership model ovstage owns the scene data and ovrtx owns only rendering, replacing
+  the renderer-owned scene APIs deprecated in ovrtx 0.4. The path is selected once per renderer and
+  covers stage population, environment cloning, scene partitions, and the camera, rigid-body,
+  deformable, and particle-cloud updates. It defaults to off, so existing deployments are
+  unaffected until the variable is set.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer`. When set, authors
+  ``omni:rtx:background:source:type = "color"`` and ``omni:rtx:background:source:color`` on the
+  USD render product instead of the default ``"domeLight"`` background.
+
+
+0.9.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated :class:`~isaaclab_ov.renderers.OVRTXRenderer` to use the renamed
+  ``"instance_segmentation"`` data type key (previously ``"instance_segmentation_fast"``).
+  Output buffer and ``camera.data.info`` dict keys now use the new name.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to return ``int32`` instance IDs (shape
+  ``(B, H, W, 1)``) when ``colorize_instance_segmentation=False``, matching the Isaac RTX renderer.
+  Previously the non-colorized path incorrectly declared ``uint32``.
+
+
+0.8.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``idToLabels`` (instance to USD prim path) and ``idToSemantics`` (instance to semantic label)
+  mappings to the OVRTX renderer's ``instance_segmentation_fast`` output, exposed through
+  ``camera.data.info["instance_segmentation_fast"]``. The mappings are decoded from the
+  ``StableIdSemanticIdMap``, ``StableIdMap``, and ``SemanticIdMap`` render vars and are keyed by the raw
+  ``(r, g, b, a)`` color tuple when ``colorize_instance_segmentation=True`` (matching Replicator's fast
+  instance-segmentation node) or by the raw instance ID otherwise.
+* Added OVRTX rendering to stream Newton MPM particle positions into registered
+  ``UsdGeom.Points`` prims, so kitless cameras can visualize MPM particle clouds.
+
+Changed
+^^^^^^^
+
+* Changed the colorized ``semantic_segmentation`` ``idToLabels`` keys produced by the OVRTX renderer from the
+  stringified ``"(r, g, b, a)"`` form to raw ``(r, g, b, a)`` tuples, matching Replicator's fast segmentation
+  nodes and the Isaac RTX renderer. Index ``camera.data.info["semantic_segmentation"]["idToLabels"]`` with an
+  ``(r, g, b, a)`` tuple instead of its string form.
+* Removed support for ``instance_id_segmentation_fast`` from the OVRTX renderer, as it has no
+  real-world sensor equivalent. Requesting this data type via
+  :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` will now raise an error at camera allocation
+  time. Use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+* Updated the optional OVRTX runtime dependency to ``ovrtx>=0.4.0,<0.5.0``. Reinstall the OVRTX
+  extra with ``./isaaclab.sh -i 'ov[ovrtx]'`` to use the supported 0.4 runtime.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer raising ``RuntimeError: Cannot convert Torch type torch.uint32`` when reading a
+  non-colorized ID segmentation output (``semantic_segmentation``, ``instance_segmentation_fast``, or
+  ``instance_id_segmentation_fast`` with the corresponding ``colorize_*`` flag set to ``False``) on Torch
+  builds that expose ``torch.uint32``.
+* Fixed the OVRTX renderer producing string keys (e.g. ``"0"``, ``"1"``, ``"2"``) instead of integer keys
+  in the non-colorized ``idToLabels`` and ``idToSemantics`` mappings for ``semantic_segmentation`` and
+  ``instance_segmentation_fast``. Index ``camera.data.info[...]["idToLabels"]`` and
+  ``camera.data.info[...]["idToSemantics"]`` with integer pixel/semantic IDs when
+  ``colorize_semantic_segmentation=False`` or ``colorize_instance_segmentation=False``.
+* Worked around OVRTX 0.4 tiled RenderProducts retaining only cameras present at stage load by
+  initially authoring only the resolvable source camera and rewriting the relationship after runtime cloning.
+
+
 0.7.1 (2026-07-15)
 ~~~~~~~~~~~~~~~~~~
 

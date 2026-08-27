@@ -15,7 +15,7 @@ from newton.solvers import SolverKamino
 
 from isaaclab.physics import PhysicsManager
 
-from .kamino_manager_cfg import KaminoSolverCfg
+from .kamino_manager_cfg import _KaminoSolverCfgBase
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
@@ -50,21 +50,23 @@ class NewtonKaminoManager(NewtonManager):
     """:class:`NewtonManager` specialization for the Kamino solver.
 
     Uses Newton's :class:`CollisionPipeline` unless
-    :attr:`KaminoSolverCfg.use_collision_detector` is ``True``, in which case
-    Kamino's internal collision detector handles contact generation.
+    its ``use_collision_detector`` field is ``True``, in which case Kamino's
+    internal collision detector handles contact generation.
     """
 
     # Annotate the concrete solver type.
     _solver: SolverKamino
 
+    _builder_attribute_solvers = (SolverKamino,)
+
     @classmethod
-    def _get_kamino_solver_cfg(cls) -> KaminoSolverCfg:
+    def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:
         cfg = PhysicsManager._cfg
         if cfg is None:
             raise RuntimeError("Physics manager is not initialized.")
         solver_cfg = getattr(cfg, "solver_cfg", None)
-        if not isinstance(solver_cfg, KaminoSolverCfg):
-            raise TypeError(f"Expected KaminoSolverCfg, got {type(solver_cfg).__name__}.")
+        if not isinstance(solver_cfg, _KaminoSolverCfgBase):
+            raise TypeError(f"Expected a Kamino solver configuration, got {type(solver_cfg).__name__}.")
         return solver_cfg
 
     @classmethod
@@ -72,7 +74,7 @@ class NewtonKaminoManager(NewtonManager):
         """Update body states from joint coordinates.
 
         For the Kamino (maximal-coordinate) solver, body poses/velocities are the authoritative
-        simulation state. When :attr:`KaminoSolverCfg.use_fk_solver` is enabled, this calls
+        simulation state. When ``use_fk_solver`` is enabled, this calls
         :meth:`SolverKamino.reset`, which runs Kamino's loop-closure forward kinematics: it reads
         body poses/velocities from the joint coordinates (including the base body's pose/twist)
         and writes back a consistent full joint and body state.
@@ -112,7 +114,12 @@ class NewtonKaminoManager(NewtonManager):
         """
 
     @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: KaminoSolverCfg) -> None:
+    def _create_solver(cls, model: Model, solver_cfg: _KaminoSolverCfgBase) -> SolverKamino:
+        """Construct the configured Kamino solver."""
+        return SolverKamino(model, solver_cfg.to_solver_config())
+
+    @classmethod
+    def _build_solver(cls, model: Model, solver_cfg: _KaminoSolverCfgBase) -> None:
         """Construct :class:`SolverKamino` and populate the base-class slots.
 
         Sets :attr:`NewtonManager._needs_collision_pipeline` to ``True`` only
@@ -127,7 +134,6 @@ class NewtonKaminoManager(NewtonManager):
             RuntimeError: If the model has more than one articulation per environment. The Kamino
                 interface in IsaacLab currently only supports one articulation per environment.
         """
-
         # Set the max contacts per world if specified.
         if solver_cfg.max_contacts_per_world is not None:
             model.rigid_contact_max = int(solver_cfg.max_contacts_per_world) * model.world_count
@@ -149,6 +155,7 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
 
-        NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
+        NewtonManager._supports_rigid_body_force_input = True

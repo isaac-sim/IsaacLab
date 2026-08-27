@@ -16,6 +16,9 @@ Reference:
 
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -30,7 +33,6 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/KukaAllegro/kuka.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
             retain_accelerations=True,
             linear_damping=0.0,
             angular_damping=0.0,
@@ -38,13 +40,16 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1000.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
-            solver_position_iteration_count=32,
-            solver_velocity_iteration_count=1,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0005,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True,
+                solver_position_iteration_count=32,
+                solver_velocity_iteration_count=1,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0005,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force"),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -74,32 +79,38 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
                 "ring_joint_(0|1|2|3)",
                 "thumb_joint_(0|1|2|3)",
             ],
-            effort_limit_sim={
-                "iiwa7_joint_(1|2|3|4|5|6|7)": 300.0,
-                "index_joint_(0|1|2|3)": 0.5,
-                "middle_joint_(0|1|2|3)": 0.5,
-                "ring_joint_(0|1|2|3)": 0.5,
-                "thumb_joint_(0|1|2|3)": 0.5,
+            # iiwa7, wonic references
+            # https://github.com/RobotLocomotion/models/blob/master/iiwa_description/sdf/iiwa7_no_collision.sdf
+            # https://www.wonikrobotics.com/robot-hand
+            # https://github.com/RobotLocomotion/models/blob/master/allegro_hand_description/sdf/allegro_hand_description_right.sdf
+            joint_effort_limit={
+                "iiwa7_joint_(1|2)": 176.0,
+                "iiwa7_joint_(3|4|5)": 110.0,
+                "iiwa7_joint_(6|7)": 40.0,
+                "(index|middle|ring|thumb)_joint_(0|1|2|3)": 0.7,
+            },
+            # motor velocity limits for mdp checking — deliberately NOT joint_velocity_limit.
+            actuator_velocity_limit={
+                "iiwa7_joint_(1|2)": 1.7104,
+                "iiwa7_joint_3": 1.7453,
+                "iiwa7_joint_4": 2.2689,
+                "iiwa7_joint_5": 2.4435,
+                "iiwa7_joint_(6|7)": 3.1416,
+                "(index|middle|ring|thumb)_joint_(0|1|2|3)": 9.52,  # (https://www.wonikrobotics.com/robot-hand
             },
             stiffness={
-                "iiwa7_joint_(1|2|3|4)": 300.0,
-                "iiwa7_joint_5": 100.0,
-                "iiwa7_joint_6": 50.0,
-                "iiwa7_joint_7": 25.0,
-                "index_joint_(0|1|2|3)": 3.0,
-                "middle_joint_(0|1|2|3)": 3.0,
-                "ring_joint_(0|1|2|3)": 3.0,
-                "thumb_joint_(0|1|2|3)": 3.0,
+                "iiwa7_joint_(1|2|3|4|5|6|7)": 200.0,
+                "(index|middle|ring|thumb)_joint_(0|1|2|3)": 3.0,
             },
             damping={
-                "iiwa7_joint_(1|2|3|4)": 45.0,
-                "iiwa7_joint_5": 20.0,
-                "iiwa7_joint_6": 15.0,
-                "iiwa7_joint_7": 15.0,
-                "index_joint_(0|1|2|3)": 0.1,
-                "middle_joint_(0|1|2|3)": 0.1,
-                "ring_joint_(0|1|2|3)": 0.1,
-                "thumb_joint_(0|1|2|3)": 0.1,
+                "iiwa7_joint_1": 42.2,
+                "iiwa7_joint_2": 54.4,
+                "iiwa7_joint_3": 45.6,
+                "iiwa7_joint_4": 37.8,
+                "iiwa7_joint_5": 25.3,
+                "iiwa7_joint_6": 25.5,
+                "iiwa7_joint_7": 23.5,
+                "(index|middle|ring|thumb)_joint_(0|1|2|3)": 0.1,
             },
             friction={
                 "iiwa7_joint_(1|2|3|4|5|6|7)": 1.0,
@@ -108,8 +119,19 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
                 "ring_joint_(0|1|2|3)": 0.01,
                 "thumb_joint_(0|1|2|3)": 0.01,
             },
+            # references:
+            # https://github.com/RobotLocomotion/models/blob/master/iiwa_description/sdf/iiwa7_no_collision.sdf
+            # https://github.com/RobotLocomotion/drake/pull/20420
+            # https://github.com/RobotLocomotion/drake/blob/master/examples/allegro_hand/allegro_single_object_simulation.cc)
             armature={
-                ".*": 0.01,
+                "iiwa7_joint_1": 1.836,
+                "iiwa7_joint_2": 4.447,
+                "iiwa7_joint_3": 3.242,
+                "iiwa7_joint_4": 1.817,
+                "iiwa7_joint_5": 1.392,
+                "iiwa7_joint_6": 1.402,
+                "iiwa7_joint_7": 1.392,
+                "(index|middle|ring|thumb)_joint_(0|1|2|3)": 0.136,
             },
         ),
     },

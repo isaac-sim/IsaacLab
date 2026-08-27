@@ -15,7 +15,7 @@ from pathlib import Path  # noqa: E402
 
 import pytest  # noqa: E402
 from rendering_test_utils import (  # noqa: E402
-    PHYSICS_RENDERER_AOV_COMBINATIONS,
+    PHYSICS_RENDERER_AOV_GROUPS,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
@@ -31,7 +31,7 @@ _generate_html_report_fixture = make_generate_html_report_fixture(_COMPARISON_SC
 _attach_comparison_properties_fixture = make_attach_comparison_properties_fixture(_COMPARISON_SCORES)
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_type", PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_cartpole(physics_backend, renderer, data_type):
+@pytest.mark.parametrize("physics_backend,renderer,data_types", PHYSICS_RENDERER_AOV_GROUPS)
+def test_rendering_cartpole(physics_backend, renderer, data_types):
     """Test cartpole environment rendering correctness."""
-    rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)
+    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES, compare_golden=True)

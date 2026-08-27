@@ -10,6 +10,7 @@ from unittest import mock
 
 import newton
 import torch
+import warp as wp
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import (
     _BUILTIN_LABEL_TYPES,
@@ -17,11 +18,13 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import visualization_builder as visualization_builder_module
+from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 from newton.solvers import SolverMuJoCo
 
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
 _VIS_LABEL_SUFFIXES = {
     "body_label": "Body",
@@ -29,8 +32,11 @@ _VIS_LABEL_SUFFIXES = {
     "shape_label": "Shape",
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
+    "equality_constraint_label": "EqualityConstraint",
 }
-_VIS_LABEL_ATTRS = tuple(_VIS_LABEL_SUFFIXES)
+# Equality constraints live in custom attributes (like real newton), not plain builder lists.
+_VIS_BUILTIN_LABEL_ATTRS = tuple(attr for attr in _VIS_LABEL_SUFFIXES if attr != "equality_constraint_label")
+_VIS_EQ_FREQ = "mujoco:equality_constraint"
 
 _TENDON_FREQ = "mujoco:tendon"
 _SRC = "/Sources/protoA"
@@ -40,10 +46,22 @@ _DST = "/World/envs/env_{}"
 class _FakeVisualizationModelBuilder:
     def __init__(self, up_axis=None):
         self.up_axis = up_axis
-        for attr in _VIS_LABEL_ATTRS:
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
             setattr(self, attr, [])
             setattr(self, attr.replace("_label", "_world"), [])
-        self.custom_attributes = {}
+        self.custom_attributes = {
+            "mujoco:equality_constraint_label": newton.ModelBuilder.CustomAttribute(
+                name="equality_constraint_label", frequency=_VIS_EQ_FREQ, dtype=str, default="", namespace="mujoco"
+            ),
+            "mujoco:equality_constraint_world": newton.ModelBuilder.CustomAttribute(
+                name="equality_constraint_world",
+                frequency=_VIS_EQ_FREQ,
+                dtype=int,
+                default=0,
+                namespace="mujoco",
+                references="world",
+            ),
+        }
         self.geometry_sources = []
         self.world_slices = []
         self._current_world = None
@@ -62,28 +80,39 @@ class _FakeVisualizationModelBuilder:
     def add_usd(self, stage, root_path=None, ignore_paths=None, schema_resolvers=None, **kwargs):
         del stage, ignore_paths, schema_resolvers, kwargs
         if root_path is None:
-            return
+            return {"path_shape_map": {}}
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr, suffix in _VIS_LABEL_SUFFIXES.items():
-            getattr(self, attr).append(f"{root_path}/{suffix}")
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
+            getattr(self, attr).append(f"{root_path}/{_VIS_LABEL_SUFFIXES[attr]}")
             getattr(self, attr.replace("_label", "_world")).append(self._current_world or 0)
+        self.custom_attributes["mujoco:equality_constraint_label"].values.append(
+            f"{root_path}/{_VIS_LABEL_SUFFIXES['equality_constraint_label']}"
+        )
+        self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
+        return {"path_shape_map": {}}
 
     def add_builder(self, builder, xform=None):
         del xform
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr in _VIS_LABEL_ATTRS:
+        for attr in _VIS_BUILTIN_LABEL_ATTRS:
             labels = getattr(builder, attr)
             getattr(self, attr).extend(labels)
             getattr(self, attr.replace("_label", "_world")).extend([self._current_world] * len(labels))
+        eq_labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
+        self.custom_attributes["mujoco:equality_constraint_label"].values.extend(eq_labels)
+        self.custom_attributes["mujoco:equality_constraint_world"].values.extend([self._current_world] * len(eq_labels))
         self.geometry_sources.extend(builder.geometry_sources)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
 
     def labels_for_world(self, world_id, attr):
-        labels = getattr(self, attr)
+        if attr == "equality_constraint_label":
+            labels = self.custom_attributes["mujoco:equality_constraint_label"].values
+        else:
+            labels = getattr(self, attr)
         return [label for start, end, _, _ in self.world_slices[world_id] for label in labels[start:end]]
 
     def geometry_sources_for_world(self, world_id):
@@ -255,6 +284,42 @@ class TestRenameCustomAttributes(unittest.TestCase):
             ["unassigned", f"{_DST.format(self.worlds[0])}/freqA_label_{self.worlds[0]}"],
         )
 
+    def test_shape_material_paths_follow_shape_worlds(self):
+        builder = _make_builder(self.worlds)
+        builder.add_custom_attribute(
+            newton.ModelBuilder.CustomAttribute(
+                name="visual_material_path",
+                namespace="isaaclab",
+                dtype=str,
+                frequency=newton.Model.AttributeFrequency.SHAPE,
+                default="",
+            )
+        )
+        paths = builder.custom_attributes["isaaclab:visual_material_path"].values
+        paths.update({index: f"{_SRC}/Looks/material" for index in range(len(self.worlds))})
+
+        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
+
+        self.assertEqual(paths, {index: f"{_DST.format(index)}/Looks/material" for index in range(len(self.worlds))})
+
+    def test_other_shape_attributes_without_world_references_pass_through(self):
+        builder = _make_builder(self.worlds)
+        builder.add_custom_attribute(
+            newton.ModelBuilder.CustomAttribute(
+                name="shape_note",
+                namespace="syn",
+                dtype=str,
+                frequency=newton.Model.AttributeFrequency.SHAPE,
+                default="",
+            )
+        )
+        notes = builder.custom_attributes["syn:shape_note"].values
+        notes.update({index: f"{_SRC}/note" for index in range(len(self.worlds))})
+
+        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
+
+        self.assertEqual(notes, {index: f"{_SRC}/note" for index in range(len(self.worlds))})
+
 
 class TestRenameMultiSource(unittest.TestCase):
     def test_prefix_overlap_does_not_cross_contaminate(self):
@@ -283,6 +348,74 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         builder.add_usd(None, root_path=root_path)
         return builder
 
+    def test_source_local_sites_batched_with_correct_indices(self):
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+        site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
+
+        # Non-zero base so site indices are not trivially zero-based.
+        builder = newton.ModelBuilder()
+        builder.add_body(xform=wp.transform())
+        builder.add_shape(body=0, type=newton.GeoType.SPHERE)
+        base_shape = builder.shape_count
+        stride = source.shape_count
+
+        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
+        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+
+        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
+            local_site_map, _ = replicate_builder_mapping(
+                builder,
+                (_SRC,),
+                torch.ones((1, 3), dtype=torch.bool),
+                positions,
+                quaternions,
+                {_SRC: source},
+                source_site_indices={id(source): {"ee": [site_idx]}},
+            )
+
+        replicate.assert_called_once()
+        self.assertEqual(
+            local_site_map["ee"],
+            [[base_shape + world * stride + site_idx] for world in range(3)],
+        )
+        for world_indices in local_site_map["ee"]:
+            self.assertEqual(builder.shape_label[world_indices[0]], "ee")
+
+    def test_env_root_sites_batched_at_correct_world_positions(self):
+        source = newton.ModelBuilder()
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+
+        builder = newton.ModelBuilder()
+        base_shape = builder.shape_count
+        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
+        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+        env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
+
+        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
+            local_site_map, _ = replicate_builder_mapping(
+                builder,
+                (_SRC,),
+                torch.ones((1, 3), dtype=torch.bool),
+                positions,
+                quaternions,
+                {_SRC: source},
+                env_root_sites={"origin": env_root_offset},
+            )
+
+        replicate.assert_called_once()
+        stride = source.shape_count
+        self.assertEqual(source.shape_count, 1)
+        self.assertEqual(
+            local_site_map["origin"],
+            [[base_shape + world * stride] for world in range(3)],
+        )
+        for world, world_indices in enumerate(local_site_map["origin"]):
+            site_pos = builder.shape_transform[world_indices[0]].p
+            self.assertAlmostEqual(float(site_pos[0]), float(positions[world][0]) + 0.1, places=5)
+            self.assertAlmostEqual(float(site_pos[1]), 0.0, places=5)
+            self.assertEqual(builder.shape_label[world_indices[0]], "origin")
+
     def test_inactive_source_rows_are_ignored(self):
         sources = ("/Sources/inactive", "/Sources/active")
         source_builders = {source: self._source_builder(source) for source in sources}
@@ -302,11 +435,78 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
 
 class TestVisualizationClonePlan(unittest.TestCase):
+    def test_clone_plan_expands_prototype_deformables_to_selected_environments(self):
+        entry = DeformableStageEntry(
+            root_path="/World/envs/env_0/Deformable",
+            sim_mesh_path="/World/envs/env_0/Deformable/simulation_mesh",
+            vis_mesh_path="/World/envs/env_0/Deformable/visual_mesh",
+            deformable_type="surface",
+            vertex_count=3,
+            vis_vertex_count=3,
+        )
+        clone_plan = ClonePlan(
+            sources=("/World/envs/env_0",),
+            destinations=("/World/envs/env_{}",),
+            clone_mask=torch.ones((1, 4), dtype=torch.bool),
+            env_ids=torch.arange(4),
+        )
+
+        entries = visualization_deformables_module._expand_clone_plan_deformable_entries([entry], clone_plan)
+
+        self.assertEqual(
+            [entry.root_path for entry in entries],
+            [f"/World/envs/env_{env_id}/Deformable" for env_id in range(4)],
+        )
+        self.assertEqual(
+            [entry.vis_mesh_path for entry in entries],
+            [f"/World/envs/env_{env_id}/Deformable/visual_mesh" for env_id in range(4)],
+        )
+
     @staticmethod
     def _define_xform(stage, path, translation=None):
         xform = UsdGeom.Xform.Define(stage, path)
         if translation is not None:
             xform.AddTranslateOp().Set(translation)
+
+    def test_visualization_builder_imports_standalone_stage_as_one_world(self):
+        stage = Usd.Stage.CreateInMemory()
+        self._define_xform(stage, "/World")
+        self._define_xform(stage, "/World/Robot")
+        builder = mock.Mock()
+        builder.add_usd.return_value = {"path_shape_map": {}}
+
+        with (
+            mock.patch.object(visualization_builder_module, "ModelBuilder", return_value=builder),
+            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: "newton"),
+            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: "physx"),
+            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
+        ):
+            result, (shadow_entities, registry_groups) = (
+                visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], None)
+            )
+
+        self.assertIs(result, builder)
+        self.assertEqual(shadow_entities, [])
+        self.assertEqual(registry_groups, [])
+        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"], ignore_paths=None)
+
+    def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
+        """A cloned scene must not be cached as an incomplete single-world model."""
+        stage = Usd.Stage.CreateInMemory()
+        self._define_xform(stage, "/World")
+        clone_plan = ClonePlan(
+            sources=(),
+            destinations=(),
+            clone_mask=torch.empty((0, 0), dtype=torch.bool),
+            env_ids=torch.empty(0, dtype=torch.long),
+        )
+
+        with (
+            mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
+            mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
+            self.assertRaisesRegex(ValueError, "requires at least one environment path"),
+        ):
+            visualization_builder_module.build_visualization_builder_from_stage_envs(stage, [], clone_plan)
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
@@ -332,10 +532,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
-            mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
-            mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
+            mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),
+            mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
+            mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):
-            builder = visualization_builder_module.build_visualization_builder_from_stage_envs(
+            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan
             )
 

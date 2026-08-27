@@ -11,6 +11,18 @@ import gymnasium as gym
 
 from . import agents
 
+_SPACE_PRESETS = (
+    "box_box",
+    "box_discrete",
+    "box_multidiscrete",
+    "dict_box",
+    "dict_discrete",
+    "dict_multidiscrete",
+    "tuple_box",
+    "tuple_discrete",
+    "tuple_multidiscrete",
+)
+
 ###########################
 # Register Gym environments
 ###########################
@@ -37,5 +49,9 @@ gym.register(
         "skrl_tuple_box_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
         "skrl_tuple_discrete_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
         "skrl_tuple_multidiscrete_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
+        "agent_preset_compatibility": {
+            "skrl_cfg_entry_point": ("box_box",),
+            **{f"skrl_{preset_name}_cfg_entry_point": (preset_name,) for preset_name in _SPACE_PRESETS},
+        },
     },
 )

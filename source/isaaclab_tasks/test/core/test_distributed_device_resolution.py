@@ -423,6 +423,8 @@ class TestLaunchSimulationDevicePropagation:
         """When Kit is needed, AppLauncher.device should be written to env_cfg.sim.device."""
 
         class _FakeAppLauncher:
+            is_available = staticmethod(lambda: True)
+
             def __init__(self, launcher_args):
                 self.device = "cuda:3"  # Simulate resolved device
                 self.app = types.SimpleNamespace(close=lambda: None)
@@ -431,6 +433,11 @@ class TestLaunchSimulationDevicePropagation:
         mock_isaaclab_utils = types.ModuleType("isaaclab.utils")
         mock_isaaclab_utils.has_kit = lambda: False
         monkeypatch.setitem(sys.modules, "isaaclab.utils", mock_isaaclab_utils)
+        monkeypatch.setitem(
+            sys.modules,
+            "isaaclab.utils.assets",
+            types.SimpleNamespace(configure_storage_profile=lambda: None),
+        )
 
         monkeypatch.setitem(
             sys.modules,

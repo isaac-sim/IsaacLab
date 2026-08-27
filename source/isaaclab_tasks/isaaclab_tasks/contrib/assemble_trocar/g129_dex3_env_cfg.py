@@ -8,7 +8,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -17,6 +17,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
 
@@ -94,14 +95,14 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     right_wrist_camera = CameraPresets.right_dex3_wrist_camera()
 
     scene = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Scene",
+        prim_path="{ENV_REGEX_NS}/Scene",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/scene03.usd",
         ),
     )
 
     trocar_1 = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/trocar_1",
+        prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
             collision_props=sim_utils.CollisionPropertiesCfg(
@@ -117,7 +118,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     )
 
     trocar_2 = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/trocar_2",
+        prim_path="{ENV_REGEX_NS}/trocar_2",
         spawn=UsdFileCfg(
             usd_path=(
                 f"{USD_ROOT}/Assets/"
@@ -134,7 +135,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         ),
     )
     tray = ArticulationCfg(
-        prim_path="/World/envs/env_.*/surgical_tray",
+        prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
         ),
@@ -370,12 +371,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         env_spacing=6.0,
         replicate_physics=True,
     )
-    # viewer settings
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(-0.5, 2.4, 1.6),
-        lookat=(-5.4, 0.2, -1.2),
-        cam_prim_path="/OmniverseKit_Persp",
-    )
     # basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -397,6 +392,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,
             self.scene.left_wrist_camera,

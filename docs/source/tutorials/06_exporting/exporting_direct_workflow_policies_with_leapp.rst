@@ -26,25 +26,12 @@ This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
 annotation pattern to your own Direct RL environment.
 
-This export flow requires ``leapp>=0.5.2``. Before exporting, install LEAPP into
-the Isaac Lab Python environment:
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p -m pip install leapp
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         isaaclab.bat -p -m pip install leapp
+This export flow requires ``leapp``. ``leapp`` is a specialized optional extra (it is not
+part of ``--extra all``). Select extras the same way as ``isaaclab train``: add
+``--extra leapp`` on every ``uv run``, and add the backend extra that matches your task
+(``isaacsim``, ``ovphysx``, or none for kitless Newton). See
+:ref:`uv-run-training` and
+:doc:`/source/policy_deployment/05_leapp/exporting_policies_with_leapp`.
 
 If you want to run the exported example with the existing
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct`` task registration, copy the annotated
@@ -70,7 +57,8 @@ tutorial environment into the task package:
             source\isaaclab_tasks\isaaclab_tasks\contrib\anymal_c_direct\anymal_c_env.py
 
 After your environment includes the required LEAPP input, output, and state
-annotations, export a trained policy with:
+annotations, export a trained policy with the same backend extra pattern as training.
+For example, on Isaac Sim PhysX:
 
 .. tab-set::
    :sync-group: os
@@ -78,28 +66,76 @@ annotations, export a trained policy with:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. code-block:: bash
+      .. tab-set::
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-             --task <TASK_NAME> \
-             --checkpoint <PATH_TO_CHECKPOINT> \
-             --export_save_path <EXPORT_PATH>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+               # Newton:     uv run --extra leapp python ... physics=newton_mjwarp
+               # OV PhysX:   uv run --extra ovphysx,leapp python ... physics=ovphysx
+               # Isaac Sim:
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
+                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT> \
+                   --export_save_path <EXPORT_PATH> \
+                   physics=isaacsim_physx
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                   --task <TASK_NAME> \
+                   --checkpoint <PATH_TO_CHECKPOINT> \
+                   --export_save_path <EXPORT_PATH> \
+                   physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code-block:: batch
+      .. tab-set::
 
-         isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-             --task <TASK_NAME> ^
-             --checkpoint <PATH_TO_CHECKPOINT> ^
-             --export_save_path <EXPORT_PATH>
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: batch
+
+               :: Newton:   uv run --extra leapp python ... physics=newton_mjwarp
+               :: OV PhysX: uv run --extra ovphysx,leapp python ... physics=ovphysx
+               :: Isaac Sim:
+               set OMNI_KIT_ACCEPT_EULA=Y
+               set ACCEPT_EULA=Y
+               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task <TASK_NAME> ^
+                   --checkpoint <PATH_TO_CHECKPOINT> ^
+                   --export_save_path <EXPORT_PATH> ^
+                   physics=isaacsim_physx
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: batch
+
+               isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+                   --task <TASK_NAME> ^
+                   --checkpoint <PATH_TO_CHECKPOINT> ^
+                   --export_save_path <EXPORT_PATH> ^
+                   physics=isaacsim_physx
 
 The ``--task`` argument is the registered task name, such as
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument
-points to the trained RSL-RL checkpoint to export. The optional
-``--export_save_path`` argument selects the output directory for the exported
-artifacts. If you omit it, the export is written next to the checkpoint.
+points to the trained RSL-RL checkpoint to export. Train with
+``uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>`` (see
+:ref:`uv-run-training`); do not use the removed per-backend ``train.py`` scripts.
+The optional ``--export_save_path`` argument selects the output directory for the
+exported artifacts. If you omit it, the export is written next to the checkpoint.
+
+.. note::
+
+   Unlike with managed environments, ``export_method`` is not a command-line option.
+   Set the export backend in the output annotation itself, for example
+   ``annotate.output_tensors(..., export_with="onnx-dynamo")``. See the following
+   output annotation example for guidance.
 
 .. warning::
 
@@ -240,6 +276,6 @@ into deployment systems.
 .. note::
 
    Refer to the `LEAPP semantic annotation guide
-   <https://nvidia-isaac.github.io/leapp/guides/semantics.html>`_
+   <https://nvidia-isaac.github.io/leapp/semantics/usage.html>`_
    and `LEAPP API reference <https://nvidia-isaac.github.io/leapp/api/index.html>`_
    for details on authoring semantic annotations.

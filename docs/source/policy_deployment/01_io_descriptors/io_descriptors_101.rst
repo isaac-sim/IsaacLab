@@ -63,25 +63,59 @@ Keep in mind that this feature is only available to the manager based RL environ
 
 If a policy has already been trained using a given configuration, then the IO descriptors can be exported using:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task <task_name> --output_dir <output_dir>
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/export_io_descriptors.py --task <task_name> --output_dir <output_dir>
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task <task_name> --output_dir <output_dir>
 
 For example, if we want to export the IO descriptors for the AnymalD robot, we can run:
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task Isaac-Velocity-Flat-AnymalD --output_dir ./io_descriptors
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run python scripts/environments/export_io_descriptors.py --task Isaac-Velocity-Flat-AnymalD --output_dir ./io_descriptors
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task Isaac-Velocity-Flat-AnymalD --output_dir ./io_descriptors
 
 When training a policy, it is also possible to request the IO descriptors to be exported at the beginning of the training.
 This can be done by setting the ``export_io_descriptors`` flag in the command line.
 
-.. code-block:: bash
+.. tab-set::
 
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
-   ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
-   ./isaaclab.sh train --rl_library rl_games --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
-   ./isaaclab.sh train --rl_library skrl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         uv run isaaclab train --rl_library sb3 --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         uv run isaaclab train --rl_library rl_games --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         uv run isaaclab train --rl_library skrl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         ./isaaclab.sh train --rl_library rl_games --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         ./isaaclab.sh train --rl_library skrl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
 
 
 Attaching IO Descriptors to Custom Observation Terms
