@@ -69,6 +69,10 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
 # OVRTX 0.4.1 rendering fixes allow a tighter tolerance for data types that
 # are not dominated by scale-sensitive depth normalization.
 _OVRTX_MAX_DIFFERENT_PIXELS_PERCENTAGE = 3.0
+
+# Environment steps run before the MPM particle capture so the pile settles out of its reset
+# lattice. At the task's 2x decimation over a 1/120 s step this is half a second of simulation.
+_MPM_PARTICLE_SETTLE_STEPS = 30
 _OVRTX_SCALE_SENSITIVE_DATA_TYPES = {"depth", "distance_to_camera", "distance_to_image_plane"}
 
 
@@ -93,6 +97,11 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
     "lift_kuka_homo": 0.95,
     "lift_kuka_hetero": 0.95,
     "kuka_visual_material_randomization": 0.99,
+    # Settling the pile leaves a granular surface whose per-particle highlights differ slightly
+    # between runs: the ``simple_shading`` AOVs measured 0.9827-0.9850 against the default 0.985,
+    # passing only on retry. 0.97 clears that spread while staying far above the 0.67 an
+    # unrendered particle cloud produces, which is the regression this suite exists to catch.
+    "mpm_particles": 0.97,
 }
 
 # Targeted tolerance overrides for renderer noise in otherwise equivalent CI frames.
@@ -2401,10 +2410,12 @@ def rendering_test_mpm_particles(
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
-        # Step once so the pile settles onto the work surface and the particle prims are synced
-        # from Newton state at least once, rather than capturing the spawn-time positions.
+        # Settle the pile under gravity before capturing. A single step would frame the reset
+        # lattice, whose flat faces and hard edges are a poor subject for a particle test; the
+        # settled pile also re-syncs the points prims on every one of these steps rather than once.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        env.step(zero_actions)
+        for _ in range(_MPM_PARTICLE_SETTLE_STEPS):
+            env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,
