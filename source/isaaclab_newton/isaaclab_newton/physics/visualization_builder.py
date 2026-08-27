@@ -10,7 +10,7 @@ from typing import Any
 
 import torch
 from newton import ModelBuilder
-from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
+from newton._src.usd.schemas import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
@@ -95,7 +95,7 @@ def build_visualization_builder_from_stage_envs(
         A tuple of the populated :class:`~newton.ModelBuilder` and shadow-deformable
         metadata ``(shadow_entities, registry_groups)``.
     """
-    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx(), SchemaResolverMjc()]
     builder = ModelBuilder(up_axis=up_axis)
     # Discover once and reuse via ``entries=`` below (ignore paths + shadow add).
     deformable_entries = discover_deformables_on_stage(stage)

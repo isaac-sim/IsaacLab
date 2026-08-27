@@ -76,7 +76,7 @@ from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverKamino
-from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
+from newton.usd import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
@@ -1875,7 +1875,7 @@ class NewtonManager(PhysicsManager):
 
         builder = cls.create_builder(up_axis=up_axis)
 
-        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx(), SchemaResolverMjc()]
 
         # NOTE: None of the add_usd calls below pass joint_ordering or
         # bodies_follow_joint_ordering, so the live articulation's native
