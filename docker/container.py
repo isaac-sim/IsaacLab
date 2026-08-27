@@ -7,6 +7,8 @@
 
 import argparse
 import shutil
+import sys
+from collections.abc import Container
 from pathlib import Path
 
 # __package__ is empty when this file runs as a script (./docker/container.py), where
@@ -17,6 +19,26 @@ if __package__:
     from .utils import ContainerInterface, x11_utils
 else:
     from utils import ContainerInterface, x11_utils
+
+
+def reorder_profile_first(argv: list[str], commands: Container[str]) -> list[str]:
+    """Accept ``<profile> <command>`` in addition to ``<command> <profile>``.
+
+    Stepping a container through its lifecycle only changes the command, so keeping it last
+    lets the previous line be reused by editing its tail: ``kitless build`` then
+    ``kitless start``. Profile names are never command names, so the leading token
+    identifies the order unambiguously.
+
+    Args:
+        argv: Command line arguments without the program name.
+        commands: The subcommand names this CLI accepts.
+
+    Returns:
+        The arguments with the command first, unchanged if it already is.
+    """
+    if len(argv) >= 2 and not argv[0].startswith("-") and argv[0] not in commands and argv[1] in commands:
+        return [argv[1], argv[0], *argv[2:]]
+    return argv
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -105,7 +127,7 @@ def parse_cli_args() -> argparse.Namespace:
     subparsers.add_parser("stop", help="Stop the docker container and remove it.", parents=[parent_parser])
 
     # parse the arguments to determine the command
-    args = parser.parse_args()
+    args = parser.parse_args(reorder_profile_first(sys.argv[1:], subparsers.choices))
 
     return args
 
@@ -154,6 +176,17 @@ def main(args: argparse.Namespace):
         # start the container
         ci.start()
     elif args.command == "enter":
+        # Entering a container that is not up used to be an error telling the user to run
+        # 'start' themselves. Do it for them: 'stop' also deletes the .xauth file, so the
+        # refresh below would fail on its own anyway.
+        if not ci.is_container_running():
+            print(f"[INFO] Container '{ci.container_name}' is not running. Starting it first...\n")
+            x11_outputs = x11_utils.x11_check(ci.statefile)
+            if x11_outputs is not None:
+                (x11_yaml, x11_envar) = x11_outputs
+                ci.add_yamls += x11_yaml
+                ci.environ.update(x11_envar)
+            ci.start()
         # refresh the x11 forwarding
         x11_utils.x11_refresh(ci.statefile)
         # enter the container
