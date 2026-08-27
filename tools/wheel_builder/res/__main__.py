@@ -137,7 +137,7 @@ def generate_vscode_settings():
 
 def main():
     """Run the installed Isaac Lab CLI while preserving the legacy VS Code option."""
-    if "--generate-vscode-settings" in sys.argv:
+    if len(sys.argv) > 1 and sys.argv[1] == "--generate-vscode-settings":
         parser = argparse.ArgumentParser()
         parser.add_argument("--generate-vscode-settings", action="store_true", help="Generate VS Code settings.")
         parser.add_argument("--verbose", action="store_true", help="Print discovered extension paths.")

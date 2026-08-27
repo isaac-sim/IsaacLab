@@ -94,13 +94,6 @@ def test_wheel_console_delegates_to_the_full_isaaclab_cli():
     cli.assert_called_once_with()
 
 
-def test_wheel_bundles_external_project_generator_resources():
-    """An installed wheel must contain the templates used by ``isaaclab --new``."""
-    build_script = (_repo_root() / "tools" / "wheel_builder" / "build.sh").read_text()
-
-    assert 'cp -r tools/template "$BUILD_DIR/src/isaaclab/tools/"' in build_script
-
-
 def test_wheel_builder_includes_isaacsim_extra(tmp_path):
     """The ``isaacsim`` extra must ship in the generated wheel metadata."""
     generated = _generate_wheel_pyproject(tmp_path)

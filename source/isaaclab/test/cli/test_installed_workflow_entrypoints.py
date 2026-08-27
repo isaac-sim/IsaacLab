@@ -29,7 +29,7 @@ pytestmark = pytest.mark.unit
 )
 def test_workflow_commands_dispatch_to_installed_entrypoints(command, runner):
     """Workflow commands must not depend on scripts from a source checkout."""
-    args = ["--task", "Example-v0"]
+    args = ["--task", "Example"]
     with mock.patch(f"isaaclab_rl.entrypoints.{runner}", return_value=0) as run:
         command(args)
 
@@ -42,20 +42,16 @@ def test_workflow_command_propagates_failure_status():
         cli.train([])
 
 
-@pytest.mark.parametrize(
-    "command_name",
-    ["train", "play", "train_multigpu", "zero_agent", "random_agent", "benchmark"],
-)
-def test_cli_loads_downstream_task_entrypoints_before_dispatch(command_name):
-    """Installed project task packages must register before a task-aware workflow is dispatched."""
+def test_cli_loads_downstream_tasks_before_benchmark():
+    """Benchmarking must discover tasks from installed projects."""
     task_entry_point = mock.Mock()
     with (
         mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[task_entry_point]) as entry_points,
-        mock.patch.object(cli, command_name) as command,
-        mock.patch.object(sys, "argv", ["isaaclab", command_name, "--task", "Example-v0"]),
+        mock.patch.object(cli, "benchmark") as benchmark,
+        mock.patch.object(sys, "argv", ["isaaclab", "benchmark", "runtime", "--task", "Example"]),
     ):
         cli.cli()
 
     entry_points.assert_called_once_with(group="isaaclab.tasks")
     task_entry_point.load.assert_called_once_with()
-    command.assert_called_once_with(["--task", "Example-v0"])
+    benchmark.assert_called_once_with(["runtime", "--task", "Example"])

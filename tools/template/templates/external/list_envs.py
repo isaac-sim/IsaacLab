@@ -11,6 +11,9 @@ import importlib
 import gymnasium as gym
 from prettytable import PrettyTable
 
+from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
+from isaaclab_tasks.utils.preset_target import PresetTarget
+
 importlib.import_module("{{ name }}.tasks")
 
 
@@ -18,8 +21,6 @@ def _format_presets(preset_map: dict | None) -> str:
     """Format the available preset selectors for one task."""
     if preset_map is None:
         return "(unavailable)"
-
-    from isaaclab_tasks.utils.preset_target import PresetTarget
 
     labels = {
         PresetTarget.PHYSICS: "physics",
@@ -43,7 +44,6 @@ def main() -> None:
     columns = ["S. No.", "Task Name", "Entry Point", "Config"]
     if args.show_presets:
         columns.append("Presets")
-        from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 
     table = PrettyTable(columns)
     table.title = "Available {{ name }} Environments"

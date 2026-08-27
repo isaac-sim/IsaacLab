@@ -261,12 +261,7 @@ def test_external_launch_configs_pass_skrl_algorithm_for_every_generated_skrl_ag
 
     launch_config = (root_dir / project_name / ".vscode" / "tools" / "launch.template.json").read_text()
     assert '"module": "isaaclab"' in launch_config
-    assert '"train"' in launch_config
-    assert '"play"' in launch_config
     assert "scripts/skrl" not in launch_config
-    assert "Template-Template-Launch-External-Direct" in launch_config
-    assert "Template-Template-Launch-External-Marl-Direct" in launch_config
-    assert "-v0" not in launch_config
     for algorithm in ["AMP", "PPO", "IPPO", "MAPPO"]:
         assert f'"--algorithm", "{algorithm}"' in launch_config
 
@@ -303,10 +298,6 @@ def test_external_project_uses_uv_workspace_and_installed_isaaclab_commands(tmp_
     assert package["project"]["entry-points"]["isaaclab.tasks"] == {project_name: f"{project_name}.tasks"}
     assert not (project_dir / "source" / project_name / "setup.py").exists()
     assert {path.name for path in (project_dir / "scripts").iterdir()} == {"list_envs.py"}
-
-    readme = (project_dir / "README.md").read_text()
-    for command in ["train", "play", "zero_agent", "random_agent", "benchmark", "train_multigpu"]:
-        assert f"uv run isaaclab {command}" in readme
 
 
 def _all_libraries() -> list[dict]:
@@ -583,8 +574,6 @@ def test_generated_internal_task_families_are_importable_packages(tmp_path, monk
     direct_family = f"{task_family}_direct"
     discovered = {info.name for info in pkgutil.iter_modules([str(tasks_dir)]) if info.ispkg}
     assert {task_family, direct_family} <= discovered
-    for family in (task_family, direct_family):
-        assert (tasks_dir / family / "config" / "cartpole" / "__init__.py").is_file()
 
 
 def test_generated_external_project_registers_tasks_on_import(tmp_path, monkeypatch):

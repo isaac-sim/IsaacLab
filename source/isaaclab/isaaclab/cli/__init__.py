@@ -118,9 +118,7 @@ def microbenchmark(args: list[str] | None = None) -> None:
     """Run a component micro-benchmark with an exact physics variant."""
     from isaaclab.benchmark import run_microbenchmark_cli
 
-    status = run_microbenchmark_cli(args)
-    if status != 0:
-        raise SystemExit(status)
+    _exit_on_error(run_microbenchmark_cli(args))
 
 
 def cli() -> None:

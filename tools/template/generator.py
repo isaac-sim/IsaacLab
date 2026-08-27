@@ -7,7 +7,6 @@ import glob
 import os
 import shutil
 import subprocess
-import sys
 from datetime import datetime
 
 import jinja2
@@ -59,14 +58,10 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
     task_spec = specification["task"]
     agents_dir = os.path.join(task_dir, "agents")
     os.makedirs(agents_dir, exist_ok=True)
-    # common content
-    # - task/__init__.py
     template = jinja_env.get_template("tasks/__init__task")
     _write_file(os.path.join(task_dir, "__init__.py"), content=template.render(**specification))
-    # - task/agents/__init__.py
     template = jinja_env.get_template("tasks/__init__agents")
     _write_file(os.path.join(agents_dir, "__init__.py"), content=template.render(**specification))
-    # - task/agents/*cfg*
     for rl_library in specification["rl_libraries"]:
         rl_library_name = rl_library["name"]
         for algorithm in rl_library.get("algorithms", []):
@@ -75,30 +70,23 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
             try:
                 template = jinja_env.get_template(f"agents/{file_name}")
             except jinja2.exceptions.TemplateNotFound as exc:
-                # Fail loudly: the task is still registered with this agent's entry point, so silently skipping
-                # the config would emit a project that only fails later at train time with a missing config file.
                 raise FileNotFoundError(
                     f"No agent config template 'agents/{file_name}' for the requested '{rl_library_name}'"
                     f" algorithm '{algorithm}'. Add the template or drop the algorithm from the selection."
                 ) from exc
             _write_file(os.path.join(agents_dir, file_name + file_ext), content=template.render(**specification))
-    # workflow-specific content
     if task_spec["workflow"]["name"] == "direct":
-        # - task/*env_cfg.py
         template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
             os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
         )
-        # - task/*env.py
         template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env")
         _write_file(os.path.join(task_dir, f"{task_spec['filename']}_env.py"), content=template.render(**specification))
     elif task_spec["workflow"]["name"] == "manager-based":
-        # - task/*env_cfg.py
         template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
             os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
         )
-        # - task/mdp folder
         shutil.copytree(
             os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
             os.path.join(task_spec["family_dir"], "mdp"),
@@ -122,28 +110,28 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
     for workflow in specification["workflows"]:
         task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
         filename = task_name.replace("-", "_").lower()
-        family_name = filename + ("_direct" if workflow["name"] == "direct" else "")
+        family_name = f"{filename}_direct" if workflow["name"] == "direct" else filename
         family_dir = os.path.join(task_dir, family_name)
-        robot_dir = os.path.join(family_dir, "config", "cartpole")
+        task_id = f"{task_name_prefix}-{task_name}"
+        if workflow["name"] == "direct":
+            task_id += "-Direct"
         task = {
             "workflow": workflow,
             "filename": filename,
             "classname": task_name.replace("-", ""),
             "family_dir": family_dir,
-            "dir": robot_dir,
+            "dir": os.path.join(family_dir, "config", "cartpole"),
+            "id": task_id,
         }
-        if task["workflow"]["name"] == "direct":
-            task["id"] = f"{task_name_prefix}-{task_name}-Direct"
-        elif task["workflow"]["name"] == "manager-based":
-            task["id"] = f"{task_name_prefix}-{task_name}"
         print(f"  |    |-- Generating '{task['id']}' task...")
         for package_dir in (family_dir, os.path.join(family_dir, "config")):
             os.makedirs(package_dir, exist_ok=True)
             package_init = os.path.join(package_dir, "__init__.py")
             if not os.path.exists(package_init):
                 shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__task_family"), package_init)
-        _generate_task_per_workflow(task["dir"], {**specification, "task": task})
-        specifications.append({**specification, "task": task})
+        task_specification = {**specification, "task": task}
+        _generate_task_per_workflow(task["dir"], task_specification)
+        specifications.append(task_specification)
     return specifications
 
 
@@ -156,7 +144,6 @@ def _external(specification: dict) -> None:
     name = specification["name"]
     project_dir = os.path.join(specification["path"], name)
     os.makedirs(project_dir, exist_ok=True)
-    # repo files
     print("  |-- Copying repo files...")
     for filename in [".gitattributes", ".gitignore", ".pre-commit-config.yaml"]:
         shutil.copyfile(os.path.join(TEMPLATE_DIR, "external", filename), os.path.join(project_dir, filename))
@@ -164,65 +151,50 @@ def _external(specification: dict) -> None:
     _write_file(os.path.join(project_dir, "pyproject.toml"), content=template.render(**specification))
     template = jinja_env.get_template("external/README.md")
     _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
-    # scripts
     print("  |-- Copying utility scripts...")
-    dir = os.path.join(project_dir, "scripts")
-    os.makedirs(dir, exist_ok=True)
+    scripts_dir = os.path.join(project_dir, "scripts")
+    os.makedirs(scripts_dir, exist_ok=True)
     template = jinja_env.get_template("external/list_envs.py")
-    _write_file(os.path.join(dir, "list_envs.py"), content=template.render(**specification))
-    # # docker files
-    # print("  |-- Copying docker files...")
-    # dir = os.path.join(project_dir, "docker")
-    # os.makedirs(dir, exist_ok=True)
-    # template = jinja_env.get_template("external/docker/.env.base")
-    # _write_file(os.path.join(dir, ".env.base"), content=template.render(**specification))
-    # template = jinja_env.get_template("external/docker/docker-compose.yaml")
-    # _write_file(os.path.join(dir, "docker-compose.yaml"), content=template.render(**specification))
-    # template = jinja_env.get_template("external/docker/Dockerfile")
-    # _write_file(os.path.join(dir, "Dockerfile"), content=template.render(**specification))
-    # extension files
+    _write_file(os.path.join(scripts_dir, "list_envs.py"), content=template.render(**specification))
+
     print("  |-- Copying extension files...")
-    # - config/extension.toml
-    dir = os.path.join(project_dir, "source", name, "config")
-    os.makedirs(dir, exist_ok=True)
+    package_dir = os.path.join(project_dir, "source", name)
+    config_dir = os.path.join(package_dir, "config")
+    os.makedirs(config_dir, exist_ok=True)
     template = jinja_env.get_template("extension/config/extension.toml")
-    _write_file(os.path.join(dir, "extension.toml"), content=template.render(**specification))
-    # - docs/CHANGELOG.rst
-    dir = os.path.join(project_dir, "source", name, "docs")
-    os.makedirs(dir, exist_ok=True)
+    _write_file(os.path.join(config_dir, "extension.toml"), content=template.render(**specification))
+    docs_dir = os.path.join(package_dir, "docs")
+    os.makedirs(docs_dir, exist_ok=True)
     template = jinja_env.get_template("extension/docs/CHANGELOG.rst")
     _write_file(
-        os.path.join(dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
+        os.path.join(docs_dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
     )
-    # - pyproject.toml
-    dir = os.path.join(project_dir, "source", name)
     template = jinja_env.get_template("extension/pyproject.toml")
-    _write_file(os.path.join(dir, "pyproject.toml"), content=template.render(**specification))
-    # - tasks
+    _write_file(os.path.join(package_dir, "pyproject.toml"), content=template.render(**specification))
+
     print("  |-- Generating tasks...")
-    dir = os.path.join(project_dir, "source", name, name, "tasks")
-    os.makedirs(dir, exist_ok=True)
-    specifications = _generate_tasks(specification, dir)
-    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(dir, "__init__.py"))
-    # - other files
-    dir = os.path.join(project_dir, "source", name, name)
+    module_dir = os.path.join(package_dir, name)
+    tasks_dir = os.path.join(module_dir, "tasks")
+    os.makedirs(tasks_dir, exist_ok=True)
+    specifications = _generate_tasks(specification, tasks_dir)
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(tasks_dir, "__init__.py"))
     template = jinja_env.get_template("extension/ui_extension_example.py")
-    _write_file(os.path.join(dir, "ui_extension_example.py"), content=template.render(**specification))
-    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__ext"), os.path.join(dir, "__init__.py"))
-    # .vscode files
+    _write_file(os.path.join(module_dir, "ui_extension_example.py"), content=template.render(**specification))
+    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__ext"), os.path.join(module_dir, "__init__.py"))
+
     print("  |-- Copying vscode files...")
-    dir = os.path.join(project_dir, ".vscode")
-    shutil.copytree(os.path.join(TEMPLATE_DIR, "external", ".vscode"), dir, dirs_exist_ok=True)
+    vscode_dir = os.path.join(project_dir, ".vscode")
+    shutil.copytree(os.path.join(TEMPLATE_DIR, "external", ".vscode"), vscode_dir, dirs_exist_ok=True)
     template = jinja_env.get_template("external/.vscode/tasks.json")
-    _write_file(os.path.join(dir, "tasks.json"), content=template.render(**specification))
+    _write_file(os.path.join(vscode_dir, "tasks.json"), content=template.render(**specification))
     template = jinja_env.get_template("external/.vscode/tools/launch.template.json")
     _write_file(
-        os.path.join(dir, "tools", "launch.template.json"), content=template.render(specifications=specifications)
+        os.path.join(vscode_dir, "tools", "launch.template.json"),
+        content=template.render(specifications=specifications),
     )
-    # setup git repo
+
     print(f"Setting up git repo in {project_dir} path...")
     _setup_git_repo(project_dir)
-    # show end message
     print("\n" + "-" * 80)
     print(f"Project '{name}' generated successfully in {project_dir} path.")
     print(f"See {project_dir}/README.md to get started!")
@@ -232,7 +204,6 @@ def _external(specification: dict) -> None:
 def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool = True):
     assert single_agent or multi_agent, "At least one of 'single_agent' or 'multi_agent' must be True"
     data = {"rl_games": [], "rsl_rl": [], "skrl": [], "sb3": []}
-    # get algorithms
     for file in glob.glob(os.path.join(TEMPLATE_DIR, "agents", "*_cfg")):
         for rl_library in data.keys():
             basename = os.path.basename(file).replace("_cfg", "")
@@ -245,7 +216,6 @@ def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool =
                     data[rl_library].append(algorithm)
                 if multi_agent and algorithm in MULTI_AGENT_ALGORITHMS:
                     data[rl_library].append(algorithm)
-    # remove duplicates and sort
     for rl_library in data.keys():
         data[rl_library] = sorted(list(set(data[rl_library])))
     return data
@@ -257,7 +227,6 @@ def generate(specification: dict) -> None:
     Args:
         specification: The specification of the project/task.
     """
-    # validate specification
     print("\nValidating specification...")
     assert "external" in specification, "External flag is required"
     assert specification.get("name", "").isidentifier(), "Name must be a valid identifier"
@@ -266,9 +235,6 @@ def generate(specification: dict) -> None:
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
     if specification["external"]:
         assert "path" in specification, "Path is required for external projects"
-    # add other information to specification
-    specification["platform"] = sys.platform
-    # generate project/task
     if specification["external"]:
         print("Generating external project...")
         _external(specification)

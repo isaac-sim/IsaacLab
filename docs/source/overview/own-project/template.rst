@@ -4,24 +4,17 @@
 Create new project or task
 ==========================
 
-Traditionally, building new projects that utilize Isaac Lab's features required creating your own
-extensions within the Isaac Lab repository. However, this approach can obscure project visibility and
-complicate updates from one version of Isaac Lab to another. To circumvent these challenges,
-we now provide a command-line tool (**template generator**) for creating Isaac Lab-based projects and tasks.
+The template generator creates external Isaac Lab projects and internal tasks.
 
 The template generator enables you to create an:
 
-* **External project** (recommended): An isolated project that is not part of the Isaac Lab repository. This approach
-  works outside of the core Isaac Lab repository, ensuring that your development efforts remain self-contained. Also,
-  it allows your code to be run as an extension in Omniverse.
+* **External project** (recommended): An independent repository that can also load as an Isaac Sim extension.
 
   .. hint::
 
-    For the external project, the template generator will initialize a new Git repository in the specified directory.
-    You can push the generated content to your own remote repository (e.g. GitHub) and share it with others.
+    The generator initializes a Git repository in the selected directory.
 
-* **Internal task**: A task that is part of the Isaac Lab repository. This approach should only be used to create
-  new tasks within the Isaac Lab repository in order to contribute to it.
+* **Internal task**: A task added directly to the Isaac Lab repository for contribution upstream.
 
   .. warning::
 
@@ -96,7 +89,7 @@ Once the internal task is generated, it will be available along with the rest of
 
 * Run a task with dummy agents.
 
-  These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
+  Dummy agents help verify the environment before training.
 
   * Zero-action agent
 

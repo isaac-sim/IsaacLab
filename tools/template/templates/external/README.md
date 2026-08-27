@@ -1,7 +1,6 @@
 # {{ name }}
 
-An external Isaac Lab project generated for Isaac Lab 3.0. The project is an installable Python package and an
-Isaac Sim extension, while remaining independent of the Isaac Lab source repository.
+An external Isaac Lab project containing an installable Python package and Isaac Sim extension.
 
 ## Installation
 
@@ -11,14 +10,11 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then crea
 uv sync
 ```
 
-The generated package depends on Isaac Lab and the RL libraries selected during generation. The first sync can take
-several minutes because uv downloads the simulator and learning dependencies. Commit both `pyproject.toml` files and
-`uv.lock` so collaborators resolve the same environment.
+Commit both `pyproject.toml` files and `uv.lock` so collaborators use the same environment.
 
 ## Run the generated tasks
 
-The package advertises its tasks to the installed Isaac Lab CLI, so no project-specific runner scripts are needed.
-Replace the placeholders below with one of the generated task and library combinations.
+Replace the placeholders below with a generated task and selected RL library.
 
 ```bash
 # List this project's environments and their available presets
@@ -40,9 +36,7 @@ uv run isaaclab benchmark runtime --task <TASK_NAME> --num_envs 16 --num_steps 1
 uv run isaaclab benchmark training --rl_library <RL_LIBRARY> --task <TASK_NAME> --max_iterations 10
 ```
 
-Use `physics=<PRESET>` to select a generated physics preset. Run the environment listing command above before choosing
-a preset; the generated tasks expose Isaac Sim PhysX, automatic PhysX, OVPhysX, Newton MJWarp, and Newton Kamino
-variants.
+Use `physics=<PRESET>` to select one of the presets shown by `list_envs.py`.
 
 ## Development
 
@@ -60,9 +54,8 @@ uv run python .vscode/tools/setup_vscode.py
 
 ## Isaac Sim extension
 
-The Python package can also be loaded as an Isaac Sim extension. Add this project's `source` directory to the Extension
-Manager search paths, refresh the manager, find the extension under `Third Party`, and enable it. The optional UI example
-is implemented in `source/{{ name }}/{{ name }}/ui_extension_example.py`.
+Add the project's `source` directory to the Isaac Sim Extension Manager search paths, refresh, and enable the extension
+under `Third Party`. The optional UI example is in `source/{{ name }}/{{ name }}/ui_extension_example.py`.
 
 ## Troubleshooting
 
