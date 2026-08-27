@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import torch
+
 from pxr import Gf, Usd, UsdGeom
 
 MEDIA_TOOLS_DIR = Path(__file__).resolve().parents[1] / "docs" / "media"
@@ -75,7 +76,9 @@ def test_only_rgb_is_animated():
 
 def test_standard_capture_groups_share_one_render_product():
     for renderer in ("newton", "ovrtx", "isaac_rtx"):
-        expected = tuple(mode.output_name for mode in gallery_modes(renderer) if not mode.output_name.startswith("simple_"))
+        expected = tuple(
+            mode.output_name for mode in gallery_modes(renderer) if not mode.output_name.startswith("simple_")
+        )
         assert capture_data_types(renderer, "standard") == expected
 
 

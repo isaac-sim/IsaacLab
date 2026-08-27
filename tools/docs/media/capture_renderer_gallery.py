@@ -165,9 +165,7 @@ def _capture(args: argparse.Namespace) -> None:
     from isaaclab.sensors import Camera, CameraCfg
 
     if renderer_requires_kit(args.renderer_backend):
-        sim_cfg = sim_utils.SimulationCfg(
-            dt=1.0 / 60.0, render_interval=1, device=args.device, use_fabric=False
-        )
+        sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, render_interval=1, device=args.device, use_fabric=False)
     else:
         from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -186,9 +184,7 @@ def _capture(args: argparse.Namespace) -> None:
     scene_cfg = sim_utils.UsdFileCfg(usd_path=str(args.scene))
     scene_cfg.func(scene_path, scene_cfg)
     env_positions = torch.zeros((1, 3), device=args.device)
-    clone_plan = cloner.clone_plan_from_env_0(
-        "/World/envs/env_0", "/World/envs/env_{}", 1, args.device, env_positions
-    )
+    clone_plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 1, args.device, env_positions)
     cloner.replicate(clone_plan, stage=stage)
     camera = Camera(
         CameraCfg(
