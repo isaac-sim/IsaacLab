@@ -131,6 +131,31 @@ def test_gallery_scene_uses_rigid_spheres_for_cross_renderer_motion():
         assert sphere.GetAttribute("xformOp:translate").GetNumTimeSamples() == 0
 
 
+def test_gallery_table_and_backdrop_are_authored_size_texturable_meshes():
+    stage = Usd.Stage.Open(str(MEDIA_TOOLS_DIR / "renderer_gallery_scene.usda"))
+    expected_bounds = {
+        "/RendererGallery/Table": (Gf.Vec3f(-2.6, -2.1, -0.25), Gf.Vec3f(2.6, 2.1, 0.25)),
+        "/RendererGallery/Backdrop": (Gf.Vec3f(-15.0, -0.09, -3.0), Gf.Vec3f(15.0, 0.09, 3.0)),
+    }
+
+    for prim_path, (expected_min, expected_max) in expected_bounds.items():
+        mesh = UsdGeom.Mesh.Get(stage, prim_path)
+        assert mesh
+        assert not mesh.GetPrim().HasAttribute("xformOp:scale")
+        bounds = Gf.Range3f()
+        for point in mesh.GetPointsAttr().Get():
+            bounds.UnionWith(point)
+        assert bounds.GetMin() == expected_min
+        assert bounds.GetMax() == expected_max
+        uv_primvar = UsdGeom.PrimvarsAPI(mesh.GetPrim()).GetPrimvar("st")
+        assert uv_primvar
+        assert uv_primvar.GetInterpolation() == UsdGeom.Tokens.faceVarying
+        assert len(uv_primvar.ComputeFlattened()) == len(mesh.GetFaceVertexIndicesAttr().Get())
+
+    table = stage.GetPrimAtPath("/RendererGallery/Table")
+    assert "PhysicsCollisionAPI" in table.GetAppliedSchemas()
+
+
 def test_gallery_camera_points_at_authored_target():
     stage = Usd.Stage.Open(str(MEDIA_TOOLS_DIR / "renderer_gallery_scene.usda"))
     camera = stage.GetPrimAtPath("/RendererGallery/Camera")
