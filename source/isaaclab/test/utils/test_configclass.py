@@ -19,7 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 import copy
 import os
 from collections.abc import Callable
-from dataclasses import MISSING, asdict, field
+from dataclasses import MISSING, asdict, field, fields
 from functools import wraps
 from typing import Any, ClassVar
 
@@ -181,6 +181,62 @@ class InheritedNonTypeAnnotationOrderingDemoCfg(NonTypeAnnotationOrderingDemoCfg
     """Inherited config class without type annotations."""
 
     pass
+
+
+@configclass
+class MixedAnnotationOrderingDemoCfg:
+    """Config class with mixed annotated and non-annotated members."""
+
+    anymal = RobotDefaultStateCfg()
+    unitree: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    franka = RobotDefaultStateCfg()
+
+
+@configclass
+class MixedAnnotationOrderingFirstDemoCfg:
+    """Config class where the annotated member is declared first."""
+
+    anymal: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    unitree = RobotDefaultStateCfg()
+    franka = RobotDefaultStateCfg()
+
+
+@configclass
+class InheritedMixedAnnotationOrderingDemoCfg(MixedAnnotationOrderingDemoCfg):
+    """Inherited config class that adds both annotated and non-annotated members."""
+
+    spot = RobotDefaultStateCfg()
+    go2: RobotDefaultStateCfg = RobotDefaultStateCfg()
+
+
+@configclass
+class ParentAnnotatedDemoCfg:
+    """Parent config class with explicitly annotated members."""
+
+    x: int = MISSING
+    func: Callable = MISSING
+
+
+@configclass
+class ChildUnannotatedOverrideDemoCfg(ParentAnnotatedDemoCfg):
+    """Child config class overriding annotated members without type annotations."""
+
+    x = 5
+    func = dummy_function1
+
+
+@configclass
+class ParentInferredDemoCfg:
+    """Parent config class with an inferred (non-annotated) member."""
+
+    a = 1
+
+
+@configclass
+class ChildReannotatedDemoCfg(ParentInferredDemoCfg):
+    """Child config class refining an inherited member with an annotation-only re-declaration."""
+
+    a: float
 
 
 """
@@ -785,6 +841,55 @@ def test_configclass_type_ordering():
     assert list(cfg_1.__dict__.keys()) == list(cfg_2.__dict__.keys())
     assert list(cfg_3.__dict__.keys()) == list(cfg_2.__dict__.keys())
     assert list(cfg_1.__dict__.keys()) == list(cfg_3.__dict__.keys())
+
+
+def test_configclass_mixed_annotation_ordering():
+    """Checks ordering of config objects when mixing annotated and non-annotated members.
+
+    Regression test: previously, explicitly annotated members were hoisted to the front of the
+    field ordering, regardless of their declaration position. This silently changed the order in
+    which managers iterate over the config members (e.g. the concatenation order of observation
+    terms in the observation manager).
+    """
+    expected_order = ["anymal", "unitree", "franka"]
+
+    # check ordering when the annotated member is declared in the middle
+    cfg = MixedAnnotationOrderingDemoCfg()
+    assert list(cfg.__dict__.keys()) == expected_order
+    assert list(cfg.__annotations__.keys()) == expected_order
+    assert [f.name for f in fields(cfg)] == expected_order
+
+    # check ordering is conserved when converting to dictionary
+    assert list(cfg.to_dict().keys()) == expected_order
+    assert list(class_to_dict(cfg).keys()) == expected_order
+
+    # check ordering when the annotated member is declared first
+    cfg_first = MixedAnnotationOrderingFirstDemoCfg()
+    assert list(cfg_first.__dict__.keys()) == expected_order
+    assert list(cfg_first.to_dict().keys()) == expected_order
+
+    # check ordering with inheritance: base class members come first, then child class members,
+    # each in their respective declaration order
+    cfg_inherited = InheritedMixedAnnotationOrderingDemoCfg()
+    expected_inherited_order = ["anymal", "unitree", "franka", "spot", "go2"]
+    assert list(cfg_inherited.__dict__.keys()) == expected_inherited_order
+    assert list(cfg_inherited.to_dict().keys()) == expected_inherited_order
+
+
+def test_configclass_inherited_annotation_override():
+    """Checks that subclass overrides interact correctly with inherited type annotations."""
+    # unannotated overrides keep the inherited annotations
+    cfg = ChildUnannotatedOverrideDemoCfg()
+    assert cfg.x == 5
+    assert cfg.func == dummy_function1
+    # note: since python 3.10, annotations are stored as strings
+    assert cfg.__annotations__["x"] == "int"
+    assert cfg.__annotations__["func"] == "Callable"
+
+    # annotation-only re-declaration refines the inherited annotation
+    cfg_reannotated = ChildReannotatedDemoCfg()
+    assert cfg_reannotated.a == 1
+    assert cfg_reannotated.__annotations__["a"] == "float"
 
 
 def test_functions_config():
