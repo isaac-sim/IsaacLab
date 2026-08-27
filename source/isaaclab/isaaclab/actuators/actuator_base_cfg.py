@@ -67,7 +67,7 @@ class ActuatorBaseCfg:
         Use :attr:`joint_velocity_limit` to request a solver-level hard clamp. A physical
         actuator limits joint speed through its torque curve rather than a kinematic clamp,
         so the two limits are resolved independently. When only
-        :attr:`joint_velocity_limit` is set, it also serves as the joint velocity limit.
+        :attr:`joint_velocity_limit` is set, it also serves as the actuator velocity limit.
     """
 
     joint_effort_limit: dict[str, float] | float | None = None
