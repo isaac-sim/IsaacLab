@@ -53,9 +53,10 @@ and distance or ID variants are omitted because they do not add a visually disti
 
 .. note::
 
-   Visualization markers are not yet supported by Newton-based renderer backends,
-   including the Newton Warp renderer. Use an RTX-based renderer, such as the
-   Isaac RTX renderer or OVRTX renderer, when marker visualization is needed.
+   Visualization markers are debug overlays provided by visualizers, not camera outputs. Their
+   support is independent of the camera renderer: the Kit, Newton GL, Rerun, and Viser visualizers
+   support markers, while the experimental Newton RTX visualizer does not. See
+   :doc:`visualization` for the visualizer support matrix.
 
 .. note::
    **Temporal information for camera-based RL.** Unlike RTX modes with temporal

@@ -157,12 +157,12 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
 
-.. figure:: ../../_static/overview/sensors/camera_rgb.jpg
+.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx.webp
    :align: center
    :figwidth: 100%
    :alt: RGB camera output
 
-.. figure:: ../../_static/overview/sensors/camera_depth.jpg
+.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-depth.png
    :align: center
    :figwidth: 100%
    :alt: Depth camera output
@@ -220,17 +220,17 @@ Querying an unsupported output fails during camera initialization. Renderer conf
 semantic filters, segmentation colorization, and depth clipping where those options are
 backend-specific.
 
-.. figure:: ../../_static/overview/sensors/camera_normals.jpg
+.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-normals.png
    :align: center
    :figwidth: 100%
    :alt: Camera surface-normal output
 
-.. figure:: ../../_static/overview/sensors/camera_semantic.jpg
+.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-semantic-segmentation.png
    :align: center
    :figwidth: 100%
    :alt: Semantic segmentation output
 
-.. figure:: ../../_static/overview/sensors/camera_instance.jpg
+.. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-instance-segmentation.png
    :align: center
    :figwidth: 100%
    :alt: Instance segmentation output

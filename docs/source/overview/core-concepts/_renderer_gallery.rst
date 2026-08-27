@@ -219,5 +219,3 @@
                :alt: Isaac RTX full-MDL simple-shading output for six material spheres.
 
                Full MDL shading
-
-The editable scene is available at ``tools/docs/media/renderer_gallery_scene.usda``.
