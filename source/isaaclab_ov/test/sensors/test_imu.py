@@ -70,6 +70,12 @@ from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
+
 wp.init()
 
 pytestmark = pytest.mark.device_split
@@ -714,40 +720,19 @@ def test_indirect_attachment():
 # ===========================================================================
 
 
-_GPU = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-
-
-class _CountingReadView:
-    """Fake OVPhysX view whose ``read_into`` only counts calls."""
-
-    def __init__(self):
-        self.read_count = 0
-
-    def read_into(self, *args, **kwargs) -> None:
-        self.read_count += 1
-
-
 def _make_imu_for_refusal() -> OvPhysxImu:
     """Build an IMU sensor via ``__new__`` wired only for the outer-capture refusal check."""
     device = "cuda:0"
     sensor = OvPhysxImu.__new__(OvPhysxImu)
     sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
     sensor._device = device
-    sensor._root_view = _CountingReadView()
+    sensor._root_view = CountingReadView()
     sensor._update_graph = CapturedKernelUpdate(device, owner=f"IMU at '{sensor.cfg.prim_path}'")
     return sensor
 
 
-@_GPU
+@requires_cuda
 def test_imu_refuses_update_inside_outer_capture():
     """The update must raise before reading OVPhysX when an outer capture is active."""
     sensor = _make_imu_for_refusal()
-    scratch_src = wp.ones(1, dtype=wp.int32, device=sensor._device)
-    scratch_dst = wp.zeros(1, dtype=wp.int32, device=sensor._device)
-
-    with wp.ScopedCapture(device=wp.get_device(sensor._device)):
-        with pytest.raises(RuntimeError, match="CUDA graph capture is active"):
-            sensor._update_buffers_impl()
-        wp.copy(scratch_dst, scratch_src)  # keep the outer capture non-empty
-
-    assert sensor._root_view.read_count == 0
+    assert_update_refused_inside_outer_capture(sensor, sensor._update_buffers_impl, sensor._root_view)

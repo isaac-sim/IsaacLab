@@ -54,8 +54,9 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
-from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 from isaaclab_ov.sensors.contact_sensor.contact_sensor_data import ContactSensorData  # noqa: E402
+
+from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.sim.schemas as schemas  # noqa: E402
@@ -68,6 +69,13 @@ from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
 from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
+
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_invalidation_drops_captured_graph,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
 
 wp.init()
 
@@ -1091,21 +1099,15 @@ def _perform_sim_step(sim: SimulationContext, scene: InteractiveScene, sim_dt: f
 # ---------------------------------------------------------------------------
 
 
-_GPU = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-
-
-class _FakeContactBinding:
+class _FakeContactBinding(CountingReadView):
     """Fill the caller-owned net-forces buffer from a torch source, counting reads."""
 
-    def __init__(self, net_forces_torch: torch.Tensor):
-        self._src = wp.from_torch(net_forces_torch.contiguous())
-        self.read_count = 0
-
     def read_net_forces(self, dst) -> None:
-        self.read_count += 1
-        wp.copy(dst, self._src)
+        """Count a net-forces read and fill ``dst`` from the source tensor."""
+        self.read(dst)
 
     def read_force_matrix(self, dst) -> None:
+        """Fail loudly: the filtered path must stay unused when no filters are configured."""
         raise AssertionError("read_force_matrix must not be called when no filters are configured")
 
 
@@ -1158,7 +1160,7 @@ def _make_graphed_contact_sensor(num_envs: int = 2):
     return sensor, net_forces_torch, env_mask
 
 
-@_GPU
+@requires_cuda
 def test_contact_graph_replay_sees_refreshed_reads_and_mask():
     """Replays must consume freshly read net forces and in-place mask changes."""
     sensor, net_forces_torch, env_mask = _make_graphed_contact_sensor(num_envs=2)
@@ -1180,29 +1182,19 @@ def test_contact_graph_replay_sees_refreshed_reads_and_mask():
     assert not torch.allclose(forces_after[1], forces_before[1])  # masked-on env refreshed
 
 
-@_GPU
+@requires_cuda
 def test_contact_refuses_update_inside_outer_capture():
     """The update must raise before reading ovphysx when an outer capture is active."""
     sensor, _, env_mask = _make_graphed_contact_sensor()
-    scratch_src = wp.ones(1, dtype=wp.int32, device=sensor._device)
-    scratch_dst = wp.zeros(1, dtype=wp.int32, device=sensor._device)
-
-    with wp.ScopedCapture(device=wp.get_device(sensor._device)):
-        with pytest.raises(RuntimeError, match="CUDA graph capture is active"):
-            sensor._update_buffers_impl(env_mask)
-        wp.copy(scratch_dst, scratch_src)  # keep the outer capture non-empty
-
-    assert sensor._contact_binding.read_count == 0
+    assert_update_refused_inside_outer_capture(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), sensor._contact_binding
+    )
 
 
-@_GPU
+@requires_cuda
 def test_contact_invalidation_drops_captured_graph(monkeypatch):
     """Invalidation must invalidate the update graph alongside the native handles."""
     sensor, _, env_mask = _make_graphed_contact_sensor()
-    sensor._update_buffers_impl(env_mask)
-    wp.synchronize_device(sensor._device)
-    assert sensor._update_graph.is_captured
-
-    monkeypatch.setattr(BaseContactSensor, "_invalidate_initialize_callback", lambda self, event: None)
-    sensor._invalidate_initialize_callback(None)
-    assert not sensor._update_graph.is_captured
+    assert_invalidation_drops_captured_graph(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), BaseContactSensor, monkeypatch
+    )

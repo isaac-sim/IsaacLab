@@ -55,6 +55,13 @@ from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_invalidation_drops_captured_graph,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
+
 wp.init()
 
 # OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA. The
@@ -545,22 +552,6 @@ def test_no_stale_data_after_scene_reset(sim, device):
 # ---------------------------------------------------------------------------
 
 
-_GPU = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-
-
-class _FakeWrenchView:
-    """Fill the caller-owned wrench buffer from a torch source, counting reads."""
-
-    def __init__(self, wrenches_torch: torch.Tensor):
-        self._src = wp.from_torch(wrenches_torch.contiguous()).view(wp.spatial_vectorf)
-        self.read_count = 0
-
-    def read_into(self, tensor_type, dst) -> None:
-        assert tensor_type == TT.LINK_INCOMING_JOINT_FORCE
-        self.read_count += 1
-        wp.copy(dst, self._src)
-
-
 def _make_graphed_joint_wrench_sensor(num_envs: int = 2):
     """Create a JointWrench sensor without a USD scene, wired for graph unit tests."""
     device = "cuda:0"
@@ -571,7 +562,9 @@ def _make_graphed_joint_wrench_sensor(num_envs: int = 2):
     sensor._device = device
     sensor._num_envs = num_envs
     sensor._num_bodies = 1
-    sensor._root_view = _FakeWrenchView(wrenches_torch)
+    sensor._root_view = CountingReadView(
+        wrenches_torch, dtype=wp.spatial_vectorf, expected_tensor_type=TT.LINK_INCOMING_JOINT_FORCE
+    )
     sensor._wrench_buf = wp.zeros((num_envs, 1), dtype=wp.spatial_vectorf, device=device)
     sensor._joint_pos_b = wp.zeros(1, dtype=wp.vec3f, device=device)
     sensor._joint_quat_b = wp.array([wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device)
@@ -587,7 +580,7 @@ def _make_graphed_joint_wrench_sensor(num_envs: int = 2):
     return sensor, wrenches_torch, env_mask
 
 
-@_GPU
+@requires_cuda
 def test_joint_wrench_graph_replay_sees_refreshed_reads_and_mask():
     """Replays must consume freshly read wrench data and in-place mask changes."""
     sensor, wrenches_torch, env_mask = _make_graphed_joint_wrench_sensor(num_envs=2)
@@ -609,29 +602,17 @@ def test_joint_wrench_graph_replay_sees_refreshed_reads_and_mask():
     assert not torch.allclose(force_after[1], force_before[1])  # masked-on env refreshed
 
 
-@_GPU
+@requires_cuda
 def test_joint_wrench_refuses_update_inside_outer_capture():
     """The update must raise before reading OvPhysX when an outer capture is active."""
     sensor, _, env_mask = _make_graphed_joint_wrench_sensor()
-    scratch_src = wp.ones(1, dtype=wp.int32, device=sensor._device)
-    scratch_dst = wp.zeros(1, dtype=wp.int32, device=sensor._device)
-
-    with wp.ScopedCapture(device=wp.get_device(sensor._device)):
-        with pytest.raises(RuntimeError, match="CUDA graph capture is active"):
-            sensor._update_buffers_impl(env_mask)
-        wp.copy(scratch_dst, scratch_src)  # keep the outer capture non-empty
-
-    assert sensor._root_view.read_count == 0
+    assert_update_refused_inside_outer_capture(sensor, lambda: sensor._update_buffers_impl(env_mask), sensor._root_view)
 
 
-@_GPU
+@requires_cuda
 def test_joint_wrench_invalidation_drops_captured_graph(monkeypatch):
     """Invalidation must invalidate the update graph alongside the native handles."""
     sensor, _, env_mask = _make_graphed_joint_wrench_sensor()
-    sensor._update_buffers_impl(env_mask)
-    wp.synchronize_device(sensor._device)
-    assert sensor._update_graph.is_captured
-
-    monkeypatch.setattr(BaseJointWrenchSensor, "_invalidate_initialize_callback", lambda self, event: None)
-    sensor._invalidate_initialize_callback(None)
-    assert not sensor._update_graph.is_captured
+    assert_invalidation_drops_captured_graph(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), BaseJointWrenchSensor, monkeypatch
+    )

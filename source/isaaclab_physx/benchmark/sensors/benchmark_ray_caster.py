@@ -165,7 +165,7 @@ def main() -> None:
         raise RuntimeError("Plane and rough workloads must cast the same number of rays.")
     if args_cli.disable_graph:
         for sensor in sensors.values():
-            sensor._use_graph = False
+            sensor._update_graph.enabled = False
 
     synchronize_device = partial(wp.synchronize_device, sim.device)
     samples_by_workload = {}

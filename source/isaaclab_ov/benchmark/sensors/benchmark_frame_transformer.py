@@ -31,6 +31,11 @@ add_sensor_benchmark_args(
 parser.add_argument(
     "--num_target_frames", type=parse_positive_int, default=4, help="Number of target frames per environment."
 )
+parser.add_argument(
+    "--disable_graph",
+    action="store_true",
+    help="Run the update kernels eagerly instead of replaying the captured CUDA graph.",
+)
 args_cli = parser.parse_args()
 
 import isaaclab_ov.tensor_types as TT
@@ -99,6 +104,8 @@ def main() -> None:
         scene.reset()
 
         sensor = scene["frame_transformer"]
+        if args_cli.disable_graph:
+            sensor._update_graph.enabled = False
 
         for _ in range(args_cli.warmup_steps):
             sim.step()

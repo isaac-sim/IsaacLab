@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -22,7 +21,7 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import CapturedKernelUpdate, ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -37,8 +36,6 @@ from .kernels import (
 
 if TYPE_CHECKING:
     from isaaclab.sensors.contact_sensor import ContactSensorCfg
-
-logger = logging.getLogger(__name__)
 
 
 class ContactSensor(BaseContactSensor):
@@ -102,8 +99,7 @@ class ContactSensor(BaseContactSensor):
 
         # CUDA graph capture state for the buffer update (set in _initialize_impl, see
         # :meth:`_update_buffers_impl`)
-        self._use_graph: bool = False
-        self._compute_graph: wp.Graph | None = None
+        self._update_graph: CapturedKernelUpdate | None = None
         self._env_mask: wp.array | None = None
         # Warp views over the PhysX output buffers, built lazily on the first fetch since the
         # buffers are allocated once and refreshed in place (see :meth:`_fetch_physx_buffers`)
@@ -383,7 +379,7 @@ class ContactSensor(BaseContactSensor):
         self._create_buffers()
 
         # capture the update kernels into a CUDA graph on CUDA devices (see _update_buffers_impl)
-        self._use_graph = wp.get_device(self._device).is_cuda
+        self._update_graph = CapturedKernelUpdate(self._device, owner=f"contact sensor at '{self.cfg.prim_path}'")
 
     def _create_buffers(self) -> None:
         # Store filter shapes count
@@ -421,13 +417,7 @@ class ContactSensor(BaseContactSensor):
                 cannot be graph-captured, so replays of such a graph would consume stale
                 contact data.
         """
-        device = wp.get_device(self._device)
-        if device.is_capturing:
-            raise RuntimeError(
-                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
-                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
-                " graph would consume stale contact data."
-            )
+        self._update_graph.refuse_outer_capture()
 
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
@@ -436,24 +426,7 @@ class ContactSensor(BaseContactSensor):
         # _compute reads the stable outdated-environment mask from this attribute.
         self._env_mask = env_mask
 
-        if not self._use_graph:
-            self._compute()
-            return
-
-        if self._compute_graph is None:
-            try:
-                with wp.ScopedCapture(device=device) as capture:
-                    self._compute()
-            except Exception as exc:
-                self._use_graph = False
-                logger.warning(
-                    f"Failed to capture the update of the contact sensor at '{self.cfg.prim_path}' into a"
-                    f" CUDA graph. Falling back to eager kernel launches. Reason: {exc}"
-                )
-                self._compute()
-                return
-            self._compute_graph = capture.graph
-        wp.capture_launch(self._compute_graph)
+        self._update_graph.run(self._compute)
 
     @staticmethod
     def _checked_view(buffer: wp.array, view: wp.array | None, dtype) -> wp.array:
@@ -645,7 +618,8 @@ class ContactSensor(BaseContactSensor):
         self._contact_view = None
         # drop the captured graph and the cached warp views since they reference buffers owned
         # by the invalidated views
-        self._compute_graph = None
+        if self._update_graph is not None:
+            self._update_graph.invalidate()
         self._net_forces_flat = None
         self._force_matrix_flat = None
         self._poses_flat = None

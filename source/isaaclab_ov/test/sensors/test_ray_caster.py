@@ -10,13 +10,21 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_ov.sensors.ray_caster import ray_caster as ray_caster_module
 from isaaclab_ov.sensors.ray_caster.ray_caster import RayCaster
+
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.utils.warp import CapturedKernelUpdate
+
+from .conftest import (
+    CountingReadView,
+    assert_invalidation_drops_captured_graph,
+    assert_update_refused_inside_outer_capture,
+    make_identity_quat_poses,
+    requires_cuda,
+)
 
 
 class _FakeBinding:
@@ -86,9 +94,6 @@ def test_initialize_pose_tracking_uses_shared_rigid_body_resolver_without_destin
 # ---------------------------------------------------------------------------
 
 
-_GPU = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-
-
 @wp.kernel
 def _copy_translation_under_mask(
     transforms: wp.array(dtype=wp.transformf),
@@ -101,31 +106,15 @@ def _copy_translation_under_mask(
         out[env_id] = wp.transform_get_translation(transforms[env_id])
 
 
-class _FakeBodyView:
+class _FakeBodyView(CountingReadView):
     """Live ovphysx-style pose binding: fill the caller's staging buffer, counting reads."""
 
-    shape = (0, 7)
-
     def __init__(self, poses_torch: torch.Tensor):
-        self._poses_torch = poses_torch  # (num_envs, 7) float32
+        super().__init__(poses_torch)
         self.shape = (poses_torch.shape[0], 7)
-        self.read_count = 0
-
-    def read(self, dst: wp.array) -> None:
-        self.read_count += 1
-        wp.copy(dst, wp.from_torch(self._poses_torch.contiguous()))
 
     def destroy(self) -> None:
-        pass
-
-
-def _make_translation_poses(translations: torch.Tensor) -> torch.Tensor:
-    """Build ``(num_envs, 7)`` poses with the given translations and identity quaternions."""
-    num_envs = translations.shape[0]
-    poses = torch.zeros((num_envs, 7), dtype=torch.float32, device=translations.device)
-    poses[:, :3] = translations
-    poses[:, 6] = 1.0  # identity quaternion (x, y, z, w) = (0, 0, 0, 1)
-    return poses
+        """Match the native binding teardown hook; nothing to release for the fake."""
 
 
 def _make_graphed_ray_caster(num_envs: int = 2):
@@ -136,7 +125,7 @@ def _make_graphed_ray_caster(num_envs: int = 2):
     """
     device = "cuda:0"
     translations = torch.arange(1, num_envs * 3 + 1, dtype=torch.float32, device=device).reshape(num_envs, 3)
-    body_view = _FakeBodyView(_make_translation_poses(translations))
+    body_view = _FakeBodyView(make_identity_quat_poses(translations))
 
     sensor = RayCaster.__new__(RayCaster)
     sensor.cfg = SimpleNamespace(prim_path="/World/RC")
@@ -175,7 +164,7 @@ def _test_update_impl(self, env_mask):
     )
 
 
-@_GPU
+@requires_cuda
 def test_ray_caster_graph_replay_sees_refreshed_reads_and_mask(monkeypatch):
     """Replays must consume freshly read body poses and in-place mask changes."""
     monkeypatch.setattr(BaseRayCaster, "_update_buffers_impl", _test_update_impl)
@@ -187,7 +176,7 @@ def test_ray_caster_graph_replay_sees_refreshed_reads_and_mask(monkeypatch):
     assert body_view.read_count == 1
     out_before = wp.to_torch(sensor._test_out).clone()
 
-    body_view._poses_torch[:, :3] *= 10.0
+    body_view.source_torch[:, :3] *= 10.0
     wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor._device)
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor._device)
@@ -198,31 +187,19 @@ def test_ray_caster_graph_replay_sees_refreshed_reads_and_mask(monkeypatch):
     assert not torch.allclose(out_after[1], out_before[1])  # masked-on env refreshed
 
 
-@_GPU
+@requires_cuda
 def test_ray_caster_refuses_update_inside_outer_capture(monkeypatch):
     """The update must raise before reading OvPhysX when an outer capture is active."""
     monkeypatch.setattr(BaseRayCaster, "_update_buffers_impl", _test_update_impl)
     sensor, body_view, env_mask = _make_graphed_ray_caster()
-    scratch_src = wp.ones(1, dtype=wp.int32, device=sensor._device)
-    scratch_dst = wp.zeros(1, dtype=wp.int32, device=sensor._device)
-
-    with wp.ScopedCapture(device=wp.get_device(sensor._device)):
-        with pytest.raises(RuntimeError, match="CUDA graph capture is active"):
-            sensor._update_buffers_impl(env_mask)
-        wp.copy(scratch_dst, scratch_src)  # keep the outer capture non-empty
-
-    assert body_view.read_count == 0
+    assert_update_refused_inside_outer_capture(sensor, lambda: sensor._update_buffers_impl(env_mask), body_view)
 
 
-@_GPU
+@requires_cuda
 def test_ray_caster_invalidation_drops_captured_graph(monkeypatch):
     """Invalidation must invalidate the update graph alongside the native handles."""
     monkeypatch.setattr(BaseRayCaster, "_update_buffers_impl", _test_update_impl)
     sensor, _, env_mask = _make_graphed_ray_caster()
-    sensor._update_buffers_impl(env_mask)
-    wp.synchronize_device(sensor._device)
-    assert sensor._update_graph.is_captured
-
-    monkeypatch.setattr(BaseRayCaster, "_invalidate_initialize_callback", lambda self, event: None)
-    sensor._invalidate_initialize_callback(None)
-    assert not sensor._update_graph.is_captured
+    assert_invalidation_drops_captured_graph(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), BaseRayCaster, monkeypatch
+    )

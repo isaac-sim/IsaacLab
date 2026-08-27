@@ -32,6 +32,11 @@ add_sensor_benchmark_args(
     add_device=True,
 )
 parser.add_argument("--sensor", choices=("imu", "pva"), required=True, help="Sensor update path to benchmark.")
+parser.add_argument(
+    "--disable_graph",
+    action="store_true",
+    help="Run the update kernels eagerly instead of replaying the captured CUDA graph.",
+)
 args_cli = parser.parse_args()
 
 import torch
@@ -101,6 +106,8 @@ def main() -> None:
         sim.reset()
         scene.reset()
         sensor = scene[args_cli.sensor]
+        if args_cli.disable_graph:
+            sensor._update_graph.enabled = False
 
         for _ in range(args_cli.warmup_steps):
             sim.step()
