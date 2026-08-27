@@ -155,12 +155,8 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg, focal_length: float):
             window_height=240,
             headless=True,
             rtx_environment="default",
-            # Match the Kit renderer's sample counts instead of forcing a convergence floor:
-            # ViewerRTX pins pt:samplesPerPixel to 1 (Kit leaves the 512 schema default) and
-            # leaves rt:directLighting:samples at 2 (Kit pins it to 1).
             render_settings={
-                "omni:rtx:pt:samplesPerPixel": ("UInt", 512),
-                "omni:rtx:rt:directLighting:samples": ("UInt", 1),
+                "omni:rtx:quality:minSpp": ("Int", 32)
             },
         )
     ]
