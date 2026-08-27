@@ -640,13 +640,25 @@ def test_result_summary_includes_fast_failure_after_thirty_slower_files():
     assert all(test_path in summary for test_path in test_files)
 
 
-def _hanging_pytest_run(tmp_path: Path) -> tuple[list[str], dict[str, str]]:
-    """Return the command and environment for a hung *pytest* process.
+@posix_only
+def test_hung_process_report_names_where_it_is_stuck(monkeypatch, tmp_path: Path) -> None:
+    """A hang must report the stack it is stuck in, not just that it stopped.
 
-    The child has to be pytest, not a bare script. pytest captures at the file-descriptor level, so it has
-    already redirected fd 2 by the time a test runs; a dump written there is discarded when the process is
-    killed. A bare script has no such capture and would pass whether or not the dump reaches a file.
+    Without a dump the runner escalates straight to ``SIGKILL``, which cannot be caught, and the report
+    carries only system tables -- nothing that points at the hung code. Every property of the dump is
+    asserted against a single hung child: each one costs a real timeout to reproduce, and they are all
+    facets of the same ``pre_kill_diag``.
     """
+    orchestrator = _load_orchestrator_module()
+    # A marker rather than "" so the ordering assertion below has something to find.
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "=== SYSTEM DIAGNOSTICS BODY ===")
+    # raising=False so a build without the dump still reaches the assertions below, and fails on the
+    # missing stack rather than on the missing constant.
+    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
+
+    # The child has to be pytest, not a bare script. pytest captures at the file-descriptor level, so it has
+    # already redirected fd 2 by the time a test runs; a dump written there is discarded when the process is
+    # killed. A bare script has no such capture and would pass whether or not the dump reaches a file.
     test_file = tmp_path / "test_wedges.py"
     test_file.write_text(
         "import threading\n\n\ndef test_wedges():\n    wedged_call()\n\n\ndef wedged_call():\n"
@@ -658,61 +670,18 @@ def _hanging_pytest_run(tmp_path: Path) -> tuple[list[str], dict[str, str]]:
     env["PYTHONPATH"] = str(TOOLS_DIR) + os.pathsep + env.get("PYTHONPATH", "")
     env["ISAACLAB_HANG_DUMP"] = str(tmp_path / "hangdump.log")
     cmd = [sys.executable, "-m", "pytest", "-p", "hang_dump", "-p", "no:cacheprovider", str(test_file)]
-    return cmd, env
 
-
-@posix_only
-def test_hung_process_report_names_where_it_is_stuck(monkeypatch, tmp_path: Path) -> None:
-    """A hang must report the stack it is stuck in, not just that it stopped.
-
-    Without a dump the runner escalates straight to ``SIGKILL``, which cannot be caught, and the report
-    carries only system tables -- nothing that points at the hung code.
-    """
-    orchestrator = _load_orchestrator_module()
-    # The system tables are captured separately and are slow; this test is about the stack.
-    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
-    # raising=False so a build without the dump still reaches the assertion below, and fails on the
-    # missing stack rather than on the missing constant.
-    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
-
-    cmd, env = _hanging_pytest_run(tmp_path)
+    # The timeout is wall clock the test has to sit through, so it is only as long as the child needs to
+    # reach the wedge -- measured at ~2.6 s spawning eight of these at once, against ~1.4 s idle.
     _returncode, _stdout, _stderr, kill_reason, _wall_time, pre_kill_diag = (
-        orchestrator.capture_test_output_with_timeout(cmd, timeout=15, env=env)
+        orchestrator.capture_test_output_with_timeout(cmd, timeout=8, env=env)
     )
 
     assert kill_reason == "timeout"
     assert "HANG STACK DUMP" in pre_kill_diag
-    assert "wedged_call" in pre_kill_diag
-
-
-@posix_only
-def test_hung_process_is_dumped_more_than_once(monkeypatch, tmp_path: Path) -> None:
-    """Repeated dumps are what tell a wedged process apart from a slow one."""
-    orchestrator = _load_orchestrator_module()
-    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
-    # raising=False so a build without the dump still reaches the assertion below, and fails on the
-    # missing stack rather than on the missing constant.
-    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
-
-    cmd, env = _hanging_pytest_run(tmp_path)
-    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(cmd, timeout=15, env=env)
-
-    assert pre_kill_diag.count("----- dump ") > 1
-
-
-@posix_only
-def test_hang_dump_precedes_system_diagnostics(monkeypatch, tmp_path: Path) -> None:
-    """The stack must sit ahead of the system tables, which ``_get_diagnostics`` truncates off the end."""
-    orchestrator = _load_orchestrator_module()
-    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "=== SYSTEM DIAGNOSTICS BODY ===")
-    # raising=False so a build without the dump still reaches the assertion below, and fails on the
-    # missing stack rather than on the missing constant.
-    monkeypatch.setattr(orchestrator, "HANG_DUMP_GRACE", 1, raising=False)
-
-    cmd, env = _hanging_pytest_run(tmp_path)
-    *_, pre_kill_diag = orchestrator.capture_test_output_with_timeout(cmd, timeout=15, env=env)
-
-    assert "HANG STACK DUMP" in pre_kill_diag
+    assert "wedged_call" in pre_kill_diag, "the dump must name the hung call, not just that a hang happened"
+    assert pre_kill_diag.count("----- dump ") > 1, "repeated dumps are what tell a wedged process from a slow one"
+    # The stack must sit ahead of the system tables, which ``_get_diagnostics`` truncates off the end.
     assert pre_kill_diag.index("HANG STACK DUMP") < pre_kill_diag.index("SYSTEM DIAGNOSTICS BODY")
 
 

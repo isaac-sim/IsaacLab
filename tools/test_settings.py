@@ -121,6 +121,9 @@ TESTS_TO_SKIP = [
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
+    # Exercises tools/conftest.py itself, including a hang that has to be waited out. Needs no Isaac
+    # Sim, so it runs in the tools-tests CI job rather than spending GPU container time here.
+    "test_test_orchestrator_result_handling.py",
 ]
 """A list of tests to skip in CI (see conftest.py)."""
 

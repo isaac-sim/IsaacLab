@@ -14,6 +14,10 @@ on:
       # Top-level tools modules and their tests. Deliberately not "tools/**": the
       # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
       - "tools/*.py"
+      # Orchestrator tests. They live under source/ but exercise tools/conftest.py, and are kept out
+      # of the Isaac Sim suite by tools/test_settings.py so their hangs are not waited out on a GPU
+      # runner.
+      - "source/isaaclab/test/cli/test_test_orchestrator_result_handling.py"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
@@ -46,21 +50,29 @@ jobs:
           # dependency churn.
           cache-dependency-path: .github/workflows/tools-tests.yml
 
-      # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
-      # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
-      # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
-      # installed that test skips itself rather than failing, so keep it in this list.
+      # These tests only need pytest, junitparser (imported by tools/crash_journal.py), prettytable
+      # (imported by tools/conftest.py) and flaky, so they run without an Isaac Sim install or a full
+      # project sync. flaky drives the rerun in
+      # test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it installed that test
+      # skips itself rather than failing, so keep it in this list.
       - name: Install test dependencies
-        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest junitparser flaky
+        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest junitparser flaky prettytable
 
       - name: Run tools tests
         env:
           # The tests import the modules under test (crash_journal, _device_split) directly.
-          PYTHONPATH: tools
+          # source/isaaclab covers tools/conftest.py's isaaclab.test.utils import, which the
+          # orchestrator tests trigger by loading that module; it resolves without Isaac Sim.
+          PYTHONPATH: tools:source/isaaclab
         # Files are listed explicitly rather than collected from tools/: test_settings.py is a
         # configuration module, not a test, and tools/test/ needs the full Isaac Lab install.
         #
         # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
-        run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v --noconftest
+        run: >-
+          python3 -m pytest
+          tools/test_crash_journal.py
+          tools/test_device_split.py
+          source/isaaclab/test/cli/test_test_orchestrator_result_handling.py
+          -v --noconftest
