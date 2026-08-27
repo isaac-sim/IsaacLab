@@ -347,7 +347,9 @@ class UsdFrameView(BaseFrameView):
         scales = Vt.Vec3dArray(len(indices_list))
         for idx, prim_idx in enumerate(indices_list):
             prim = self._prims[prim_idx]
-            scales[idx] = prim.GetAttribute("xformOp:scale").Get()
+            scale = prim.GetAttribute("xformOp:scale").Get()
+            # Vt array item assignment does not coerce between legal Gf vector precisions.
+            scales[idx] = Gf.Vec3d(float(scale[0]), float(scale[1]), float(scale[2]))
 
         return ProxyArray(wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device))
 
