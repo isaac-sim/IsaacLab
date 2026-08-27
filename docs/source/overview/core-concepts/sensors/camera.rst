@@ -426,6 +426,15 @@ Because OVRTX runs kit-less, the demo does not launch the Kit app for
 ``--renderer ovrtx``; run that combination with ``uv run python`` rather than
 ``isaaclab.sh -p``.
 
+``--num_envs`` duplicates the input scene across a grid of envs and renders them
+as one tiled camera batch. A capture scene spans hundreds of meters, so
+``--env_spacing`` defaults to the measured horizontal extent of the input scene
+rather than a fixed value: a spacing smaller than the scene makes the copies
+interpenetrate, and each env then renders a neighbor's geometry in front of its
+camera. Pass ``--env_spacing`` to override the measured value. Gaussian splats
+are not ``UsdGeom.Boundable``, so the extent comes from the per-particle
+positions rather than a USD bounding box.
+
 The demo plays back the xform time samples authored on the selected camera or
 any of its ancestors, resampled to ``--fps`` and applied through
 :meth:`~sensors.Camera.set_world_poses` so every renderer observes the motion.

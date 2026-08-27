@@ -98,7 +98,12 @@ parser.add_argument(
     default=1,
     help="Number of duplicated input-scene envs to render in the tiled camera batch.",
 )
-parser.add_argument("--env_spacing", type=float, default=20.0, help="Spacing between duplicated input-scene envs.")
+parser.add_argument(
+    "--env_spacing",
+    type=float,
+    default=None,
+    help="Spacing between duplicated input-scene envs. Defaults to the input scene's horizontal extent.",
+)
 parser.add_argument("--image_width", type=int, default=320, help="Output image width.")
 parser.add_argument(
     "--image_height",
@@ -311,6 +316,9 @@ from isaaclab.sensors import Camera, CameraCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
+DEFAULT_ENV_SPACING = 20.0
+"""Env grid spacing [m] used when the input scene extent cannot be measured."""
+
 STAGE_TIME_CODE = 0.0
 """USD time code at which the simulation stage is evaluated.
 
@@ -323,7 +331,7 @@ scene -- including any animated ancestors of the camera -- at this time code.
 class PpispCameraSceneCfg(InteractiveSceneCfg):
     """Minimal scene cfg that references the input USD under each env."""
 
-    env_spacing: float = 20.0
+    env_spacing: float = DEFAULT_ENV_SPACING
 
     input_scene = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Scene",
@@ -860,9 +868,61 @@ def make_ppisp_cfg(camera_prim: Usd.Prim, num_ppisp_bindings: int) -> PpispCfg:
     return ppisp_cfg
 
 
-def create_duplicated_env_scene() -> InteractiveScene:
+def resolve_env_spacing(source_stage: Usd.Stage) -> float:
+    """Return the env grid spacing, defaulting to the input scene's horizontal extent.
+
+    A capture scene spans hundreds of meters, so the 20 m spacing that suits a robot cell makes the
+    duplicated copies interpenetrate: every env then renders a neighbor's geometry sitting in front
+    of its camera. Gaussian splats are not :class:`UsdGeom.Boundable`, so a USD bounding box misses
+    them entirely and reports an empty extent; measure the per-particle positions as well.
+    """
+    if args_cli.env_spacing is not None:
+        return args_cli.env_spacing
+    if args_cli.num_envs == 1:
+        # A single env sits at the grid origin, so the spacing never applies.
+        return DEFAULT_ENV_SPACING
+
+    default_prim = source_stage.GetDefaultPrim()
+    time_code = Usd.TimeCode(STAGE_TIME_CODE)
+    xform_cache = UsdGeom.XformCache(time_code)
+    to_default = xform_cache.GetLocalToWorldTransform(default_prim).GetInverse()
+    bbox_cache = UsdGeom.BBoxCache(time_code, [UsdGeom.Tokens.default_], useExtentsHint=True)
+    extent = Gf.Range3d()
+    for prim in Usd.PrimRange(default_prim):
+        if prim.IsA(UsdGeom.Boundable):
+            extent.UnionWith(bbox_cache.ComputeWorldBound(prim).ComputeAlignedRange())
+        if prim.GetTypeName() != gaussian_anim.GAUSSIAN_PRIM_TYPE_NAME:
+            continue
+        positions = np.empty((0, 3))
+        for name in gaussian_anim.POSITIONS_ATTR_NAMES:
+            attr = prim.GetAttribute(name)
+            values = attr.Get(time_code) if attr else None
+            if values is not None:
+                positions = np.asarray(values, dtype=np.float64)
+                break
+        if positions.ndim != 2 or positions.shape[0] == 0:
+            continue
+        # Transforming the local corners rather than every particle keeps this to eight points.
+        local_range = Gf.Range3d(Gf.Vec3d(*positions.min(axis=0)), Gf.Vec3d(*positions.max(axis=0)))
+        to_world = xform_cache.GetLocalToWorldTransform(prim) * to_default
+        extent.UnionWith(Gf.BBox3d(local_range, to_world).ComputeAlignedRange())
+    if extent.IsEmpty():
+        print(
+            f"[WARN] Could not measure the input scene extent; using {DEFAULT_ENV_SPACING:g} m env spacing. "
+            "Pass --env_spacing if the duplicated envs overlap.",
+            flush=True,
+        )
+        return DEFAULT_ENV_SPACING
+
+    size = extent.GetSize()
+    spacing = max(size[0], size[1], DEFAULT_ENV_SPACING)
+    print(f"[INFO] Input scene extent {size[0]:.1f}x{size[1]:.1f} m; env spacing {spacing:.1f} m.", flush=True)
+    return spacing
+
+
+def create_duplicated_env_scene(env_spacing: float) -> InteractiveScene:
     """Create a production-style duplicated-env scene for tiled camera rendering."""
-    scene_cfg = PpispCameraSceneCfg(num_envs=args_cli.num_envs, env_spacing=args_cli.env_spacing)
+    scene_cfg = PpispCameraSceneCfg(num_envs=args_cli.num_envs, env_spacing=env_spacing)
     scene_cfg.input_scene.spawn = sim_utils.UsdFileCfg(usd_path=args_cli.input_scene)
     scene = InteractiveScene(scene_cfg)
     print(f"[INFO] Referenced input scene into {args_cli.num_envs} env(s).", flush=True)
@@ -1220,7 +1280,7 @@ def main() -> None:
     sim = sim_utils.SimulationContext(sim_cfg)
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
-    scene = create_duplicated_env_scene()
+    scene = create_duplicated_env_scene(resolve_env_spacing(source_stage))
     gaussian_tracks = resolve_animated_gaussian_tracks(source_stage)
     trajectory_times = get_trajectory_time_samples(source_stage, source_camera_prim_path)
     if trajectory_times:
