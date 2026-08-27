@@ -25,6 +25,9 @@ The DisplayPort insertion policy operates as follows:
 3. **Policy Output**: The policy outputs an incremental command each step — delta joint positions (incremental changes to arm joint angles) in the joint-space variants, or a 6-DoF Cartesian end-effector pose delta in the task-space variants
 4. **Task Goal**: Insert the DisplayPort plug into a fixed socket until the mate point aligns within the success threshold
 
+Both control spaces are supported end to end. **Task space is the recommended route for real-robot deployment**;
+see :ref:`choosing-control-space` for the trade-offs and for the extra robot-calibration step joint space requires.
+
 **Scope of This Tutorial:**
 
 This tutorial covers **training and LEAPP export** in Isaac Lab. For the complete on-robot workflow (vision pipeline, robot interface, ROS inference), refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ after exporting your policy.
@@ -69,6 +72,13 @@ The DisplayPort plug and socket assets used by these environments have been iter
 3. **Engagement behavior**: Push the plug through the approach path by hand (or with scripted motion) and confirm contact feels plausible — no explosive pops, no tunneling through the socket wall, no sticky high-friction jamming unless that matches the real connector.
 4. **Grasped plug stability**: With the gripper closed at the training grasp width, the plug should not spin or slip unrealistically when the arm moves. Cable mass and plug COM should be representative of the real assembly.
 5. **Mate-point alignment**: Verify ``SOCKET_INSERTION_OFFSET``, ``PLUG_INSERTION_OFFSET``, and ``PLUG_GOAL_ROT`` in ``displayport_insertion_env_cfg.py`` match the intended physical mate frame. Reward and success metrics are computed from these offsets; a mismatch here looks like a perception error on the real robot.
+
+**The robot asset matters too.** The checks above concern the plug and socket, but the arm's USD must also
+represent *your* robot — particularly its kinematic parameters, which vary unit to unit. This matters most for
+joint-space training, where the policy commands joints directly. Flexiv's
+`flexiv_calibration <https://github.com/flexivrobotics/flexiv_ros2/tree/release/lyrical-v1.9.3/flexiv_calibration>`__
+workflow exports a calibrated robot description for a specific arm; convert the result to USD and select it with the
+``DP_ROBOT_USD`` environment variable.
 
 **Practical workflow:**
 
@@ -737,7 +747,8 @@ Step 1: Visualize the Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Launch training with a small number of environments and visualization enabled to verify the setup. Pick the tab
-for the control space you intend to deploy:
+for the control space you intend to deploy — task space is the recommended choice for real-robot transfer
+(see :ref:`choosing-control-space`):
 
 .. tab-set::
 
@@ -848,6 +859,8 @@ Training uses a recurrent PPO agent (LSTM, 1500 max iterations, 512 steps per en
 
 Monitor ``Metrics/success_rate`` and reward curves to confirm learning. The curriculum anneals over the first 500 iterations — expect success rate to rise as the at-goal reset probability decreases.
 
+.. _choosing-control-space:
+
 Choosing a Control Space
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -860,7 +873,7 @@ what the policy outputs and what the real robot must reproduce.
 
    * -
      - Joint space
-     - Task space
+     - Task space (recommended)
    * - Policy output
      - 7 joint-position deltas
      - 6-DoF Cartesian pose delta (OSC)
@@ -874,9 +887,32 @@ what the policy outputs and what the real robot must reproduce.
      - ``...-Grav-NoJointVel-v0``, ``...-Grav-v0``
      - ``...-Grav-TaskSpace-v0``
 
-Use **joint space** when you control the arm through its joint interface and can characterize the servo response.
-Use **task space** when you drive the arm through a Cartesian interface: it removes joint-level system
-identification from the transfer path, at the cost of requiring the OSC contract to be reproduced on hardware.
+**Task space is the recommended route.** In our sim-to-real testing on the Flexiv Rizon 4s, task-space policies
+transfer better than joint-space ones: commanding a Cartesian pose delta keeps the policy independent of the arm's
+joint servo behavior and of small errors in the robot's kinematic model, both of which are difficult to reproduce
+exactly in simulation. Prefer it unless you specifically need joint-level control.
+
+Use **joint space** when you must control the arm through its joint interface. Because the policy then commands
+joints directly, transfer depends on the simulated robot matching yours closely — see the note below on robot
+kinematics.
+
+.. important::
+
+   **Joint-space training needs a robot USD that matches your specific arm.** Joint-space policies command joint
+   positions, so any mismatch between the simulated kinematic parameters and your physical robot shows up directly
+   as end-effector error during insertion — where the clearances are sub-millimetre. Individual arms differ from
+   the nominal CAD model, so the shipped asset will not describe your unit exactly.
+
+   Before training a joint-space policy, confirm the robot USD reflects your arm's measured kinematics. Flexiv
+   publishes a per-robot calibration workflow for exporting an accurate robot description:
+   `flexiv_calibration <https://github.com/flexivrobotics/flexiv_ros2/tree/release/lyrical-v1.9.3/flexiv_calibration>`__.
+   Follow it to generate the calibrated description for your setup, convert it to USD, and point the environment at
+   it with the ``DP_ROBOT_USD`` environment variable (it overrides the default calibrated asset in
+   ``config/displayport_rizon_4s/joint_pos_env_cfg.py``).
+
+   Task-space policies are less exposed to this: they are commanded in Cartesian space, so kinematic error affects
+   the observed end-effector pose rather than being injected straight into the commanded joint targets. Getting the
+   kinematics right is still worthwhile in both cases.
 
 In each case the ``-Play-v0`` id is used for evaluation and the ``-ROS-Inference-v0`` id provides the metadata used
 by the LEAPP export flow described below. The task-space environment already uses the LEAPP-exportable
