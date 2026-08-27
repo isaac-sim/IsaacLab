@@ -262,6 +262,9 @@ contact work localized to the rigid bodies that need it, such as a gripper hand
 and fingers. The pinned proxy solver supports at most two entries and rejects
 joints that cross entry boundaries.
 
+See :ref:`newton-coupled-solvers` for a high-level comparison of proxy and ADMM
+coupling before choosing an approach.
+
 The core Franka soft-body task demonstrates the proxy configuration:
 
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
