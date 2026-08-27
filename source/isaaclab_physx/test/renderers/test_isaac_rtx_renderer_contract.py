@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
@@ -145,6 +146,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         pytest.param(["simple_shading_diffuse_mdl"], 2, id="diffuse_mdl"),
         pytest.param(["simple_shading_full_mdl"], 3, id="full_mdl"),
         pytest.param(["simple_shading_full_mdl", "simple_shading_full_mdl"], 3, id="duplicate_full_mdl"),
+        pytest.param(["simple_shading_constant_diffuse", "simple_shading_full_mdl"], 1, id="multiple_modes_use_first"),
     ],
 )
 def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch, data_types, expected_shading_mode):
@@ -174,8 +176,10 @@ def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch,
     # Record the authored attributes per name; one mock per attribute keeps their ``Set`` calls
     # distinguishable.
     authored_attributes: dict[str, MagicMock] = {}
+    operation_order = []
 
     def _create_attribute(name, value_type):
+        operation_order.append("settings")
         attribute = MagicMock(value_type=value_type)
         authored_attributes[name] = attribute
         return attribute
@@ -190,8 +194,10 @@ def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch,
     stage = MagicMock()
     stage.GetPrimAtPath.side_effect = lambda path: render_product_prim if path == rp.path else camera_prim
 
+    annotator = MagicMock()
+    annotator.attach.side_effect = lambda *_args: operation_order.append("attach")
     registry = MagicMock()
-    registry.get_annotator.return_value = MagicMock()
+    registry.get_annotator.return_value = annotator
     replicator_core_module.create = SimpleNamespace(render_product_tiled=MagicMock(return_value=rp))
     replicator_core_module.AnnotatorRegistry = registry
 
@@ -215,9 +221,14 @@ def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch,
         patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
         patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
         patch.object(stage_utils, "get_current_stage", return_value=stage),
+        patch.object(rtx_renderer.Usd, "EditContext", return_value=nullcontext()),
     ):
         renderer.create_render_data(spec)
 
+    assert operation_order.index("settings") > max(
+        index for index, operation in enumerate(operation_order) if operation == "attach"
+    )
+    stage.GetSessionLayer.assert_called_once()
     assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call("Minimal")
     assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
     assert authored_attributes["omni:rtx:minimal:mode"].Set.call_args == call(expected_shading_mode)
@@ -237,11 +248,6 @@ def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch,
     [
         pytest.param(["rgb", "simple_shading_full_mdl"], "cannot render simple shading", id="rgb"),
         pytest.param(["rgba", "simple_shading_full_mdl"], "cannot render simple shading", id="rgba"),
-        pytest.param(
-            ["simple_shading_constant_diffuse", "simple_shading_full_mdl"],
-            "at most one simple shading",
-            id="multiple_modes",
-        ),
     ],
 )
 def test_simple_shading_rejects_incompatible_render_product_modes(monkeypatch, data_types, error_match):

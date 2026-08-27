@@ -349,8 +349,6 @@ class IsaacRtxRenderer(BaseRenderer):
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
-            # Select the render mode and shading level before rendering.
-            self._apply_minimal_render_mode(stage, rp.path, simple_shading_mode)
 
         needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
             spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
@@ -427,6 +425,10 @@ class IsaacRtxRenderer(BaseRenderer):
         for annotator in annotators.values():
             annotator.attach([rp.path])
 
+        # Annotator attachment may resynchronize process-wide RTX settings onto the product.
+        if simple_shading_mode is not None:
+            self._apply_minimal_render_mode(stage, rp.path, simple_shading_mode)
+
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
             try:
@@ -469,13 +471,14 @@ class IsaacRtxRenderer(BaseRenderer):
                 render_product_path,
             )
             return
-        with Sdf.ChangeBlock():
-            rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(RTX_MINIMAL_RENDER_MODE)
-            rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            with Sdf.ChangeBlock():
+                rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(RTX_MINIMAL_RENDER_MODE)
+                rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
 
     def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
         """Resolve the requested simple shading mode and reject incompatible product-wide modes."""
-        requested = list(dict.fromkeys(dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES))
+        requested = [dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES]
         color = list(dict.fromkeys(dt for dt in spec.cfg.data_types if dt in ("rgb", "rgba")))
 
         if requested and color:
@@ -487,9 +490,10 @@ class IsaacRtxRenderer(BaseRenderer):
         if not requested:
             return None
         if len(requested) > 1:
-            raise ValueError(
-                f"Isaac RTX supports at most one simple shading data type per render product, got {requested}."
-                " RTX Minimal mode is a per-render-product setting. Request them from separate cameras."
+            logger.warning(
+                "Multiple simple shading modes requested (%s). Using '%s' only.",
+                requested,
+                requested[0],
             )
         return SIMPLE_SHADING_MODES[requested[0]]
 
