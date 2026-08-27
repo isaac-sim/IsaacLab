@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+5.2.1 (2026-08-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX scene-data rigid-body views resolving same-named USD joint prims
+  when synchronizing PhysX simulations with Newton visualizers.
+
+
 5.2.0 (2026-08-22)
 ~~~~~~~~~~~~~~~~~~
 
