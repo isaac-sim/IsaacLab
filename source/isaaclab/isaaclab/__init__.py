@@ -93,6 +93,9 @@ def _expose_mujoco_usd_schemas():
     OpenUSD reads the search path while building the registry, so this only helps while the
     registry is still unbuilt. A host that queries a schema before importing Isaac Lab has to put
     the plugin directory on ``PXR_PLUGINPATH_NAME`` itself.
+
+    Isaac Lab's Kit experiences must not also enable ``omni.usd.schema.mujoco``. The extension
+    bundles a second plugin with the same name and reports its duplicate registration as an error.
     """
     spec = importlib.util.find_spec("mujoco_usd_converter")
     if spec is None or spec.origin is None:
