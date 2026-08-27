@@ -768,7 +768,6 @@ def _install_newton_usd_builder_mocks(monkeypatch: pytest.MonkeyPatch, stage: Us
     schemas_mod = types.ModuleType("newton._src.usd.schemas")
     schemas_mod.SchemaResolverNewton = lambda: "newton_schema"
     schemas_mod.SchemaResolverPhysx = lambda: "physx_schema"
-    schemas_mod.SchemaResolverMjc = lambda: "mjc_schema"
     stage_mod = types.ModuleType("isaaclab.sim.utils.stage")
     stage_mod.get_current_stage = lambda: stage
     monkeypatch.setitem(sys.modules, "newton", newton_mod)

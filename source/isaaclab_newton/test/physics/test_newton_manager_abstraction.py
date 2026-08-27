@@ -1592,3 +1592,50 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         # A hard device sync surfaces any deferred illegal access as an exception.
         sim.step(render=False)
         wp.synchronize_device("cuda:0")
+
+
+# ---------------------------------------------------------------------------
+# Regression: USD-authored ``mjc:*`` joint attributes must reach the Newton
+# model through the manager import path (https://github.com/isaac-sim/IsaacLab/issues/6829).
+# ---------------------------------------------------------------------------
+
+
+def _author_revolute_with_frictionloss(stage, frictionloss: float) -> None:
+    """Author a two-body articulation whose revolute joint carries ``mjc:frictionloss``."""
+    from pxr import Sdf, UsdGeom, UsdPhysics
+
+    world = UsdGeom.Xform.Define(stage, "/World/robot")
+    UsdPhysics.ArticulationRootAPI.Apply(world.GetPrim())
+    for name in ("parent", "child"):
+        body = UsdGeom.Cube.Define(stage, f"/World/robot/{name}")
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+    fixed = UsdPhysics.FixedJoint.Define(stage, "/World/robot/fix")
+    fixed.CreateBody1Rel().SetTargets(["/World/robot/parent"])
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/World/robot/rev")
+    joint.CreateBody0Rel().SetTargets(["/World/robot/parent"])
+    joint.CreateBody1Rel().SetTargets(["/World/robot/child"])
+    joint.CreateAxisAttr("Z")
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Float, custom=True).Set(frictionloss)
+
+
+def test_usd_mjc_frictionloss_reaches_newton_model():
+    """A USD joint authored with ``mjc:frictionloss`` yields a matching ``joint_friction``."""
+    import isaaclab.sim as sim_utils
+
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device="cuda:0",
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1, use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg):
+        stage = sim_utils.get_current_stage()
+        _author_revolute_with_frictionloss(stage, frictionloss=0.11)
+
+        NewtonManager.instantiate_builder_from_stage()
+        model = NewtonManager._builder.finalize()
+
+        friction = model.joint_friction.numpy()
+        assert friction.max() == pytest.approx(0.11), (
+            f"mjc:frictionloss was dropped by the USD import (joint_friction={friction})"
+        )

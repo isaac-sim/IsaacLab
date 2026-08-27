@@ -432,11 +432,7 @@ def _get_names_from_newton_usd_builder(
 
     try:
         from newton import JointType, ModelBuilder, solvers  # noqa: PLC0415
-        from newton._src.usd.schemas import (  # noqa: PLC0415
-            SchemaResolverMjc,
-            SchemaResolverNewton,
-            SchemaResolverPhysx,
-        )
+        from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx  # noqa: PLC0415
         from newton.selection import ArticulationView  # noqa: PLC0415
 
         from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
@@ -482,7 +478,7 @@ def _get_names_from_newton_usd_builder(
         root_path=source_asset_path,
         load_visual_shapes=False,
         skip_mesh_approximation=True,
-        schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx(), SchemaResolverMjc()],
+        schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()],
         joint_ordering=joint_ordering,
         bodies_follow_joint_ordering=bodies_follow_joint_ordering,
     )
