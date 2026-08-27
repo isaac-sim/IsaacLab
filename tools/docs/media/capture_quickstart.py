@@ -30,10 +30,10 @@ from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 _TASK_CONFIGS = {
-    "Isaac-Cartpole": "capture:CartpoleCaptureCfg",
-    "Isaac-Lift-KukaAllegro": "capture:KukaAllegroCaptureCfg",
-    "Isaac-Open-Drawer-Franka": "capture:FrankaCabinetCaptureCfg",
-    "Isaac-Velocity-Flat-G1": "capture:G1FlatCaptureCfg",
+    "Isaac-Cartpole": "capture_quickstart:CartpoleCaptureCfg",
+    "Isaac-Lift-KukaAllegro": "capture_quickstart:KukaAllegroCaptureCfg",
+    "Isaac-Open-Drawer-Franka": "capture_quickstart:FrankaCabinetCaptureCfg",
+    "Isaac-Velocity-Flat-G1": "capture_quickstart:G1FlatCaptureCfg",
 }
 
 
@@ -155,6 +155,13 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg, focal_length: float):
             window_height=240,
             headless=True,
             rtx_environment="default",
+            # Match the Kit renderer's sample counts instead of forcing a convergence floor:
+            # ViewerRTX pins pt:samplesPerPixel to 1 (Kit leaves the 512 schema default) and
+            # leaves rt:directLighting:samples at 2 (Kit pins it to 1).
+            render_settings={
+                "omni:rtx:pt:samplesPerPixel": ("UInt", 512),
+                "omni:rtx:rt:directLighting:samples": ("UInt", 1),
+            },
         )
     ]
 
