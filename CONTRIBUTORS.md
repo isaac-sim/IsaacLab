@@ -83,6 +83,7 @@ Guidelines for modifications:
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
+* Diego Ferigo
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
