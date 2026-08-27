@@ -941,3 +941,103 @@ def test_ovrtx_close_is_idempotent():
     renderer.close()
 
     assert events == []
+
+
+_OVSTAGE_MISSING = importlib.util.find_spec("ovstage") is None
+_requires_ovstage = pytest.mark.skipif(_OVSTAGE_MISSING, reason="requires optional module: ovstage")
+_requires_cuda = pytest.mark.skipif(not wp.get_cuda_device_count(), reason="requires a CUDA device")
+
+
+@_requires_ovstage
+@_requires_cuda
+def test_lane_folded_tensor_describes_a_device_array_without_copying_it():
+    """Device data is described where it lives, so an ovstage write needs no host round-trip.
+
+    ovstage's ``make_dltensor`` accepts the lane-folded dtype override only for host numpy arrays,
+    which would force every per-frame write through the CPU.
+    """
+    import ovstage
+
+    transforms = wp.zeros(3, dtype=wp.mat44d, device="cuda:0")
+
+    tensor = ovrtx_renderer_module._lane_folded_tensor(transforms, ovrtx_renderer_module._OVSTAGE_XFORM_DTYPE, 3)
+
+    assert tensor.data == transforms.ptr
+    assert tensor.device.device_type.value == ovstage.DLDeviceType.kDLCUDA
+    assert tensor.device.device_id == transforms.device.ordinal
+    assert tensor.ndim == 1
+    assert tensor.shape[0] == 3
+    # 16 float64 lanes per row is the omni:xform column layout; warp's own DLPack export would
+    # describe the same bytes as (3, 4, 4) with one lane, which ovstage rejects.
+    assert (tensor.dtype.lanes, tensor.dtype.bits) == (16, 64)
+    # The tensor is the only owner ovstage keeps alive, so it must hold the memory it points at.
+    assert tensor._array is transforms
+
+
+@_requires_ovstage
+@_requires_cuda
+def test_lane_folded_tensor_rejects_a_strided_array():
+    """A non-contiguous array would be misread, since the folded description carries no strides."""
+    strided = wp.zeros((4, 6), dtype=wp.float32, device="cuda:0").transpose()
+
+    with pytest.raises(ValueError, match="contiguous"):
+        ovrtx_renderer_module._lane_folded_tensor(strided, ovrtx_renderer_module._OVSTAGE_POINT_DTYPE, 6)
+
+
+@_requires_ovstage
+@_requires_cuda
+def test_gaussian_particle_ovstage_write_passes_device_pointers_and_a_stream():
+    """The Gaussian particle write hands ovstage the caller's device pointers, ordered on its stream.
+
+    Guards the zero-copy contract of :meth:`OVRTXRenderer.update_gaussian_splat_particles` on the
+    ovstage path: a regression to a host copy would show up as a pointer that is not the caller's.
+    """
+    writes: list[dict] = []
+
+    class Completion:
+        def wait(self) -> None:
+            return
+
+    class Stage:
+        def query_from_path_list(self, path_list):
+            return "query"
+
+        def write_attribute(self, query, attribute, **kwargs):
+            writes.append({"attribute": attribute, **kwargs})
+            return Completion()
+
+        def release_query(self, query):
+            return Completion()
+
+    class StagePaths:
+        def create_path_list_from_strings(self, paths):
+            return "paths"
+
+        def destroy_path_list(self, path_list) -> None:
+            return
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._stage = Stage()
+    renderer._stage_paths = StagePaths()
+    renderer._current_ordinal = 3
+
+    positions = [wp.zeros(5, dtype=wp.vec3f, device="cuda:0"), wp.zeros(2, dtype=wp.vec3f, device="cuda:0")]
+    renderer._update_gaussian_splat_particles_ovstage(["/a", "/b"], "positions", positions, 3)
+
+    assert len(writes) == 1
+    write = writes[0]
+    assert write["attribute"] == "positions"
+    assert write["is_array"] is True
+    assert [tensor.data for tensor in write["tensors"]] == [array.ptr for array in positions]
+    assert [tensor.shape[0] for tensor in write["tensors"]] == [5, 2]
+    assert write["cuda_stream"] == wp.get_stream(positions[0].device).cuda_stream
+
+
+@_requires_ovstage
+@_requires_cuda
+def test_lane_folded_tensor_rejects_a_row_count_the_array_cannot_fill():
+    """A row count larger than the array would make ovstage read past the end of the buffer."""
+    points = wp.zeros(4, dtype=wp.vec3f, device="cuda:0")
+
+    with pytest.raises(ValueError, match="bytes"):
+        ovrtx_renderer_module._lane_folded_tensor(points, ovrtx_renderer_module._OVSTAGE_POINT_DTYPE, 5)

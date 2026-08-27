@@ -11,6 +11,13 @@ Added
 Changed
 ^^^^^^^
 
+* Changed the ovstage attribute writes to describe warp arrays where they live instead of copying them to the
+  host first. The transform, geometry, camera and Gaussian-particle writes previously round-tripped through
+  numpy because ``ovstage.make_dltensor`` accepts the lane-folded dtype override that ovstage columns require
+  only for host arrays; the tensors are now built directly from the array pointer and submitted on the array's
+  warp stream, which also removes the per-frame ``wp.synchronize_device`` those copies needed. Rendered output
+  is unchanged.
+
 * Changed the OVRTX render product to wait for ``AllLoadingFinished`` on every frame instead of only on the
   first one. Geometry streamed after the first frame, such as the geometry re-streamed when a deformable
   Gaussian track writes its per-particle arrays, was previously missing from every frame that rendered

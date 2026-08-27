@@ -53,9 +53,7 @@ def query_apply_settings_fn() -> Any | None:
     class _ApplySettingsVTable(ctypes.Structure):
         """Mirror of ``ovrtx_extension_apply_settings_t``: one function taking ``ovx_string_t``."""
 
-        _fields_ = [
-            ("apply_settings", ctypes.CFUNCTYPE(ovrtx_bindings.ovrtx_result_t, ovrtx_bindings.ovx_string_t))
-        ]
+        _fields_ = [("apply_settings", ctypes.CFUNCTYPE(ovrtx_bindings.ovrtx_result_t, ovrtx_bindings.ovx_string_t))]
 
     # Loading the loader library does not initialize OVRTX; the extension is documented to be callable
     # before the runtime is up, which is exactly when settings must be queued.
@@ -87,10 +85,13 @@ def apply_carb_settings(settings: dict[str, Any]) -> bool:
     if not settings:
         return True
 
-    from ovrtx._src import bindings as ovrtx_bindings
-
     tokens = " ".join(f"--{path}={_format_value(value)}" for path, value in settings.items())
+    # The whole mechanism reaches through an internal extension and private ctypes bindings, so any
+    # failure mode it can produce — a moved binding, a changed vtable, a rejected argument — must
+    # degrade to a warning rather than break the renderer that is being constructed.
     try:
+        from ovrtx._src import bindings as ovrtx_bindings
+
         apply_settings = query_apply_settings_fn()
         if apply_settings is None:
             logger.warning(
@@ -105,7 +106,7 @@ def apply_carb_settings(settings: dict[str, Any]) -> bool:
         if apply_result.status.value != _OVRTX_API_SUCCESS:
             logger.warning("ovrtx rejected the RTX settings '%s' (status %s).", tokens, apply_result.status.value)
             return False
-    except (AttributeError, OSError, RuntimeError) as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Could not apply the RTX settings '%s' to ovrtx: %s", tokens, exc)
         return False
 
