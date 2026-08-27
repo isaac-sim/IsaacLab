@@ -59,6 +59,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
+        "importers",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -82,27 +83,20 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
-    """``all`` is the single flag for every backend, RL library, and visualizer.
-
-    Nothing is forked in ``[tool.uv].conflicts``, so Isaac Sim and both OV backends fit in
-    one environment alongside every RL library and visualizer. The specialized workflows stay
-    opt-in by name -- they are large, narrowly used, or both.
-    """
+def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
+    """``all`` aggregates only the curated OV, RL, and visualizer extras."""
     optional = _root_pyproject()["project"]["optional-dependencies"]
 
-    # ``all`` is a single self-reference listing the extras it aggregates.
     assert len(optional["all"]) == 1
     aggregated = set(re.fullmatch(r"isaaclab-dev\[(.+)\]", optional["all"][0]).group(1).split(","))
-    assert aggregated == {"isaacsim", "ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
+    assert aggregated == {"ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
 
-    # ``ov`` pulls both OV backends, so naming it covers ``ovphysx`` and ``ovrtx`` too.
     reachable = aggregated | {"ovphysx", "ovrtx"}
 
-    # Everything else is requested by name. A newly added extra lands in this diff and
-    # has to be classified deliberately -- into ``all`` or into this list.
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "isaacsim",
+        "importers",
         "mimic",
         "teleop",
         "tetrahedralization",
@@ -167,9 +161,7 @@ def test_version_single_source_matches_literal_pins():
         line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
     ]
     assert ovrtx_install_lines
-    assert all(
-        f"ovrtx{versions['ovrtx']}" in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines
-    )
+    assert all(spec("ovrtx") in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines)
 
     # uv torch-stack overrides mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):
@@ -195,7 +187,7 @@ def test_public_ov_packages_use_public_pypi_index():
         "url": "https://pypi.org/simple",
         "explicit": True,
     }
-    for package in ("omniverseclient", "ovphysx", "ovstage"):
+    for package in ("omniverseclient", "ovphysx", "ovrtx", "ovstage"):
         assert sources[package] == {"index": "pypi-public"}
 
 

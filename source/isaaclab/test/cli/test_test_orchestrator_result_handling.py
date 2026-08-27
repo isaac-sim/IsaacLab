@@ -269,9 +269,13 @@ def test_abnormal_termination_report_quotes_bounded_renderer_log(
     (tmp_path / "tests").mkdir()
     report_paths: list[Path] = []
 
+    # Enough filler to overrun the quota, counted from the quota itself so that raising it does not
+    # quietly turn this into a test of a log that fits inside it.
+    filler_lines = orchestrator.ovrtx_log.LOG_LIMIT_BYTES // len("filler-line\n") + 1
+
     def _capture(cmd, timeout, env, *, startup_deadline, report_file):
         # Render verbosely, then die without writing a report.
-        Path(log_path).write_text("head-line\n" + "filler-line\n" * 8000 + "tail-line\n", encoding="utf-8")
+        Path(log_path).write_text("head-line\n" + "filler-line\n" * filler_lines + "tail-line\n", encoding="utf-8")
         report_paths.append(Path(report_file))
         return returncode, b"", b"", kill_reason, 12.0, ""
 
@@ -306,6 +310,62 @@ def test_abnormal_termination_report_quotes_bounded_renderer_log(
     assert "OVRTX renderer log" not in caplog.text
 
 
+@pytest.mark.parametrize(
+    ("returncode", "kill_reason", "expected_result"),
+    [(-11, "", "CRASHED"), (-9, "timeout", "TIMEOUT")],
+)
+def test_abnormal_termination_saves_the_renderer_log_of_the_blamed_test(
+    monkeypatch, tmp_path: Path, returncode: int, kill_reason: str, expected_result: str
+) -> None:
+    """The test a crash or a hang killed is the one test whose renderer output nothing else saves.
+
+    ``tools/ovrtx_log.py`` saves from a fixture, so every test that reaches teardown leaves its output in
+    the directory CI uploads -- and the test that took the process down, the only one anybody is going to
+    read, leaves nothing. Both reports quote a bounded tail of the log instead, which is not the same
+    thing: a hang that logs nothing after the render is diagnosed by what came before it, and that is the
+    part a cap counted back from the end of the file drops first.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_alpha():\n    pass\n\n\ndef test_beta():\n    pass\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    alpha, beta = f"{test_file}::test_alpha", f"{test_file}::test_beta"
+
+    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
+        Path(log_path).write_text("alpha-line\nbeta-line\n", encoding="utf-8")
+        journal_file = env[orchestrator.JOURNAL_ENV_VAR]
+        _append_journal(journal_file, [{"event": "collected", "node_ids": [alpha, beta]}])
+        _append_journal(journal_file, _journaled_test(alpha, "passed"))
+        # Dies inside test_beta, so the teardown that would have saved its output never runs.
+        _append_journal(journal_file, [{"event": "start", "node_id": beta}])
+        return returncode, b"", b"", kill_reason, 12.0, ""
+
+    log_path = str(tmp_path / "ovrtx_renderer.log")
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", log_path)
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    _report, status, _was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert status["result"] == expected_result
+    # Named after the test alone, as the fixture names the directories of the tests that saved their own,
+    # so the run that died is read beside the tests that survived it rather than somewhere else.
+    saved = tmp_path / orchestrator.OVRTX_LOG_DIR / "test_beta.0" / "ovrtx_renderer.log"
+    assert saved.read_text(encoding="utf-8") == "alpha-line\nbeta-line\n"
+
+
 def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path) -> None:
     """A process SIGKILLed for hanging in shutdown had already written its report, so its tests still count.
 
@@ -338,6 +398,44 @@ def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path
     _report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
 
     assert status["result"] == "passed (shutdown hanged)"
+    assert not was_failure
+
+
+def test_startup_retry_wall_time_includes_every_attempt(monkeypatch, tmp_path: Path) -> None:
+    """The reported wall time must include startup attempts discarded by a successful retry."""
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    attempts = 0
+
+    def _capture(*_args, report_file: str, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return -1, b"", b"", "startup_hang", 8.0, ""
+        _write_partial_junit_report(report_file)
+        return 0, b"", b"", "", 2.0, ""
+
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", str(tmp_path / "ovrtx_renderer.log"))
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "")
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    _report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert attempts == 2
+    assert status["wall_time"] == 10.0
     assert not was_failure
 
 
@@ -383,6 +481,48 @@ def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
     # pytest only creates the report directory in ``pytest_sessionfinish``, which a crashed run
     # never reaches, so the directory has to exist before the subprocess starts journaling.
     assert journal_path.parent.is_dir()
+
+
+def test_ovrtx_log_directory_is_named_for_the_subprocess(monkeypatch, tmp_path: Path) -> None:
+    """Each pass must tell the test process where to save renderer logs, or none are saved at all.
+
+    ``tools/ovrtx_log.py`` saves a test's renderer log only when this variable names a directory, and
+    the reports quote a bounded tail of the log, so without it CI uploads nothing to read past the cap.
+    The path is absolute for the journal's reason: the save happens in a fixture, so a test using
+    ``monkeypatch.chdir`` would otherwise leave its log under the temporary directory.
+    """
+    orchestrator = _load_orchestrator_module()
+    test_file = tmp_path / "test_sample.py"
+    test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
+    log_dirs: list[str] = []
+
+    def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
+        log_dirs.append(env[orchestrator.ovrtx_log.LOG_DIR_ENV_VAR])
+        _write_partial_junit_report(report_file)
+        return 0, b"", b"", "", 0.1, ""
+
+    monkeypatch.setattr(orchestrator.ovrtx_log, "LOG_PATH", str(tmp_path / "ovrtx_renderer.log"))
+    monkeypatch.setattr(orchestrator, "capture_test_output_with_timeout", _capture)
+    monkeypatch.chdir(tmp_path)
+    context = orchestrator._PassContext(
+        test_file=str(test_file),
+        file_name=test_file.name,
+        workspace_root=str(tmp_path),
+        ci_marker=None,
+        timeout=10,
+        startup_deadline=1,
+        env={},
+        inject_shard_select=False,
+        pytest_targets=[str(test_file)],
+    )
+
+    orchestrator._run_one_pass(context, k_expr=None, suffix="")
+
+    assert len(log_dirs) == 1
+    log_dir = Path(log_dirs[0])
+    assert log_dir.is_absolute()
+    # Under the reports directory, since that is the tree CI collects as a job artifact.
+    assert log_dir == tmp_path / orchestrator.OVRTX_LOG_DIR
 
 
 def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch, tmp_path: Path) -> None:
@@ -450,6 +590,7 @@ def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch,
     assert status["errors"] == 1
     assert status["failures"] == 0
     assert status["tests"] == 2
+    assert status["wall_time"] == pytest.approx(0.3)
     assert was_failure
 
     cases = {case.get("name"): case for case in ElementTree.parse(report_paths[1]).getroot().iter("testcase")}

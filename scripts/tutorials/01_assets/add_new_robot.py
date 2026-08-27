@@ -59,22 +59,22 @@ DOFBOT_CONFIG = ArticulationCfg(
     actuators={
         "front_joints": ImplicitActuatorCfg(
             joint_names_expr=["joint[1-2]"],
-            effort_limit_sim=100.0,
-            velocity_limit_sim=100.0,
+            joint_effort_limit=100.0,
+            joint_velocity_limit=100.0,
             stiffness=10000.0,
             damping=100.0,
         ),
         "joint3_act": ImplicitActuatorCfg(
             joint_names_expr=["joint3"],
-            effort_limit_sim=100.0,
-            velocity_limit_sim=100.0,
+            joint_effort_limit=100.0,
+            joint_velocity_limit=100.0,
             stiffness=10000.0,
             damping=100.0,
         ),
         "joint4_act": ImplicitActuatorCfg(
             joint_names_expr=["joint4"],
-            effort_limit_sim=100.0,
-            velocity_limit_sim=100.0,
+            joint_effort_limit=100.0,
+            joint_velocity_limit=100.0,
             stiffness=10000.0,
             damping=100.0,
         ),
@@ -155,7 +155,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene["Jetbot"].set_joint_velocity_target_index(target=action)
 
         # wave
-        wave_action = scene["Dofbot"].data.default_joint_pos.torch
+        wave_action = scene["Dofbot"].data.default_joint_pos.torch.clone()
         wave_action[:, 0:4] = 0.25 * np.sin(2 * np.pi * 0.5 * sim_time)
         scene["Dofbot"].set_joint_position_target_index(target=wave_action)
 

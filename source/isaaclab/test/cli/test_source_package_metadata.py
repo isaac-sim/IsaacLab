@@ -59,11 +59,17 @@ def test_resolved_environment_has_no_second_usd_provider():
     assert "usd-exchange" in locked
 
 
-def test_standalone_importers_ship_as_base_dependencies():
-    """The standalone URDF/MJCF importers install by default, so conversion works without Isaac Sim."""
+def test_standalone_importers_are_opt_in():
+    """Standalone URDF/MJCF importers must not constrain the base environment."""
     with (_repo_root() / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
+    project = pyproject["project"]
     versions = pyproject["tool"]["isaaclab"]["versions"]
-    assert f"isaacsim-asset-isolated=={versions['isaacsim']}" in pyproject["project"]["dependencies"]
-    assert "importers" not in pyproject["project"]["optional-dependencies"]
+    importer_pin = f"isaacsim-asset-isolated=={versions['isaacsim']}"
+    assert importer_pin not in project["dependencies"]
+    assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
+    assert project["optional-dependencies"]["importers"] == [
+        importer_pin,
+        "tinyobjloader==2.0.0rc13",
+    ]

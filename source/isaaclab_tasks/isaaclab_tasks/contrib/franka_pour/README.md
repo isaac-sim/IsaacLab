@@ -28,42 +28,51 @@ reproducible state distribution. Runtime reconstructs the same source-local part
 for each row and resets the complete MPM solver state; it does not replay cached stress or particle
 trajectories.
 
-## Generate and train
+## Train and regenerate
 
-The artifact is generated locally and is intentionally not stored in Git. From the repository
-root, generate it once and then train with the task defaults:
+The task downloads the canonical 20,000-row artifact from the standard Isaac Lab asset root on
+first use and reuses the local asset cache afterward. Training therefore needs no artifact setup:
+
+```bash
+uv run isaaclab train --rl_library rsl_rl \
+  --task IsaacContrib-Franka-Pour \
+  --num_envs 2048 --device cuda:0 --max_iterations 3000
+```
+
+The checked-in generator remains the executable reference for creating or modifying the reset
+distribution. It takes about two minutes on an L40S-class GPU and writes a 20,000-row local artifact:
 
 ```bash
 uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
 
 uv run isaaclab train --rl_library rsl_rl \
   --task IsaacContrib-Franka-Pour \
-  --num_envs 2048 --device cuda:0 --max_iterations 3000
+  --num_envs 2048 --device cuda:0 \
+  env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
 ```
 
-The first command takes about two minutes on an L40S-class GPU and creates the default
-`datasets/franka_pour/reset_dataset.pt` artifact with 20,000 rows. Runtime resolves that relative
-path from the repository root, so launching training from another working directory does not
-change which artifact is loaded. The script exposes the same 14 connected reset phases and phase
-quotas as the reference distribution. Newton IK, joint-limit, table/object, self-collision,
-grasp-seating, and particle-workspace checks reject unsafe proposals; there is no second validation
-or artifact-promotion command.
+Relative local paths resolve from the repository root. The generator exposes the same 14 connected
+reset phases and phase quotas as the published distribution. Newton IK, joint-limit, table/object,
+self-collision, grasp-seating, and particle-workspace checks reject unsafe proposals; there is no
+second validation or artifact-promotion command.
 
 The generator and task load the Franka Pour cups USD from the standard Isaac Lab Nucleus asset
 root. Set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` only to use a compatible local copy instead. The
-generated database itself does not need to be published.
+published reset artifact lives alongside those assets at `Contrib/MPM/Pour/reset_dataset.pt`.
+Setting `ISAACSIM_ASSET_ROOT` redirects all three dependencies to a compatible local or self-hosted
+asset tree.
 
-The `datasets/` directory is ignored by Git. The payload always validates its stored content digest,
-so no digest override is needed for ordinary training or playback. For an exactly reproducible run,
-the generator also prints the optional `env.reset_dataset_content_sha256` pin. Publishing the
-database is not required.
+The `datasets/` directory is ignored by Git. Both downloaded and locally generated payloads validate
+their stored content digest, so no digest override is needed for ordinary training or playback. For
+an exactly reproducible custom run, the generator also prints the optional
+`env.reset_dataset_content_sha256` pin.
 
 ## Play
 
-The canonical task is registered with import-light string entry points. Registration does not load
-the artifact; environment startup validates it when creating the environment. Play mode uses one
-bounded sparse-grid world, disables observation corruption, freezes the sampler, and moves the
-interactive viewer closer:
+The canonical task is registered with import-light string entry points. Registration does not
+download the artifact; environment startup retrieves and validates it when creating the environment.
+Play mode uses one bounded sparse-grid world, disables observation corruption, freezes the sampler,
+and moves the interactive viewer closer:
 
 ```bash
 uv run isaaclab play --rl_library rsl_rl \

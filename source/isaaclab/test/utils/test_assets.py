@@ -10,6 +10,10 @@ import importlib
 import json
 import logging
 import os
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,31 +26,122 @@ pytestmark = pytest.mark.unit
 
 def test_asset_root_environment_override_takes_precedence(monkeypatch):
     """Test the documented Isaac Sim asset-root environment override."""
-    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/6.0/")
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y/")
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
-    assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/6.0"
+    assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
 
 
 def test_asset_root_falls_back_to_kit_file(monkeypatch):
     """Test kitless asset-root resolution when the environment override is absent."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
-def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
-    """Test the documented Windows form of the environment override."""
-    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "C:\\assets\\Assets\\Isaac\\6.0\\")
+def test_asset_root_uses_china_storage_profile(monkeypatch):
+    """Test the China storage profile uses the same public bucket root as Isaac Sim."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
-    assert assets_utils._resolve_asset_root() == "C:\\assets\\Assets\\Isaac\\6.0"
+    expected_root = (
+        f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{assets_utils._ISAAC_SIM_ASSET_RELEASE}"
+    )
+    assert assets_utils._resolve_asset_root() == expected_root
+
+
+def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
+    """Test an unknown profile warns and falls back to the experience file."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "unknown")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
+        assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+    assert "no storage profile named 'unknown'" in caplog.text
+
+
+def test_configure_china_storage_profile_once(monkeypatch):
+    """Test the public initializer installs the in-memory CDN mapping once."""
+    import omni.client
+
+    calls = []
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+
+    def configure(**kwargs):
+        calls.append(kwargs)
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "set_s3_configuration", configure)
+
+    assets_utils.configure_storage_profile()
+    assets_utils.configure_storage_profile()
+
+    assert calls == [
+        {
+            "url": "simready-cn.s3.oss-cn-shanghai.aliyuncs.com",
+            "bucket": "simready-cn",
+            "region": "oss-cn-shanghai",
+            "cloudfrontUrl": "https://assets.simready.cn/",
+            "cloudfrontForList": False,
+            "writeConfig": False,
+        }
+    ]
+
+
+def test_configure_storage_profile_reports_client_failure(monkeypatch):
+    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
+    import omni.client
+
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
+
+    with pytest.raises(RuntimeError, match="Storage profile 'china' failed to configure"):
+        assets_utils.configure_storage_profile()
+
+
+def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
+    """Test the initializer does not import OmniClient when no profile is selected."""
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    original_omni_client = sys.modules.pop("omni.client", None)
+    try:
+        assets_utils.configure_storage_profile()
+        assert "omni.client" not in sys.modules
+    finally:
+        if original_omni_client is not None:
+            sys.modules["omni.client"] = original_omni_client
+
+
+def test_asset_client_applies_storage_profile(monkeypatch):
+    """Test remote asset helpers configure routing whenever they import OmniClient."""
+    import omni.client
+
+    configured_clients = []
+    monkeypatch.setattr(assets_utils, "_configure_storage_profile", configured_clients.append)
+
+    assert assets_utils._get_omni_client() is omni.client
+    assert configured_clients == [omni.client]
+
+
+def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
+    """Test the documented Windows form of the environment override."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "C:\\assets\\Assets\\Isaac\\X.Y\\")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "C:\\assets\\Assets\\Isaac\\X.Y"
 
 
 def test_asset_root_ignores_empty_environment_override(monkeypatch):
     """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
@@ -89,15 +184,31 @@ def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
     try:
         # patch in a nested context so leaving it cannot revert patches owned by other fixtures
         with monkeypatch.context() as patched_env:
-            patched_env.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/6.0")
+            patched_env.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y")
             module = importlib.reload(assets_utils)
 
-            assert module.NUCLEUS_ASSET_ROOT_DIR == "/tmp/isaacsim_assets/Assets/Isaac/6.0"
-            assert module.ISAAC_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/6.0/Isaac"
-            assert module.ISAACLAB_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/6.0/Isaac/IsaacLab"
+            assert module.NUCLEUS_ASSET_ROOT_DIR == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
+            assert module.ISAAC_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/X.Y/Isaac"
+            assert module.ISAACLAB_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/X.Y/Isaac/IsaacLab"
     finally:
         # the context restored the caller's environment, so a suite run with a real
         # ISAACSIM_ASSET_ROOT keeps resolving to it
+        importlib.reload(assets_utils)
+
+
+def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch):
+    """Test kitless asset constants follow the selected China storage profile."""
+    try:
+        with monkeypatch.context() as patched_env:
+            patched_env.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+            patched_env.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+            module = importlib.reload(assets_utils)
+
+            root = f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{module._ISAAC_SIM_ASSET_RELEASE}"
+            assert root == module.NUCLEUS_ASSET_ROOT_DIR
+            assert f"{root}/Isaac" == module.ISAAC_NUCLEUS_DIR
+            assert f"{root}/Isaac/IsaacLab" == module.ISAACLAB_NUCLEUS_DIR
+    finally:
         importlib.reload(assets_utils)
 
 
@@ -360,6 +471,50 @@ def test_local_copy_without_a_recorded_revision_is_refetched(asset_cache, monkey
     _serve(monkeypatch, {_REMOTE_URL: current}, payloads={_REMOTE_URL: b"fresh bytes"})
 
     assert assets_utils.read_file(_REMOTE_URL).read() == b"fresh bytes"
+
+
+def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkeypatch):
+    """Test concurrent ranks reuse the mirror populated by the first rank."""
+    import omni.client
+
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+    copy_count = 0
+    active_copies = 0
+    max_active_copies = 0
+    counter_lock = threading.Lock()
+    mirrored = Path(assets_utils._mirror_path(_REMOTE_URL, str(asset_cache)))
+
+    def fake_copy(url, target_path, behavior):
+        nonlocal copy_count, active_copies, max_active_copies
+        assert url == _REMOTE_URL
+        assert behavior == omni.client.CopyBehavior.OVERWRITE
+        assert Path(target_path) != mirrored
+        with counter_lock:
+            copy_count += 1
+            active_copies += 1
+            max_active_copies = max(max_active_copies, active_copies)
+        time.sleep(0.05)
+        Path(target_path).write_bytes(b"#usda 1.0\n")
+        with counter_lock:
+            active_copies -= 1
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_find_asset_dependencies", lambda path: set())
+    start = threading.Barrier(2)
+
+    def retrieve() -> str:
+        start.wait()
+        return assets_utils.retrieve_file_path(_REMOTE_URL, str(asset_cache))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieved = list(executor.map(lambda _: retrieve(), range(2)))
+
+    assert retrieved == [str(mirrored)] * 2
+    assert mirrored.read_bytes() == b"#usda 1.0\n"
+    assert copy_count == 1
+    assert max_active_copies == 1
 
 
 def test_size_and_modification_time_identify_a_revision(asset_cache, monkeypatch):
