@@ -13,16 +13,19 @@ those paths is the ``ovrtx.settings.apply_settings`` extension, obtained through
 ``ovrtx_query_extension`` entry point and invoked with Kit-style ``--/path=value`` tokens.
 
 That extension is internal and unsupported: ``ovrtx.h`` documents ``ovrtx_query_extension`` as public
-while stating that all extension names and vtable contracts are internal. It is used here because the
-only alternative is requiring users to export ``OVRTX_*`` environment variables before starting the
-process. Every call is therefore best-effort — a missing or changed extension degrades to a warning,
-never an exception.
+while stating that all extension names and vtable contracts are internal. NVIDIA publishes a
+maintained client for it as the ``ovrtx-extensions`` distribution, but only to an NVIDIA-internal
+Python index, so depending on it would break a public ``ovrtx`` install; the vtable is queried here
+instead. It is used at all because the only alternative is requiring users to export ``OVRTX_*``
+environment variables before starting the process. Every call is therefore best-effort — a missing or
+changed extension degrades to a warning, never an exception.
 """
 
 from __future__ import annotations
 
 import ctypes
 import logging
+from collections.abc import Callable
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -42,11 +45,16 @@ def _format_value(value: Any) -> str:
     return str(value)
 
 
-def query_apply_settings_fn() -> Any | None:
-    """Look up the OVRTX settings extension.
+def query_apply_settings_fn() -> Callable[[str], None] | None:
+    """Look up a way to queue Kit-style ``--/path=value`` tokens with OVRTX.
+
+    NVIDIA's ``ovrtx-extensions`` distribution is the maintained client for this extension, but it is
+    published only to an NVIDIA-internal Python index while Isaac Lab installs ``ovrtx`` from the
+    public one, so the vtable is queried directly here to keep this working on a public install.
 
     Returns:
-        The extension's ``apply_settings`` function, or None if this OVRTX build does not expose it.
+        A function that queues one token string and raises on failure, or None if this OVRTX build
+        does not expose the settings extension.
     """
     from ovrtx._src import bindings as ovrtx_bindings
 
@@ -60,12 +68,25 @@ def query_apply_settings_fn() -> Any | None:
     lib = ovrtx_bindings._ovrtx_loader._load_library()
     lib.ovrtx_query_extension.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
     lib.ovrtx_query_extension.restype = ovrtx_bindings.ovrtx_result_t
+    lib.ovrtx_get_last_error.argtypes = []
+    lib.ovrtx_get_last_error.restype = ovrtx_bindings.ovx_string_t
 
     vtable_ptr = ctypes.c_void_p()
     result = lib.ovrtx_query_extension(_APPLY_SETTINGS_EXTENSION, ctypes.byref(vtable_ptr))
     if result.status.value != _OVRTX_API_SUCCESS or not vtable_ptr.value:
         return None
-    return ctypes.cast(vtable_ptr, ctypes.POINTER(_ApplySettingsVTable)).contents.apply_settings
+    vtable_apply_settings = ctypes.cast(vtable_ptr, ctypes.POINTER(_ApplySettingsVTable)).contents.apply_settings
+
+    def apply_settings(tokens: str) -> None:
+        apply_result = vtable_apply_settings(ovrtx_bindings.ovx_string_t(tokens))
+        if apply_result.status.value != _OVRTX_API_SUCCESS:
+            # OVRTX explains a rejection through ovrtx_get_last_error, so the status alone would
+            # throw away the only description of what it disliked.
+            error = lib.ovrtx_get_last_error()
+            detail = ctypes.string_at(error.ptr, error.length).decode("utf-8", errors="replace") if error.ptr else ""
+            raise RuntimeError(f"ovrtx rejected the settings (status {apply_result.status.value}): {detail}")
+
+    return apply_settings
 
 
 def apply_carb_settings(settings: dict[str, Any]) -> bool:
@@ -90,8 +111,6 @@ def apply_carb_settings(settings: dict[str, Any]) -> bool:
     # failure mode it can produce — a moved binding, a changed vtable, a rejected argument — must
     # degrade to a warning rather than break the renderer that is being constructed.
     try:
-        from ovrtx._src import bindings as ovrtx_bindings
-
         apply_settings = query_apply_settings_fn()
         if apply_settings is None:
             logger.warning(
@@ -102,10 +121,7 @@ def apply_carb_settings(settings: dict[str, Any]) -> bool:
             )
             return False
 
-        apply_result = apply_settings(ovrtx_bindings.ovx_string_t(tokens))
-        if apply_result.status.value != _OVRTX_API_SUCCESS:
-            logger.warning("ovrtx rejected the RTX settings '%s' (status %s).", tokens, apply_result.status.value)
-            return False
+        apply_settings(tokens)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not apply the RTX settings '%s' to ovrtx: %s", tokens, exc)
         return False
