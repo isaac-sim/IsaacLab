@@ -105,13 +105,6 @@ has to cover signal delivery and the write itself.  It is spent solely on runs
 that are already failing.
 """
 
-HANG_DUMP_LIMIT_BYTES = 64 * 1024
-"""Maximum bytes of stack dump carried into the report.
-
-The dump lands in the job log and in the JUnit XML, and a Kit process has
-enough threads to make an unbounded dump a problem in both.
-"""
-
 EXIT_TESTS_FAILED = 1
 """Exit code for a run that completed with at least one failing assertion."""
 
@@ -259,10 +252,7 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
         return "", stdout_data, stderr_data
 
     body = "\n".join(f"----- dump {index} of {len(dumps)} -----\n{dump}" for index, dump in enumerate(dumps, start=1))
-    section = f"=== HANG STACK DUMP (all threads) ===\n{body}"
-    if len(section) > HANG_DUMP_LIMIT_BYTES:
-        section = section[:HANG_DUMP_LIMIT_BYTES] + "\n... (truncated)"
-    return section, stdout_data, stderr_data
+    return f"=== HANG STACK DUMP (all threads) ===\n{body}", stdout_data, stderr_data
 
 
 def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
