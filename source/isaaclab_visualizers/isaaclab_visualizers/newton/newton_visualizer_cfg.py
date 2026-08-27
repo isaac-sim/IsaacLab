@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import warnings
+from typing import Any
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -151,3 +152,10 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     rtx_environment: str = "default"
     """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+
+    render_settings: dict[str, Any] = dict()
+    """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
+
+    ``usd_type_name`` names an ``Sdf.ValueTypeNames`` member, as a string so the config stays
+    copyable. For example, ``{"omni:rtx:quality:minSpp": ("Int", 32)}`` raises the path tracer's
+    sample floor, which ``ViewerRTX`` otherwise leaves low to keep interactive latency down."""
