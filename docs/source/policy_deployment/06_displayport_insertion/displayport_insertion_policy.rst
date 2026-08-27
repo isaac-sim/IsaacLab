@@ -6,7 +6,7 @@ Training a DisplayPort Cable Insertion Policy and ROS Deployment
 This tutorial walks you through how to train a DisplayPort plug insertion reinforcement learning (RL) policy that transfers from simulation to a real Flexiv robot. The workflow consists of two main stages:
 
 1. **Simulation Training in Isaac Lab**: Train the policy in a high-fidelity physics simulation with domain randomization
-2. **LEAPP Export and Real Robot Deployment**: Export the trained policy with LEAPP, then deploy on hardware with Isaac ROS / Isaac Manipulator
+2. **LEAPP Export and Real Robot Deployment**: Export the trained policy with LEAPP, then deploy on hardware with Isaac ROS
 
 This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab.
 
@@ -14,18 +14,20 @@ This walkthrough covers the key principles and best practices for sim-to-real tr
 
 - **Flexiv Rizon 4s**: 7-DOF collaborative robot arm with Grav parallel gripper
 
+This environment has been successfully deployed and tested on a real Flexiv Rizon 4s robot without an IsaacLab dependency.
+
 **Task Details:**
 
 The DisplayPort insertion policy operates as follows:
 
 1. **Initial State**: The policy assumes the DisplayPort plug is already grasped by the gripper at the start of the episode
-2. **Input Observations**: The policy receives the pose of the socket insertion point (position and orientation) from a separate perception pipeline
-3. **Policy Output**: The policy outputs delta joint positions (incremental changes to arm joint angles) to control the robot and perform the insertion
-4. **Task Goal**: Insert the right-angle DisplayPort plug into a fixed socket until the mate point aligns within the success threshold
+2. **Input Observations**: The policy receives the current state of the robot together with the pose of the socket insertion point (position and orientation) from a separate perception pipeline. The robot state is the arm joint angles in the joint-space variants, or the gripper flange / end-effector pose in the task-space variants
+3. **Policy Output**: The policy outputs an incremental command each step — delta joint positions (incremental changes to arm joint angles) in the joint-space variants, or a 6-DoF Cartesian end-effector pose delta in the task-space variants
+4. **Task Goal**: Insert the DisplayPort plug into a fixed socket until the mate point aligns within the success threshold
 
 **Scope of This Tutorial:**
 
-This tutorial covers **training and LEAPP export** in Isaac Lab. For the complete on-robot workflow (vision pipeline, robot interface, ROS inference node), refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ after exporting your policy.
+This tutorial covers **training and LEAPP export** in Isaac Lab. For the complete on-robot workflow (vision pipeline, robot interface, ROS inference), refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ after exporting your policy.
 
 **Code Layout:**
 
@@ -34,8 +36,11 @@ The task follows the same structure as the gear assembly deploy environments:
 - ``isaaclab_tasks/contrib/deploy/cable_insertion/displayport_insertion_env_cfg.py`` — shared task MDP (scene, assets, observations, rewards)
 - ``isaaclab_tasks/contrib/deploy/cable_insertion/insertion_env.py`` — environment class that logs insertion success metrics during training
 - ``isaaclab_tasks/contrib/deploy/cable_insertion/config/displayport_rizon_4s/`` — Flexiv Rizon 4s + Grav robot-specific overrides and gym registrations
+- ``isaaclab_tasks/contrib/deploy/cable_insertion/config/displayport_rizon_4s/joint_pos_env_cfg.py`` — joint-space (relative joint position) environment
+- ``isaaclab_tasks/contrib/deploy/cable_insertion/config/displayport_rizon_4s/task_space_env_cfg.py`` — task-space (operational space control) environment
 - ``scripts/reinforcement_learning/train.py`` — unified trainer (pass ``--rl_library rsl_rl``)
 - ``scripts/reinforcement_learning/deploy/play_displayport_insertion.py`` — DisplayPort-specific inference / LEAPP validation / CSV logging
+- ``scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py`` — DisplayPort LEAPP exporter (task-space I/O contract)
 
 Overview
 --------
@@ -55,7 +60,7 @@ Asset Quality for Insertion Tasks
 
 For any contact-rich insertion task, **the quality of the plug and socket assets matters more than most other sim-to-real knobs**. DisplayPort insertion in particular operates at very small clearances between plug blades and the socket cavity. If the USD collision geometry, mass properties, or joint behavior are wrong, no amount of reward tuning or domain randomization will produce a policy that transfers well to hardware.
 
-The current DisplayPort assets in ``display_cable_insertion_assets/`` (``display_port_plug_fixed_sdf.usd`` and ``display_port_socket_fixed_sdf_noprotrusions.usd``) have been iterated extensively and work well for training policies that transfer sim-to-real. Expect significant upfront effort to reach this quality for a new connector or cable type.
+The DisplayPort plug and socket assets used by these environments have been iterated extensively and work well for training policies that transfer sim-to-real. Expect considerable upfront effort to reach this quality for a new connector or cable type.
 
 **What to validate before training:**
 
@@ -92,36 +97,82 @@ Your simulation environment should only use observations that are available on t
 Observation Specification
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The DisplayPort insertion environment uses proprioceptive and exteroceptive (vision) observations:
+The DisplayPort insertion environment uses proprioceptive and exteroceptive (vision) observations. In every
+variant the actor sees **the current state of the robot** plus **the socket insertion (mate) point** supplied by
+perception. What differs between the two control spaces is how the robot state is represented: joint angles for
+the joint-space environments, and the gripper flange / end-effector pose for the task-space environments.
 
-.. list-table:: DisplayPort Insertion Environment Observations (Flexiv Rizon 4s)
-   :widths: 25 10 25 20
-   :header-rows: 1
+.. tab-set::
 
-   * - Observation
-     - Dim
-     - Real-World Source
-     - Noise
-   * - ``joint_pos`` (arm only)
-     - 7
-     - Robot controller
-     - None
-   * - ``joint_vel`` (arm only, optional)
-     - 7
-     - Robot controller
-     - None
-   * - ``socket_pos`` (insertion mate point)
-     - 3
-     - Perception pipeline
-     - ±10mm
-   * - ``socket_quat``
-     - 4
-     - Perception pipeline
-     - None
+   .. tab-item:: Joint space
 
-**Recommended shipping configuration** (``NoJointVel`` variants): **14** policy dimensions (7 joint positions + 3 socket position + 4 socket quaternion).
+      .. list-table:: Joint-Space Observations (Flexiv Rizon 4s)
+         :widths: 25 10 25 20
+         :header-rows: 1
 
-**Training configuration with joint velocity** (``Grav`` variants without ``NoJointVel``): **21** policy dimensions.
+         * - Observation
+           - Dim
+           - Real-World Source
+           - Noise
+         * - ``joint_pos`` (arm only)
+           - 7
+           - Robot controller
+           - None
+         * - ``joint_vel`` (arm only, optional)
+           - 7
+           - Robot controller
+           - None
+         * - ``socket_pos`` (insertion mate point)
+           - 3
+           - Perception pipeline
+           - ±10mm
+         * - ``socket_quat``
+           - 4
+           - Perception pipeline
+           - None
+
+      **Recommended shipping configuration** (``NoJointVel`` variants): **14** policy dimensions
+      (7 joint positions + 3 socket position + 4 socket quaternion).
+
+      **Training configuration with joint velocity** (``Grav`` variants without ``NoJointVel``): **21** policy dimensions.
+
+   .. tab-item:: Task space
+
+      .. list-table:: Task-Space Observations (Flexiv Rizon 4s)
+         :widths: 25 10 25 20
+         :header-rows: 1
+
+         * - Observation
+           - Dim
+           - Real-World Source
+           - Noise
+         * - ``eef_pos`` (TCP position)
+           - 3
+           - Robot controller (forward kinematics)
+           - None
+         * - ``eef_rot_6d`` (TCP orientation)
+           - 6
+           - Robot controller (forward kinematics)
+           - None
+         * - ``socket_kp_pos`` (insertion mate point)
+           - 3
+           - Perception pipeline
+           - None by default
+         * - ``socket_kp_rot_6d``
+           - 6
+           - Perception pipeline
+           - None by default
+
+      **Shipping configuration** (``TaskSpace`` variants): **18** policy dimensions
+      (3 + 6 end-effector pose + 3 + 6 socket keypoint frame).
+
+      Orientations use a **6D rotation representation** (the first two rows of the rotation matrix) rather than a
+      quaternion. This is continuous over SO(3), which avoids the sign-flip discontinuity a quaternion introduces
+      and is easier for the network to regress against.
+
+      The end-effector position is reported at the **tool center point (TCP)**, i.e. the ``flange`` body offset
+      along its local +Z by ``_TCP_OFFSET`` in ``task_space_env_cfg.py``. Note that the observation is taken at the
+      TCP while the action is applied at the flange; see :ref:`taskspace-action-space`.
 
 .. note::
 
@@ -170,9 +221,42 @@ The DisplayPort insertion environment uses proprioceptive and exteroceptive (vis
         "joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7",
     ]
 
+**Task-space actor group** (in ``config/displayport_rizon_4s/task_space_env_cfg.py``):
+
+.. code-block:: python
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Actor observations: EEF pose + socket keypoint frame (18 dims)."""
+
+        eef_pos = ObsTerm(
+            func=mdp.eef_pos_w,
+            params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange", "offset": _TCP_OFFSET},
+        )
+        eef_rot_6d = ObsTerm(
+            func=mdp.eef_rot_6d_w,
+            params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange"},
+        )
+        socket_kp_pos = ObsTerm(
+            func=mdp.rigid_object_pos_w,
+            params={"asset_cfg": SceneEntityCfg("dp_socket"), "offset": SOCKET_INSERTION_OFFSET},
+        )
+        socket_kp_rot_6d = ObsTerm(
+            func=mdp.rigid_object_rot_6d_w,
+            params={"asset_cfg": SceneEntityCfg("dp_socket")},
+        )
+
+In both control spaces the **critic** additionally receives privileged state that the actor never sees: joint
+positions and velocities plus the plug keypoint frame (task space) or the plug pose (joint space).
+
 **Why No Noise for Proprioceptive Observations?**
 
-As with the gear assembly task, policies trained without noise on proprioceptive observations (joint positions) transfer well to the Flexiv Rizon 4s. The controller provides sufficiently accurate joint state feedback that modeling sensor noise on joint states does not improve sim-to-real transfer for this task.
+As with the gear assembly task, policies trained without noise on proprioceptive observations transfer well to the Flexiv Rizon 4s. The controller provides sufficiently accurate joint state feedback that modeling sensor noise on joint states does not improve sim-to-real transfer for this task. The same reasoning carries over to the task-space variants: the end-effector pose is derived from those same joint encoders through forward kinematics, so it inherits their accuracy and is likewise left noise-free.
+
+The socket pose, by contrast, comes from perception and *is* the observation worth corrupting. The joint-space
+environments apply ±10 mm of reset-sampled uniform noise to ``socket_pos`` by default. The task-space environments
+ship with observation noise disabled so the contract matches the deployed perception stack exactly; add it through
+the observation term's ``noise`` field if your perception pipeline is less accurate.
 
 
 Part 2: System Response Consistency
@@ -272,26 +356,74 @@ The Rizon 4s uses ``ImplicitActuatorCfg`` with per-joint-group arm tuning from `
 
    **Flexiv Rizon 4s**: Domain randomization for actuator gains and joint friction is not included in the Rizon 4s ``EventCfg``. The real-world Flexiv controller is stable and precise enough that the simulation policy transfers without these additional randomizations, consistent with the gear assembly Flexiv setup.
 
+.. _taskspace-action-space:
+
 Action Space Design
 ~~~~~~~~~~~~~~~~~~~
 
-The policy controls only the 7 arm joints using **incremental joint position control**. The gripper is not in the action space — the plug is held at a fixed grasp width for the episode.
+In both control spaces the policy commands only the arm; the gripper is not in the action space — the plug is held
+at a fixed grasp width for the episode. The action is always an **incremental** (delta) command, never an absolute
+target. What differs is the space that delta lives in.
 
-.. code-block:: python
+.. tab-set::
 
-    self.joint_action_scale = 0.025  # ±1.4 degrees per step
+   .. tab-item:: Joint space
 
-    self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=["joint1", "joint2", "joint3", "joint4",
-                     "joint5", "joint6", "joint7"],
-        scale=self.joint_action_scale,
-        use_zero_offset=True,
-    )
+      The policy controls the 7 arm joints using **incremental joint position control**.
 
-**Action dimension:** 7
+      .. code-block:: python
 
-**Control frequency:** ``sim.dt = 1/240`` s with ``decimation = 8`` → 30 Hz policy rate.
+          self.joint_action_scale = 0.025  # ±1.4 degrees per step
+
+          self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+              asset_name="robot",
+              joint_names=["joint1", "joint2", "joint3", "joint4",
+                           "joint5", "joint6", "joint7"],
+              scale=self.joint_action_scale,
+              use_zero_offset=True,
+          )
+
+      **Action dimension:** 7 — one delta per arm joint, in radians.
+
+   .. tab-item:: Task space
+
+      The policy emits a **6-DoF Cartesian pose delta** which an Operational Space Controller (OSC) converts into
+      joint efforts. This removes joint-level system identification from the sim-to-real path: the same policy can
+      drive the real robot through a task-space bridge.
+
+      .. code-block:: python
+
+          _ACTION_SCALE = 0.025          # 25 mm and 0.025 rad per step
+          _STIFFNESS = (300.0, 300.0, 300.0, 30.0, 30.0, 30.0)
+
+          self.actions.arm_action = mdp.DeployOperationalSpaceControllerActionCfg(
+              asset_name="robot",
+              joint_names=_ARM_JOINTS,
+              body_name="flange",
+              controller_cfg=OperationalSpaceControllerCfg(
+                  target_types=["pose_rel"],
+                  motion_stiffness_task=_STIFFNESS,
+                  ...
+              ),
+              position_scale=_ACTION_SCALE,
+              orientation_scale=_ACTION_SCALE,
+          )
+
+      **Action dimension:** 6 — ``[dx, dy, dz, dθx, dθy, dθz]``, the first three in metres and the last three in
+      radians.
+
+      Two details matter for deployment:
+
+      * The arm's joint PD gains are **zeroed** (``actuators[...].stiffness = 0.0``); all compliance comes from the
+        task-space stiffness above, so the controller — not the joint servo — sets the contact behavior.
+      * The action is applied at the **flange**, while ``eef_pos`` is observed at the **TCP**. Observation and
+        control therefore use different frames by design; the real-robot bridge must reproduce that split.
+
+**Action scale:** ``0.025`` in both cases — read as radians per joint per step in joint space, and as metres /
+radians per step in task space.
+
+**Control frequency:** ``sim.dt = 1/240`` s with ``decimation = 8`` → 30 Hz policy rate, identical in both
+control spaces.
 
 Domain Randomization Strategy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -604,22 +736,37 @@ Registered Gym Environments
 Step 1: Visualize the Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Launch training with a small number of environments and visualization enabled to verify the setup:
+Launch training with a small number of environments and visualization enabled to verify the setup. Pick the tab
+for the control space you intend to deploy:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
-        --num_envs 4 \
-        --max_iterations 100 \
-        --visualizer kit
+   .. tab-item:: Joint space
 
-Equivalent form (same unified trainer):
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+              --num_envs 4 \
+              --max_iterations 100 \
+              --visualizer kit
+
+   .. tab-item:: Task space
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
+              --num_envs 4 \
+              --max_iterations 100 \
+              --visualizer kit
+
+Equivalent form, invoking the unified trainer directly (substitute either task id):
 
 .. code-block:: bash
 
     ./isaaclab.sh -p scripts/reinforcement_learning/train.py --rl_library rsl_rl \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+        --task <TASK_ID> \
         --num_envs 4 \
         --max_iterations 100 \
         --visualizer kit
@@ -640,28 +787,43 @@ Step 2: Full-Scale Training with Video Recording
 
 Launch full training in headless mode with video recording:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
-        --num_envs 256 \
-        --headless \
-        --video --video_length 200 --video_interval 76800
+   .. tab-item:: Joint space
 
-**Multi-GPU (distributed) training** — for example on a cluster / OSMO workflow:
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+              --num_envs 256 \
+              --headless \
+              --video --video_length 200 --video_interval 76800
+
+   .. tab-item:: Task space
+
+      .. code-block:: bash
+
+          ./isaaclab.sh train --rl_library rsl_rl \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
+              --num_envs 256 \
+              --headless \
+              --video --video_length 200 --video_interval 76800
+
+**Multi-GPU (distributed) training** — for example on a cluster / OSMO workflow (substitute either task id):
 
 .. code-block:: bash
 
     ./isaaclab.sh -p -m torch.distributed.run --nnodes=1 --nproc_per_node=<NUM_GPUS> \
         scripts/reinforcement_learning/train.py --rl_library rsl_rl \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+        --task <TASK_ID> \
         --num_envs <NUM_ENVS> \
         --headless --distributed \
         agent.max_iterations=<MAX_ITERS> \
         --video --video_length 200 --video_interval 25600
 
-For ROS-aligned observation / action metadata during training (optional), use the
-``...-NoJointVel-ROS-Inference-v0`` task id instead of the plain training id.
+For ROS-aligned observation / action metadata during training (optional), use the corresponding
+``-ROS-Inference-v0`` task id instead of the plain training id — ``...-NoJointVel-ROS-Inference-v0`` in joint
+space, ``...-TaskSpace-ROS-Inference-v0`` in task space.
 
 **Command breakdown:**
 
@@ -686,35 +848,49 @@ Training uses a recurrent PPO agent (LSTM, 1500 max iterations, 512 steps per en
 
 Monitor ``Metrics/success_rate`` and reward curves to confirm learning. The curriculum anneals over the first 500 iterations — expect success rate to rise as the at-goal reset probability decreases.
 
-Task-Space (Operational Space Control) Training
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Choosing a Control Space
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The environments above command the robot in **joint space**. A **task-space** variant is also provided, which
-drives the arm with an Operational Space Controller (OSC): the policy outputs a 6-DoF Cartesian pose delta
-(``[dx, dy, dz, dθx, dθy, dθz]``, ``pose_rel``) each step instead of joint targets. The actor observes the gripper
-tool-center-point (TCP) pose and the socket keypoint frame in the world frame, so the same policy transfers to the
-real robot through a task-space bridge without joint-level system identification.
+Both control spaces train with the same algorithm, reward, curriculum, and 30 Hz control rate; they differ only in
+what the policy outputs and what the real robot must reproduce.
 
-Train it exactly like the joint-space task, using the ``-TaskSpace-v0`` id:
+.. list-table::
+   :widths: 20 40 40
+   :header-rows: 1
 
-.. code-block:: bash
+   * -
+     - Joint space
+     - Task space
+   * - Policy output
+     - 7 joint-position deltas
+     - 6-DoF Cartesian pose delta (OSC)
+   * - Actor observation
+     - 14 dims (or 21 with ``joint_vel``)
+     - 18 dims (TCP pose + socket keypoint frame)
+   * - Real-robot requirement
+     - Joint servo behavior must match sim; benefits from joint-level system identification
+     - Task-space bridge that reproduces the OSC contract and the TCP-observe / flange-control split
+   * - Training ids
+     - ``...-Grav-NoJointVel-v0``, ``...-Grav-v0``
+     - ``...-Grav-TaskSpace-v0``
 
-    ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
-        --num_envs 256 \
-        --headless
+Use **joint space** when you control the arm through its joint interface and can characterize the servo response.
+Use **task space** when you drive the arm through a Cartesian interface: it removes joint-level system
+identification from the transfer path, at the cost of requiring the OSC contract to be reproduced on hardware.
 
-The ``-TaskSpace-Play-v0`` id is used for evaluation, and ``-TaskSpace-ROS-Inference-v0`` provides the metadata used
+In each case the ``-Play-v0`` id is used for evaluation and the ``-ROS-Inference-v0`` id provides the metadata used
 by the LEAPP export flow described below. The task-space environment already uses the LEAPP-exportable
-:class:`~isaaclab_tasks.contrib.deploy.mdp.DeployOperationalSpaceControllerActionCfg` action, so a trained checkpoint
-can be exported directly (see :ref:`export-taskspace-leapp`).
+:class:`~isaaclab_tasks.contrib.deploy.mdp.DeployOperationalSpaceControllerActionCfg` action, so a trained
+checkpoint can be exported directly (see :ref:`export-taskspace-leapp`).
 
 Step 3: Export and Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Recommended workflow:** export the trained policy with **LEAPP**, validate the export in simulation, then deploy the LEAPP package with Isaac ROS / Isaac Manipulator on the Flexiv robot.
 
-Use the **NoJointVel** task for export and deployment so the observation space matches real hardware (14-dim actor input).
+Always export from the matching ``-ROS-Inference-v0`` task id so the traced observation and action layout matches
+deployment. In joint space, use a **NoJointVel** variant so the observation space matches real hardware (14-dim
+actor input); in task space, use the ``-TaskSpace-ROS-Inference-v0`` variant (18-dim actor input).
 
 Export with LEAPP (Recommended)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -729,13 +905,30 @@ Export with LEAPP (Recommended)
 
 **Export the policy:**
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
-        --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt
+   .. tab-item:: Joint space
 
-Use the ``...-ROS-Inference-v0`` task so the traced observation and action layout matches deployment. Replace ``<run_timestamp>`` and ``<iteration>`` with your training log path.
+      Uses the generic RSL-RL exporter:
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
+              --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt
+
+   .. tab-item:: Task space
+
+      Uses the DisplayPort exporter with ``--task_space_contract`` (see :ref:`export-taskspace-leapp`):
+
+      .. code-block:: bash
+
+          ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
+              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
+              --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
+              --task_space_contract
+
+Replace ``<run_timestamp>`` and ``<iteration>`` with your training log path.
 
 By default, export artifacts are written next to the checkpoint:
 
@@ -759,13 +952,16 @@ and write ``policy_io.csv`` for sim/real overlay:
 .. code-block:: bash
 
     ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
+        --task <ROS_INFERENCE_TASK_ID> \
         --leapp_model logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp> \
         --num_envs 1 \
         --socket_pos 0.476 0.127 0.07 \
         --max_steps 200 \
         --log_dir logs/dp_inference_runs \
         --visualizer kit
+
+where ``<ROS_INFERENCE_TASK_ID>`` is ``...-Grav-NoJointVel-ROS-Inference-v0`` for a joint-space export or
+``...-Grav-TaskSpace-ROS-Inference-v0`` for a task-space one.
 
 ``--leapp_model`` accepts either the LEAPP deploy YAML or the export directory that
 contains it. Pose overrides and CSV logging still apply. Do not combine
@@ -785,17 +981,36 @@ Generic LEAPP deploy (no DP pose / logging knobs):
 1. **Perception** — socket pose estimation
 2. **Motion planning** — approach trajectory to the insertion station (if used)
 3. **Policy inference** — LEAPP-exported policy at control frequency in the ROS inference node
-4. **Robot control** — Flexiv low-level joint commands from policy actions
+4. **Robot control** — Flexiv commands derived from policy actions: joint-position deltas in joint space, or a
+   Cartesian pose delta applied through the task-space bridge in task space
 
-The ROS inference environment (``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0``) defines the deployment metadata LEAPP traces during export:
+The ROS inference environments define the deployment metadata LEAPP traces during export:
 
-- ``obs_order``: ``["arm_dof_pos", "socket_pos", "socket_quat"]``
-- ``policy_action_space``: ``"joint"``
-- ``observation_space``: 14
-- ``action_space``: 7
-- ``joint_action_scale``: 0.025
+.. tab-set::
 
-Fixed deployment poses for the socket and plug are set in ``config/displayport_rizon_4s/ros_inference_env_cfg.py``.
+   .. tab-item:: Joint space
+
+      ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0``
+
+      - ``obs_order``: ``["arm_dof_pos", "socket_pos", "socket_quat"]``
+      - ``policy_action_space``: ``"joint"``
+      - ``observation_space``: 14
+      - ``action_space``: 7
+      - ``joint_action_scale``: 0.025
+
+      Fixed deployment poses are set in ``config/displayport_rizon_4s/ros_inference_env_cfg.py``.
+
+   .. tab-item:: Task space
+
+      ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0``
+
+      - ``obs_order``: ``["eef_pos", "eef_rot_6d", "socket_kp_pos", "socket_kp_rot_6d"]``
+      - ``policy_action_space``: ``"task"`` (``pose_rel``)
+      - ``observation_space``: 18
+      - ``action_space``: 6
+      - ``action_scale``: 0.025 (metres for translation, radians for rotation)
+
+      Fixed deployment poses are set in ``config/displayport_rizon_4s/task_space_ros_inference_env_cfg.py``.
 
 .. _export-taskspace-leapp:
 
@@ -811,7 +1026,7 @@ generic entry point stays task-agnostic:
 .. code-block:: bash
 
     ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0 \
+        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
         --export_save_path <output_dir> \
         --task_space_contract
@@ -874,7 +1089,7 @@ CUDA Out of Memory
    .. code-block:: bash
 
        ./isaaclab.sh train --rl_library rsl_rl \
-           --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0 \
+           --task <TASK_ID> \
            --num_envs 128 \
            --headless
 
@@ -889,6 +1104,10 @@ Deterministic Debugging (Play / Inference Script)
 For DisplayPort insertion, prefer the dedicated play script over the generic
 ``./isaaclab.sh play`` path. It keeps DP-specific pose overrides, perception-error
 injection, and ``policy_io.csv`` logging out of the shared play entrypoint.
+
+The examples below use the joint-space ROS-inference task. They apply unchanged to a task-space policy —
+substitute ``...-Grav-TaskSpace-ROS-Inference-v0`` for the ``--task`` id and point ``--checkpoint`` (or
+``--leapp_model``) at the corresponding run.
 
 **RSL-RL checkpoint** (recommended shipping task):
 
