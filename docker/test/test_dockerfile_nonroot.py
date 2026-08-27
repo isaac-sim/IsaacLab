@@ -114,17 +114,23 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
     with (REPO_ROOT / "pyproject.toml").open("rb") as file:
-        importer_requirements = tomllib.load(file)["project"]["optional-dependencies"]["importers"]
+        extras = tomllib.load(file)["project"]["optional-dependencies"]
 
     assert (
         "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
         in dockerfile_text
     )
-    # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
-    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all]' in dockerfile_text
-    assert "COPY tools/wheel_builder/uv-overrides.txt tools/wheel_builder/uv-overrides.txt" in dockerfile_text
-    assert '--overrides "${ISAACLAB_PATH}/tools/wheel_builder/uv-overrides.txt"' in dockerfile_text
-    assert all(f'"{requirement}"' in dockerfile_text for requirement in importer_requirements)
+    # Installed from the lock rather than through isaaclab.sh: only the lock applies
+    # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
+    # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
+    assert "uv sync --frozen --inexact --extra all --extra importers" in dockerfile_text
+    assert "importers" in extras
+    # ``all`` must not drag in the Isaac Sim runtime, or the kit-less image means nothing.
+    assert "isaacsim" not in "".join(extras["all"])
+    # The interpreter must sit outside ISAACLAB_PATH. CI bind-mounts the checkout over that path,
+    # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
+    assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
+    assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
     assert "COPY isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'isaacsim-asset-isolated' in names" in dockerfile_text
