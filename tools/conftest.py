@@ -68,6 +68,14 @@ reports themselves quote only a bounded tail of the log and nothing else the ren
 copy a diagnosis reads when that tail is not enough.
 """
 
+HANG_DUMP_DIR = "tests/hang-dumps"
+"""Where each test file's stack dump is written, relative to the workspace root.
+
+Under ``tests/`` alongside the JUnit reports and the renderer logs, because that is what CI collects as a
+job artifact. The reports carry the dump too, but ``_get_diagnostics`` truncates them to 10 000 characters
+and a Kit process has enough threads to exceed that; this is the whole dump.
+"""
+
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
@@ -956,7 +964,9 @@ def _run_one_pass(
     # Absolute for the same reason, and a file rather than the process's stderr because pytest captures
     # at the fd level: a dump written to fd 2 is discarded with the rest of the captured output when the
     # process is killed, which is the only case it is ever written in.
-    hang_dump_file = os.path.abspath(f"tests/test-hangdump-{report_slug}{suffix}.log")
+    hang_dump_file = os.path.abspath(os.path.join(HANG_DUMP_DIR, f"test-hangdump-{report_slug}{suffix}.log"))
+    # The child opens this path directly, so the directory has to exist before it starts.
+    os.makedirs(os.path.dirname(hang_dump_file), exist_ok=True)
     pass_env = {
         **ctx.env,
         JOURNAL_ENV_VAR: journal_file,

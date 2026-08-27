@@ -497,21 +497,25 @@ def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
     assert journal_path.parent.is_dir()
 
 
-def test_ovrtx_log_directory_is_named_for_the_subprocess(monkeypatch, tmp_path: Path) -> None:
-    """Each pass must tell the test process where to save renderer logs, or none are saved at all.
+def test_artifact_paths_handed_to_the_subprocess_are_uploadable(monkeypatch, tmp_path: Path) -> None:
+    """Each pass must tell the test process where to save renderer logs and stack dumps.
 
-    ``tools/ovrtx_log.py`` saves a test's renderer log only when this variable names a directory, and
-    the reports quote a bounded tail of the log, so without it CI uploads nothing to read past the cap.
-    The path is absolute for the journal's reason: the save happens in a fixture, so a test using
-    ``monkeypatch.chdir`` would otherwise leave its log under the temporary directory.
+    ``tools/ovrtx_log.py`` saves a renderer log only when its variable names a directory, and
+    ``tools/hang_dump.py`` writes no dump unless its own names a file. The reports quote only a bounded
+    amount of either, so a path outside the tree CI collects leaves nothing to read past that cap. Both
+    are absolute for the journal's reason: the log is saved from a fixture and the dump file is opened
+    at plugin load, so a test using ``monkeypatch.chdir`` would otherwise leave either under the
+    temporary directory.
     """
     orchestrator = _load_orchestrator_module()
     test_file = tmp_path / "test_sample.py"
     test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
     log_dirs: list[str] = []
+    dump_paths: list[str] = []
 
     def _capture(_cmd, _timeout, env, *, report_file: str, **_kwargs):
         log_dirs.append(env[orchestrator.ovrtx_log.LOG_DIR_ENV_VAR])
+        dump_paths.append(env[orchestrator.hang_dump.DUMP_PATH_ENV_VAR])
         _write_partial_junit_report(report_file)
         return 0, b"", b"", "", 0.1, ""
 
@@ -537,6 +541,13 @@ def test_ovrtx_log_directory_is_named_for_the_subprocess(monkeypatch, tmp_path: 
     assert log_dir.is_absolute()
     # Under the reports directory, since that is the tree CI collects as a job artifact.
     assert log_dir == tmp_path / orchestrator.OVRTX_LOG_DIR
+
+    assert len(dump_paths) == 1
+    dump_path = Path(dump_paths[0])
+    assert dump_path.is_absolute()
+    assert dump_path.parent == tmp_path / orchestrator.HANG_DUMP_DIR
+    # hang_dump.register() opens this path as the child starts, so it cannot be created later.
+    assert dump_path.parent.is_dir()
 
 
 def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch, tmp_path: Path) -> None:
