@@ -29,6 +29,10 @@ from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .teleop_message_processor import TeleopMessageProcessor
 
+# Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
+# escape hatch Kit offers for the Omniverse license.
+_CXR_ACCEPT_EULA_ENV = "ISAACLAB_CXR_ACCEPT_EULA"
+
 if TYPE_CHECKING:
     from .haptic_feedback import HapticFeedbackCfg
 
@@ -1294,6 +1298,11 @@ class TeleopSessionLifecycle:
         Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
         or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
         set (the env var takes precedence).
+
+        The NVIDIA CloudXR license is separate from the Omniverse one and is
+        otherwise prompted for on stdin, which fails outright when no terminal
+        is attached. ``ISAACLAB_CXR_ACCEPT_EULA=1`` accepts it up front so
+        headless, container and CI runs can start.
         """
         if self._cloudxr_launcher is not None:
             return
@@ -1313,7 +1322,7 @@ class TeleopSessionLifecycle:
         self._cloudxr_launcher = _CloudXRLauncher(
             install_dir=str(Path.home() / ".cloudxr"),
             env_config=self._cloudxr_env_file,
-            accept_eula=False,
+            accept_eula=os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip() == "1",
         )
         logger.info("CloudXR runtime auto-launched")
 
