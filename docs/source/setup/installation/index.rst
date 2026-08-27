@@ -238,8 +238,7 @@ It does not include Isaac Sim or the specialized ``rlinf``, ``mimic``, ``teleop`
 See :ref:`installation-optional-extras` for the available extras.
 
 ``uv run --extra <name> <command>`` syncs the selected extra into the project environment
-and then runs the command. To sync it without running a command, use
-``uv sync --inexact --extra <name>``.
+and then runs the command.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.

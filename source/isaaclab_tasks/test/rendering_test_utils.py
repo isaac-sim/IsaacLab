@@ -91,11 +91,17 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
     "kuka_visual_material_randomization": 0.99,
 }
 
-# Low-resolution Newton + RTX cloth shading varies between otherwise equivalent CI frames.
+# Targeted tolerance overrides for renderer noise in otherwise equivalent CI frames.
 _IMAGE_TOLERANCE_OVERRIDES = {
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.96),
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgba"): (20.0, 0.96),
     ("franka_cable", "newton", "ovrtx_renderer", "rgb"): (8.0, 0.98),
+    # A cold first capture has reached 6.10% while retaining >= 0.9933 SSIM; keep narrow pixel headroom.
+    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgb"): (7.0, 0.985),
+    ("shadow_hand", "newton", "isaacsim_rtx_renderer", "rgba"): (7.0, 0.985),
+    # A cold first capture has reached 4.20% and 0.9542 SSIM before retrying at 0.24% and 0.9999 SSIM.
+    ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgb"): (5.0, 0.95),
+    ("registered_tasks/Isaac-Cartpole-Camera-Direct", "default_physics", "default_renderer", "rgba"): (5.0, 0.95),
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
@@ -432,6 +438,18 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
     """Create kitless Franka rendering parameters."""
     params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    params = [
+        (
+            pytest.param(
+                *param.values,
+                id=param.id,
+                marks=[mark for mark in param.marks if mark.name != "skip"],
+            )
+            if tuple(param.values[1:]) == ("newton", "ovrtx_renderer", "motion_vectors")
+            else param
+        )
+        for param in params
+    ]
     instance_segmentation_skips = {
         tuple(param.values): "instance_segmentation crashes with the OVRTX renderer on Franka tasks (NVBUG#6463802)."
         for param in params
@@ -2123,8 +2141,12 @@ def rendering_test_franka_cloth(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
+    is_newton_ovrtx_motion = (
+        physics_backend == "newton" and renderer == "ovrtx_renderer" and "motion_vectors" in data_types
+    )
     for data_type in data_types:
-        _skip_if_newton_motion_vectors(physics_backend, data_type)
+        if not (is_newton_ovrtx_motion and data_type == "motion_vectors"):
+            _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     if renderer == "ovrtx_renderer" and "instance_segmentation" in data_types:
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_cloth (NVBUG#6463802).")
@@ -2140,6 +2162,9 @@ def rendering_test_franka_cloth(
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
     _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    if is_newton_ovrtx_motion:
+        initial_pos = env_cfg.scene.deformable.init_state.pos
+        env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2155,6 +2180,9 @@ def rendering_test_franka_cloth(
         # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
+        # TODO: Remove the extra step when NVBug 6565960 is fixed.
+        if is_newton_ovrtx_motion:
+            env.step(zero_actions)
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output

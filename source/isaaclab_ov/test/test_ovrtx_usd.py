@@ -15,7 +15,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "pxr")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -249,6 +248,31 @@ def test_render_product_initially_targets_only_the_resolvable_source_camera():
     assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
     assert "/World/envs/env_1/Robot/head_cam" not in render_product
     assert "uniform int2 resolution = (32, 16)" in render_product
+
+
+def test_render_product_pins_device_ids_to_the_requested_cuda_device():
+    """``device_id`` is authored as ``deviceIds`` so OVRTX allocates buffers on the reader's device."""
+    render_product, render_product_path = build_render_product_as_string(
+        width=16,
+        height=8,
+        num_envs=4,
+        data_types=["rgb"],
+        device_id=1,
+    )
+
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString("#usda 1.0\n" + render_product)
+    device_ids = layer.GetAttributeAtPath(f"{render_product_path}.deviceIds")
+    assert device_ids is not None
+    assert device_ids.typeName == Sdf.ValueTypeNames.UIntArray
+    assert list(device_ids.default) == [1]
+
+
+def test_render_product_omits_device_ids_when_no_device_is_given():
+    """Without a device index the render product keeps OVRTX's automatic device assignment."""
+    render_product, _ = build_render_product_as_string(width=16, height=8, num_envs=4, data_types=["rgb"])
+
+    assert "deviceIds" not in render_product
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():

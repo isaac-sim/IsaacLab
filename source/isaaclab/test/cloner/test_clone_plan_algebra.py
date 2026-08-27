@@ -334,8 +334,8 @@ def test_iter_sources_yields_nearest_owner():
     ]
 
 
-def test_iter_sources_skips_rows_without_envs():
-    """A row populating no env is not a source of anything."""
+def test_iter_sources_reports_only_the_envs_a_row_populates():
+    """A row covering part of the envs is a source for those envs only."""
     plan = _plan(
         ("/World/envs/env_2/Object",),
         ("/World/envs/env_{}/Object",),
@@ -348,6 +348,24 @@ def test_iter_sources_skips_rows_without_envs():
             "/World/envs/env_{}/Object",
             "/World/envs/env_2/Object/Body/Camera",
             (2, 3),
+        )
+    ]
+
+
+def test_iter_sources_skips_rows_without_envs():
+    """A nearer template populating no env does not hide the populated ancestor owning the path."""
+    plan = _plan(
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/wrist/Camera"),
+        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
+        [[True, True, False, False], [False, False, False, False]],
+    )
+
+    assert list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot/wrist/Camera")) == [
+        (
+            "/World/envs/env_0/Robot",
+            "/World/envs/env_{}/Robot",
+            "/World/envs/env_0/Robot/wrist/Camera",
+            (0, 1),
         )
     ]
 
@@ -492,6 +510,21 @@ def test_query_translates_env_ids_through_the_plan():
 
     source, _glob, suffix = cloner.query.path_to_source(plan, "/World/envs/env_5/Robot/base")
     assert source + suffix == path
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+def test_query_gathers_env_ids_across_devices():
+    """Environment ids can remain on CPU when the clone mask is on CUDA."""
+    plan = ClonePlan(
+        sources=("/World/envs/env_2/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.tensor([[True, False, True]], dtype=torch.bool, device="cuda"),
+        env_ids=torch.tensor([2, 5, 8], dtype=torch.long),
+    )
+    path = "/World/envs/env_2/Robot/base"
+
+    assert cloner.query.path_env_ids(plan, path) == (2, 8)
+    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot")))[3] == (2, 8)
 
 
 @pytest.mark.parametrize("env_id", [-1, 4, 99])

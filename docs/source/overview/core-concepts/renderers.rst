@@ -81,6 +81,13 @@ Prims outside the environment hierarchies remain in the shared background partit
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
 
+.. warning::
+
+   Kit RTX sizes each partition from the bounding boxes of the prims it contains and never
+   refreshes the bounding box of an animated ``UsdGeom.BasisCurves`` prim, so cables can be
+   culled once they deform beyond their initial extent. See
+   :ref:`known-issues-animated-curve-scene-partition` for the workaround.
+
 Architecture Overview
 ---------------------
 
