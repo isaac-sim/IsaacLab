@@ -23,6 +23,12 @@ ENV LANG=C.UTF-8
 ENV VIRTUAL_ENV=${VENV_PATH_ARG}
 ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
 ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
+# The project pins ``python-preference = "only-managed"``, which makes ``uv sync`` download its own
+# CPython, delete the venv and rebuild it against the download. That interpreter is not copied into
+# the runtime stage, leaving bin/python a dangling symlink. Pin uv to the system interpreter, whose
+# libpython3.12 the runtime stage installs.
+ENV UV_PYTHON=/usr/bin/python3.12
+ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_NO_CACHE=1
 ENV PIP_RETRIES=12
 ENV UV_HTTP_RETRIES=12
@@ -59,7 +65,8 @@ COPY isaaclab.sh ./
 # match the runtime stage's libpython3.12, and isaaclab.sh resolves VIRTUAL_ENV first.
 # ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
 # would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
-# is not a lock entry.
+# is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
+# it was created with; otherwise it deletes and rebuilds it.
 RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \

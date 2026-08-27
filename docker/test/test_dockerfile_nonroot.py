@@ -131,6 +131,11 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
     assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
     assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
+    # ``uv sync`` honours the project's ``only-managed`` preference and would rebuild the venv
+    # against a downloaded interpreter the runtime stage never receives, leaving bin/python
+    # dangling. The image must pin uv to the system interpreter.
+    assert "ENV UV_PYTHON=/usr/bin/python3.12" in dockerfile_text
+    assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
     assert "COPY isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'isaacsim-asset-isolated' in names" in dockerfile_text
