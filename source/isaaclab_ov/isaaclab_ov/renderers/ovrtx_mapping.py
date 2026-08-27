@@ -44,7 +44,7 @@ def cuda_device_id(device: str) -> int:
 
 
 @contextmanager
-def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iterator[wp.array]:
+def map_attribute_for_warp_writes(binding: Any, device: wp.Device | str, dtype: Any) -> Iterator[wp.array]:
     """Map ``binding`` for CUDA writes and yield its buffer as a Warp array; commit after the fill.
 
     The caller fills the yielded array with Warp work enqueued on ``device``'s current stream (the
@@ -55,7 +55,7 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
 
     Args:
         binding: OVRTX attribute binding (from ``bind_attribute``) whose buffer is written.
-        device: Warp CUDA device the fill work runs on (e.g. ``"cuda:0"``).
+        device: Warp CUDA device, or its string alias, on which the fill work runs.
         dtype: Warp dtype the mapped tensor is viewed as (e.g. ``wp.mat44d``).
 
     Yields:
@@ -67,8 +67,9 @@ def map_attribute_for_warp_writes(binding: Any, device: str, dtype: Any) -> Iter
     # already imported by the time this runs.
     from ovrtx import Device  # noqa: PLC0415
 
-    attr_mapping = binding.map(device=Device.CUDA, device_id=cuda_device_id(device))
+    warp_device = wp.get_device(device)
+    attr_mapping = binding.map(device=Device.CUDA, device_id=warp_device.ordinal)
     try:
         yield wp.from_dlpack(attr_mapping.tensor, dtype=dtype)
     finally:
-        attr_mapping.unmap(stream=wp.get_stream(device).cuda_stream)
+        attr_mapping.unmap(stream=warp_device.stream.cuda_stream)
