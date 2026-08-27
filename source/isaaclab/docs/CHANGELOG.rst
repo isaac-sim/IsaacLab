@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.54.5 (2026-08-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.configclass.configclass` reordering configuration members when a
+  class mixes members with and without explicit type annotations. Previously, explicitly annotated
+  members were hoisted to the front of the field ordering, regardless of their declaration
+  position. Since the ordering of a config instance's ``__dict__`` determines the iteration order
+  of manager terms (e.g. the concatenation order of observation terms in
+  :class:`~isaaclab.managers.observation_manager.ObservationManager`), this could silently
+  scramble the observation vector between training and deployment. Members now always follow
+  their declaration order, with base class members ordered before child class members.
+
+
 0.54.4 (2026-06-01)
 ~~~~~~~~~~~~~~~~~~~
 
