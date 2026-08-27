@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 
 from .compare import ERROR, FAIL, PASS, SKIP, WARN, Report
+from .metrics import METRICS
 
 _ICONS = {PASS: "✅", WARN: "⚠️", FAIL: "❌", SKIP: "⏭️", ERROR: "🚫"}
 
@@ -60,11 +61,12 @@ def render(report: Report) -> str:
         )
 
     samples = max((metric.sample_count for metric in report.metrics), default=0)
+    gating = ", ".join(f"**{metric.label}**" for metric in METRICS if metric.gating)
     lines += [
         "",
         f"Baseline: {samples} comparable run(s), contract `{report.contract_hash}`.",
         "",
-        "Only **Total FPS** gates. The other metrics are recorded and compared so their noise can be "
+        f"Only {gating} gates. The other metrics are recorded and compared so their noise can be "
         "characterised before any of them is trusted to fail a pull request.",
     ]
     return "\n".join(lines) + "\n"
@@ -82,11 +84,10 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     if not reports:
         return "## Performance smoke: no results\n\nNo comparison artifacts were produced.\n"
 
-    order = {PASS: 0, SKIP: 0, ERROR: 1, WARN: 2, FAIL: 3}
-    worst = PASS
-    for _, report in reports:
-        if order.get(report.verdict, 0) > order[worst]:
-            worst = report.verdict
+    # SKIP ranks below PASS so that a run where nothing was compared does not headline as a green
+    # pass. A mix still headlines PASS since at least once comparison was made.
+    order = {SKIP: 0, PASS: 1, ERROR: 2, WARN: 3, FAIL: 4}
+    worst = max((report.verdict for _, report in reports), key=lambda verdict: order.get(verdict, 0))
 
     lines = [
         f"## Performance smoke: {_icon(worst)}",
@@ -109,14 +110,14 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         )
     lines += [
         "",
-        f"{len(reports)} combination(s) reported. A 🚫 ERROR row is an error in the gate measurement, not a "
-        "performance result, and never blocks a pull request. Combinations whose benchmark never produced a "
-        "bundle appear as a failed job rather than a row here.",
+        f"{len(reports)} combination(s) reported. A 🚫 ERROR row is a fault in the gate, not a performance "
+        "result, and never blocks a pull request. A combination whose benchmark crashed shows both an ERROR "
+        "row here and a failed job.",
     ]
     return "\n".join(lines) + "\n"
 
 
 def write_json(report: Report, path: Path) -> None:
-    """Write the machine-readable comparison next to the human-readable summary."""
+    """Write the machine-readable comparison to ``path``. The Markdown form goes to stdout."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.as_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")

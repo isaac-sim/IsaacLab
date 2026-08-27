@@ -66,8 +66,6 @@ METRICS: tuple[Metric, ...] = (
     Metric("ram_peak_gb", "Peak process RSS [GB]", ("resources", "ram_gb", "peak"), higher_is_worse=True, gating=False),
 )
 
-METRICS_BY_NAME: dict[str, Metric] = {metric.name: metric for metric in METRICS}
-
 #: Startup phases summed into ``startup_time_s``. The first three are required;
 #: a bundle missing one is malformed rather than merely sparse.
 _REQUIRED_STARTUP_PHASES = ("app_launch", "env_creation", "first_step")

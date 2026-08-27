@@ -842,7 +842,8 @@ jobs:
     # Each attempt is bounded individually by `timeout` to prevent starving retry.
     timeout-minutes: ${{ matrix.timeout_minutes * 2 + 10 }}
     needs: [build, config]
-    # Pull requests run in gate mode, pushes to develop additionally record baseline.
+    # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
+    # where it also records a baseline; pushes to main and release/** skip this job.
     if: >-
       (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
       needs.build.result == 'success'
@@ -967,6 +968,10 @@ jobs:
           local status=$?
           docker cp "$container:/tmp/benchmark-output/." benchmark-output/ 2>/dev/null || true
           docker rm -f "$container" >/dev/null 2>&1 || true
+          if [ "$status" -eq 0 ] && ! compgen -G 'benchmark-output/benchmark_runtime_*.json' >/dev/null; then
+            echo "::error::${{ matrix.name }} exited 0 but produced no benchmark JSON"
+            return 1
+          fi
           return $status
         }
 
@@ -975,42 +980,75 @@ jobs:
           rm -f benchmark-output/benchmark_runtime_*.json
           run_attempt 2
         fi
-    # Read-only. Recording step below is the only writer scoped to refs/heads/develop.
-    - name: Compare against baseline history
+    # The gate runs on the runner host, not inside the Isaac Sim container, so the
+    # baseline store's SDK goes in a throwaway venv. Everything else in tools/perf_smoke
+    # is standard library.
+    - name: Set up the baseline store client
       if: always()
+      # Job status answers "did the benchmark run", the check answers "did it regress".
+      # A transient PyPI failure means the gate could not run, degrading to ERROR instead of a failure.
+      continue-on-error: true
+      id: store_venv
+      run: |
+        set -euo pipefail
+        venv="${RUNNER_TEMP}/perf-smoke-venv"
+        python3 -m venv "$venv"
+        "$venv/bin/python" -m pip install -q --disable-pip-version-check \
+          -r tools/perf_smoke/requirements.txt
+        echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
+
+    # Read-only
+    - name: Compare against baseline history
+      # The exit code carries the verdict to the summary job through the uploaded
+      # artifact, so it must not also redden this job: job status answers "did the
+      # benchmark run", the check answers "did performance regress".
+      continue-on-error: true
+      if: always()
+      timeout-minutes: 5
       env:
-        PERF_BASELINE_URI: ${{ vars.PERF_BASELINE_URI }}
+        # The SAS URL is strictly only read from the environment for security.
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
+        PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -euo pipefail
         mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
         if [ "${#results[@]}" -eq 1 ]; then
           result="${results[0]}"
         else
-          # Zero bundles (crash or timeout) or several (a retry left a stale file)
+          # Zero bundles (crash or timeout) or several (one attempt emitted more than one)
           # point compare at a path that cannot exist so it reports ERROR
           echo "::warning::Expected one runtime benchmark JSON, found ${#results[@]}"
           result="benchmark-output/benchmark_runtime_MISSING.json"
         fi
-        # Don't FAIL when unset URI yields SKIP, gate fault yields ERROR.
-        python3 -m tools.perf_smoke.cli compare \
+        # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
+        "${PYTHON:-python3}" -m tools.perf_smoke.cli compare \
           --benchmark_result "$result" \
-          --baseline_uri "${PERF_BASELINE_URI:-}" \
           --label "${{ matrix.name }}" \
           --output_json benchmark-output/comparison.json \
           | tee -a "$GITHUB_STEP_SUMMARY"
 
     # Only develop records baselines, so the gate always compares a pull request
     # against the branch it will merge into rather than against a stale snapshot.
+    # Writes are create-only under a name derived from the commit and run id.
     - name: Record baseline
-      if: ${{ github.ref == 'refs/heads/develop' && vars.PERF_BASELINE_URI != '' }}
+      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      timeout-minutes: 5
       env:
-        PERF_BASELINE_URI: ${{ vars.PERF_BASELINE_URI }}
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
+        PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -euo pipefail
+        if [ -z "${ISAACLAB_BLOB_URL:-}" ]; then
+          echo "::warning::ISAACLAB_BLOB_URL is not set; no baseline recorded"
+          exit 0
+        fi
         mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-        python3 -m tools.perf_smoke.cli write \
+        if [ "${#results[@]}" -ne 1 ]; then
+          echo "::error::Expected one runtime benchmark JSON, found ${#results[@]}; no baseline recorded"
+          exit 1
+        fi
+        "${PYTHON:-python3}" -m tools.perf_smoke.cli write \
           --benchmark_result "${results[0]}" \
-          --baseline_uri "$PERF_BASELINE_URI" \
           --commit "$GITHUB_SHA" \
           --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --run_id "$GITHUB_RUN_ID"
@@ -1018,7 +1056,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v7
       with:
-        name: performance-smoke-${{ matrix.name }}-${{ github.run_id }}
+        name: performance-smoke-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: benchmark-output/
         if-no-files-found: warn
         retention-days: 7
@@ -1035,7 +1073,7 @@ jobs:
         fetch-depth: 1
     - uses: actions/download-artifact@v7
       with:
-        pattern: performance-smoke-*-${{ github.run_id }}
+        pattern: performance-smoke-*-${{ github.run_id }}-${{ github.run_attempt }}
         path: comparisons
       continue-on-error: true
     - name: Summarise performance comparisons

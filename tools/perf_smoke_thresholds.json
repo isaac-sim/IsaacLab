@@ -1,45 +1,43 @@
 {
   "_comment": "Perf-smoke gate POLICY. Thresholds live here, in git, so changing what fails a PR is reviewable and has history. Measured reference values (median, spread, sample count) live in the baseline store instead, because those are measurements and should not require a PR to update. Keys are gpu_model (canonical slug) -> task_id -> backend_key, where backend_key is '{physics}' or '{physics}_{render}'. hard_floor_fps is a catastrophic-failure detector, NOT a regression threshold: it should sit far below any plausible healthy value so it only fires when a run is fundamentally broken. Regression percentages are compared against the baseline median.",
   "schema_version": 1,
-
   "defaults": {
     "warn_regression_pct": 5.0,
     "fail_regression_pct": 10.0,
     "_todo": "Both defaults are placeholders. Set them from measured run-to-run spread on the real L40S runners, not from the desktop RTX 5090 sweep in temp/matrix_run (that host showed 13% CV on Cartpole, which is likely runner-specific)."
   },
-
   "per_task_regression_pct": {
     "_comment": "Overrides for tasks whose run-to-run noise makes the default threshold unusable. A threshold below the noise floor fires on noise; a threshold far above it never fires at all. Measured by benchmarking six real develop commits inside one pin window, sequentially, on one machine (temp/threshold_probe).",
     "IsaacContrib-Factory-GearMesh-Direct": {
       "_comment": "Commit-to-commit CV 2.3% across six develop commits (1194-1277 fps), against 1.18% pure run-to-run CV. Real drift is small and the default 5%/10% is defensible here. This is the sensitive probe: use it, not Cartpole, to detect small regressions."
     },
     "Isaac-Cartpole-Direct": {
-      "_todo": "DO NOT gate this task on the defaults. Three runs of one identical commit produced 647574 / 439091 / 570587 fps -- a 47% spread with no code change -- and a sequential six-commit sweep showed a monotonic decline that a control run proved was machine drift, not a regression. Either keep Cartpole advisory-only, widen these well past 25%, or re-measure on a dedicated L40S runner before trusting any number here."
+      "_todo": "Keep Cartpole advisory-only while spread is confirmed on runners"
     }
   },
-
   "hard_floor_fps": {
     "l40s": {
       "Isaac-Cartpole-Direct": {
         "physx": 100.0,
-        "newton": 0.0,
+        "newton_mjwarp": 0.0,
         "_todo": "newton floor is 0.0 (disabled). RTX 5090 sweep measured ~887,748 fps mean. Pick a floor ~an order of magnitude below the L40S healthy value so it catches a broken run without tracking performance."
       },
       "IsaacContrib-Factory-GearMesh-Direct": {
         "physx": 30.0
       },
       "Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct": {
-        "physx_rtx_renderer": 20.0,
-        "physx_newton_renderer": 0.0,
-        "newton_rtx_renderer": 0.0,
-        "newton_newton_renderer": 0.0,
+        "physx_isaacsim_rtx": 20.0,
+        "physx_newton": 0.0,
+        "newton_mjwarp_isaacsim_rtx": 0.0,
+        "newton_mjwarp_newton": 0.0,
         "_todo": "Three of four floors are 0.0 (disabled). RTX 5090 sweep measured physx_newton_renderer ~22,556 and newton_newton_renderer ~30,579 fps; both *_rtx_renderer combos failed on that host with cudaErrorIllegalAddress and need re-measuring (physx_rtx_renderer does succeed in CI on L40S)."
       },
       "Isaac-Velocity-Flat-G1": {
         "physx": 40.0,
-        "newton": 0.0,
+        "newton_mjwarp": 0.0,
         "_todo": "newton floor is 0.0 (disabled). RTX 5090 sweep measured ~26,936 fps mean."
       }
-    }
+    },
+    "_comment": "Keys are gpu_model, then task, then backend key. The backend key is the physics backend, or physics_render when a renderer is in use, spelled exactly as the benchmark reports it: physx, newton_mjwarp, physx_isaacsim_rtx, newton_mjwarp_newton. A key that matches nothing never applies."
   }
 }

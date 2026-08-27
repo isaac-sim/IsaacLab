@@ -26,6 +26,9 @@ from .metrics import PerfSmokeError, mapping, positive_int
 #: Externally pinned versions that affect measured performance, keyed by where they
 #: apply. Keys are the values a bundle reports in ``run.config``, which are NOT the
 #: matrix names. An unrecognised value raises.
+#: ``version`` is a manual invalidation switch. It is part of the hashed contract, so
+#: raising it retires every baseline recorded so far, and the gate reports SKIP until
+#: history rebuilds.
 RUNTIME_COMPATIBILITY: dict[str, Any] = {
     "version": 3,
     "always": ("torch", "warp"),
@@ -34,7 +37,6 @@ RUNTIME_COMPATIBILITY: dict[str, Any] = {
         "newton_mjwarp": ("newton", "mujoco", "mjwarp"),
     },
     "by_render_backend": {
-        
         "newton": (),
         # Kit's RTX renderer, versioned with the Isaac Sim build it ships in.
         "isaacsim_rtx": ("isaacsim",),
@@ -198,6 +200,13 @@ def from_dict(data: Any) -> Contract:
         workload=mapping(payload.get("workload"), "contract.workload"),
         runtime=mapping(payload.get("runtime"), "contract.runtime"),
     )
+
+
+def valid_backend_keys() -> frozenset[str]:
+    """Return every backend key :func:`backend_key` can produce."""
+    physics = RUNTIME_COMPATIBILITY["by_physics_backend"]
+    renderers = RUNTIME_COMPATIBILITY["by_render_backend"]
+    return frozenset({*physics, *(f"{p}_{r}" for p in physics for r in renderers)})
 
 
 def backend_key(contract: Contract) -> str:

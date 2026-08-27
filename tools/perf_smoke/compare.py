@@ -7,21 +7,19 @@
 
 Pure functions only. Everything this module needs is passed in.
 
-The reference is the median of the last K comparable develop runs, and the
-noise band is their median absolute deviation, not the within-run per-step spread.
-
 A regression must clear both its percentage threshold and the historical noise
-band. A hard floor is separate and fires regardless of significance.
+band. A hard floor is separate and always applies if available.
 """
 
 from __future__ import annotations
 
 import statistics
+import sys
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from .contract import Contract, backend_key
-from .metrics import METRICS, METRICS_BY_NAME, Metric, PerfSmokeError, mapping, number
+from .contract import Contract, backend_key, valid_backend_keys
+from .metrics import METRICS, Metric, PerfSmokeError, mapping, number
 
 PASS = "PASS"
 WARN = "WARN"
@@ -29,14 +27,14 @@ FAIL = "FAIL"
 SKIP = "SKIP"
 ERROR = "ERROR"
 
-#: Deviation a change must exceed before it can alter the verdict.
+#: Robust sigmas a change must reach before it can raise the verdict above PASS.
 MIN_SIGNIFICANCE_SIGMA = 2.0
 
 #: Comparable runs required before the gate will render a verdict.
 MIN_BASELINE_SAMPLES = 3
 
 #: Rows read from the store.
-MAX_BASELINE_SAMPLES = 10
+MAX_BASELINE_SAMPLES = 20
 
 #: Scale factor making the median absolute deviation a consistent estimator of the
 #: standard deviation for normally distributed data.
@@ -93,6 +91,11 @@ class Report:
         return asdict(self)
 
 
+def _warn(message: str) -> None:
+    """Report a policy problem that must not stop the comparison."""
+    print(f"::warning::perf-smoke: {message}", file=sys.stderr)
+
+
 def _clean(config: Any, name: str) -> dict[str, Any]:
     """Return a config mapping with documentation keys (``_comment``, ``_todo``) removed."""
     return {key: value for key, value in mapping(config, name).items() if not key.startswith("_")}
@@ -130,8 +133,16 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     floors = _clean(root.get("hard_floor_fps", {}), "hard_floor_fps")
     by_task = _clean(floors.get(gpu_model, {}), f"hard_floor_fps.{gpu_model}")
     by_key = _clean(by_task.get(task, {}), f"hard_floor_fps.{gpu_model}.{task}")
+    if floors and gpu_model not in floors:
+        _warn(f"no hard floors are configured for GPU {gpu_model!r}; configured: {sorted(floors)}")
+    unreachable = sorted(set(by_key) - valid_backend_keys())
+    if unreachable:
+        _warn(
+            f"hard_floor_fps.{gpu_model}.{task} has key(s) {unreachable} that no run can report,"
+            f" so they never apply; expected one of {sorted(valid_backend_keys())}"
+        )
     raw_floor = by_key.get(key)
-    # A floor of 0.0 is the documented None value, not a real floor.
+    # A non-positive floor means disabled/no floor. Active floors must be positive.
     floor = number(raw_floor, f"hard_floor_fps.{gpu_model}.{task}.{key}") if raw_floor is not None else None
     if floor is not None and floor <= 0:
         floor = None
@@ -142,11 +153,18 @@ def resolve_thresholds(config: Any, gpu_model: str, task: str, key: str) -> dict
     return resolved
 
 
+def _floor_note(measured: float, hard_floor: float | None) -> str | None:
+    """Return the breach note when ``measured`` is below ``hard_floor``, else ``None``."""
+    if hard_floor is None or measured >= hard_floor:
+        return None
+    return f"below hard floor {hard_floor:g}"
+
+
 def _robust_spread(values: list[float], center: float) -> float:
-    """Return the MAD-derived robust sigma for ``values`` about ``center``."""
+    """Return the scaled median absolute deviation of ``values`` about ``center``."""
     if len(values) < 2:
         return 0.0
-    return _MAD_TO_SIGMA * statistics.median([abs(value - center) for value in values])
+    return _MAD_TO_SIGMA * statistics.median(abs(value - center) for value in values)
 
 
 def _evaluate(
@@ -154,8 +172,27 @@ def _evaluate(
     measured: float,
     history: list[float],
     thresholds: Thresholds,
+    min_samples: int,
 ) -> MetricResult:
-    """Compare one metric against its history and resolved policy."""
+    """Compare one metric against its history and resolved policy.
+
+    A history too short or too degenerate to compare against yields :data:`SKIP` rather
+    than a verdict, except where the measurement breaches its hard floor.
+    """
+    note = _floor_note(measured, thresholds.hard_floor)
+
+    if len(history) < min_samples:
+        return MetricResult(
+            name=metric.name,
+            label=metric.label,
+            measured=measured,
+            hard_floor=thresholds.hard_floor,
+            sample_count=len(history),
+            verdict=FAIL if note else SKIP,
+            gating=metric.gating,
+            note=note or "insufficient history for this metric",
+        )
+
     reference = statistics.median(history)
     sigma = _robust_spread(history, reference)
 
@@ -165,10 +202,11 @@ def _evaluate(
             label=metric.label,
             measured=measured,
             reference=reference,
+            hard_floor=thresholds.hard_floor,
             sample_count=len(history),
-            verdict=SKIP,
+            verdict=FAIL if note else SKIP,
             gating=metric.gating,
-            note="baseline median is zero",
+            note=note or "baseline median is zero",
         )
 
     change_pct = (measured - reference) / reference * 100.0
@@ -183,11 +221,7 @@ def _evaluate(
         sigma_count = difference / sigma
         significant = sigma_count >= MIN_SIGNIFICANCE_SIGMA
 
-    note: str | None = None
-    if thresholds.hard_floor is not None and measured < thresholds.hard_floor:
-        verdict = FAIL
-        note = f"below hard floor {thresholds.hard_floor:g}"
-    elif regression_pct >= thresholds.fail_pct and significant:
+    if note is not None or regression_pct >= thresholds.fail_pct and significant:
         verdict = FAIL
     elif regression_pct >= thresholds.warn_pct and significant:
         verdict = WARN
@@ -216,27 +250,49 @@ def _evaluate(
     )
 
 
-def _skipped(contract: Contract, measured: dict[str, float], reason: str, history: int = 0, label: str = "") -> Report:
-    """Build a report that records why no verdict could be rendered."""
+def unresolved(
+    contract: Contract,
+    measured: dict[str, float],
+    verdict: str,
+    reason: str,
+    label: str = "",
+) -> Report:
+    """Build a report that records measurements but no comparison.
+
+    The run itself succeeded; only the verdict is missing. :data:`SKIP` means there was
+    nothing to compare against, :data:`ERROR` means the comparison could not be attempted.
+    Either way the measurements are carried through: they are the expensive part of the
+    job and remain valid on their own.
+
+    Args:
+        contract: The run's comparability contract.
+        measured: Measured value per metric name.
+        verdict: :data:`SKIP` or :data:`ERROR`.
+        reason: Operator-facing explanation.
+        label: Matrix combination name.
+
+    Returns:
+        A report carrying every measurement, with no comparison against a baseline.
+    """
     metrics = tuple(
         MetricResult(
             name=metric.name,
             label=metric.label,
             measured=measured[metric.name],
-            sample_count=history,
-            verdict=SKIP,
+            verdict=verdict,
             gating=metric.gating,
         )
         for metric in METRICS
     )
-    return Report(contract.as_dict(), contract.hash, metrics, SKIP, reason, label)
+    return Report(contract.as_dict(), contract.hash, metrics, verdict, reason, label)
 
 
 def errored(reason: str, label: str = "") -> Report:
-    """Build a report for a failure inside the gate itself.
+    """Build a report for a gate failure that happened before anything was measured.
 
-    Non-blocking and distinct from :data:`SKIP`. 
-    :data:`ERROR` means the gate could not produce a trustworthy result.
+    Non-blocking and distinct from :data:`SKIP`. Use :func:`unresolved` with
+    :data:`ERROR` when the run *was* measured and only the comparison failed; this one is
+    for a bundle that could not be parsed, where there is nothing to report but the fault.
 
     Args:
         reason: Operator-facing explanation of error.
@@ -267,20 +323,10 @@ def compare(
         min_samples: Comparable runs required before a verdict is rendered.
 
     Returns:
-        The comparison report. Its verdict is the worst among gating metrics;
-        non-gating metrics are evaluated and reported as advisory.
+        The comparison report: FAIL if any gating metric failed, WARN if any warned,
+        SKIP only if every gating metric was skipped, otherwise PASS. Non-gating
+        metrics are evaluated and reported, but never change the verdict.
     """
-    if not history:
-        return _skipped(contract, measured, "No baseline recorded yet for this runtime contract", label=label)
-    if len(history) < min_samples:
-        return _skipped(
-            contract,
-            measured,
-            f"Baseline warming up ({len(history)}/{min_samples} comparable runs)",
-            history=len(history),
-            label=label,
-        )
-
     thresholds = resolve_thresholds(
         threshold_config,
         str(contract.runtime.get("gpu_model", "")),
@@ -288,23 +334,16 @@ def compare(
         backend_key(contract),
     )
 
-    results: list[MetricResult] = []
-    for metric in METRICS:
-        series = [row[metric.name] for row in history if metric.name in row]
-        if len(series) < min_samples:
-            results.append(
-                MetricResult(
-                    name=metric.name,
-                    label=metric.label,
-                    measured=measured[metric.name],
-                    sample_count=len(series),
-                    verdict=SKIP,
-                    gating=metric.gating,
-                    note="insufficient history for this metric",
-                )
-            )
-            continue
-        results.append(_evaluate(metric, measured[metric.name], series, thresholds[metric.name]))
+    results = tuple(
+        _evaluate(
+            metric,
+            measured[metric.name],
+            [row[metric.name] for row in history if metric.name in row],
+            thresholds[metric.name],
+            min_samples,
+        )
+        for metric in METRICS
+    )
 
     gating = [result for result in results if result.gating]
     if any(result.verdict == FAIL for result in gating):
@@ -318,29 +357,25 @@ def compare(
     else:
         verdict = SKIP
     worst = max(gating, key=lambda result: _SEVERITY[result.verdict], default=None)
-    if verdict == FAIL:
+    if verdict == FAIL and worst is not None and _floor_note(worst.measured, worst.hard_floor):
+        message = f"{worst.label} below hard floor"
+    elif verdict == FAIL:
         message = f"Performance regression in {worst.label}" if worst else "Performance regression"
     elif verdict == WARN:
         message = f"Possible performance regression in {worst.label}" if worst else "Possible regression"
+    elif verdict == SKIP and len(history) < min_samples:
+        message = (
+            "No baseline recorded yet for this runtime contract"
+            if not history
+            else f"Baseline warming up ({len(history)}/{min_samples} comparable runs)"
+        )
     elif verdict == SKIP:
         message = "No gating metric could be compared"
     else:
         message = "No performance regression detected"
-    return Report(contract.as_dict(), contract.hash, tuple(results), verdict, message, label)
-
-
-def advisory_names() -> tuple[str, ...]:
-    """Return the metrics that are measured and reported but never gate."""
-    return tuple(metric.name for metric in METRICS if not metric.gating)
+    return Report(contract.as_dict(), contract.hash, results, verdict, message, label)
 
 
 def gating_names() -> tuple[str, ...]:
-    """Return the metrics that contribute to the overall verdict."""
+    """Return the names of the metrics whose verdict can fail a pull request."""
     return tuple(metric.name for metric in METRICS if metric.gating)
-
-
-def metric_for(name: str) -> Metric:
-    """Return the :class:`~tools.perf_smoke.metrics.Metric` registered under ``name``."""
-    if name not in METRICS_BY_NAME:
-        raise PerfSmokeError(f"Unknown metric {name!r}")
-    return METRICS_BY_NAME[name]

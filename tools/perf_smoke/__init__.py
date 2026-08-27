@@ -7,7 +7,7 @@
 
 * :mod:`metrics`  -- the runtime bundle's shape
 * :mod:`contract` -- which runs are comparable
-* :mod:`store`    -- I/O or touching credentials
+* :mod:`store`    -- the only network access and the only credential handling
 * :mod:`compare`  -- pure verdict logic
 * :mod:`report`   -- presentation
 * :mod:`cli`      -- wiring
