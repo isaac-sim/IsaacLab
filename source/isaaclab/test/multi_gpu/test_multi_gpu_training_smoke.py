@@ -26,7 +26,6 @@ import socket
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -36,16 +35,23 @@ import pytest
 _NUM_ENVS = "1024"
 _MAX_ITERATIONS = "3"
 
-# A hung run goes silent while a slow one keeps logging, so silence is the signal. 90 s sits far
-# above the observed inter-line gap (~10 s first iteration, ~6 s after) and above any gap during
-# Kit boot, which logs continuously.
-_IDLE_TIMEOUT_S = 90
-# Kitless renderers break that assumption: on a cold shader cache OVRTX compiles ray-tracing
-# pipeline objects for minutes, reporting progress only to its own log. Measured on 8x L40: a
-# cold run was still compiling when the 90 s timer killed it.
-_KITLESS_IDLE_TIMEOUT_S = 300
-# Backstop for a run that dribbles output forever; ~2x a passing run.
-_HARD_TIMEOUT_S = 600
+# A hung run goes silent while a slow one keeps logging, so silence is the signal -- nothing here
+# gates on how long a run takes, only on it having stopped. Startup and steady state have very
+# different silence profiles, so each gets its own budget.
+#
+# Startup is legitimately silent for long stretches: Kit boot, Warp kernel compilation, and
+# OVRTX ray-tracing pipeline compilation all report little or nothing to stdout. Deliberately
+# generous, because the cost of being wrong is a false failure on slower hardware -- the CI pool
+# is 4x A10G, well below the L40S these were first measured on.
+_STARTUP_IDLE_TIMEOUT_S = 600
+# Once iterations are logging, gaps are small (~10 s first, ~6 s after), so silence here is a
+# real hang and worth catching quickly.
+_STEADY_IDLE_TIMEOUT_S = 120
+# Backstop for a run that dribbles output forever, generous for the same reason as the startup
+# budget: it exists to bound a stuck runner, not to time a healthy run.
+_HARD_TIMEOUT_S = 1800
+# rsl_rl logs this once per iteration; its first appearance is what ends the startup phase.
+_ITERATION_MARKER = "Learning iteration"
 
 _PHYSICS_ONLY_TASK = "Isaac-Cartpole-Direct"
 _CAMERA_TASK = "Isaac-Cartpole-Camera-Direct"
@@ -66,14 +72,6 @@ _OVPHYSX_OVRTX_XFAIL_REASON = (
 )
 
 
-@dataclass(frozen=True)
-class _Stack:
-    """A physics/renderer backend combination and the silence budget it needs."""
-
-    presets: str
-    idle_timeout_s: int
-
-
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected
 # before launch by ``sim_launcher._validate_runtime`` because OVRTX and OvPhysX are kitless and
 # cannot share a process with Kit: ``isaacsim_physx,ovrtx`` and ``ovphysx,isaacsim_rtx``. The
@@ -81,35 +79,19 @@ class _Stack:
 # model when the active backend is not Newton -- so it appears three times here. The ``kitless``
 # marker routes each stack to the CI image that carries its runtime.
 _STACKS = [
-    pytest.param(_Stack("isaacsim_physx", _IDLE_TIMEOUT_S), id="isaacsim_physx-kit_rtx"),
-    pytest.param(_Stack("newton_mjwarp,isaacsim_rtx", _IDLE_TIMEOUT_S), id="newton-kit_rtx"),
-    # Kit physics with a kitless renderer: still a Kit process, so it stays in the Kit lane, but
-    # Warp kernel compilation is silent on stdout and needs the wider silence budget.
-    pytest.param(
-        _Stack("isaacsim_physx,newton_renderer", _KITLESS_IDLE_TIMEOUT_S),
-        id="isaacsim_physx-newton_renderer",
-    ),
-    pytest.param(
-        _Stack("newton_mjwarp,ovrtx", _KITLESS_IDLE_TIMEOUT_S),
-        id="newton-ovrtx",
-        marks=pytest.mark.kitless,
-    ),
-    pytest.param(
-        _Stack("newton_mjwarp,newton_renderer", _KITLESS_IDLE_TIMEOUT_S),
-        id="newton-newton_renderer",
-        marks=pytest.mark.kitless,
-    ),
-    pytest.param(
-        _Stack("ovphysx,newton_renderer", _KITLESS_IDLE_TIMEOUT_S),
-        id="ovphysx-newton_renderer",
-        marks=pytest.mark.kitless,
-    ),
+    pytest.param("isaacsim_physx", id="isaacsim_physx-kit_rtx"),
+    pytest.param("newton_mjwarp,isaacsim_rtx", id="newton-kit_rtx"),
+    # Kit physics with a kitless renderer: still a Kit process, so it stays in the Kit lane.
+    pytest.param("isaacsim_physx,newton_renderer", id="isaacsim_physx-newton_renderer"),
+    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=pytest.mark.kitless),
+    pytest.param("newton_mjwarp,newton_renderer", id="newton-newton_renderer", marks=pytest.mark.kitless),
+    pytest.param("ovphysx,newton_renderer", id="ovphysx-newton_renderer", marks=pytest.mark.kitless),
     # Xfailed rather than omitted so the gap is reported by every run. ``run=False`` because the
     # failure mode is a non-terminating run: executing it would spend the full idle timeout to
     # re-derive a known result. Flip to ``run=True`` when the pairing is fixed, so an XPASS
     # reports it.
     pytest.param(
-        _Stack("ovphysx,ovrtx", _KITLESS_IDLE_TIMEOUT_S),
+        "ovphysx,ovrtx",
         id="ovphysx-ovrtx",
         marks=[
             pytest.mark.kitless,
@@ -162,12 +144,12 @@ def _run_training(
     task: str,
     presets: str,
     num_gpus: int,
-    idle_timeout_s: int = _IDLE_TIMEOUT_S,
 ) -> tuple[str, str]:
     """Launch a multi-rank training run and wait for it to settle.
 
-    Streams the child's output so a stalled run is killed after ``idle_timeout_s`` of silence
-    rather than occupying a CI runner until the hard timeout.
+    Streams the child's output so a stalled run is killed after a period of silence rather than
+    occupying a CI runner until the hard timeout. The budget is wide until the first logged
+    iteration and narrow afterwards, so a slow start is not mistaken for a hang.
 
     Args:
         devices: GPU indices to expose, in the order given, or ``None`` to leave the inherited
@@ -175,7 +157,6 @@ def _run_training(
         task: Gym task id to train.
         presets: Value for the ``presets=`` selector (physics and/or renderer).
         num_gpus: Number of ranks to launch.
-        idle_timeout_s: Seconds of stdout silence [s] treated as a hang.
 
     Returns:
         ``(outcome, output)`` where outcome is ``"passed"``, ``"failed"`` or ``"hung"``, and
@@ -214,6 +195,7 @@ def _run_training(
     started = time.monotonic()
     last_output = started
     lines: list[str] = []
+    iterating = False
     # Own process group: train_multigpu.py spawns torchrun, which spawns the rank workers.
     # Killing only the wrapper leaves Kit ranks alive holding GPU memory and the rendezvous port.
     process = subprocess.Popen(
@@ -233,12 +215,15 @@ def _run_training(
             now = time.monotonic()
             # Checked every iteration, not only when the pipe is quiet: a child that floods stdout
             # would otherwise never reach the backstop and could grow ``lines`` without bound.
-            if now - started > _HARD_TIMEOUT_S or now - last_output > idle_timeout_s:
+            idle_budget = _STEADY_IDLE_TIMEOUT_S if iterating else _STARTUP_IDLE_TIMEOUT_S
+            if now - started > _HARD_TIMEOUT_S or now - last_output > idle_budget:
                 _kill_process_group(process)
                 return "hung", "".join(lines)
             if line:
                 lines.append(line)
                 last_output = now
+                if not iterating and _ITERATION_MARKER in line:
+                    iterating = True
             elif process.poll() is not None:
                 break
             else:
@@ -304,16 +289,10 @@ class TestMultiGpuTrainingSmoke:
     @pytest.mark.rendering
     @pytest.mark.parametrize("devices", _DEVICE_ORDERS)
     @pytest.mark.parametrize("stack", _STACKS)
-    def test_camera_training(self, stack: _Stack, devices: tuple[int, ...] | None) -> None:
+    def test_camera_training(self, stack: str, devices: tuple[int, ...] | None) -> None:
         """Camera-rendered training on four GPUs for one backend stack and device order."""
         _require_devices(_CAMERA_RANKS)
         _assert_training_passed(
-            *_run_training(
-                devices,
-                _CAMERA_TASK,
-                stack.presets,
-                num_gpus=_CAMERA_RANKS,
-                idle_timeout_s=stack.idle_timeout_s,
-            ),
+            *_run_training(devices, _CAMERA_TASK, stack, num_gpus=_CAMERA_RANKS),
             devices=devices,
         )
