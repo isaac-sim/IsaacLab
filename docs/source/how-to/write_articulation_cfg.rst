@@ -103,8 +103,7 @@ The last two parameters are optional. If not specified, they are kept at their d
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :start-at:     spawn=sim_utils.UsdFileCfg(
-   :end-before:     init_state=
+   :lines: 8,10-11,17-34,49
    :dedent:
 
 To import articulation from a URDF file instead of a USD file, you can replace the
@@ -132,8 +131,7 @@ Meanwhile, the joint positions and velocities are set to 0.0.
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :start-at:     init_state=
-   :end-before:     actuators=
+   :lines: 10,17,35-37,49
    :dedent:
 
 Defining the actuator configuration
@@ -155,8 +153,7 @@ to combine them into a single actuator model.
 
    .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
       :language: python
-      :start-at:     actuators=
-      :end-at:     },
+      :lines: 9-10,17,38-49
       :dedent:
 
 
@@ -165,7 +162,9 @@ to combine them into a single actuator model.
 
    .. code-block:: python
 
-      actuators={
+      from isaaclab.actuators import ImplicitActuatorCfg
+
+      actuators = {
          "all_joints": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
             joint_effort_limit=400.0,
@@ -173,7 +172,7 @@ to combine them into a single actuator model.
             stiffness={"slider_to_cart": 0.0, "cart_to_pole": 0.0},
             damping={"slider_to_cart": 10.0, "cart_to_pole": 0.0},
          ),
-      },
+      }
 
 .. note::
    Newton resolves the target mode of joints configured with
@@ -204,9 +203,9 @@ ownership model and runtime mutation paths.
       - Explicit actuator
     * - ``joint_effort_limit``
       - Writes the solver drive effort limit.
-      - Writes the solver effort limit; defaults high to avoid a second model clip.
+      - Writes the solver effort limit; defaults to the authored/USD value.
     * - ``actuator_effort_limit``
-      - Not supported.
+      - Sets the model-facing effort telemetry limit; defaults to the live solver limit.
       - Clips actuator-model output.
     * - ``joint_velocity_limit``
       - Requests a solver velocity constraint.
@@ -327,8 +326,7 @@ Both fields must be specified, even when using these USD defaults:
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
    :language: python
-   :start-at: JETBOT_CONFIG =
-   :end-before: DOFBOT_CONFIG =
+   :lines: 27-28,30,32,34-37
 
 Dofbot additionally sets initial joint positions, groups joints by name, and specifies
 actuator gains and limits. Its solver iterations and maximum depenetration velocity are
@@ -341,8 +339,7 @@ be matched with regular expressions; for example, ``.*`` selects all joints.
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
       :language: python
-      :start-at: DOFBOT_CONFIG =
-      :end-before: class NewRobotsSceneCfg
+      :lines: 27-28,30,32,39-82
 
 The example adds both configurations to an ``InteractiveSceneCfg``, assigns each robot a
 path under every environment, and constructs the scene. Its loop resets root and joint
