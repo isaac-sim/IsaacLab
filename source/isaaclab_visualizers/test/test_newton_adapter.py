@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import numpy as np
 import pytest
@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonVisualizer, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -125,6 +125,122 @@ def test_newton_visualizer_cfg_exposes_viewer_options():
     assert cfg.particle_color == (0.1, 0.2, 0.3)
 
 
+def test_newton_visualizer_offsets_cfg_camera_by_viewer_origin():
+    visualizer = NewtonVisualizer.__new__(NewtonVisualizer)
+    visualizer._viewer_origin = torch.tensor([10.0, 20.0, 30.0])
+
+    pose = visualizer._camera_pose_with_origin(((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)))
+
+    assert pose == ((11.0, 22.0, 33.0), (14.0, 25.0, 36.0))
+
+
+def test_newton_visualizer_set_camera_view_uses_absolute_coordinates():
+    visualizer = NewtonVisualizer.__new__(NewtonVisualizer)
+    visualizer.cfg = SimpleNamespace(eye=(0.0, 0.0, 0.0), lookat=(1.0, 0.0, 0.0))
+    visualizer._viewer_origin = torch.tensor([10.0, 20.0, 30.0])
+    visualizer._apply_camera_pose = Mock()
+
+    NewtonVisualizer.set_camera_view(visualizer, (1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
+
+    assert visualizer.cfg.eye == (0.0, 0.0, 0.0)
+    assert visualizer.cfg.lookat == (1.0, 0.0, 0.0)
+    visualizer._apply_camera_pose.assert_called_once_with(((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)))
+
+
+def test_newton_visualizer_reapply_origin_updates_env_camera(monkeypatch: pytest.MonkeyPatch):
+    import isaaclab.sim as sim_utils
+
+    scene = SimpleNamespace(num_envs=2, env_origins=torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 30.0]]))
+    context = SimpleNamespace(_interactive_scene=scene)
+
+    class _SimulationContext:
+        @staticmethod
+        def instance():
+            return context
+
+    monkeypatch.setattr(sim_utils, "SimulationContext", _SimulationContext)
+
+    visualizer = NewtonVisualizer.__new__(NewtonVisualizer)
+    visualizer.cfg = SimpleNamespace(
+        eye=(1.0, 2.0, 3.0),
+        lookat=(4.0, 5.0, 6.0),
+        origin_type="env",
+        origin_env_index=1,
+        origin_track_path=None,
+    )
+    visualizer._resolve_cfg_camera_pose = Mock(return_value=(visualizer.cfg.eye, visualizer.cfg.lookat))
+    visualizer._apply_camera_pose = Mock()
+
+    NewtonVisualizer.reapply_origin(visualizer)
+
+    visualizer._apply_camera_pose.assert_called_once_with(((11.0, 22.0, 33.0), (14.0, 25.0, 36.0)))
+
+
+def test_newton_visualizer_reapply_origin_updates_asset_camera(monkeypatch: pytest.MonkeyPatch):
+    import isaaclab.sim as sim_utils
+
+    asset = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 30.0]])),
+        )
+    )
+
+    class _Scene:
+        def __getitem__(self, name):
+            if name == "robot":
+                return asset
+            raise KeyError(name)
+
+    context = SimpleNamespace(_interactive_scene=_Scene())
+
+    class _SimulationContext:
+        @staticmethod
+        def instance():
+            return context
+
+    monkeypatch.setattr(sim_utils, "SimulationContext", _SimulationContext)
+
+    visualizer = NewtonVisualizer.__new__(NewtonVisualizer)
+    visualizer.cfg = SimpleNamespace(
+        eye=(1.0, 2.0, 3.0),
+        lookat=(4.0, 5.0, 6.0),
+        origin_type="asset",
+        origin_env_index=1,
+        origin_track_path="robot",
+    )
+    visualizer._resolve_cfg_camera_pose = Mock(return_value=(visualizer.cfg.eye, visualizer.cfg.lookat))
+    visualizer._apply_camera_pose = Mock()
+
+    NewtonVisualizer.reapply_origin(visualizer)
+
+    visualizer._apply_camera_pose.assert_called_once_with(((11.0, 22.0, 33.0), (14.0, 25.0, 36.0)))
+
+
+def test_newton_visualizer_asset_tracking_uses_configured_camera_after_set_camera_view():
+    visualizer = NewtonVisualizer.__new__(NewtonVisualizer)
+    visualizer.cfg = SimpleNamespace(
+        eye=(1.0, 2.0, 3.0),
+        lookat=(4.0, 5.0, 6.0),
+        origin_track_path="robot",
+        origin_env_index=0,
+    )
+    visualizer._interactive_scene = object()
+    visualizer._viewer_origin = torch.tensor([100.0, 100.0, 100.0])
+    visualizer._resolve_cfg_camera_pose = Mock(return_value=(visualizer.cfg.eye, visualizer.cfg.lookat))
+    visualizer._resolve_tracked_asset_origin = Mock(return_value=torch.tensor([10.0, 20.0, 30.0]))
+    visualizer._apply_camera_pose = Mock()
+
+    NewtonVisualizer.set_camera_view(visualizer, (100.0, 101.0, 102.0), (103.0, 104.0, 105.0))
+    NewtonVisualizer._update_asset_tracking_camera(visualizer)
+
+    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
+    assert visualizer.cfg.lookat == (4.0, 5.0, 6.0)
+    assert visualizer._apply_camera_pose.call_args_list == [
+        call(((100.0, 101.0, 102.0), (103.0, 104.0, 105.0))),
+        call(((11.0, 22.0, 33.0), (14.0, 25.0, 36.0))),
+    ]
+
+
 def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
     """Construction caches the registry; close survives context teardown and is idempotent."""
 
@@ -174,14 +290,14 @@ def test_newton_visualizer_cfg_exposes_world_spacing():
     assert cfg.world_spacing == (2.0, 2.0, 0.0)
 
 
-def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
+def test_newton_visualizer_set_camera_view_keeps_cfg_without_viewer():
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
 
     visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
 
-    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
-    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
-    assert visualizer._resolve_initial_camera_pose() == ((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+    assert visualizer.cfg.eye == (4.0, -4.0, 3.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 0.0)
+    assert visualizer._last_camera_pose is None
 
 
 def test_newton_visualizer_set_camera_view_updates_active_viewer():
@@ -207,8 +323,8 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
 
     assert (viewer.camera.pos.x, viewer.camera.pos.y, viewer.camera.pos.z) == (1.0, 2.0, 3.0)
     assert viewer.camera.look_at_calls == [(0.0, 0.0, 1.0)]
-    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
-    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+    assert visualizer.cfg.eye == (4.0, -4.0, 3.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 0.0)
 
 
 def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exists(monkeypatch):

@@ -971,6 +971,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._scene_cameras: dict = {}
         self._scene_camera_names: list[str] = []
         self._active_camera_idx: int = 0
+        self._interactive_scene = None
+        self._viewer_origin: torch.Tensor | None = None
 
     # ------------------------------------------------------------------
     # Shared lifecycle
@@ -1040,6 +1042,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
+            self._setup_initial_camera_origin(apply=False)
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
             self._viewer._paused = False
@@ -1112,6 +1115,9 @@ class NewtonVisualizer(BaseVisualizer):
 
         self._sim_time += dt
         self._step_counter += 1
+
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
 
         # Headless mode renders on demand via render_rgb_array(). Keep the latest
         # physics state available without paying the per-step render cost.
@@ -1264,9 +1270,16 @@ class NewtonVisualizer(BaseVisualizer):
         """
         eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
         target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self.cfg.eye = eye_t
-        self.cfg.lookat = target_t
         self._apply_camera_pose((eye_t, target_t))
+
+    def reapply_origin(self) -> None:
+        """Recompute the camera position from the current origin config."""
+        self._setup_initial_camera_origin()
+
+    @property
+    def viewer_origin(self) -> torch.Tensor | None:
+        """World-space origin offset in meters with shape ``(3,)``."""
+        return self._viewer_origin
 
     # ------------------------------------------------------------------
     # Hook methods — override in subclasses
@@ -1323,7 +1336,95 @@ class NewtonVisualizer(BaseVisualizer):
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve initial camera pose from config or USD camera path."""
-        return self._resolve_cfg_camera_pose(type(self).__name__)
+        return self._camera_pose_with_origin(self._resolve_cfg_camera_pose(type(self).__name__))
+
+    def _setup_initial_camera_origin(self, *, apply: bool = True) -> None:
+        """Position the viewer camera according to :attr:`NewtonVisualizerCfg.origin_type`."""
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+        self._interactive_scene = getattr(SimulationContext.instance(), "_interactive_scene", None)
+        self._viewer_origin = self._resolve_configured_origin()
+
+        if apply:
+            self._apply_viewer_origin_to_camera()
+
+    def _resolve_configured_origin(self) -> torch.Tensor:
+        """Resolve the configured camera origin."""
+        if self.cfg.origin_type == "world":
+            return torch.zeros(3)
+        if self.cfg.origin_type == "env":
+            return self._resolve_env_origin()
+        if self.cfg.origin_type == "asset":
+            return self._resolve_asset_origin()
+        logger.warning("[NewtonVisualizer] Unknown origin_type '%s'; defaulting to world.", self.cfg.origin_type)
+        return torch.zeros(3)
+
+    def _resolve_env_origin(self) -> torch.Tensor:
+        """Resolve the configured environment origin."""
+        scene = self._interactive_scene
+        if scene is None:
+            logger.warning("[NewtonVisualizer] origin_type='env' requested but no scene is registered yet.")
+            return torch.zeros(3)
+
+        num_envs = scene.num_envs
+        if not (0 <= self.cfg.origin_env_index < num_envs):
+            raise ValueError(
+                f"[NewtonVisualizer] origin_env_index {self.cfg.origin_env_index} is out of range "
+                f"[0, {num_envs - 1}] for origin_type='env'."
+            )
+        return scene.env_origins[self.cfg.origin_env_index]
+
+    def _resolve_asset_origin(self) -> torch.Tensor:
+        """Resolve the initial asset origin."""
+        if self.cfg.origin_track_path is None:
+            raise ValueError("[NewtonVisualizer] origin_type='asset' requires origin_track_path to be set.")
+        origin = self._resolve_tracked_asset_origin()
+        if origin is not None:
+            return origin
+        return torch.zeros(3)
+
+    def _update_asset_tracking_camera(self) -> None:
+        """Update the viewer camera to track an asset root or body."""
+        origin = self._resolve_tracked_asset_origin()
+        if origin is None:
+            return
+        self._viewer_origin = origin
+        self._apply_viewer_origin_to_camera()
+
+    def _resolve_tracked_asset_origin(self) -> torch.Tensor | None:
+        """Resolve the configured tracked asset origin when scene state is available."""
+        scene = self._interactive_scene
+        if scene is None or self.cfg.origin_track_path is None:
+            return None
+        asset_name, _, body_name = self.cfg.origin_track_path.partition("/")
+        try:
+            asset = scene[asset_name]
+        except KeyError:
+            return None
+        if not body_name:
+            return asset.data.root_pos_w.torch[self.cfg.origin_env_index]
+
+        body_ids, _ = asset.find_bodies(body_name)
+        return asset.data.body_pos_w.torch[self.cfg.origin_env_index, body_ids[0]]
+
+    def _apply_viewer_origin_to_camera(self) -> None:
+        """Compute absolute eye/target from :attr:`_viewer_origin` and push to the viewer."""
+        self._apply_camera_pose(self._resolve_initial_camera_pose())
+
+    def _camera_pose_with_origin(
+        self,
+        pose: tuple[tuple[float, float, float], tuple[float, float, float]],
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        if self._viewer_origin is None:
+            return pose
+        origin = self._viewer_origin.detach().cpu().numpy()
+        eye = np.array(pose[0], dtype=float) + origin
+        target = np.array(pose[1], dtype=float) + origin
+        return (float(eye[0]), float(eye[1]), float(eye[2])), (
+            float(target[0]),
+            float(target[1]),
+            float(target[2]),
+        )
 
     def _resolve_streaming_renderer_cfg(self):
         """Return the renderer cfg for the auto-created streaming camera.
@@ -1919,6 +2020,8 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
@@ -2178,6 +2281,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             return None
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
