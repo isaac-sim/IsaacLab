@@ -37,7 +37,6 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
-  local host_writable_dir="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -253,16 +252,6 @@ run_tests() {
       -v ${docker_runtime_dir}/isaac-sim/data:/isaac-sim/.local/share/ov/data:rw \
       -v ${docker_runtime_dir}/isaac-sim/logs:/isaac-sim/.nvidia-omniverse/logs:rw \
       -v ${docker_runtime_dir}/isaac-sim/pkg:/isaac-sim/.local/share/ov/pkg:rw"
-    # Images whose runtime writes outside the paths above need the same treatment: the mount
-    # makes the path host-owned, so it is writable by whichever uid the runner happens to be.
-    # Opt-in and caller-supplied, because the path is image-specific -- the kit-less image's
-    # OVRTX caches shaders and textures inside its own site-packages directory.
-    if [ -n "$host_writable_dir" ]; then
-      mkdir -p "${docker_runtime_dir}/host-writable"
-      docker_volume_args="$docker_volume_args \
-      -v ${docker_runtime_dir}/host-writable:${host_writable_dir}:rw"
-      echo "🔵 Mounting host-owned writable storage at ${host_writable_dir}"
-    fi
     docker_user_args="--user ${host_uid}:${host_gid}"
     docker_env_vars="$docker_env_vars -e HOME=/tmp/isaaclab-ci-home -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share -e USER=${host_user} -e LOGNAME=${host_user}"
     echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"

@@ -64,6 +64,10 @@ COPY isaaclab.sh ./
 # ``isaacsim`` extra; ``importers`` is the two standalone wheels. UV_PYTHON above pins the venv to
 # python3.12, matching the runtime stage's libpython3.12; isaaclab.sh resolves VIRTUAL_ENV first.
 # ``--no-managed-python`` is not usable here -- uv rejects it alongside a python-preference.
+# OVRTX caches shaders, textures and derived data inside its own site-packages, and a
+# volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
+# writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
+# sit alongside shipped content such as ``cache/shadercache``, which a mount would hide.
 # ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
 # would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
 # is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
@@ -71,6 +75,7 @@ COPY isaaclab.sh ./
 RUN uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
+ && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \

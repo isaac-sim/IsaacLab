@@ -30,9 +30,11 @@ from pathlib import Path
 
 import pytest
 
-# Small on purpose: Kit boot dominates the runtime at this size, and the defect reproduces at
-# 1024 envs exactly as it does at 2048.
-_NUM_ENVS = "1024"
+# Small on purpose: Kit boot dominates the runtime at this size, and the defect these guard
+# reproduces at any env count. Sized for the CI pool's 23 GiB A10G rather than the 48 GiB L40S
+# it was first measured on -- at 1024 a single rank reached 20.72 GiB and the run died allocating
+# 864 MiB more.
+_NUM_ENVS = "512"
 _MAX_ITERATIONS = "3"
 
 # A hung run goes silent while a slow one keeps logging, so silence is the signal -- nothing here
