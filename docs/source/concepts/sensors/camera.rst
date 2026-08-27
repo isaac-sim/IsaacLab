@@ -162,18 +162,24 @@ non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path ma
    :figwidth: 100%
    :alt: RGB camera output
 
+   Isaac RTX RGB output. The animation shows the six material spheres falling onto the table.
+
 .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-depth.png
    :align: center
    :figwidth: 100%
    :alt: Depth camera output
+
+   Isaac RTX depth output. Display colors encode optical-axis distance; the sensor returns metric
+   values [m].
 
 .. _camera-supported-annotators:
 
 Renderer support
 ~~~~~~~~~~~~~~~~
 
-The common API does not imply that every renderer produces every output. The current support matrix
-is:
+The common API does not imply that every renderer produces every output. For same-scene examples
+across these backends, see the :ref:`renderer visual comparison <renderer-visual-comparison>`. The
+current support matrix is:
 
 .. list-table::
    :header-rows: 1
@@ -225,15 +231,23 @@ backend-specific.
    :figwidth: 100%
    :alt: Camera surface-normal output
 
+   Isaac RTX normals output. Red, green, and blue encode the surface normal X, Y, and Z components.
+
 .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-semantic-segmentation.png
    :align: center
    :figwidth: 100%
    :alt: Semantic segmentation output
 
+   Isaac RTX semantic segmentation. One color represents each class: the six spheres share one
+   class, while the table and backdrop use separate classes.
+
 .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-instance-segmentation.png
    :align: center
    :figwidth: 100%
    :alt: Instance segmentation output
+
+   Isaac RTX instance segmentation. Each sphere receives its own color, distinguishing objects
+   that share the same semantic class.
 
 Background color
 ----------------
