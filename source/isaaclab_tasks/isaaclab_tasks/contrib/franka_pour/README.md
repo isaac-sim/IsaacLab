@@ -24,9 +24,9 @@ constant padding. The asymmetric critic adds two task-state inputs for a total o
 The artifact is still required for the reset-dataset task because it is the reset curriculum, not
 a cache of simulated fluid outcomes. It amortizes NewtonIK and static collision rejection, gives
 every physical start a stable row ID for outcome-aware replay, and binds training runs to one
-reproducible state distribution. Runtime reconstructs the same source-local particle lattice
-for each row and resets the complete MPM solver state; it does not replay cached stress or particle
-trajectories.
+reproducible rigid-state distribution. Runtime reuses one configured source-local particle lattice
+across reset rows and resets the complete MPM solver state; it does not replay cached stress or
+particle trajectories.
 
 ## Train and regenerate
 
@@ -67,6 +67,37 @@ their stored content digest, so no digest override is needed for ordinary traini
 an exactly reproducible custom run, the generator also prints the optional
 `env.reset_dataset_content_sha256` pin.
 
+## Fill and success levels
+
+`env.source_fill_level` is the initial media height as a fraction of the source-cup cavity. The
+default `0.70` creates a 7×7×15 lattice (735 particles); values are quantized to complete lattice
+layers and must lie in `(0, 1]`. This analytic fill volume is non-colliding. The visible cup mesh
+remains a particle-only collider so it can physically contain the media. The receiver uses a solid
+analytic box only for robot contact; it is invisible to particles, which continue to collide with
+the hollow receiver mesh.
+
+The particle generator and MPM solver both use a 15 mm voxel. Setting
+`particles_per_cell=3` targets three particles per solver cell along each axis (27 per 3D cell),
+while the bounded sparse grid, particle-backed automatic warm start, and two MPM entry substeps keep
+the configuration CUDA-graph compatible. Collider projection remains disabled because manager-level
+post-step projection is not supported inside a coupled MPM entry; contact is resolved by the MPM
+solve.
+
+The proxy presents the supported or grasp-constrained 50 g source cup as 50 kg to the MPM collision
+view. This prevents the roughly 140 g payload from producing unphysical rigid-cup recoil without
+changing the cup's authored mass or the robot dynamics in MJWarp.
+
+`env.pour_target_frac` independently sets the fraction of the initial payload that must be inside
+the receiver. Success is normalized by the live particle count, so changing the source fill does
+not require changing the success check. For example, this starts half-full and requires 80% of that
+payload to be delivered:
+
+```bash
+uv run isaaclab train --rl_library rsl_rl \
+  --task IsaacContrib-Franka-Pour --device cuda:0 \
+  env.source_fill_level=0.50 env.pour_target_frac=0.80
+```
+
 ## Play
 
 The canonical task is registered with import-light string entry points. Registration does not
@@ -78,8 +109,11 @@ and moves the interactive viewer closer:
 uv run isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Franka-Pour \
   --checkpoint /path/to/model.pt \
-  --device cuda:0 --visualizer newton_gl
+  --num_envs 1 --device cuda:0 --visualizer kit
 ```
+
+Use `--visualizer newton_gl` instead for the lightweight Newton viewer. No external callback or
+particle-setting override is required for either visualizer.
 
 ## Learning contract
 
@@ -92,8 +126,8 @@ The actor reward contains only:
 
 An ordinary timeout is neutral. Nonfinite state, extreme rigid state, source/receiver overlap,
 spill, particle out-of-bounds, and the configured collision guards remain terminal safety checks.
-Success terminates on the first policy step with at least 70% of particles delivered to the
-receiver.
+Success terminates on the first policy step with the configured fraction of particles delivered to
+the receiver (70% by default).
 
 The sampler does not use terminal success as its learning signal. For each restored row, a
 non-terminating context asks whether the policy made meaningful forward physical progress from
