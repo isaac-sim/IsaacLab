@@ -10,15 +10,15 @@ the Newton Warp or Isaac RTX renderer.
 .. code-block:: bash
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
-    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+    uv run python scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer newton_renderer --visualizer none --max_steps 60
 
     # Run the same saved-image workflow with Isaac RTX.
-    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+    uv run python scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer isaac_rtx --visualizer none --max_steps 60
 
     # Follow xform time samples on the selected camera or its parent rig at 30 simulation/render FPS.
-    ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+    uv run python scripts/demos/sensors/ppisp_camera.py \
         --input_scene /path/to/scene.usd --renderer isaac_rtx \
         --fps 30 --write_fps 10 --visualizer none
 
@@ -69,7 +69,12 @@ parser.add_argument(
     default=1,
     help="Number of duplicated input-scene envs to render in the tiled camera batch.",
 )
-parser.add_argument("--env_spacing", type=float, default=20.0, help="Spacing between duplicated input-scene envs.")
+parser.add_argument(
+    "--env_spacing",
+    type=float,
+    default=20.0,
+    help="Spacing between duplicated input-scene envs.",
+)
 parser.add_argument("--image_width", type=int, default=320, help="Output image width.")
 parser.add_argument(
     "--image_height",
@@ -77,7 +82,11 @@ parser.add_argument(
     default=None,
     help="Output image height. Defaults to preserving the selected USD RenderProduct aspect ratio.",
 )
-parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
+parser.add_argument(
+    "--disable_fabric",
+    action="store_true",
+    help="Disable Fabric API and use USD instead.",
+)
 parser.add_argument(
     "--renderer",
     type=str,
@@ -235,7 +244,7 @@ from isaaclab_ppisp._demo_utils import (
 )
 from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
 
-from pxr import Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -309,7 +318,8 @@ def log_current_isaacrtx_settings(prefix: str = "[INFO] Verified settings") -> N
     aa_op_names = {0: "None", 1: "TAA", 2: "FXAA", 3: "DLSS", 4: "RTXAA"}
     aa_op_name = aa_op_names.get(aa_op, "unknown")
     dlss_denoiser_enabled = settings.get("/rtx-transient/dldenoiser/enabled")
-    registered_invert_color_correction = settings.get("/rtx/post/registeredCompositing/invertColorCorrection")
+    invert_color_correction = settings.get("/rtx/post/registeredCompositing/invertColorCorrection")
+    invert_tone_map = settings.get("/rtx/post/registeredCompositing/invertToneMap")
     print(
         f"{prefix}: "
         f"renderMode={settings.get('/rtx/rendermode')!r}, "
@@ -328,8 +338,8 @@ def log_current_isaacrtx_settings(prefix: str = "[INFO] Verified settings") -> N
         f"gaussianSkipTonemapping={settings.get('/rtx/rtpt/gaussian/skipTonemapping/enabled')!r}, "
         f"disableNuRecPostProcessings={settings.get('/omni/rtx/nre/compositing/disableNuRecPostProcessings')!r}, "
         f"nurecCompositingLogLevel={settings.get('/omni/rtx/nre/compositing/logLevel')!r}, "
-        f"registeredCompositingInvertColorCorrection={registered_invert_color_correction!r}, "
-        f"registeredCompositingInvertToneMap={settings.get('/rtx/post/registeredCompositing/invertToneMap')!r}",
+        f"registeredCompositingInvertColorCorrection={invert_color_correction!r}, "
+        f"registeredCompositingInvertToneMap={invert_tone_map!r}",
         flush=True,
     )
 
@@ -356,11 +366,15 @@ def apply_rtx_settings() -> None:
     ]
 
     if args_cli.isaacrtx_gaussian_max_intersections is not None:
-        settings.set_int("/rtx/raytracing/gaussian/maxIntersections", args_cli.isaacrtx_gaussian_max_intersections)
+        settings.set_int(
+            "/rtx/raytracing/gaussian/maxIntersections",
+            args_cli.isaacrtx_gaussian_max_intersections,
+        )
         applied.append(f"maxIntersections={args_cli.isaacrtx_gaussian_max_intersections}")
     if args_cli.isaacrtx_gaussian_self_shadow_distance is not None:
         settings.set_float(
-            "/rtx/raytracing/gaussian/selfShadowDistance", args_cli.isaacrtx_gaussian_self_shadow_distance
+            "/rtx/raytracing/gaussian/selfShadowDistance",
+            args_cli.isaacrtx_gaussian_self_shadow_distance,
         )
         applied.append(f"selfShadowDistance={args_cli.isaacrtx_gaussian_self_shadow_distance:g}")
     if args_cli.isaacrtx_enable_accumulation:
@@ -386,7 +400,9 @@ def apply_rtx_settings() -> None:
         print("[INFO] Applied RTX/Gaussian settings: " + ", ".join(applied), flush=True)
 
 
-def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim]:
+def resolve_source_camera_binding(
+    source_stage: Usd.Stage,
+) -> tuple[str, Usd.Prim | None, Usd.Prim]:
     """Resolve the source camera and PPISP camera binding from CLI or source stage metadata."""
     ppisp_bindings = order_ppisp_bindings_by_camera(source_stage, find_ppisp_camera_bindings(source_stage))
     if not ppisp_bindings:
@@ -473,9 +489,7 @@ def get_trajectory_time_samples(source_stage: Usd.Stage, source_camera_prim_path
         return []
     start_time = authored_times[0]
     end_time = authored_times[-1]
-    time_codes_per_second = source_stage.GetTimeCodesPerSecond()
-    if time_codes_per_second <= 0.0:
-        time_codes_per_second = 24.0
+    time_codes_per_second = get_time_codes_per_second(source_stage)
     time_step = time_codes_per_second / args_cli.fps
     sample_count = int(np.floor((end_time - start_time) / time_step)) + 1
     trajectory_times = [start_time + index * time_step for index in range(sample_count)]
@@ -484,10 +498,20 @@ def get_trajectory_time_samples(source_stage: Usd.Stage, source_camera_prim_path
     return trajectory_times
 
 
-def bake_source_camera_pose_to_envs(
-    source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float | None = None, *, log: bool = True
-) -> None:
-    """Bake a USD camera pose at ``time_code`` into duplicated env camera prims."""
+def get_time_codes_per_second(stage: Usd.Stage) -> float:
+    """Return a positive USD time-codes-per-second value."""
+    time_codes_per_second = stage.GetTimeCodesPerSecond()
+    if time_codes_per_second <= 0.0:
+        return 24.0
+    return float(time_codes_per_second)
+
+
+def get_target_camera_world_transforms(
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    time_code: float | None = None,
+) -> list[tuple[Usd.Prim, Gf.Matrix4d]]:
+    """Resolve sampled source camera poses into duplicated-env world transforms."""
     default_prim = source_stage.GetDefaultPrim()
     if not default_prim:
         raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
@@ -506,7 +530,7 @@ def bake_source_camera_pose_to_envs(
     stage = sim_utils.get_current_stage()
     target_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
-    authored_count = 0
+    target_camera_world_transforms = []
     for env_id in range(args_cli.num_envs):
         scene_path = f"/World/envs/env_{env_id}/Scene"
         target_camera_path = f"{scene_path}/{camera_rel_path}"
@@ -518,8 +542,29 @@ def bake_source_camera_pose_to_envs(
             raise RuntimeError(f"Duplicated camera prim not found: {target_camera_path}")
 
         target_scene_world = target_cache.GetLocalToWorldTransform(scene_prim)
-        target_parent_world = target_cache.GetLocalToWorldTransform(target_camera_prim.GetParent())
         target_camera_world = source_camera_in_default * target_scene_world
+        target_camera_world.Orthonormalize()
+        target_camera_world_transforms.append((target_camera_prim, target_camera_world))
+
+    return target_camera_world_transforms
+
+
+def bake_source_camera_pose_to_envs(
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    time_code: float | None = None,
+    *,
+    log: bool = True,
+) -> None:
+    """Bake a USD camera pose at ``time_code`` into duplicated env camera prims."""
+    if time_code is None:
+        time_code = args_cli.camera_time_code
+    target_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+    authored_count = 0
+    for target_camera_prim, target_camera_world in get_target_camera_world_transforms(
+        source_stage, source_camera_prim_path, time_code
+    ):
+        target_parent_world = target_cache.GetLocalToWorldTransform(target_camera_prim.GetParent())
         target_camera_local = target_camera_world * target_parent_world.GetInverse()
         target_camera_local.Orthonormalize()
 
@@ -537,7 +582,40 @@ def bake_source_camera_pose_to_envs(
         )
 
 
-def get_render_product_resolution(render_product_prim: Usd.Prim | None) -> tuple[int, int] | None:
+def set_camera_sensors_from_source_pose(
+    cameras: list[Camera],
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    time_code: float,
+) -> None:
+    """Set initialized camera sensor poses from the sampled USD camera trajectory."""
+    positions = []
+    orientations = []
+    for _target_camera_prim, target_camera_world in get_target_camera_world_transforms(
+        source_stage, source_camera_prim_path, time_code
+    ):
+        translation = target_camera_world.ExtractTranslation()
+        rotation = target_camera_world.ExtractRotationQuat()
+        imaginary = rotation.GetImaginary()
+        positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
+        orientations.append(
+            (
+                float(imaginary[0]),
+                float(imaginary[1]),
+                float(imaginary[2]),
+                float(rotation.GetReal()),
+            )
+        )
+
+    positions_np = np.asarray(positions, dtype=np.float32)
+    orientations_np = np.asarray(orientations, dtype=np.float32)
+    for camera in cameras:
+        camera.set_world_poses(positions_np, orientations_np, convention="opengl")
+
+
+def get_render_product_resolution(
+    render_product_prim: Usd.Prim | None,
+) -> tuple[int, int] | None:
     """Return ``(width, height)`` from a RenderProduct ``resolution`` attribute."""
     if render_product_prim is None:
         return None
@@ -548,6 +626,81 @@ def get_render_product_resolution(render_product_prim: Usd.Prim | None) -> tuple
     if resolution is None or len(resolution) != 2:
         return None
     return int(resolution[0]), int(resolution[1])
+
+
+def get_float_attr(prim: Usd.Prim, attr_name: str, default: float | None = None) -> float | None:
+    """Read a scalar float-valued USD attribute."""
+    attr = prim.GetAttribute(attr_name)
+    if not attr:
+        return default
+    value = attr.Get()
+    if value is None:
+        return default
+    return float(value)
+
+
+def apply_pinhole_opencv_projection_to_env_cameras(
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    render_product_prim: Usd.Prim | None,
+) -> None:
+    """Bake source ``pinholeOpenCV`` calibration into env camera aperture attributes for Newton."""
+    if args_cli.renderer != "newton_renderer":
+        return
+
+    source_camera_prim = source_stage.GetPrimAtPath(source_camera_prim_path)
+    projection_type_attr = source_camera_prim.GetAttribute("cameraProjectionType")
+    projection_type = projection_type_attr.Get() if projection_type_attr else None
+    if projection_type != "pinholeOpenCV":
+        return
+
+    source_resolution = get_render_product_resolution(render_product_prim)
+    if source_resolution is None:
+        print(
+            f"[WARNING] Camera {source_camera_prim_path} uses pinholeOpenCV calibration, but no RenderProduct"
+            " resolution was found. Newton renderer will keep the authored USD aperture values.",
+            flush=True,
+        )
+        return
+
+    focal_length = get_float_attr(source_camera_prim, "focalLength", 1.0)
+    open_cv_fx = get_float_attr(source_camera_prim, "openCVFx")
+    open_cv_fy = get_float_attr(source_camera_prim, "openCVFy")
+    if focal_length is None or open_cv_fx is None or open_cv_fy is None:
+        return
+    if focal_length <= 0.0 or open_cv_fx <= 0.0 or open_cv_fy <= 0.0:
+        return
+
+    source_width, source_height = source_resolution
+    open_cv_cx = get_float_attr(source_camera_prim, "openCVCx", source_width * 0.5)
+    open_cv_cy = get_float_attr(source_camera_prim, "openCVCy", source_height * 0.5)
+    if open_cv_cx is None or open_cv_cy is None:
+        return
+
+    horizontal_aperture = source_width * focal_length / open_cv_fx
+    vertical_aperture = source_height * focal_length / open_cv_fy
+    horizontal_aperture_offset = (source_width * 0.5 - open_cv_cx) * focal_length / open_cv_fx
+    vertical_aperture_offset = (open_cv_cy - source_height * 0.5) * focal_length / open_cv_fy
+
+    authored_count = 0
+    for target_camera_prim, _target_camera_world in get_target_camera_world_transforms(
+        source_stage, source_camera_prim_path, args_cli.camera_time_code
+    ):
+        target_camera = UsdGeom.Camera(target_camera_prim)
+        target_camera.GetFocalLengthAttr().Set(focal_length)
+        target_camera.GetHorizontalApertureAttr().Set(horizontal_aperture)
+        target_camera.GetVerticalApertureAttr().Set(vertical_aperture)
+        target_camera.GetHorizontalApertureOffsetAttr().Set(horizontal_aperture_offset)
+        target_camera.GetVerticalApertureOffsetAttr().Set(vertical_aperture_offset)
+        authored_count += 1
+
+    print(
+        "[INFO] Converted pinholeOpenCV calibration to Newton pinhole aperture for "
+        f"{authored_count} env camera(s): fx={open_cv_fx:g}, fy={open_cv_fy:g}, "
+        f"source_resolution={source_width}x{source_height}, "
+        f"horizontalAperture={horizontal_aperture:g}, verticalAperture={vertical_aperture:g}.",
+        flush=True,
+    )
 
 
 def resolve_image_shape(render_product_prim: Usd.Prim | None) -> tuple[int, int]:
@@ -573,7 +726,10 @@ def make_ppisp_cfg(camera_prim: Usd.Prim, num_ppisp_bindings: int) -> PpispCfg:
     # as explicit values instead of resolving the original camera path later.
     ppisp_cfg.camera_prim_path = None
     if args_cli.ppisp_responsivity is None:
-        print(f"[INFO] Using USD-authored PPISP values from {num_ppisp_bindings} PPISP camera(s).", flush=True)
+        print(
+            f"[INFO] Using USD-authored PPISP values from {num_ppisp_bindings} PPISP camera(s).",
+            flush=True,
+        )
     else:
         ppisp_cfg.inputs["responsivity"] = float(args_cli.ppisp_responsivity)
         print(
@@ -598,6 +754,7 @@ def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int
         CameraCfg(
             prim_path=camera_prim_path,
             update_period=0.0,
+            update_latest_camera_pose=args_cli.renderer == "newton_renderer",
             height=height,
             width=width,
             data_types=["rgb"],
@@ -707,12 +864,15 @@ def report_profile(profile: dict[str, dict[str, float]], output_dir: str, num_st
         "sections": {
             name: {
                 **values,
-                "average_seconds": values["total_seconds"] / values["count"] if values["count"] else 0.0,
+                "average_seconds": (values["total_seconds"] / values["count"] if values["count"] else 0.0),
             }
             for name, values in profile.items()
         },
     }
-    print("[PROFILE] section                         total(s)   avg(ms)   max(ms)", flush=True)
+    print(
+        "[PROFILE] section                         total(s)   avg(ms)   max(ms)",
+        flush=True,
+    )
     for name, values in results["sections"].items():
         print(
             f"[PROFILE] {name:<32} {values['total_seconds']:>8.3f} "
@@ -745,12 +905,21 @@ def run_simulator(
     baseline_dir = os.path.join(output_dir, "baseline")
     ppisp_dir = os.path.join(output_dir, "ppisp")
     diff_dir = os.path.join(output_dir, "diff")
+    cameras = [camera for camera in (baseline_camera, ppisp_camera) if camera is not None]
 
     if args_cli.warmup_steps > 0:
-        print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
-    bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path, trajectory_times[0], log=False)
+        print(
+            f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.",
+            flush=True,
+        )
+    if args_cli.renderer == "isaac_rtx":
+        bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path, trajectory_times[0], log=False)
+    elif args_cli.renderer == "newton_renderer":
+        set_camera_sensors_from_source_pose(cameras, source_stage, source_camera_prim_path, trajectory_times[0])
     for _ in range(args_cli.warmup_steps):
         sim.step()
+        if args_cli.renderer == "newton_renderer":
+            set_camera_sensors_from_source_pose(cameras, source_stage, source_camera_prim_path, trajectory_times[0])
         if baseline_camera is not None:
             baseline_camera.update(sim_dt, force_recompute=True)
         ppisp_camera.update(sim_dt, force_recompute=True)
@@ -771,17 +940,32 @@ def run_simulator(
         step_start = time.perf_counter() if args_cli.profile else 0.0
         section_start = time.perf_counter() if args_cli.profile else 0.0
         trajectory_index = min(count, len(trajectory_times) - 1)
-        bake_source_camera_pose_to_envs(
-            source_stage, source_camera_prim_path, trajectory_times[trajectory_index], log=False
-        )
-        profile_sync(profile_device)
-        profile_record(profile, "trajectory_bake", time.perf_counter() - section_start)
+        if args_cli.renderer == "isaac_rtx":
+            bake_source_camera_pose_to_envs(
+                source_stage,
+                source_camera_prim_path,
+                trajectory_times[trajectory_index],
+                log=False,
+            )
+            profile_sync(profile_device)
+            profile_record(profile, "trajectory_bake", time.perf_counter() - section_start)
 
         profile_sync(profile_device)
         section_start = time.perf_counter() if args_cli.profile else 0.0
         sim.step()
         profile_sync(profile_device)
         profile_record(profile, "simulation_step", time.perf_counter() - section_start)
+
+        if args_cli.renderer == "newton_renderer":
+            section_start = time.perf_counter() if args_cli.profile else 0.0
+            set_camera_sensors_from_source_pose(
+                cameras,
+                source_stage,
+                source_camera_prim_path,
+                trajectory_times[trajectory_index],
+            )
+            profile_sync(profile_device)
+            profile_record(profile, "trajectory_pose_update", time.perf_counter() - section_start)
 
         if baseline_camera is not None:
             section_start = time.perf_counter() if args_cli.profile else 0.0
@@ -806,7 +990,10 @@ def run_simulator(
                 ppisp = ppisp_wp.numpy()
                 profile_record(profile, "gpu_to_cpu_transfer", time.perf_counter() - section_start)
                 if not reported_shape:
-                    print(f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}", flush=True)
+                    print(
+                        f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}",
+                        flush=True,
+                    )
                     reported_shape = True
                 per_env_ppisp_mean = ppisp.astype(np.float32).mean(axis=(1, 2, 3))
                 print(
@@ -874,7 +1061,13 @@ def run_simulator(
                         diff[env_id],
                     ]
                 )
-                subtitles.extend([f"env {env_id} baseline", f"env {env_id} PPISP", f"env {env_id} diff"])
+                subtitles.extend(
+                    [
+                        f"env {env_id} baseline",
+                        f"env {env_id} PPISP",
+                        f"env {env_id} diff",
+                    ]
+                )
             section_start = time.perf_counter() if args_cli.profile else 0.0
             save_images_grid(
                 images,
@@ -923,6 +1116,7 @@ def main() -> None:
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
     scene = create_duplicated_env_scene()
+    apply_pinhole_opencv_projection_to_env_cameras(source_stage, source_camera_prim_path, render_product_prim)
     trajectory_times = get_trajectory_time_samples(source_stage, source_camera_prim_path)
     if not trajectory_times:
         trajectory_times = [args_cli.camera_time_code]
@@ -944,10 +1138,16 @@ def main() -> None:
     # Apply after RTX/Replicator camera construction, but before reset, warmup, and the first render.
     apply_rtx_settings()
     print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
-    print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
+    print(
+        f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.",
+        flush=True,
+    )
 
     sim.reset()
-    print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
+    print(
+        "[INFO]: Setup complete. Saving comparison images during simulation.",
+        flush=True,
+    )
     run_simulator(
         sim,
         baseline_camera,
