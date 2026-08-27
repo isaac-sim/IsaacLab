@@ -1294,16 +1294,19 @@ XR Camera Feedback
 An ordered list of :class:`~isaaclab_teleop.XrCameraFeedCfg` objects selects existing task scene
 cameras. The manager publishes each new RGBA frame after rendering, while
 :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
-vertical, and grid layouts. ``IsaacContrib-PickPlace-GR1T2-Abs`` and
-``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` are the primary reference examples.
+vertical, and grid layouts. The following registered tasks enable PiP by default:
+
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-GR1T2-Abs``
+* ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
+* ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the reference examples, the selected
+``CameraCfg`` through ``xr_camera_feeds``. In the registered tasks above, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. Both reference cameras are parented to a physical robot body
-link, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
-tasks also present their existing recorded ``robot_pov_cam``:
+the same view shown to the operator. Each camera is parented to a physical robot body link, so the
+recorded view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg
    :width: 80%
