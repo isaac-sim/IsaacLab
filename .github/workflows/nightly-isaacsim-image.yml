@@ -151,6 +151,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Commit and push the update branch
+        id: push
         if: ${{ steps.pin.outputs.branch_changed == 'true' && !inputs.dry_run }}
         run: |
           set -euo pipefail
@@ -170,7 +171,10 @@ jobs:
             git push --force-with-lease="$remote_ref:" origin "HEAD:$remote_ref"
           fi
 
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Open or refresh the draft PR
+        id: pr
         if: ${{ steps.pin.outputs.changed == 'true' && !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -214,18 +218,27 @@ jobs:
               -F body=@"$body_file" \
               --jq '.html_url')
             echo "Refreshed draft PR: $pr_url"
-            echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
           else
-            pr_url=$(gh api --method POST "repos/$REPOSITORY/pulls" \
+            read -r pr_number pr_url < <(gh api --method POST "repos/$REPOSITORY/pulls" \
               -f title="$title" \
               -f head="$UPDATE_BRANCH" \
               -f base="$TARGET_BRANCH" \
               -F body=@"$body_file" \
               -F draft=true \
-              --jq '.html_url')
+              --jq '[.number, .html_url] | @tsv')
             echo "Opened draft PR: $pr_url"
-            echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
           fi
+          echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      # Gated on branch_changed so an unchanged open PR does not re-spend GPU
+      # minutes every night.
+      - uses: ./.github/actions/request-docker-ci
+        if: ${{ steps.pin.outputs.branch_changed == 'true' && !inputs.dry_run }}
+        with:
+          pr-number: ${{ steps.pr.outputs.pr_number }}
+          token: ${{ steps.app-token.outputs.token }}
+          expected-head-sha: ${{ steps.push.outputs.head_sha }}
 
       - name: Report no-op or dry run
         if: ${{ steps.pin.outputs.changed != 'true' || inputs.dry_run }}

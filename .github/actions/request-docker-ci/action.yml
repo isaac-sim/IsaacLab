@@ -1,0 +1,69 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Request Docker CI'
+description: >
+  Starts build.yaml ("Docker + Tests") by toggling the ``ci:run-docker`` label,
+  which is the only event that workflow triggers on. The token must be a GitHub
+  App installation token; GitHub does not cascade GITHUB_TOKEN actions into new
+  workflow runs, so a label applied with GITHUB_TOKEN starts nothing. Requires a
+  prior checkout.
+
+inputs:
+  pr-number:
+    description: 'Pull request to start Docker CI for'
+    required: true
+  token:
+    description: 'GitHub App installation token with pull-requests: write'
+    required: true
+  label:
+    description: 'Label build.yaml triggers on'
+    required: false
+    default: 'ci:run-docker'
+  expected-head-sha:
+    description: 'Head commit the caller intends to test; the request is refused if the head moved'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Request Docker CI
+      shell: bash
+      env:
+        EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha }}
+        GH_TOKEN: ${{ inputs.token }}
+        LABEL: ${{ inputs.label }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+
+        # GitHub resolves the head when it processes the label, so labeling a
+        # PR whose head has already moved on builds a revision nobody asked
+        # for. Skip the request instead of spending GPU minutes on it.
+        head_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+        if [ "$head_sha" != "$EXPECTED_HEAD_SHA" ]; then
+          echo "::error::PR #$PR_NUMBER moved from ${EXPECTED_HEAD_SHA:0:7} to ${head_sha:0:7} while this request was processed. Comment 'run-ci' again to test the current head."
+          exit 1
+        fi
+
+        # Removed first because adding an already-present label emits no event,
+        # and again after so the next request can re-arm it.
+        endpoint="repos/$REPOSITORY/issues/$PR_NUMBER/labels"
+        gh api --method DELETE "$endpoint/$LABEL" --silent >/dev/null 2>&1 || true
+        gh api --method POST "$endpoint" -f "labels[]=$LABEL" --silent
+        gh api --method DELETE "$endpoint/$LABEL" --silent
+
+        # A push can still land between the check above and GitHub processing
+        # the label; nothing can make those two steps atomic. Re-read the head
+        # so the mismatch is reported rather than silently testing a revision
+        # the requester never saw.
+        built_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+        if [ "$built_sha" != "$EXPECTED_HEAD_SHA" ]; then
+          echo "::error::PR #$PR_NUMBER moved to ${built_sha:0:7} as the label was applied, so Docker CI is testing that revision and not the requested ${EXPECTED_HEAD_SHA:0:7}. Comment 'run-ci' again to test the current head."
+          exit 1
+        fi
+
+        echo "Requested Docker CI for PR #$PR_NUMBER at ${EXPECTED_HEAD_SHA:0:7}." >> "$GITHUB_STEP_SUMMARY"
