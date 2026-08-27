@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 
 from isaaclab.utils.leapp import (
@@ -65,19 +66,22 @@ class BaseContactSensorData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def net_forces_w(self) -> ProxyArray | None:
-        """The net normal contact forces in world frame.
+    def net_normal_forces_w(self) -> ProxyArray | None:
+        """The net normal contact forces [N] in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, 3).
+
+        The net total contact force is the sum of this quantity and
+        :attr:`net_friction_forces_w`.
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def net_forces_w_history(self) -> ProxyArray | None:
-        """History of net normal contact forces.
+    def net_normal_forces_w_history(self) -> ProxyArray | None:
+        """History of net normal contact forces [N].
 
         Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, history_length, num_sensors, 3).
@@ -87,21 +91,24 @@ class BaseContactSensorData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def force_matrix_w(self) -> ProxyArray | None:
-        """Normal contact forces filtered between sensor and filtered bodies.
+    def normal_force_matrix_w(self) -> ProxyArray | None:
+        """Normal contact forces [N] filtered between sensor and filtered bodies.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, num_filter_shapes, 3).
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+
+        The total contact force matrix is the sum of this quantity and
+        :attr:`friction_force_matrix_w`.
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def force_matrix_w_history(self) -> ProxyArray | None:
-        """History of filtered contact forces.
+    def normal_force_matrix_w_history(self) -> ProxyArray | None:
+        """History of filtered normal contact forces [N].
 
         Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
         In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
@@ -126,15 +133,86 @@ class BaseContactSensorData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def friction_forces_w(self) -> ProxyArray | None:
-        """Sum of friction forces.
+    def net_friction_forces_w(self) -> ProxyArray | None:
+        """The net friction contact forces [N] in world frame.
 
-        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
-        (num_instances, num_sensors, num_filter_shapes, 3).
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
 
         None if :attr:`ContactSensorCfg.track_friction_forces` is False.
         """
         raise NotImplementedError
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def friction_force_matrix_w(self) -> ProxyArray | None:
+        """Friction contact forces [N] filtered between sensor and filtered bodies.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False or no filter objects are configured.
+        """
+        raise NotImplementedError
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def net_forces_w(self) -> ProxyArray | None:
+        """Deprecated alias for :attr:`net_normal_forces_w`."""
+        warnings.warn(
+            "'net_forces_w' is deprecated and will be removed in Isaac Lab 4.0; use 'net_normal_forces_w' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.net_normal_forces_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def net_forces_w_history(self) -> ProxyArray | None:
+        """Deprecated alias for :attr:`net_normal_forces_w_history`."""
+        warnings.warn(
+            "'net_forces_w_history' is deprecated and will be removed in Isaac Lab 4.0; use"
+            " 'net_normal_forces_w_history' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.net_normal_forces_w_history
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def force_matrix_w(self) -> ProxyArray | None:
+        """Deprecated alias for :attr:`normal_force_matrix_w`."""
+        warnings.warn(
+            "'force_matrix_w' is deprecated and will be removed in Isaac Lab 4.0; use 'normal_force_matrix_w' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.normal_force_matrix_w
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def force_matrix_w_history(self) -> ProxyArray | None:
+        """Deprecated alias for :attr:`normal_force_matrix_w_history`."""
+        warnings.warn(
+            "'force_matrix_w_history' is deprecated and will be removed in Isaac Lab 4.0; use"
+            " 'normal_force_matrix_w_history' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.normal_force_matrix_w_history
+
+    @property
+    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    def friction_forces_w(self) -> ProxyArray | None:
+        """Deprecated alias for :attr:`friction_force_matrix_w`."""
+        warnings.warn(
+            "'friction_forces_w' is deprecated and will be removed in Isaac Lab 4.0; use"
+            " 'friction_force_matrix_w' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.friction_force_matrix_w
 
     @property
     @abstractmethod

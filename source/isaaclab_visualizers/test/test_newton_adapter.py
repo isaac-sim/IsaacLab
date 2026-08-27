@@ -471,17 +471,17 @@ class _Proxy:
 
 
 class _ContactSensorData:
-    def __init__(self, net_forces_w, pos_w):
-        self.net_forces_w = _Proxy(net_forces_w)
+    def __init__(self, net_normal_forces_w, pos_w):
+        self.net_normal_forces_w = _Proxy(net_normal_forces_w)
         self.pos_w = _Proxy(pos_w)
         self.contact_pos_w = None
-        self.force_matrix_w = None
+        self.normal_force_matrix_w = None
 
 
 class _ContactSensor:
-    def __init__(self, net_forces_w, pos_w, force_threshold=1.0):
+    def __init__(self, net_normal_forces_w, pos_w, force_threshold=1.0):
         self.cfg = SimpleNamespace(force_threshold=force_threshold)
-        self.data = _ContactSensorData(net_forces_w, pos_w)
+        self.data = _ContactSensorData(net_normal_forces_w, pos_w)
 
 
 class _SceneDataProvider:
@@ -614,7 +614,7 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
     state = SimpleNamespace(body_q=_BodyQ())
     viewer = _Viewer()
     sensor = _ContactSensor(
-        net_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], dtype=torch.float32),
+        net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], dtype=torch.float32),
         pos_w=torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], dtype=torch.float32),
         force_threshold=1.0,
     )

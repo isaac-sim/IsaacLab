@@ -7,10 +7,14 @@
 
 # pyright: reportPrivateUsage=none
 
+import pytest
 import torch
 import warp as wp
 from isaaclab_newton.sensors.contact_sensor.contact_sensor_data import ContactSensorData
-from isaaclab_newton.sensors.contact_sensor.contact_sensor_kernels import update_contact_sensor_kernel
+from isaaclab_newton.sensors.contact_sensor.contact_sensor_kernels import (
+    copy_from_newton_kernel,
+    update_contact_sensor_kernel,
+)
 
 
 def test_force_matrix_history_rolls_newest_first_and_honors_mask():
@@ -21,7 +25,7 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
     timestamp_last_update = wp.zeros((2,), dtype=wp.float32, device="cpu")
 
     for value, mask_values in ((1.0, [True, True]), (2.0, [True, True]), (3.0, [True, False])):
-        wp.to_torch(data._force_matrix_w).fill_(value)
+        wp.to_torch(data._normal_force_matrix_w).fill_(value)
         wp.launch(
             update_contact_sensor_kernel,
             dim=(2, 1),
@@ -30,12 +34,12 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
                 1,
                 0.0,
                 wp.array(mask_values, dtype=wp.bool, device="cpu"),
-                data._net_forces_w,
-                data._force_matrix_w,
+                data._net_normal_forces_w,
+                data._normal_force_matrix_w,
                 timestamp,
                 timestamp_last_update,
-                data._net_forces_w_history,
-                data._force_matrix_w_history,
+                data._net_normal_forces_w_history,
+                data._normal_force_matrix_w_history,
                 None,
                 None,
                 None,
@@ -44,7 +48,79 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
             device="cpu",
         )
 
-    history = data.force_matrix_w_history.torch
+    history = data.normal_force_matrix_w_history.torch
     for env, values in enumerate(((3.0, 2.0, 1.0), (2.0, 1.0, 0.0))):
         for history_index, value in enumerate(values):
             torch.testing.assert_close(history[env, history_index], torch.full_like(history[env, history_index], value))
+
+
+def test_copy_from_newton_decomposes_normal_and_friction_forces():
+    """Test aggregate and filtered total-force decomposition."""
+    data = ContactSensorData()
+    data.create_buffers(1, 1, 2, 1, True, False, False, "cpu", track_friction_forces=True)
+    total_force = wp.array([(3.0, 4.0, 0.0)], dtype=wp.vec3f, device="cpu")
+    total_friction = wp.array([(0.0, 4.0, 0.0)], dtype=wp.vec3f, device="cpu")
+    force_matrix = wp.array(
+        [[(1.0, 2.0, 0.0), (0.0, 0.0, 3.0)]],
+        dtype=wp.vec3f,
+        ndim=2,
+        device="cpu",
+    )
+    friction_matrix = wp.array(
+        [[(0.0, 2.0, 0.0), (0.0, 0.0, 1.0)]],
+        dtype=wp.vec3f,
+        ndim=2,
+        device="cpu",
+    )
+    positions = wp.zeros((1, 2), dtype=wp.vec3f, device="cpu")
+
+    wp.launch(
+        copy_from_newton_kernel,
+        dim=(1, 1, 2),
+        inputs=[
+            wp.array([True], dtype=wp.bool, device="cpu"),
+            1,
+            total_force,
+            total_friction,
+            force_matrix,
+            friction_matrix,
+            positions,
+            wp.ones((1,), dtype=wp.float32, device="cpu"),
+        ],
+        outputs=[
+            data._net_normal_forces_w,
+            data._normal_force_matrix_w,
+            data._net_friction_forces_w,
+            data._friction_force_matrix_w,
+            data._contact_pos_w,
+        ],
+        device="cpu",
+    )
+
+    torch.testing.assert_close(data.net_normal_forces_w.torch, torch.tensor([[[3.0, 0.0, 0.0]]]))
+    torch.testing.assert_close(data.net_friction_forces_w.torch, torch.tensor([[[0.0, 4.0, 0.0]]]))
+    torch.testing.assert_close(
+        data.normal_force_matrix_w.torch,
+        torch.tensor([[[[1.0, 0.0, 0.0], [0.0, 0.0, 2.0]]]]),
+    )
+    torch.testing.assert_close(
+        data.friction_force_matrix_w.torch,
+        torch.tensor([[[[0.0, 2.0, 0.0], [0.0, 0.0, 1.0]]]]),
+    )
+
+
+def test_deprecated_force_names_alias_renamed_fields():
+    """Test that renamed fields retain warning-backed compatibility aliases."""
+    data = ContactSensorData()
+    data.create_buffers(1, 1, 1, 1, True, False, False, "cpu", track_friction_forces=True)
+
+    for old_name, new_name in (
+        ("net_forces_w", "net_normal_forces_w"),
+        ("net_forces_w_history", "net_normal_forces_w_history"),
+        ("force_matrix_w", "normal_force_matrix_w"),
+        ("force_matrix_w_history", "normal_force_matrix_w_history"),
+        ("friction_forces_w", "friction_force_matrix_w"),
+    ):
+        with pytest.warns(DeprecationWarning):
+            old_value = getattr(data, old_name)
+        assert old_value is getattr(data, new_name)

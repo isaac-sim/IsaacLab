@@ -15,18 +15,22 @@ def copy_from_newton_kernel(
     env_mask: wp.array(dtype=wp.bool),
     num_sensors: int,
     newton_total_force: wp.array(dtype=wp.vec3f),  # (n_envs * n_sensors)
+    newton_total_force_friction: wp.array(dtype=wp.vec3f),  # (n_envs * n_sensors)
     newton_force_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
+    newton_force_matrix_friction: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
     newton_position_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
     timestamp: wp.array(dtype=wp.float32),
     # outputs
-    net_force_total: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
-    force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
+    net_normal_force: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
+    normal_force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
+    net_friction_force: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors) or None
+    friction_force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
     contact_pos_w: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
 ):
     """Copy contact force data from Newton sensor into owned buffers.
 
     Launch with dim=(num_envs, num_sensors, max(num_filter_objects, 1)) for coalescing.
-    When num_filter_objects == 0, trailing dim is 1 and only total is copied.
+    When num_filter_objects == 0, trailing dim is 1 and only aggregate forces are copied.
     """
     env, sensor, f_idx = wp.tid()
 
@@ -39,20 +43,25 @@ def copy_from_newton_kernel(
     if timestamp[env] == 0.0:
         return
 
-    # Copy total force (column 0) - only thread with f_idx == 0 does this
+    # Copy aggregate forces (column 0) - only thread with f_idx == 0 does this.
     src_idx = env * num_sensors + sensor
     if f_idx == 0:
-        net_force_total[env, sensor] = newton_total_force[src_idx]
+        friction = newton_total_force_friction[src_idx]
+        net_normal_force[env, sensor] = newton_total_force[src_idx] - friction
+        if net_friction_force:
+            net_friction_force[env, sensor] = friction
 
     # Copy per-filter-object forces.
-    # Guard with `if force_matrix:` to handle None case (no filter objects)
-    if force_matrix:
-        force_matrix[env, sensor, f_idx] = newton_force_matrix[src_idx, f_idx]
+    if normal_force_matrix:
+        friction = newton_force_matrix_friction[src_idx, f_idx]
+        normal_force_matrix[env, sensor, f_idx] = newton_force_matrix[src_idx, f_idx] - friction
+        if friction_force_matrix:
+            friction_force_matrix[env, sensor, f_idx] = friction
 
     # Copy per-filter-object contact positions. Newton reports zero for pairs without
     # contacts; report NaN instead to match the PhysX backend's no-contact convention.
-    if contact_pos_w and newton_force_matrix:
-        if wp.length_sq(newton_force_matrix[src_idx, f_idx]) > 0.0:
+    if contact_pos_w and normal_force_matrix:
+        if wp.length_sq(normal_force_matrix[env, sensor, f_idx]) > 0.0:
             contact_pos_w[env, sensor, f_idx] = newton_position_matrix[src_idx, f_idx]
         else:
             contact_pos_w[env, sensor, f_idx] = wp.vec3f(wp.nan)
@@ -65,10 +74,12 @@ def reset_contact_sensor_kernel(
     num_filter_objects: int,
     env_mask: wp.array(dtype=wp.bool),
     # in-out
-    net_forces_w: wp.array2d(dtype=wp.vec3f),
-    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
-    force_matrix_w: wp.array3d(dtype=wp.vec3f),
-    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_friction_forces_w: wp.array2d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
     # outputs
     current_air_time: wp.array2d(dtype=wp.float32),
@@ -87,20 +98,25 @@ def reset_contact_sensor_kernel(
             return
 
     # Reset net forces
-    net_forces_w[env, sensor] = wp.vec3f(0.0)
+    net_normal_forces_w[env, sensor] = wp.vec3f(0.0)
 
     # Reset history
-    if net_forces_w_history:
+    if net_normal_forces_w_history:
         for i in range(history_length):
-            net_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
+            net_normal_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
+
+    if net_friction_forces_w:
+        net_friction_forces_w[env, sensor] = wp.vec3f(0.0)
 
     # Reset force matrix (guard for None case)
-    if force_matrix_w:
+    if normal_force_matrix_w:
         for f in range(num_filter_objects):
-            force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
-            if force_matrix_w_history:
+            normal_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            if normal_force_matrix_w_history:
                 for i in range(history_length):
-                    force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
+                    normal_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
+            if friction_force_matrix_w:
+                friction_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
 
     # Reset contact positions to NaN (no contact)
     if contact_pos_w:

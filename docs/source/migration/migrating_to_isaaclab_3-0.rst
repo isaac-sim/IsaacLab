@@ -773,6 +773,33 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
+Contact force property names
+----------------------------
+
+Contact sensor force properties now state whether they contain aggregate or filtered normal and
+friction forces. The former names remain warning-backed aliases through the 3.x release line.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Deprecated property
+     - Canonical property
+   * - ``net_forces_w``
+     - ``net_normal_forces_w``
+   * - ``net_forces_w_history``
+     - ``net_normal_forces_w_history``
+   * - ``force_matrix_w``
+     - ``normal_force_matrix_w``
+   * - ``force_matrix_w_history``
+     - ``normal_force_matrix_w_history``
+   * - ``friction_forces_w``
+     - ``friction_force_matrix_w``
+
+Newton also exposes ``net_friction_forces_w``. The total contact force is
+``net_normal_forces_w + net_friction_forces_w``. PhysX cannot report an unfiltered aggregate
+friction force and raises ``NotImplementedError`` when ``net_friction_forces_w`` is accessed.
+
+
 Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
 -------------------------------------------------------------
 
@@ -1666,12 +1693,12 @@ To use a data property as a ``torch.Tensor``, append ``.torch``:
    # After (Isaac Lab 3.x)
    root_pos = robot.data.root_pos_w              # ProxyArray
    joint_pos = robot.data.joint_pos              # ProxyArray
-   contact_forces = sensor.data.net_forces_w     # ProxyArray
+   contact_forces = sensor.data.net_normal_forces_w     # ProxyArray
 
    # To use with torch operations, access .torch
    root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
    joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
-   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
+   contact_torch = sensor.data.net_normal_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
