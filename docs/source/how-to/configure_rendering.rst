@@ -20,8 +20,10 @@ need higher throughput, switch to the RTX Minimal renderer instead.
    Requesting one of the ``simple_shading_*`` camera data types switches that camera's render
    product to RTX Minimal mode; the data type selects the shading level. The switch applies per
    render product, so other cameras and the Kit viewport keep their configured render mode. RTX
-   Minimal illuminates the scene from ``DistantLight`` prims only and ignores ``DomeLight``
-   prims, so a scene lit solely by a dome light renders unlit through these data types.
+   Minimal uses only the first ``DistantLight`` prim, ignores ``DomeLight`` prims, and may also use
+   configured ambient lighting. Because Minimal mode applies to the entire render product,
+   ``rgb`` or ``rgba`` cannot be combined with ``simple_shading_*``, and only one distinct simple
+   shading mode can be requested. Use separate cameras for incompatible outputs.
 
 Overriding Specific Rendering Settings
 --------------------------------------
