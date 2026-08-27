@@ -212,33 +212,44 @@ jobs:
             -f head="$repository_owner:$UPDATE_BRANCH" \
             --jq '.[0].number // empty')
 
+          created=false
           if [ -n "$pr_number" ]; then
-            pr_url=$(gh api --method PATCH "repos/$REPOSITORY/pulls/$pr_number" \
+            read -r pr_url pr_head_sha < <(gh api --method PATCH "repos/$REPOSITORY/pulls/$pr_number" \
               -f title="$title" \
               -F body=@"$body_file" \
-              --jq '.html_url')
+              --jq '[.html_url, .head.sha] | @tsv')
             echo "Refreshed draft PR: $pr_url"
           else
-            read -r pr_number pr_url < <(gh api --method POST "repos/$REPOSITORY/pulls" \
+            read -r pr_number pr_url pr_head_sha < <(gh api --method POST "repos/$REPOSITORY/pulls" \
               -f title="$title" \
               -f head="$UPDATE_BRANCH" \
               -f base="$TARGET_BRANCH" \
               -F body=@"$body_file" \
               -F draft=true \
-              --jq '[.number, .html_url] | @tsv')
+              --jq '[.number, .html_url, .head.sha] | @tsv')
+            created=true
             echo "Opened draft PR: $pr_url"
           fi
           echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
-          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          {
+            echo "pr_number=$pr_number"
+            echo "head_sha=$pr_head_sha"
+            echo "created=$created"
+          } >> "$GITHUB_OUTPUT"
 
-      # Gated on branch_changed so an unchanged open PR does not re-spend GPU
-      # minutes every night.
+      # A new commit, or a PR opened over a branch that already carried the
+      # candidate (the previous PR was closed, or an earlier run pushed and then
+      # failed) -- without the second case that PR never gets CI on any night.
+      # An unchanged branch under an existing PR still requests nothing, so a
+      # quiet night does not re-spend GPU minutes.
       - uses: ./.github/actions/request-docker-ci
-        if: ${{ steps.pin.outputs.branch_changed == 'true' && !inputs.dry_run }}
+        if: >-
+          ${{ (steps.pin.outputs.branch_changed == 'true' || steps.pr.outputs.created == 'true')
+              && !inputs.dry_run }}
         with:
           pr-number: ${{ steps.pr.outputs.pr_number }}
           token: ${{ steps.app-token.outputs.token }}
-          expected-head-sha: ${{ steps.push.outputs.head_sha }}
+          expected-head-sha: ${{ steps.push.outputs.head_sha || steps.pr.outputs.head_sha }}
 
       - name: Report no-op or dry run
         if: ${{ steps.pin.outputs.changed != 'true' || inputs.dry_run }}
