@@ -311,7 +311,12 @@ class TestEnsureNewton:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
     def test_installs_pinned_git_build_when_absent(self):
-        """When the pinned commit is not installed, uninstall newton then install the git build."""
+        """When the pinned commit is not installed, force-reinstall over the existing tree.
+
+        Never ``pip uninstall`` first: Isaac Sim's ``isaacsim.pip.newton`` prebundle symlinks
+        into the installed tree, so removing the distribution dangles every link and the
+        install aborts on the prebundle guard (nvbugs 6343978).
+        """
         from isaaclab.cli.commands import install
 
         commit = install._pinned_version("newton")
@@ -328,10 +333,11 @@ class TestEnsureNewton:
         ):
             install._ensure_newton()
 
-        assert any("uninstall" in cmd for cmd in calls), "old Newton should be uninstalled first"
+        assert not any("uninstall" in cmd for cmd in calls), "uninstalling dangles the prebundle symlinks"
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
         install_args = install_cmds[-1]
+        assert "--force-reinstall" in install_args, "the new tree must overwrite the old in place"
         assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
         assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 

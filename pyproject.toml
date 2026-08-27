@@ -211,7 +211,10 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.10"
 ovrtx = "0.4.1.364340"
 ovstage = "0.1.1.355824"
-newton = "release-1.5"
+# Pinned past release-1.5 for newton#4017 (ArticulationView generic over custom frequencies),
+# which the MuJoCo tendon adapter needs to read mujoco.actuator_trntype. Merged to main and
+# not backported, so this is the merge commit rather than a branch.
+newton = "4055a1594d91ae8c1a8688b0932cd10f75d30603"
 warp = "1.16.0"
 
 [tool.ruff]
@@ -394,7 +397,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.5",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@4055a1594d91ae8c1a8688b0932cd10f75d30603",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",

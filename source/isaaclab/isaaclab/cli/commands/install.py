@@ -368,7 +368,6 @@ def _ensure_newton() -> None:
 
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
-    using_uv = pip_cmd[0] == "uv"
 
     # git installs record the commit in freeze output; skip if it is already present.
     frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
@@ -379,9 +378,12 @@ def _ensure_newton() -> None:
         return
 
     print_info(f"Installing pinned Newton git build ({commit[:10]})...")
-    uninstall_flags = ["-y"] if not using_uv else []
-    run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
-    _run_package_install(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
+    # Overwrite in place rather than uninstall-then-install. Isaac Sim's
+    # ``isaacsim.pip.newton`` prebundle is a symlink farm pointing at the installed tree, so
+    # removing the distribution first leaves every link dangling and trips
+    # :func:`_assert_no_new_dangling_prebundle_symlinks` -- see nvbugs 6343978. A forced
+    # reinstall replaces the files the new version ships without deleting the old tree.
+    _run_package_install(pip_cmd + ["install", "--force-reinstall", requirement, *([schemas] if schemas else [])])
 
 
 # Isaac Sim install settings.
