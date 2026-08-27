@@ -12,6 +12,7 @@ from __future__ import annotations
 import warnings
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import warp as wp
 
@@ -23,6 +24,7 @@ from isaaclab.sim.utils.newton_model_utils import (
     _get_omnipbr_albedo,
     _resolve_shape_color,
     replace_newton_builder_shape_colors,
+    replace_newton_builder_shape_uv_transforms,
 )
 
 pytestmark = pytest.mark.integration
@@ -35,6 +37,20 @@ def _replace_newton_builder_shape_colors_wrapper(builder: object, stage: Usd.Sta
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=_WARNING_MESSAGE, category=FutureWarning)
         return replace_newton_builder_shape_colors(builder, stage)
+
+
+class _FakeNewtonMesh:
+    """Minimal Newton mesh surface used to verify payload sharing."""
+
+    def __init__(self):
+        self.vertices = object()
+        self.indices = object()
+        self.texture = object()
+        self._uvs = np.asarray(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0)), dtype=np.float32)
+
+    @property
+    def uvs(self) -> np.ndarray:
+        return self._uvs
 
 
 _OMNIPBR_ALBEDO_INPUT_CASES = [
@@ -236,6 +252,32 @@ def test_resolve_shape_color_neutral_material_binding():
     """Bound ``UsdPreviewSurface`` material: not OmniPBR, so resolution is ``None`` (Newton row unchanged)."""
     stage, mesh_path = _make_preview_surface_bound_mesh_stage()
     assert _resolve_shape_color(stage, mesh_path, {}) is None
+
+
+def test_replace_newton_builder_shape_uv_transforms_shares_mesh_payload():
+    """The stopgap copies transformed UVs without duplicating geometry or textures."""
+    stage, shader, mesh_path = _make_mesh_bound_to_omnipbr_test_material(None, None)
+    shader.CreateInput("project_uvw", Sdf.ValueTypeNames.Bool).Set(False)
+    shader.CreateInput("texture_scale", Sdf.ValueTypeNames.Float2).Set(Gf.Vec2f(2.0, 3.0))
+    shader.CreateInput("texture_translate", Sdf.ValueTypeNames.Float2).Set(Gf.Vec2f(0.25, -0.5))
+    shader.CreateInput("texture_rotate", Sdf.ValueTypeNames.Float).Set(90.0)
+    source = _FakeNewtonMesh()
+    builder = SimpleNamespace(shape_label=[mesh_path], shape_source=[source])
+
+    assert replace_newton_builder_shape_uv_transforms(builder, stage) == 1
+    transformed = builder.shape_source[0]
+    assert transformed is not source
+    assert transformed.vertices is source.vertices
+    assert transformed.indices is source.indices
+    assert transformed.texture is source.texture
+    assert transformed.uvs is not source.uvs
+    np.testing.assert_allclose(
+        transformed.uvs,
+        ((0.25, -0.5), (0.25, -3.5), (2.25, -3.5)),
+        atol=1.0e-6,
+    )
+    np.testing.assert_array_equal(source.uvs, ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0)))
+    assert replace_newton_builder_shape_uv_transforms(builder, stage) == 0
 
 
 def test_replace_newton_builder_shape_colors_warning():

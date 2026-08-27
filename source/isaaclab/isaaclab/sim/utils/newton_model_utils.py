@@ -12,6 +12,7 @@ to be deprecated and removed.
 
 from __future__ import annotations
 
+import copy
 import logging
 import warnings
 from typing import Any
@@ -20,7 +21,7 @@ import numpy as np
 
 from pxr import Usd, UsdGeom, UsdShade
 
-__all__ = ["replace_newton_builder_shape_colors"]
+__all__ = ["replace_newton_builder_shape_colors", "replace_newton_builder_shape_uv_transforms"]
 
 logger = logging.getLogger(__name__)
 
@@ -94,15 +95,25 @@ def _get_bound_material_prim(shape_prim: Usd.Prim) -> Usd.Prim:
     return Usd.Prim()
 
 
-def _get_input_value(shader: UsdShade.Shader, name: str) -> tuple[float, float, float] | None:
-    """Fetch the effective input value from a shader, following connections."""
+def _get_shader_input_value(shader: UsdShade.Shader, name: str) -> Any:
+    """Fetch an effective shader input value, following connections."""
     inp = shader.GetInput(name)
     if inp is not None:
         attrs = UsdShade.Utils.GetValueProducingAttributes(inp)
         if attrs and len(attrs) > 0:
             value = attrs[0].Get()
             if value is not None:
-                return _coerce_color(value)
+                return value
+        return inp.Get()
+
+    return None
+
+
+def _get_input_value(shader: UsdShade.Shader, name: str) -> tuple[float, float, float] | None:
+    """Fetch an effective color input value, following connections."""
+    value = _get_shader_input_value(shader, name)
+    if value is not None:
+        return _coerce_color(value)
 
     return None
 
@@ -203,6 +214,148 @@ def _resolve_shape_color(
 
     material_color_cache[material_key] = material_color
     return material_color
+
+
+def _coerce_texture_vec2(value: Any, default: tuple[float, float]) -> np.ndarray | None:
+    """Coerce a finite texture transform input to a two-component array."""
+    if value is None:
+        return np.asarray(default, dtype=np.float32)
+    try:
+        vector = np.asarray(value, dtype=np.float32).reshape(-1)
+    except (TypeError, ValueError):
+        return None
+    if vector.size < 2 or not np.all(np.isfinite(vector[:2])):
+        return None
+    return vector[:2]
+
+
+def _resolve_omnipbr_uv_transform(material_prim: Usd.Prim) -> tuple[np.ndarray, np.ndarray, float] | None:
+    """Resolve a non-identity affine transform for authored OmniPBR UV coordinates."""
+    shader_prim = _get_surface_shader(material_prim)
+    if not _is_omnipbr_shader(shader_prim):
+        return None
+
+    shader = UsdShade.Shader(shader_prim)
+    if bool(_get_shader_input_value(shader, "project_uvw")):
+        return None
+
+    scale = _coerce_texture_vec2(_get_shader_input_value(shader, "texture_scale"), (1.0, 1.0))
+    translate = _coerce_texture_vec2(_get_shader_input_value(shader, "texture_translate"), (0.0, 0.0))
+    rotate_value = _get_shader_input_value(shader, "texture_rotate")
+    try:
+        rotate = 0.0 if rotate_value is None else float(rotate_value)
+    except (TypeError, ValueError):
+        return None
+    if scale is None or translate is None or not np.isfinite(rotate):
+        return None
+    if np.array_equal(scale, (1.0, 1.0)) and np.array_equal(translate, (0.0, 0.0)) and rotate == 0.0:
+        return None
+    return scale, translate, rotate
+
+
+def _apply_uv_transform(
+    uvs: Any,
+    scale: np.ndarray,
+    translate: np.ndarray,
+    rotate: float,
+) -> np.ndarray | None:
+    """Apply OmniPBR's rotate-scale-translate transform to existing UV coordinates."""
+    try:
+        coordinates = np.asarray(uvs, dtype=np.float32)
+    except (TypeError, ValueError):
+        return None
+    if coordinates.ndim != 2 or coordinates.shape[1] != 2:
+        return None
+
+    angle = np.deg2rad(rotate)
+    cosine = np.float32(np.cos(angle))
+    sine = np.float32(np.sin(angle))
+    rotated = np.empty_like(coordinates)
+    rotated[:, 0] = cosine * coordinates[:, 0] + sine * coordinates[:, 1]
+    rotated[:, 1] = -sine * coordinates[:, 0] + cosine * coordinates[:, 1]
+    return rotated * scale + translate
+
+
+# TODO: Remove this compatibility pass after OMPE-107347 provides equivalent Newton ViewerRTX support.
+def replace_newton_builder_shape_uv_transforms(builder: Any, stage: Usd.Stage) -> int:
+    """Bake authored OmniPBR affine UV transforms into Newton visual mesh sources.
+
+    Newton imports textures and authored ``primvars:st`` but currently drops OmniPBR ``texture_scale``,
+    ``texture_translate``, and ``texture_rotate``. This stopgap copies only affected mesh wrappers and UV arrays;
+    vertices, indices, textures, and simulation mesh identity remain shared. Projected mappings are deliberately
+    excluded because object/world cubic projection cannot be represented by one affine transform of existing UVs.
+    The pass runs once immediately after each USD import; runtime material-transform updates are not supported.
+
+    Args:
+        builder: Object with ``shape_label`` and ``shape_source`` lists, typically a Newton ``ModelBuilder`` before
+            finalization.
+        stage: USD stage used to resolve effective visual material bindings.
+
+    Returns:
+        Number of shape sources whose UV coordinates were transformed.
+    """
+    shape_labels = getattr(builder, "shape_label", None)
+    shape_sources = getattr(builder, "shape_source", None)
+    if not isinstance(shape_labels, list) or not isinstance(shape_sources, list):
+        return 0
+    if len(shape_labels) != len(shape_sources):
+        raise ValueError(
+            f"Mismatching length of shape_label and shape_source: {len(shape_labels)} != {len(shape_sources)}"
+        )
+
+    material_transform_cache: dict[str, tuple[np.ndarray, np.ndarray, float] | None] = {}
+    transformed_source_cache: dict[tuple[int, tuple[float, ...]], Any] = {}
+    num_uv_updates = 0
+
+    for shape_index, label in enumerate(shape_labels):
+        source = shape_sources[shape_index]
+        source_uvs = getattr(source, "uvs", None)
+        if getattr(source, "texture", None) is None or source_uvs is None:
+            continue
+
+        shape_prim = stage.GetPrimAtPath(label)
+        if not shape_prim.IsValid():
+            continue
+        imageable = UsdGeom.Imageable(shape_prim)
+        if bool(imageable) and imageable.ComputePurpose() == UsdGeom.Tokens.guide:
+            continue
+
+        material_prim = _get_bound_material_prim(shape_prim)
+        if not material_prim.IsValid():
+            continue
+        material_key = _canonical_prim_lookup_key(material_prim)
+        if material_key not in material_transform_cache:
+            material_transform_cache[material_key] = _resolve_omnipbr_uv_transform(material_prim)
+        transform = material_transform_cache[material_key]
+        if transform is None:
+            continue
+
+        scale, translate, rotate = transform
+        transform_key = (*scale.tolist(), *translate.tolist(), rotate)
+        if getattr(source, "_isaaclab_uv_transform", None) == transform_key:
+            continue
+        source_key = (id(source), transform_key)
+        if source_key in transformed_source_cache:
+            shape_sources[shape_index] = transformed_source_cache[source_key]
+            num_uv_updates += 1
+            continue
+
+        transformed_uvs = _apply_uv_transform(source_uvs, scale, translate, rotate)
+        if transformed_uvs is None:
+            continue
+
+        source_copy = copy.copy(source)
+        if not hasattr(source_copy, "_uvs"):
+            logger.debug("Shape source %s does not expose Newton mesh UV storage.", type(source).__name__)
+            continue
+        setattr(source_copy, "_uvs", transformed_uvs)
+        setattr(source_copy, "_isaaclab_uv_transform", transform_key)
+        shape_sources[shape_index] = source_copy
+        transformed_source_cache[source_key] = source_copy
+        num_uv_updates += 1
+
+    logger.debug("Transformed builder UVs for %d / %d shapes", num_uv_updates, len(shape_labels))
+    return num_uv_updates
 
 
 def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:

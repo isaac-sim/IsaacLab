@@ -19,7 +19,10 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from pxr import Usd
 
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.newton_model_utils import (
+    replace_newton_builder_shape_colors,
+    replace_newton_builder_shape_uv_transforms,
+)
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
@@ -140,6 +143,7 @@ def _build_newton_builder_from_mapping(
         import_results.append(import_result)
     stage_info = import_results[0]
     replace_newton_builder_shape_colors(builder, stage)
+    replace_newton_builder_shape_uv_transforms(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
 

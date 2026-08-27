@@ -6,12 +6,15 @@
 """Unit tests: the Newton cloner imports visual-only geometry only when it is drawn."""
 
 import newton
+import numpy as np
+import pytest
 from isaaclab_newton.cloner import newton_clone_utils
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import ShapeFlags
+from PIL import Image
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 _SOURCE = "/World/Asset"
 
@@ -27,6 +30,44 @@ def _make_stage() -> Usd.Stage:
     collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/collision")
     UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
     UsdGeom.Cube.Define(stage, f"{_SOURCE}/visual")
+    return stage
+
+
+def _make_uv_transform_stage(texture_path: str, project_uvw: bool = False) -> Usd.Stage:
+    """Create a textured mesh with an authored OmniPBR UV transform."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdGeom.Xform.Define(stage, _SOURCE)
+
+    mesh = UsdGeom.Mesh.Define(stage, f"{_SOURCE}/visual")
+    mesh.CreateFaceVertexCountsAttr([4])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    mesh.CreatePointsAttr(
+        [
+            Gf.Vec3f(-0.5, -0.5, 0.0),
+            Gf.Vec3f(0.5, -0.5, 0.0),
+            Gf.Vec3f(0.5, 0.5, 0.0),
+            Gf.Vec3f(-0.5, 0.5, 0.0),
+        ]
+    )
+    UsdGeom.PrimvarsAPI(mesh).CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.faceVarying).Set(
+        [Gf.Vec2f(0.0, 0.0), Gf.Vec2f(1.0, 0.0), Gf.Vec2f(1.0, 1.0), Gf.Vec2f(0.0, 1.0)]
+    )
+
+    material = UsdShade.Material.Define(stage, f"{_SOURCE}/material")
+    shader = UsdShade.Shader.Define(stage, f"{_SOURCE}/material/Shader")
+    shader.SetSourceAsset(Sdf.AssetPath("OmniPBR.mdl"), "mdl")
+    shader.SetSourceAssetSubIdentifier("OmniPBR", "mdl")
+    shader.CreateInput("diffuse_texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(texture_path))
+    shader.CreateInput("project_uvw", Sdf.ValueTypeNames.Bool).Set(project_uvw)
+    shader.CreateInput("texture_scale", Sdf.ValueTypeNames.Float2).Set(Gf.Vec2f(2.0, 3.0))
+    shader.CreateInput("texture_translate", Sdf.ValueTypeNames.Float2).Set(Gf.Vec2f(0.25, -0.5))
+    shader.CreateInput("texture_rotate", Sdf.ValueTypeNames.Float).Set(90.0)
+    output = shader.CreateOutput("out", Sdf.ValueTypeNames.Token)
+    output.SetRenderType("material")
+    material.CreateSurfaceOutput("mdl").ConnectToSource(output)
+    UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
     return stage
 
 
@@ -100,6 +141,30 @@ class TestClonerVisualShapeImport:
         assert rendering_stage.prim_lookups == 1
         # ...and the collider was visible either way, so skipping it changed nothing.
         assert list(builder.shape_flags) == flags_before
+
+    @pytest.mark.parametrize("project_uvw", [False, True])
+    def test_uv_transform_is_baked_only_for_authored_uvs(self, tmp_path, project_uvw):
+        """Affine texture transforms are baked without touching projected mappings or the source stage."""
+        texture_path = tmp_path / "grid.png"
+        Image.new("RGBA", (2, 2), "white").save(texture_path)
+        stage = _make_uv_transform_stage(str(texture_path), project_uvw)
+        builder = _build(stage, load_visual_shapes=True)
+
+        shape_index = builder.shape_label.index(f"{_SOURCE}/visual")
+        actual_uvs = builder.shape_source[shape_index].uvs
+        raw_uvs = np.asarray(
+            [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            dtype=np.float32,
+        )
+        transformed_uvs = np.asarray(
+            [[0.25, -0.5], [0.25, -3.5], [2.25, -3.5], [0.25, -0.5], [2.25, -3.5], [2.25, -0.5]],
+            dtype=np.float32,
+        )
+
+        assert actual_uvs is not None
+        np.testing.assert_allclose(actual_uvs, raw_uvs if project_uvw else transformed_uvs, atol=1.0e-6)
+        source_uvs = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(f"{_SOURCE}/visual")).GetPrimvar("st").Get()
+        np.testing.assert_allclose(source_uvs, raw_uvs[[0, 1, 2, 5]], atol=1.0e-6)
 
 
 class _StubSim:

@@ -16,7 +16,10 @@ from newton import GeoType, ModelBuilder, ShapeFlags
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import path as clone_path
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.newton_model_utils import (
+    replace_newton_builder_shape_colors,
+    replace_newton_builder_shape_uv_transforms,
+)
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
@@ -146,6 +149,7 @@ def _build_source_builder(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
     replace_newton_builder_shape_colors(builder, stage)
+    replace_newton_builder_shape_uv_transforms(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
     return builder

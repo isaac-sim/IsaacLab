@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
 import torch
@@ -134,6 +134,25 @@ def _eye_lookat_to_pitch_yaw(
     return pitch, yaw
 
 
+# TODO: Remove this cache extension after OMPE-107347 provides equivalent Newton viewer support.
+def _mesh_uv_hash(geo_src: Any) -> int | None:
+    """Return a cached hash of a textured Newton mesh's UV coordinates."""
+    if getattr(geo_src, "texture", None) is None:
+        return None
+    uvs = getattr(geo_src, "uvs", None)
+    if uvs is None:
+        return None
+
+    cached_hash = getattr(geo_src, "_isaaclab_uv_hash", None)
+    if cached_hash is not None:
+        return cached_hash
+
+    uv_array = np.ascontiguousarray(np.asarray(uvs))
+    uv_hash = hash((uv_array.dtype.str, uv_array.shape, uv_array.tobytes()))
+    setattr(geo_src, "_isaaclab_uv_hash", uv_hash)
+    return uv_hash
+
+
 # ---------------------------------------------------------------------------
 # Newton viewer wrappers (add IsaacLab ImGui controls to Newton's viewers)
 # ---------------------------------------------------------------------------
@@ -154,6 +173,12 @@ class _NewtonViewerUIMixin:
 
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
     """Factor applied to :attr:`camera_speed` while the speed-boost modifier is held."""
+
+    def _hash_geometry(self, geo_type, geo_scale, thickness, is_solid, geo_src=None, mirror=False):
+        """Include textured-mesh UVs in Isaac Lab Newton viewer prototype keys."""
+        base_hash = super()._hash_geometry(geo_type, geo_scale, thickness, is_solid, geo_src, mirror)
+        uv_hash = _mesh_uv_hash(geo_src)
+        return base_hash if uv_hash is None else hash((base_hash, uv_hash))
 
     def _is_camera_speed_boost_active(self) -> bool:
         """Return whether the camera speed-boost modifier (Left/Right Shift) is held."""

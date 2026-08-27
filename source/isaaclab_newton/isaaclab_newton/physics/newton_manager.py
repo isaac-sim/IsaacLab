@@ -88,7 +88,10 @@ from isaaclab.scene_data.deformable_vis_remap import (
     launch_batch_volume_vis_remap,
 )
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.newton_model_utils import (
+    replace_newton_builder_shape_colors,
+    replace_newton_builder_shape_uv_transforms,
+)
 from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -1897,6 +1900,7 @@ class NewtonManager(PhysicsManager):
             )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            replace_newton_builder_shape_uv_transforms(builder, stage)
             import_builder_visual_material_paths(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
@@ -1908,6 +1912,7 @@ class NewtonManager(PhysicsManager):
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            replace_newton_builder_shape_uv_transforms(builder, stage)
             import_builder_visual_material_paths(builder, stage)
 
             _, proto_path = env_paths[0]
@@ -1922,6 +1927,7 @@ class NewtonManager(PhysicsManager):
                 source_builders[proto_path], stage, import_result["path_shape_map"]
             )
             replace_newton_builder_shape_colors(source_builders[proto_path], stage)
+            replace_newton_builder_shape_uv_transforms(source_builders[proto_path], stage)
             import_builder_visual_material_paths(source_builders[proto_path], stage)
             cls._cl_protos = source_builders
 

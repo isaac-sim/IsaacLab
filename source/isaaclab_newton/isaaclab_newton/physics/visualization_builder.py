@@ -15,6 +15,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from pxr import Usd
 
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_uv_transforms
 from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -110,6 +111,7 @@ def build_visualization_builder_from_stage_envs(
             ignore_paths=deformable_ignore_paths or None,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+        replace_newton_builder_shape_uv_transforms(builder, stage)
         import_builder_visual_material_paths(builder, stage)
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
             builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
@@ -139,6 +141,7 @@ def build_visualization_builder_from_stage_envs(
         schema_resolvers=schema_resolvers,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+    replace_newton_builder_shape_uv_transforms(builder, stage)
     import_builder_visual_material_paths(builder, stage)
     source_deformable_ignore_paths = _deformable_ignore_paths(stage, sources, entries=deformable_entries)
     source_builders = build_source_builders(

@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -51,6 +51,28 @@ def test_expand_infinite_plane_scale_expands_non_positive_extents():
 
 def test_expand_infinite_plane_scale_preserves_finite_extents():
     assert expand_infinite_plane_scale((100.0, 50.0, 1.0)) == (100.0, 50.0, 1.0)
+
+
+@pytest.mark.parametrize("viewer_cls", [NewtonViewerGL, NewtonViewerRTX])
+def test_newton_viewer_geometry_hash_distinguishes_uvs(viewer_cls):
+    """Newton viewer wrappers must not reuse prototypes whose UV coordinates differ."""
+    import newton
+
+    vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+    indices = (0, 1, 2)
+    texture = np.zeros((2, 2, 4), dtype=np.uint8)
+    mesh_a = newton.Mesh(
+        vertices, indices, uvs=((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)), texture=texture, compute_inertia=False
+    )
+    mesh_b = newton.Mesh(
+        vertices, indices, uvs=((0.0, 0.0), (2.0, 0.0), (0.0, 2.0)), texture=texture, compute_inertia=False
+    )
+    assert hash(mesh_a) == hash(mesh_b)
+
+    viewer = object.__new__(viewer_cls)
+    hash_a = viewer._hash_geometry(newton.GeoType.MESH, (1.0, 1.0, 1.0), 0.0, True, mesh_a)
+    hash_b = viewer._hash_geometry(newton.GeoType.MESH, (1.0, 1.0, 1.0), 0.0, True, mesh_b)
+    assert hash_a != hash_b
 
 
 def test_log_geo_with_expanded_plane_scale_delegates_with_adjusted_plane_scale():
