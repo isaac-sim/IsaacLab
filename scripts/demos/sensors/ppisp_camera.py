@@ -4,24 +4,38 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates USD-authored PPISP on a Gaussian scene through the Isaac Lab camera sensor with
-the Newton Warp or Isaac RTX renderer.
+This script demonstrates USD-authored PPISP on a Gaussian scene through the Isaac Lab camera sensor.
+
+It renders the scene's own authored camera twice per frame -- once with the USD-authored PPISP applied
+and once without -- and writes the two images plus their difference, so a USD scene can be validated
+against any of the three supported renderers.
+
+The renderer is selected with ``--renderer``:
+
+* ``newton_renderer``: Newton Warp renderer (default). No Gaussian-splat path, so it cannot play back
+  animated Gaussian tracks.
+* ``isaac_rtx``: Kit RTX renderer, with the optional ``--isaacrtx_*`` tuning settings.
+* ``ovrtx``: OVRTX renderer. This one runs *kit-less*, so the script does not launch the Kit app for
+  it; run it with ``uv run python`` as shown below.
 
 .. code-block:: bash
 
     # Run a finite smoke with the default Newton Warp renderer and save comparison images.
     uv run python scripts/demos/sensors/ppisp_camera.py \
-        --input_scene /path/to/scene.usd --renderer newton_renderer --num_frames 3 --visualizer none
+        --input_scene /path/to/scene.usd --renderer newton_renderer --num_frames 3
 
     # Run the same saved-image workflow with Isaac RTX.
     uv run python scripts/demos/sensors/ppisp_camera.py \
-        --input_scene /path/to/scene.usd --renderer isaac_rtx --num_frames 3 --visualizer none
+        --input_scene /path/to/scene.usd --renderer isaac_rtx --num_frames 3
+
+    # Run it kit-less on OVRTX, streaming any animated Gaussian tracks from the GPU.
+    uv run python scripts/demos/sensors/ppisp_camera.py \
+        --input_scene /path/to/scene.usd --renderer ovrtx --num_frames 3
 
     # Follow xform time samples on the selected camera or its parent rig, rendering at 30 FPS and
     # writing every third frame.
     uv run python scripts/demos/sensors/ppisp_camera.py \
-        --input_scene /path/to/scene.usd --renderer isaac_rtx \
-        --fps 30 --write_fps 10 --visualizer none
+        --input_scene /path/to/scene.usd --renderer isaac_rtx --fps 30 --write_fps 10
 
 """
 
@@ -96,7 +110,7 @@ parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabri
 parser.add_argument(
     "--renderer",
     type=str,
-    choices=["newton_renderer", "isaac_rtx"],
+    choices=["newton_renderer", "isaac_rtx", "ovrtx"],
     default="newton_renderer",
     help="Camera renderer backend to use. Newton Warp is the default for this PPISP smoke.",
 )
@@ -170,11 +184,27 @@ isaacrtx_settings_group.add_argument(
     default=None,
     help="Optional NuRec compositing log level. Omit to leave the Kit default untouched.",
 )
+ovrtx_settings_group = parser.add_argument_group("OVRTX settings")
+ovrtx_settings_group.add_argument(
+    "--gaussian_ring_slots",
+    type=int,
+    default=3,
+    help=(
+        "Number of device ring-buffer slots used to stream animated Gaussian tracks. At least 2 are needed so"
+        " the renderer can read one slot while the next is written."
+    ),
+)
+ovrtx_settings_group.add_argument("--ovrtx_log_level", type=str, default="verbose", help="OVRTX renderer log level.")
+ovrtx_settings_group.add_argument(
+    "--ovrtx_log_file", type=str, default="/tmp/ovrtx_renderer.log", help="OVRTX renderer log file path."
+)
 parser.add_argument(
     "--warmup_steps",
     type=int,
     default=None,
-    help="Simulation/render steps to run before saving images. Defaults to 32 for Isaac RTX and 0 for Newton.",
+    help=(
+        "Simulation/render steps to run before saving images. Defaults to 32 for Isaac RTX and OVRTX, and 0 for Newton."
+    ),
 )
 parser.add_argument(
     "--write_fps",
@@ -216,7 +246,7 @@ if args_cli.image_width < 1:
 if args_cli.image_height is not None and args_cli.image_height < 1:
     parser.error("--image_height must be at least 1.")
 if args_cli.warmup_steps is None:
-    args_cli.warmup_steps = 32 if args_cli.renderer == "isaac_rtx" else 0
+    args_cli.warmup_steps = 0 if args_cli.renderer == "newton_renderer" else 32
 if args_cli.warmup_steps < 0:
     parser.error("--warmup_steps must be non-negative.")
 if args_cli.fps <= 0.0:
@@ -254,22 +284,23 @@ isaacrtx_settings_requested = any(
 )
 if isaacrtx_settings_requested and args_cli.renderer != "isaac_rtx":
     parser.error("Isaac RTX settings require --renderer isaac_rtx.")
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+if args_cli.gaussian_ring_slots < 2:
+    parser.error("--gaussian_ring_slots must be at least 2.")
+# launch omniverse app, except for OVRTX: that renderer runs kit-less and fails to load its render
+# library when the Kit app owns the process, so the demo drives it without an app at all.
+simulation_app = None
+if args_cli.renderer != "ovrtx":
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import gaussian_animation as gaussian_anim
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import warp as wp
-from isaaclab_ppisp._demo_utils import (
-    find_ppisp_camera_bindings,
-    format_available_ppisp_cameras,
-    order_ppisp_bindings_by_camera,
-)
-from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
+from isaaclab_ppisp.cfg import PpispCfg, has_ppisp_camera_attrs, ppisp_cfg_from_usd_camera
 
 from pxr import Gf, Usd, UsdGeom
 
@@ -277,12 +308,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
 STAGE_TIME_CODE = 0.0
 """USD time code at which the simulation stage is evaluated.
 
-The Kit timeline stays stopped at time 0 for the whole demo, so both renderers compose the referenced
+The Kit timeline stays stopped at time 0 for the whole demo, so every renderer composes the referenced
 scene -- including any animated ancestors of the camera -- at this time code.
 """
 
@@ -318,6 +350,13 @@ def make_renderer_cfg() -> Any:
         from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
         return NewtonWarpRendererCfg()
+    elif args_cli.renderer == "ovrtx":
+        try:
+            from isaaclab_ov.renderers import OVRTXRendererCfg
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError("--renderer ovrtx requires the optional OVRTX renderer stack.") from exc
+
+        return OVRTXRendererCfg(log_level=args_cli.ovrtx_log_level, log_file_path=args_cli.ovrtx_log_file)
     else:
         from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -327,7 +366,8 @@ def make_renderer_cfg() -> Any:
 def make_sim_cfg() -> sim_utils.SimulationCfg:
     """Create the simulation cfg matching the selected renderer."""
     physics_cfg = None
-    if args_cli.renderer == "newton_renderer":
+    # Isaac RTX drives the Kit physics stack, while both Warp-based renderers run Newton physics.
+    if args_cli.renderer != "isaac_rtx":
         from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
         from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 
@@ -438,9 +478,43 @@ def apply_rtx_settings() -> None:
         print("[INFO] Applied RTX/Gaussian settings: " + ", ".join(applied), flush=True)
 
 
-def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim]:
-    """Resolve the source camera and PPISP camera binding from CLI or source stage metadata."""
-    ppisp_bindings = order_ppisp_bindings_by_camera(source_stage, find_ppisp_camera_bindings(source_stage))
+def find_ppisp_camera_bindings(source_stage: Usd.Stage) -> list[tuple[str, Usd.Prim | None, Usd.Prim]]:
+    """Return every camera carrying USD-authored PPISP attributes, in stage traversal order.
+
+    Each entry pairs the camera prim path with the first ``RenderProduct`` that targets it, when the
+    scene authored one, and the camera prim itself.
+    """
+    render_product_prims = [prim for prim in source_stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
+    bindings = []
+    for prim in source_stage.Traverse():
+        if not has_ppisp_camera_attrs(prim):
+            continue
+        render_product = None
+        for candidate in render_product_prims:
+            camera_rel = candidate.GetRelationship("camera")
+            if camera_rel and prim.GetPath() in camera_rel.GetTargets():
+                render_product = candidate
+                break
+        bindings.append((prim.GetPath().pathString, render_product, prim))
+    # A prim that carries the attributes without being typed ``Camera`` is only a fallback. ``sort`` is
+    # stable, so traversal order still decides between the real cameras.
+    bindings.sort(key=lambda binding: binding[2].GetTypeName() != "Camera")
+    return bindings
+
+
+def format_available_ppisp_cameras(ppisp_bindings: list[tuple[str, Usd.Prim | None, Usd.Prim]]) -> str:
+    """Format the PPISP camera prim paths for CLI error messages."""
+    return "\n  ".join(dict.fromkeys(binding[0] for binding in ppisp_bindings))
+
+
+def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim, int]:
+    """Resolve the source camera and PPISP camera binding from CLI or source stage metadata.
+
+    Returns:
+        The selected camera prim path, its ``RenderProduct`` if the scene authored one, the camera
+        prim, and how many PPISP cameras the scene carries in total.
+    """
+    ppisp_bindings = find_ppisp_camera_bindings(source_stage)
     if not ppisp_bindings:
         raise RuntimeError("No cameras with PPISP camera attributes found in input scene.")
 
@@ -470,7 +544,7 @@ def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Pri
 
     for binding in ppisp_bindings:
         if binding[0] == camera_prim_path:
-            return binding
+            return (*binding, len(ppisp_bindings))
 
     available = format_available_ppisp_cameras(ppisp_bindings)
     raise RuntimeError(
@@ -570,12 +644,12 @@ def get_env_scene_world_transforms() -> list[Gf.Matrix4d]:
 def freeze_env_camera_ancestor_xforms(source_stage: Usd.Stage, source_camera_prim_path: str) -> None:
     """Collapse the xform chain above each duplicated env camera to a static pose at :data:`STAGE_TIME_CODE`.
 
-    Capture scenes animate the camera rig rather than the camera prim itself. The RTX render path
-    re-evaluates those animated xforms into Fabric on every frame, which overwrites the camera poses
-    written by :func:`set_env_camera_world_poses` and leaves the render stuck on the first frame.
-    Rewriting each ancestor with the static transform the renderer already evaluates at
-    :data:`STAGE_TIME_CODE` makes the runtime pose writes authoritative for both renderers without
-    changing the pose that is rendered.
+    Capture scenes animate the camera rig rather than the camera prim itself. A render path that
+    re-evaluates those animated xforms on every frame overwrites the poses written at runtime and
+    leaves the render stuck on the first frame. Rewriting each
+    ancestor with the static transform the renderer already evaluates at :data:`STAGE_TIME_CODE`
+    makes the runtime pose writes authoritative for every renderer without changing the pose that is
+    rendered.
     """
     stage = sim_utils.get_current_stage()
     time_code = Usd.TimeCode(STAGE_TIME_CODE)
@@ -617,10 +691,10 @@ def resolve_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[gaussian_a
     if not tracks:
         return []
     print(f"[INFO] Animated Gaussian track(s): {gaussian_anim.format_tracks(tracks)}", flush=True)
-    if args_cli.renderer != "isaac_rtx":
+    if args_cli.renderer == "newton_renderer":
         raise RuntimeError(
-            f"Input scene animates {len(tracks)} Gaussian track(s), which only --renderer isaac_rtx can play"
-            f" back: {gaussian_anim.format_tracks(tracks)}."
+            f"Input scene animates {len(tracks)} Gaussian track(s), which --renderer newton_renderer cannot play"
+            f" back: {gaussian_anim.format_tracks(tracks)}. Use --renderer isaac_rtx or --renderer ovrtx."
         )
     return tracks
 
@@ -644,7 +718,7 @@ def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_
     This seeds the initial pose on the stage and must run before the camera sensors are created and before
     :meth:`SimulationContext.reset`. The Newton backend samples the camera prim's USD transform once while
     building its model, and the Fabric render path is populated from USD at reset, so later USD edits do
-    not reach either renderer. Runtime trajectory playback goes through :func:`set_env_camera_world_poses`
+    not reach the renderer. Runtime trajectory playback goes through the prebaked trajectory tensors
     instead.
 
     The pose is written through :func:`~isaaclab.sim.utils.standardize_xform_ops` so the prims keep the
@@ -711,14 +785,33 @@ def compute_env_camera_world_poses(
     return positions, orientations
 
 
-def set_env_camera_world_poses(cameras: list[Camera], positions: np.ndarray, orientations: np.ndarray) -> None:
-    """Write camera world poses through the sensor view so both render backends observe them.
+def prebake_camera_trajectory(
+    source_stage: Usd.Stage,
+    source_camera_prim_path: str,
+    frame_time_codes: list[float],
+    scene_world_transforms: list[Gf.Matrix4d],
+    device: str,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Sample the per-env camera world poses for every frame into two device tensors.
 
-    A USD camera transform is expressed in the OpenGL convention (forward -Z, up +Y). Every camera
-    sensor keeps its own view state, so a shared prim batch has to be updated once per sensor.
+    Resolving the camera's USD transform per frame put a Python loop over envs and a host allocation
+    inside the profiled render loop. Sampling every frame up front instead leaves the loop with a
+    slice of a device tensor.
+
+    Returns:
+        Positions [m], shape ``[num_frames, num_envs, 3]``, and orientation quaternions,
+        shape ``[num_frames, num_envs, 4]``.
     """
-    for camera in cameras:
-        camera.set_world_poses(positions, orientations, convention="opengl")
+    samples = [
+        compute_env_camera_world_poses(source_stage, source_camera_prim_path, time_code, scene_world_transforms)
+        for time_code in frame_time_codes
+    ]
+    positions = np.stack([sample_positions for sample_positions, _ in samples])
+    orientations = np.stack([sample_orientations for _, sample_orientations in samples])
+    return (
+        torch.as_tensor(positions, dtype=torch.float32, device=device),
+        torch.as_tensor(orientations, dtype=torch.float32, device=device),
+    )
 
 
 def get_render_product_resolution(render_product_prim: Usd.Prim | None) -> tuple[int, int] | None:
@@ -940,6 +1033,7 @@ def run_simulator(
     source_camera_prim_path: str,
     frame_time_codes: list[float],
     gaussian_tracks: list[gaussian_anim.AnimatedGaussianTrack],
+    ovrtx_renderer: Any | None = None,
 ) -> None:
     """Play the camera trajectory and periodically save rendered images."""
     render_dt = 1.0 / args_cli.fps
@@ -948,6 +1042,21 @@ def run_simulator(
     # The baseline and PPISP sensors share the same camera prims but keep independent view state.
     cameras = [ppisp_camera] if baseline_camera is None else [baseline_camera, ppisp_camera]
     scene_world_transforms = get_env_scene_world_transforms()
+    # Prebaked once so the profiled loop below only slices device buffers.
+    camera_positions, camera_orientations = prebake_camera_trajectory(
+        source_stage, source_camera_prim_path, frame_time_codes, scene_world_transforms, str(sim.device)
+    )
+    # OVRTX streams the sampled Gaussian state straight to the renderer, so it needs no stage edits.
+    gaussian_playback = None
+    if ovrtx_renderer is not None:
+        gaussian_playback = gaussian_anim.GaussianTrackPlayback(
+            source_stage,
+            gaussian_tracks,
+            frame_time_codes,
+            args_cli.num_envs,
+            str(sim.device),
+            num_slots=args_cli.gaussian_ring_slots,
+        )
     output_dir = resolve_output_dir()
     comparison_dir = os.path.join(output_dir, "comparison")
     baseline_dir = os.path.join(output_dir, "baseline")
@@ -968,23 +1077,40 @@ def run_simulator(
     )
     if args_cli.warmup_steps > 0:
         print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
+    if gaussian_playback is not None and not gaussian_playback.is_empty:
+        ring_bytes = gaussian_playback.device_bytes
+        ring_size = f"{ring_bytes / 1024**2:.1f} MiB" if ring_bytes >= 1024**2 else f"{ring_bytes / 1024:.1f} KiB"
+        print(
+            f"[INFO] Streaming animated Gaussian tracks through {args_cli.gaussian_ring_slots} ring slot(s) using"
+            f" {ring_size} of device memory.",
+            flush=True,
+        )
+    # Seed the first frame's Gaussian state before warmup, so a nonzero first USD animation sample is
+    # represented in the renderer-startup frames too. The stage-authoring path is already seeded in
+    # :func:`main`, before the camera sensors sample the stage.
+    if gaussian_playback is not None:
+        gaussian_playback.play(ovrtx_renderer, 0)
     for _ in range(args_cli.warmup_steps):
         sim.step()
         for camera in cameras:
             camera.update(render_dt, force_recompute=True)
 
     for frame_index, time_code in enumerate(frame_time_codes):
-        if not simulation_app.is_running():
+        if simulation_app is not None and not simulation_app.is_running():
             break
         with profile_section(profile, "total_frame", profile_device):
             with profile_section(profile, "camera_pose_update", profile_device):
-                positions, orientations = compute_env_camera_world_poses(
-                    source_stage, source_camera_prim_path, time_code, scene_world_transforms
-                )
-                set_env_camera_world_poses(cameras, positions, orientations)
+                # Every sensor keeps its own view state, so a shared prim batch is written once per sensor.
+                for camera in cameras:
+                    camera.set_world_poses(
+                        camera_positions[frame_index], camera_orientations[frame_index], convention="opengl"
+                    )
 
             with profile_section(profile, "gaussian_animation_update", profile_device):
-                play_animated_gaussian_tracks(source_stage, gaussian_tracks, time_code)
+                if gaussian_playback is not None:
+                    gaussian_playback.play(ovrtx_renderer, frame_index)
+                else:
+                    play_animated_gaussian_tracks(source_stage, gaussian_tracks, time_code)
 
             with profile_section(profile, "simulation_step", profile_device):
                 for physics_step in range(physics_steps_per_frame):
@@ -1074,11 +1200,17 @@ def run_simulator(
 
 def main() -> None:
     """Main function."""
+    if args_cli.renderer == "ovrtx" and "://" in args_cli.input_scene:
+        # Without a Kit app there is no asset resolver behind ``Usd.Stage.Open``, so fetch the payload
+        # once and let the referenced env scenes resolve against the local copy too.
+        args_cli.input_scene = retrieve_file_path(args_cli.input_scene)
     source_stage = Usd.Stage.Open(args_cli.input_scene)
     if source_stage is None:
         raise RuntimeError(f"Failed to open input scene: {args_cli.input_scene}")
-    source_camera_prim_path, render_product_prim, ppisp_camera_prim = resolve_source_camera_binding(source_stage)
-    ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, len(find_ppisp_camera_bindings(source_stage)))
+    source_camera_prim_path, render_product_prim, ppisp_camera_prim, num_ppisp_cameras = resolve_source_camera_binding(
+        source_stage
+    )
+    ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, num_ppisp_cameras)
     camera_prim_path = source_camera_path_to_env_regex(source_stage, source_camera_prim_path)
     width, height = resolve_image_shape(render_product_prim)
 
@@ -1126,29 +1258,44 @@ def main() -> None:
     # Seed the Gaussian tracks too, so the first render already shows the first frame's state.
     play_animated_gaussian_tracks(source_stage, gaussian_tracks, frame_time_codes[0])
 
+    # The PPISP sensor is created first because on OVRTX only the first sensor built over a shared
+    # camera prim batch receives a bound HDR render product; a later one renders black.
+    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
     baseline_camera = None
     if not args_cli.render_only:
         baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
-    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
     # Apply after RTX/Replicator camera construction, but before reset, warmup, and the first render.
     apply_rtx_settings()
     print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
     print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
 
-    sim.reset()
-    print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
-    run_simulator(
-        sim,
-        baseline_camera,
-        ppisp_camera,
-        source_stage,
-        source_camera_prim_path,
-        frame_time_codes,
-        gaussian_tracks,
-    )
-    del scene
+    try:
+        sim.reset()
+        print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
+        # The camera sensors already initialized the shared renderer, which an equal cfg looks back up.
+        ovrtx_renderer = None
+        if args_cli.renderer == "ovrtx":
+            ovrtx_renderer = sim.render_context.get_renderer(make_renderer_cfg())
+        run_simulator(
+            sim,
+            baseline_camera,
+            ppisp_camera,
+            source_stage,
+            source_camera_prim_path,
+            frame_time_codes,
+            gaussian_tracks,
+            ovrtx_renderer=ovrtx_renderer,
+        )
+    finally:
+        del ppisp_camera
+        del baseline_camera
+        del scene
+        # The renderers own GPU resources that are only released through an explicit teardown.
+        sim.stop()
+        sim.clear_instance()
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()
+    if simulation_app is not None:
+        simulation_app.close()

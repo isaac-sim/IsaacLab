@@ -416,18 +416,22 @@ absolute-difference images.
          ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
              --renderer newton_renderer
 
-Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
-``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
-contains multiple cameras with PPISP attributes. If a config or command selects
-a visualizer, force-disable all visualizers with ``--visualizer none`` or
-``--viz none``.
+Use ``--renderer isaac_rtx`` or ``--renderer ovrtx`` to run the same workflow on
+the other backends. Pass ``--input_scene`` for a custom scene and
+``--camera_prim_path`` if the stage contains multiple cameras with PPISP
+attributes. If a config or command selects a visualizer, force-disable all
+visualizers with ``--visualizer none``.
+
+Because OVRTX runs kit-less, the demo does not launch the Kit app for
+``--renderer ovrtx``; run that combination with ``uv run python`` rather than
+``isaaclab.sh -p``.
 
 The demo plays back the xform time samples authored on the selected camera or
 any of its ancestors, resampled to ``--fps`` and applied through
-:meth:`~sensors.Camera.set_world_poses` so both renderers observe the motion.
-Because the RTX render path re-evaluates animated USD xforms every frame — which
-would overwrite those pose writes — the demo first collapses the duplicated
-camera rig hierarchy to its static USD time 0 transform. It renders one frame
+:meth:`~sensors.Camera.set_world_poses` so every renderer observes the motion.
+Because a render path that re-evaluates animated USD xforms every frame would
+overwrite those pose writes, the demo first collapses the duplicated camera rig
+hierarchy to its static USD time 0 transform. It renders one frame
 per resampled trajectory sample and then exits, so a static camera produces a
 single frame. Timing and run length are controlled by:
 
@@ -440,8 +444,8 @@ single frame. Timing and run length are controlled by:
   written every ``round(fps / write_fps)`` frames, starting at the first frame.
 * ``--num_frames`` — render exactly this many frames instead of the trajectory
   length, holding the final pose once the trajectory is exhausted.
-* ``--warmup_steps`` — steps rendered before the first write (32 for Isaac RTX,
-  0 for Newton) so accumulating renderers converge.
+* ``--warmup_steps`` — steps rendered before the first write (32 for Isaac RTX
+  and OVRTX, 0 for Newton) so accumulating renderers converge.
 
 Images are written under ``scripts/demos/sensors/output/ppisp_camera`` unless
 ``--output_dir`` is set, into ``ppisp/``, ``baseline/``, ``diff/``, and
@@ -459,16 +463,13 @@ RTX Gaussian settings such as ``--isaacrtx_render_mode``,
 ``--isaacrtx_enable_accumulation``; run the demo with ``--help`` for the full
 list.
 
-``scripts/demos/sensors/ppisp_camera_ovrtx.py`` runs the same workflow on the
-kit-less OVRTX renderer, with the same arguments, trajectory playback, and
-output layout minus the Kit-only options. It must be launched with
-``uv run python`` and is configured through ``OVRTX_*`` environment variables
-instead of ``--isaacrtx_*`` flags.
+With ``--renderer ovrtx`` the ``--ovrtx_log_level`` and ``--ovrtx_log_file``
+flags configure the renderer's own logging.
 
 Animated Gaussian splats
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Both demos play back animated ``ParticleField3DGaussianSplat`` tracks authored
+The demo plays back animated ``ParticleField3DGaussianSplat`` tracks authored
 the way NuRec exports them, in either of two forms:
 
 * **rigid** — an ancestor ``Xform`` time-samples its transform, moving the whole
@@ -513,8 +514,8 @@ Known limitations
 * Auto-discovery resolves at camera construction; later authoring of
   ``ppisp:*`` camera attributes on the stage is not picked up.
 * Animated Gaussian splats are supported on the Isaac RTX and OVRTX backends
-  only. The Newton renderer has no Gaussian-splat path at all, so the demos
-  raise instead of silently rendering a static scene.
+  only. The Newton renderer has no Gaussian-splat path at all, so the demo
+  raises instead of silently rendering a static scene.
 
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~

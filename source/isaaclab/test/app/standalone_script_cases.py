@@ -229,11 +229,6 @@ OVERRIDES = {
         startup_timeout=600.0,
         visualizers=("none",),
     ),
-    "scripts/demos/sensors/ppisp_camera_ovrtx.py": ScriptOverride(
-        args=("--num_frames", "3", "--warmup_steps", "1"),
-        visualizers=("none",),
-        required_modules=("ovrtx",),
-    ),
     # Readiness fires once conversion succeeds, so the preview runs inside the soak.
     "scripts/tools/convert_urdf.py": ScriptOverride(
         args=(
@@ -376,6 +371,9 @@ def backend_is_available(backend: str) -> bool:
         return True
     if backend == "isaac_rtx":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
+    if backend == "ovrtx":
+        # The OVRTX renderer needs its Isaac Lab wrapper and the native kit-less runtime behind it.
+        return importlib.util.find_spec("isaaclab_ov") is not None and importlib.util.find_spec("ovrtx") is not None
     if backend in {"physx", "isaacsim_physx"}:
         package = "isaaclab_physx"
     elif backend == "ovphysx":

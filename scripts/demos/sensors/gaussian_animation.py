@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Renderer-agnostic animated Gaussian-splat helpers shared by the PPISP camera demos.
+"""Renderer-agnostic animated Gaussian-splat helpers for the PPISP camera demo.
 
 Gaussian captures author motion as *tracks*: a ``ParticleField3DGaussianSplat`` prim whose
 ancestors carry time-sampled xform ops (rigid motion), and/or whose per-particle
@@ -12,7 +12,7 @@ spellings of the per-particle arrays exist in the wild: the half-precision ``pos
 ``orientationsh`` that NuRec exports, and the full-float ``positions`` and ``orientations``.
 
 Playing a track back means re-stating its pose or its per-particle arrays on every rendered frame,
-because the demos hold the Kit timeline at a single time code instead of playing it. Two mechanisms
+because the demo holds the Kit timeline at a single time code instead of playing it. Two mechanisms
 are needed:
 
 * :func:`bake_env_track_state` re-authors the sampled state on the duplicated-env USD stage. This is
