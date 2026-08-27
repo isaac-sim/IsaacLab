@@ -220,12 +220,4 @@
 
                Full MDL shading
 
-The editable scene and capture tools are available at
-``tools/docs/media/renderer_gallery_scene.usda``,
-``tools/docs/media/capture_renderer_gallery.py``, and
-``tools/docs/media/generate_renderer_gallery.sh``. After reviewing the NVIDIA Omniverse EULA,
-regenerate every output from the repository root with:
-
-.. code-block:: bash
-
-   OMNI_KIT_ACCEPT_EULA=Y tools/docs/media/generate_renderer_gallery.sh
+The editable scene is available at ``tools/docs/media/renderer_gallery_scene.usda``.
