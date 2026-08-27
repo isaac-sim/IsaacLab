@@ -134,8 +134,8 @@ def test_gallery_scene_uses_rigid_spheres_for_cross_renderer_motion():
 def test_gallery_table_and_backdrop_are_authored_size_texturable_meshes():
     stage = Usd.Stage.Open(str(MEDIA_TOOLS_DIR / "renderer_gallery_scene.usda"))
     expected_bounds = {
-        "/RendererGallery/Table": (Gf.Vec3f(-2.6, -2.1, -0.25), Gf.Vec3f(2.6, 2.1, 0.25)),
-        "/RendererGallery/Backdrop": (Gf.Vec3f(-15.0, -0.09, -3.0), Gf.Vec3f(15.0, 0.09, 3.0)),
+        "/RendererGallery/Table": (Gf.Vec3f(-20.0, -20.0, -0.25), Gf.Vec3f(20.0, 20.0, 0.25)),
+        "/RendererGallery/Backdrop": (Gf.Vec3f(-20.0, -0.09, -6.0), Gf.Vec3f(20.0, 0.09, 6.0)),
     }
 
     for prim_path, (expected_min, expected_max) in expected_bounds.items():
