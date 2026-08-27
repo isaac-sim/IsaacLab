@@ -138,6 +138,99 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         assert Sdf.Path.IsValidPathString(f"/Render/{name}")
 
 
+@pytest.mark.parametrize(
+    ("data_type", "expected_shading_mode"),
+    [
+        pytest.param("simple_shading_constant_diffuse", 1, id="constant_diffuse"),
+        pytest.param("simple_shading_diffuse_mdl", 2, id="diffuse_mdl"),
+        pytest.param("simple_shading_full_mdl", 3, id="full_mdl"),
+    ],
+)
+def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch, data_type, expected_shading_mode):
+    """Simple shading must switch its own render product to RTX Minimal mode.
+
+    Selecting a shading level alone leaves the product in ``RealTimePathTracing`` and keeps the
+    full path-tracing cost. Both the render mode and the shading level are authored on the render
+    product rather than through their process-wide carb settings, so other cameras and the Kit
+    viewport keep their own render mode.
+    """
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import Sdf, UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    settings = MagicMock()
+    settings.get.return_value = False
+
+    rp = MagicMock()
+    rp.path = "/Render/OmniverseKit/HydraTextures/rp_test"
+
+    # Record the authored attributes per name; one mock per attribute keeps their ``Set`` calls
+    # distinguishable.
+    authored_attributes: dict[str, MagicMock] = {}
+
+    def _create_attribute(name, value_type):
+        attribute = MagicMock(value_type=value_type)
+        authored_attributes[name] = attribute
+        return attribute
+
+    render_product_prim = MagicMock()
+    render_product_prim.IsValid.return_value = True
+    render_product_prim.CreateAttribute.side_effect = _create_attribute
+
+    camera_prim = MagicMock()
+    camera_prim.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
+
+    stage = MagicMock()
+    stage.GetPrimAtPath.side_effect = lambda path: render_product_prim if path == rp.path else camera_prim
+
+    registry = MagicMock()
+    registry.get_annotator.return_value = MagicMock()
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=MagicMock(return_value=rp))
+    replicator_core_module.AnnotatorRegistry = registry
+
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/envs/env_0/Camera"],
+        device="cpu",
+        cfg=SimpleNamespace(
+            data_types=[data_type],
+            width=64,
+            height=64,
+            isp_cfg=None,
+            colorize_semantic_segmentation=False,
+            colorize_instance_segmentation=False,
+            colorize_instance_id_segmentation=False,
+        ),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+    ):
+        renderer.create_render_data(spec)
+
+    assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call("Minimal")
+    assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
+    assert authored_attributes["omni:rtx:minimal:mode"].Set.call_args == call(expected_shading_mode)
+    assert authored_attributes["omni:rtx:minimal:mode"].value_type == Sdf.ValueTypeNames.Int
+
+    # The shading level must not leak into process-wide state, where the last camera would win.
+    global_setting_calls = [
+        setting_call
+        for setting_call in (*settings.set_int.call_args_list, *settings.set.call_args_list)
+        if setting_call.args and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode")
+    ]
+    assert global_setting_calls == []
+
+
 def test_render_product_uuid_name_format_is_sdf_safe():
     """``rp_{uuid4().hex}`` matches the create_render_data naming contract and is SDF-safe."""
     import uuid

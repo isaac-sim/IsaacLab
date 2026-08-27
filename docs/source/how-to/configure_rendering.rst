@@ -15,6 +15,14 @@ Override individual settings to tune the
 renderer for your workflow, as described below. For camera-heavy workloads that
 need higher throughput, switch to the RTX Minimal renderer instead.
 
+.. note::
+
+   Requesting one of the ``simple_shading_*`` camera data types switches that camera's render
+   product to RTX Minimal mode; the data type selects the shading level. The switch applies per
+   render product, so other cameras and the Kit viewport keep their configured render mode. RTX
+   Minimal illuminates the scene from ``DistantLight`` prims only and ignores ``DomeLight``
+   prims, so a scene lit solely by a dome light renders unlit through these data types.
+
 Overriding Specific Rendering Settings
 --------------------------------------
 

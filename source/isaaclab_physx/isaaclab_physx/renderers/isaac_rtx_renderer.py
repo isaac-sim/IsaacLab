@@ -65,9 +65,8 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
 
 # RTX simple-shading constants.
 #
-# Simple shading is driven by Kit's RTX "Minimal" render mode via the
-# ``/rtx/minimal/mode`` carb setting (key ``omni:rtx:minimal:mode``), with
-# integer values:
+# Simple shading requires Kit's RTX "Minimal" render mode. Its shading level is
+# selected by an integer:
 #   0 = No Rendering (black output; only other AOVs are produced)
 #   1 = Constant Diffuse (single constant color for all surfaces)
 #   2 = Texture Diffuse  (diffuse shading using texture colors)
@@ -81,7 +80,14 @@ SIMPLE_SHADING_MODES = {
     "simple_shading_diffuse_mdl": 2,
     "simple_shading_full_mdl": 3,
 }
-SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
+
+# Render-product attributes Kit maps the ``/rtx/rendermode`` and ``/rtx/minimal/mode`` carb
+# settings onto (``OmniRtxSettingsCommonAPI_1`` and ``OmniRtxSettingsMinimalAPI_1``). Authoring
+# them per render product keeps the process-wide settings — and therefore every other camera and
+# the Kit viewport — on their configured render mode.
+RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
+RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
+RTX_MINIMAL_RENDER_MODE = "Minimal"
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
@@ -341,10 +347,10 @@ class IsaacRtxRenderer(BaseRenderer):
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
-            # Set simple shading mode (if requested) before rendering
+            # Select the render mode and shading level (if requested) before rendering.
             simple_shading_mode = self._resolve_simple_shading_mode(spec)
             if simple_shading_mode is not None:
-                get_settings_manager().set_int(SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+                self._apply_minimal_render_mode(stage, rp.path, simple_shading_mode)
 
         needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.cfg.data_types or (
             spec.cfg.isp_cfg is not None and any(data_type in ("rgb", "rgba") for data_type in spec.cfg.data_types)
@@ -436,6 +442,36 @@ class IsaacRtxRenderer(BaseRenderer):
             spec=spec,
             ppisp_pipeline=ppisp_pipeline,
         )
+
+    def _apply_minimal_render_mode(self, stage: Usd.Stage, render_product_path: str, shading_mode: int) -> None:
+        """Switch one render product to RTX Minimal mode at the requested shading level.
+
+        Simple shading only becomes cheaper than a full render when the render product's render
+        mode is Minimal. Selecting a shading level while the product stays in
+        ``RealTimePathTracing`` still pays for the path-tracing pipeline on every frame.
+
+        Both values are authored on the render product instead of through their process-wide carb
+        settings so that color cameras, the Kit viewport, and
+        :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`
+        keep path tracing, and so cameras requesting different shading levels do not overwrite
+        each other.
+
+        Args:
+            stage: Stage owning the render product.
+            render_product_path: Prim path of the render product to switch.
+            shading_mode: Minimal shading level, one of the values in :data:`SIMPLE_SHADING_MODES`.
+        """
+        rp_prim = stage.GetPrimAtPath(render_product_path)
+        if rp_prim is None or not rp_prim.IsValid():
+            logger.warning(
+                "create_render_data: render product prim at '%s' not found; RTX Minimal mode will not be applied"
+                " and simple shading will render at full cost.",
+                render_product_path,
+            )
+            return
+        with Sdf.ChangeBlock():
+            rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(RTX_MINIMAL_RENDER_MODE)
+            rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
 
     def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
         """Resolve the requested simple shading mode from data types."""
