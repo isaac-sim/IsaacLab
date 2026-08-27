@@ -162,8 +162,8 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
-ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
+ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
 ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
@@ -209,7 +209,7 @@ usd_exchange = "2.3.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.10"
+ovphysx = "0.5.11"
 ovrtx = "0.4.1.364340"
 ovstage = "0.1.1.355824"
 newton = "release-1.5"
