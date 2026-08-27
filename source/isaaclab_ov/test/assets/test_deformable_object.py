@@ -187,7 +187,6 @@ def _run_cpu_deformable_initialization(result_queue: Any) -> None:
     ],
 )
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_initialization(num_objects: int, material_path: str | None):
     """Test volume deformable initialization and public buffer shapes."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -230,7 +229,6 @@ def test_initialization(num_objects: int, material_path: str | None):
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_absolute_material_sibling_prefix_is_not_expanded():
     """Keep a shared absolute material exact when its path only textually prefixes the asset path."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -249,7 +247,6 @@ def test_absolute_material_sibling_prefix_is_not_expanded():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_initialization_surface_deformable():
     """Test surface deformable initialization and unsupported target writes."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -278,7 +275,6 @@ def test_initialization_surface_deformable():
             deformable.write_nodal_kinematic_target_to_sim_index(dummy_targets)
 
 
-@pytest.mark.isaacsim_ci
 def test_initialization_on_device_cpu():
     """Test that OVPhysX deformable initialization rejects a CPU simulation."""
     context = multiprocessing.get_context("spawn")
@@ -307,7 +303,6 @@ def test_initialization_on_device_cpu():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_set_nodal_state():
     """Test combined nodal state writes while independently randomizing position and velocity."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -344,7 +339,6 @@ def test_set_nodal_state():
     ],
 )
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_indexed_partial_write_preserves_retained_aliased_slice_in_simulator(
     property_name: str, write_method_name: str, tensor_type: str, command_value: float
 ) -> None:
@@ -378,7 +372,6 @@ def test_indexed_partial_write_preserves_retained_aliased_slice_in_simulator(
 )
 @flaky(max_runs=3, min_passes=1)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_set_nodal_state_with_applied_transform(num_objects: int, randomize_pos: bool, randomize_rot: bool):
     """Test combined nodal state writes after applying rigid transforms."""
     with _ovphysx_sim_context(device="cuda:0", gravity_enabled=False) as sim:
@@ -418,7 +411,6 @@ def test_set_nodal_state_with_applied_transform(num_objects: int, randomize_pos:
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_set_kinematic_targets():
     """Test pinning one volume deformable while another falls under gravity."""
     with _ovphysx_sim_context(device="cuda:0", gravity_enabled=True) as sim:
@@ -455,7 +447,6 @@ def test_set_kinematic_targets():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_volume_deformable_reads_writes_targets_materials_and_steps():
     """Exercise authored volume state, topology, targets, materials, and stepping."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -570,7 +561,6 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_surface_deformable_reads_writes_materials_and_steps():
     """Exercise authored surface state, topology, materials, and stepping."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -673,7 +663,6 @@ def test_surface_deformable_reads_writes_materials_and_steps():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_deformable_interactive_scene_uses_full_authored_stage():
     """Initialize cloned deformable bodies and materials from the full authored stage."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -693,7 +682,6 @@ def test_deformable_interactive_scene_uses_full_authored_stage():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_forced_rewarm_rebuilds_deformable_bindings():
     """Replace deformable bindings when a forced re-warm replaces the attached stage."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -716,7 +704,6 @@ def test_forced_rewarm_rebuilds_deformable_bindings():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
     """Keep deformable, material, and rigid clone counts aligned in a mixed scene."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -740,7 +727,6 @@ def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-@pytest.mark.isaacsim_ci
 def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets(
     monkeypatch: pytest.MonkeyPatch,
 ):
