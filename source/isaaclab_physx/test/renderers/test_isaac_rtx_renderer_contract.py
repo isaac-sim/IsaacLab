@@ -140,22 +140,32 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
 
 
 @pytest.mark.parametrize(
-    ("data_types", "expected_shading_mode"),
+    ("data_types", "expected_shading_mode", "expected_minimal_render_mode"),
     [
-        pytest.param(["simple_shading_constant_diffuse"], 1, id="constant_diffuse"),
-        pytest.param(["simple_shading_diffuse_mdl"], 2, id="diffuse_mdl"),
-        pytest.param(["simple_shading_full_mdl"], 3, id="full_mdl"),
-        pytest.param(["simple_shading_full_mdl", "simple_shading_full_mdl"], 3, id="duplicate_full_mdl"),
-        pytest.param(["simple_shading_constant_diffuse", "simple_shading_full_mdl"], 1, id="multiple_modes_use_first"),
+        pytest.param(["simple_shading_constant_diffuse"], 1, True, id="constant_diffuse"),
+        pytest.param(["simple_shading_diffuse_mdl"], 2, True, id="diffuse_mdl"),
+        pytest.param(["simple_shading_full_mdl"], 3, True, id="full_mdl"),
+        pytest.param(["simple_shading_full_mdl", "simple_shading_full_mdl"], 3, True, id="duplicate_full_mdl"),
+        pytest.param(
+            ["simple_shading_constant_diffuse", "simple_shading_full_mdl"],
+            1,
+            True,
+            id="multiple_modes_use_first",
+        ),
+        pytest.param(["rgb", "simple_shading_full_mdl"], 3, False, id="rgb_keeps_path_tracing"),
+        pytest.param(["rgba", "simple_shading_full_mdl"], 3, False, id="rgba_keeps_path_tracing"),
+        pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, False, id="rgb_hdr_keeps_path_tracing"),
     ],
 )
-def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch, data_types, expected_shading_mode):
-    """Simple shading must switch its own render product to RTX Minimal mode.
+def test_simple_shading_configures_its_render_product(
+    monkeypatch, data_types, expected_shading_mode, expected_minimal_render_mode
+):
+    """Simple shading must configure its product without altering requested color output.
 
     Selecting a shading level alone leaves the product in ``RealTimePathTracing`` and keeps the
-    full path-tracing cost. Both the render mode and the shading level are authored on the render
-    product rather than through their process-wide carb settings, so other cameras and the Kit
-    viewport keep their own render mode.
+    full path-tracing cost. Products without regular color output are switched to RTX Minimal;
+    mixed color products retain path tracing. The shading level is authored on the render product
+    rather than through process-wide carb settings.
     """
     replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
     monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
@@ -229,8 +239,11 @@ def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch,
         index for index, operation in enumerate(operation_order) if operation == "attach"
     )
     stage.GetSessionLayer.assert_called_once()
-    assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call("Minimal")
-    assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
+    if expected_minimal_render_mode:
+        assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call("Minimal")
+        assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
+    else:
+        assert "omni:rtx:rendermode" not in authored_attributes
     assert authored_attributes["omni:rtx:minimal:mode"].Set.call_args == call(expected_shading_mode)
     assert authored_attributes["omni:rtx:minimal:mode"].value_type == Sdf.ValueTypeNames.Int
 
@@ -241,40 +254,6 @@ def test_simple_shading_switches_its_render_product_to_minimal_mode(monkeypatch,
         if setting_call.args and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode")
     ]
     assert global_setting_calls == []
-
-
-@pytest.mark.parametrize(
-    ("data_types", "error_match"),
-    [
-        pytest.param(["rgb", "simple_shading_full_mdl"], "cannot render simple shading", id="rgb"),
-        pytest.param(["rgba", "simple_shading_full_mdl"], "cannot render simple shading", id="rgba"),
-    ],
-)
-def test_simple_shading_rejects_incompatible_render_product_modes(monkeypatch, data_types, error_match):
-    """Product-wide RTX Minimal mode must not silently alter another requested output."""
-    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
-    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
-
-    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
-    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-
-    settings = MagicMock()
-    create_tiled = MagicMock()
-    replicator_core_module.create = SimpleNamespace(render_product_tiled=create_tiled)
-
-    spec = SimpleNamespace(cfg=SimpleNamespace(data_types=data_types))
-    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg()
-
-    with (
-        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
-        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
-        pytest.raises(ValueError, match=error_match),
-    ):
-        renderer.create_render_data(spec)
-
-    create_tiled.assert_not_called()
-    settings.set_bool.assert_not_called()
 
 
 def test_render_product_uuid_name_format_is_sdf_safe():
