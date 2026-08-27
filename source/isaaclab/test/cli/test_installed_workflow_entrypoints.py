@@ -42,16 +42,20 @@ def test_workflow_command_propagates_failure_status():
         cli.train([])
 
 
-def test_cli_loads_downstream_task_entrypoints_before_dispatch():
-    """Installed project task packages must register before a workflow resolves its task id."""
+@pytest.mark.parametrize(
+    "command_name",
+    ["train", "play", "train_multigpu", "zero_agent", "random_agent", "benchmark"],
+)
+def test_cli_loads_downstream_task_entrypoints_before_dispatch(command_name):
+    """Installed project task packages must register before a task-aware workflow is dispatched."""
     task_entry_point = mock.Mock()
     with (
         mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[task_entry_point]) as entry_points,
-        mock.patch.object(cli, "random_agent") as random_agent,
-        mock.patch.object(sys, "argv", ["isaaclab", "random_agent", "--task", "Example-v0"]),
+        mock.patch.object(cli, command_name) as command,
+        mock.patch.object(sys, "argv", ["isaaclab", command_name, "--task", "Example-v0"]),
     ):
         cli.cli()
 
     entry_points.assert_called_once_with(group="isaaclab.tasks")
     task_entry_point.load.assert_called_once_with()
-    random_agent.assert_called_once_with(["--task", "Example-v0"])
+    command.assert_called_once_with(["--task", "Example-v0"])

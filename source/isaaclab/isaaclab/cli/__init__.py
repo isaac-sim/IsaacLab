@@ -111,9 +111,7 @@ def benchmark(args: list[str] | None = None) -> None:
     """
     from isaaclab.benchmark import run_benchmark_cli
 
-    status = run_benchmark_cli(args)
-    if status != 0:
-        raise SystemExit(status)
+    _exit_on_error(run_benchmark_cli(args))
 
 
 def microbenchmark(args: list[str] | None = None) -> None:
