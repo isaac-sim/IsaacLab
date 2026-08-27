@@ -61,13 +61,14 @@ COPY isaaclab.sh ./
 # ``[tool.uv] override-dependencies``, which pins ``packaging>=20,<27`` against ovphysx's
 # ``packaging<24``. The pip-style path ignores that table and needs a duplicated overrides file
 # instead, which the lock makes unnecessary. ``all`` is exactly rl+visualizer+ov and excludes the
-# ``isaacsim`` extra; ``importers`` is the two standalone wheels. The venv pins python3.12 to
-# match the runtime stage's libpython3.12, and isaaclab.sh resolves VIRTUAL_ENV first.
+# ``isaacsim`` extra; ``importers`` is the two standalone wheels. UV_PYTHON above pins the venv to
+# python3.12, matching the runtime stage's libpython3.12; isaaclab.sh resolves VIRTUAL_ENV first.
+# ``--no-managed-python`` is not usable here -- uv rejects it alongside a python-preference.
 # ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
 # would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
 # is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
 # it was created with; otherwise it deletes and rebuilds it.
-RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
+RUN uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
  && python -c "import importlib.metadata as m; \
