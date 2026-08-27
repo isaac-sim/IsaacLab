@@ -101,7 +101,7 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
         # - task/mdp folder
         shutil.copytree(
             os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
-            os.path.join(task_dir, "mdp"),
+            os.path.join(task_spec["family_dir"], "mdp"),
             dirs_exist_ok=True,
         )
 
@@ -122,26 +122,26 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
     for workflow in specification["workflows"]:
         task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
         filename = task_name.replace("-", "_").lower()
+        family_name = filename + ("_direct" if workflow["name"] == "direct" else "")
+        family_dir = os.path.join(task_dir, family_name)
+        robot_dir = os.path.join(family_dir, "config", "cartpole")
         task = {
             "workflow": workflow,
             "filename": filename,
             "classname": task_name.replace("-", ""),
-            "dir": os.path.join(task_dir, workflow["name"].replace("-", "_"), filename),
+            "family_dir": family_dir,
+            "dir": robot_dir,
         }
         if task["workflow"]["name"] == "direct":
             task["id"] = f"{task_name_prefix}-{task_name}-Direct"
         elif task["workflow"]["name"] == "manager-based":
             task["id"] = f"{task_name_prefix}-{task_name}"
         print(f"  |    |-- Generating '{task['id']}' task...")
-        # Ensure the workflow directory is an importable package so ``import_packages`` discovers the
-        # task. Internal tasks land in ``isaaclab_tasks/{direct,manager_based}/``, which are namespace
-        # dirs (no ``__init__.py``) since the core/contrib split (#5891) and would otherwise never
-        # register. Created only when missing so an existing package is never clobbered.
-        workflow_dir = os.path.join(task_dir, workflow["name"].replace("-", "_"))
-        os.makedirs(workflow_dir, exist_ok=True)
-        workflow_init = os.path.join(workflow_dir, "__init__.py")
-        if not os.path.exists(workflow_init):
-            shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__workflow"), workflow_init)
+        for package_dir in (family_dir, os.path.join(family_dir, "config")):
+            os.makedirs(package_dir, exist_ok=True)
+            package_init = os.path.join(package_dir, "__init__.py")
+            if not os.path.exists(package_init):
+                shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__task_family"), package_init)
         _generate_task_per_workflow(task["dir"], {**specification, "task": task})
         specifications.append({**specification, "task": task})
     return specifications
@@ -204,7 +204,6 @@ def _external(specification: dict) -> None:
     os.makedirs(dir, exist_ok=True)
     specifications = _generate_tasks(specification, dir)
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(dir, "__init__.py"))
-    # (per-workflow ``__init__.py`` files are created by ``_generate_tasks``)
     # - other files
     dir = os.path.join(project_dir, "source", name, name)
     template = jinja_env.get_template("extension/ui_extension_example.py")

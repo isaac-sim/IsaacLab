@@ -73,7 +73,10 @@ def _task_dir(root_dir: Path, project_name: str, workflow_name: str, workflow_ty
     tasks_dir = root_dir
     if external:
         tasks_dir = root_dir / project_name / "source" / project_name / project_name / "tasks"
-    return tasks_dir / workflow_name.replace("-", "_") / _task_folder(project_name, workflow_type)
+    family = _task_folder(project_name, workflow_type)
+    if workflow_name == "direct":
+        family += "_direct"
+    return tasks_dir / family / "config" / "cartpole"
 
 
 def _load_registration_module(task_dir: Path, module_name: str) -> None:
@@ -530,7 +533,7 @@ def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_pat
     )
     source_dir = root_dir / project_name / "source" / project_name
     task_folder = _task_folder(project_name, "single-agent")
-    env_cfg_module = f"{project_name}.tasks.manager_based.{task_folder}.{task_folder}_env_cfg"
+    env_cfg_module = f"{project_name}.tasks.{task_folder}.config.cartpole.{task_folder}_env_cfg"
     env_cfg_class = f"{_task_class(project_name, 'single-agent')}EnvCfg"
 
     program = textwrap.dedent(
@@ -559,14 +562,8 @@ def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_pat
     )
 
 
-def test_generated_internal_task_workflow_dirs_are_importable_packages(tmp_path, monkeypatch):
-    """An internal task must register out of the box: its workflow dirs must be importable packages.
-
-    After the core/contrib split (#5891), ``isaaclab_tasks/{direct,manager_based}/`` are namespace dirs
-    with no ``__init__.py``. ``import_packages`` uses ``pkgutil.iter_modules``, which skips namespace
-    packages, so a generated internal task placed under them would never be discovered/registered. The
-    generator must therefore create the per-workflow ``__init__.py``.
-    """
+def test_generated_internal_task_families_are_importable_packages(tmp_path, monkeypatch):
+    """Generated tasks use importable task-family and robot-config packages."""
     tasks_dir = tmp_path / "isaaclab_tasks"
     tasks_dir.mkdir()
     monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
@@ -582,12 +579,12 @@ def test_generated_internal_task_workflow_dirs_are_importable_packages(tmp_path,
             "rl_libraries": [{"name": "skrl", "algorithms": ["ppo"]}],
         }
     )
-    # pkgutil.iter_modules (what import_packages walks) lists a directory only if it is a regular package
+    task_family = _task_folder("template_internal_reg", "single-agent")
+    direct_family = f"{task_family}_direct"
     discovered = {info.name for info in pkgutil.iter_modules([str(tasks_dir)]) if info.ispkg}
-    assert {"direct", "manager_based"} <= discovered, (
-        "generated internal task workflow dirs are not importable packages, so import_packages would"
-        f" skip them and the task would never register; discovered packages: {sorted(discovered)}"
-    )
+    assert {task_family, direct_family} <= discovered
+    for family in (task_family, direct_family):
+        assert (tasks_dir / family / "config" / "cartpole" / "__init__.py").is_file()
 
 
 def test_generated_external_project_registers_tasks_on_import(tmp_path, monkeypatch):

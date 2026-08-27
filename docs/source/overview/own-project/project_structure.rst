@@ -30,12 +30,11 @@ in the extension is what determines the ``entry_point`` for an environment in Is
 generated package in editable mode, and its ``isaaclab.tasks`` package entry point lets the installed Isaac Lab CLI import and
 register those tasks automatically.
 
-Finally, the **Task** is the heart of the direct workflow. By default, the template generates a single task with the same name
-as the project. The environment and configuration files are stored here, as well as placeholder, RL library dependent ``agents``.
-Critically, note the contents of the ``__init__.py``! Specifically, the ``gym.register`` function needs to be called at least once
-before an environment and task can be used with the Isaac Lab commands. This function should be included in one of the module
-``__init__.py`` files imported by the package's ``isaaclab.tasks`` entry point.
+Finally, the **Task** is the heart of the workflow. Each task family has its own directory. Shared task logic belongs
+in that directory, while robot-specific environment and agent configurations live under ``config/<robot>``. This
+matches the layout used by ``isaaclab_tasks`` and makes another robot configuration a sibling package instead of a
+collection of files at the module root.
 
-For the template, ``gym.register`` is called within ``isaac_lab_tutorial/source/isaac_lab_tutorial/isaac_lab_tutorial/tasks/direct/isaac_lab_tutorial/__init__.py``.
-The repeated name is a consequence of needing default names for the template, but now we can see the structure of the project.
-**Project**/source/**Extension**/**Module**/tasks/direct/**Task**/__init__.py
+For the template, ``gym.register`` is called from the generated Cartpole configuration package:
+``isaac_lab_tutorial/source/isaac_lab_tutorial/isaac_lab_tutorial/tasks/isaac_lab_tutorial_direct/config/cartpole/__init__.py``.
+That package is imported recursively from the extension's ``isaaclab.tasks`` entry point.
