@@ -35,13 +35,14 @@ Choosing a renderer backend
 
 .. _renderer-visual-comparison:
 
-Visual comparison
------------------
+Renderer outputs at a glance
+----------------------------
 
 The galleries below use the same authored scene, camera, lights, materials, and initial conditions.
 Six spheres exercise mirror-like, transparent, semi-transparent, matte, glossy, and emissive
 materials. The RGB output is animated to show the spheres falling onto the table; the remaining
-outputs are representative still frames from the same run.
+outputs are still frames from the same run. Stills use the third rendered frame so temporal outputs,
+such as motion vectors, have valid frame history while the spheres remain near their initial poses.
 
 Treat the images as a qualitative comparison of feature coverage and image character, not a
 performance benchmark. The kit-less renderers use Newton physics while Isaac RTX uses PhysX, so
@@ -49,7 +50,188 @@ the exact sphere poses can differ. Display-only color maps make scalar, vector, 
 readable here; camera sensors still return their documented raw tensors. Closely related aliases
 and distance or ID variants are omitted because they do not add a visually distinct mode.
 
+Each caption gives the matching Cartpole ``presets=`` selector when that task exposes one. Captions
+using ``data_types=[...]`` identify outputs that are configured directly on
+:attr:`~isaaclab.sensors.CameraCfg.data_types` instead.
+
 .. include:: _renderer_gallery.rst
+
+Choosing a rendering capability
+--------------------------------
+
+The overview above shows the complete range of visually distinct outputs in one place. The sections
+below regroup those outputs by purpose: simplified rendering for throughput-oriented training, and
+beauty rendering for full RTX image quality and sensor outputs. The commands use the suffixless
+``Isaac-Cartpole-Camera`` task so each shown mode can be tried without editing Python.
+
+Simplified rendering
+~~~~~~~~~~~~~~~~~~~~
+
+Simplified rendering prioritizes throughput and predictable image formation over full light
+transport. Newton Warp provides a lightweight rasterized RGB path. OVRTX and Isaac RTX provide RTX
+Minimal mode, which disables indirect lighting and offers three levels of material evaluation:
+
+- **Constant diffuse** uses one constant surface color.
+- **Diffuse MDL** is Isaac Lab's stable name for textured diffuse shading.
+- **Full MDL** is Isaac Lab's stable name for diffuse, glossy, and emissive material evaluation.
+
+RTX Minimal uses the first distant light in the scene and hard shadows. See the upstream
+`OVRTX Minimal mode <https://nvidia-omniverse.github.io/ovrtx/sensors/cameras/render_modes/minimal.html>`_
+and `RTX Minimal renderer <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_minimal.html>`_
+documentation for the renderer-level settings and limitations.
+
+.. tab-set::
+
+   .. tab-item:: Newton Warp RGB
+
+      .. figure:: ../../_static/overview/sensors/camera-renderer-newton.webp
+         :align: center
+         :width: 90%
+         :alt: Six material spheres falling onto a table in Newton Warp RGB output.
+
+         Newton Warp RGB — ``renderer=newton_renderer presets=rgb``
+
+      Newton Warp is the kit-less choice when a lightweight RGB observation is sufficient.
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+   .. tab-item:: OVRTX Minimal
+
+      .. grid:: 1 2 3 3
+         :gutter: 2
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-constant-diffuse.png
+               :width: 100%
+               :alt: OVRTX constant-diffuse RTX Minimal output.
+
+               Constant diffuse — ``presets=simple_shading_constant_diffuse``
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
+               :width: 100%
+               :alt: OVRTX textured-diffuse RTX Minimal output.
+
+               Diffuse MDL — ``presets=simple_shading_diffuse_mdl``
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-full-mdl.png
+               :width: 100%
+               :alt: OVRTX full-material RTX Minimal output.
+
+               Full MDL — ``presets=simple_shading_full_mdl``
+
+      .. code-block:: bash
+
+         # Constant diffuse
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_constant_diffuse
+
+         # Textured diffuse
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
+
+         # Diffuse, glossy, and emissive material evaluation
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl
+
+   .. tab-item:: Isaac RTX Minimal
+
+      .. grid:: 1 2 3 3
+         :gutter: 2
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-constant-diffuse.png
+               :width: 100%
+               :alt: Isaac RTX constant-diffuse RTX Minimal output.
+
+               Constant diffuse — ``presets=simple_shading_constant_diffuse``
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
+               :width: 100%
+               :alt: Isaac RTX textured-diffuse RTX Minimal output.
+
+               Diffuse MDL — ``presets=simple_shading_diffuse_mdl``
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
+               :width: 100%
+               :alt: Isaac RTX full-material RTX Minimal output.
+
+               Full MDL — ``presets=simple_shading_full_mdl``
+
+      .. code-block:: bash
+
+         # Constant diffuse
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_constant_diffuse
+
+         # Textured diffuse
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_diffuse_mdl
+
+         # Diffuse, glossy, and emissive material evaluation
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_full_mdl
+
+Beauty rendering
+~~~~~~~~~~~~~~~~
+
+Here, **beauty rendering** means the regular RGB path from the full RTX Real-Time Path-Tracing mode;
+it is a capability grouping, not an Isaac Lab preset name. Choose it when material appearance,
+reflections, transparency, lighting, or the accompanying RTX AOVs matter more than the lowest
+possible render latency. OVRTX provides this path without Kit, while Isaac RTX provides it inside
+Isaac Sim. See the upstream `OVRTX render modes
+<https://nvidia-omniverse.github.io/ovrtx/sensors/cameras/render_modes.html>`_ and
+`Isaac Sim rendering modes
+<https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/rendering_modes.html>`_.
+
+.. tab-set::
+
+   .. tab-item:: OVRTX
+
+      .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx.webp
+         :align: center
+         :width: 90%
+         :alt: Six material spheres falling onto a table in OVRTX RGB output.
+
+         OVRTX beauty RGB — ``renderer=ovrtx presets=rgb``
+
+      The same renderer also produces the albedo, depth, normals, segmentation, and motion-vector
+      outputs shown in the overview gallery.
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=ovrtx presets=rgb
+
+   .. tab-item:: Isaac RTX
+
+      .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx.webp
+         :align: center
+         :width: 90%
+         :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
+
+         Isaac RTX beauty RGB — ``renderer=isaacsim_rtx presets=rgb``
+
+      The same renderer also produces the albedo, depth, normals, segmentation, and motion-vector
+      outputs shown in the overview gallery.
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
 
 .. note::
 

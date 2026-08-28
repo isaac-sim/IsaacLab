@@ -7,7 +7,7 @@
          :width: 90%
          :alt: Six material spheres falling onto a table in Newton Warp RGB output.
 
-         RGB animation
+         RGB animation — ``presets=rgb``
 
       .. grid:: 1 2 3 3
          :gutter: 2
@@ -18,7 +18,7 @@
                :width: 100%
                :alt: Newton Warp albedo output for six material spheres.
 
-               Albedo
+               Albedo — ``presets=albedo``
 
          .. grid-item::
 
@@ -26,7 +26,7 @@
                :width: 100%
                :alt: Color-mapped Newton Warp depth output for six material spheres.
 
-               Depth
+               Depth — ``presets=depth``
 
          .. grid-item::
 
@@ -34,7 +34,7 @@
                :width: 100%
                :alt: Newton Warp surface-normal output for six material spheres.
 
-               Normals
+               Normals — ``data_types=["normals"]``
 
          .. grid-item::
 
@@ -42,7 +42,7 @@
                :width: 100%
                :alt: Color-mapped Newton Warp semantic-segmentation output for six material spheres.
 
-               Semantic segmentation
+               Semantic segmentation — ``presets=semantic_segmentation``
 
          .. grid-item::
 
@@ -50,7 +50,7 @@
                :width: 100%
                :alt: Color-mapped Newton Warp instance-segmentation output for six material spheres.
 
-               Instance segmentation
+               Instance segmentation — ``data_types=["instance_segmentation"]``
 
    .. tab-item:: OVRTX
 
@@ -59,7 +59,7 @@
          :width: 90%
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
 
-         RGB animation
+         RGB animation — ``presets=rgb``
 
       .. grid:: 1 2 3 3
          :gutter: 2
@@ -70,7 +70,7 @@
                :width: 100%
                :alt: OVRTX albedo output for six material spheres.
 
-               Albedo
+               Albedo — ``presets=albedo``
 
          .. grid-item::
 
@@ -78,7 +78,7 @@
                :width: 100%
                :alt: Color-mapped OVRTX depth output for six material spheres.
 
-               Depth
+               Depth — ``presets=depth``
 
          .. grid-item::
 
@@ -86,7 +86,7 @@
                :width: 100%
                :alt: OVRTX surface-normal output for six material spheres.
 
-               Normals
+               Normals — ``data_types=["normals"]``
 
          .. grid-item::
 
@@ -94,7 +94,7 @@
                :width: 100%
                :alt: Color-mapped OVRTX semantic-segmentation output for six material spheres.
 
-               Semantic segmentation
+               Semantic segmentation — ``presets=semantic_segmentation``
 
          .. grid-item::
 
@@ -102,7 +102,7 @@
                :width: 100%
                :alt: Color-mapped OVRTX instance-segmentation output for six material spheres.
 
-               Instance segmentation
+               Instance segmentation — ``data_types=["instance_segmentation"]``
 
          .. grid-item::
 
@@ -110,7 +110,7 @@
                :width: 100%
                :alt: Color-mapped OVRTX motion-vector output for six falling material spheres.
 
-               Motion vectors
+               Motion vectors — ``data_types=["motion_vectors"]``
 
          .. grid-item::
 
@@ -118,7 +118,7 @@
                :width: 100%
                :alt: OVRTX constant-diffuse simple-shading output for six material spheres.
 
-               Constant diffuse shading
+               Constant diffuse shading — ``presets=simple_shading_constant_diffuse``
 
          .. grid-item::
 
@@ -126,7 +126,7 @@
                :width: 100%
                :alt: OVRTX diffuse-MDL simple-shading output for six material spheres.
 
-               Diffuse MDL shading
+               Diffuse MDL shading — ``presets=simple_shading_diffuse_mdl``
 
          .. grid-item::
 
@@ -134,7 +134,7 @@
                :width: 100%
                :alt: OVRTX full-MDL simple-shading output for six material spheres.
 
-               Full MDL shading
+               Full MDL shading — ``presets=simple_shading_full_mdl``
 
    .. tab-item:: Isaac RTX
 
@@ -143,7 +143,7 @@
          :width: 90%
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
 
-         RGB animation
+         RGB animation — ``presets=rgb``
 
       .. grid:: 1 2 3 3
          :gutter: 2
@@ -154,7 +154,7 @@
                :width: 100%
                :alt: Isaac RTX albedo output for six material spheres.
 
-               Albedo
+               Albedo — ``presets=albedo``
 
          .. grid-item::
 
@@ -162,7 +162,7 @@
                :width: 100%
                :alt: Color-mapped Isaac RTX depth output for six material spheres.
 
-               Depth
+               Depth — ``presets=depth``
 
          .. grid-item::
 
@@ -170,7 +170,7 @@
                :width: 100%
                :alt: Isaac RTX surface-normal output for six material spheres.
 
-               Normals
+               Normals — ``data_types=["normals"]``
 
          .. grid-item::
 
@@ -178,7 +178,7 @@
                :width: 100%
                :alt: Color-mapped Isaac RTX semantic-segmentation output for six material spheres.
 
-               Semantic segmentation
+               Semantic segmentation — ``presets=semantic_segmentation``
 
          .. grid-item::
 
@@ -186,7 +186,7 @@
                :width: 100%
                :alt: Color-mapped Isaac RTX instance-segmentation output for six material spheres.
 
-               Instance segmentation
+               Instance segmentation — ``data_types=["instance_segmentation"]``
 
          .. grid-item::
 
@@ -194,7 +194,7 @@
                :width: 100%
                :alt: Color-mapped Isaac RTX motion-vector output for six falling material spheres.
 
-               Motion vectors
+               Motion vectors — ``data_types=["motion_vectors"]``
 
          .. grid-item::
 
@@ -202,7 +202,7 @@
                :width: 100%
                :alt: Isaac RTX constant-diffuse simple-shading output for six material spheres.
 
-               Constant diffuse shading
+               Constant diffuse shading — ``presets=simple_shading_constant_diffuse``
 
          .. grid-item::
 
@@ -210,7 +210,7 @@
                :width: 100%
                :alt: Isaac RTX diffuse-MDL simple-shading output for six material spheres.
 
-               Diffuse MDL shading
+               Diffuse MDL shading — ``presets=simple_shading_diffuse_mdl``
 
          .. grid-item::
 
@@ -218,4 +218,4 @@
                :width: 100%
                :alt: Isaac RTX full-MDL simple-shading output for six material spheres.
 
-               Full MDL shading
+               Full MDL shading — ``presets=simple_shading_full_mdl``
