@@ -42,6 +42,7 @@ import tempfile
 import pytest
 from generate_synthetic_gaussian_asset import (
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+    assert_gaussian_contribution,
     assert_images_meaningfully_different,
     assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
@@ -49,6 +50,7 @@ from generate_synthetic_gaussian_asset import (
     assert_tiled_views_match,
     make_aggressive_ppisp_cfg,
     make_neutral_ppisp_cfg,
+    make_offscreen_gaussian_scene,
     make_synthetic_gaussian_usd,
     render_synthetic_gaussian_scene,
     render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
@@ -212,17 +214,27 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(render
     ``rgb_hdr`` are batched over the matched cameras, and each tile is checked
     independently for HDR presence, useful PPISP LDR mapping, vignetting, and
     bounded output.
+
+    Every tile is also compared against a control render whose gaussians sit outside the
+    frustum: the invariants above are all satisfied by the background alone, so without
+    that comparison a renderer that drops every splat in a multi-camera render still
+    passes. OVRTX does exactly that for one gaussian sort mode, hence the same check here.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        output = render_synthetic_gaussian_scene(
-            asset_path,
+        render_kwargs = dict(
             sim_cfg=_isaac_rtx_sim_cfg(device),
             renderer_cfg=renderer_cfg_cls(),
             data_types=["rgb", "rgb_hdr"],
             num_envs=MULTI_TILE_COUNT,
             sim_dt=SIM_DT,
             responsivity=ISAAC_RTX_RESPONSIVITY,
+        )
+        output = render_synthetic_gaussian_scene(
+            make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda"), **render_kwargs
+        )
+        control = render_synthetic_gaussian_scene(
+            make_synthetic_gaussian_usd(f"{tmpdir}/offscreen_gaussians.usda", scene=make_offscreen_gaussian_scene()),
+            **render_kwargs,
         )
 
     rgb = output["rgb"]
@@ -236,3 +248,4 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(render
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"isaac_rtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"isaac_rtx tile {i}")
+        assert_gaussian_contribution(rgb[i], control["rgb"][i], label=f"isaac_rtx tile {i}")

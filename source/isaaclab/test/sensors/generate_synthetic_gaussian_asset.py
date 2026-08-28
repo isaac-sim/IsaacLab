@@ -162,6 +162,17 @@ class SyntheticGaussianScene:
     See :class:`SyntheticGaussianAnimation`."""
 
 
+def make_offscreen_gaussian_scene() -> SyntheticGaussianScene:
+    """Return a control scene whose only gaussian sits far outside every camera frustum.
+
+    The asset still carries a populated gaussian field — so the renderer follows the same
+    ingest path — but contributes nothing to the image. Rendering it with otherwise
+    identical settings yields the gaussian-free baseline that
+    :func:`assert_gaussian_contribution` compares against.
+    """
+    return SyntheticGaussianScene(gaussians=[SyntheticGaussian(position=(5000.0, 5000.0, 0.0), color=(0.9, 0.1, 0.1))])
+
+
 def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None = None) -> str:
     """Author a tiny gaussian-splat USD at ``path`` and return that path.
 
@@ -242,6 +253,7 @@ def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None 
         "radiance:sphericalHarmonicsDegree", Sdf.ValueTypeNames.Int, custom=False
     )
     sh_degree_attr.Set(0)
+    _author_particle_field_hints(gauss_prim)
 
     # Conservative extent — bounding box of all gaussian centers expanded by
     # their largest scale.
@@ -293,6 +305,31 @@ SYNTHETIC_GAUSSIAN_DEFORMABLE_TRACK_PATH = "/World/Scene/gaussians/NuRec/track_d
 Its ``Xform`` is static; its ``track_deformable_gaussians`` child time-samples the
 per-particle ``positionsh`` and ``orientationsh`` arrays.
 """
+
+
+_PARTICLE_FIELD_HINTS = {
+    "colorSpace:name": "lin_rec709_scene",
+    "projectionModeHint": "perspective",
+    "sortingModeHint": "zDepth",
+}
+"""Render hints NuRec exports author on the gaussian prim, with their exported values.
+
+Copied from the reference capture used by the PPISP demos
+(``Samples/Scene_ParticleField/valiant_auto.usdz``) so the synthesised asset exercises the
+same attribute set real captures deliver. ``sortingModeHint`` selects the depth metric the
+renderer sorts splats by; ``zDepth`` is both what NuRec exports and the renderer's default
+when the token is absent, so authoring it changes no rendering behaviour on its own.
+"""
+
+
+def _author_particle_field_hints(prim: Usd.Prim) -> None:
+    """Author the color space, projection and sorting hint tokens onto a gaussian prim.
+
+    Args:
+        prim: The ``ParticleField3DGaussianSplat`` prim to author the hints on.
+    """
+    for name, value in _PARTICLE_FIELD_HINTS.items():
+        prim.CreateAttribute(name, Sdf.ValueTypeNames.Token).Set(value)
 
 
 def _author_extent(prim: Usd.Prim, positions: list[tuple[float, float, float]], *, padding: float) -> None:
@@ -469,6 +506,7 @@ def _author_half_gaussian_prim(
         Vt.Vec3hArray([_sh_dc_from_color(color)] * len(positions))
     )
     prim.CreateAttribute("radiance:sphericalHarmonicsDegree", Sdf.ValueTypeNames.Int, custom=False).Set(0)
+    _author_particle_field_hints(prim)
     prim.CreateRelationship("material:binding").SetTargets([material_path])
     return prim
 
@@ -607,6 +645,36 @@ def assert_images_meaningfully_different(
     assert mean_abs_diff > min_mean_abs_diff, (
         f"{prefix}image difference too small: mean_abs_diff={mean_abs_diff:.3f}, "
         f"expected > {min_mean_abs_diff}. The authored PPISP camera attributes may not be applied."
+    )
+
+
+def assert_gaussian_contribution(
+    rgb_tile: torch.Tensor,
+    control_rgb_tile: torch.Tensor,
+    *,
+    min_mean_abs_diff: float = 5.0,
+    label: str = "",
+) -> None:
+    """Assert a rendered tile actually contains gaussian content.
+
+    The PPISP signature assertions hold equally well on a render whose gaussians are
+    entirely absent — the background alone satisfies them — so a renderer that silently
+    drops splats otherwise passes. Comparing against a control render of
+    :func:`make_offscreen_gaussian_scene` attributes any difference to the splats.
+
+    Args:
+        rgb_tile: Tile rendered from the default scene, shape ``[H, W, C>=3]``.
+        control_rgb_tile: Matching tile rendered from :func:`make_offscreen_gaussian_scene`.
+        min_mean_abs_diff: Minimum per-pixel mean absolute difference [LDR units].
+        label: Included in the assertion message to identify the renderer / tile.
+    """
+    prefix = f"[{label}] " if label else ""
+    mean_abs_diff = (rgb_tile[..., :3].float() - control_rgb_tile[..., :3].float()).abs().mean().item()
+    assert mean_abs_diff > min_mean_abs_diff, (
+        f"{prefix}tile is indistinguishable from a gaussian-free render: "
+        f"mean_abs_diff={mean_abs_diff:.3f}, expected > {min_mean_abs_diff}. The renderer produced no "
+        "gaussian contribution for this tile — check that the gaussian prim is ingested and rendered "
+        "for this env's camera."
     )
 
 
@@ -873,7 +941,10 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
     :func:`fresh_synthetic_gaussian_interactive_scene`.
     """
 
-    env_spacing: float = 2.0
+    # Comfortably wider than the ~2.6 m the default camera frames at its 3 m standoff, so
+    # each env's camera sees only its own gaussians. At the scene's own ~1.8 m width the
+    # neighbouring copies fall inside the frame and tiles stop being comparable.
+    env_spacing: float = 10.0
 
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
