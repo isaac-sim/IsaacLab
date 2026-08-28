@@ -62,37 +62,31 @@ def test_env_override_disables_async(async_cfg, monkeypatch):
     assert isinstance(_resolve_render_strategy(async_cfg), _SyncRenderStrategy)
 
 
-def test_zero_frames_selects_sync(monkeypatch):
-    monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
+def test_async_pipelines_exactly_one_frame(async_cfg):
+    """One frame of latency: the queue holds that render plus the one being enqueued.
 
-    assert isinstance(_resolve_render_strategy(OVRTXRendererCfg(async_rendering=0)), _SyncRenderStrategy)
-
-
-@pytest.mark.parametrize("frames", [1, 2, 5])
-def test_frame_count_sets_queue_depth(frames, monkeypatch):
-    """A frame count is latency, so the queue holds one more render than that."""
-    monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
-
-    strategy = _resolve_render_strategy(OVRTXRendererCfg(async_rendering=frames))
+    Deeper queues are deliberately unsupported — the ovstage path cannot sustain them because its
+    scene writes drain in-flight renders, and the legacy path has not measured a benefit.
+    """
+    strategy = _resolve_render_strategy(async_cfg)
 
     assert isinstance(strategy, _AsyncRenderStrategy)
-    assert strategy._render_queue_depth == frames + 1
+    assert strategy._render_queue_depth == 2
 
 
-def test_bool_matches_one_frame(monkeypatch):
-    """``True`` is the same request as ``1``."""
+def test_multi_frame_latency_is_rejected(monkeypatch):
+    """Frame counts above one are refused explicitly rather than silently truncated."""
     monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
 
-    assert (
-        _resolve_render_strategy(OVRTXRendererCfg(async_rendering=True))._render_queue_depth
-        == _resolve_render_strategy(OVRTXRendererCfg(async_rendering=1))._render_queue_depth
-    )
+    with pytest.raises(ValueError, match="not supported yet"):
+        _resolve_render_strategy(OVRTXRendererCfg(async_rendering=3))
 
 
-def test_env_override_sets_frame_count(sync_cfg, monkeypatch):
+def test_multi_frame_env_override_is_ignored(async_cfg, monkeypatch):
+    """A frame count in the env var is not a boolean spelling, so it is ignored with a warning."""
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "3")
 
-    assert _resolve_render_strategy(sync_cfg)._render_queue_depth == 4
+    assert isinstance(_resolve_render_strategy(async_cfg), _AsyncRenderStrategy)
 
 
 def test_invalid_env_override_falls_back_to_cfg(async_cfg, monkeypatch):
@@ -101,7 +95,7 @@ def test_invalid_env_override_falls_back_to_cfg(async_cfg, monkeypatch):
     assert isinstance(_resolve_render_strategy(async_cfg), _AsyncRenderStrategy)
 
 
-def test_negative_frame_count_is_rejected(monkeypatch):
+def test_negative_value_is_rejected(monkeypatch):
     monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
 
     with pytest.raises(ValueError):

@@ -83,7 +83,7 @@ def test_sync_strategy_omits_ordinal_when_standalone():
 def test_async_strategy_forwards_ordinal_when_attached():
     renderer = _RecordingRenderer(attached=True)
 
-    _render(_AsyncRenderStrategy(1), renderer, 11)
+    _render(_AsyncRenderStrategy(), renderer, 11)
 
     assert renderer.ordinals == [11]
 
@@ -91,14 +91,14 @@ def test_async_strategy_forwards_ordinal_when_attached():
 def test_async_strategy_omits_ordinal_when_standalone():
     renderer = _RecordingRenderer(attached=False)
 
-    _render(_AsyncRenderStrategy(1), renderer, None)
+    _render(_AsyncRenderStrategy(), renderer, None)
 
     assert renderer.ordinals == [None]
 
 
 def test_async_strategy_forwards_each_frame_ordinal():
     renderer = _RecordingRenderer(attached=True)
-    strategy = _AsyncRenderStrategy(1)
+    strategy = _AsyncRenderStrategy()
 
     for ordinal in (3, 4, 5):
         _render(strategy, renderer, ordinal)

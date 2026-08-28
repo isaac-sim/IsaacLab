@@ -12,7 +12,7 @@ the renderer's call sites carry no ``sync``/``async`` branching.
 - :class:`_SyncRenderStrategy` writes transforms straight into OVRTX from caller-owned buffers and
   consumes each step inline.
 - :class:`_AsyncRenderStrategy` pipelines steps and double-buffers transform staging, so rendering
-  overlaps simulation at the cost of camera outputs arriving a configurable number of frames later.
+  overlaps simulation at the cost of camera outputs arriving one frame later.
 
 The interface is mechanism-neutral (:meth:`~_RenderStrategy.initialize`,
 :meth:`~_RenderStrategy.stage_object_transforms`, :meth:`~_RenderStrategy.stage_camera_transforms`,
@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 import warp as wp
 from ovrtx import DataAccess
 
-from isaaclab.renderers import resolve_async_rendering_frames
+from isaaclab.renderers import resolve_async_rendering_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -240,8 +240,9 @@ class _AsyncRenderSlot:
 class _AsyncRenderStrategy(_RenderStrategy):
     """Pipelined strategy: steps are queued and consumed later, with double-buffered staging.
 
-    The queue sustains the frames of camera latency :attr:`~isaaclab.renderers.RendererCfg.async_rendering`
-    asks for; deeper queues overlap more simulation with rendering and return staler camera data.
+    The queue sustains one frame of camera latency when
+    :attr:`~isaaclab.renderers.RendererCfg.async_rendering` is enabled, so rendering overlaps the
+    next step's simulation and Python work and camera outputs are one step stale.
 
     Transform writes always use two slots, independent of queue depth. A ``DataAccess.ASYNC`` write
     copies the data into OVRTX's own storage, so OVRTX reads a buffer only until its write op
@@ -251,31 +252,26 @@ class _AsyncRenderStrategy(_RenderStrategy):
     # See :meth:`_ensure_slots` for why two is always enough.
     _NUM_SLOTS = 2
 
+    # One frame of camera latency; the ring holds one more render because a frame is drained only
+    # after the next one is enqueued. Deeper queues are deliberately unsupported for now: the
+    # ovstage path cannot sustain them (its scene writes drain in-flight renders), and the legacy
+    # path has not measured a benefit that would justify the extra review surface.
+    _LATENCY_FRAMES = 1
+
     @classmethod
     def try_create(cls, cfg: OVRTXRendererCfg) -> _AsyncRenderStrategy | None:
         """Create an :class:`_AsyncRenderStrategy` when async rendering is enabled, else return ``None``.
 
-        The requested frames of camera latency come from
-        :attr:`~isaaclab.renderers.RendererCfg.async_rendering`, with
-        :data:`~isaaclab.renderers.ASYNC_RENDERING_ENV_VAR` taking precedence so golden-image tests can
-        exercise the async path without editing task configs. Zero frames selects synchronous
-        rendering, so this returns ``None``.
+        The flag comes from :attr:`~isaaclab.renderers.RendererCfg.async_rendering`, with
+        :data:`~isaaclab.renderers.ASYNC_RENDERING_ENV_VAR` taking precedence so golden-image tests
+        can exercise the async path without editing task configs.
         """
-        frames = resolve_async_rendering_frames(cfg)
-        return cls(frames) if frames > 0 else None
+        return cls() if resolve_async_rendering_enabled(cfg) else None
 
-    def __init__(self, latency_frames: int) -> None:
-        """Pipeline renders ``latency_frames`` deep.
-
-        Args:
-            latency_frames: Frames of camera latency to sustain, ``>= 1``. The ring holds one more
-                render, because a frame is drained only after the next one is enqueued.
-        """
-        if latency_frames < 1:
-            raise ValueError(f"asynchronous rendering needs at least one frame of latency, got {latency_frames}")
+    def __init__(self) -> None:
         super().__init__()
         self._num_envs = 0
-        self._render_queue_depth = latency_frames + 1
+        self._render_queue_depth = self._LATENCY_FRAMES + 1
         self._ring: deque[_AsyncRenderEntry] = deque()
         self._slots: list[_AsyncRenderSlot] = []
         self._slot_index = 0
