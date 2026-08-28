@@ -872,7 +872,7 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_visible_envs": None,
     }
-    default_cfg = VisualizerCfg(
+    default_cfg = KitVisualizerCfg(
         eye=(8.0, 0.0, 5.0),
         lookat=(0.0, 0.0, 0.5),
         streaming_cam_target_prim_path="/World/envs/*/Object",
@@ -891,6 +891,8 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
     # user-customized fields preserved
     assert cfgs[0].window_width == 320
     assert cfgs[0].window_height == 240
+    assert cfgs[0].class_type.__name__ == "NewtonGLVisualizer"
+    assert cfgs[0].visualizer_type == "newton_gl"
 
 
 def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields():
@@ -909,24 +911,6 @@ def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields()
     cfgs = ctx._resolve_visualizer_cfgs()
 
     assert cfgs[0].eye == (1.0, 2.0, 3.0)
-
-
-def test_default_visualizer_cfg_does_not_override_backend_identity():
-    default_cfg = KitVisualizerCfg(eye=(8.0, 0.0, 5.0))
-    explicit_cfg = NewtonGLVisualizerCfg()
-    settings = {
-        "/isaaclab/visualizer/types": "",
-        "/isaaclab/visualizer/explicit": False,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": None,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
-
-    cfg = ctx._resolve_visualizer_cfgs()[0]
-
-    assert cfg.eye == default_cfg.eye
-    assert cfg.class_type.__name__ == "NewtonGLVisualizer"
-    assert cfg.visualizer_type == "newton_gl"
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():

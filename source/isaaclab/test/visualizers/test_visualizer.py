@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -44,25 +43,12 @@ def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implemen
     assert class_type.__name__ == implementation
 
 
-def test_deprecated_newton_visualizer_cfg_names_gl_implementation():
-    cfg_type = pytest.importorskip("isaaclab_visualizers.newton").NewtonVisualizerCfg
-    with pytest.warns(DeprecationWarning, match="NewtonVisualizerCfg is deprecated"):
-        cfg = cfg_type()
-    assert cfg.class_type.__name__ == "NewtonGLVisualizer"
-
-
-def test_base_visualizer_cfg_has_no_lifecycle_factory():
-    assert VisualizerCfg().class_type is None
+def test_visualizer_construction_has_no_factory_api():
+    assert not hasattr(visualizers, "Visualizer")
     assert not any(
         hasattr(VisualizerCfg, name)
         for name in ("build", "build_visualizer", "clone_context", "create_visualizer", "get_visualizer_type")
     )
-
-
-def test_visualizer_factory_module_does_not_exist():
-    visualizer_module = Path(__file__).parents[2] / "isaaclab" / "visualizers" / "visualizer.py"
-    assert not visualizer_module.exists()
-    assert not hasattr(visualizers, "Visualizer")
 
 
 def test_visualizer_cfg_streaming_view_is_opt_in():

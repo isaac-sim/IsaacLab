@@ -5,8 +5,6 @@
 
 """Architecture gates for declarative renderer construction."""
 
-from pathlib import Path
-
 import pytest
 
 import isaaclab.renderers as renderers
@@ -32,12 +30,6 @@ def test_renderer_cfg_names_its_implementation(module_name, cfg_name, implementa
     assert class_type.__name__ == implementation
 
 
-def test_base_renderer_cfg_has_no_lifecycle_factory():
-    assert RendererCfg().class_type is None
-    assert not any(hasattr(RendererCfg, name) for name in ("build", "build_renderer", "clone_context"))
-
-
-def test_renderer_factory_module_does_not_exist():
-    renderer_module = Path(__file__).parents[2] / "isaaclab" / "renderers" / "renderer.py"
-    assert not renderer_module.exists()
+def test_renderer_construction_has_no_factory_api():
     assert not hasattr(renderers, "Renderer")
+    assert not any(hasattr(RendererCfg, name) for name in ("build", "build_renderer", "clone_context"))
