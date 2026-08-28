@@ -8,17 +8,23 @@
 Coupled Solvers
 ===============
 
+.. warning::
+
+   Coupled solvers are experimental and exposed through
+   :mod:`isaaclab_contrib.coupling`. Their API, behavior, feature support,
+   performance, and implementation may change.
+
 Newton can partition one model between multiple solvers and exchange state and
 forces between them during each simulation step. This lets a task combine
 solver families that target different physics, such as an MJWarp rigid robot
 interacting with VBD cloth or an MPM material.
 
-Isaac Lab exposes this experimental framework through
+Isaac Lab exposes this framework through
 :mod:`isaaclab_contrib.coupling`. The adapter turns configuration selectors
 into named Newton solver entries, constructs the selected coupling algorithm,
-and integrates it with the normal :class:`~isaaclab_newton.physics.NewtonCfg`
-lifecycle. For the shared-model architecture, iteration algorithms, supported
-constraint rows, and solver-specific implementation details, see Newton's
+and integrates it with :class:`~isaaclab_newton.physics.NewtonCfg`. For the
+shared-model architecture, iteration algorithms, supported constraint rows,
+and solver-specific implementation details, see Newton's
 `Coupled Solvers concept page
 <https://newton-physics.github.io/newton/stable/concepts/coupling.html>`_.
 
@@ -39,9 +45,8 @@ selects a solver and owns a disjoint part of the model:
 
 Each solver receives a view of the shared model and advances only the elements
 owned by its entry. An element can belong to at most one entry; unassigned
-elements remain outside the nested solvers. Keep an articulation in one entry
-unless a supported ADMM constraint intentionally connects bodies owned by
-different entries.
+elements remain outside the nested solvers. Keep each articulation in a single
+entry.
 
 Isaac Lab resolves ownership selectors, constructs the Newton entry views, and
 runs the coupled solver through the normal Newton backend lifecycle. Newton
@@ -49,7 +54,7 @@ owns the coupling algorithms and the exchange of poses, forces, and constraint
 information between entries.
 
 
-Choose proxy or ADMM coupling
+Choose Proxy or ADMM Coupling
 -----------------------------
 
 .. list-table::
@@ -87,6 +92,14 @@ penalty, proximal, and stabilization parameters are part of the coupled
 constraint solve, so tune them together with the timestep and the participating
 solvers. Newton's concept page is the source of truth for the currently
 supported joints, contacts, and limitations.
+
+Proxy coupling can have lower coupling overhead because it reuses the
+destination solver's contact path and may work with one pass, but its
+directional exchange is timestep- and ordering-sensitive. ADMM represents a
+symmetric interface, but every coupling iteration advances the participating
+solvers again. Additional passes or iterations can improve coupled response and
+interface convergence at a higher runtime cost. Neither approach is uniformly
+more accurate; compare them on task-relevant physical metrics.
 
 
 Configure a coupled solver
@@ -163,10 +176,28 @@ symmetric interfaces that should be coupled:
 
 Set ``contact_pairs=None`` to generate every distinct entry pair, or use an
 empty list to disable ADMM contact coupling while retaining supported
-cross-entry joints and attachments. The generated
+cross-entry joints and attachments.
+
+
+Tune Coupling
+-------------
+
+Stabilize each entry independently before changing coupling controls.
+
+* ``CouplerEntryCfg.substeps`` changes the time resolution for one entry; more
+  substeps add solver work.
+* For proxy coupling, ``mode`` controls exchange ordering, ``iterations``
+  controls relaxation passes, ``mass_scale`` changes proxy effective inertia in
+  the destination, and ``collide_interval`` controls contact refresh frequency.
+* For ADMM, ``iterations`` controls interface passes, ``rho`` sets the penalty
+  weight, ``gamma`` adds proximal inertia and velocity weighting, and
+  ``baumgarte`` adds positional-error correction.
+
+More substeps or iterations can improve stability or convergence, but cost
+runtime and cannot repair an unstable entry. The generated
 :doc:`coupling configuration API
-</source/api/lab_contrib/isaaclab_contrib.coupling>` lists the current fields
-and defaults.
+</source/api/lab_contrib/isaaclab_contrib.coupling>` lists every field and
+default; Newton's concept page explains the underlying algorithms.
 
 
 Start from a maintained task
@@ -178,9 +209,9 @@ when building a proxy-coupled rigid--deformable environment, then narrow entry
 ownership and proxy selectors to the bodies that participate in the
 interaction.
 
-Coupling remains experimental. The Isaac Lab adapter currently does not
-support nested couplers or Newton contact sensors, and proxy coupling supports
-at most two entries. Some solver modes require manager-specific lifecycle work
-and cannot be nested in a coupler. Validate each entry independently before
-tuning the coupled result, and consult the Newton concept page for the current
-algorithm-level support and limitations.
+Current Isaac Lab limitations include no support for nested couplers or Newton
+contact sensors, and proxy coupling supports at most two entries. Some solver
+modes require manager-specific lifecycle work and cannot be nested in a
+coupler. Validate each entry independently before tuning the coupled result,
+and consult the Newton concept page for current algorithm-level support and
+limitations.
