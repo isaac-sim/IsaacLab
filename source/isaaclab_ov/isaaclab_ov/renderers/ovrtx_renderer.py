@@ -100,6 +100,7 @@ from .ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
     export_stage_to_string,
+    force_gaussian_sorting_mode_hint,
 )
 from .visual_materials import OVRTXVisualMaterialWriter
 
@@ -539,6 +540,9 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Preparing stage (%d envs)...", num_envs)
         create_scene_partition_attributes(stage, num_envs)
+        # TODO(<bug-id>): Drop this call once RTX renders 'zDepth' gaussians correctly with more
+        # than one camera bound to a RenderProduct. See force_gaussian_sorting_mode_hint.
+        force_gaussian_sorting_mode_hint(stage)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage)

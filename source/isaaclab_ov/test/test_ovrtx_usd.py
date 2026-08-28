@@ -27,6 +27,7 @@ if not _MISSING_MODULES:
         build_render_scope_usd,
         create_scene_partition_attributes,
         export_stage_to_string,
+        force_gaussian_sorting_mode_hint,
         get_render_var_config,
         get_render_var_configs,
         render_var_prim_paths_by_source,
@@ -41,6 +42,7 @@ else:
     build_render_scope_usd = None
     create_scene_partition_attributes = None
     export_stage_to_string = None
+    force_gaussian_sorting_mode_hint = None
     get_render_var_config = None
     get_render_var_configs = None
     render_var_prim_paths_by_source = None
@@ -492,6 +494,35 @@ def test_export_stage_restores_active_state():
         env_path = f"/World/envs/env_{env_idx}"
         assert stage.GetPrimAtPath(env_path).IsActive()
         assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
+
+
+def test_force_gaussian_sorting_mode_hint_overrides_authored_value():
+    """The override replaces the sort mode authored on the gaussian prims and counts them."""
+    stage = Usd.Stage.CreateInMemory()
+    gaussian_path = "/World/Scene/gaussians"
+    gaussian_prim = stage.DefinePrim(gaussian_path, "ParticleField3DGaussianSplat")
+    gaussian_prim.CreateAttribute("sortingModeHint", Sdf.ValueTypeNames.Token).Set("zDepth")
+    stage.DefinePrim("/World/Scene/mesh", "Mesh")
+
+    count = force_gaussian_sorting_mode_hint(stage)
+
+    assert count == 1
+    assert gaussian_prim.GetAttribute("sortingModeHint").Get() == "cameraDistance"
+    # Authored on the root layer so the override also wins over referenced or payloaded values.
+    root_attr = stage.GetRootLayer().GetAttributeAtPath(Sdf.Path(gaussian_path).AppendProperty("sortingModeHint"))
+    assert root_attr is not None
+    assert root_attr.default == "cameraDistance"
+
+
+def test_force_gaussian_sorting_mode_hint_ignores_stages_without_gaussians():
+    """A stage with no gaussian prims is left untouched."""
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/Scene/mesh", "Mesh")
+
+    assert force_gaussian_sorting_mode_hint(stage) == 0
+    assert (
+        stage.GetRootLayer().GetAttributeAtPath(Sdf.Path("/World/Scene/mesh").AppendProperty("sortingModeHint")) is None
+    )
 
 
 def test_create_scene_partition_attributes_all_envs():

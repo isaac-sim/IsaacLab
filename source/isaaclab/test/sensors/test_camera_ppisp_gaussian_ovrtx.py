@@ -89,24 +89,18 @@ else:
 SIM_DT = 1.0 / 60.0
 MULTI_TILE_COUNT = 4
 
-# OVRTX renders no gaussian contribution in any tile once more than one view tile is
-# active, for the ``sortingModeHint = "zDepth"`` sort mode that NuRec exports author (and
-# that the renderer also defaults to when the token is absent). Measured against a control
-# render whose gaussians sit outside the frustum, at 128/256/512 px per tile:
+# The multi-tile coverage below is also the regression guard for the OVRTX-side
+# ``sortingModeHint`` override in
+# :func:`isaaclab_ov.renderers.ovrtx_usd.force_gaussian_sorting_mode_hint`: the asset authors
+# ``zDepth`` (as NuRec exports do), and RTX drops every splat in every tile with that sort mode
+# once a RenderProduct carries more than one camera. Measured against a control render whose
+# gaussians sit outside the frustum, at 128/256/512 px per tile:
 #
 #   num_envs=1, zDepth          -> mean abs diff 8.6   (gaussians rendered)
 #   num_envs=2, zDepth          -> mean abs diff 0.35  (nothing rendered)
 #   num_envs=2, cameraDistance  -> mean abs diff 17.5  (gaussians rendered)
 #
-# ``cameraDistance`` is the only gaussian sort mode that does not read the per-view-tile
-# ``WorldToView`` matrix (``cameraForward`` in ``rtx/raytracing/Gaussians.is.hlsl``), and
-# that matrix switches from the constant buffer to the view-tile buffers exactly when the
-# view tile count exceeds one. isaac_rtx renders zDepth correctly at num_envs=2 through the
-# same shader, so this is an OVRTX-side view-tile setup issue rather than an asset problem.
-_XFAIL_OVRTX_MULTI_TILE_GAUSSIANS = pytest.mark.xfail(
-    reason="ovrtx drops all gaussian contribution for zDepth sorting when more than one view tile is active",
-    strict=True,
-)
+# So this test fails if the override is dropped while the renderer bug stands.
 
 
 def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
@@ -207,7 +201,6 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_MULTI_TILE_GAUSSIANS
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
     """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants
     independently for every tile.
@@ -221,8 +214,8 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
     Every tile is also compared against a control render whose gaussians sit outside the
     frustum. The PPISP signatures above hold on a gaussian-free render as well — the
     background alone satisfies them — so without that comparison this test passes even when
-    the renderer drops every splat, which is exactly what OVRTX does here (see
-    :data:`_XFAIL_OVRTX_MULTI_TILE_GAUSSIANS`).
+    the renderer drops every splat, which is what RTX does with this asset's authored
+    ``zDepth`` sort mode at more than one camera (see the module comment above).
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         render_kwargs = dict(
