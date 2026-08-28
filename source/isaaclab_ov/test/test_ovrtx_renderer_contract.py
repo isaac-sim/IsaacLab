@@ -22,7 +22,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -367,26 +366,15 @@ def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
     assert ovrtx_use_ovstage_enabled() is False
 
 
-def test_ovrtx_use_ovstage_enabled_when_requested_and_available(monkeypatch):
-    """Setting the variable to 1 selects the ovstage path when ovstage is importable."""
+def test_ovrtx_use_ovstage_enabled_when_requested(monkeypatch):
+    """Setting the variable to 1 selects the ovstage path."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
     assert ovrtx_use_ovstage_enabled() is True
-
-
-def test_ovrtx_use_ovstage_raises_when_requested_but_unavailable(monkeypatch):
-    """An explicit opt-in must fail loudly rather than silently falling back to the legacy path."""
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", False)
-
-    with pytest.raises(RuntimeError, match="uv run --extra ovrtx"):
-        ovrtx_use_ovstage_enabled()
 
 
 def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
     """Values other than 0/1 are a configuration error, not a silent disable."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
 
     with pytest.raises(ValueError, match="Expected 0 or 1"):
         ovrtx_use_ovstage_enabled()
@@ -465,11 +453,11 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
     sentinel = object()
     render_var = _RecordingRenderVar()
     monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cuda:0"
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
     with renderer._map_render_var_to_dlpack(render_var) as array:
         assert array is sentinel
 
@@ -535,10 +523,13 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
+    renderer._cable_points_binding = _RecordingBinding(events, "cable")
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
+    renderer._particle_workaround_applied = True
+    renderer._cable_segment_counts = [1]
     renderer._renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -582,6 +573,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_paths_list = "deformable"
     renderer._particle_points_query = "particle"
     renderer._particle_paths_list = "particle"
+    renderer._cable_points_query = "cable"
+    renderer._cable_paths_list = "cable"
     renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
@@ -608,12 +601,16 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:object",
         "unbind:deformable",
         "unbind:particle",
+        "unbind:cable",
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
+    assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
+    assert renderer._cable_points_binding is None
+    assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []
     assert renderer._output_id_color_buffers == {}
@@ -642,11 +639,15 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_path_list:deformable",
         "release_query:particle",
         "destroy_path_list:particle",
+        "release_query:cable",
+        "destroy_path_list:cable",
         "detach_ovstage",
         "exit_stack_close",
     ]
     assert renderer._camera_xform_query is None
     assert renderer._particle_paths_list is None
+    assert renderer._cable_points_query is None
+    assert renderer._cable_paths_list is None
     assert renderer._object_newton_indices is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None

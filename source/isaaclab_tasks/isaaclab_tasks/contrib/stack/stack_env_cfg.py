@@ -296,6 +296,8 @@ class PhysicsCfg(PresetCfg):
         gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
         gpu_total_aggregate_pairs_capacity=2**21,
         friction_correlation_distance=0.00625,
+        # Let object contacts stall position-driven grippers before they tunnel through a grasp.
+        solve_articulation_contact_last=True,
     )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(

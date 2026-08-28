@@ -242,6 +242,21 @@ def test_commands_respect_script_launcher_capabilities():
     assert "--enable_cameras" not in usd_camera_case.command()
 
 
+def test_hands_demo_uses_asset_owned_shadow_hand_configs():
+    """The generic hands demo must not inherit task-specific spawn policy."""
+    path = script_cases.ROOT / "scripts/demos/hands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imports = {
+        (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names
+    }
+
+    assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
+    assert {
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_CFG"),
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
+    } <= imports
+
+
 @pytest.mark.parametrize(
     "relative_path",
     [

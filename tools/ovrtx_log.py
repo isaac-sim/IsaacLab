@@ -20,10 +20,20 @@ the one place that reads it back:
 Both readers are needed: the replay attributes output to the test that produced it and stays out of the job
 log for passing tests, and neither is possible from inside a process that segfaults, aborts, is OOM-killed,
 or is SIGKILLed for hanging.
+
+Both are also bounded, because what they report lands in the job log and in the JUnit XML, and both cover
+the log alone. So when :data:`LOG_DIR_ENV_VAR` names a directory, everything a test left in the renderer's
+own directory -- its own share of the log, uncapped, and any dump beside it -- is additionally saved there
+for CI to upload as an artifact, which is what a diagnosis reads when the quoted tail is not enough. The
+test that a crash, hang, or timeout killed never reaches the fixture that saves, so ``tools/conftest.py``
+saves what that process left behind on its behalf -- the one test in the run whose output would otherwise
+be missing from the artifact is the one the artifact exists for.
 """
 
 import contextlib
 import os
+import re
+import shutil
 import tempfile
 
 import pytest
@@ -35,12 +45,24 @@ Mirrors the default of :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_file_p
 loading this module does not import ``isaaclab_ov``.
 """
 
-LOG_LIMIT_BYTES = 64 * 1024
+LOG_LIMIT_BYTES = 1024 * 1024
 """Maximum bytes of renderer log shown at once; earlier bytes are reported as omitted.
 
 The log is verbose, and what is shown lands in the job log and in JUnit XML. An unbounded read would put a
-multi-megabyte log in both -- the oversized-log problem the NUL blocks caused, with real text.
+multi-megabyte log in both -- the oversized-log problem the NUL blocks caused, with real text. This is
+sized to hold a whole rendering test's log rather than its tail, since the tests this exists for log a few
+hundred kilobytes each; the copy saved under :data:`LOG_DIR_ENV_VAR` covers the runs that outgrow it.
 """
+
+LOG_DIR_ENV_VAR = "ISAACLAB_OVRTX_LOG_DIR"
+"""Environment variable naming the directory each test's renderer output is saved under, uncapped.
+
+Set per pytest invocation by ``tools/conftest.py``, to a directory under ``tests/`` that CI collects as a
+job artifact. Unset by default, which leaves a local run writing nothing beyond the replay.
+"""
+
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+"""Everything a test name may hold that a file name should not, e.g. the ``[param]`` of a parametrization."""
 
 
 def log_size(path):
@@ -83,6 +105,67 @@ def format_log_section(path, label, start=0, limit=LOG_LIMIT_BYTES):
     return f"{header}\n{chunk}"
 
 
+def _slugify(name):
+    """Return ``name`` as a file name.
+
+    Names here are test names, and a parametrized one carries whatever its parameters are spelled with.
+    """
+    return _UNSAFE_NAME_CHARS.sub("_", name).strip("_")
+
+
+def _unused_dir(directory, stem):
+    """Create and return ``<directory>/<stem>.<n>/``, numbered past any attempt already saved there.
+
+    A retry reruns a test in a fresh process against the directory the first attempt wrote to, so
+    overwriting would drop the attempt that failed in favour of the one that came after it.
+    """
+    attempt = 0
+    candidate = os.path.join(directory, f"{stem}.{attempt}")
+
+    while os.path.exists(candidate):
+        attempt += 1
+        candidate = os.path.join(directory, f"{stem}.{attempt}")
+    os.makedirs(candidate)
+    return candidate
+
+
+def save_output(directory, label, start=0):
+    """Save what the renderer wrote under ``directory``, in a directory named after ``label``.
+
+    Args:
+        directory: Where to save. Created if it does not exist yet.
+        label: What the saved directory is named after, i.e. the test the output belongs to.
+        start: Offset the saved log begins at, so that a per-test copy holds the range that test added
+            rather than everything the process logged before it. A log shorter than this was re-opened
+            and rewritten, so the offset no longer describes its contents and the whole file is saved,
+            as :func:`format_log_section` does with the same argument.
+
+    Returns:
+        The directory written, or ``None`` when the log holds nothing past ``start``. That covers both a
+        test that never builds a renderer, which writes no log at all, and one that runs after a test
+        which did, since the log it finds already there is not its to save.
+    """
+    size = log_size(LOG_PATH)
+    if size < start:
+        start = 0
+    if size <= start:
+        return None
+
+    log_name = os.path.basename(LOG_PATH)
+    destination = _unused_dir(directory, _slugify(label))
+    with open(LOG_PATH, "rb") as source, open(os.path.join(destination, log_name), "wb") as saved:
+        source.seek(start)
+        shutil.copyfileobj(source, saved)
+
+    # The renderer writes more than its log -- a crash leaves a dump beside it -- so the rest of its
+    # directory goes too, bar the subdirectories a shared temp directory collects from other processes.
+    for entry in os.scandir(os.path.dirname(LOG_PATH)):
+        with contextlib.suppress(OSError):
+            if entry.is_file() and entry.name != log_name:
+                shutil.copy(entry.path, destination)
+    return destination
+
+
 def pytest_configure(config):
     """Claim the renderer log for this session, before any test imports the renderer.
 
@@ -97,13 +180,26 @@ def pytest_configure(config):
 
 @pytest.fixture(autouse=True)
 def _echo_ovrtx_log(request):
-    """Replay whatever the renderer appended to its log during the test.
+    """Replay what the renderer logged during the test, and save what it wrote when asked.
 
     A no-op for tests that never build one, since nothing is written then. The log is written for the
-    lifetime of the process, so only the range this test added is replayed, and pytest shows it with the
-    test that failed rather than in the log of a passing run.
+    lifetime of the process, so only the range this test added is replayed and saved: pytest shows it with
+    the test that failed rather than in the log of a passing run, and the artifact holds one copy of each
+    test's own output rather than a growing copy of everything logged before it.
+
+    The save runs first so that the artifact holds the log even if the replay cannot print it, and is
+    suppressed so that the reverse cannot happen either: this runs in the teardown of every test that
+    rendered, so a full or unwritable artifact directory would otherwise turn each of them into an error
+    and take the replay below down with it. An artifact matters less than the test result and the replay,
+    as it does to ``_make_crash_pass_result`` in ``tools/conftest.py``.
     """
+    label = request.node.name
+
     start = log_size(LOG_PATH)
     yield
-    if section := format_log_section(LOG_PATH, request.node.name, start=start):
+    if directory := os.environ.get(LOG_DIR_ENV_VAR):
+        with contextlib.suppress(OSError):
+            save_output(directory, label, start=start)
+
+    if section := format_log_section(LOG_PATH, label, start=start):
         print(f"\n{section}", end="")

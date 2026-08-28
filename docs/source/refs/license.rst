@@ -3,19 +3,21 @@
 License
 ========
 
-NVIDIA Isaac Sim is licensed under Apache 2.0. For more information
-about its license terms, please check `here <https://github.com/isaac-sim/IsaacLab/blob/main/docs/licenses/dependencies/isaacsim-license.txt>`_.
-The license files for all its dependencies and included assets are available in its
-`documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/common/licenses.html>`_.
+Most Isaac Lab packages are open-sourced under the
+`BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_. The
+``isaaclab_mimic`` package and its related scripts are licensed under
+`Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>`_; see ``LICENSE-mimic`` in the
+repository. Individual files identify their license with an SPDX header.
 
-
-The Isaac Lab framework is open-sourced under the
-`BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_, with some dependencies licensed under other terms.
+NVIDIA Isaac Sim is also licensed under Apache-2.0. See the bundled
+`Isaac Sim license <https://github.com/isaac-sim/IsaacLab/blob/main/docs/licenses/dependencies/isaacsim-license.txt>`_
+and the `Isaac Sim dependency and asset licenses <https://docs.isaacsim.omniverse.nvidia.com/latest/common/licenses.html>`_.
+Third-party dependency license texts are collected under ``docs/licenses/dependencies``.
 
 
 .. code-block:: text
 
-   Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+   Copyright (c) 2022-2026, The Isaac Lab Project Developers.
    All rights reserved.
 
    SPDX-License-Identifier: BSD-3-Clause

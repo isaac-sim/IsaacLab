@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 import pytest
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
@@ -110,8 +111,10 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
 
 
 def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
-    """The kit-less image installs Newton, both OV runtimes, every Newton viewer, and the RL frameworks."""
+    """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
+    with (REPO_ROOT / "pyproject.toml").open("rb") as file:
+        importer_requirements = tomllib.load(file)["project"]["optional-dependencies"]["importers"]
 
     assert (
         "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
@@ -119,8 +122,12 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     )
     # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
     assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all]' in dockerfile_text
+    assert "COPY tools/wheel_builder/uv-overrides.txt tools/wheel_builder/uv-overrides.txt" in dockerfile_text
+    assert '--overrides "${ISAACLAB_PATH}/tools/wheel_builder/uv-overrides.txt"' in dockerfile_text
+    assert all(f'"{requirement}"' in dockerfile_text for requirement in importer_requirements)
     assert "COPY isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
+    assert "'isaacsim-asset-isolated' in names" in dockerfile_text
     assert "'ovphysx' in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
     assert "'viser' in names" in dockerfile_text
