@@ -356,7 +356,7 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
 
 def test_parse_visualizer_csv_accepts_comma_delimited_values():
     parsed = app_launcher_module.AppLauncher._parse_visualizer_csv("kit,newton,rerun,viser")
-    assert parsed == ["kit", "newton", "rerun", "viser"]
+    assert parsed == ["kit", "newton_gl", "rerun", "viser"]
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
@@ -380,7 +380,7 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
         ["--visualizer", "kit,newton,rerun", "presets=newton_mjwarp", "env.episode_length=10"]
     )
 
-    assert args.visualizer == ["kit", "newton", "rerun"]
+    assert args.visualizer == ["kit", "newton_gl", "rerun"]
     assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 
@@ -403,7 +403,7 @@ def test_matrix_cli_kit_newton_with_custom_kit_cfg_intent_non_headless(monkeypat
         },
     )
     assert headless is False
-    assert launcher._cli_visualizer_types == ["kit", "newton"]
+    assert launcher._cli_visualizer_types == ["kit", "newton_gl"]
 
 
 def test_matrix_cli_rerun_with_custom_kit_cfg_intent_headless(monkeypatch: pytest.MonkeyPatch):
@@ -483,8 +483,8 @@ def test_matrix_headless_with_viz_names_takes_precedence(monkeypatch: pytest.Mon
         },
     )
     assert headless is True
-    assert launcher._cli_visualizer_disable_all is True
-    assert launcher._cli_visualizer_types == []
+    assert launcher._cli_visualizer_disable_all is False
+    assert launcher._cli_visualizer_types == ["kit", "newton_gl"]
 
 
 def test_no_cli_and_no_cfg_visualizers_defaults_headless(monkeypatch: pytest.MonkeyPatch):
@@ -581,3 +581,34 @@ def test_has_gui_reads_published_setting():
         assert AppLauncher.has_gui() is False
     finally:
         settings.set_bool("/isaaclab/has_gui", bool(original))
+
+
+def test_visualizer_argparse_set_defaults_is_not_explicit():
+    parser = argparse.ArgumentParser(add_help=False)
+    app_launcher_module.AppLauncher.add_app_launcher_args(parser)
+    parser.set_defaults(visualizer=["kit"])
+
+    args, _ = parser.parse_known_args([])
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._resolve_visualizer_settings(vars(args))
+
+    assert launcher._cli_visualizer_explicit is False
+
+
+def test_visualizer_direct_kwargs_is_explicit():
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._resolve_visualizer_settings({"visualizer": ["kit"]})
+
+    assert launcher._cli_visualizer_explicit is True
+
+
+def test_matrix_headless_env_with_kit_visualizer(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("HEADLESS", "1")
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._livestream = 0
+    launcher._resolve_visualizer_settings({"visualizer": ["kit"], "visualizer_explicit": True})
+    launcher._resolve_headless_settings({"visualizer": ["kit"], "visualizer_explicit": True}, livestream_arg=-1, livestream_env=0)
+
+    assert launcher._headless is True
+    # Kit visualizer shouldn't be disabled just because of HEADLESS=1
+    assert launcher._cli_visualizer_disable_all is False
