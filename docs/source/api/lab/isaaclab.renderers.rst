@@ -14,8 +14,8 @@ isaaclab.renderers
 
   .. autosummary::
 
-    async_rendering_frames_from_env
-    resolve_async_rendering_frames
+    async_rendering_enabled_from_env
+    resolve_async_rendering_enabled
     warn_unsupported_async_rendering
 
 Base Renderer
@@ -65,14 +65,14 @@ The following classes are part of the public :mod:`isaaclab.renderers` API.
 Asynchronous Rendering
 ----------------------
 
-:attr:`RendererCfg.async_rendering` requests pipelined rendering in frames of camera latency, and
+:attr:`RendererCfg.async_rendering` trades one frame of camera latency for pipelined rendering, and
 :data:`ASYNC_RENDERING_ENV_VAR` overrides it process-wide. Renderers resolve it through these
 helpers; only the OVRTX renderer implements the pipelined path.
 
 .. autodata:: ASYNC_RENDERING_ENV_VAR
 
-.. autofunction:: resolve_async_rendering_frames
+.. autofunction:: resolve_async_rendering_enabled
 
-.. autofunction:: async_rendering_frames_from_env
+.. autofunction:: async_rendering_enabled_from_env
 
 .. autofunction:: warn_unsupported_async_rendering

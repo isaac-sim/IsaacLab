@@ -186,8 +186,13 @@ def ovrtx_use_ovstage_enabled() -> bool:
 def _resolve_render_strategy(cfg: OVRTXRendererCfg) -> _RenderStrategy:
     """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
-    Both scene-ownership paths support asynchronous rendering; ovstage scene writes drain in-flight
-    renders first (see :meth:`OVRTXRenderer._write_attribute_ovstage`).
+    Both scene-ownership paths pipeline exactly one frame deep. One frame is also the most the
+    ovstage path could ever sustain: ovstage retains "the latest committed snapshot only" and the
+    default ``OVRTX_ATTACH_MODE_BORROW`` attach reads it in place ("rendering may observe that
+    publication or a later one"), so every frame's first scene write must drain the render still in
+    flight (see :meth:`OVRTXRenderer._write_attribute_ovstage`) — a concurrent write could both
+    tear the in-flight frame and bleed newer state into it. Deeper queues on the legacy path, or on
+    ovstage once it retains per-ordinal payload history, are future work.
     """
     return _AsyncRenderStrategy.try_create(cfg) or _SyncRenderStrategy()
 

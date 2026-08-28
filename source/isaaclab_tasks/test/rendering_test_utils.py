@@ -18,7 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
-from isaaclab.renderers import async_rendering_frames_from_env
+from isaaclab.renderers import async_rendering_enabled_from_env
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -94,7 +94,7 @@ def _async_rendering_enabled() -> bool:
     Reads only :data:`~isaaclab.renderers.ASYNC_RENDERING_ENV_VAR`, since the tolerance lookup runs
     before any renderer config is resolved.
     """
-    return bool(async_rendering_frames_from_env())
+    return bool(async_rendering_enabled_from_env())
 
 
 def max_different_pixels_percentage_for(env_name: str) -> float:

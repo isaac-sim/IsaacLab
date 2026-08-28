@@ -79,7 +79,7 @@ def timeline() -> _Timeline:
 
 @pytest.fixture()
 def strategy() -> _AsyncRenderStrategy:
-    strategy = _AsyncRenderStrategy(1)
+    strategy = _AsyncRenderStrategy()
     strategy.set_device("cuda:0")
     return strategy
 

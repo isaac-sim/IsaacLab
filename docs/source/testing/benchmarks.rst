@@ -79,9 +79,8 @@ comparison. With multiple formatters, their filenames include ``_summary`` and
 ``_schema`` respectively.
 
 OVRTX camera tasks can compare synchronous against asynchronous (pipelined) rendering through a
-Hydra override on the camera's renderer configuration. The value is the number of frames of camera
-latency to trade for throughput: ``False`` or ``0`` renders synchronously, ``True`` is one frame,
-and larger integers keep more renders in flight:
+Hydra override on the camera's renderer configuration. ``True`` trades one frame of camera latency
+for pipelined rendering; ``False`` renders synchronously:
 
 .. code-block:: bash
 
@@ -96,8 +95,7 @@ and larger integers keep more renders in flight:
        env.tiled_camera.renderer_cfg.async_rendering=True
 
 ``ISAAC_LAB_ASYNC_RENDERING`` in the environment overrides the same setting for any task, which
-avoids naming a camera that a given task may not define. It takes the same values, so
-``ISAAC_LAB_ASYNC_RENDERING=2`` sweeps a deeper queue without editing a config. Only the OVRTX
+avoids naming a camera that a given task may not define. Only the OVRTX
 renderer pipelines renders; the others warn and render synchronously.
 
 Warm-Up

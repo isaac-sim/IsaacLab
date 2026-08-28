@@ -12,8 +12,8 @@ import pytest
 from isaaclab.renderers import (
     ASYNC_RENDERING_ENV_VAR,
     RendererCfg,
-    async_rendering_frames_from_env,
-    resolve_async_rendering_frames,
+    async_rendering_enabled_from_env,
+    resolve_async_rendering_enabled,
     warn_unsupported_async_rendering,
 )
 
@@ -23,64 +23,68 @@ def _clear_env(monkeypatch):
     monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
 
 
-@pytest.mark.parametrize(
-    "value,expected_frames",
-    [(False, 0), (0, 0), (True, 1), (1, 1), (4, 4)],
-)
-def test_cfg_value_resolves_to_frames(value, expected_frames):
-    """Booleans collapse onto the 0/1 frame counts they are shorthand for."""
-    assert resolve_async_rendering_frames(RendererCfg(async_rendering=value)) == expected_frames
+@pytest.mark.parametrize("value,expected", [(False, False), (0, False), (True, True), (1, True)])
+def test_cfg_value_resolves_to_flag(value, expected):
+    """Boolean spellings and their 0/1 integer shorthands resolve to the flag."""
+    assert resolve_async_rendering_enabled(RendererCfg(async_rendering=value)) is expected
 
 
 def test_default_is_synchronous():
-    assert resolve_async_rendering_frames(RendererCfg()) == 0
+    assert resolve_async_rendering_enabled(RendererCfg()) is False
 
 
-def test_negative_frame_count_is_rejected():
+def test_multi_frame_latency_is_rejected():
+    """Frame counts above one are refused explicitly: multi-frame latency is future work."""
+    with pytest.raises(ValueError, match="not supported yet"):
+        resolve_async_rendering_enabled(RendererCfg(async_rendering=4))
+
+
+def test_negative_value_is_rejected():
     with pytest.raises(ValueError):
-        resolve_async_rendering_frames(RendererCfg(async_rendering=-1))
+        resolve_async_rendering_enabled(RendererCfg(async_rendering=-1))
 
 
 @pytest.mark.parametrize(
-    "raw,expected_frames",
-    [("0", 0), ("false", 0), ("off", 0), ("1", 1), ("true", 1), ("yes", 1), ("3", 3), (" 2 ", 2)],
+    "raw,expected",
+    [("0", False), ("false", False), ("off", False), ("1", True), ("true", True), ("yes", True), (" on ", True)],
 )
-def test_env_var_spellings(raw, expected_frames, monkeypatch):
+def test_env_var_spellings(raw, expected, monkeypatch):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
-    assert async_rendering_frames_from_env() == expected_frames
+    assert async_rendering_enabled_from_env() is expected
 
 
-@pytest.mark.parametrize("raw", ["", "   ", "banana", "1.5", "-1"])
+@pytest.mark.parametrize("raw", ["", "   ", "banana", "1.5", "-1", "3"])
 def test_unusable_env_var_is_ignored(raw, monkeypatch):
+    """Non-boolean spellings are ignored with a warning — including frame counts above one."""
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
-    assert async_rendering_frames_from_env() is None
+    assert async_rendering_enabled_from_env() is None
 
 
 def test_env_var_overrides_cfg(monkeypatch):
-    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "2")
+    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "1")
 
-    assert resolve_async_rendering_frames(RendererCfg(async_rendering=False)) == 2
+    assert resolve_async_rendering_enabled(RendererCfg(async_rendering=False)) is True
 
 
 def test_env_var_can_disable_cfg(monkeypatch):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "0")
 
-    assert resolve_async_rendering_frames(RendererCfg(async_rendering=5)) == 0
+    assert resolve_async_rendering_enabled(RendererCfg(async_rendering=True)) is False
 
 
 def test_invalid_env_var_leaves_cfg_in_effect(monkeypatch, caplog):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "banana")
 
     with caplog.at_level(logging.WARNING):
-        assert resolve_async_rendering_frames(RendererCfg(async_rendering=2)) == 2
+        assert resolve_async_rendering_enabled(RendererCfg(async_rendering=True)) is True
     assert ASYNC_RENDERING_ENV_VAR in caplog.text
 
 
 def test_unsupported_renderer_warns_when_requested(caplog):
     with caplog.at_level(logging.WARNING):
-        warn_unsupported_async_rendering(RendererCfg(async_rendering=1), "newton_warp")
+        warn_unsupported_async_rendering(RendererCfg(async_rendering=True), "newton_warp")
 
     assert "newton_warp" in caplog.text
     assert "not implemented" in caplog.text
