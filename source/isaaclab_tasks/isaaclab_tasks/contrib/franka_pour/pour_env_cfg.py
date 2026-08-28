@@ -55,7 +55,8 @@ from .reset_sampler import ResetDatasetSamplerCfg
 RIGID_ENTRY = "arm"
 MPM_ENTRY = "media"
 
-FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+FRANKA_POUR_ROBOT_ASSET_PATH = "Robots/FrankaEmika/franka_panda.usda"
+FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_ROBOT_ASSET_PATH}"
 FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "0dc38454f02ea14d9ddd2437995fdc7c4a65634443cacdcc2a04e3de25655e00"
 FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/franka_pour_cups.usda"
 FRANKA_POUR_RESET_DATASET_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/Contrib/MPM/Pour/reset_dataset.pt"
@@ -806,7 +807,7 @@ def _reset_dataset_task_contract(cfg: FrankaPourResetDatasetEnvCfg) -> dict[str,
     gripper_open_pos = cfg.scene.robot.init_state.joint_pos["panda_finger_joint.*"]
 
     return {
-        "robot_asset": FRANKA_POUR_ROBOT_ASSET_ID,
+        "robot_asset": FRANKA_POUR_ROBOT_ASSET_PATH,
         "robot_physics_payload_sha256": FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256,
         "source_box_half": source_half,
         "source_mouth_height": SOURCE_CUP_GEOMETRY.rim_height,

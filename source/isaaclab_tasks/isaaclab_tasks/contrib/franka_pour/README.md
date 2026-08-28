@@ -60,7 +60,8 @@ The generator and task load the Franka Pour cups USD from the standard Isaac Lab
 root. Set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` only to use a compatible local copy instead. The
 published reset artifact lives alongside those assets at `Contrib/MPM/Pour/reset_dataset.pt`.
 Setting `ISAACSIM_ASSET_ROOT` redirects all three dependencies to a compatible local or self-hosted
-asset tree.
+asset tree. The reset artifact records the Franka path relative to that root so the task contract
+does not depend on the configured asset host.
 
 The `datasets/` directory is ignored by Git. Both downloaded and locally generated payloads validate
 their stored content digest, so no digest override is needed for ordinary training or playback. For

@@ -7,8 +7,11 @@
 
 import pytest
 
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
 from isaaclab_tasks.contrib.franka_pour import pour_env
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
+    FRANKA_POUR_ROBOT_ASSET_ID,
     FrankaPourResetDatasetEnvCfg,
     _configure_mpm_capacities,
     _reset_dataset_task_contract,
@@ -60,6 +63,15 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     assert solver.media_solver.max_iterations == 17
     assert not cfg.sim.physics.use_cuda_graph
     assert _reset_dataset_task_contract(cfg) == reset_contract
+
+
+def test_reset_dataset_contract_stores_root_relative_robot_asset_path():
+    """Reset artifacts identify the robot independently of the configured asset root."""
+    cfg = FrankaPourResetDatasetEnvCfg()
+
+    robot_asset = _reset_dataset_task_contract(cfg)["robot_asset"]
+    assert robot_asset == "Robots/FrankaEmika/franka_panda.usda"
+    assert f"{ISAACLAB_NUCLEUS_DIR}/{robot_asset}" == FRANKA_POUR_ROBOT_ASSET_ID
 
 
 def test_capacity_resolution_only_updates_world_dependent_solver_limits():
