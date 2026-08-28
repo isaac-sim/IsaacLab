@@ -173,6 +173,7 @@ def test_teleop_se3_agent_starts(tmp_path):
         "scripts/environments/teleoperation/teleop_se3_agent.py",
         "--task",
         _ISAAC_TELEOP_TASK,
+        "physics=isaacsim_physx",
         *_NO_CLOUDXR,
     ]
     output = _launch_until_marker(argv, [_ISAAC_TELEOP_MARKER], tmp_path / "se3_agent.log")
@@ -189,6 +190,7 @@ def test_record_demos_starts(tmp_path):
         "scripts/tools/record_demos.py",
         "--task",
         _ISAAC_TELEOP_TASK,
+        "physics=isaacsim_physx",
         "--dataset_file",
         str(tmp_path / "dataset.hdf5"),
         *_NO_CLOUDXR,
