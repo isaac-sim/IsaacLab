@@ -8,6 +8,7 @@
 The following configurations are available:
 
 * :obj:`ONEROBOTICS_A1_UNIMANUAL_CFG`: fixed-base 7-DoF right arm.
+* :obj:`ONEROBOTICS_A1_BIMANUAL_CFG`: fixed-base 14-DoF bimanual robot and stand.
 * :obj:`ONEROBOTICS_A1_CFG`: compatibility alias for the unimanual configuration.
 
 The review-stage configurations retrieve the source URDF and meshes from the
@@ -15,15 +16,17 @@ public OneRobotics A1 source repository. Set ``ONEROBOTICS_A1_ASSET_DIR`` to
 use a local checkout.
 
 The robot model assets are copyright 2026 OneRobotics and licensed under
-CC BY 4.0. The source URDF currently identifies the Link7 mass and inertia as
-a v1 flange placeholder; those values are retained without modification.
+CC BY 4.0. The unimanual source URDF currently identifies the Link7 mass and
+inertia as a v1 flange placeholder; those values are retained without
+modification. The bimanual CAD export contains zero effort and velocity fields;
+the confirmed hardware limits below supersede those source placeholders.
 The actuator configuration keeps rated torque as model-facing metadata and
 uses the confirmed peak torque as the static solver limit. Peak duration and
 thermal derating are intentionally outside this simple saturation model.
 The review-stage source content was audited at commit
-``fe8df949c4c8c891e17a7c102b255db40af28df9`` and is protected by asset hashes
-in the focused tests. The loader follows the public repository's default branch
-until maintainers approve a final hosted asset URI.
+``004905e528bdbf26d00b9826c64741c2a48a1089`` and is protected by focused asset
+hashes. The loader follows the public repository's default branch until
+maintainers approve a final hosted asset URI.
 
 References:
 
@@ -55,6 +58,9 @@ def _retrieve_a1_asset(relative_path: str) -> str:
 
 
 _ONEROBOTICS_A1_RIGHT_URDF_PATH = _retrieve_a1_asset("source/h1_reach/h1_reach/assets/urdf/A1_2026/a1_r.urdf")
+_ONEROBOTICS_A1_BIMANUAL_URDF_PATH = _retrieve_a1_asset(
+    "source/h1_reach/h1_reach/assets/urdf/A1_2026/bimanual_stand/a1_bimanual_stand.urdf"
+)
 
 # OneRobotics hardware values reflected at the arm joints.
 _A1_MOTOR_ROTOR_INERTIA = 2.193e-5
@@ -124,6 +130,63 @@ def _a1_urdf_spawn(asset_path: str) -> sim_utils.UrdfFileCfg:
     )
 
 
+def _a1_bimanual_actuators() -> dict[str, ImplicitActuatorCfg]:
+    """Create actuator groups for both arms of the bimanual A1."""
+    return {
+        "arm_4340": ImplicitActuatorCfg(
+            joint_names_expr=["joint_[rl][1-3]"],
+            actuator_effort_limit=_A1_4340_RATED_EFFORT,
+            joint_effort_limit=_A1_4340_PEAK_EFFORT,
+            actuator_velocity_limit=_A1_4340_RATED_SPEED,
+            joint_velocity_limit=_A1_4340_RATED_SPEED,
+            stiffness=150.0,
+            damping=4.0,
+            armature=_A1_4340_ARMATURE,
+        ),
+        "arm_4310": ImplicitActuatorCfg(
+            joint_names_expr=["joint_[rl][4-7]"],
+            actuator_effort_limit=_A1_4310_RATED_EFFORT,
+            joint_effort_limit=_A1_4310_PEAK_EFFORT,
+            actuator_velocity_limit=_A1_4310_RATED_SPEED,
+            joint_velocity_limit=_A1_4310_RATED_SPEED,
+            stiffness={"joint_[rl]4": 150.0, "joint_[rl][5-7]": 40.0},
+            damping={"joint_[rl]4": 4.0, "joint_[rl][5-7]": 1.0},
+            armature=_A1_4310_ARMATURE,
+        ),
+    }
+
+
+def _a1_bimanual_urdf_spawn(asset_path: str) -> sim_utils.UrdfFileCfg:
+    """Create the bimanual A1 URDF spawn configuration.
+
+    The fixed shoulder mounts contain pitch angles at the URDF Euler singularity.
+    Keeping the fixed joints prevents the importer from re-expressing those mounts
+    through a lossy RPY round trip while preserving the source articulation.
+    """
+    return sim_utils.UrdfFileCfg(
+        asset_path=asset_path,
+        fix_base=True,
+        merge_fixed_joints=False,
+        self_collision=True,
+        joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+            gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
+                stiffness={"joint_[rl][1-4]": 150.0, "joint_[rl][5-7]": 40.0},
+                damping={"joint_[rl][1-4]": 4.0, "joint_[rl][5-7]": 1.0},
+            )
+        ),
+        activate_contact_sensors=False,
+        rigid_props=PhysxRigidBodyPropertiesCfg(
+            disable_gravity=False,
+            max_depenetration_velocity=5.0,
+        ),
+        articulation_props=PhysxArticulationRootPropertiesCfg(
+            enabled_self_collisions=True,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+        ),
+    )
+
+
 ONEROBOTICS_A1_UNIMANUAL_CFG = ArticulationCfg(
     spawn=_a1_urdf_spawn(_ONEROBOTICS_A1_RIGHT_URDF_PATH),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -141,6 +204,14 @@ ONEROBOTICS_A1_UNIMANUAL_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of the OneRobotics A1 fixed-base right arm."""
+
+ONEROBOTICS_A1_BIMANUAL_CFG = ArticulationCfg(
+    spawn=_a1_bimanual_urdf_spawn(_ONEROBOTICS_A1_BIMANUAL_URDF_PATH),
+    init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint_[rl][1-7]": 0.0}),
+    actuators=_a1_bimanual_actuators(),
+    soft_joint_pos_limit_factor=1.0,
+)
+"""Configuration of the fixed-base OneRobotics A1 bimanual robot and stand."""
 
 ONEROBOTICS_A1_CFG = ONEROBOTICS_A1_UNIMANUAL_CFG
 """Compatibility alias for :obj:`ONEROBOTICS_A1_UNIMANUAL_CFG`."""
