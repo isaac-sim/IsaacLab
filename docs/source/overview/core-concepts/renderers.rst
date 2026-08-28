@@ -121,6 +121,7 @@ documentation for the renderer-level settings and limitations.
 
       .. grid:: 1 2 3 3
          :gutter: 2
+         :class-container: renderer-preset-grid
 
          .. grid-item::
 
@@ -164,6 +165,7 @@ documentation for the renderer-level settings and limitations.
 
       .. grid:: 1 2 3 3
          :gutter: 2
+         :class-container: renderer-preset-grid
 
          .. grid-item::
 

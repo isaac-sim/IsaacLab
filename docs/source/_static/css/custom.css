@@ -183,6 +183,12 @@ figure.nurec-gif-contain img {
     white-space: nowrap;
 }
 
+/* Allow long renderer preset names to wrap without changing their copied text. */
+.renderer-preset-grid figcaption span.pre {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
 /* Keep sphinx-copybutton visible on code blocks (not only on hover). */
 button.copybtn {
     opacity: 1;
