@@ -583,6 +583,7 @@ class AppLauncher:
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
+        parser.set_defaults(visualizer_explicit=False)
         arg_group.add_argument(
             "--visualizer",
             "--viz",
@@ -962,9 +963,11 @@ class AppLauncher:
         )
         self._cfg_has_any_visualizers = cfg_has_any
         self._cfg_has_kit_visualizer = cfg_has_kit
-        visualizer_explicit = bool(launcher_args.pop("visualizer_explicit", False))
-        if not visualizer_explicit and "visualizer" in launcher_args:
-            visualizer_explicit = raw_visualizers is not None
+        visualizer_explicit = launcher_args.pop("visualizer_explicit", None)
+        if visualizer_explicit is None:
+            visualizer_explicit = "visualizer" in launcher_args and raw_visualizers is not None
+        else:
+            visualizer_explicit = bool(visualizer_explicit)
 
         visualizer_types: list[str] = []
         if raw_visualizers is not None:
@@ -1010,6 +1013,11 @@ class AppLauncher:
             raw_visualizers is None or "none" in visualizer_types
         )
         self._cli_visualizer_types = [] if self._cli_visualizer_disable_all else visualizer_types
+
+        if not self._cli_visualizer_explicit and self._cli_visualizer_types:
+            self._cfg_has_any_visualizers = True
+            if "kit" in self._cli_visualizer_types:
+                self._cfg_has_kit_visualizer = True
         launcher_args["visualizer"] = self._cli_visualizer_types
 
     def _resolve_camera_settings(self, launcher_args: dict):
