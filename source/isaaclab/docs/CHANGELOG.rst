@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+19.0.2 (2026-08-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``uv run --extra isaacsim,mimic`` Mimic annotation failing because the
+  ``isaaclab-teleop`` package was missing from the ``mimic`` extra.
+
+
 19.0.1 (2026-08-26)
 ~~~~~~~~~~~~~~~~~~~
 
