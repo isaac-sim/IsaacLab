@@ -306,6 +306,9 @@ class OVRTXRenderer(BaseRenderer):
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
+        # Resolved by create_render_data(spec); every render-product device id and CUDA sync stream
+        # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
+        self._warp_device: wp.Device | None = None
         self._render_product_paths = []
         # Shared by both paths. The legacy-only binding handles that pair with these live in
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
@@ -517,6 +520,7 @@ class OVRTXRenderer(BaseRenderer):
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
+            device_id=self._warp_device.ordinal,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -875,7 +879,11 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
-        self._device = spec.device
+        # Resolve the device once through Warp: a bare "cuda" pins to Warp's current CUDA device
+        # here, and the normalized string keeps every downstream consumer (kernel launches,
+        # allocations) on that same device.
+        self._warp_device = wp.get_device(spec.device)
+        self._device = str(self._warp_device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, self._device)
@@ -945,7 +953,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding.write(
             self._object_transform_buffer,
             data_access=DataAccess.ASYNC,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         )
 
     def _update_geometries_legacy(self) -> None:
@@ -977,7 +985,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points_binding.write(
             cast(Any, self._cable_point_slices),
             data_access=DataAccess.ASYNC,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         )
 
     def _write_particle_q_slices(
@@ -1015,7 +1023,7 @@ class OVRTXRenderer(BaseRenderer):
         # hands OVRTX the Warp stream those kernels were enqueued on so it can insert a
         # GPU-side wait (a cross-stream dependency) before its read, instead of us
         # forcing a host-side ``wp.synchronize_device()`` that would stall the CPU.
-        cuda_stream = wp.get_stream(self._device).cuda_stream
+        cuda_stream = self._warp_device.stream.cuda_stream
         binding.write(
             cast(Any, particle_slices),
             data_access=DataAccess.ASYNC,
@@ -1050,7 +1058,7 @@ class OVRTXRenderer(BaseRenderer):
             self._camera_xform_binding.write(
                 camera_transforms,
                 data_access=DataAccess.ASYNC,
-                cuda_stream=wp.get_stream(self._device).cuda_stream,
+                cuda_stream=self._warp_device.stream.cuda_stream,
             )
 
     def read_output(
@@ -1134,7 +1142,7 @@ class OVRTXRenderer(BaseRenderer):
             The render var's contents as a Warp array, valid for the duration of the context.
         """
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
-        sync_stream = wp.get_stream(self._device).cuda_stream if gpu_side_sync else 0
+        sync_stream = self._warp_device.stream.cuda_stream if gpu_side_sync else 0
         with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
             if not gpu_side_sync:
                 mapping.wait()
@@ -1363,10 +1371,10 @@ class OVRTXRenderer(BaseRenderer):
         if str(tiled_data.device) == output_device:
             return tiled_data
 
-        # FIXME: OVRTX render var mapping can select a different CUDA device
-        # than the camera/output buffers on MGPU systems. Keep this PPISP-only
-        # bridge until render var mapping can be constrained like transform
-        # bindings, whose maps pin ``device_id`` (see ``ovrtx_mapping``).
+        # The render product pins ``deviceIds`` to this renderer's CUDA device, so the mapping
+        # normally lands on the output device already. This stays as a fallback for the case OVRTX
+        # reports as "deviceIds ... not in the active device set" and falls back to automatic
+        # assignment.
         return wp.clone(tiled_data, device=output_device)
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
@@ -1760,6 +1768,7 @@ class OVRTXRenderer(BaseRenderer):
             data_types=data_types,
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
+            device_id=self._warp_device.ordinal,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -2199,7 +2208,7 @@ class OVRTXRenderer(BaseRenderer):
             tensors=xform_tensor_from_warp(object_transforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
 
     def _update_geometries_ovstage(self) -> None:
@@ -2271,7 +2280,7 @@ class OVRTXRenderer(BaseRenderer):
             tensors=particle_slices,
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
 
     def _write_cable_points_ovstage(self) -> None:
@@ -2290,7 +2299,7 @@ class OVRTXRenderer(BaseRenderer):
             tensors=self._cable_point_tensors,
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
 
     def _update_camera_ovstage(
@@ -2325,7 +2334,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(camera_transforms),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=wp.get_stream(self._device).cuda_stream,
+                cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
 
     def _render_ovstage(self, render_data: OVRTXRenderData) -> None:
