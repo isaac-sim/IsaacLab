@@ -1,0 +1,5 @@
+# No changelog entry / version bump: documentation-only correction. The 6.2.0
+# OVPHYSX entry claimed OvPhysxFrameView's ``set_world_poses`` /
+# ``set_local_poses`` emit a one-time ``DeprecationWarning``. They never did --
+# #5677 removed the backend overrides so both calls fall through to the silent
+# convenience helpers on BaseFrameView. No OVPhysX code changed.

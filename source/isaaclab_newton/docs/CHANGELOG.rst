@@ -885,8 +885,9 @@ Changed
   implementations so writes follow the new
   :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
   :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer` context API.
-  ``set_world_poses`` / ``set_local_poses`` shims still work (one-time
-  ``DeprecationWarning`` per class).  The legacy ``set_scales`` /
+  ``set_world_poses`` / ``set_local_poses`` remain supported convenience
+  helpers that route through those writer scopes; they are not deprecated
+  and emit no warning.  The legacy ``set_scales`` /
   ``get_scales`` paths continue to operate on Newton collision-shape
   geometry sizes -- they are not routed through the writer because the
   writer's ``set_scales`` writes the transform-scale state.
