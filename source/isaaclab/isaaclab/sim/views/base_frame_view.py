@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import abc
-import warnings
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -17,22 +16,6 @@ from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter
-
-
-_DEPRECATION_WARNED: set[tuple[str, str]] = set()
-
-
-def _warn_deprecated_once(view: BaseFrameView, method: str, guidance: str) -> None:
-    """Emit a :class:`DeprecationWarning` for ``method``, once per concrete view class."""
-    key = (type(view).__name__, method)
-    if key in _DEPRECATION_WARNED:
-        return
-    _DEPRECATION_WARNED.add(key)
-    warnings.warn(
-        f"{type(view).__name__}.{method}() is deprecated and will be removed in a future release. {guidance}",
-        DeprecationWarning,
-        stacklevel=3,
-    )
 
 
 class BaseFrameView(abc.ABC):
@@ -316,54 +299,54 @@ class BaseFrameView(abc.ABC):
             writer.set_poses(translations, orientations, indices)
 
     # ------------------------------------------------------------------
-    # Deprecated scale getter/setter helpers.
+    # Scale getter/setter convenience helpers.
     # ------------------------------------------------------------------
 
-    def get_scales(self, indices: wp.array | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get scales for prims in the view.
 
-        .. deprecated::
-            Use :meth:`get_local_scales` or :meth:`get_world_scales`, which name
-            the space explicitly and return
-            :class:`~isaaclab.utils.warp.ProxyArray`.  This method preserves each
-            backend's legacy space (world for Fabric, local for USD) and its
-            legacy ``wp.array`` return type.
+        .. note::
+            :meth:`get_local_scales` and :meth:`get_world_scales` are the
+            preferred reads: they name the space at the call site instead of
+            resolving to a per-backend default.  This method stays fully
+            supported and delegates to :meth:`_get_scales_impl`, which preserves
+            each backend's legacy space (world for Fabric, local for USD and
+            OVPhysX).
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A ``wp.array`` of shape ``(M, 3)``.
+            A ``ProxyArray`` of shape ``(M, 3)``.
 
         Raises:
             RuntimeError: If a writer scope is active on this view.
         """
-        _warn_deprecated_once(
-            self,
-            "get_scales",
-            "Use get_local_scales() or get_world_scales() instead; they name the space "
-            "explicitly and return a ProxyArray.",
-        )
         self._assert_no_active_writer("get_scales")
-        return self._get_scales_impl(indices).warp
+        return self._get_scales_impl(indices)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set scales for prims in the view.
 
-        .. deprecated::
-            Use a writer scope's ``set_scales``, which names the space
-            explicitly.  This method opens the backend's legacy space (world for
-            Fabric, local for USD).
+        .. note::
+            A writer scope's ``set_scales`` is the preferred write: it names the
+            space at the call site, and batching it with ``set_poses`` in one
+            scope avoids deriving the opposite-space matrices and synchronizing
+            twice::
+
+                with view.xform_world_space_writer() as w:
+                    w.set_poses(...)
+                    w.set_scales(...)
+
+            (or :meth:`xform_local_space_writer`).  This method stays fully
+            supported and delegates to :meth:`_set_scales_impl`, which opens the
+            backend's legacy space (world for Fabric, local for USD and OVPhysX)
+            and calls ``writer.set_scales``.
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
             indices: Subset of prims to update.  ``None`` means all prims.
         """
-        _warn_deprecated_once(
-            self,
-            "set_scales",
-            "Use 'with view.xform_world_space_writer() as w: w.set_scales(...)' (or xform_local_space_writer) instead.",
-        )
         self._set_scales_impl(scales, indices)
 
     @abc.abstractmethod

@@ -265,15 +265,15 @@ Changed
   land in the USD stage (no propagation to OVPhysX-side collision-shape
   scales).
 
-Deprecated
-^^^^^^^^^^
+Notes
+^^^^^
 
-* Deprecated :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales` and
-  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.set_scales`.  For reads,
-  use the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
-  ``get_world_scales``.  For writes, use the writer scope's
-  ``set_scales``.  The deprecated methods still work but emit a
-  ``DeprecationWarning`` and default to local scales, preserving prior
+* :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales` and
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.set_scales` remain
+  supported and are not deprecated; they emit no warning.  For reads where the
+  space matters, prefer the explicit ``get_local_scales`` (operates on
+  ``xformOp:scale``) or ``get_world_scales``; for writes, prefer the writer
+  scope's ``set_scales``.  These two default to local scales, preserving prior
   behavior.
 
 

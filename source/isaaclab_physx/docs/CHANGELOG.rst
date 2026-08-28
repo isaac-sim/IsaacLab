@@ -541,15 +541,15 @@ Changed
   commit ``c7ae7c7648cd0717df39e5c94b95d5a02c997320`` and added the
   ``newton-usd-schemas`` dependency required by Newton's USD parsing.
 
-Deprecated
-^^^^^^^^^^
+Notes
+^^^^^
 
-* Deprecated ``get_scales`` / ``set_scales`` on ``FabricFrameView``.  For
-  reads, use the explicit ``get_local_scales`` (operates on
-  ``localMatrix``) or ``get_world_scales`` (composed world-space scale).
-  For writes, use the writer scope's ``set_scales``.  The deprecated
-  methods still work but emit a ``DeprecationWarning``; ``FabricFrameView``
-  defaults to world (preserving prior behavior).
+* ``get_scales`` / ``set_scales`` on ``FabricFrameView`` remain supported and
+  are not deprecated; they emit no warning.  For reads where the space matters,
+  prefer the explicit ``get_local_scales`` (operates on ``localMatrix``) or
+  ``get_world_scales`` (composed world-space scale); for writes, prefer the
+  writer scope's ``set_scales``.  ``FabricFrameView`` defaults these two to
+  world (preserving prior behavior).
 
 
 2.7.0 (2026-07-04)

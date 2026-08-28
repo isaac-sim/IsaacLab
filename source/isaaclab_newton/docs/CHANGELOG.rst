@@ -895,15 +895,15 @@ Changed
   ``c7ae7c7648cd0717df39e5c94b95d5a02c997320``, which includes the experimental
   coupled solver framework.
 
-Deprecated
-^^^^^^^^^^
+Notes
+^^^^^
 
-* Deprecated :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales`
-  and :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.set_scales` in favor
-  of the explicit transform-scale getters ``get_world_scales`` /
-  ``get_local_scales`` (and the writer scope's ``set_scales``).  The
-  deprecated methods still work but emit a ``DeprecationWarning`` and
-  preserve Newton's legacy collision shape geometry-scale behavior.
+* :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales` and
+  :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.set_scales` remain
+  supported and are not deprecated; they emit no warning.  Prefer the explicit
+  transform-scale getters ``get_world_scales`` / ``get_local_scales`` (and the
+  writer scope's ``set_scales``) when the space matters.  These two preserve
+  Newton's legacy collision shape geometry-scale behavior.
 
 Fixed
 ^^^^^
