@@ -15,6 +15,7 @@ from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidO
 from isaaclab.utils.configclass import configclass
 
 _DEFAULT_GROUND_PLANE_USD = str(Path(__file__).parent / "data" / "default_ground_plane" / "default_ground_plane.usda")
+_DEFAULT_GROUND_PLANE_TILE_SIZE = 5.0
 
 
 @configclass

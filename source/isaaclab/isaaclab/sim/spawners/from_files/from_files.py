@@ -236,6 +236,24 @@ def spawn_ground_plane(
         # apply scale to the mesh
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
 
+        # Keep the bundled grid metric when renderers consume authored UVs instead of OmniPBR projection.
+        from . import from_files_cfg  # noqa: PLC0415
+
+        if cfg.usd_path == from_files_cfg._DEFAULT_GROUND_PLANE_USD:
+            from pxr import Gf, UsdGeom  # noqa: PLC0415
+
+            half_u = cfg.size[0] / (2.0 * from_files_cfg._DEFAULT_GROUND_PLANE_TILE_SIZE)
+            half_v = cfg.size[1] / (2.0 * from_files_cfg._DEFAULT_GROUND_PLANE_TILE_SIZE)
+            mesh = UsdGeom.Mesh(stage.GetPrimAtPath(f"{prim_path}/Environment/Geometry"))
+            UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Set(
+                [
+                    Gf.Vec2f(-half_u, -half_v),
+                    Gf.Vec2f(half_u, -half_v),
+                    Gf.Vec2f(half_u, half_v),
+                    Gf.Vec2f(-half_u, half_v),
+                ]
+            )
+
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:

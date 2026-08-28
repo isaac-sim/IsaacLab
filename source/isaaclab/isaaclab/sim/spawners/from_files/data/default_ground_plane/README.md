@@ -16,6 +16,6 @@ The USD is self-contained apart from its three adjacent textures and Isaac Sim's
 
 ## Renderer compatibility
 
-The asset is bundled with the `isaaclab` package so the default does not require Nucleus access. The authored projection and UVs produce the same 1 m grid on the default 100 m plane in Kit, Newton GL, and Newton Viewer RTX.
+The asset is bundled with the `isaaclab` package so the default does not require Nucleus access. Kit uses the authored OmniPBR projection, while Newton GL and Newton Viewer RTX consume the mesh UVs. When the bundled plane is resized, `spawn_ground_plane()` adjusts those UVs to keep the 5 m texture tile—and therefore the 1 m grid—metric in all three renderers. Plane terrains bound the visual mesh to the environment grid (with a 100 m minimum) for stable UV precision; the USD collision plane remains infinite.
 
-Resizing a projected ground plane requires the UV compatibility work in IsaacLab PR #7352 to preserve the metric grid in Newton visualizers. When that change is integrated, its default-ground-plane selection must include this bundled asset. Explicit ground-plane USDs, generated terrains, height fields, and mesh terrains remain unaffected.
+The compatibility behavior is scoped to this bundled default. Explicit ground-plane USDs, generated terrains, height fields, and mesh terrains remain unaffected.

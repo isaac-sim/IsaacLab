@@ -109,8 +109,8 @@ def test_plane(device, use_custom_material):
         terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
-            num_envs=1,
-            env_spacing=1.0,
+            num_envs=4096,
+            env_spacing=4.0,
             visual_material=visual_material,
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
@@ -118,6 +118,17 @@ def test_plane(device, use_custom_material):
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
         assert mesh_prim_path in terrain_importer.terrain_prim_paths
+
+        # The visual mesh is bounded to the environment grid while the collision Plane stays infinite.
+        environment = sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment")
+        assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
+        visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
+        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
+            (-26.0, -26.0),
+            (26.0, -26.0),
+            (26.0, 26.0),
+            (-26.0, 26.0),
+        ]
 
         # obtain underling mesh
         mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")

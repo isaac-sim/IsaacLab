@@ -113,8 +113,12 @@ class TerrainImporter:
             # configure the origins in a grid
             self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
-            # load the plane
-            self.import_ground_plane("terrain")
+            # Size the visual mesh to the environment grid. The collision plane remains infinite.
+            num_rows = int(np.ceil(self.cfg.num_envs / np.sqrt(self.cfg.num_envs)))
+            num_cols = int(np.ceil(self.cfg.num_envs / num_rows))
+            spacing = self.cfg.env_spacing or 0.0
+            size = (max(100.0, (num_rows + 1) * spacing), max(100.0, (num_cols + 1) * spacing))
+            self.import_ground_plane("terrain", size=size)
             # configure the origins in a grid
             self.configure_env_origins()
         else:
