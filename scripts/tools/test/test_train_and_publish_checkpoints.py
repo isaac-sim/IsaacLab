@@ -7,17 +7,47 @@
 
 from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from isaaclab_tasks.utils.preset_target import PresetTarget
+
 from scripts.tools.train_and_publish_checkpoints import (
     CheckpointJob,
+    _build_core_jobs,
     _play_command,
     _select_physics_variants,
     _training_command,
     collect_pretrained_checkpoint,
     publish_pretrained_checkpoint,
 )
+
+
+def test_build_core_jobs_skips_unsupported_preset_without_normalizing_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unsupported preset-only task must not abort construction of the supported core matrix."""
+    task_spec = SimpleNamespace(
+        id="Isaac-Unsupported-Core-Task",
+        kwargs={
+            "env_cfg_entry_point": "isaaclab_tasks.core.unsupported:UnsupportedEnvCfg",
+            "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.unsupported:UnsupportedAgentCfg",
+        },
+    )
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.gym.registry", {task_spec.id: task_spec})
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.parse_env_cfg", lambda _: object())
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.enumerate_task_presets",
+        lambda _: {PresetTarget.PHYSICS: ["newton_kamino"]},
+    )
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.get_pretrained_checkpoint_backend_names",
+        lambda _: pytest.fail("preset-only tasks must not normalize their unsupported default backend"),
+    )
+    args = Namespace(physics_backends="physx,newtonmjwarp", render_backends="rtx,newton")
+
+    assert _build_core_jobs(args) == []
 
 
 def test_job_commands_use_uv_run_isaaclab() -> None:
