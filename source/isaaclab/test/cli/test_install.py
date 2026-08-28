@@ -339,7 +339,7 @@ class TestEnsureNewton:
     @pytest.mark.parametrize(
         ("requirement", "freeze_line"),
         [
-            ("newton[sim]==1.5.0", "newton==1.5.0"),
+            ("newton[sim]==1.5.1", "newton==1.5.1"),
             (
                 "newton[sim] @ git+https://github.com/newton-physics/newton.git@cca3bb8",
                 "newton @ git+https://github.com/newton-physics/newton.git@cca3bb8",
