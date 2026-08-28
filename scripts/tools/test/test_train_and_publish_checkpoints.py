@@ -79,6 +79,15 @@ def test_select_physics_variants_uses_concrete_isaac_sim_physx() -> None:
     assert selections == [("physx", "isaacsim_physx"), ("newtonmjwarp", "newton_mjwarp")]
 
 
+def test_select_physics_variants_includes_franka_osc_newton_mjwarp() -> None:
+    """The effort-limited OSC task is supported by Newton MJWarp."""
+    selections = _select_physics_variants(
+        "Isaac-Reach-Franka-OSC", ["isaacsim_physx", "newton_mjwarp"], "physx", ["newtonmjwarp"]
+    )
+
+    assert selections == [("newtonmjwarp", "newton_mjwarp")]
+
+
 def test_select_physics_variants_does_not_fall_back_to_automatic_physx() -> None:
     """A task without a concrete Isaac Sim selector must not run as OvPhysX."""
     selections = _select_physics_variants("Isaac-Test", ["physx", "ovphysx"], "physx", ["physx"])

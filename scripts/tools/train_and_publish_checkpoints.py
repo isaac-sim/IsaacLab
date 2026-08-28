@@ -101,10 +101,6 @@ from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _TRAINING_COMPLETE_FILENAME = ".pretrained_checkpoint_training_complete"
 _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")
-_NEWTON_MJWARP_EXCLUSIONS = {
-    # The OSC controller destabilizes MJWarp's articulated-body dynamics.
-    "Isaac-Reach-Franka-OSC",
-}
 
 
 @dataclass(frozen=True)
@@ -270,8 +266,6 @@ def _select_physics_variants(
                     (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd") if candidate in variants),
                     None,
                 )
-                if task_name in _NEWTON_MJWARP_EXCLUSIONS:
-                    selector = None
             if selector is None:
                 continue
         elif backend != default_backend:
