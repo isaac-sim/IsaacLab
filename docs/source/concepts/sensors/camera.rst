@@ -50,6 +50,8 @@ the scene configuration:
 See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
 
+.. _camera-configuration:
+
 Configure a camera
 ------------------
 
@@ -108,6 +110,8 @@ Camera pose and intrinsic buffers are also ``ProxyArray`` objects. ``pos_w`` has
 ``intrinsic_matrices`` has shape ``(N, 3, 3)``, and camera quaternions have shape ``(N, 4)`` in
 ``(x, y, z, w)`` order. Set ``update_latest_camera_pose=True`` only when current pose data is needed;
 updating it adds frame-query overhead.
+
+.. _camera-output-types:
 
 Output types
 ------------

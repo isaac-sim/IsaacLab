@@ -56,10 +56,10 @@ Choosing a rendering capability
 --------------------------------
 
 The overview above shows the complete range of visually distinct outputs in one place. The sections
-below regroup those outputs by purpose: simplified rendering for throughput-oriented training, and
-photo-real rendering for full RTX image quality and sensor outputs.
-The detailed captions and commands use the suffixless ``Isaac-Cartpole-Camera`` task so each shown
-mode can be tried without editing Python.
+below regroup those outputs by purpose: simplified rendering for throughput-oriented training,
+photo-real rendering for full RTX image quality, and advanced outputs for geometry, motion, and
+labels. The detailed captions and commands use the suffixless ``Isaac-Cartpole-Camera`` task so
+each shown mode can be tried without editing Python.
 
 Simplified rendering
 ~~~~~~~~~~~~~~~~~~~~
@@ -147,17 +147,24 @@ documentation for the renderer-level settings and limitations.
 
                Full MDL — ``presets=simple_shading_full_mdl``
 
+      **Constant diffuse**
+
       .. code-block:: bash
 
-         # Constant diffuse
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=newton_mjwarp renderer=ovrtx presets=simple_shading_constant_diffuse
 
-         # Textured diffuse
+      **Textured diffuse**
+
+      .. code-block:: bash
+
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
 
-         # Diffuse, glossy, and emissive material evaluation
+      **Diffuse, glossy, and emissive material evaluation**
+
+      .. code-block:: bash
+
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl
 
@@ -191,17 +198,24 @@ documentation for the renderer-level settings and limitations.
 
                Full MDL — ``presets=simple_shading_full_mdl``
 
+      **Constant diffuse**
+
       .. code-block:: bash
 
-         # Constant diffuse
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_constant_diffuse
 
-         # Textured diffuse
+      **Textured diffuse**
+
+      .. code-block:: bash
+
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_diffuse_mdl
 
-         # Diffuse, glossy, and emissive material evaluation
+      **Diffuse, glossy, and emissive material evaluation**
+
+      .. code-block:: bash
+
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_full_mdl
 
@@ -252,6 +266,28 @@ Isaac Sim. See the upstream `OVRTX render modes
 
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
+
+Advanced rendering outputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Beyond RGB, renderer-produced buffers expose material, geometry, motion, and labeling information:
+
+- **Albedo** isolates the material base color from lighting.
+- **Depth** measures optical-axis distance for geometric perception and reconstruction.
+- **Normals** encode local surface orientation.
+- **Semantic segmentation** groups pixels by class, while **instance segmentation** separates
+  individual objects.
+- **Motion vectors** encode image-space motion per pixel and require prior-frame history.
+
+Request one or more buffers through :attr:`~sensors.CameraCfg.data_types`. See
+:ref:`camera-configuration` for a configuration example and :ref:`camera-output-types` for the
+available names, tensor shapes, data types, and meanings. Environment-level ``presets=...``
+selectors are task-defined convenience shortcuts, not an exhaustive list of camera outputs.
+
+Output availability differs by backend. Check the :ref:`camera renderer support matrix
+<camera-supported-annotators>` before choosing a renderer; for example, OVRTX and Isaac RTX produce
+motion vectors, while Newton Warp does not. The :ref:`renderer visual comparison
+<renderer-visual-comparison>` above shows these outputs on the same scene.
 
 .. note::
 
