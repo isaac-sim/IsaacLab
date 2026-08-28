@@ -146,5 +146,5 @@ simulation-context construction time and is what triggers the shadow-model build
 See Also
 --------
 
-- :doc:`renderers` — renderer backends that consume scene data
+- :doc:`/source/concepts/renderers` — renderer backends that consume scene data
 - :doc:`/source/overview/core-concepts/visualization` — visualizer backends that consume scene data

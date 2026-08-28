@@ -247,5 +247,5 @@ Where to go next
   factories, the physics manager, assets, and sensors dispatch across backends.
 - :doc:`/source/overview/core-concepts/physical-backends/index` compares physics
   backend capabilities and links to backend-specific setup guides.
-- :doc:`/source/overview/core-concepts/renderers` explains renderer selection and
+- :doc:`/source/concepts/renderers` explains renderer selection and
   implementation details.

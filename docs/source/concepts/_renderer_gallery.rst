@@ -2,7 +2,7 @@
 
    .. tab-item:: Newton Warp
 
-      .. figure:: ../../_static/overview/sensors/camera-renderer-newton.webp
+      .. figure:: ../_static/overview/sensors/camera-renderer-newton.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in Newton Warp RGB output.
@@ -14,7 +14,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-albedo.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-newton-albedo.png
                :width: 100%
                :alt: Newton Warp albedo output for six material spheres.
 
@@ -22,7 +22,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-depth.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-newton-depth.png
                :width: 100%
                :alt: Color-mapped Newton Warp depth output for six material spheres.
 
@@ -30,7 +30,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-normals.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-newton-normals.png
                :width: 100%
                :alt: Newton Warp surface-normal output for six material spheres.
 
@@ -38,7 +38,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-semantic-segmentation.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-newton-semantic-segmentation.png
                :width: 100%
                :alt: Color-mapped Newton Warp semantic-segmentation output for six material spheres.
 
@@ -46,7 +46,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-instance-segmentation.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-newton-instance-segmentation.png
                :width: 100%
                :alt: Color-mapped Newton Warp instance-segmentation output for six material spheres.
 
@@ -54,7 +54,7 @@
 
    .. tab-item:: OVRTX
 
-      .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx.webp
+      .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
@@ -66,7 +66,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-albedo.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-albedo.png
                :width: 100%
                :alt: OVRTX albedo output for six material spheres.
 
@@ -74,7 +74,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-depth.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-depth.png
                :width: 100%
                :alt: Color-mapped OVRTX depth output for six material spheres.
 
@@ -82,7 +82,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-normals.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-normals.png
                :width: 100%
                :alt: OVRTX surface-normal output for six material spheres.
 
@@ -90,7 +90,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-semantic-segmentation.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-semantic-segmentation.png
                :width: 100%
                :alt: Color-mapped OVRTX semantic-segmentation output for six material spheres.
 
@@ -98,7 +98,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-instance-segmentation.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-instance-segmentation.png
                :width: 100%
                :alt: Color-mapped OVRTX instance-segmentation output for six material spheres.
 
@@ -106,7 +106,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-motion-vectors.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-motion-vectors.png
                :width: 100%
                :alt: Color-mapped OVRTX motion-vector output for six falling material spheres.
 
@@ -114,7 +114,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-constant-diffuse.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-constant-diffuse.png
                :width: 100%
                :alt: OVRTX constant-diffuse simple-shading output for six material spheres.
 
@@ -122,7 +122,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
                :width: 100%
                :alt: OVRTX diffuse-MDL simple-shading output for six material spheres.
 
@@ -130,7 +130,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-full-mdl.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-full-mdl.png
                :width: 100%
                :alt: OVRTX full-MDL simple-shading output for six material spheres.
 
@@ -138,7 +138,7 @@
 
    .. tab-item:: Isaac RTX
 
-      .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx.webp
+      .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
@@ -150,7 +150,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-albedo.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-albedo.png
                :width: 100%
                :alt: Isaac RTX albedo output for six material spheres.
 
@@ -158,7 +158,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-depth.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-depth.png
                :width: 100%
                :alt: Color-mapped Isaac RTX depth output for six material spheres.
 
@@ -166,7 +166,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-normals.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-normals.png
                :width: 100%
                :alt: Isaac RTX surface-normal output for six material spheres.
 
@@ -174,7 +174,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-semantic-segmentation.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-semantic-segmentation.png
                :width: 100%
                :alt: Color-mapped Isaac RTX semantic-segmentation output for six material spheres.
 
@@ -182,7 +182,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-instance-segmentation.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-instance-segmentation.png
                :width: 100%
                :alt: Color-mapped Isaac RTX instance-segmentation output for six material spheres.
 
@@ -190,7 +190,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-motion-vectors.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-motion-vectors.png
                :width: 100%
                :alt: Color-mapped Isaac RTX motion-vector output for six falling material spheres.
 
@@ -198,7 +198,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-constant-diffuse.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-constant-diffuse.png
                :width: 100%
                :alt: Isaac RTX constant-diffuse simple-shading output for six material spheres.
 
@@ -206,7 +206,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
                :width: 100%
                :alt: Isaac RTX diffuse-MDL simple-shading output for six material spheres.
 
@@ -214,7 +214,7 @@
 
          .. grid-item::
 
-            .. figure:: ../../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
+            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
                :width: 100%
                :alt: Isaac RTX full-MDL simple-shading output for six material spheres.
 

@@ -39,6 +39,9 @@ Choose a sensor
    * - :doc:`camera`
      - Renderer-produced color, depth, normals, motion, and segmentation images
      - Vision observations and synthetic data
+   * - :doc:`ray_caster`
+     - First collision locations for configurable ray patterns
+     - Terrain sensing, lidar-style queries, and ray-cast cameras
    * - :doc:`contact_sensor`
      - Net and filtered contact forces, contact points, friction, and contact timing
      - Locomotion, grasping, and collision events
@@ -55,14 +58,12 @@ Choose a sensor
      - Incoming joint reaction force and torque
      - Force/torque sensing and contact-rich control
 
-Ray casting remains documented with the backend architecture because its configuration depends on
-scene geometry and ray-pattern support. See :doc:`/source/overview/core-concepts/sensors/ray_caster`.
-
 .. toctree::
    :maxdepth: 1
    :hidden:
 
    camera
+   ray_caster
    contact_sensor
    frame_transformer
    imu

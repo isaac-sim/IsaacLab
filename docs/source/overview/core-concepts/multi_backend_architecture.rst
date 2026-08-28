@@ -477,4 +477,4 @@ See Also
 - :doc:`physical-backends/newton/index` — Newton backend guide
 - :doc:`physical-backends/newton/newton-manager-abstraction` — adding Newton solver managers and
   coupled solvers
-- :doc:`renderers` — renderer backend architecture
+- :doc:`/source/concepts/renderers` — renderer backend architecture
