@@ -1599,6 +1599,31 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
              --visualizer kit \
              --xr
 
+The ``run``, ``record``, and ``replay`` workflows accept task configuration selectors using
+Hydra-style ``key=value`` syntax (with no leading ``--``). For example, record the Franka reach
+task with the PhysX and differential IK presets as follows:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop record \
+       --task Isaac-Reach-Franka \
+       --visualizer kit \
+       --dataset_file ./datasets/dataset.hdf5 \
+       --num_demos 1 \
+       --teleop_device keyboard \
+       physics=isaacsim_physx presets=diffik
+
+When replaying a preset-configured dataset, pass the same selectors again. The HDF5 metadata stores
+the registered task ID, but not the command-line selector values:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop replay \
+       --task Isaac-Reach-Franka \
+       --visualizer kit \
+       --dataset_file ./datasets/dataset.hdf5 \
+       physics=isaacsim_physx presets=diffik
+
 Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
 (e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
 the input device:
@@ -1627,7 +1652,8 @@ The workflow is:
 
 #. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
    or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
-#. Run ``record_demos.py`` with the task name.
+#. Run ``record_demos.py`` with the task name and any ``physics=``, ``renderer=``, or ``presets=``
+   selectors required by the task.
 #. For XR tasks: start AR, connect your XR device, and teleoperate.
    For legacy tasks: use the configured input device directly.
 #. Demonstrations are recorded to HDF5 files.
