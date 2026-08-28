@@ -2056,6 +2056,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_paths_list = None
         # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
         self._cable_point_tensors: list = []
+        self._gaussian_queries: dict[tuple[str, ...], tuple[Any, Any]] = {}
 
     def _initialize_from_spec_ovstage(self, spec: CameraRenderSpec) -> None:
         """Initialize the OVRTX renderer with internal environment cloning (ovstage path).
@@ -2568,29 +2569,39 @@ class OVRTXRenderer(BaseRenderer):
         if self._cable_points_query is not None:
             self._write_cable_points_ovstage()
 
+    def _gaussian_query_ovstage(self, prim_paths: list[str]) -> Any:
+        """Return the persistent ovstage query for one Gaussian path set, creating it on first use.
+
+        A query resolves its path list once, so caching it per path set keeps the per-frame write
+        from rebuilding and releasing one every call, the way the other ovstage writes reuse the
+        queries built with their bindings. This is the ovstage counterpart of
+        :meth:`_gaussian_binding`; every entry is released by :meth:`_close_ovstage`.
+        """
+        key = tuple(prim_paths)
+        entry = self._gaussian_queries.get(key)
+        if entry is None:
+            paths = self._stage_paths.create_path_list_from_strings(prim_paths)
+            entry = (paths, self._stage.query_from_path_list(paths))
+            self._gaussian_queries[key] = entry
+        return entry[1]
+
     def _update_gaussian_splat_transforms_ovstage(self, prim_paths: list[str], local_transforms: wp.array) -> None:
-        """Write Gaussian local transforms through a short-lived ovstage query."""
+        """Write Gaussian local transforms through the path set's persistent ovstage query."""
         device = local_transforms.device
-        paths = self._stage_paths.create_path_list_from_strings(prim_paths)
-        query = self._stage.query_from_path_list(paths)
-        try:
-            self._stage.write_attribute(
-                query,
-                "omni:xform",
-                ordinal=self._current_ordinal,
-                tensors=_lane_folded_tensor(local_transforms, _OVSTAGE_XFORM_DTYPE, len(prim_paths)),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
-            ).wait()
-        finally:
-            self._stage.release_query(query).wait()
-            self._stage_paths.destroy_path_list(paths)
+        self._stage.write_attribute(
+            self._gaussian_query_ovstage(prim_paths),
+            "omni:xform",
+            ordinal=self._current_ordinal,
+            tensors=_lane_folded_tensor(local_transforms, _OVSTAGE_XFORM_DTYPE, len(prim_paths)),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+            cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
+        ).wait()
 
     def _update_gaussian_splat_particles_ovstage(
         self, prim_paths: list[str], attribute_name: str, values: list[wp.array], components: int
     ) -> None:
-        """Write one Gaussian particle column through a short-lived ovstage query.
+        """Write one Gaussian particle column through the path set's persistent ovstage query.
 
         Args:
             prim_paths: Existing Gaussian-splat prim paths, one per entry of :paramref:`values`.
@@ -2604,21 +2615,15 @@ class OVRTXRenderer(BaseRenderer):
         dtype = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=components)
         tensors = [_lane_folded_tensor(value, dtype, value.shape[0]) for value in values]
         device = values[0].device
-        paths = self._stage_paths.create_path_list_from_strings(prim_paths)
-        query = self._stage.query_from_path_list(paths)
-        try:
-            self._stage.write_attribute(
-                query,
-                attribute_name,
-                ordinal=self._current_ordinal,
-                tensors=tensors,
-                is_array=True,
-                semantic=_OVSTAGE_GAUSSIAN_PARTICLE_SEMANTICS[attribute_name],
-                cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
-            ).wait()
-        finally:
-            self._stage.release_query(query).wait()
-            self._stage_paths.destroy_path_list(paths)
+        self._stage.write_attribute(
+            self._gaussian_query_ovstage(prim_paths),
+            attribute_name,
+            ordinal=self._current_ordinal,
+            tensors=tensors,
+            is_array=True,
+            semantic=_OVSTAGE_GAUSSIAN_PARTICLE_SEMANTICS[attribute_name],
+            cuda_stream=wp.get_stream(device).cuda_stream if device.is_cuda else None,
+        ).wait()
 
     def _write_particle_q_slices_ovstage(
         self,
@@ -2783,6 +2788,11 @@ class OVRTXRenderer(BaseRenderer):
         self._particle_points_query = None
         _safe_destroy_path_list(self._particle_paths_list, "particle paths")
         self._particle_paths_list = None
+        # One entry per Gaussian path set a caller wrote, cached by _gaussian_query_ovstage.
+        for paths_list, query in self._gaussian_queries.values():
+            _safe_release_query(query, "Gaussian")
+            _safe_destroy_path_list(paths_list, "Gaussian paths")
+        self._gaussian_queries.clear()
 
         _safe_release_query(self._cable_points_query, "cable points")
         self._cable_points_query = None

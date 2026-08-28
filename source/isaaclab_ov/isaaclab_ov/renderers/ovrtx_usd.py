@@ -402,6 +402,14 @@ def force_gaussian_sorting_mode_hint(stage, sorting_mode: str = "cameraDistance"
     metric than the capture asked for, which can reorder splats and change blending. It is the
     lesser evil while the renderer bug stands, and it must go away with the bug.
 
+    The override is applied to every gaussian prim rather than only to the multi-camera case that
+    misrenders, because the caller cannot yet tell the two apart: :meth:`OVRTXRenderer.prepare_stage`
+    exports the stage to the string OVRTX consumes immediately afterwards, while render products —
+    and therefore the per-product view-tile count — are built later, by ``create_render_data``, for
+    cameras that may still register after this stage was prepared. Being wrong in the permissive
+    direction costs a different sort metric on a single-camera render; being wrong in the other
+    direction renders nothing at all.
+
     The override is authored on the root layer, so it wins over values that arrive through a
     reference or payload.
 

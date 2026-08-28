@@ -430,7 +430,14 @@ def log_current_isaacrtx_settings(prefix: str = "[INFO] Verified settings") -> N
 
 
 def apply_rtx_settings() -> None:
-    """Apply the default and optional Isaac RTX settings requested on the command line."""
+    """Apply the default and optional Isaac RTX settings requested on the command line.
+
+    Only writes settings, so it is idempotent, and :func:`main` deliberately calls it twice: once
+    before the :class:`~isaaclab.sim.SimulationContext` so the values are in place while Kit brings
+    its renderer up, and once after the cameras are built, because creating an RTX/Replicator
+    render product re-applies Kit's own render presets over some of these paths. Dropping either
+    call leaves part of the requested configuration inactive for the frames that matter.
+    """
     from isaaclab.app.settings_manager import get_settings_manager
 
     if args_cli.renderer != "isaac_rtx":
@@ -564,11 +571,7 @@ def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Pri
 
 def source_camera_path_to_default_rel_path(source_stage: Usd.Stage, source_camera_prim_path: str) -> str:
     """Return the source camera path relative to the source defaultPrim."""
-    default_prim = source_stage.GetDefaultPrim()
-    if not default_prim:
-        raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
-
-    default_prim_path = default_prim.GetPath().pathString
+    default_prim_path = gaussian_anim.require_default_prim(source_stage).GetPath().pathString
     default_prefix = f"{default_prim_path}/"
     if not source_camera_prim_path.startswith(default_prefix):
         raise RuntimeError(
@@ -585,10 +588,7 @@ def source_camera_path_to_env_regex(source_stage: Usd.Stage, source_camera_prim_
 
 def get_trajectory_time_samples(source_stage: Usd.Stage, source_camera_prim_path: str) -> list[float]:
     """Return uniformly spaced USD times spanning the camera and parent-rig xform samples."""
-    default_prim = source_stage.GetDefaultPrim()
-    if not default_prim:
-        raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
-
+    default_prim = gaussian_anim.require_default_prim(source_stage)
     prim = source_stage.GetPrimAtPath(source_camera_prim_path)
     if not prim or not prim.IsValid():
         raise RuntimeError(f"Camera prim not found: {source_camera_prim_path}")
@@ -621,10 +621,7 @@ def get_source_camera_in_default(
     source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float
 ) -> Gf.Matrix4d:
     """Return the source camera transform relative to the source defaultPrim at ``time_code``."""
-    default_prim = source_stage.GetDefaultPrim()
-    if not default_prim:
-        raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
-
+    default_prim = gaussian_anim.require_default_prim(source_stage)
     source_camera_prim = source_stage.GetPrimAtPath(source_camera_prim_path)
     if not source_camera_prim or not source_camera_prim.IsValid():
         raise RuntimeError(f"Camera prim not found: {source_camera_prim_path}")
@@ -882,15 +879,19 @@ def resolve_env_spacing(source_stage: Usd.Stage) -> float:
         # A single env sits at the grid origin, so the spacing never applies.
         return DEFAULT_ENV_SPACING
 
-    default_prim = source_stage.GetDefaultPrim()
+    default_prim = gaussian_anim.require_default_prim(source_stage)
     time_code = Usd.TimeCode(STAGE_TIME_CODE)
     xform_cache = UsdGeom.XformCache(time_code)
-    to_default = xform_cache.GetLocalToWorldTransform(default_prim).GetInverse()
+    # Every bound below is unioned in defaultPrim space, which is the space the scene is referenced
+    # under each env in. Mixing in a world-space bound would add the defaultPrim's own world offset
+    # to the union as a spurious gap and over-space the grid.
+    world_to_default = xform_cache.GetLocalToWorldTransform(default_prim).GetInverse()
     bbox_cache = UsdGeom.BBoxCache(time_code, [UsdGeom.Tokens.default_], useExtentsHint=True)
     extent = Gf.Range3d()
     for prim in Usd.PrimRange(default_prim):
         if prim.IsA(UsdGeom.Boundable):
-            extent.UnionWith(bbox_cache.ComputeWorldBound(prim).ComputeAlignedRange())
+            world_bound = bbox_cache.ComputeWorldBound(prim).ComputeAlignedRange()
+            extent.UnionWith(Gf.BBox3d(world_bound, world_to_default).ComputeAlignedRange())
         if prim.GetTypeName() != gaussian_anim.GAUSSIAN_PRIM_TYPE_NAME:
             continue
         positions = np.empty((0, 3))
@@ -904,8 +905,8 @@ def resolve_env_spacing(source_stage: Usd.Stage) -> float:
             continue
         # Transforming the local corners rather than every particle keeps this to eight points.
         local_range = Gf.Range3d(Gf.Vec3d(*positions.min(axis=0)), Gf.Vec3d(*positions.max(axis=0)))
-        to_world = xform_cache.GetLocalToWorldTransform(prim) * to_default
-        extent.UnionWith(Gf.BBox3d(local_range, to_world).ComputeAlignedRange())
+        local_to_default = xform_cache.GetLocalToWorldTransform(prim) * world_to_default
+        extent.UnionWith(Gf.BBox3d(local_range, local_to_default).ComputeAlignedRange())
     if extent.IsEmpty():
         print(
             f"[WARN] Could not measure the input scene extent; using {DEFAULT_ENV_SPACING:g} m env spacing. "

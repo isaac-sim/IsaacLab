@@ -50,6 +50,9 @@ else:
     _gpu_side_render_var_sync_enabled = None
     RENDER_VAR_FRAME_KEYS = None
 
+# The ovstage write helpers are defined only when ovstage itself imported.
+_OVSTAGE_AVAILABLE = bool(ovrtx_renderer_module is not None and ovrtx_renderer_module._OVSTAGE_AVAILABLE)
+
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
     focus_distance=400.0,
@@ -806,6 +809,83 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     return renderer
 
 
+class _RecordingOvstage:
+    """ovstage ``Stage``/``PathDictionary`` stub recording the queries created and writes issued."""
+
+    def __init__(self):
+        self.created_queries: list[tuple[str, ...]] = []
+        self.writes: list[tuple[str, str]] = []
+        self.released: list[str] = []
+
+    def create_path_list_from_strings(self, prim_paths):
+        return tuple(prim_paths)
+
+    def destroy_path_list(self, path_list) -> None:
+        self.released.append(f"destroy:{path_list}")
+
+    def query_from_path_list(self, path_list):
+        self.created_queries.append(path_list)
+        return f"query:{path_list}"
+
+    def release_query(self, query):
+        self.released.append(f"release:{query}")
+        return types.SimpleNamespace(wait=lambda: None)
+
+    def write_attribute(self, query, attribute_name, **kwargs):
+        self.writes.append({"query": query, "attribute": attribute_name, **kwargs})
+        return types.SimpleNamespace(wait=lambda: None)
+
+
+def _make_ovstage_gaussian_renderer(backend: _RecordingOvstage) -> OVRTXRenderer:
+    """Build an ovstage-path renderer ready for Gaussian writes."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = True
+    renderer._initialized_scene = True
+    renderer._renderer = object()
+    renderer._stage = backend
+    renderer._stage_paths = backend
+    renderer._gaussian_queries = {}
+    renderer._current_ordinal = 3
+    return renderer
+
+
+@pytest.mark.skipif(not _OVSTAGE_AVAILABLE, reason="requires ovstage")
+def test_ovrtx_gaussian_ovstage_writes_reuse_one_query_per_path_set():
+    """Per-frame ovstage writes resolve their paths once, like every other ovstage write.
+
+    A query rebuilt per call would re-resolve the prim paths and release the query on every frame of
+    animation playback, which is the cost the legacy path's cached bindings exist to avoid.
+    """
+    backend = _RecordingOvstage()
+    renderer = _make_ovstage_gaussian_renderer(backend)
+    paths = ["/World/a", "/World/b"]
+    transforms = wp.zeros((2, 4, 4), dtype=wp.float64, device="cpu")
+    positions = [wp.zeros((4, 3), dtype=wp.float32, device="cpu")] * 2
+
+    for _ in range(3):
+        renderer.update_gaussian_splat_transforms(paths, transforms)
+        renderer.update_gaussian_splat_particles(paths, positions=positions)
+
+    # One query for the path set, shared by both columns, and nothing released before close.
+    assert backend.created_queries == [("/World/a", "/World/b")]
+    assert len(backend.writes) == 6
+    assert backend.released == []
+    assert list(renderer._gaussian_queries) == [("/World/a", "/World/b")]
+
+
+@pytest.mark.skipif(not _OVSTAGE_AVAILABLE, reason="requires ovstage")
+def test_ovrtx_gaussian_ovstage_queries_are_cached_per_path_set():
+    """A query resolves a fixed path list, so a different path set gets its own."""
+    backend = _RecordingOvstage()
+    renderer = _make_ovstage_gaussian_renderer(backend)
+    positions = [wp.zeros((4, 3), dtype=wp.float32, device="cpu")]
+
+    renderer.update_gaussian_splat_particles(["/World/a"], positions=positions)
+    renderer.update_gaussian_splat_particles(["/World/b"], positions=positions)
+
+    assert backend.created_queries == [("/World/a",), ("/World/b",)]
+
+
 def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     """Build an ovstage-path renderer whose backend calls are recorded into ``events``."""
 
@@ -844,6 +924,7 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_paths_list = "particle"
     renderer._cable_points_query = "cable"
     renderer._cable_paths_list = "cable"
+    renderer._gaussian_queries = {("/World/gaussians",): ("gaussian", "gaussian")}
     renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
@@ -913,6 +994,8 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_path_list:particle",
         "release_query:cable",
         "destroy_path_list:cable",
+        "release_query:gaussian",
+        "destroy_path_list:gaussian",
         "detach_ovstage",
         "exit_stack_close",
     ]
@@ -920,6 +1003,8 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._particle_paths_list is None
     assert renderer._cable_points_query is None
     assert renderer._cable_paths_list is None
+    # Cached per path set at write time, so close is the only thing that can release these.
+    assert renderer._gaussian_queries == {}
     assert renderer._object_newton_indices is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
@@ -992,40 +1077,14 @@ def test_gaussian_particle_ovstage_write_passes_device_pointers_and_a_stream():
     Guards the zero-copy contract of :meth:`OVRTXRenderer.update_gaussian_splat_particles` on the
     ovstage path: a regression to a host copy would show up as a pointer that is not the caller's.
     """
-    writes: list[dict] = []
-
-    class Completion:
-        def wait(self) -> None:
-            return
-
-    class Stage:
-        def query_from_path_list(self, path_list):
-            return "query"
-
-        def write_attribute(self, query, attribute, **kwargs):
-            writes.append({"attribute": attribute, **kwargs})
-            return Completion()
-
-        def release_query(self, query):
-            return Completion()
-
-    class StagePaths:
-        def create_path_list_from_strings(self, paths):
-            return "paths"
-
-        def destroy_path_list(self, path_list) -> None:
-            return
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._stage = Stage()
-    renderer._stage_paths = StagePaths()
-    renderer._current_ordinal = 3
+    backend = _RecordingOvstage()
+    renderer = _make_ovstage_gaussian_renderer(backend)
 
     positions = [wp.zeros(5, dtype=wp.vec3f, device="cuda:0"), wp.zeros(2, dtype=wp.vec3f, device="cuda:0")]
     renderer._update_gaussian_splat_particles_ovstage(["/a", "/b"], "positions", positions, 3)
 
-    assert len(writes) == 1
-    write = writes[0]
+    assert len(backend.writes) == 1
+    write = backend.writes[0]
     assert write["attribute"] == "positions"
     assert write["is_array"] is True
     assert [tensor.data for tensor in write["tensors"]] == [array.ptr for array in positions]

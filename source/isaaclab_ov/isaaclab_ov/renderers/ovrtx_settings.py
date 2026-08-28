@@ -33,6 +33,11 @@ logger = logging.getLogger(__name__)
 _APPLY_SETTINGS_EXTENSION = b"ovrtx.settings.apply_settings"
 _OVRTX_API_SUCCESS = 0
 
+_MISSING = object()
+
+_flushed_settings: dict[str, Any] | None = None
+"""Settings forwarded by the first :func:`apply_pending_rtx_settings` call, or None before it."""
+
 
 def _format_value(value: Any) -> str:
     """Format a setting value as a Kit command-line token value.
@@ -138,7 +143,27 @@ def apply_pending_rtx_settings() -> None:
     :class:`~isaaclab.sensors.camera.Camera` disables Gaussian tonemapping when an ISP or the HDR AOV
     needs scene-referred Gaussian radiance. Called from the renderer's constructor, before the OVRTX
     renderer is created, so those writes reach the RTX runtime.
+
+    Only the first call in a process reaches OVRTX, which latches the queued values while the first
+    :class:`ovrtx.Renderer` is brought up (see :func:`apply_carb_settings`). A later renderer in the
+    same process — a second :class:`~isaaclab.sim.SimulationContext`, or a sensor built after the
+    first render — therefore cannot change them, so anything recorded since the first call is
+    reported as dropped instead of silently ignored.
     """
+    global _flushed_settings
     from isaaclab.app.settings_manager import get_settings_manager
 
-    apply_carb_settings(get_settings_manager().get_with_prefix("/rtx/"))
+    settings = get_settings_manager().get_with_prefix("/rtx/")
+    if _flushed_settings is None:
+        _flushed_settings = dict(settings)
+        apply_carb_settings(settings)
+        return
+
+    dropped = {path: value for path, value in settings.items() if _flushed_settings.get(path, _MISSING) != value}
+    if dropped:
+        logger.warning(
+            "The RTX settings %s were recorded after ovrtx latched its settings, so they have no effect on this"
+            " process's renders. Construct the sensors that need them before the first renderer, or export them as"
+            " OVRTX_<path with underscores> environment variables before launching.",
+            dropped,
+        )

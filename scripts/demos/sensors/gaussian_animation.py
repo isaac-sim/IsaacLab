@@ -195,6 +195,9 @@ def bake_env_track_state(
     for track in tracks:
         for xform_rel_path in track.animated_xform_rel_paths:
             source_prim = source_stage.GetPrimAtPath(f"{default_prefix}{xform_rel_path}")
+            # Decomposed as-is rather than orthonormalized first: the track's scale is re-authored
+            # below, and orthonormalizing would reset it to 1. A sheared op cannot be expressed as
+            # translate/orient/scale and loses its shear either way.
             transform = Gf.Transform(UsdGeom.Xformable(source_prim).GetLocalTransformation(source_time_code))
             rotation = transform.GetRotation().GetQuat()
             imaginary = rotation.GetImaginary()
