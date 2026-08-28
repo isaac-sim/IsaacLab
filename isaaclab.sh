@@ -44,6 +44,10 @@ if [ -d "$ISAACLAB_PATH/_isaac_sim" ]; then
         export EXP_PATH="$ISAAC_PATH/apps"
         # shellcheck disable=SC1091
         . "$ISAACLAB_PATH/_isaac_sim/setup_python_env.sh" >/dev/null 2>&1 || true
+        # setup_python_env.sh also adds Kit's bundled Python stdlib
+        # (kit/python/lib/python3.12) which shadows the active interpreter's
+        # stdlib; its platform.py cannot parse conda-forge sys.version strings.
+        export PYTHONPATH="$(echo "$PYTHONPATH" | tr ':' '\n' | grep -vE '/kit/python/lib/python3\.[0-9]+$' | paste -sd:)"
         # Unlike setup_conda_env.sh, setup_python_env.sh prepends Kit's
         # pip_prebundle directories to PYTHONPATH. Those ship vendored copies of
         # common libraries (e.g. an older typing_extensions lacking Sentinel)
