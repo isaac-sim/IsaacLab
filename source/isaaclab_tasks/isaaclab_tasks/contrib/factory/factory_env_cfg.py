@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -112,6 +113,12 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         device="cuda:0",
         dt=1 / 120,
         gravity=(0.0, 0.0, -9.81),
+        default_visualizer_cfg=KitVisualizerCfg(
+            eye=(0.3, 0.3, 0.3),
+            lookat=(0.0, 0.0, 0.0),
+            origin_type="asset",
+            origin_track_path="robot/panda_fingertip_centered",
+        ),
         physics=PhysxCfg(
             solver_type=1,
             max_position_iteration_count=192,  # Important to avoid interpenetration.
