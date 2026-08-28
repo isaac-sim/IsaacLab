@@ -17,4 +17,4 @@ Fixed
   and particle-backed automatic warm starting, and increased the proxy mass
   scale to prevent unphysical rigid-cup recoil.
 * Made the Franka Pour reset artifact portable across configured asset roots by
-  storing an asset-relative robot identity instead of a staging URL.
+  storing the robot identity relative to ``ISAACLAB_NUCLEUS_DIR`` instead of a staging URL.

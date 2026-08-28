@@ -34,7 +34,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -55,13 +55,13 @@ from .reset_sampler import ResetDatasetSamplerCfg
 RIGID_ENTRY = "arm"
 MPM_ENTRY = "media"
 
-FRANKA_POUR_ROBOT_ASSET_PATH = "IsaacLab/Robots/FrankaEmika/franka_panda.usda"
-FRANKA_POUR_CUPS_ASSET_PATH = "IsaacLab/Contrib/MPM/Pour/franka_pour_cups.usda"
-FRANKA_POUR_RESET_DATASET_ASSET_PATH = "IsaacLab/Contrib/MPM/Pour/reset_dataset.pt"
-FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAAC_NUCLEUS_DIR}/{FRANKA_POUR_ROBOT_ASSET_PATH}"
+FRANKA_POUR_ROBOT_ASSET_PATH = "Robots/FrankaEmika/franka_panda.usda"
+FRANKA_POUR_CUPS_ASSET_PATH = "Contrib/MPM/Pour/franka_pour_cups.usda"
+FRANKA_POUR_RESET_DATASET_ASSET_PATH = "Contrib/MPM/Pour/reset_dataset.pt"
+FRANKA_POUR_ROBOT_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_ROBOT_ASSET_PATH}"
 FRANKA_POUR_ROBOT_PHYSICS_PAYLOAD_SHA256 = "0dc38454f02ea14d9ddd2437995fdc7c4a65634443cacdcc2a04e3de25655e00"
-FRANKA_POUR_CUPS_ASSET_ID = f"{ISAAC_NUCLEUS_DIR}/{FRANKA_POUR_CUPS_ASSET_PATH}"
-FRANKA_POUR_RESET_DATASET_ASSET_ID = f"{ISAAC_NUCLEUS_DIR}/{FRANKA_POUR_RESET_DATASET_ASSET_PATH}"
+FRANKA_POUR_CUPS_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_CUPS_ASSET_PATH}"
+FRANKA_POUR_RESET_DATASET_ASSET_ID = f"{ISAACLAB_NUCLEUS_DIR}/{FRANKA_POUR_RESET_DATASET_ASSET_PATH}"
 FRANKA_POUR_CUPS_USD_PATH = os.environ.get("ISAACLAB_FRANKA_POUR_CUPS_USD_PATH", FRANKA_POUR_CUPS_ASSET_ID)
 FRANKA_POUR_ARM_DRIVE_STIFFNESS = MappingProxyType(
     {
