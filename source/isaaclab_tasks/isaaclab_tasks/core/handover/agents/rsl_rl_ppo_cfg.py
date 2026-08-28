@@ -13,9 +13,12 @@ class HandoverPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL PPO configuration for the single-agent view of Shadow Hand handover."""
 
     num_steps_per_env = 16
-    max_iterations = 5000
+    max_iterations = 3500
     save_interval = 250
     experiment_name = "handover"
+    # Bound the command where the policy can feel it -- see the reorient runner cfg for the measured
+    # saturation this prevents.
+    clip_actions = 1.0
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 512, 256, 128],

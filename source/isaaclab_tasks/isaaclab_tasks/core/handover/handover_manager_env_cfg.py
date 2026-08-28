@@ -20,17 +20,20 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.handover.mdp as mdp
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
-from isaaclab_tasks.core.handover.handover_common import (
-    ACTUATED_JOINT_NAMES,
-    FINGERTIP_BODY_NAMES,
-)
 from isaaclab_tasks.core.handover.handover_env_cfg import (
     BALL_CFG,
-    LEFT_HAND_CFG,
-    RIGHT_HAND_CFG,
+    LeftHandCfg,
     PhysicsCfg,
+    RightHandCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.shadow_hand import (
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
+)
 
 
 @configclass
@@ -45,8 +48,8 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(),
     )
-    right_hand: PresetCfg = RIGHT_HAND_CFG
-    left_hand: PresetCfg = LEFT_HAND_CFG
+    right_hand: RightHandCfg = RightHandCfg()
+    left_hand: LeftHandCfg = LeftHandCfg()
     object: RigidObjectCfg = BALL_CFG
     light = AssetBaseCfg(
         prim_path="/World/Light",
@@ -63,19 +66,41 @@ class CommandsCfg:
 
 @configclass
 class ActionsCfg:
-    """Two-hand action terms, ordered right then left like the Direct adapter."""
+    """Two-hand action terms, ordered right then left like the Direct adapter.
+
+    Declaration order is the action layout: the manager concatenates terms as declared, and the
+    Direct adapter reads each hand as its sixteen joints followed by its four tendons.
+    """
 
     right_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="right_hand",
-        joint_names=ACTUATED_JOINT_NAMES,
+        joint_names=JOINT_NAMES,
         alpha=1.0,
         rescale_to_limits=True,
     )
+    right_hand_tendons = mdp.FixedTendonPositionActionCfg(
+        asset_name="right_hand",
+        tendon_names=TENDON_NAMES,
+        # the other four motors pull a tendon across a finger's middle and distal joints;
+        # tendons have their own index space, so no joint term can reach them. Map the
+        # policy's [-1, 1] onto the tendon's commandable span.
+        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
+    )
     left_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="left_hand",
-        joint_names=ACTUATED_JOINT_NAMES,
+        joint_names=JOINT_NAMES,
         alpha=1.0,
         rescale_to_limits=True,
+    )
+    left_hand_tendons = mdp.FixedTendonPositionActionCfg(
+        asset_name="left_hand",
+        tendon_names=TENDON_NAMES,
+        # the other four motors pull a tendon across a finger's middle and distal joints;
+        # tendons have their own index space, so no joint term can reach them. Map the
+        # policy's [-1, 1] onto the tendon's commandable span.
+        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
     )
 
 
@@ -90,11 +115,11 @@ class PolicyCfg(ObsGroup):
         func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("right_hand", joint_names=".*")}
     )
     right_fingertip_pose = ObsTerm(
-        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_BODY_NAMES)}
+        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)}
     )
     right_fingertip_vel = ObsTerm(
         func=reorient_mdp.fingertip_vel,
-        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_BODY_NAMES)},
+        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
     )
     right_action = ObsTerm(func=mdp.last_action, params={"action_name": "right_hand"})
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
@@ -116,11 +141,11 @@ class PolicyCfg(ObsGroup):
         func=mdp.joint_vel, scale=0.2, params={"asset_cfg": SceneEntityCfg("left_hand", joint_names=".*")}
     )
     left_fingertip_pose = ObsTerm(
-        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_BODY_NAMES)}
+        func=mdp.body_pose_w, params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)}
     )
     left_fingertip_vel = ObsTerm(
         func=reorient_mdp.fingertip_vel,
-        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_BODY_NAMES)},
+        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)},
     )
     left_action = ObsTerm(func=mdp.last_action, params={"action_name": "left_hand"})
 
@@ -250,6 +275,35 @@ class RewardsCfg:
             "distance_scale": 20.0,
             "object_cfg": SceneEntityCfg("object"),
         },
+    )
+
+    # --- ablation terms: weight 0.0 keeps the default reward exactly as before ---
+    action_penalty = RewTerm(func=mdp.action_l2, weight=0.0)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=0.0)
+    pose_deviation_right = RewTerm(
+        func=mdp.joint_deviation_l1, weight=0.0, params={"asset_cfg": SceneEntityCfg("right_hand")}
+    )
+    pose_deviation_left = RewTerm(
+        func=mdp.joint_deviation_l1, weight=0.0, params={"asset_cfg": SceneEntityCfg("left_hand")}
+    )
+    object_velocity = RewTerm(func=mdp.object_lin_vel_l2, weight=0.0)
+    joint_vel_right = RewTerm(func=mdp.joint_vel_l2, weight=0.0, params={"asset_cfg": SceneEntityCfg("right_hand")})
+    joint_vel_left = RewTerm(func=mdp.joint_vel_l2, weight=0.0, params={"asset_cfg": SceneEntityCfg("left_hand")})
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=0.0)
+    released_pose_right = RewTerm(
+        func=mdp.joint_deviation_when_released,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("right_hand", body_names=FINGERTIP_NAMES)},
+    )
+    released_pose_left = RewTerm(
+        func=mdp.joint_deviation_when_released,
+        weight=0.0,
+        params={"asset_cfg": SceneEntityCfg("left_hand", body_names=FINGERTIP_NAMES)},
+    )
+    hold_at_goal = RewTerm(
+        func=mdp.hold_at_goal,
+        weight=0.0,
+        params={"command_name": "object_pose", "success_distance_threshold": 0.1, "hold_speed": 0.05},
     )
 
 

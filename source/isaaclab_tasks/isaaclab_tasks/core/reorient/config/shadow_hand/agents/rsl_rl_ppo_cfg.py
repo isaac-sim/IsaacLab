@@ -13,9 +13,14 @@ from isaaclab_tasks.utils import PresetCfg
 @configclass
 class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
-    max_iterations = 10000
+    max_iterations = 3000
     save_interval = 250
     experiment_name = "shadow_hand"
+    # Bound the command where the policy can feel it. The action terms clamp to [-1, 1] anyway, but
+    # they do so downstream, so the excess is discarded without reaching the gradient: MEASURED, the
+    # policy drifts to mean +-4 to +-9 with spread ~10 and 91.3% of commands land outside the range,
+    # which pins joints at their limits and leaves the hand with no proportional control.
+    clip_actions = 1.0
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 512, 256, 128],
         activation="elu",

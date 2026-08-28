@@ -23,6 +23,7 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.sim.schemas import resolve_applied_schema_instances
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -285,6 +286,12 @@ class Articulation(BaseArticulation):
         # submit them to the backend through the collection's control adapter.
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # Fixed-tendon offsets ride the same per-step write as joint targets. A tendon target is
+        # applied as a tendon PROPERTY, so it needs the property write to take effect; doing that
+        # from the action term made it the only sim write outside this step.
+        if self.num_fixed_tendons > 0:
+            self.write_fixed_tendon_properties_to_sim_index()
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -3210,6 +3217,44 @@ class Articulation(BaseArticulation):
             rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the tendon's length by shifting its offset.
+
+        The PhysX schema documents ``offset`` as the value "added to the accumulated length ...
+        allows the application to actuate the tendon by shortening or lengthening it", so the tendon
+        rests where ``length + offset == rest_length``. The offset that realizes a target length is
+        therefore ``rest_length - target``; negating the target alone is only correct while the rest
+        length is zero.
+
+        This function does not apply the target to the simulation. It only fills the buffers with the
+        desired values. To apply it, call the :meth:`write_data_to_sim` function.
+        """
+        env_index = self._resolve_env_ids(env_ids)
+        tendon_index = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        if isinstance(env_index, wp.array):
+            env_index = wp.to_torch(env_index)
+        if isinstance(tendon_index, wp.array):
+            tendon_index = wp.to_torch(tendon_index)
+        # OVPhysX routes this buffer through pinned-host staging, so it may not live on the
+        # articulation's device. Index it where it is and move only the selected slice.
+        rest = self.data.fixed_tendon_rest_length.torch
+        rest_length = rest[
+            env_index.long().to(rest.device).unsqueeze(1), tendon_index.long().to(rest.device).unsqueeze(0)
+        ].to(self.device)
+        if isinstance(target, wp.array):
+            target = wp.to_torch(target)
+        offset = rest_length - target
+        # Buffer only. The offset reaches the simulation from ``write_data_to_sim``, the same
+        # shared step that flushes joint targets -- writing here instead would be the only
+        # per-step write outside it. Newton's articulation already works this way.
+        self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+
     def set_fixed_tendon_offset_index(
         self,
         *,
@@ -4064,12 +4109,13 @@ class Articulation(BaseArticulation):
                 usd_joint_path = joint_paths[j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
-                joint_applied_str = str(joint.GetPrim().GetAppliedSchemas())
-                if "PhysxTendonAxisRootAPI" in joint_applied_str:
-                    self._fixed_tendon_names.append(usd_joint_path.split("/")[-1])
-                elif (
-                    "PhysxTendonAttachmentRootAPI" in joint_applied_str
-                    or "PhysxTendonAttachmentLeafAPI" in joint_applied_str
+                joint_applied_schemas = joint.GetPrim().GetAppliedSchemas()
+                root_instances = resolve_applied_schema_instances(joint_applied_schemas, "PhysxTendonAxisRootAPI")
+                if root_instances:
+                    self._fixed_tendon_names.extend(root_instances)
+                elif any(
+                    "PhysxTendonAttachmentRootAPI" in schema_name or "PhysxTendonAttachmentLeafAPI" in schema_name
+                    for schema_name in joint_applied_schemas
                 ):
                     self._spatial_tendon_names.append(usd_joint_path.split("/")[-1])
 
