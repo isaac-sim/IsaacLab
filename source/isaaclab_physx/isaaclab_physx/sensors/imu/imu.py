@@ -110,7 +110,6 @@ class Imu(BaseImu):
                 env_mask,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
-                self._prev_lin_vel_w,
             ],
             device=self._device,
         )
@@ -166,14 +165,17 @@ class Imu(BaseImu):
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
         transforms = self._view.get_transforms()
         velocities = self._view.get_velocities()
+        accelerations = self._view.get_accelerations()
         coms = self._view.get_coms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)
             self._raw_velocities = velocities.view(wp.spatial_vectorf)
+            self._raw_accelerations = accelerations.view(wp.spatial_vectorf)
             self._raw_coms = coms.view(wp.transformf)
         elif (
             transforms.ptr != self._raw_transforms.ptr
             or velocities.ptr != self._raw_velocities.ptr
+            or accelerations.ptr != self._raw_accelerations.ptr
             or coms.ptr != self._raw_coms.ptr
         ):
             raise RuntimeError(
@@ -213,13 +215,12 @@ class Imu(BaseImu):
                 env_mask,
                 self._raw_transforms,
                 self._raw_velocities,
+                self._raw_accelerations,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
                 self._timestamp,
-                self._timestamp_last_update,
-                self._prev_lin_vel_w,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],
@@ -230,8 +231,6 @@ class Imu(BaseImu):
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
         self._data.create_buffers(num_envs=self._view.count, device=self._device)
-
-        self._prev_lin_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
 
         offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
         offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
@@ -245,6 +244,7 @@ class Imu(BaseImu):
         super()._invalidate_initialize_callback(event)
         self._view = None
         self._raw_transforms = None
+        self._raw_accelerations = None
         self._raw_velocities = None
         self._raw_coms = None
         self._update_cmd = None

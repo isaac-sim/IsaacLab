@@ -20,7 +20,7 @@ from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 from .imu_data import ImuData
-from .kernels import imu_reset_kernel, imu_update_kernel
+from .kernels import imu_reset_kernel, imu_update_kernel, imu_update_solver_acc_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.imu import ImuCfg
@@ -46,7 +46,8 @@ class Imu(BaseImu):
 
     .. note::
 
-        Linear acceleration is computed using numerical differentiation from
+        Linear acceleration is read from the solver when the OVPhysX wheel exposes the
+        rigid-body acceleration binding; otherwise it is computed using numerical differentiation from
         velocities. Consequently, the IMU sensor accuracy depends on the chosen
         physics timestep. For sufficient accuracy, we recommend keeping the
         timestep at least 200 Hz.
@@ -140,6 +141,11 @@ class Imu(BaseImu):
         self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
         self._vel_binding = self._root_view.binding_for(TT.RIGID_BODY_VELOCITY)
         self._com_binding = self._root_view.binding_for(TT.RIGID_BODY_COM_POSE)
+        # Solver-reported accelerations ship in newer OVPhysX wheels only; fall back to
+        # finite differencing when the binding is unavailable (see isaaclab_ov.tensor_types).
+        self._acc_binding = (
+            self._root_view.binding_for(TT.RIGID_BODY_ACCELERATION) if hasattr(TT, "RIGID_BODY_ACCELERATION") else None
+        )
         self._num_bodies = self._pose_binding.count
 
         if self._num_bodies != self._num_envs:
@@ -179,6 +185,7 @@ class Imu(BaseImu):
         self._pose_binding = None
         self._vel_binding = None
         self._com_binding = None
+        self._acc_binding = None
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
@@ -188,37 +195,61 @@ class Imu(BaseImu):
         # float32 reinterpret of the binding's flat shape (no extra copy).
         self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
         self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
+        if self._acc_binding is not None:
+            self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
         # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
         # For GPU simulations, stage on a pinned CPU buffer then copy into the kernel buffer.
         self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
         if self._coms_read_view is not self._coms_gpu_view:
             wp.copy(self._coms_gpu_view, self._coms_read_view)
 
-        wp.launch(
-            imu_update_kernel,
-            dim=self._num_envs,
-            inputs=[
-                env_mask,
-                self._transforms,
-                self._velocities,
-                self._coms_buffer,
-                self._offset_pos_b,
-                self._offset_quat_b,
-                self._gravity_bias_w,
-                1.0 / self._dt,
-                self._timestamp,
-                self._prev_lin_vel_w,
-                self._data._ang_vel_b,
-                self._data._lin_acc_b,
-            ],
-            device=self._device,
-        )
+        if self._acc_binding is not None:
+            wp.launch(
+                imu_update_solver_acc_kernel,
+                dim=self._num_envs,
+                inputs=[
+                    env_mask,
+                    self._transforms,
+                    self._velocities,
+                    self._accelerations,
+                    self._coms_buffer,
+                    self._offset_pos_b,
+                    self._offset_quat_b,
+                    self._gravity_bias_w,
+                    self._timestamp,
+                    self._data._ang_vel_b,
+                    self._data._lin_acc_b,
+                ],
+                device=self._device,
+            )
+        else:
+            wp.launch(
+                imu_update_kernel,
+                dim=self._num_envs,
+                inputs=[
+                    env_mask,
+                    self._transforms,
+                    self._velocities,
+                    self._coms_buffer,
+                    self._offset_pos_b,
+                    self._offset_quat_b,
+                    self._gravity_bias_w,
+                    1.0 / self._dt,
+                    self._timestamp,
+                    self._prev_lin_vel_w,
+                    self._data._ang_vel_b,
+                    self._data._lin_acc_b,
+                ],
+                device=self._device,
+            )
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
         self._data.create_buffers(num_envs=self._num_bodies, device=self._device)
 
         self._prev_lin_vel_w = wp.zeros(self._num_bodies, dtype=wp.vec3f, device=self._device)
+        if self._acc_binding is not None:
+            self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
 
         offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._num_bodies, 1)
         offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._num_bodies, 1)

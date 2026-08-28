@@ -89,3 +89,67 @@ def imu_reset_kernel(
     out_ang_vel_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
     out_lin_acc_b[idx] = wp.vec3f(0.0, 0.0, 0.0)
     prev_lin_vel_w[idx] = wp.vec3f(0.0, 0.0, 0.0)
+
+
+@wp.kernel
+def imu_update_solver_acc_kernel(
+    # inputs
+    env_mask: wp.array(dtype=wp.bool),
+    transforms: wp.array(dtype=wp.transformf),
+    velocities: wp.array(dtype=wp.spatial_vectorf),
+    accelerations: wp.array(dtype=wp.spatial_vectorf),
+    coms: wp.array(dtype=wp.transformf),
+    offset_pos_b: wp.array(dtype=wp.vec3f),
+    offset_quat_b: wp.array(dtype=wp.quatf),
+    gravity_bias_w: wp.array(dtype=wp.vec3f),
+    timestamp: wp.array(dtype=wp.float32),
+    # outputs
+    out_ang_vel_b: wp.array(dtype=wp.vec3f),
+    out_lin_acc_b: wp.array(dtype=wp.vec3f),
+):
+    """Update the IMU sensor data from solver-reported accelerations.
+
+    The solver reports the spatial acceleration at the body center of mass. The sensor sits at a
+    fixed offset from the body frame, so the linear acceleration is transported to the sensor
+    point as :math:`a_s = a_{com} + \\alpha \\times r + \\omega \\times (\\omega \\times r)`.
+
+    Args:
+        env_mask: Mask of environments to update.
+        transforms: Transforms of the bodies.
+        velocities: Velocities of the bodies.
+        accelerations: Spatial accelerations of the bodies at their center of mass.
+        coms: COMs of the bodies.
+        offset_pos_b: Offset positions of the sensors.
+        offset_quat_b: Offset quaternions of the sensors.
+        gravity_bias_w: Gravity bias in the world frame.
+        timestamp: Timestamp of the environment.
+        out_ang_vel_b: Output angular velocity in the body frame.
+        out_lin_acc_b: Output linear acceleration in the body frame.
+    """
+    idx = wp.tid()
+    if not env_mask[idx]:
+        return
+
+    # Skip envs that have not been stepped since their last reset: OVPhysX buffers still
+    # hold pre-reset values, so the reported acceleration would be spurious.
+    if timestamp[idx] == 0.0:
+        return
+
+    body_quat = wp.transform_get_rotation(transforms[idx])
+
+    ang_vel_w = wp.spatial_bottom(velocities[idx])
+    lin_acc_w = wp.spatial_top(accelerations[idx])
+    ang_acc_w = wp.spatial_bottom(accelerations[idx])
+
+    com_pos_b = wp.transform_get_translation(coms[idx])
+    lever_arm = wp.quat_rotate(body_quat, offset_pos_b[idx] - com_pos_b)
+    lin_acc_w = (
+        lin_acc_w
+        + wp.cross(ang_acc_w, lever_arm)
+        + wp.cross(ang_vel_w, wp.cross(ang_vel_w, lever_arm))
+        + gravity_bias_w[idx]
+    )
+
+    sensor_quat = body_quat * offset_quat_b[idx]
+    out_ang_vel_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
+    out_lin_acc_b[idx] = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
