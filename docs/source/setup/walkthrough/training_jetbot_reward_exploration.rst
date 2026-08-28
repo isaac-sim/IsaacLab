@@ -47,7 +47,7 @@ we can finally run training!  Let's see what happens!
 
       .. code-block:: bash
 
-          uv run isaaclab train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
+          uv run --extra skrl isaaclab train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
