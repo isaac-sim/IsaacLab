@@ -7,6 +7,9 @@ Changed
   retaining its hollow mesh for MPM particle collisions.
 * Expressed the reference 735-particle lattice with the same 15 mm voxel as the
   MPM solver and three particles per cell along each axis.
+* **Breaking:** Stored the Franka Pour robot identity relative to
+  ``ISAACLAB_NUCLEUS_DIR`` instead of as a staging URL. Regenerate custom reset
+  datasets created with the previous contract.
 
 Fixed
 ^^^^^
@@ -16,5 +19,3 @@ Fixed
 * Stabilized the taller default particle payload with two MPM entry substeps
   and particle-backed automatic warm starting, and increased the proxy mass
   scale to prevent unphysical rigid-cup recoil.
-* Made the Franka Pour reset artifact portable across configured asset roots by
-  storing the robot identity relative to ``ISAACLAB_NUCLEUS_DIR`` instead of a staging URL.

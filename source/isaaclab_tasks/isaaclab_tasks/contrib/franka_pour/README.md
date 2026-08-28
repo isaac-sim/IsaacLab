@@ -61,7 +61,8 @@ root. Set `ISAACLAB_FRANKA_POUR_CUPS_USD_PATH` only to use a compatible local co
 published reset artifact lives alongside those assets at `Contrib/MPM/Pour/reset_dataset.pt`.
 Setting `ISAACSIM_ASSET_ROOT` redirects all three dependencies to a compatible local or self-hosted
 asset tree. The reset artifact records the Franka path relative to the Isaac Lab asset root so its
-task contract does not depend on the configured asset host.
+task contract does not depend on the configured asset host. Regenerate custom reset datasets made
+with an older task version so they use the root-relative contract.
 
 The `datasets/` directory is ignored by Git. Both downloaded and locally generated payloads validate
 their stored content digest, so no digest override is needed for ordinary training or playback. For
