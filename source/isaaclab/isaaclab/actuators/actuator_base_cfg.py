@@ -129,32 +129,33 @@ class ActuatorBaseCfg:
     """
 
     friction: dict[str, float] | float | None = None
-    r"""The static friction coefficient of the joints in the group. Defaults to None.
+    r"""The static friction parameter of the joints in the group. Defaults to None.
 
-    The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-    from the parent body to the child body to the maximal static friction force that may be applied by the solver
-    to resist the joint motion.
-
-    Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
-    is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-    transmitted from the parent body to the child body. The simulated static friction effect is therefore
-    similar to static and Coulomb static friction.
+    The meaning and units depend on the Isaac Sim version. In Isaac Sim 4.5, this value is a unitless
+    coefficient relating the transmitted spatial force to the maximum static friction force. In Isaac Sim
+    5.0 and later, PhysX interprets it as the maximum static friction effort [N or N·m, depending on joint type].
 
     If None, the joint static friction is set to the value from the USD joint prim.
-
-    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
-    it is modeled as an effort (torque or force).
     """
 
     dynamic_friction: dict[str, float] | float | None = None
-    """The dynamic friction coefficient of the joints in the group. Defaults to None.
+    """The dynamic friction parameter of the joints in the group. Defaults to None.
 
-    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
-    it is modeled as an effort (torque or force).
+    Dynamic joint friction is supported by this backend in Isaac Sim 5.0 and later, where PhysX interprets
+    this value as the dynamic friction effort [N or N·m, depending on joint type]. In Isaac Sim 4.5, this
+    configuration value is not applied by the backend.
+
+    If None, the joint dynamic friction is set to the value from the USD joint prim in supported versions.
     """
 
     viscous_friction: dict[str, float] | float | None = None
     """The viscous friction coefficient of the joints in the group. Defaults to None.
+
+    Viscous joint friction is supported by this backend in Isaac Sim 5.0 and later. It is a coefficient
+    [N·s/m or N·m·s/rad, depending on joint type] multiplying joint velocity to produce a friction effort.
+    In Isaac Sim 4.5, this configuration value is not applied by the backend.
+
+    If None, the joint viscous friction is set to the value from the USD joint prim in supported versions.
     """
 
     effort_limit: dict[str, float] | float | None = None
