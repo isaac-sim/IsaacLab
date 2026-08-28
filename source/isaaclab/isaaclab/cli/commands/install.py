@@ -521,9 +521,9 @@ def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: l
         _install_root_extra(extra)
 
 
-# Requested install tokens -> root pyproject extras. Tokens absent here name editable
-# submodules rather than extras; the lock installs those as workspace members. A token
-# missing from both cases falls the install back to the pip path.
+# Extra-feature tokens -> root pyproject extras. Optional submodules are not listed here:
+# OPTIONAL_SUBMODULE_ROOT_EXTRAS already derives their extras. A token in neither falls the
+# install back to the pip path rather than installing less than was asked for.
 LOCK_EXTRAS_BY_FEATURE: dict[str, tuple[str, ...]] = {
     "rl": ("sb3", "skrl", "rl-games", "rsl-rl"),
     "visualizer": ("viser", "rerun"),
@@ -532,6 +532,11 @@ LOCK_EXTRAS_BY_FEATURE: dict[str, tuple[str, ...]] = {
     "contrib": (),
     "newton": (),
 }
+
+# ``teleop`` carries the Isaac Sim wheel; the lock path targets environments that already
+# provide Kit, so it selects the isaacsim-free variant. This matches the pip path, which
+# strips isaacsim from the same extra in :func:`_root_extra_dependencies`.
+LOCK_EXTRA_SUBSTITUTIONS: dict[str, str] = {"teleop": "teleop-no-isaacsim"}
 
 
 def _lock_install_available(pip_cmd: list[str]) -> bool:
@@ -555,10 +560,10 @@ def _lock_install_extras(
         for extra in LOCK_EXTRAS_BY_FEATURE[name]:
             extras.setdefault(extra)
     for name in optional_submodules:
-        if name not in LOCK_EXTRAS_BY_FEATURE:
-            continue
-        for extra in LOCK_EXTRAS_BY_FEATURE[name]:
-            extras.setdefault(extra)
+        if name not in OPTIONAL_SUBMODULE_ROOT_EXTRAS:
+            return None
+        for extra in OPTIONAL_SUBMODULE_ROOT_EXTRAS[name]:
+            extras.setdefault(LOCK_EXTRA_SUBSTITUTIONS.get(extra, extra))
     if install_isaacsim:
         extras.setdefault("isaacsim")
     return list(extras)

@@ -173,12 +173,18 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-teleop = [
-    "isaacsim[all,extscache]==6.0.1.0",
+# The teleop stack without the Isaac Sim wheel, for environments that already provide Kit
+# (the Docker images reach it through the _isaac_sim symlink). Installing the wheel there
+# would put a second, version-mismatched Isaac Sim beside the one the container ships.
+teleop-no-isaacsim = [
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+]
+teleop = [
+    "isaaclab-dev[teleop-no-isaacsim]",
+    "isaacsim[all,extscache]==6.0.1.0",
 ]
 rlinf = [
     "ray[default]>=2.47.0",

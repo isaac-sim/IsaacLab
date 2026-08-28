@@ -10,8 +10,7 @@
 ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
 ARG ISAACSIM_VERSION_ARG=6.0.0
 
-# uv, pinned by digest so the build never executes a mutable installer URL. Declared after
-# the ARGs above so those stay global and still expand in the base FROM below.
+# uv, pinned by digest. Declared after the ARGs so those stay global for the base FROM.
 FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv
 
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
@@ -44,10 +43,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # pip, used only for the seeded interpreter.
 ENV PIP_RETRIES=12
 
-# uv. Dependencies resolve from uv.lock into this venv rather than into Isaac Sim's own
-# site-packages: Kit keeps the environment it shipped, the venv shadows it by sys.path order,
-# and isaaclab.sh sources setup_python_env.sh so ``isaacsim`` stays importable. uv is pinned to
-# Kit's interpreter because the project's ``python-preference = "only-managed"`` would otherwise
+# uv. Dependencies resolve from uv.lock into this venv instead of Isaac Sim's own
+# site-packages; isaaclab.sh sources setup_python_env.sh so ``isaacsim`` stays importable.
+# uv is pinned to Kit's interpreter: ``python-preference = "only-managed"`` would otherwise
 # download a CPython that cannot load Kit's extension modules.
 ARG VENV_PATH_ARG=/opt/isaaclab-venv
 ENV VIRTUAL_ENV=${VENV_PATH_ARG}
@@ -104,13 +102,12 @@ RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
-# Create the project venv up front: every install step below resolves through
-# isaaclab.sh, which picks VIRTUAL_ENV first.
+# Created up front so the install steps below resolve into it.
 RUN uv venv --seed "${VIRTUAL_ENV}"
 
-# Install toml (used by tools/install_deps.py) and pytest (needed to run
-# in-container tests; moved to optional [test] extra in pyproject.toml)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml pytest
+# Installed on its own: the [test] extra also pulls the whole Sphinx docs stack. ``--python``
+# is required because UV_PYTHON would otherwise target Isaac Sim's interpreter, not the venv.
+RUN uv pip install --python "${VIRTUAL_ENV}/bin/python" pytest
 
 # Install apt dependencies for extensions that declare them in their extension.toml,
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
@@ -142,10 +139,11 @@ RUN touch /bin/nvidia-smi && \
 # enable video recording install MoviePy and its video backend explicitly.
 RUN cd ${ISAACLAB_PATH} && \
     ${ISAACLAB_PATH}/isaaclab.sh --install && \
-    uv pip uninstall imageio-ffmpeg
+    uv pip uninstall --python "${VIRTUAL_ENV}/bin/python" imageio-ffmpeg
 
-# HACK: Remove install of quadprog dependency
-RUN uv pip uninstall quadprog
+# uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
+# should target the venv, including the interactive ``pip`` alias below.
+ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
@@ -154,7 +152,7 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc 
     echo "alias python3='${ISAACLAB_PATH}/isaaclab.sh -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias pip='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias pip3='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias tensorboard='${VIRTUAL_ENV}/bin/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
@@ -175,6 +173,7 @@ ENV HUB__ARGS__DETECT_ONLY=false
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
         ${DOCKER_USER_HOME} \
+        ${VIRTUAL_ENV} \
         /var/cache/hub
 
 # Open up traversal of the Isaac Sim root and runtime home for non-root users.
