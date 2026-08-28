@@ -144,13 +144,14 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str, device: str | None = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
         task_name: The name of the environment.
-        device: The device to run the simulation on. Defaults to "cuda:0".
+        device: The device to run the simulation on. Defaults to "cuda:0". If None, the task's configured
+            simulation device is preserved.
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
@@ -172,7 +173,8 @@ def parse_env_cfg(
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
     # simulation device
-    cfg.sim.device = device
+    if device is not None:
+        cfg.sim.device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
         cfg.sim.use_fabric = use_fabric

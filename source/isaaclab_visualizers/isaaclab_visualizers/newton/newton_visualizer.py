@@ -12,7 +12,8 @@ import logging
 import math
 import os
 import sys
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
 import torch
@@ -1240,6 +1241,24 @@ class NewtonVisualizer(BaseVisualizer):
     def supports_live_plots(self) -> bool:
         """Newton RTX viewers do not provide live-plot panels; GL viewers do."""
         return False
+
+    def register_ui_callback(
+        self,
+        callback: Callable[[Any], None],
+        position: Literal["side", "stats", "free", "panel", "rendering"] = "side",
+    ) -> None:
+        """Register a callback with the active Newton viewer's ImGui interface.
+
+        Args:
+            callback: Function called during UI rendering with the active ImGui module.
+            position: Newton viewer UI region in which the callback is rendered.
+
+        Raises:
+            RuntimeError: If the visualizer has not created an interactive viewer.
+        """
+        if self._viewer is None:
+            raise RuntimeError("Newton UI callbacks require an initialized interactive viewer.")
+        self._viewer.register_ui_callback(callback, position=position)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused from viewer controls."""
