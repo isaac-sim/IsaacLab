@@ -521,232 +521,6 @@ def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: l
         _install_root_extra(extra)
 
 
-# Extra-feature tokens -> root pyproject extras. Optional submodules are not listed here:
-# OPTIONAL_SUBMODULE_ROOT_EXTRAS already derives their extras. A token in neither falls the
-# install back to the pip path rather than installing less than was asked for.
-LOCK_EXTRAS_BY_FEATURE: dict[str, tuple[str, ...]] = {
-    "rl": ("sb3", "skrl", "rl-games", "rsl-rl"),
-    "visualizer": ("viser", "rerun"),
-    "ov": ("ov",),
-    "tetrahedralization": ("tetrahedralization",),
-    "contrib": (),
-    "newton": (),
-}
-
-# ``teleop`` carries the Isaac Sim wheel; the lock path targets environments that already
-# provide Kit, so it selects the isaacsim-free variant. This matches the pip path, which
-# strips isaacsim from the same extra in :func:`_root_extra_dependencies`.
-LOCK_EXTRA_SUBSTITUTIONS: dict[str, str] = {"teleop": "teleop-no-isaacsim"}
-
-
-def _lock_install_available(pip_cmd: list[str]) -> bool:
-    """Whether the environment supports installing from ``uv.lock``.
-
-    ``uv sync`` manages a virtual environment, so it cannot target Isaac Sim's bundled
-    interpreter or a bare system Python; those keep the pip path. ``get_pip_command``
-    already resolves to uv only for a virtualenv target, so it is the gate here.
-    """
-    return pip_cmd[0] == "uv" and (ISAACLAB_ROOT / "uv.lock").is_file()
-
-
-def _lock_install_extras(
-    requested_features: list[str], optional_submodules: list[str], install_isaacsim: bool
-) -> list[str] | None:
-    """Resolve requested install tokens to lock extras, or None when unmappable."""
-    extras: dict[str, None] = {}
-    for name in requested_features:
-        if name not in LOCK_EXTRAS_BY_FEATURE:
-            return None
-        for extra in LOCK_EXTRAS_BY_FEATURE[name]:
-            extras.setdefault(extra)
-    for name in optional_submodules:
-        if name not in OPTIONAL_SUBMODULE_ROOT_EXTRAS:
-            return None
-        for extra in OPTIONAL_SUBMODULE_ROOT_EXTRAS[name]:
-            extras.setdefault(LOCK_EXTRA_SUBSTITUTIONS.get(extra, extra))
-    if install_isaacsim:
-        extras.setdefault("isaacsim")
-    return list(extras)
-
-
-def _install_from_lock(extras: list[str]) -> None:
-    """Install the project from ``uv.lock``.
-
-    ``--frozen`` keeps uv from re-resolving and silently defeating the lock; ``--inexact``
-    leaves packages the lock does not name (a seeded pip, a source-built Isaac Sim) in place
-    instead of removing them.
-    """
-    command = ["uv", "sync", "--frozen", "--inexact"]
-    for extra in extras:
-        command += ["--extra", extra]
-    print_info(f"Installing from uv.lock ({', '.join(extras) if extras else 'no extras'})...")
-    _run_package_install(command)
-
-
-def _filter_prebundle_pythonpath() -> tuple[str | None, str | None]:
-    """Drop Isaac Sim pre-bundled package paths from ``PYTHONPATH`` for the pip operations.
-
-    Without this, pip scans and manages packages in Isaac Sim's ``pip_prebundle`` directories
-    and can delete or modify them. Conda environments hit this hardest, since Isaac Sim's
-    setup scripts add those paths to ``PYTHONPATH``.
-
-    Returns:
-        The original ``PYTHONPATH`` (None when unset) and the filtered value actually applied
-        (None when nothing was filtered). The caller restores the original afterwards.
-    """
-    if "PYTHONPATH" not in os.environ:
-        return None, None
-    saved = os.environ["PYTHONPATH"]
-    paths = saved.split(os.pathsep)
-    kept = [entry for entry in paths if entry and "pip_prebundle" not in entry]
-    if len(kept) == len(paths):
-        return saved, None
-    filtered = os.pathsep.join(kept)
-    os.environ["PYTHONPATH"] = filtered
-    print_info(
-        f"Temporarily filtering {len(paths) - len(kept)} Isaac Sim pre-bundled package path(s) from PYTHONPATH "
-        "during pip operations to prevent interference with pre-bundled packages."
-    )
-    return saved, filtered
-
-
-def _install_with_pip(
-    python_exe: str,
-    submodules_to_install: list[str],
-    requested_optional_submodules: list[str],
-    optional_submodule_extra_dependencies: list[tuple[str, str]],
-    extra_features: list[tuple[str, str]],
-    install_isaacsim: bool,
-) -> None:
-    """Install into an environment pip manages, correcting for what pip cannot express.
-
-    pip does not read ``[tool.uv].override-dependencies``, so the pins it cannot honour are
-    re-applied afterwards (Newton, Pink IK, torch) and Isaac Sim's pre-bundled packages are
-    shielded from it. Prefer :func:`_install_from_lock` where the environment allows.
-    """
-    # if on ARM arch, temporarily clear LD_PRELOAD
-    # LD_PRELOAD is restored below, after installation
-    saved_ld_preload = None
-    if is_arm() and "LD_PRELOAD" in os.environ:
-        print_info("ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
-        saved_ld_preload = os.environ.pop("LD_PRELOAD")
-
-    saved_pythonpath, filtered_pythonpath = _filter_prebundle_pythonpath()
-
-    pip_cmd = get_pip_command(python_exe)
-    using_uv = pip_cmd[0] == "uv"
-
-    # Probe with the user's original PYTHONPATH (before pip-time filtering) so we detect
-    # Isaac Sim's setup_python_env.sh ordering that prefers extsDeprecated/ml_archive.
-    probe_env = {**os.environ}
-    if saved_pythonpath is not None:
-        probe_env["PYTHONPATH"] = saved_pythonpath
-
-    # Baseline for the post-install integrity check: no pip operation below may
-    # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
-    dangling_symlinks_before = _find_dangling_prebundle_symlinks()
-
-    with _arm_cmake_policy_compatibility():
-        try:
-            # Upgrade pip first to avoid compatibility issues (skip when using uv).
-            if not using_uv:
-                print_info("Upgrading pip...")
-                _run_package_install(pip_cmd + ["install", "--upgrade", "pip"])
-
-            # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
-            _run_package_install(pip_cmd + ["install", "setuptools<82.0.0"])
-
-            # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
-            _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
-
-            # Install Isaac Sim if requested.
-            if install_isaacsim:
-                _install_isaacsim()
-
-            # Install pytorch (version based on arch).
-            _ensure_cuda_torch()
-
-            # Install all submodules (core set + any explicitly requested optional ones).
-            _install_isaaclab_submodules(submodules_to_install)
-
-            # The submodules no longer declare third-party dependencies; install the
-            # centralized core requirements (and optional-submodule extras) from the
-            # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
-            _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
-
-            # Install requested optional submodule dependency extras.
-            if optional_submodule_extra_dependencies:
-                print_info("Installing optional submodule dependencies...")
-                for submodule_name, selector in optional_submodule_extra_dependencies:
-                    _install_optional_submodule_extra_dependencies(submodule_name, selector)
-
-            # Install requested extra feature dependencies.
-            if extra_features:
-                print_info("Installing extra feature dependencies...")
-                for feature_name, selector in extra_features:
-                    _install_extra_feature(feature_name, selector)
-
-            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton git build (the default physics engine) over it. This runs after every
-            # install pass because they go through pip, which does not see
-            # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
-            # newton-usd-schemas pins would otherwise stand.
-            _ensure_newton()
-
-            # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
-            # Can prevent that from happening.
-            _ensure_cuda_torch()
-
-            # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
-            # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
-            # ``pip install -e source/isaaclab`` to be silently skipped.
-            _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
-
-            # Repoint prebundled packages in Isaac Sim to the environment's copies so
-            # the active venv/conda versions are always loaded regardless of PYTHONPATH
-            # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
-            _repoint_prebundle_packages()
-
-            # Fail loud if any pip operation above broke Isaac Sim's cross-extension
-            # symlink farms. Prebundle deletions on their own are routine (pip
-            # replaces those packages in site-packages, which shadows the prebundle
-            # at runtime); only newly dangling symlinks break extension startup.
-            _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
-
-        finally:
-            # Restore LD_PRELOAD if we cleared it.
-            if saved_ld_preload:
-                os.environ["LD_PRELOAD"] = saved_ld_preload
-            # Restore PYTHONPATH if we filtered it.
-            if saved_pythonpath is not None:
-                os.environ["PYTHONPATH"] = saved_pythonpath
-
-
-def _in_container() -> bool:
-    """Whether the install is running inside a container."""
-    return os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
-
-
-def _resolve_lock_extras(
-    python_exe: str,
-    extra_features: list[tuple[str, str]],
-    optional_submodules: list[str],
-    install_isaacsim: bool,
-) -> list[str] | None:
-    """Resolve the lock extras to install, or None when the pip path must be used.
-
-    The lock is the only path that applies ``[tool.uv].override-dependencies``, so the torch
-    index pins and the Newton and Pink IK corrections :func:`_install_with_pip` performs
-    afterwards are already expressed in it.
-    """
-    if not _lock_install_available(get_pip_command(python_exe)):
-        return None
-    extras = _lock_install_extras([name for name, _ in extra_features], optional_submodules, install_isaacsim)
-    if extras is None:
-        print_info("Requested install selection is not expressible as lock extras; using pip.")
-    return extras
-
-
 def _get_installed_distribution_requirements(python_exe: str, distribution_name: str) -> list[str]:
     """Return installed ``Requires-Dist`` requirements for a distribution."""
     probe = """import importlib.metadata
@@ -1461,21 +1235,122 @@ def command_install(install_type: str = "all") -> None:
     os.environ.setdefault("PIP_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
     os.environ.setdefault("PIP_FIND_LINKS", "https://py.mujoco.org/")
 
-    # The two install paths are siblings: the lock when the environment supports it, pip
-    # otherwise. Resolving the extras first keeps the choice in one place.
-    lock_extras = _resolve_lock_extras(python_exe, extra_features, requested_optional_submodules, install_isaacsim)
-    if lock_extras is not None:
-        _install_from_lock(lock_extras)
-    else:
-        _install_with_pip(
-            python_exe,
-            submodules_to_install,
-            requested_optional_submodules,
-            optional_submodule_extra_dependencies,
-            extra_features,
-            install_isaacsim,
-        )
+    # if on ARM arch, temporarily clear LD_PRELOAD
+    # LD_PRELOAD is restored below, after installation
+    saved_ld_preload = None
+    if is_arm() and "LD_PRELOAD" in os.environ:
+        print_info("ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
+        saved_ld_preload = os.environ.pop("LD_PRELOAD")
+
+    # Temporarily filter Isaac Sim pre-bundled package paths from PYTHONPATH during all pip operations.
+    # This prevents pip from scanning and managing packages in Isaac Sim's pip_prebundle directories,
+    # which can cause those packages to be deleted or modified. This is especially important
+    # in conda environments where Isaac Sim setup scripts add these paths to PYTHONPATH.
+    saved_pythonpath = None
+    filtered_pythonpath = None
+    if "PYTHONPATH" in os.environ:
+        saved_pythonpath = os.environ["PYTHONPATH"]
+        # Filter out any paths containing pip_prebundle (pre-bundled packages that pip shouldn't manage)
+        paths = saved_pythonpath.split(os.pathsep)
+        filtered_paths = [p for p in paths if p and "pip_prebundle" not in p]
+
+        if len(filtered_paths) != len(paths):
+            filtered_pythonpath = os.pathsep.join(filtered_paths)
+            os.environ["PYTHONPATH"] = filtered_pythonpath
+            filtered_count = len(paths) - len(filtered_paths)
+            print_info(
+                f"Temporarily filtering {filtered_count} Isaac Sim pre-bundled package path(s) from PYTHONPATH "
+                "during pip operations to prevent interference with pre-bundled packages."
+            )
+
+    pip_cmd = get_pip_command(python_exe)
+    using_uv = pip_cmd[0] == "uv"
+
+    # Probe with the user's original PYTHONPATH (before pip-time filtering) so we detect
+    # Isaac Sim's setup_python_env.sh ordering that prefers extsDeprecated/ml_archive.
+    probe_env = {**os.environ}
+    if saved_pythonpath is not None:
+        probe_env["PYTHONPATH"] = saved_pythonpath
+
+    # Baseline for the post-install integrity check: no pip operation below may
+    # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
+    dangling_symlinks_before = _find_dangling_prebundle_symlinks()
+
+    with _arm_cmake_policy_compatibility():
+        try:
+            # Upgrade pip first to avoid compatibility issues (skip when using uv).
+            if not using_uv:
+                print_info("Upgrading pip...")
+                _run_package_install(pip_cmd + ["install", "--upgrade", "pip"])
+
+            # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
+            _run_package_install(pip_cmd + ["install", "setuptools<82.0.0"])
+
+            # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+            _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
+
+            # Install Isaac Sim if requested.
+            if install_isaacsim:
+                _install_isaacsim()
+
+            # Install pytorch (version based on arch).
+            _ensure_cuda_torch()
+
+            # Install all submodules (core set + any explicitly requested optional ones).
+            _install_isaaclab_submodules(submodules_to_install)
+
+            # The submodules no longer declare third-party dependencies; install the
+            # centralized core requirements (and optional-submodule extras) from the
+            # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
+            _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
+
+            # Install requested optional submodule dependency extras.
+            if optional_submodule_extra_dependencies:
+                print_info("Installing optional submodule dependencies...")
+                for submodule_name, selector in optional_submodule_extra_dependencies:
+                    _install_optional_submodule_extra_dependencies(submodule_name, selector)
+
+            # Install requested extra feature dependencies.
+            if extra_features:
+                print_info("Installing extra feature dependencies...")
+                for feature_name, selector in extra_features:
+                    _install_extra_feature(feature_name, selector)
+
+            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
+            # pinned Newton git build (the default physics engine) over it. This runs after every
+            # install pass because they go through pip, which does not see
+            # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
+            # newton-usd-schemas pins would otherwise stand.
+            _ensure_newton()
+
+            # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
+            # Can prevent that from happening.
+            _ensure_cuda_torch()
+
+            # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
+            # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
+            # ``pip install -e source/isaaclab`` to be silently skipped.
+            _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
+
+            # Repoint prebundled packages in Isaac Sim to the environment's copies so
+            # the active venv/conda versions are always loaded regardless of PYTHONPATH
+            # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
+            _repoint_prebundle_packages()
+
+            # Fail loud if any pip operation above broke Isaac Sim's cross-extension
+            # symlink farms. Prebundle deletions on their own are routine (pip
+            # replaces those packages in site-packages, which shadows the prebundle
+            # at runtime); only newly dangling symlinks break extension startup.
+            _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
+
+        finally:
+            # Restore LD_PRELOAD if we cleared it.
+            if saved_ld_preload:
+                os.environ["LD_PRELOAD"] = saved_ld_preload
+            # Restore PYTHONPATH if we filtered it.
+            if saved_pythonpath is not None:
+                os.environ["PYTHONPATH"] = saved_pythonpath
 
     # Install vscode update unless we're in docker.
-    if not _in_container():
+    if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
         command_vscode_settings()

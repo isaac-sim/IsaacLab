@@ -134,12 +134,12 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
-# robomimic declares imageio-ffmpeg for optional video helpers. Keep its
-# bundled FFmpeg binary out of the distributed image and let users who
-# enable video recording install MoviePy and its video backend explicitly.
+# robomimic and moviepy declare imageio-ffmpeg for optional video helpers. Its bundled
+# FFmpeg binary stays out of the distributed image; users who enable video recording install
+# MoviePy and its video backend explicitly.
 RUN cd ${ISAACLAB_PATH} && \
-    ${ISAACLAB_PATH}/isaaclab.sh --install && \
-    uv pip uninstall --python "${VIRTUAL_ENV}/bin/python" imageio-ffmpeg
+    uv sync --frozen --inexact --extra kit-image \
+      --no-install-package imageio-ffmpeg
 
 # uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
 # should target the venv, including the interactive ``pip`` alias below.

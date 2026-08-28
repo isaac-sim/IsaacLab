@@ -205,6 +205,12 @@ all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
 ]
 
+# The Isaac Sim container's package set. Kit is provided by the base image, so this excludes
+# ``ov`` (the container renders through Kit) and takes teleop without the Isaac Sim wheel.
+kit-image = [
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,mimic,teleop-no-isaacsim]",
+]
+
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
 # install CLI, and CI. TOML cannot interpolate, so the pins in [project.dependencies],
 # the extras above, and [tool.uv].override-dependencies mirror these values;
