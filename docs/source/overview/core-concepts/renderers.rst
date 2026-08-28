@@ -50,10 +50,6 @@ the exact sphere poses can differ. Display-only color maps make scalar, vector, 
 readable here; camera sensors still return their documented raw tensors. Closely related aliases
 and distance or ID variants are omitted because they do not add a visually distinct mode.
 
-Each caption gives the matching Cartpole ``presets=`` selector when that task exposes one. Captions
-using ``data_types=[...]`` identify outputs that are configured directly on
-:attr:`~isaaclab.sensors.CameraCfg.data_types` instead.
-
 .. include:: _renderer_gallery.rst
 
 Choosing a rendering capability
@@ -61,8 +57,9 @@ Choosing a rendering capability
 
 The overview above shows the complete range of visually distinct outputs in one place. The sections
 below regroup those outputs by purpose: simplified rendering for throughput-oriented training, and
-beauty rendering for full RTX image quality and sensor outputs. The commands use the suffixless
-``Isaac-Cartpole-Camera`` task so each shown mode can be tried without editing Python.
+photo-real rendering for full RTX image quality and sensor outputs.
+The detailed captions and commands use the suffixless ``Isaac-Cartpole-Camera`` task so each shown
+mode can be tried without editing Python.
 
 Simplified rendering
 ~~~~~~~~~~~~~~~~~~~~
@@ -84,12 +81,24 @@ documentation for the renderer-level settings and limitations.
 
    .. tab-item:: Newton Warp RGB
 
-      .. figure:: ../../_static/overview/sensors/camera-renderer-newton.webp
-         :align: center
-         :width: 90%
-         :alt: Six material spheres falling onto a table in Newton Warp RGB output.
+      .. grid:: 1 2 2 2
+         :gutter: 2
 
-         Newton Warp RGB — ``renderer=newton_renderer presets=rgb``
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-shadows-disabled.png
+               :width: 100%
+               :alt: Newton Warp RGB output with directional-light shadows disabled.
+
+               Without shadows (default)
+
+         .. grid-item::
+
+            .. figure:: ../../_static/overview/sensors/camera-renderer-newton-shadows-enabled.png
+               :width: 100%
+               :alt: Newton Warp RGB output with directional-light shadows enabled.
+
+               With shadows
 
       Newton Warp is the kit-less choice when a lightweight RGB observation is sufficient.
 
@@ -98,6 +107,15 @@ documentation for the renderer-level settings and limitations.
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Camera \
             physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+      Enable directional-light shadows explicitly:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+            env.scene.tiled_camera.renderer_cfg.enable_shadows=true
 
    .. tab-item:: OVRTX Minimal
 
@@ -185,11 +203,11 @@ documentation for the renderer-level settings and limitations.
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_full_mdl
 
-Beauty rendering
-~~~~~~~~~~~~~~~~
+Photo-real rendering
+~~~~~~~~~~~~~~~~~~~~
 
-Here, **beauty rendering** means the regular RGB path from the full RTX Real-Time Path-Tracing mode;
-it is a capability grouping, not an Isaac Lab preset name. Choose it when material appearance,
+Here, **photo-real rendering** means the regular RGB path from the full RTX Real-Time Path-Tracing
+mode; it is a capability grouping, not an Isaac Lab preset name. Choose it when material appearance,
 reflections, transparency, lighting, or the accompanying RTX AOVs matter more than the lowest
 possible render latency. OVRTX provides this path without Kit, while Isaac RTX provides it inside
 Isaac Sim. See the upstream `OVRTX render modes
@@ -206,7 +224,7 @@ Isaac Sim. See the upstream `OVRTX render modes
          :width: 90%
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
 
-         OVRTX beauty RGB — ``renderer=ovrtx presets=rgb``
+         OVRTX photo-real RGB — ``renderer=ovrtx presets=rgb``
 
       The same renderer also produces the albedo, depth, normals, segmentation, and motion-vector
       outputs shown in the overview gallery.
@@ -223,7 +241,7 @@ Isaac Sim. See the upstream `OVRTX render modes
          :width: 90%
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
 
-         Isaac RTX beauty RGB — ``renderer=isaacsim_rtx presets=rgb``
+         Isaac RTX photo-real RGB — ``renderer=isaacsim_rtx presets=rgb``
 
       The same renderer also produces the albedo, depth, normals, segmentation, and motion-vector
       outputs shown in the overview gallery.
