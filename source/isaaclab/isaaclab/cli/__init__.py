@@ -67,6 +67,7 @@ def random_agent(args: list[str] | None = None) -> None:
         args = sys.argv[1:]
     run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
 
+
 def teleop(args: list[str] | None = None) -> None:
     """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
 
@@ -121,12 +122,20 @@ def cli() -> None:
         "zero_agent": zero_agent,
         "random_agent": random_agent,
     }
-    if len(sys.argv) > 1 and sys.argv[1] in subcommands:
-        subcommands[sys.argv[1]](sys.argv[2:])
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "teleop":
-        teleop(sys.argv[2:])
-        return
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] in subcommands:
+            subcommands[sys.argv[1]](sys.argv[2:])
+            return
+        if len(sys.argv) > 1 and sys.argv[1] == "teleop":
+            teleop(sys.argv[2:])
+            return
+    except ModuleNotFoundError as exc:
+        from isaaclab.utils.extras import missing_extra_hint
+
+        hint = missing_extra_hint(exc.name)
+        if hint is None:
+            raise
+        raise SystemExit(hint) from exc
 
     executable_name = Path(sys.argv[0]).name
     default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
