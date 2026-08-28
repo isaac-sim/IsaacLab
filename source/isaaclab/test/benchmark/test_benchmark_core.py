@@ -170,6 +170,14 @@ def test_benchmark_collects_metadata_measurements_and_writes_json(tmp_path):
         output_path=str(output_path),
         use_recorders=False,
         output_prefix="test",
+        workflow_metadata={
+            "metadata": [
+                {
+                    "name": "camera_resolutions",
+                    "data": {"env.scene.tiled_camera": {"width": 64, "height": 48}},
+                }
+            ]
+        },
     )
 
     benchmark.add_measurement(
@@ -191,6 +199,7 @@ def test_benchmark_collects_metadata_measurements_and_writes_json(tmp_path):
     assert not hasattr(benchmark, "_manual_recorders") or benchmark._manual_recorders is None
     assert data["benchmark_info"]["workflow_name"] == "my_workflow"
     assert "timestamp" in data["benchmark_info"]
+    assert data["benchmark_info"]["camera_resolutions"] == {"env.scene.tiled_camera": {"width": 64, "height": 48}}
     assert data["runtime"]["metric1"] == 10.0
     assert data["runtime"]["metric2"] == 20.0
     assert data["runtime"]["custom"] == "value"

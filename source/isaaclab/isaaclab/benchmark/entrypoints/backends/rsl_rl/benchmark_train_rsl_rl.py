@@ -220,6 +220,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
                         {"name": "world_size", "data": distributed.world_size},
+                        *capture.camera_resolution_metadata_from_env_cfg(env_cfg),
                     ]
                 },
             )

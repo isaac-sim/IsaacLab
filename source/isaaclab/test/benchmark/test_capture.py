@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 from isaaclab.benchmark.capture import (
+    camera_resolution_metadata_from_env_cfg,
+    camera_resolutions_from_env_cfg,
     capture_hardware,
     capture_resources,
     capture_versions,
@@ -226,6 +228,44 @@ def test_run_config_uses_concrete_backend_configuration():
 
     with pytest.raises(ValueError, match="Unsupported concrete physics config"):
         run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
+
+
+def test_camera_resolutions_use_resolved_config_paths():
+    class CameraCfg:
+        def __init__(self, width: int, height: int):
+            self.width = width
+            self.height = height
+
+    class CartpoleCameraCfg(CameraCfg):
+        pass
+
+    class RayCasterCameraCfg:
+        def __init__(self, width: int, height: int):
+            self.pattern_cfg = SimpleNamespace(width=width, height=height)
+
+    shared_camera = CartpoleCameraCfg(width=64, height=48)
+    env_cfg = SimpleNamespace(
+        scene=SimpleNamespace(tiled_camera=shared_camera, duplicate=shared_camera),
+        ray_camera=RayCasterCameraCfg(width=32, height=24),
+        viewport=SimpleNamespace(width=1920, height=1080),
+    )
+
+    expected = {
+        "env.ray_camera": {"width": 32, "height": 24},
+        "env.scene.tiled_camera": {"width": 64, "height": 48},
+    }
+    assert camera_resolutions_from_env_cfg(env_cfg) == expected
+    assert camera_resolution_metadata_from_env_cfg(env_cfg) == [{"name": "camera_resolutions", "data": expected}]
+
+
+def test_camera_resolutions_omit_unconfigured_dimensions():
+    class CameraCfg:
+        width = object()
+        height = object()
+
+    env_cfg = SimpleNamespace(camera=CameraCfg())
+    assert camera_resolutions_from_env_cfg(env_cfg) == {}
+    assert camera_resolution_metadata_from_env_cfg(env_cfg) == []
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
