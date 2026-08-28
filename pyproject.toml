@@ -168,6 +168,7 @@ ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
+    "isaaclab-teleop",
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
