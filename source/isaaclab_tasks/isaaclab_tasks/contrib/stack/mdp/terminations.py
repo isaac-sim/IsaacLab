@@ -34,7 +34,7 @@ def cubes_stacked(
     height_diff: float = 0.0468,
     atol: float = 0.0001,
     rtol: float = 0.0001,
-    max_lin_vel: float | None = 0.01,
+    max_lin_vel: float | None = 0.05,
 ) -> torch.Tensor:
     """Whether the cubes are stacked, released, and at rest.
 
@@ -43,6 +43,11 @@ def cubes_stacked(
             describe an instantaneous configuration, and a cube dropped above its target passes
             through that configuration on the way down -- without this, the drop is scored as a
             successful stack. Pass None to skip the check.
+
+            The default leaves room for the contact solver's residual jitter, which keeps a settled
+            cube from ever reading exactly zero: over a sample of 91 sound generated demos, cubes
+            resting on the stack read a median 0.013 m/s and peaked at 0.034 m/s, while a cube
+            caught mid-fall read a median 0.10 m/s.
     """
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
