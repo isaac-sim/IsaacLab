@@ -20,7 +20,7 @@ overrides = [
     { name = "coverage", specifier = ">=7.6.1" },
     { name = "mujoco", specifier = "~=3.11.0" },
     { name = "mujoco-warp", specifier = "~=3.11.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=release-1.5" },
+    { name = "newton", extras = ["sim"], specifier = "==1.5.1" },
     { name = "newton-usd-schemas", specifier = ">=0.4.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -3352,10 +3352,13 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.5.0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.5#cca3bb8a17a3620a1343df3cf12c625e4161b317" }
+version = "1.5.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "warp-lang", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/1d/d6a3e799c25cf04b5ab35b9903cafd09731df123a0c91f4d27caed28d431/newton-1.5.1-py3-none-any.whl", hash = "sha256:a757269fe03ca2e50edb9636b3c7eb91c2d1e359b6e9c992b33dc6d9058b5285", size = 5564220, upload-time = "2026-08-27T20:33:23.381Z" },
 ]
 
 [package.optional-dependencies]
