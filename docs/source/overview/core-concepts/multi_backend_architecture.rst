@@ -135,6 +135,28 @@ The config determines the implementation independently of the physics backend. `
 retains one renderer for each equal renderer config, while ``SimulationContext`` owns visualizer
 construction and initialization.
 
+Native Resource Identity
+------------------------
+
+Physics, renderer, and visualizer configs carry a plain ``resource_key``. The registry establishes
+the identity and ownership contract for backend integrations as they migrate native runtimes to
+:meth:`~isaaclab.sim.SimulationContext.get_or_create_backend`:
+
+.. code-block:: python
+
+    resource = sim.get_or_create_backend(
+        NativeBackend,
+        cfg,
+        resource_key=cfg.resource_key,
+    )
+
+The backend type and resource key form the identity. Matching pairs receive the same registered
+object and constructor arguments are used only on the first call; a different type or key creates
+an independent resource. Registered resources must implement ``clear()``. ``SimulationContext``
+calls it once per key and drops the registry during teardown. Existing integrations retain their
+current lifecycle until migrated; each migration should delete the corresponding copy or
+synchronization path rather than introduce a fallback.
+
 Backend Selection
 -----------------
 

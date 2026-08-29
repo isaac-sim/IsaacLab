@@ -11,7 +11,73 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager, PhysxAutoCfg
+from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
+from isaaclab.renderers import RendererCfg
+from isaaclab.visualizers import VisualizerCfg
+
+
+@pytest.mark.parametrize("cfg_type", [PhysicsCfg, RendererCfg, VisualizerCfg])
+def test_component_configs_declare_resource_affinity(cfg_type):
+    """Every engine config carries the same data-only native resource affinity."""
+    assert cfg_type().resource_key == "default"
+
+
+def test_physics_cfg_has_no_factory_api():
+    assert not any(hasattr(PhysicsCfg, name) for name in ("build", "clone_context"))
+
+
+def test_physx_auto_resource_key_survives_backend_resolution():
+    """The wrapper's affinity is the source of truth for either concrete PhysX backend."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
+
+    cfg = PhysxAutoCfg(
+        resource_key="shared", isaacsim_physx=PhysxCfg(resource_key="nested"), ovphysx=OvPhysxCfg(resource_key="nested")
+    )
+
+    isaacsim_cfg = _resolve_physx_auto_cfg(cfg, use_isaac_sim=True)
+    ov_cfg = _resolve_physx_auto_cfg(cfg, use_isaac_sim=False)
+
+    assert isinstance(isaacsim_cfg, PhysxCfg) and isaacsim_cfg.resource_key == "shared"
+    assert isinstance(ov_cfg, OvPhysxCfg) and ov_cfg.resource_key == "shared"
+
+
+def test_backend_registry_uses_type_and_resource_key():
+    """Matching consumers share one resource while different type-key pairs do not."""
+    from isaaclab.sim import SimulationContext
+
+    class Backend:
+        def __init__(self, value):
+            created.append(value)
+
+    class OtherBackend(Backend):
+        pass
+
+    context = object.__new__(SimulationContext)
+    context._backend_registry = {}
+    created = []
+
+    first = context.get_or_create_backend(Backend, 1)
+    same = context.get_or_create_backend(Backend, 2)
+    other_key = context.get_or_create_backend(Backend, 3, resource_key="other")
+    other_type = context.get_or_create_backend(OtherBackend, 4)
+
+    assert same is first
+    assert other_key is not first
+    assert other_type is not first
+    assert created == [1, 3, 4]
+
+
+def test_service_locator_abstraction_is_removed():
+    """Backend ownership stays directly on SimulationContext."""
+    from pathlib import Path
+
+    from isaaclab.sim import SimulationContext
+
+    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
+    assert not (sim_package / "service_locator.py").exists()
+    assert not hasattr(SimulationContext, "services")
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):
@@ -151,10 +217,15 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             if self.error is not None:
                 raise self.error
 
-    class Services:
-        def close_all(self, caught_exceptions):
-            assert caught_exceptions == []
-            events.append("services")
+    class Backend:
+        def __init__(self, name, error=None):
+            self.name = name
+            self.error = error
+
+        def clear(self):
+            events.append(self.name)
+            if self.error is not None:
+                raise self.error
 
     class RenderContext:
         def close(self):
@@ -167,19 +238,22 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             Visualizer("visualizer_failed", ValueError("visualizer failed")),
             Visualizer("visualizer_last"),
         ],
-        _services=Services(),
+        _backend_registry={
+            (Backend, "failed"): Backend("backend_failed", LookupError("backend failed")),
+            (Backend, "last"): Backend("backend_last"),
+        },
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
-    with pytest.raises(RuntimeError, match=r"2 error\(s\) occurred during teardown") as exc_info:
+    with pytest.raises(RuntimeError, match=r"3 error\(s\) occurred during teardown") as exc_info:
         SimulationContext.clear_instance()
 
     assert str(exc_info.value) == (
-        "SimulationContext.clear_instance(): 2 error(s) occurred during teardown: "
-        "RuntimeError: STOP failed; ValueError: visualizer failed"
+        "SimulationContext.clear_instance(): 3 error(s) occurred during teardown: "
+        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed"
     )
     assert str(exc_info.value.__cause__) == "STOP failed"
     assert events == [
@@ -187,12 +261,14 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "renderers",
         "visualizer_failed",
         "visualizer_last",
-        "services",
+        "backend_failed",
+        "backend_last",
         "stage",
         "cache",
         "gc",
     ]
     assert context._visualizers == []
+    assert context._backend_registry == {}
     assert SimulationContext.instance() is None
 
 
@@ -206,10 +282,6 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
         def close(cls):
             pass
 
-    class Services:
-        def close_all(self, caught_exceptions):
-            assert caught_exceptions == []
-
     class RenderContext:
         def close(self):
             pass
@@ -221,7 +293,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context.physics_manager = Manager
     context._render_context = RenderContext()
     context._visualizers = []
-    context._services = Services()
+    context._backend_registry = {}
     context_ref = weakref.ref(context)
     context_alive_during_gc = []
 
