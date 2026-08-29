@@ -5,14 +5,27 @@
 
 """Unit tests for the custom coupling manager."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from newton import ModelBuilder
 
 import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager as manager_module
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import NewtonCoupledMJWarpVBDManager
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
+
+
+def test_register_builder_attributes_includes_nested_solvers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The custom coupled manager delegates builder setup to both configured children."""
+    cfg = CoupledMJWarpVBDSolverCfg()
+    monkeypatch.setattr(manager_module.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=cfg))
+    builder = ModelBuilder()
+
+    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder)
+
+    assert builder.has_custom_attribute("mujoco:condim")
 
 
 def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:

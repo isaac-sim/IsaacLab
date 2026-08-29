@@ -322,9 +322,12 @@ workarounds address known system-specific transport problems:
    * - Symptom
      - Try
    * - World size 2 hangs on a PCIe system without NVLink.
-     - ``NCCL_P2P_DISABLE=1``
+     - ``NCCL_P2P_DISABLE=1`` or ``NCCL_P2P_LEVEL=LOC``
    * - ``illegal memory access`` appears in ``ProcessGroupNCCL``.
      - ``NCCL_SHM_DISABLE=1``
+   * - A rendered job fails because CUDA and the renderer enumerate GPUs in
+       different orders.
+     - ``CUDA_DEVICE_ORDER=PCI_BUS_ID``
    * - A rendered job times out across NUMA nodes during ``BROADCAST`` or
        ``ALLREDUCE``.
      - ``NCCL_CUMEM_HOST_ENABLE=0``; if needed, try ``NCCL_CUMEM_ENABLE=0``.
@@ -339,9 +342,12 @@ For example, test the first workaround without changing a shared configuration:
       --num_gpus 2 --task Isaac-Cartpole
 
 These variables can reduce communication performance and should be scoped to
-the affected machine. In particular, disabling P2P routes GPU traffic through
-host memory. Do not commit a workaround into a task or launcher unless it is
-required by every supported system.
+the affected machine. Set either ``NCCL_P2P_DISABLE=1`` or
+``NCCL_P2P_LEVEL=LOC``, not both. Each prevents direct P2P communication and
+can reduce bandwidth by forcing NCCL to select another transport. Do not commit
+a workaround into a task or launcher unless it is required by every supported
+system. Use ``nvidia-smi --query-gpu=name,pci.bus_id`` to inspect GPU bus IDs
+before setting ``CUDA_DEVICE_ORDER=PCI_BUS_ID``.
 
 .. dropdown:: Isolate a hang from Isaac Lab
 

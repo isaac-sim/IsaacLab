@@ -1565,7 +1565,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
     feature set: streaming camera panel, particle color override, live scalar and array
     plots (via Newton's ImGui sidebar), and :meth:`render_rgb_array` support.
 
-    Use :class:`NewtonGLVisualizerCfg` (factory type ``"newton"``) to select this backend.
+    Use :class:`NewtonGLVisualizerCfg` (selector ``"newton_gl"``) to select this backend.
     """
 
     def __init__(self, cfg: NewtonGLVisualizerCfg):
@@ -2079,7 +2079,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The ImGui sidebar (training pause, rendering pause, update-frequency slider,
     physics backend label) is fully supported via ``register_ui_callback``.
 
-    Use :class:`NewtonRTXVisualizerCfg` (factory type ``"newton_rtx"``) to select this backend.
+    Use :class:`NewtonRTXVisualizerCfg` (selector ``"newton_rtx"``) to select this backend.
 
     ``render_rgb_array()`` reads back the path-traced LDR render product directly.
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no

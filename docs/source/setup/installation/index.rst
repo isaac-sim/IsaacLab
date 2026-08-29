@@ -238,8 +238,7 @@ It does not include Isaac Sim or the specialized ``rlinf``, ``mimic``, ``teleop`
 See :ref:`installation-optional-extras` for the available extras.
 
 ``uv run --extra <name> <command>`` syncs the selected extra into the project environment
-and then runs the command. To sync it without running a command, use
-``uv sync --inexact --extra <name>``.
+and then runs the command.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -511,8 +510,10 @@ Isaac Lab Python package
 ------------------------
 
 Use this path when Isaac Lab is a dependency of an external Python project. The released
-``isaaclab`` package does not include the repository's training, inference, demo, or example
-scripts, so your project must provide its own runner scripts.
+``isaaclab`` package includes the unified ``train``, ``play``, ``zero_agent``, ``random_agent``,
+``benchmark``, and ``train_multigpu`` commands. Repository demos and examples remain source-only.
+Downstream projects can register their task package through the ``isaaclab.tasks`` Python package
+entry-point group; projects created by the template generator configure this automatically.
 
 To create a project built on Isaac Lab, see :ref:`template-generator`.
 

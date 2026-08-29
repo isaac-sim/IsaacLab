@@ -46,15 +46,14 @@ _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
 _VISUALIZER_ALIASES = {"newton": "newton_gl"}
 
 
-def _resolve_physics_cfg(physics_cfg: Any, use_isaac_sim: bool) -> PhysicsCfg:
+def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
         from isaaclab_physx.physics import PhysxCfg
 
         physics_cfg = PhysxCfg()
-
-    if not hasattr(physics_cfg, "class_type") and hasattr(physics_cfg, "default"):
-        physics_cfg = physics_cfg.default
+    elif not isinstance(physics_cfg, PhysicsCfg):
+        raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
 
     return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
@@ -429,7 +428,7 @@ class SimulationContext:
 
         Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
         (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
-        AND are still at the backend cfg's own factory default (i.e. not already
+        AND are still at the backend cfg's own class default (i.e. not already
         customised by the caller).  This prevents base-class defaults such as
         ``streaming_view=False`` from stomping backend-specific defaults like
         ``NewtonGLVisualizerCfg.streaming_view=True``.
@@ -445,14 +444,14 @@ class SimulationContext:
             base_defaults = VisualizerCfg()
         except Exception:
             base_defaults = None
-        # Backend-specific factory defaults — used to detect which fields on cfg
+        # Backend-specific class defaults — used to detect which fields on cfg
         # the caller has already customised beyond the class defaults.
         try:
             factory_defaults = type(cfg)()
         except Exception:
             factory_defaults = None
         for field in fields(default_cfg):
-            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+            if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
             default_val = getattr(default_cfg, field.name)
             # Skip fields that were not explicitly set in default_cfg (still at base default).
@@ -647,7 +646,7 @@ class SimulationContext:
                 pending_cfgs.append(cfg)
                 continue
             try:
-                visualizer = cfg.create_visualizer()
+                visualizer = cfg.class_type(cfg)
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
                 new_visualizers.append(visualizer)
