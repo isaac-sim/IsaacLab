@@ -29,6 +29,8 @@ from urllib.parse import urlparse
 
 from filelock import FileLock
 
+from isaaclab._paths import ISAACLAB_ROOT
+
 logger = logging.getLogger(__name__)
 
 _UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
@@ -42,9 +44,7 @@ _MDL_RELATIVE_IMPORT_RE = re.compile(
 )
 
 
-_KIT_EXPERIENCE_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), *([".."] * 4), "apps", "isaaclab.python.kit")
-)
+_KIT_EXPERIENCE_PATH = str(ISAACLAB_ROOT / "apps" / "isaaclab.python.kit")
 
 # Isaac Sim resolves ``persistent.isaac.asset_root.default``, so it is read first. The
 # legacy ``cloud`` setting is only consulted for experience files that predate it.

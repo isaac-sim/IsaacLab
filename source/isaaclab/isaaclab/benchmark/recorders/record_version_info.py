@@ -8,11 +8,12 @@ import os
 import subprocess
 import sys
 
+from isaaclab._paths import ISAACLAB_ROOT
 from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.benchmark.measurements import DictMetadata, StringMetadata
 
-# Path to the repository root.
-_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
+# Path to the source checkout or installed wheel resources.
+_REPO_ROOT = str(ISAACLAB_ROOT)
 
 
 class VersionInfoRecorder(MeasurementDataRecorder):

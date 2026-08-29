@@ -11,6 +11,7 @@ Setup:
 Tests:
     - import isaaclab -> verify importable
     - from isaaclab import __version__ -> verify version matches wheel filename
+    - inspect the wheel and isaaclab.__path__ -> verify the core package has a flat layout
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
     - from isaaclab.envs import VideoRecorderCfg -> verify importable
@@ -27,6 +28,7 @@ from __future__ import annotations
 
 import glob
 import shutil
+import zipfile
 
 import pytest
 from utils import UV_Mixin, run_cmd
@@ -91,6 +93,26 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert imported_version == expected_version, (
             f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
         )
+
+    def test_isaaclab_package_has_flat_layout(self):
+        """Verify core modules are installed directly under the top-level package."""
+        with zipfile.ZipFile(self._wheel) as wheel:
+            names = set(wheel.namelist())
+
+        assert "isaaclab/app/__init__.py" in names
+        nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
+        assert not any(name.startswith(nested_prefix) for name in names)
+
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "import isaaclab; "
+                "from pathlib import Path; "
+                "assert list(isaaclab.__path__) == [str(Path(isaaclab.__file__).parent)]",
+            ]
+        )
+        assert result.returncode == 0, f"isaaclab has multiple package roots:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab import _deprioritize_prebundle_paths
     def test_isaaclab_prebundle_path_sanitizer_exported(self):

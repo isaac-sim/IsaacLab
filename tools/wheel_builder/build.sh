@@ -46,6 +46,13 @@ cp -r tools/template "$BUILD_DIR/src/isaaclab/tools/"
 # Ensure apps/ is discovered as a Python sub-package (it has no __init__.py)
 find "$BUILD_DIR/src/isaaclab/apps" -type d -exec touch {}/__init__.py \;
 
+# Install the core Python package in the conventional flat layout. Runtime resources
+# remain under isaaclab/apps, isaaclab/source, and isaaclab/tools, but imports such as
+# isaaclab.app resolve directly without extending isaaclab.__path__ at runtime.
+CORE_PACKAGE="$BUILD_DIR/src/isaaclab/source/isaaclab/isaaclab"
+cp -r "$CORE_PACKAGE/." "$BUILD_DIR/src/isaaclab/"
+rm -rf "$CORE_PACKAGE"
+
 # Promote sub-packages (isaaclab_assets, isaaclab_rl, etc.) to top-level
 # so they are importable as e.g. `import isaaclab_assets`.
 # Each extension has the structure: source/isaaclab_FOO/isaaclab_FOO/ (Python pkg)
@@ -83,8 +90,7 @@ find "$BUILD_DIR/src" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null 
 find "$BUILD_DIR/src" -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 find "$BUILD_DIR/src" -name "*.pyc" -delete 2>/dev/null || true
 
-# 2. Copy the custom res __init__.py and __main__.py
-cp "$SELF_DIR/res/__init__.py" "$BUILD_DIR/src/isaaclab/"
+# 2. Copy the custom __main__.py used by ``python -m isaaclab``
 cp "$SELF_DIR/res/__main__.py" "$BUILD_DIR/src/isaaclab/"
 
 # 3. Generate pyproject.toml with dependencies from the root pyproject.toml
