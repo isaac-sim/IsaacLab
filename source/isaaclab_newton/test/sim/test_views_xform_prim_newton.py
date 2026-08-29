@@ -215,7 +215,8 @@ def test_world_attached_set_world_roundtrip(device):
 
     new_pos = _wp_vec3f([[10.0, 20.0, 30.0]], device=device)
     new_quat = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]], device=device)
-    view.set_world_poses(new_pos, new_quat)
+    with view.xform_world_space_writer() as w:
+        w.set_poses(new_pos, new_quat)
 
     ret_pos, ret_quat = view.get_world_poses()
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)

@@ -22,6 +22,27 @@ from .clone_plan import ClonePlan
 logger = logging.getLogger(__name__)
 
 
+def split_clone_template(destination_template: str) -> tuple[str, str]:
+    """Split a clone destination template around its clone slot.
+
+    The ``"{}"`` slot represents one concrete environment/instance path segment.
+
+    Args:
+        destination_template: Destination path template with ``"{}"`` for the instance id.
+
+    Returns:
+        The ``(prefix, suffix)`` around the clone slot.
+
+    Raises:
+        ValueError: If ``destination_template`` does not contain a clone slot.
+    """
+    destination_template = destination_template.rstrip("/") or "/"
+    prefix, slot, suffix = destination_template.partition("{}")
+    if slot != "{}":
+        raise ValueError(f"Clone destination template must contain '{{}}': {destination_template!r}.")
+    return prefix, suffix
+
+
 def get_suffix(path_expr: str, destination_template: str) -> str | None:
     """Return the part of ``path_expr`` below a destination template's env-instance root.
 
