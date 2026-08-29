@@ -140,6 +140,16 @@ def env_loop(
                     print(f"Reached {generation_num_trials} successes/attempts. Exiting.")
                     break
 
+                # with the success guarantee on, nothing else bounds the run: a task that rarely
+                # succeeds retries forever. max_num_failures is the opt-in bound on that.
+                max_num_failures = env.cfg.datagen_config.max_num_failures
+                if max_num_failures is not None and num_failures >= max_num_failures:
+                    print(
+                        f"Reached {num_failures} failures (max_num_failures={max_num_failures}) after"
+                        f" {num_success}/{generation_num_trials} successes. Exiting."
+                    )
+                    break
+
             # check that simulation is stopped or not
             if env.sim.is_stopped():
                 break
