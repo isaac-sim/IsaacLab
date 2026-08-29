@@ -5,7 +5,6 @@
 
 """Unit tests for SB3-specific LEAPP export helpers."""
 
-import importlib.util
 import sys
 import types
 from pathlib import Path
@@ -18,18 +17,11 @@ torch = pytest.importorskip("torch")
 stable_baselines3 = pytest.importorskip("stable_baselines3")
 sb3_contrib = pytest.importorskip("sb3_contrib")
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "sb3" / "export.py"
-_EXPORT_MODULE_NAME = "_isaaclab_sb3_leapp_export"
-
 
 def _load_export_module():
-    """Load SB3 export.py without importing Isaac Sim runtime modules."""
-    sys.modules.pop(_EXPORT_MODULE_NAME, None)
-    spec = importlib.util.spec_from_file_location(_EXPORT_MODULE_NAME, _EXPORT_SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_EXPORT_MODULE_NAME] = module
-    spec.loader.exec_module(module)
+    """Load the installed SB3 exporter without importing Isaac Sim runtime modules."""
+    from isaaclab_rl.entrypoints.backends import export_sb3 as module
+
     module.torch = torch
     return module
 

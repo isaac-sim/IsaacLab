@@ -13,6 +13,28 @@ import pytest
 import isaaclab.cli as cli
 
 
+def test_export_dispatches_in_process():
+    """Test that ``isaaclab export`` forwards arguments to the library dispatcher."""
+    args = ["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]
+
+    with (
+        mock.patch.object(sys, "argv", ["isaaclab", "export", *args]),
+        mock.patch("isaaclab_rl.entrypoints.run_export_cli", return_value=0) as run_export,
+    ):
+        cli.cli()
+
+    run_export.assert_called_once_with(args)
+
+
+def test_export_propagates_nonzero_dispatch_status():
+    """Test that an export failure becomes the CLI exit status."""
+    with mock.patch("isaaclab_rl.entrypoints.run_export_cli", return_value=1):
+        with pytest.raises(SystemExit) as exc_info:
+            cli.export(["--rl_library", "rsl_rl"])
+
+    assert exc_info.value.code == 1
+
+
 @pytest.mark.parametrize("command", ["runtime", "startup", "training", "play"])
 def test_benchmark_dispatches_in_process(command):
     """Test that ``isaaclab benchmark`` forwards arguments to the library dispatcher."""
