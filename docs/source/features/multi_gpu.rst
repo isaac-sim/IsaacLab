@@ -8,7 +8,7 @@ several nodes with ``train_multigpu``. Isaac Lab starts one training process per
 GPU, gives each process its own simulation environments, and synchronizes policy
 updates across the processes.
 
-The same launcher model powers three multi-GPU benchmarks for measuring startup,
+The same launcher model is used in three multi-GPU benchmarks for measuring startup,
 simulation, and end-to-end training performance.
 
 .. attention::
