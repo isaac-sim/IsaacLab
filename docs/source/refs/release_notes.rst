@@ -336,7 +336,8 @@ Newton support includes:
 Pluggable Renderer System
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A new ``BaseRenderer`` abstraction supports multiple rendering backends via a factory pattern:
+A new ``BaseRenderer`` abstraction supports configuration-owned implementations managed by
+``RenderContext``:
 
 .. list-table::
    :header-rows: 1
