@@ -31,7 +31,12 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         default=agent_default,
         help="Name of the RL agent configuration entry point.",
     )
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Checkpoint path, or 'pretrained'. Omit for automatic local discovery.",
+    )
     parser.add_argument(
         "--export_task_name",
         type=str,
@@ -41,9 +46,9 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
     parser.add_argument(
         "--export_method",
         type=str,
-        default="onnx-dynamo",
-        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-        help="Method to export the policy",
+        default=None,
+        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace", "pt2"],
+        help="Method to export the policy. Defaults to onnx-dynamo.",
     )
     parser.add_argument(
         "--export_save_path",

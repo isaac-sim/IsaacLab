@@ -8,7 +8,7 @@
 These utilities collect RL-library entry points, preset selectors, workflow
 types, and inference-task mappings for each registered Isaac Lab task. They
 are used by :mod:`tools.update_environments_rst` to keep
-``docs/source/overview/environments.rst`` in sync with the codebase.
+the environment browser in sync with the codebase.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import contextlib
 import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -61,7 +61,8 @@ RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
-# Marker comments that delimit the auto-generated section in environments.rst.
+# Legacy markers retained for the table-formatting helpers. The public
+# documentation now uses the generated environment browser instead.
 COMPREHENSIVE_LIST_START_MARKER = ".. START-AUTO-GENERATED: comprehensive-environment-list"
 COMPREHENSIVE_LIST_END_MARKER = ".. END-AUTO-GENERATED: comprehensive-environment-list"
 ENVIRONMENT_BROWSER_TASKS_START_MARKER = "// START-AUTO-GENERATED: environment-browser-task-rows"
@@ -85,12 +86,35 @@ _SELECTOR_LABELS = {
 
 @dataclass(frozen=True)
 class EnvironmentDocRow:
-    """One row of the comprehensive environment list in ``environments.rst``."""
+    """One task row in the generated environment browser."""
 
     task_name: str
     workflow: str
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
+    agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    supports_warp_frontend: bool = False
+
+
+def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
+    """Return whether a task can run through ``--frontend warp``."""
+    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+        return False
+
+    try:
+        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+
+        from isaaclab_tasks.utils import resolve_task_config
+
+        cfg, _ = resolve_task_config(task_name, "", overrides=("physics=newton_mjwarp",))
+        if workflow == "Direct":
+            try:
+                return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
+            except FrontendIncompatibleError:
+                return False
+        return WarpFrontend.check_compatibility(cfg) is None
+    except (ImportError, gym.error.Error):
+        return False
 
 
 def is_training_task(task_id: str) -> bool:
@@ -520,6 +544,12 @@ def collect_environment_doc_rows(
                 workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
+                agent_preset_compatibility={
+                    agent: tuple(presets)
+                    for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
+                    if agent in spec.kwargs
+                },
+                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
             )
         )
 
@@ -559,12 +589,33 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
     return "\n".join(lines)
 
 
-def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
-    """Render concrete core-task selectors for the environment browser."""
-    lines = ["        const taskRows = ["]
-    for row in rows:
-        if not row.task_name.startswith("Isaac-"):
+def collect_environment_browser_preview_images(content: str) -> dict[str, str]:
+    """Return preview-image assignments already stored in the browser task rows."""
+    start = content.find(ENVIRONMENT_BROWSER_TASKS_START_MARKER)
+    end = content.find(ENVIRONMENT_BROWSER_TASKS_END_MARKER)
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("Could not find the generated environment-browser task markers.")
+
+    preview_images: dict[str, str] = {}
+    for line in content[start:end].splitlines():
+        row = line.strip().removesuffix(",")
+        if not row.startswith("["):
             continue
+        values = json.loads(row)
+        if len(values) >= 7 and values[6]:
+            preview_images[values[0]] = values[6]
+    return preview_images
+
+
+def render_environment_browser_task_rows(
+    rows: list[EnvironmentDocRow], preview_images: dict[str, str] | None = None
+) -> str:
+    """Render concrete core and contributed task selectors for the environment browser."""
+    preview_images = preview_images or {}
+    lines = ["        const taskRows = ["]
+    browser_rows = [row for row in rows if row.task_name.startswith(("Isaac-", "IsaacContrib-"))]
+    browser_rows.sort(key=lambda row: row.task_name.startswith("IsaacContrib-"))
+    for row in browser_rows:
         selectors = _selector_names_for_docs(row.presets)
         values = (
             row.task_name,
@@ -574,6 +625,25 @@ def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
             ",".join(sorted(selectors[PresetTarget.DOMAIN])),
         )
         rendered_values = ", ".join(json.dumps(value) for value in values)
+        preview_image = preview_images.get(row.task_name, "")
+        if not preview_image:
+            aliases = [
+                (task_name, image)
+                for task_name, image in preview_images.items()
+                if row.task_name.startswith(f"{task_name}-")
+            ]
+            if aliases:
+                preview_image = max(aliases, key=lambda item: len(item[0]))[1]
+        if row.agent_preset_compatibility or preview_image:
+            rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
+        if preview_image:
+            rendered_values += f", {json.dumps(preview_image)}"
+        if row.supports_warp_frontend:
+            if not row.agent_preset_compatibility and not preview_image:
+                rendered_values += ", {}"
+            if not preview_image:
+                rendered_values += ', ""'
+            rendered_values += ", true"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)

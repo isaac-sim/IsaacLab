@@ -631,52 +631,6 @@ def update_targets(
 
 
 @wp.kernel
-def update_actuator_state_model(
-    source_computed_effort: wp.array2d(dtype=wp.float32),
-    source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: wp.array2d(dtype=wp.float32),
-    source_vel_limits: wp.array2d(dtype=wp.float32),
-    joint_indices: wp.array(dtype=wp.int32),
-    target_computed_effort: wp.array2d(dtype=wp.float32),
-    target_applied_effort: wp.array2d(dtype=wp.float32),
-    target_gear_ratio: wp.array2d(dtype=wp.float32),
-    target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
-):
-    """Update actuator state model parameters from source arrays using joint indices.
-
-    This kernel copies actuator state model parameters (computed effort, applied effort,
-    gear ratio, and velocity limits) from source arrays to target arrays, remapping
-    joint indices using the provided joint_indices array.
-
-    Args:
-        source_computed_effort: Input array of source computed effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_applied_effort: Input array of source applied effort values. Shape is
-            (num_envs, num_selected_joints).
-        source_gear_ratio: Input array of source gear ratio values. Shape is
-            (num_envs, num_selected_joints). Can be None if not provided.
-        source_vel_limits: Input array of source velocity limit values. Shape is
-            (num_envs, num_selected_joints).
-        joint_indices: Input array of joint indices for remapping. Shape is
-            (num_selected_joints,). Specifies which joints in the target arrays to update.
-        target_computed_effort: Output array where computed effort values are written.
-            Shape is (num_envs, num_joints).
-        target_applied_effort: Output array where applied effort values are written.
-            Shape is (num_envs, num_joints).
-        target_gear_ratio: Output array where gear ratio values are written. Shape is
-            (num_envs, num_joints).
-        target_soft_joint_vel_limits: Output array where soft joint velocity limits are
-            written. Shape is (num_envs, num_joints).
-    """
-    i, j = wp.tid()
-    target_computed_effort[i, joint_indices[j]] = source_computed_effort[i, j]
-    target_applied_effort[i, joint_indices[j]] = source_applied_effort[i, j]
-    target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
-    if source_gear_ratio:
-        target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
-
-
-@wp.kernel
 def extract_friction_properties(
     friction_props: wp.array3d(dtype=wp.float32),
     out_friction: wp.array2d(dtype=wp.float32),
