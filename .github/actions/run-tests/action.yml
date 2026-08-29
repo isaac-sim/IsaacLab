@@ -170,6 +170,29 @@ runs:
         if-no-files-found: ignore
         retention-days: 7
 
+    # Renderer logs are quoted into the reports only as a bounded tail; the full log per test is here.
+    - name: Upload OVRTX renderer logs
+      if: always()
+      id: upload-ovrtx-logs
+      uses: actions/upload-artifact@v7
+      with:
+        name: ovrtx-logs-${{ inputs.container-name }}
+        path: ${{ inputs.reports-dir }}/ovrtx-logs/
+        if-no-files-found: ignore
+        retention-days: 7
+        compression-level: 9
+
+    # The reports carry the dump truncated to 10 000 chars; the whole thing per test file is here.
+    - name: Upload hang stack dumps
+      if: always()
+      id: upload-hang-dumps
+      uses: actions/upload-artifact@v7
+      with:
+        name: hang-dumps-${{ inputs.container-name }}
+        path: ${{ inputs.reports-dir }}/hang-dumps/
+        if-no-files-found: ignore
+        retention-days: 7
+
     - name: Upload JUnit XML report
       if: always()
       id: upload-junit-report
