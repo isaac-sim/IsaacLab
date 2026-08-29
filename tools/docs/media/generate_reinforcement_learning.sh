@@ -31,6 +31,8 @@ UV_EXTRAS="ovrtx,ovphysx,video"
 TASK="Isaac-Velocity-Flat-AnymalD"
 CAPTURE_STEPS=300
 CHECKPOINT_DIR="${RL_PROGRESS_CHECKPOINT_DIR:-}"
+# The "physx" selector automatically chooses the compatible PhysX-family integration for OVRTX.
+PHYSICS_SELECTOR="physx"
 
 if [[ -z "${CHECKPOINT_DIR}" ]]; then
     TRAINING_ROOT="${WORK_DIR}/training"
@@ -41,12 +43,13 @@ if [[ -z "${CHECKPOINT_DIR}" ]]; then
         --max_iterations 300 \
         --experiment_name "${TRAINING_ROOT}" \
         agent.save_interval=50 \
-        physics=physx
+        physics="${PHYSICS_SELECTOR}"
     CHECKPOINT_DIR="$(find "${TRAINING_ROOT}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
         | sort -nr | head -n 1 | cut -d' ' -f2-)"
 fi
 
 CHECKPOINT_DIR="$(cd -- "${CHECKPOINT_DIR}" && pwd)"
+# RSL-RL numbers its training loop from zero, so a 300-iteration run ends at model_299.pt.
 declare -a ITERATIONS=(0 100 299)
 
 for iteration in "${ITERATIONS[@]}"; do
@@ -75,7 +78,7 @@ record_checkpoint() {
         --video_length "${CAPTURE_STEPS}" \
         --viz newton_rtx \
         --external_callback capture_reinforcement_learning.configure_playback \
-        physics=physx
+        physics="${PHYSICS_SELECTOR}"
 }
 
 for iteration in "${ITERATIONS[@]}"; do

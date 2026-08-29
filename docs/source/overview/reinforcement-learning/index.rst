@@ -8,6 +8,15 @@ Isaac Lab provides one workflow for training and evaluating policies across seve
 learning (RL) libraries. This page takes you from choosing a library to running, monitoring, and
 debugging an experiment.
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-training-rl-agents`` and
+   ``isaaclab-debugging-rl-training`` agent skills
+   (`skills/user/train-rl-agents/ <../../../../skills/user/train-rl-agents/SKILL.md>`__,
+   `skills/user/debug-rl-training/ <../../../../skills/user/debug-rl-training/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 .. tip::
 
    **Start with RSL-RL.** It is the default for most Isaac Lab tasks, is installed in the standard
