@@ -321,7 +321,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 See also
 --------
 
-* :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
+* :doc:`/source/overview/reinforcement-learning/index`
 * :doc:`/source/features/hydra`
 * :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering`
 * :doc:`/source/overview/core-concepts/physical-backends/newton/mjwarp-solver`

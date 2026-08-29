@@ -47,7 +47,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/overview/reinforcement-learning/training_guide.rst`, `docs/source/setup/installation/index.rst`, RL training tutorials under `docs/source/tutorials/03_envs/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
+Keep this skill synchronized with `docs/source/overview/reinforcement-learning/index.rst`, `docs/source/setup/installation/index.rst`, RL training tutorials under `docs/source/tutorials/03_envs/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
 
 ## References
 
@@ -55,7 +55,7 @@ Keep this skill synchronized with `docs/source/overview/reinforcement-learning/t
 - [Examples](examples.md)
 - [Debug RL training skill](../debug-rl-training/SKILL.md)
 - [Multi-GPU training skill](../train-multi-gpu/SKILL.md)
-- [RL training guide](../../../docs/source/overview/reinforcement-learning/training_guide.rst)
+- [RL training guide](../../../docs/source/overview/reinforcement-learning/index.rst)
 - [Configure RL training tutorial](../../../docs/source/tutorials/03_envs/configuring_rl_training.rst)
 - [Run RL training tutorial](../../../docs/source/tutorials/03_envs/run_rl_training.rst)
 - [Task examples](../../../source/isaaclab_tasks/isaaclab_tasks)
