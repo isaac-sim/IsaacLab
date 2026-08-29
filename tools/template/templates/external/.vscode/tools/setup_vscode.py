@@ -12,12 +12,11 @@ This is necessary because Isaac Sim 2022.2.1 onwards does not add the necessary 
 when the "setup_python_env.sh" is run as part of the vs-code launch configuration.
 """
 
+import os
+import pathlib
 import re
 import subprocess
 import sys
-import os
-import pathlib
-
 
 ISAACLAB_DIR = pathlib.Path(__file__).parents[2]
 """Path to the Isaac Lab directory."""
