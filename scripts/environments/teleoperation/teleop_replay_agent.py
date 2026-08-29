@@ -982,7 +982,8 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     Mirrors the gating in :meth:`TeleopSessionLifecycle._ensure_cloudxr_runtime`
     (``--cloudxr_env`` set, ``--auto_launch_cloudxr`` enabled,
     ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` env var not set) so behavior parity
-    is preserved.
+    is preserved, including ``ISAACLAB_CXR_ACCEPT_EULA=1`` for the CloudXR
+    license, which is read through the same shared helper.
 
     Args:
         cloudxr_env_path: Resolved CloudXR ``.env`` file path, or ``None``
@@ -1002,12 +1003,13 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
         logger.info("CloudXR auto-launch skipped (ISAACLAB_CXR_SKIP_AUTOLAUNCH=1)")
         return None
 
+    from isaaclab_teleop import cloudxr_eula_accepted
     from isaacteleop.cloudxr import CloudXRLauncher
 
     launcher = CloudXRLauncher(
         install_dir=str(Path.home() / ".cloudxr"),
         env_config=cloudxr_env_path,
-        accept_eula=False,
+        accept_eula=cloudxr_eula_accepted(),
     )
     logger.info("CloudXR runtime launched (process-scoped, shared across replays)")
     return launcher

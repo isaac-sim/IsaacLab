@@ -1230,6 +1230,36 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
              --visualizer kit --xr
 
 
+Accept the CloudXR license non-interactively
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The NVIDIA CloudXR license is separate from the Omniverse one. The first time the runtime
+starts it asks for it on stdin:
+
+.. code-block:: text
+
+   NVIDIA CloudXR EULA must be accepted to run. View: <license URL>
+
+   Accept NVIDIA CloudXR EULA? [y/N]:
+
+There is no terminal to answer on in a headless, container or CI run, so the launch fails with
+``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``. Set
+``ISAACLAB_CXR_ACCEPT_EULA=1`` to accept it up front, the same way ``OMNI_KIT_ACCEPT_EULA``
+works for the Omniverse license:
+
+.. code-block:: bash
+
+   ISAACLAB_CXR_ACCEPT_EULA=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --xr
+
+Only an exact ``1`` accepts it, with surrounding whitespace stripped; leaving the variable
+unset, or setting any other value, keeps the interactive prompt. Acceptance is recorded in
+``~/.cloudxr/run/eula_accepted``, so once the license has been accepted -- interactively or
+through this variable -- later runs no longer prompt. The variable applies to every script
+that launches the runtime, including the process-scoped launcher in
+``teleop_replay_agent.py``.
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
