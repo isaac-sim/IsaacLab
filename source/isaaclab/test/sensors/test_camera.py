@@ -323,11 +323,11 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     )
 
 
-def test_camera_set_world_poses(setup_sim_camera):
-    """Test camera function to set specific world pose."""
+@pytest.mark.parametrize("update_latest_camera_pose", [False, True])
+def test_camera_set_world_poses(setup_sim_camera, update_latest_camera_pose):
+    """Test that an explicitly set world pose is reflected in the data buffers."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
+    camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
@@ -343,11 +343,11 @@ def test_camera_set_world_poses(setup_sim_camera):
     _assert_quat_close(camera.data.quat_w_world.warp.numpy(), orientation, rtol=1e-5, atol=1e-5)
 
 
-def test_camera_set_world_poses_from_view(setup_sim_camera):
-    """Test camera function to set specific world pose from view."""
+@pytest.mark.parametrize("update_latest_camera_pose", [False, True])
+def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera_pose):
+    """Test that a pose set from eye/target is reflected in the data buffers."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
+    camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
