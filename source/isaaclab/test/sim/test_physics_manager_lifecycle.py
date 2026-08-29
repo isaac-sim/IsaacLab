@@ -11,40 +11,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager, PhysxAutoCfg
-from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.renderers import RendererCfg
 from isaaclab.visualizers import VisualizerCfg
 
 
-@pytest.mark.parametrize("cfg_type", [PhysicsCfg, RendererCfg, VisualizerCfg])
-def test_component_configs_declare_resource_affinity(cfg_type):
-    """Every engine config carries the same data-only native resource affinity."""
-    assert cfg_type().resource_key == "default"
+def test_backend_registry_uses_only_backend_type():
+    """Backend type is both the public and stored identity of a native resource."""
+    import inspect
 
-
-def test_physics_cfg_has_no_factory_api():
-    assert not any(hasattr(PhysicsCfg, name) for name in ("build", "clone_context"))
-
-
-def test_physx_auto_resource_key_survives_backend_resolution():
-    """The wrapper's affinity is the source of truth for either concrete PhysX backend."""
-    from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
-
-    cfg = PhysxAutoCfg(
-        resource_key="shared", isaacsim_physx=PhysxCfg(resource_key="nested"), ovphysx=OvPhysxCfg(resource_key="nested")
-    )
-
-    isaacsim_cfg = _resolve_physx_auto_cfg(cfg, use_isaac_sim=True)
-    ov_cfg = _resolve_physx_auto_cfg(cfg, use_isaac_sim=False)
-
-    assert isinstance(isaacsim_cfg, PhysxCfg) and isaacsim_cfg.resource_key == "shared"
-    assert isinstance(ov_cfg, OvPhysxCfg) and ov_cfg.resource_key == "shared"
-
-
-def test_backend_registry_uses_type_and_resource_key():
-    """Matching consumers share one resource while different type-key pairs do not."""
     from isaaclab.sim import SimulationContext
 
     class Backend:
@@ -60,13 +35,15 @@ def test_backend_registry_uses_type_and_resource_key():
 
     first = context.get_or_create_backend(Backend, 1)
     same = context.get_or_create_backend(Backend, 2)
-    other_key = context.get_or_create_backend(Backend, 3, resource_key="other")
     other_type = context.get_or_create_backend(OtherBackend, 4)
 
     assert same is first
-    assert other_key is not first
     assert other_type is not first
-    assert created == [1, 3, 4]
+    assert created == [1, 4]
+    assert set(context._backend_registry) == {Backend, OtherBackend}
+    assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
+    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
+    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
 
 
 def test_service_locator_abstraction_is_removed():
@@ -227,6 +204,12 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             if self.error is not None:
                 raise self.error
 
+    class OtherBackend(Backend):
+        pass
+
+    class InvalidBackend:
+        pass
+
     class RenderContext:
         def close(self):
             events.append("renderers")
@@ -239,8 +222,9 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             Visualizer("visualizer_last"),
         ],
         _backend_registry={
-            (Backend, "failed"): Backend("backend_failed", LookupError("backend failed")),
-            (Backend, "last"): Backend("backend_last"),
+            Backend: Backend("backend_failed", LookupError("backend failed")),
+            OtherBackend: OtherBackend("backend_last"),
+            InvalidBackend: InvalidBackend(),
         },
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
@@ -248,12 +232,13 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
-    with pytest.raises(RuntimeError, match=r"3 error\(s\) occurred during teardown") as exc_info:
+    with pytest.raises(RuntimeError, match=r"4 error\(s\) occurred during teardown") as exc_info:
         SimulationContext.clear_instance()
 
     assert str(exc_info.value) == (
-        "SimulationContext.clear_instance(): 3 error(s) occurred during teardown: "
-        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed"
+        "SimulationContext.clear_instance(): 4 error(s) occurred during teardown: "
+        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed; "
+        "AttributeError: 'InvalidBackend' object has no attribute 'clear'"
     )
     assert str(exc_info.value.__cause__) == "STOP failed"
     assert events == [

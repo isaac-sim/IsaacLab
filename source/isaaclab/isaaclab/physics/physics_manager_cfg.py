@@ -34,9 +34,6 @@ class PhysicsCfg:
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
 
-    resource_key: str = "default"
-    """Simulation-scoped native resource affinity shared with matching consumers."""
-
 
 @configclass
 class PhysxAutoCfg(PhysicsCfg):
@@ -53,7 +50,7 @@ class PhysxAutoCfg(PhysicsCfg):
 
 
 def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> PhysicsCfg:
-    """Resolve a :class:`PhysxAutoCfg` and its resource affinity to a concrete backend."""
+    """Resolve a :class:`PhysxAutoCfg` to a concrete backend."""
     if not isinstance(physics_cfg, PhysxAutoCfg):
         return physics_cfg
 
@@ -74,4 +71,4 @@ def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> Phy
         raise ValueError(
             f"Invalid PhysxAutoCfg.{field_name}: expected {expected_type.__name__}, got {type(selected).__name__}."
         )
-    return selected.replace(resource_key=physics_cfg.resource_key)
+    return selected

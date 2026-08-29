@@ -43,9 +43,6 @@ class VisualizerCfg:
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
-    resource_key: str = "default"
-    """Simulation-scoped native resource affinity shared with matching consumers."""
-
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Interactive visualizer camera eye position in world coordinates."""

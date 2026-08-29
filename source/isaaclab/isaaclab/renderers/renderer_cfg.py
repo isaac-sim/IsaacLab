@@ -23,6 +23,3 @@ class RendererCfg:
     """Renderer implementation class. Concrete configs must set this field."""
 
     renderer_type: str = "default"
-
-    resource_key: str = "default"
-    """Simulation-scoped native resource affinity shared with matching consumers."""

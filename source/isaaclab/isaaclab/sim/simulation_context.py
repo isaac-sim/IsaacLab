@@ -125,7 +125,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self._backend_registry: dict[tuple[type[Any], str], Any] = {}
+        self._backend_registry: dict[type[Any], Any] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -948,28 +948,24 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_or_create_backend(
-        self, backend_type: type[_BackendT], *args: Any, resource_key: str = "default", **kwargs: Any
-    ) -> _BackendT:
-        """Return the simulation-scoped native backend for a type and resource affinity.
+    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
+        """Return the simulation-scoped native backend for a type.
 
-        Consumers that register the same backend type and resource key resolve one shared
-        native resource instead of constructing state to synchronize.
+        Consumers that register the same backend type resolve one shared native resource
+        instead of constructing state to synchronize.
 
         Args:
             backend_type: Backend class to construct when the resource does not exist. Its
                 instances must implement ``clear()`` for simulation-owned teardown.
             *args: Positional arguments used only when constructing the resource.
-            resource_key: Configuration-derived resource affinity within ``backend_type``.
             **kwargs: Keyword arguments used only when constructing the resource.
 
         Returns:
             The existing or newly constructed native backend.
         """
-        key = (backend_type, resource_key)
-        if key not in self._backend_registry:
-            self._backend_registry[key] = backend_type(*args, **kwargs)
-        return self._backend_registry[key]
+        if backend_type not in self._backend_registry:
+            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
+        return self._backend_registry[backend_type]
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -999,7 +995,7 @@ class SimulationContext:
 
                 # Native resources are shared by consumers and remain simulation-owned.
                 for resource in instance._backend_registry.values():
-                    run_cleanup(resource.clear)
+                    run_cleanup(lambda resource=resource: resource.clear())
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
