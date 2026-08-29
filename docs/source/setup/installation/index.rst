@@ -510,8 +510,10 @@ Isaac Lab Python package
 ------------------------
 
 Use this path when Isaac Lab is a dependency of an external Python project. The released
-``isaaclab`` package does not include the repository's training, inference, demo, or example
-scripts, so your project must provide its own runner scripts.
+``isaaclab`` package includes the unified ``train``, ``play``, ``zero_agent``, ``random_agent``,
+``benchmark``, and ``train_multigpu`` commands. Repository demos and examples remain source-only.
+Downstream projects can register their task package through the ``isaaclab.tasks`` Python package
+entry-point group; projects created by the template generator configure this automatically.
 
 To create a project built on Isaac Lab, see :ref:`template-generator`.
 

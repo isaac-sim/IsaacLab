@@ -1,135 +1,63 @@
-# Template for Isaac Lab Projects
+# {{ name }}
 
-## Overview
-
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
-
-**Key Features:**
-
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
-
-**Keywords:** extension, template, isaaclab
+An external Isaac Lab project containing an installable Python package and Isaac Sim extension.
 
 ## Installation
 
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda or uv installation as it simplifies calling Python scripts from the terminal.
-
-- Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
-
-- Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
-
-    ```bash
-    # use 'uv run python' when running from an Isaac Lab workspace
-    python -m pip install -e source/{{ name }}
-
-- Verify that the extension is correctly installed by:
-
-    - Listing the available tasks:
-
-        Note: It the task name changes, it may be necessary to update the search pattern `"Template-"`
-        (in the `scripts/list_envs.py` file) so that it can be listed.
-
-        ```bash
-        # use 'uv run python' when running from an Isaac Lab workspace
-        python scripts/list_envs.py
-        ```
-
-    - Running a task:
-
-        ```bash
-        # use 'uv run python' when running from an Isaac Lab workspace
-        python scripts/train.py --rl_library <RL_LIBRARY> --task=<TASK_NAME>
-        ```
-
-    - Running a task with dummy agents:
-
-        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
-        - Zero-action agent
-
-            ```bash
-            # use 'uv run python' when running from an Isaac Lab workspace
-            python scripts/zero_agent.py --task=<TASK_NAME>
-            ```
-        - Random-action agent
-
-            ```bash
-            # use 'uv run python' when running from an Isaac Lab workspace
-            python scripts/random_agent.py --task=<TASK_NAME>
-            ```
-
-### Set up IDE (Optional)
-
-To setup the IDE, please follow these instructions:
-
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
-
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
-
-### Setup as Omniverse Extension (Optional)
-
-We provide an example UI extension that will load upon enabling your extension defined in `source/{{ name }}/{{ name }}/ui_extension_example.py`.
-
-To enable your extension, follow these steps:
-
-1. **Add the search path of this project/repository** to the extension manager:
-    - Navigate to the extension manager using `Window` -> `Extensions`.
-    - Click on the **Hamburger Icon**, then go to `Settings`.
-    - In the `Extension Search Paths`, enter the absolute path to the `source` directory of this project/repository.
-    - If not already present, in the `Extension Search Paths`, enter the path that leads to Isaac Lab's extension directory directory (`IsaacLab/source`)
-    - Click on the **Hamburger Icon**, then click `Refresh`.
-
-2. **Search and enable your extension**:
-    - Find your extension under the `Third Party` category.
-    - Toggle it to enable your extension.
-
-## Code formatting
-
-We have a pre-commit template to automatically format your code.
-To install pre-commit:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then create the project environment:
 
 ```bash
-pip install pre-commit
+uv sync
 ```
 
-Then you can run pre-commit with:
+Commit both `pyproject.toml` files and `uv.lock` so collaborators use the same environment.
+
+## Run the generated tasks
+
+Replace the placeholders below with a generated task and selected RL library.
 
 ```bash
-pre-commit run --all-files
+# List this project's environments and their available presets
+uv run python scripts/list_envs.py --show_presets
+
+# Exercise an environment without a trained policy
+uv run isaaclab zero_agent --task <TASK_NAME> --num_envs 16
+uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16
+
+# Train and play
+uv run isaaclab train --rl_library <RL_LIBRARY> --task <TASK_NAME>
+uv run isaaclab play --rl_library <RL_LIBRARY> --task <TASK_NAME> --checkpoint latest
+
+# Distributed training
+uv run isaaclab train_multigpu --rl_library <RL_LIBRARY> --task <TASK_NAME> --num_gpus 2
+
+# Benchmark startup, runtime, training, or play
+uv run isaaclab benchmark runtime --task <TASK_NAME> --num_envs 16 --num_steps 1000
+uv run isaaclab benchmark training --rl_library <RL_LIBRARY> --task <TASK_NAME> --max_iterations 10
 ```
+
+Use `physics=<PRESET>` to select one of the presets shown by `list_envs.py`.
+
+## Development
+
+Run formatting and lint checks through the project environment:
+
+```bash
+uv run pre-commit run --all-files
+```
+
+To configure VS Code, run the `setup_python_env` task or invoke its command directly:
+
+```bash
+uv run python .vscode/tools/setup_vscode.py
+```
+
+## Isaac Sim extension
+
+Add the project's `source` directory to the Isaac Sim Extension Manager search paths, refresh, and enable the extension
+under `Third Party`. The optional UI example is in `source/{{ name }}/{{ name }}/ui_extension_example.py`.
 
 ## Troubleshooting
 
-### Pylance Missing Indexing of Extensions
-
-In some VsCode versions, the indexing of part of the extensions is missing.
-In this case, add the path to your extension in `.vscode/settings.json` under the key `"python.analysis.extraPaths"`.
-
-```json
-{
-    "python.analysis.extraPaths": [
-        "<path-to-ext-repo>/source/{{ name }}"
-    ]
-}
-```
-
-### Pylance Crash
-
-If you encounter a crash in `pylance`, it is probable that too many files are indexed and you run out of memory.
-A possible solution is to exclude some of omniverse packages that are not used in your project.
-To do so, modify `.vscode/settings.json` and comment out packages under the key `"python.analysis.extraPaths"`
-Some examples of packages that can likely be excluded are:
-
-```json
-"<path-to-isaac-sim>/extscache/omni.anim.*"         // Animation packages
-"<path-to-isaac-sim>/extscache/omni.kit.*"          // Kit UI tools
-"<path-to-isaac-sim>/extscache/omni.graph.*"        // Graph UI tools
-"<path-to-isaac-sim>/extscache/omni.services.*"     // Services tools
-...
-```
+If Pylance cannot resolve simulator modules, run the VS Code setup command above and reload the window. If indexing uses
+too much memory, remove unused simulator extension paths from `.vscode/settings.json`.
