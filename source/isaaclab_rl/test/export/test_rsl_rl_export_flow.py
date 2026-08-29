@@ -11,12 +11,10 @@ accumulating PhysX GPU allocations across the full export matrix.
 """
 
 import contextlib
-import importlib.util
 import os
 import shutil
 import subprocess
 import sys
-import types
 from pathlib import Path
 
 import pytest
@@ -25,8 +23,6 @@ torch = pytest.importorskip("torch")
 
 # Root of the repository (three levels up from this file).
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "rsl_rl" / "export.py"
-_EXPORT_MODULE_NAME = "_isaaclab_rsl_rl_leapp_export"
 _THIS_SCRIPT = Path(__file__).resolve()
 _EXPORT_BATCH_SIZE = 8
 _EXPORT_BATCH_TIMEOUT = 600
@@ -128,47 +124,10 @@ def _fail_on_process_error(result: subprocess.CompletedProcess[str], task_names:
 
 
 def _load_export_module():
-    """Load the LEAPP RSL-RL export script as an importable module."""
-    module = sys.modules.get(_EXPORT_MODULE_NAME)
-    if module is not None and hasattr(module, "ensure_actor_hidden_state_initialized"):
-        return module
+    """Load the installed LEAPP RSL-RL exporter."""
+    from isaaclab_rl.entrypoints.backends import export_rsl_rl as module
 
-    sys.modules.pop(_EXPORT_MODULE_NAME, None)
-    spec = importlib.util.spec_from_file_location(_EXPORT_MODULE_NAME, _EXPORT_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create module spec for {_EXPORT_SCRIPT}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_EXPORT_MODULE_NAME] = module
-    original_modules = {
-        name: sys.modules.get(name) for name in ("isaaclab", "isaaclab.app", "isaaclab_tasks", "isaaclab_tasks.utils")
-    }
-    isaaclab_module = types.ModuleType("isaaclab")
-    isaaclab_app_module = types.ModuleType("isaaclab.app")
-    isaaclab_tasks_module = types.ModuleType("isaaclab_tasks")
-    isaaclab_tasks_utils_module = types.ModuleType("isaaclab_tasks.utils")
-
-    class _AppLauncher:
-        @staticmethod
-        def add_app_launcher_args(parser):
-            return None
-
-    setattr(isaaclab_app_module, "AppLauncher", _AppLauncher)
-    setattr(isaaclab_tasks_utils_module, "fold_preset_tokens", lambda args: args)
-    setattr(isaaclab_tasks_utils_module, "setup_preset_cli", lambda parser, argv=None: parser.parse_known_args(argv))
-    sys.modules["isaaclab"] = isaaclab_module
-    sys.modules["isaaclab.app"] = isaaclab_app_module
-    sys.modules["isaaclab_tasks"] = isaaclab_tasks_module
-    sys.modules["isaaclab_tasks.utils"] = isaaclab_tasks_utils_module
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        for name, original_module in original_modules.items():
-            if original_module is None:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = original_module
-    setattr(module, "torch", torch)
+    module.torch = torch
     return module
 
 

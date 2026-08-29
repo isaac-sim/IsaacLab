@@ -41,10 +41,7 @@ dump_yaml = None
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if leapp_scripts_dir not in sys.path:
-        sys.path.insert(0, leapp_scripts_dir)
-    from export_utils import add_common_export_args, finalize_export_args
+    from .export_common import add_common_export_args, finalize_export_args
 
     parser = argparse.ArgumentParser(description="Export an RL agent with Stable-Baselines3.")
     add_common_export_args(parser, agent_default="sb3_cfg_entry_point")
@@ -103,12 +100,13 @@ def _load_runtime_dependencies() -> None:
     __import__("isaaclab_tasks")
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
 
-    leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if leapp_scripts_dir not in sys.path:
-        sys.path.insert(0, leapp_scripts_dir)
-    from export_utils import (  # isort: skip
+    from .export_common import (
         create_graph_configs as create_graph_configs_fn,
+    )
+    from .export_common import (
         state_dict_from_sequence as state_dict_from_sequence_fn,
+    )
+    from .export_common import (
         state_sequence_from_registered as state_sequence_from_registered_fn,
     )
 
@@ -389,10 +387,7 @@ def export_sb3_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one SB3 policy."""
-    leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if leapp_scripts_dir not in sys.path:
-        sys.path.insert(0, leapp_scripts_dir)
-    from export_utils import disable_torchscript_for_export
+    from .export_common import disable_torchscript_for_export
 
     # Must run before the imports below pull in the task modules.
     disable_torchscript_for_export()
@@ -424,5 +419,10 @@ def main_cli(argv: list[str] | None = None) -> bool:
     return run_export_with_hydra(args_cli, hydra_args)
 
 
+def run(argv: list[str] | None = None) -> int:
+    """Run the export backend and return a process exit code."""
+    return 0 if main_cli(argv) else 1
+
+
 if __name__ == "__main__":
-    main_cli()
+    raise SystemExit(run())

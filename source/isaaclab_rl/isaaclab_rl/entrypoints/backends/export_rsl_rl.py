@@ -47,10 +47,7 @@ dump_yaml = None
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _leapp_scripts_dir not in sys.path:
-        sys.path.insert(0, _leapp_scripts_dir)
-    from export_utils import add_common_export_args, finalize_export_args
+    from .export_common import add_common_export_args, finalize_export_args
 
     parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
     add_common_export_args(parser, agent_default="rsl_rl_cfg_entry_point")
@@ -109,10 +106,7 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
 
-    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _leapp_scripts_dir not in sys.path:
-        sys.path.insert(0, _leapp_scripts_dir)
-    from export_utils import create_graph_configs as create_graph_configs_fn
+    from .export_common import create_graph_configs as create_graph_configs_fn
 
     installed_version = metadata.version("rsl-rl-lib")
     if packaging_version_module.parse(installed_version) < packaging_version_module.parse(RSL_RL_MIN_VERSION):
@@ -374,10 +368,7 @@ def export_rsl_rl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
-    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _leapp_scripts_dir not in sys.path:
-        sys.path.insert(0, _leapp_scripts_dir)
-    from export_utils import disable_torchscript_for_export
+    from .export_common import disable_torchscript_for_export
 
     # Must run before the imports below pull in the task modules.
     disable_torchscript_for_export()
@@ -412,5 +403,10 @@ def main_cli(argv: list[str] | None = None) -> bool:
     return run_export_with_hydra(args_cli, hydra_args)
 
 
+def run(argv: list[str] | None = None) -> int:
+    """Run the export backend and return a process exit code."""
+    return 0 if main_cli(argv) else 1
+
+
 if __name__ == "__main__":
-    main_cli()
+    raise SystemExit(run())

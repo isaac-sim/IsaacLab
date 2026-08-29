@@ -336,6 +336,24 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     }
 
 
+def test_export_dispatches_selected_backend(monkeypatch) -> None:
+    """The unified export dispatcher forwards backend arguments and its status."""
+    received: dict[str, object] = {}
+
+    def _fake_run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> int:
+        received.update(module_name=module_name, argv=argv, run_as_script=run_as_script)
+        return 1
+
+    monkeypatch.setattr(dispatch, "_run_backend", _fake_run_backend)
+
+    assert dispatch.run_export_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 1
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
+        "argv": ["--task", "Isaac-Cartpole"],
+        "run_as_script": False,
+    }
+
+
 def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     """A task registry default selects the backend when the CLI omits it."""
     task_name = "Isaac-DefaultAgentDispatchTest"
