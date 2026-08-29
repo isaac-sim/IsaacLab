@@ -32,7 +32,7 @@ Choose A Workflow
    * - Launch, import, configuration, scene creation, or first-step latency
      - ``startup``
    * - Any of the above across several GPUs
-     - ``<workflow>-multigpu``
+     - ``<workflow>_multigpu``
    * - One asset or sensor operation
      - :ref:`testing_micro_benchmarks`
 
@@ -343,8 +343,8 @@ they established final policy quality.
 Multi-GPU
 ---------
 
-Append ``-multigpu`` to ``startup``, ``runtime``, or ``training`` to run one
-benchmark rank per GPU. The :ref:`train-multigpu-command` guide is the canonical
+Append ``_multigpu`` to ``startup``, ``runtime``, or ``training`` to run one
+benchmark rank per GPU. The :ref:`train_multigpu-command` guide is the canonical
 reference for the three workflows, launcher options, multi-node setup, supported
 RL libraries, and result interpretation.
 

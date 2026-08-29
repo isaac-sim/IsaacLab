@@ -11,13 +11,13 @@
 
 ```bash
 # All visible GPUs (default).
-uv run isaaclab train-multigpu --rl_library rsl_rl --task Isaac-Cartpole
+uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole
 
 # Fixed rank count.
-uv run isaaclab train-multigpu --rl_library rsl_rl --num_gpus 2 --task Isaac-Cartpole
+uv run isaaclab train_multigpu --rl_library rsl_rl --num_gpus 2 --task Isaac-Cartpole
 
 # Print the resolved torchrun command without running it.
-uv run isaaclab train-multigpu --rl_library rsl_rl --num_gpus 2 --task Isaac-Cartpole --dry_run
+uv run isaaclab train_multigpu --rl_library rsl_rl --num_gpus 2 --task Isaac-Cartpole --dry_run
 ```
 
 The launcher forwards unrecognized arguments to `scripts/reinforcement_learning/train.py` and adds
@@ -38,10 +38,10 @@ rank and prints its traceback as the root cause even when that rank's output is 
 
 ```bash
 # Raw output from every rank, for example when ranks disagree about what they built.
-uv run isaaclab train-multigpu --rl_library rsl_rl --task Isaac-Cartpole --log_all_ranks
+uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --log_all_ranks
 
 # Clean console, full per-rank logs on disk under --log_dir.
-uv run isaaclab train-multigpu --rl_library rsl_rl --task Isaac-Cartpole --tee 3 --log_dir /tmp/ranklogs
+uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --tee 3 --log_dir /tmp/ranklogs
 ```
 
 Rank filtering is a torchrun feature. skrl with `--ml_framework jax` uses skrl's own launcher and
@@ -55,7 +55,7 @@ by default. Bisect from the outside in, and stop at the first layer that reprodu
 
 1. **Change the world size.** Run at 2, 3, and 4 ranks. A failure that appears only at one world
    size points at the NCCL transport rather than at the task.
-2. **Drop the launcher.** Run `torchrun` directly. If this still hangs, `train-multigpu` is not
+2. **Drop the launcher.** Run `torchrun` directly. If this still hangs, `train_multigpu` is not
    involved:
 
    ```bash

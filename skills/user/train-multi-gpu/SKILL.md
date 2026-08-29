@@ -1,6 +1,6 @@
 ---
 name: isaaclab-training-multi-gpu
-description: Launches and debugs Isaac Lab multi-GPU and multi-node RL training, including NCCL hangs and collective failures. Use when running train-multigpu, choosing num_gpus, setting up multi-node jobs, or diagnosing distributed training that hangs, deadlocks, or aborts in ProcessGroupNCCL.
+description: Launches and debugs Isaac Lab multi-GPU and multi-node RL training, including NCCL hangs and collective failures. Use when running train_multigpu, choosing num_gpus, setting up multi-node jobs, or diagnosing distributed training that hangs, deadlocks, or aborts in ProcessGroupNCCL.
 audience: user
 status: experimental
 owners:
@@ -22,7 +22,7 @@ completion but the reward curves or metrics look wrong.
 
 1. Confirm the job trains correctly on a single GPU first. Do not debug a distributed failure before
    the same task, backend, and preset combination is known to work with one rank.
-2. Launch with `uv run isaaclab train-multigpu`, which wraps `torchrun` and injects `--distributed`
+2. Launch with `uv run isaaclab train_multigpu`, which wraps `torchrun` and injects `--distributed`
    for you. Pass all training arguments exactly as for `uv run isaaclab train`.
 3. Select the rank count with `--num_gpus`. The default `gpu` uses every visible device. Use
    `--dry_run` to print the resolved launcher command without running it.

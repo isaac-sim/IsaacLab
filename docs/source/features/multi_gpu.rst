@@ -1,10 +1,10 @@
-.. _train-multigpu-command:
+.. _train_multigpu-command:
 
 Multi-GPU and Multi-Node Training
 =================================
 
 Scale one reinforcement learning job across the GPUs in a workstation or across
-several nodes with ``train-multigpu``. Isaac Lab starts one training process per
+several nodes with ``train_multigpu``. Isaac Lab starts one training process per
 GPU, gives each process its own simulation environments, and synchronizes policy
 updates across the processes.
 
@@ -18,7 +18,7 @@ simulation, and end-to-end training performance.
 
 .. warning::
 
-   ``train-multigpu`` is experimental and may change in a future release.
+   ``train_multigpu`` is experimental and may change in a future release.
 
 Start a multi-GPU training run
 ------------------------------
@@ -34,15 +34,15 @@ Then run the same task on every visible GPU:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu --task Isaac-Cartpole
+   uv run isaaclab train_multigpu --task Isaac-Cartpole
 
-That is the complete transition from a single-GPU run. ``train-multigpu`` adds
+That is the complete transition from a single-GPU run. ``train_multigpu`` adds
 ``--distributed`` and selects the distributed launcher automatically. All other
 arguments are the same arguments accepted by ``train``:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu \
+   uv run isaaclab train_multigpu \
       --task Isaac-Reorient-KukaAllegro \
       --num_envs 4096 \
       --max_iterations 100
@@ -65,14 +65,14 @@ a specific worker count:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu --num_gpus 2 --task Isaac-Cartpole
+   uv run isaaclab train_multigpu --num_gpus 2 --task Isaac-Cartpole
 
 Use ``CUDA_VISIBLE_DEVICES`` to choose the physical devices. The launcher sees
 only the devices in that list:
 
 .. code-block:: bash
 
-   CUDA_VISIBLE_DEVICES=1,3 uv run isaaclab train-multigpu \
+   CUDA_VISIBLE_DEVICES=1,3 uv run isaaclab train_multigpu \
       --num_gpus 2 --task Isaac-Cartpole
 
 Run ``nvidia-smi`` before launching to confirm that the expected devices are
@@ -93,16 +93,16 @@ for most core tasks.
      - Command
    * - RSL-RL
      - PyTorch
-     - ``uv run isaaclab train-multigpu --rl_library rsl_rl ...``
+     - ``uv run isaaclab train_multigpu --rl_library rsl_rl ...``
    * - RL-Games
      - PyTorch
-     - ``uv run --extra rl-games isaaclab train-multigpu --rl_library rl_games ...``
+     - ``uv run --extra rl-games isaaclab train_multigpu --rl_library rl_games ...``
    * - skrl
      - PyTorch
-     - ``uv run --extra skrl isaaclab train-multigpu --rl_library skrl ...``
+     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl ...``
    * - skrl
      - JAX
-     - ``uv run --extra skrl isaaclab train-multigpu --rl_library skrl --ml_framework jax ...``
+     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
 
 skrl with JAX uses skrl's distributed launcher instead of ``torchrun``. Pass an
 integer ``--num_gpus`` and use ``--coordinator_address`` to configure its
@@ -110,7 +110,7 @@ coordinator:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train-multigpu \
+   uv run --extra skrl isaaclab train_multigpu \
       --rl_library skrl --ml_framework jax --num_gpus 4 \
       --coordinator_address localhost:5000 \
       --task Isaac-Cartpole
@@ -128,31 +128,31 @@ train a policy for later use. Isaac Lab provides three multi-GPU workflows:
    * - Benchmark
      - What it measures
      - Use it to answer
-   * - ``startup-multigpu``
+   * - ``startup_multigpu``
      - Startup time for rank 0 while every GPU starts the same workload.
      - How does a fully occupied node affect startup?
-   * - ``runtime-multigpu``
+   * - ``runtime_multigpu``
      - Simulation throughput for rank 0 while every GPU runs independently.
      - How does host contention affect environment stepping?
-   * - ``training-multigpu``
+   * - ``training_multigpu``
      - Global, synchronized training throughput across every rank.
      - How well does end-to-end learning scale across GPUs?
 
-Run each benchmark with the same launcher options used by ``train-multigpu``:
+Run each benchmark with the same launcher options used by ``train_multigpu``:
 
 .. code-block:: bash
 
-   uv run isaaclab benchmark startup-multigpu \
+   uv run isaaclab benchmark startup_multigpu \
       --num_gpus 2 --task Isaac-Cartpole
 
-   uv run isaaclab benchmark runtime-multigpu \
+   uv run isaaclab benchmark runtime_multigpu \
       --num_gpus 2 --task Isaac-Cartpole --num_envs 4096
 
-   uv run isaaclab benchmark training-multigpu \
+   uv run isaaclab benchmark training_multigpu \
       --rl_library rsl_rl --num_gpus 2 \
       --task Isaac-Cartpole --num_envs 4096 --max_iterations 100
 
-``training-multigpu`` supports RSL-RL, RL-Games, and skrl with PyTorch. It does
+``training_multigpu`` supports RSL-RL, RL-Games, and skrl with PyTorch. It does
 not support skrl with JAX or SB3. It also rejects ``--video``,
 ``--capture_env_sensors``, and ``--check_success``, which do not produce a
 meaningful aggregate result across ranks.
@@ -177,8 +177,8 @@ layout and clarify which measurements the bundle covers:
    * - ``num_envs_per_rank``
      - Environments hosted by each rank.
    * - ``workload_scope``
-     - ``global`` for ``training-multigpu`` because ranks train in lockstep.
-       ``rank0`` for ``startup-multigpu`` and ``runtime-multigpu`` because each
+     - ``global`` for ``training_multigpu`` because ranks train in lockstep.
+       ``rank0`` for ``startup_multigpu`` and ``runtime_multigpu`` because each
        rank runs independently and only rank 0 is measured.
    * - ``measurement_scope``
      - ``rank0_process``: timings, learning curves, CPU, and RAM come from rank
@@ -190,14 +190,14 @@ layout and clarify which measurements the bundle covers:
 When comparing one GPU with multiple GPUs, keep ``--num_envs`` constant **per
 rank**. An N-GPU job processes N times as many environments as the one-GPU job
 at the same per-rank setting. Compare the global throughput of
-``training-multigpu`` against N times the single-GPU throughput. Do not treat
-``startup-multigpu`` or ``runtime-multigpu`` as aggregate rates; they measure
+``training_multigpu`` against N times the single-GPU throughput. Do not treat
+``startup_multigpu`` or ``runtime_multigpu`` as aggregate rates; they measure
 rank 0 while the other ranks create host contention.
 
 How multi-GPU training works
 ----------------------------
 
-For PyTorch workflows, ``train-multigpu`` wraps
+For PyTorch workflows, ``train_multigpu`` wraps
 `torchrun <https://docs.pytorch.org/docs/stable/elastic/run.html>`_. It launches
 one process per GPU. Each process owns:
 
@@ -236,7 +236,7 @@ Show output from every rank when processes appear to disagree:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu \
+   uv run isaaclab train_multigpu \
       --task Isaac-Cartpole --log_all_ranks
 
 For a clean console and complete per-rank logs on disk, use ``torchrun`` log
@@ -244,7 +244,7 @@ redirection:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu \
+   uv run isaaclab train_multigpu \
       --task Isaac-Cartpole --tee 3 --log_dir /tmp/isaaclab-rank-logs
 
 The log filtering options apply to PyTorch workflows. skrl with JAX writes every
@@ -264,7 +264,7 @@ per node, run the following on the first node:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu \
+   uv run isaaclab train_multigpu \
       --nnodes 2 --node_rank 0 --num_gpus 4 \
       --master_addr 10.0.0.10 --master_port 29500 \
       --task Isaac-Cartpole
@@ -273,7 +273,7 @@ Run the same command on the second node with its own rank:
 
 .. code-block:: bash
 
-   uv run isaaclab train-multigpu \
+   uv run isaaclab train_multigpu \
       --nnodes 2 --node_rank 1 --num_gpus 4 \
       --master_addr 10.0.0.10 --master_port 29500 \
       --task Isaac-Cartpole
@@ -335,7 +335,7 @@ For example, test the first workaround without changing a shared configuration:
 
 .. code-block:: bash
 
-   NCCL_P2P_DISABLE=1 uv run isaaclab train-multigpu \
+   NCCL_P2P_DISABLE=1 uv run isaaclab train_multigpu \
       --num_gpus 2 --task Isaac-Cartpole
 
 These variables can reduce communication performance and should be scoped to
@@ -372,7 +372,3 @@ required by every supported system.
 
    If this probe also hangs, the problem is in NCCL or the system topology, not
    in Isaac Lab, the task, or the RL library.
-
-The previous ``train_multigpu`` spelling remains available as a deprecated alias
-for migration. New commands, scripts, and documentation should use
-``train-multigpu``.

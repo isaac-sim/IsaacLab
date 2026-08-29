@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the ``<workflow>-multigpu`` benchmark launcher command building."""
+"""Tests for the ``<workflow>_multigpu`` benchmark launcher command building."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import sys
 
 import pytest
 
+from isaaclab.benchmark import dispatch
 from isaaclab.benchmark.entrypoints import multigpu
 from isaaclab.cli.multigpu import build_launch_command, parse_launcher_args
 
@@ -83,3 +84,30 @@ def test_dry_run_prints_a_shell_parsable_command(capsys: pytest.CaptureFixture[s
     assert status == 0
     tokens = shlex.split(capsys.readouterr().out)
     assert tokens == _command("startup", ["--num_gpus", "2", "--task", "X"])
+
+
+def test_underscore_workflow_dispatches_to_multigpu_launcher(monkeypatch: pytest.MonkeyPatch):
+    """The canonical underscore suffix selects the requested multi-GPU workflow."""
+    received: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(
+        multigpu,
+        "run_multigpu_benchmark_cli",
+        lambda workflow, argv: received.append((workflow, argv)) or 0,
+    )
+
+    assert dispatch.run_benchmark_cli(["runtime_multigpu", "--task", "X"]) == 0
+    assert received == [("runtime", ["--task", "X"])]
+
+
+def test_hyphenated_workflow_warns_and_dispatches(monkeypatch: pytest.MonkeyPatch, capsys):
+    """The former hyphen suffix remains available as a deprecated compatibility alias."""
+    received: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(
+        multigpu,
+        "run_multigpu_benchmark_cli",
+        lambda workflow, argv: received.append((workflow, argv)) or 0,
+    )
+
+    assert dispatch.run_benchmark_cli(["runtime-multigpu", "--task", "X"]) == 0
+    assert received == [("runtime", ["--task", "X"])]
+    assert "'runtime-multigpu' is deprecated. Use 'runtime_multigpu' instead." in capsys.readouterr().err

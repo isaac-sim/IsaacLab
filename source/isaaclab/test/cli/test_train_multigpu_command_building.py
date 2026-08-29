@@ -31,7 +31,6 @@ from pathlib import Path
 
 import pytest
 
-import isaaclab.cli as cli
 from isaaclab.app.app_launcher import AppLauncher
 
 from isaaclab_rl.entrypoints import multigpu as train_multigpu
@@ -204,27 +203,3 @@ class TestKitArgsForwarding:
         tokens = shlex.split(printed)
         index = tokens.index("--kit_args")
         assert tokens[index + 1] == "--foo=/bar"
-
-
-class TestTrainMultigpuCommand:
-    """Tests for the public multi-GPU CLI command names."""
-
-    @staticmethod
-    def _run_cli(monkeypatch: pytest.MonkeyPatch, command: str) -> list[str]:
-        received: list[str] = []
-
-        def _run_python_command(_script: Path, args: list[str], *, check: bool) -> None:
-            assert check
-            received.extend(args)
-
-        monkeypatch.setattr(cli, "run_python_command", _run_python_command)
-        monkeypatch.setattr(sys, "argv", ["isaaclab", command, "--task", "Isaac-Cartpole"])
-        cli.cli()
-        return received
-
-    def test_hyphenated_command_dispatches_training(self, monkeypatch):
-        assert self._run_cli(monkeypatch, "train-multigpu") == ["--task", "Isaac-Cartpole"]
-
-    def test_underscore_alias_warns_and_dispatches_training(self, monkeypatch, capsys):
-        assert self._run_cli(monkeypatch, "train_multigpu") == ["--task", "Isaac-Cartpole"]
-        assert "'train_multigpu' is deprecated. Use 'train-multigpu' instead." in capsys.readouterr().err

@@ -204,14 +204,8 @@ conversion is needed and there is no code copy step -- the image is the unit of 
 
 The workflow definition lives in ``docker/cluster/osmo_multi_gpu_workflow.yaml``. It requests a
 single node and scales training across the GPUs on that node through the
-:ref:`train-multigpu <train-multigpu-command>` command. The following parameters can be overridden
+:ref:`train_multigpu <train_multigpu-command>` command. The following parameters can be overridden
 at submission time:
-
-.. note::
-
-   The template uses the deprecated ``train_multigpu`` spelling because its default
-   ``3.0.0-beta2`` container image predates the rename. Custom images built from current source can
-   use ``train-multigpu``.
 
 .. list-table::
    :header-rows: 1
@@ -227,7 +221,7 @@ at submission time:
      - The RL library used for training. Defaults to ``rsl_rl``.
    * - num_gpu
      - The number of GPUs to train on. When set to ``1``, the single-process ``train`` entry point
-       is used instead of ``train-multigpu``.
+       is used instead of ``train_multigpu``.
    * - num_cpu
      - The number of CPUs requested for the node. These are split evenly across the per-GPU worker
        processes via ``OMP_NUM_THREADS``.
