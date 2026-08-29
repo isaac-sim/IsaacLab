@@ -34,7 +34,16 @@ def cubes_stacked(
     height_diff: float = 0.0468,
     atol: float = 0.0001,
     rtol: float = 0.0001,
+    max_lin_vel: float | None = 0.01,
 ) -> torch.Tensor:
+    """Whether the cubes are stacked, released, and at rest.
+
+    Args:
+        max_lin_vel: Speed, in m/s, below which a cube counts as at rest. The position checks below
+            describe an instantaneous configuration, and a cube dropped above its target passes
+            through that configuration on the way down -- without this, the drop is scored as a
+            successful stack. Pass None to skip the check.
+    """
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
@@ -92,5 +101,12 @@ def cubes_stacked(
                 )
         else:
             raise ValueError("No gripper_joint_names found in environment config")
+
+    # The position checks above are satisfied by a cube falling past its target as well as by one
+    # resting on it, so require the cubes to have settled before calling the stack complete.
+    if max_lin_vel is not None:
+        for cube in (cube_1, cube_2) if cube_3_cfg is None else (cube_1, cube_2, env.scene[cube_3_cfg.name]):
+            at_rest = torch.linalg.norm(cube.data.root_lin_vel_w.torch, dim=1) < max_lin_vel
+            stacked = torch.logical_and(at_rest, stacked)
 
     return stacked
