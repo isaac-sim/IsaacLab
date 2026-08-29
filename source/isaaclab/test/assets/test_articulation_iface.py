@@ -14,6 +14,7 @@ The setup is a bit convoluted so that we can run these tests without requiring I
 """
 
 import warnings
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -115,6 +116,38 @@ class TestArticulationIndexResolution:
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+
+
+@pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+class TestPhysXArticulationExternalWrenches:
+    """Test PhysX-specific external wrench submission behavior."""
+
+    @_default_devices
+    def test_global_wrench_at_com_uses_direct_submission_without_pose_read(self, device):
+        """Submit a global-frame external wrench at the CoM without composing it through body poses."""
+        num_instances = 2
+        num_bodies = 3
+        art, root_view = get_articulation(
+            "physx", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        root_view.get_link_transforms = MagicMock(side_effect=AssertionError("unexpected body-pose read"))
+        root_view.apply_forces_and_torques_at_position = MagicMock()
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        torques = torch.zeros_like(forces)
+        forces[:, 1, 2] = torch.tensor([3.0, 7.0], device=device)
+        torques[:, 1, 0] = torch.tensor([0.5, 1.5], device=device)
+        art.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
+
+        art.write_data_to_sim()
+
+        call = root_view.apply_forces_and_torques_at_position.call_args.kwargs
+        assert call["is_global"] is True
+        assert call["position_data"] is None
+        actual_forces = wp.to_torch(call["force_data"]).reshape(num_instances, num_bodies, 3)
+        actual_torques = wp.to_torch(call["torque_data"]).reshape(num_instances, num_bodies, 3)
+        torch.testing.assert_close(actual_forces, forces)
+        torch.testing.assert_close(actual_torques, torques)
 
 
 # ---------------------------------------------------------------------------

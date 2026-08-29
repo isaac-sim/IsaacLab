@@ -14,6 +14,8 @@ collection interfaces need to comply with the same interface contract.
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 import torch
@@ -75,6 +77,40 @@ _reshape_3d_backends = pytest.mark.parametrize(
 _production_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
+
+
+@pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+class TestPhysXRigidObjectCollectionExternalWrenches:
+    """Test PhysX-specific external wrench submission behavior."""
+
+    @_default_devices
+    def test_global_wrench_at_com_uses_direct_submission_without_pose_read(self, device):
+        """Submit a global-frame external wrench at the CoM without composing it through body poses."""
+        num_instances = 2
+        num_bodies = 3
+        collection, root_view = get_rigid_object_collection(
+            "physx", num_instances=num_instances, num_bodies=num_bodies, device=device
+        )
+        root_view.get_transforms = MagicMock(side_effect=AssertionError("unexpected body-pose read"))
+        root_view.apply_forces_and_torques_at_position = MagicMock()
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        torques = torch.zeros_like(forces)
+        forces[:, 1, 2] = torch.tensor([3.0, 7.0], device=device)
+        torques[:, 1, 0] = torch.tensor([0.5, 1.5], device=device)
+        collection.permanent_wrench_composer.set_forces_and_torques_index(
+            forces=forces, torques=torques, is_global=True
+        )
+
+        collection.write_data_to_sim()
+
+        call = root_view.apply_forces_and_torques_at_position.call_args.kwargs
+        assert call["is_global"] is True
+        assert call["position_data"] is None
+        actual_forces = wp.to_torch(call["force_data"]).reshape(num_bodies, num_instances, 3)
+        actual_torques = wp.to_torch(call["torque_data"]).reshape(num_bodies, num_instances, 3)
+        torch.testing.assert_close(actual_forces, forces.transpose(0, 1))
+        torch.testing.assert_close(actual_torques, torques.transpose(0, 1))
 
 
 # ---------------------------------------------------------------------------

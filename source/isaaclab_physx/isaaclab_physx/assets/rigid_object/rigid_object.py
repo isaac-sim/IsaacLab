@@ -159,13 +159,20 @@ class RigidObject(BaseRigidObject):
                 composer = self._permanent_wrench_composer
                 get_force_data = self._get_perm_wrench_force_f32
                 get_torque_data = self._get_perm_wrench_torque_f32
-            composer.compose_to_body_frame()
+            external_wrench_is_global = composer.all_wrenches_global_at_com
+            if external_wrench_is_global:
+                force_data = composer.global_force_at_com_w.flatten().view(wp.float32)
+                torque_data = composer.global_torque_w.flatten().view(wp.float32)
+            else:
+                composer.compose_to_body_frame()
+                force_data = get_force_data()
+                torque_data = get_torque_data()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=get_force_data(),
-                torque_data=get_torque_data(),
+                force_data=force_data,
+                torque_data=torque_data,
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=external_wrench_is_global,
             )
         self._instantaneous_wrench_composer.reset()
 

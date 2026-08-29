@@ -68,6 +68,54 @@ def create_mock_asset(
     )
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_all_external_wrenches_global_at_com_tracking(device: str):
+    """Track the conservative aggregate invariant across contributions, sources, and resets."""
+    asset = create_mock_asset(2, 1, device)
+    forces = torch.ones(2, 1, 3, device=device)
+    torques = torch.ones(2, 1, 3, device=device)
+    positions = torch.ones(2, 1, 3, device=device)
+
+    composer = WrenchComposer(asset)
+    composer.add_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
+    assert composer.all_wrenches_global_at_com
+
+    # Multiple external-wrench terms can contribute to the same composer without losing eligibility.
+    composer.add_forces_and_torques_index(forces=forces, is_global=True)
+    assert composer.all_wrenches_global_at_com
+
+    # A global-frame torque does not use positions, even if an unused positions argument is present.
+    torque_only = WrenchComposer(asset)
+    torque_only.add_forces_and_torques_index(torques=torques, positions=positions, is_global=True)
+    assert torque_only.all_wrenches_global_at_com
+
+    global_source = WrenchComposer(asset)
+    global_source.set_forces_and_torques_mask(forces=forces, torques=torques, is_global=True)
+    assert global_source.all_wrenches_global_at_com
+    composer.add_raw_buffers_from(global_source)
+    assert composer.all_wrenches_global_at_com
+
+    positioned = WrenchComposer(asset)
+    positioned.add_forces_and_torques_index(forces=forces, positions=positions, is_global=True)
+    assert not positioned.all_wrenches_global_at_com
+
+    local_source = WrenchComposer(asset)
+    local_source.add_forces_and_torques_index(forces=forces, is_global=False)
+    assert not local_source.all_wrenches_global_at_com
+
+    # Merging instantaneous/permanent or other sources remains conservative if any source is ineligible.
+    composer.add_raw_buffers_from(local_source)
+    assert not composer.all_wrenches_global_at_com
+
+    # A partial reset cannot prove that all local or positioned contributions were removed.
+    composer.reset(env_ids=[0])
+    assert not composer.all_wrenches_global_at_com
+    composer.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=device))
+    assert not composer.all_wrenches_global_at_com
+    composer.reset()
+    assert composer.all_wrenches_global_at_com
+
+
 # --- Helper functions for quaternion math ---
 
 

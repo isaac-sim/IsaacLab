@@ -66,6 +66,9 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        # Track whether all buffered external-wrench contributions remain directly representable in the global frame
+        # at each body's CoM. Partial resets conservatively preserve false.
+        self._all_wrenches_global_at_com = True
         if hasattr(self._asset.data, "body_com_pos_w"):
             self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
         else:
@@ -116,6 +119,16 @@ class WrenchComposer:
         compared to scanning the buffers every frame.
         """
         return self._active
+
+    @property
+    def all_wrenches_global_at_com(self) -> bool:
+        """Whether all buffered external wrenches are global-frame and applied at each body's CoM.
+
+        This invariant remains ``True`` only while every buffered contribution is expressed in the global frame and
+        every force acts at its body's CoM. It is conservative after partial resets: it may remain ``False`` even when
+        the selected reset removed every local or positioned contribution. A full :meth:`reset` restores it.
+        """
+        return self._all_wrenches_global_at_com
 
     @property
     def global_force_w(self) -> wp.array:
@@ -265,6 +278,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._all_wrenches_global_at_com &= is_global and (forces is None or positions is None)
 
         wp.launch(
             add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
@@ -328,6 +342,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._all_wrenches_global_at_com &= is_global and (forces is None or positions is None)
 
         wp.launch(
             set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
@@ -388,6 +403,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._all_wrenches_global_at_com &= is_global and (forces is None or positions is None)
 
         wp.launch(
             add_forces_to_dual_buffers_mask,
@@ -453,6 +469,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._all_wrenches_global_at_com &= is_global and (forces is None or positions is None)
 
         wp.launch(
             set_forces_to_dual_buffers_mask,
@@ -493,6 +510,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._all_wrenches_global_at_com &= other._all_wrenches_global_at_com
 
         wp.launch(
             add_raw_wrench_buffers,
@@ -571,6 +589,7 @@ class WrenchComposer:
             self._out_torque_b.zero_()
             self._active = False
             self._dirty = False
+            self._all_wrenches_global_at_com = True
         elif env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,
