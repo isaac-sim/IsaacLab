@@ -31,7 +31,7 @@ is free to move along a rail, and the pole is free to rotate about the cart. The
 Defining the spawn configuration
 --------------------------------
 
-As explained in :ref:`tutorial-spawn-prims` tutorials, the spawn configuration defines
+The spawn configuration defines
 the properties of the assets to be spawned. This spawning may happen procedurally, or
 through an existing asset file (e.g. USD or URDF). In this example, we will spawn the
 Cartpole from a USD file.
@@ -65,7 +65,8 @@ state needs to be reset.
 .. note::
    The initial state of an asset is defined w.r.t. its local environment frame. This then needs to
    be transformed into the global simulation frame when resetting the asset's state. For more
-   details, please check the :ref:`tutorial-interact-articulation` tutorial.
+   details, see :class:`~assets.ArticulationCfg.InitialStateCfg` and the reset implementations in the
+   maintained task environments.
 
 
 For an articulation, the :class:`~assets.ArticulationCfg.InitialStateCfg` object defines the

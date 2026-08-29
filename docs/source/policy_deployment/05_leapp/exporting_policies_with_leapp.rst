@@ -515,11 +515,8 @@ or ``--viz kit``:
                    --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
                    --viz kit physics=isaacsim_physx
 
-For Direct workflow policies, see the
-:doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.
-That guide shows how to add LEAPP annotations to a direct RL environment so it can be
-exported with ``scripts/reinforcement_learning/leapp/rsl_rl/export.py``. Direct
-workflow policies are not currently supported by ``scripts/reinforcement_learning/leapp/deploy.py``.
+Direct workflow policies can be exported with ``scripts/reinforcement_learning/leapp/rsl_rl/export.py``.
+They are not currently supported by ``scripts/reinforcement_learning/leapp/deploy.py``.
 
 
 Further Reading

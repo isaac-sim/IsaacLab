@@ -95,8 +95,7 @@ Configuring an RL Agent
 -----------------------
 
 Once you have integrated a new library with Isaac Lab, you can configure the example environment to use the new library.
-You can check the :ref:`tutorial-configure-rl-training` for an example of how to configure the training process to use a
-different library.
+See :ref:`rl-frameworks` for the configuration and launcher used by each supported learning library.
 
 
 .. _rsl-rl: https://github.com/leggedrobotics/rsl_rl

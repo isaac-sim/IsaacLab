@@ -110,7 +110,6 @@ Table of Contents
    :titlesonly:
 
    source/overview/own-project/index
-   source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
