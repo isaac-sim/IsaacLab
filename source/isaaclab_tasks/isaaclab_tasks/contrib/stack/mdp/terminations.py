@@ -105,7 +105,10 @@ def cubes_stacked(
     # The position checks above are satisfied by a cube falling past its target as well as by one
     # resting on it, so require the cubes to have settled before calling the stack complete.
     if max_lin_vel is not None:
-        for cube in (cube_1, cube_2) if cube_3_cfg is None else (cube_1, cube_2, env.scene[cube_3_cfg.name]):
+        cubes = [cube_1, cube_2]
+        if cube_3_cfg is not None:
+            cubes.append(env.scene[cube_3_cfg.name])
+        for cube in cubes:
             at_rest = torch.linalg.norm(cube.data.root_lin_vel_w.torch, dim=1) < max_lin_vel
             stacked = torch.logical_and(at_rest, stacked)
 
