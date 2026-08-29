@@ -15,7 +15,7 @@ def _resolve_isaaclab_root() -> Path:
         return package_root
 
     for parent in package_root.parents:
-        if (parent / "apps").is_dir() and (parent / "source" / "isaaclab").is_dir():
+        if parent / "source" / "isaaclab" / "isaaclab" == package_root:
             return parent
 
     raise RuntimeError(f"Could not locate the Isaac Lab root from {package_root}")

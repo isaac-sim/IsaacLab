@@ -12,9 +12,19 @@ from unittest import mock
 
 import pytest
 
+import isaaclab._paths as paths
 import isaaclab.cli as cli
 
 pytestmark = pytest.mark.unit
+
+
+def test_resolves_partial_source_checkout_root(tmp_path):
+    """Source root resolution must not require resources copied by later Docker layers."""
+    package_root = tmp_path / "source" / "isaaclab" / "isaaclab"
+    package_root.mkdir(parents=True)
+
+    with mock.patch.object(paths, "__file__", str(package_root / "_paths.py")):
+        assert paths._resolve_isaaclab_root() == tmp_path
 
 
 @pytest.mark.parametrize(
