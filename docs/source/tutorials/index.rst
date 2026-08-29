@@ -11,14 +11,10 @@ Instead of assembling disconnected examples, you will work with a production-sha
 workshop assets, a manager-based reinforcement-learning environment, state and wrist-camera observations,
 RSL-RL agent configurations, tests, and a trained state-policy checkpoint.
 
-.. raw:: html
-
-   <div style="text-align: center; margin: 1.5rem 0;">
-     <video controls autoplay loop muted playsinline style="width: 100%; max-width: 960px;">
-       <source src="../_static/tutorials/so101_vial_placement.mp4" type="video/mp4">
-       Your browser does not support embedded videos.
-     </video>
-   </div>
+.. image:: ../_static/tutorials/so101_vial_placement.gif
+   :alt: The SO-101 arm picking up a vial and placing it in a rack.
+   :align: center
+   :width: 100%
 
 By the end, you will know how a downstream Isaac Lab task is packaged, discovered, validated, trained,
 and evaluated. You will also know where to change the robot, scene, MDP, and learning configuration for
