@@ -1,7 +1,7 @@
 .. _migrating-from-isaacgymenvs-comparing-simulation:
 
 Comparing Simulations Between Isaac Gym and Isaac Lab
-=====================================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 When migrating simulations from Isaac Gym to Isaac Lab, it is sometimes helpful to compare
@@ -19,7 +19,7 @@ engine for both Isaac Gym and Isaac Lab, albeit with different versions.
 
 
 Recording to PXD2 in Isaac Gym Preview Release
-----------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Simulation traces in Isaac Gym can be recorded using the built-in PhysX Visual Debugger (PVD)
 file output feature. Set the operating system environment variable ``GYM_PVD_FILE`` to the
@@ -37,7 +37,7 @@ For detailed instructions, refer to the tuning documentation included with Isaac
 
 
 Recording to OVD in Isaac Lab
------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To record an OVD simulation trace file in Isaac Lab, you must set the appropriate Isaac Sim Kit
 arguments. It is important that the ``omniPvdOvdRecordingDirectory`` variable is set **before**
@@ -57,7 +57,7 @@ Do not edit Isaac Sim's installed ``SimulationApp`` sources to set these values.
 
 
 Inspecting PXD2 and OVD Files
------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 By opening the PXD2 file in a PVD viewer and the OVD file in OmniPVD (a Kit extension), you can
 manually compare the two simulation runs and their respective parameters.
@@ -94,7 +94,7 @@ extension loaded to inspect OVD files.
 
 
 Parameters to Verify During Simulation Comparison
--------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For PhysX articulations, each attribute is useful to inspect because it reveals how the link or shape
 will actually behave in contact, under drives, and at constraints. Below, each attribute is expanded
@@ -102,13 +102,13 @@ with why it matters for debugging and tuning simulations.
 
 
 PxArticulationLink
-^^^^^^^^^^^^^^^^^^
+""""""""""""""""""
 
 Each link behaves like a rigid body with mass properties, damping, velocity limits, and contact-resolution
 limits. Inspecting these helps explain stability issues, jitter, and odd responses to forces.
 
 Mass Properties
-"""""""""""""""
+```````````````
 
 **Mass**
     Determines how strongly the link accelerates under forces and how it shares impulses in collisions
@@ -131,7 +131,7 @@ Mass Properties
     drive tuning and impact responses.
 
 Damping Properties
-""""""""""""""""""
+``````````````````
 
 **Linear Damping**
     Models velocity-proportional drag on translation; higher values make links lose linear speed faster.
@@ -146,7 +146,7 @@ Damping Properties
     and fail to swing freely under gravity (too high).
 
 Velocity Properties
-"""""""""""""""""""
+```````````````````
 
 **Linear Velocity**
     Instantaneous world-space translational velocity of the link.
@@ -174,7 +174,7 @@ Velocity Properties
     rotation looks unnaturally limited, especially for wheels or rotors that should rotate quickly (value too small).
 
 Contact Resolution Properties
-"""""""""""""""""""""""""""""
+`````````````````````````````
 
 **Max Depenetration Velocity**
     Limits how much corrective velocity the solver may add in one step to resolve penetrations at contacts.
@@ -191,7 +191,7 @@ Contact Resolution Properties
     skin-like surfaces.
 
 State and Behavior Flags
-""""""""""""""""""""""""
+````````````````````````
 
 **Kinematic vs Dynamic flag / Disable gravity**
     Indicates whether a link is driven kinematically or fully simulated, and whether gravity affects it.
@@ -207,13 +207,13 @@ State and Behavior Flags
 
 
 PxArticulationJoint
-^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""
 
 The inbound joint defines relative motion between a link and its parent. Inspecting motion and related
 parameters explains limits, constraints, and how drives shape articulation pose and stability.
 
 Joint Configuration
-"""""""""""""""""""
+```````````````````
 
 **Motion**
     Per-axis setting (locked, limited, free) that defines which degrees of freedom the joint allows and
@@ -235,7 +235,7 @@ Joint Configuration
     limits cause popping and instability.
 
 Drive Properties
-""""""""""""""""
+````````````````
 
 **Drive target position (orientation) and target velocity**
     Desired relative pose and relative velocity that drives the articulation, often using spring-damper models.
@@ -256,13 +256,13 @@ Drive Properties
 
 
 PxShape
-^^^^^^^
+"""""""
 
 Shapes attached to links determine collision representation and contact behavior. Even if they are internal
 in OmniPhysics, their properties have a strong impact on stability, contact timing, and visual alignment.
 
 Collision Offsets
-"""""""""""""""""
+`````````````````
 
 **Rest Offset**
     Distance at which two shapes come to rest; sum of their rest offsets defines the separation where they "settle".
@@ -280,7 +280,7 @@ Collision Offsets
     crucial for predictive, stable contacts.
 
 Geometry and Materials
-""""""""""""""""""""""
+``````````````````````
 
 **Geometry type and dimensions**
     Box, sphere, capsule, convex, mesh, and the associated size parameters.
@@ -295,7 +295,7 @@ Geometry and Materials
     Wrong materials can make mechanisms unstable or unresponsive.
 
 Shape Flags
-"""""""""""
+```````````
 
 **Flag for simulation / query / trigger**
     Whether the shape participates in simulation contacts, raycasts only, or trigger events.
@@ -311,7 +311,7 @@ Shape Flags
 
 
 PxRigidDynamic
-^^^^^^^^^^^^^^
+""""""""""""""
 
 ``PxRigidDynamic`` is the core simulated rigid body type in PhysX, so inspecting its attributes is crucial
 for understanding individual object behavior, stability, and performance in the scene. Many attributes
@@ -319,7 +319,7 @@ mirror ``PxArticulationLink``, but a rigid dynamic is not constrained by articul
 be used in kinematic mode.
 
 Mass and Mass-Related Properties
-""""""""""""""""""""""""""""""""
+````````````````````````````````
 
 **Mass**
     Controls translational response to forces and impulses; for the same impulse, lower mass gives higher
@@ -342,7 +342,7 @@ Mass and Mass-Related Properties
     resist others).
 
 Damping and Velocity Limits
-"""""""""""""""""""""""""""
+```````````````````````````
 
 **Linear Damping**
     Adds velocity-proportional drag on translation.
@@ -381,7 +381,7 @@ Damping and Velocity Limits
     spinning elements such as wheels, propellers, or debris appear artificially capped (value too low).
 
 Contact Resolution and Impulses
-"""""""""""""""""""""""""""""""
+```````````````````````````````
 
 **Max Depenetration Velocity**
     Limits the corrective velocity the solver may introduce in one step to resolve interpenetrations.
@@ -397,7 +397,7 @@ Contact Resolution and Impulses
     default limit); objects sink into each other or bounce unrealistically.
 
 Sleep and Activation Behavior
-"""""""""""""""""""""""""""""""
+```````````````````````````````
 
 **Sleep Threshold**
     Mass-normalized kinetic energy below which a body becomes a candidate for sleeping.
@@ -412,7 +412,7 @@ Sleep and Activation Behavior
     make scenes feel "dead" or too noisy.
 
 Kinematic Mode and Locking
-""""""""""""""""""""""""""
+``````````````````````````
 
 **Kinematic Flag (PxRigidBodyFlag::eKINEMATIC)**
     When set, the body is moved by ``setKinematicTarget`` and ignores forces and gravity, while still
@@ -436,7 +436,7 @@ Kinematic Mode and Locking
     mixed setups with some gravity-less bodies.
 
 Forces and Solver Overrides
-"""""""""""""""""""""""""""
+```````````````````````````
 
 **Applied force and torque (accumulated per step)**
     Net forces/torques that will be integrated into velocity.
@@ -452,7 +452,7 @@ Forces and Solver Overrides
     performance.
 
 Shape-Related Aspects
-"""""""""""""""""""""
+`````````````````````
 
 While not properties of ``PxRigidDynamic`` itself, the shapes attached to it heavily influence behavior.
 
@@ -470,7 +470,7 @@ While not properties of ``PxRigidDynamic`` itself, the shapes attached to it hea
 
 
 Summary: What to Inspect and Why
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""""""""""""
 
 The table below summarizes the key inspection areas for each PhysX component:
 

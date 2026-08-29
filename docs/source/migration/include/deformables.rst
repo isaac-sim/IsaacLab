@@ -1,7 +1,7 @@
 .. _migrating-deformables:
 
 Migration of Deformables
-========================
+------------------------
 
 .. currentmodule:: isaaclab
 

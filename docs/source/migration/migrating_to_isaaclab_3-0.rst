@@ -1,15 +1,38 @@
 .. _migrating-to-isaaclab-3-0:
 
-Migrating to Isaac Lab 3.0
-==========================
+Migration Guide
+===============
 
 .. currentmodule:: isaaclab
 
+Choose the path that matches the code you are starting from. All migration guidance is on this page,
+so you can search it once and move between related changes without opening separate pages.
+
+**Choose your starting point:**
+
+* :ref:`Migration from Isaac Gym and IsaacGymEnvs <migrating-from-isaacgymenvs>` -- port an Isaac Gym
+  task, simulation configuration, or training workflow to Isaac Lab.
+* :ref:`Migration from Isaac Lab 2.x <migrating-from-isaaclab-2-x>` -- update an Isaac Lab project
+  for the 3.0 APIs and multi-backend architecture.
+* :ref:`Migration of deformables <migrating-deformables>` -- move from the old soft-body API to
+  surface and volume deformables.
+
+.. contents:: On this page
+   :local:
+   :depth: 2
+   :backlinks: top
+
+
+.. _migrating-from-isaaclab-2-x:
+
+Migration from Isaac Lab 2.x
+----------------------------
+
 .. seealso::
 
-   This page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
+   This section is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
-   When you change this page, update the skill so agent guidance stays in sync. See
+   When you change this section, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 
 Isaac Lab 3.0 introduces a multi-backend architecture that separates simulation backend-specific code
@@ -18,14 +41,6 @@ maintaining a consistent user-facing API.
 
 This guide covers the main breaking changes and deprecations you need to address when migrating
 from Isaac Lab 2.x to Isaac Lab 3.0.
-
-.. toctree::
-   :hidden:
-   :maxdepth: 1
-
-   migrating_from_isaacgymenvs
-   migrating_deformables
-
 
 .. _actuators-solver-limit-migration:
 
@@ -3039,3 +3054,12 @@ If you encounter issues during migration:
 1. Check the `IsaacLab GitHub Issues <https://github.com/isaac-sim/IsaacLab/issues>`_
 2. Review the `CHANGELOG <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab/docs/CHANGELOG.rst>`_
 3. Join the community on `Discord <https://discord.gg/nvidiaomniverse>`_
+
+
+.. include:: include/from_isaacgymenvs.rst
+
+
+.. include:: include/comparing_simulation_isaacgym.rst
+
+
+.. include:: include/deformables.rst
