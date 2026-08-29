@@ -1,8 +1,8 @@
 .. _tutorials:
 .. _tutorial-so101-vial-placement:
 
-Build and Train a Vial-Placement Task
-======================================
+Tutorial
+========
 
 This tutorial builds a complete robot-learning workflow around an `SO-101 arm
 <https://github.com/TheRobotStudio/SO-ARM100>`__ that picks up a vial and places it in a rack.

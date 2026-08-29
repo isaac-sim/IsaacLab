@@ -92,6 +92,7 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
+   source/tutorials/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -110,7 +111,6 @@ Table of Contents
    :titlesonly:
 
    source/overview/own-project/index
-   source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
    source/testing/index
