@@ -69,7 +69,9 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      should_run: ${{ steps.detect.outputs.should_run }}
+      # TEMP (revert before final review): forced false while iterating the multi-GPU
+      # workflow on PR #6946, so every gated job here skips via its existing `if:`.
+      should_run: 'false'
     steps:
     - uses: actions/checkout@v6
       with:
