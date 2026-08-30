@@ -34,11 +34,8 @@ ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
 ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
 ENV UV_PYTHON=/usr/bin/python3.12
 ENV UV_PYTHON_PREFERENCE=only-system
-ENV UV_NO_CACHE=1
 ENV UV_HTTP_RETRIES=12
 
-# pip, used only for the seeded interpreter.
-ENV PIP_RETRIES=12
 
 # Native build tools remain confined to this stage.
 RUN apt-get update \
@@ -71,8 +68,10 @@ COPY isaaclab.sh ./
 # ``isaacsim`` extra; ``importers`` is the two standalone wheels. ``--frozen`` is load-bearing:
 # without it uv re-resolves whenever it judges the lock stale, defeating the point of the lock.
 # ``--inexact`` keeps the seeded pip, which is not a lock entry.
-RUN uv venv --seed "${VIRTUAL_ENV}" \
- && uv sync --frozen --inexact --extra all --extra importers \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv --seed "${VIRTUAL_ENV}" \
+ && uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
+ && chmod -R a+rwX "${VIRTUAL_ENV}/lib" "${VIRTUAL_ENV}/bin" \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
@@ -143,6 +142,8 @@ RUN apt-get update \
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
+# CI may install extras into the venv at test time and a volume-mounted run executes as the
+# runner's uid rather than the image's, so widen the paths pip writes.
 COPY --from=builder --chown=isaaclab:isaaclab ${VENV_PATH_ARG} ${VENV_PATH_ARG}
 COPY --from=builder --chown=isaaclab:isaaclab ${ISAACLAB_PATH} ${ISAACLAB_PATH}
 

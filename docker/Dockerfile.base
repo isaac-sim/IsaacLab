@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7-labs
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -40,9 +41,6 @@ ENV HOME=${DOCKER_USER_HOME}
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
-# pip, used only for the seeded interpreter.
-ENV PIP_RETRIES=12
-
 # uv. Dependencies resolve from uv.lock into this venv instead of Isaac Sim's own
 # site-packages; isaaclab.sh sources setup_python_env.sh so ``isaacsim`` stays importable.
 # uv is pinned to Kit's interpreter: ``python-preference = "only-managed"`` would otherwise
@@ -52,7 +50,6 @@ ENV VIRTUAL_ENV=${VENV_PATH_ARG}
 ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
 ENV UV_PYTHON=${ISAACSIM_ROOT_PATH_ARG}/kit/python/bin/python3
 ENV UV_PYTHON_PREFERENCE=only-system
-ENV UV_NO_CACHE=1
 ENV UV_HTTP_RETRIES=12
 
 # Base image may end with a non-root user; switch to root for system-level
@@ -91,28 +88,21 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY ../isaaclab.* ../environment.yml ../pyproject.toml ../uv.lock ${ISAACLAB_PATH}/
 COPY ../tools/ ${ISAACLAB_PATH}/tools/
-COPY ../source/ ${ISAACLAB_PATH}/source/
-
-# Fix the line endings for the shell scripts (Windows git may add \r)
-RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
-
-# Ensure isaaclab.sh has execute permissions
-RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
+# Created before the venv so every install layer can set ownership as it writes, instead of
+# a recursive chown afterwards: on overlayfs a chown copies up every file it touches, which
+# costs both build time and a duplicate of the venv in the image.
+# The uid/gid 1000 match GitHub runner bind mounts used by Docker tests.
+# --non-unique is required because some base image revisions already carry
+# another user or group at uid/gid 1000.
+RUN groupadd --non-unique --gid 1000 isaaclab \
+ && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
+
 # Created up front so the install steps below resolve into it.
 RUN uv venv --seed "${VIRTUAL_ENV}"
-
-# Installed on its own: the [test] extra also pulls the whole Sphinx docs stack. ``--python``
-# is required because UV_PYTHON would otherwise target Isaac Sim's interpreter, not the venv.
-RUN uv pip install --python "${VIRTUAL_ENV}/bin/python" pytest
-
-# Install apt dependencies for extensions that declare them in their extension.toml,
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
-    apt-get -y autoremove && apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
 # for singularity usage, have to create the directories that will binded
 RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
@@ -134,12 +124,41 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
+# Workspace manifests only: ``uv sync --no-install-workspace`` needs every member's
+# pyproject.toml to build an installation plan, but not their sources. Resolving the ~240
+# third-party packages here means a source edit re-runs only the workspace install below.
+COPY --parents ../source/*/pyproject.toml ${ISAACLAB_PATH}/
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd ${ISAACLAB_PATH} && \
+    uv sync --frozen --inexact --extra kit-image \
+      --no-install-workspace --no-install-package imageio-ffmpeg && \
+    chown -R isaaclab:isaaclab ${VIRTUAL_ENV} && \
+    chmod -R a+rwX ${VIRTUAL_ENV}/lib ${VIRTUAL_ENV}/bin
+
+COPY ../source/ ${ISAACLAB_PATH}/source/
+
+# Fix the line endings for the shell scripts (Windows git may add \r), then restore the
+# launcher's mode; one layer because both walk the tree the COPY above just wrote. ``sed -i``
+# rewrites the file under the build umask, so an explicit 755 keeps it runnable by a
+# container started with a uid other than the image's own.
+RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} + \
+ && chmod 755 ${ISAACLAB_PATH}/isaaclab.sh
+
+# Install apt dependencies for extensions that declare them in their extension.toml,
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
+    apt-get -y autoremove && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # robomimic and moviepy declare imageio-ffmpeg for optional video helpers. Its bundled
 # FFmpeg binary stays out of the distributed image; users who enable video recording install
 # MoviePy and its video backend explicitly.
-RUN cd ${ISAACLAB_PATH} && \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd ${ISAACLAB_PATH} && \
     uv sync --frozen --inexact --extra kit-image \
-      --no-install-package imageio-ffmpeg
+      --no-install-package imageio-ffmpeg && \
+    find ${VIRTUAL_ENV} \! -user isaaclab \
+      -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 
 # uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
 # should target the venv, including the interactive ``pip`` alias below.
@@ -157,29 +176,19 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc 
     echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
 
-# Create the non-root runtime user after root-only image setup is complete.
-# The uid/gid 1000 match GitHub runner bind mounts used by Docker tests.
-# --non-unique is required because some base image revisions already carry
-# another user or group at uid/gid 1000.
-RUN groupadd --non-unique --gid 1000 isaaclab \
- && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
-
 # The Isaac Sim image sets HUB__ARGS__DETECT_ONLY=true, which forbids OmniHub from starting.
 # omni.client still asks it to launch, so every Kit startup retries ~39 times before giving
 # up. Letting OmniHub start also needs its cache at /var/cache/hub, owned by the isaac-sim
 # user (uid 1234) upstream, to be writable by the uid 1000 runtime user.
 ENV HUB__ARGS__DETECT_ONLY=false
 
+# CI installs optional extras into the venv at test time (e.g. ``pytetwild`` for the
+# tetrahedralization feature) and a volume-mounted run executes as the runner's uid rather
+# than the image's, so the paths pip writes must be writable by a uid the image cannot know.
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
         ${DOCKER_USER_HOME} \
-        ${VIRTUAL_ENV} \
         /var/cache/hub
-
-# CI installs optional extras into the venv at test time (e.g. ``pytetwild`` for the
-# tetrahedralization feature) and a volume-mounted run executes as the runner's uid rather
-# than the image's, so the venv must be writable by a uid the image cannot know.
-RUN chmod -R a+rwX ${VIRTUAL_ENV}
 
 # Open up traversal of the Isaac Sim root and runtime home for non-root users.
 # Inner Isaac Sim files keep their original permissions, so avoid chowning the
