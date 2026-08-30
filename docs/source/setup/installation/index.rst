@@ -23,6 +23,11 @@ Choose the path that matches what you want to install and how you want to run it
 automatic ``uv`` setup unless you need to manage your own environment, use a downloaded Isaac Sim
 package, or deploy to Docker or the cloud. Each card jumps to complete instructions on this page.
 
+.. note::
+
+   On Windows, command blocks marked ``batch`` use Command Prompt (``cmd.exe``) syntax.
+   Run those commands in Command Prompt unless a section explicitly asks for PowerShell.
+
 Choose an installation path
 ---------------------------
 
