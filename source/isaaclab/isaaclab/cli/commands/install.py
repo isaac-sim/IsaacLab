@@ -405,6 +405,35 @@ def _requirement_name(requirement: str) -> str:
 # from PyPI first.
 _TORCH_DISTRIBUTIONS = {"torch", "torchvision", "torchaudio"}
 
+# Root project name, used to spot ``isaaclab-dev[...]`` extra self-references.
+_ROOT_PROJECT_NAME = "isaaclab-dev"
+
+
+def _flatten_root_extra(optional: dict[str, list[str]], extra: str, seen: set[str]) -> list[str]:
+    """Expand ``isaaclab-dev[...]`` self-references into the requirements they stand for.
+
+    Root extras compose through PEP 621 self-references (``teleop`` pulls in
+    ``teleop-no-isaacsim``). Without expansion the reference is dropped as a workspace
+    self-reference and the composed requirements are never installed.
+
+    Args:
+        optional: The root ``project.optional-dependencies`` table.
+        extra: Name of the optional-dependency group to flatten.
+        seen: Already-visited extras, guarding against a self-referential cycle.
+    """
+    if extra in seen:
+        return []
+    seen.add(extra)
+    flattened: list[str] = []
+    for requirement in optional.get(extra, []):
+        if _normalize_package_name(_requirement_name(requirement)) != _ROOT_PROJECT_NAME:
+            flattened.append(requirement)
+            continue
+        referenced = re.search(r"\[([^\]]+)\]", requirement.split(";", 1)[0])
+        for name in referenced.group(1).split(",") if referenced else []:
+            flattened += _flatten_root_extra(optional, name.strip(), seen)
+    return flattened
+
 
 def _is_isaaclab_requirement(requirement: str) -> bool:
     """Return True for ``isaaclab*`` self-references (installed as editable submodules)."""
@@ -480,7 +509,7 @@ def _root_extra_dependencies(extra: str) -> list[str]:
     # ``isaacsim`` install token handles it in its own pass, which resolves sequentially.
     return [
         requirement
-        for requirement in optional[extra]
+        for requirement in _flatten_root_extra(optional, extra, set())
         if not _is_isaaclab_requirement(requirement)
         and _normalize_package_name(_requirement_name(requirement)) != "isaacsim"
     ]

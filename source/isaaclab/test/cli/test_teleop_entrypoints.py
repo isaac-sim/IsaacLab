@@ -62,6 +62,19 @@ def test_teleop_dispatches_to_an_existing_script(command, script_parts):
     assert script.is_file()
 
 
+def _flatten_extra(optional_dependencies: dict[str, list[str]], name: str) -> list[str]:
+    """Return an extra's requirements with ``isaaclab-dev[...]`` self-references resolved."""
+    flattened: list[str] = []
+    for requirement in optional_dependencies[name]:
+        match = re.fullmatch(r"isaaclab-dev\[(.+)\]", requirement)
+        if match:
+            for referenced in match.group(1).split(","):
+                flattened += _flatten_extra(optional_dependencies, referenced.strip())
+        else:
+            flattened.append(requirement)
+    return flattened
+
+
 def _requirement_names(requirements: list[str]) -> set[str]:
     """Return the importable module names for a list of requirement strings."""
     names = set()
@@ -85,7 +98,7 @@ def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(command, scr
     project = pyproject["project"]
 
     available = _requirement_names(project["dependencies"])
-    available |= _requirement_names(project["optional-dependencies"]["teleop"])
+    available |= _requirement_names(_flatten_extra(project["optional-dependencies"], "teleop"))
 
     source = Path(cli.ISAACLAB_ROOT).joinpath(*script_parts).read_text(encoding="utf-8")
     imported = set(re.findall(r"^\s*(?:import|from)\s+(isaaclab_\w+)", source, re.MULTILINE))
