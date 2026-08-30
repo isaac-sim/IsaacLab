@@ -23,6 +23,8 @@ __all__ = [
     "build_state_connection",
     "build_write_connection",
     "joint_names_resolver",
+    "leapp_input_tensor",
+    "leapp_real_env",
     "leapp_tensor_semantics",
     "patch_env_for_export",
     "resolve_leapp_element_names",
@@ -54,6 +56,7 @@ from .leapp_semantics import (
     target_frame_quat_resolver,
     target_frame_xyz_resolver,
 )
+from .manual_inputs import leapp_input_tensor, leapp_real_env
 from .utils import (
     build_command_connection,
     build_state_connection,
