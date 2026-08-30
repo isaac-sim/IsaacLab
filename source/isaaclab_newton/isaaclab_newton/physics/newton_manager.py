@@ -121,6 +121,10 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
+_SENSOR_STAGE_STATE_ATTRIBUTES = frozenset({"body_qdd", "body_parent_f"})
+"""Extended state attributes that MuJoCo Warp's sensor stage fills via ``rne_postconstraint``."""
+
+
 def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
     """Compile selector expressions for Newton's full label matching."""
     if not expr:
@@ -404,6 +408,7 @@ class NewtonManager(PhysicsManager):
     _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
     _newton_imu_sensors: list = []  # List of NewtonSensorIMU
     _pending_extended_state_attributes: set[str] = set()
+    _active_extended_state_attributes: set[str] = set()
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     _supports_contact_sensors: bool = True
@@ -1142,6 +1147,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
         NewtonManager._pending_extended_state_attributes = set()
+        NewtonManager._active_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
         for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
             del NewtonManager.views[key]
@@ -1543,9 +1549,12 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
-        # Forward pending extended attribute requests to builder and clear them
+        # Forward pending extended attribute requests to builder and clear them. The requests are
+        # retained because initialize_solver() runs afterwards and must know which sensors depend
+        # on state that MuJoCo's sensor stage fills.
         if cls._pending_extended_state_attributes:
             cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
+            NewtonManager._active_extended_state_attributes |= cls._pending_extended_state_attributes
             NewtonManager._pending_extended_state_attributes = set()
         cls._prepare_builder_for_finalize(cls._builder)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
@@ -2064,9 +2073,9 @@ class NewtonManager(PhysicsManager):
             kwargs["deterministic"] = NewtonManager._deterministic_mode
         return kwargs
 
-    @staticmethod
+    @classmethod
     def _validate_deterministic_solver_cfg(
-        solver_cfg: NewtonSolverCfg, deterministic_mode: wp.DeterministicMode
+        cls, solver_cfg: NewtonSolverCfg, deterministic_mode: wp.DeterministicMode
     ) -> None:
         """Validate that a solver can provide the requested determinism guarantee."""
         if deterministic_mode == wp.DeterministicMode.NOT_GUARANTEED:
@@ -2088,6 +2097,52 @@ class NewtonManager(PhysicsManager):
                 "internal sensor computation is enabled. Set MJWarpSolverCfg.disable_sensors=True or disable "
                 "deterministic mode."
             )
+        blocked = cls._active_extended_state_attributes & _SENSOR_STAGE_STATE_ATTRIBUTES
+        if isinstance(solver_cfg, MJWarpSolverCfg) and blocked:
+            raise ValueError(
+                f"Newton deterministic mode {deterministic_mode.name} requires MuJoCo Warp's internal sensor "
+                f"computation to be disabled, which also skips the rne_postconstraint stage that fills "
+                f"{sorted(blocked)}. Sensors in this scene read that state (IMU and PVA read 'body_qdd'; the "
+                "joint-wrench sensor reads 'body_parent_f'), so they would report values that are never "
+                "refreshed. Remove those sensors, or disable deterministic mode."
+            )
+
+    @classmethod
+    def _apply_deterministic_request(cls, cfg: NewtonCfg) -> wp.DeterministicMode:
+        """Translate the backend-agnostic determinism request into Newton settings.
+
+        :attr:`~isaaclab.physics.PhysicsCfg.deterministic` is the generic request. An explicitly
+        set :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` is the more specific
+        instruction and wins. MuJoCo on the CPU is already reproducible and Warp's deterministic
+        mode does not reach it, so no mode is applied there and the request is logged instead.
+
+        Args:
+            cfg: Resolved Newton configuration.
+
+        Returns:
+            The deterministic mode to apply to the solver.
+        """
+        solver_cfg = cfg.solver_cfg
+        # MuJoCo-C is the exception: it steps single-threaded and is reproducible on its own, Warp's
+        # deterministic mode never reaches it, and its sensors are not Warp kernels. No Newton
+        # setting applies, however the guarantee was asked for -- so say so rather than go quiet.
+        if getattr(solver_cfg, "use_mujoco_cpu", False):
+            if cfg.deterministic or cfg.deterministic_mode != "not_guaranteed":
+                logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
+            return wp.DeterministicMode.NOT_GUARANTEED
+
+        # Precedence: an explicit mode, then the generic request, then no guarantee.
+        # An explicit mode's prerequisites stay the caller's responsibility, so it is returned
+        # untouched for the validator to check.
+        if cfg.deterministic_mode != "not_guaranteed":
+            return cls._resolve_deterministic_mode(cfg.deterministic_mode)
+        if not cfg.deterministic:
+            return wp.DeterministicMode.NOT_GUARANTEED
+        # MuJoCo Warp cannot honour a guarantee while its internal sensor kernels run, so the
+        # generic request implies the prerequisite rather than failing on it.
+        if isinstance(solver_cfg, MJWarpSolverCfg):
+            solver_cfg.disable_sensors = True
+        return wp.DeterministicMode.RUN_TO_RUN
 
     @staticmethod
     def _resolve_deterministic_mode(deterministic_mode: str) -> wp.DeterministicMode:
@@ -2177,7 +2232,7 @@ class NewtonManager(PhysicsManager):
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", activity="Initializing solver"):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
             NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
-            deterministic_mode = cls._resolve_deterministic_mode(cfg.deterministic_mode)  # type: ignore[union-attr]
+            deterministic_mode = cls._apply_deterministic_request(cfg)  # type: ignore[arg-type]
             cls._validate_deterministic_solver_cfg(cfg.solver_cfg, deterministic_mode)  # type: ignore[union-attr]
             NewtonManager._deterministic_mode = deterministic_mode
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps

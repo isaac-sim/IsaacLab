@@ -98,17 +98,16 @@ def test_newton_cartpole_env_determinism():
 def test_newton_cartpole_camera_env_determinism():
     """Check deterministic stepping for the camera env behind ``--deterministic``.
 
-    Uses the settings that flag now applies (``run_to_run`` plus ``disable_sensors``, see
-    ``isaaclab_rl.entrypoints.common.apply_env_overrides``), so this guards the values the flag
-    selects rather than only the mode plumbing. ``Isaac-Cartpole-Camera`` is the task the flag was
-    reported broken on, and it exercises the renderer feeding observations.
+    Goes through :attr:`~isaaclab.physics.PhysicsCfg.deterministic`, the request that flag sets, so
+    this covers Newton's translation of it as well as the resulting stepping. ``Isaac-Cartpole-Camera``
+    is the task the flag was reported broken on, and it exercises the renderer feeding observations.
     """
     _test_environment_determinism(
         "Isaac-Cartpole-Camera",
         "cuda",
         num_steps=25,
         physics_preset_name="newton_mjwarp",
-        deterministic_mode="run_to_run",
+        deterministic=True,
     )
 
 
@@ -119,6 +118,7 @@ def _test_environment_determinism(
     num_steps: int = 100,
     physics_preset_name: str | None = None,
     deterministic_mode: str | None = None,
+    deterministic: bool = False,
 ):
     """Check deterministic environment creation."""
     # fix number of steps
@@ -131,6 +131,7 @@ def _test_environment_determinism(
         num_steps,
         physics_preset_name=physics_preset_name,
         deterministic_mode=deterministic_mode,
+        deterministic=deterministic,
     )
     obs_2, rew_2 = _obtain_transition_tuples(
         task_name,
@@ -139,6 +140,7 @@ def _test_environment_determinism(
         num_steps,
         physics_preset_name=physics_preset_name,
         deterministic_mode=deterministic_mode,
+        deterministic=deterministic,
     )
 
     # check everything is as expected
@@ -157,6 +159,7 @@ def _obtain_transition_tuples(
     *,
     physics_preset_name: str | None = None,
     deterministic_mode: str | None = None,
+    deterministic: bool = False,
 ) -> tuple[dict, torch.Tensor]:
     """Run random actions and obtain transition tuples after fixed number of steps."""
     # create a new stage
@@ -177,6 +180,9 @@ def _obtain_transition_tuples(
                 # MJWarp's internal tactile sensor kernel mixes atomic reduction families, which Warp's
                 # deterministic code generation does not support. Isaac Lab sensors do not use this data.
                 env_cfg.sim.physics.solver_cfg.disable_sensors = True
+        if deterministic:
+            # The backend-agnostic request; NewtonManager derives the mode and the MJWarp prerequisite.
+            env_cfg.sim.physics.deterministic = True
         # set seed
         env_cfg.seed = 42
         # create environment

@@ -475,53 +475,6 @@ def import_local_module(module_name: str, module_path: Path) -> ModuleType:
     return module
 
 
-def _base_class_names(obj: Any) -> frozenset[str]:
-    """Return the names of ``obj``'s type and all of its bases.
-
-    Args:
-        obj: Object to inspect.
-
-    Returns:
-        Every class name in the object's method resolution order.
-    """
-    return frozenset(cls.__name__ for cls in type(obj).__mro__)
-
-
-def _apply_deterministic_physics(physics_cfg: Any) -> None:
-    """Request run-to-run reproducibility from a resolved physics config.
-
-    Dispatches on class names rather than :func:`isinstance` so this module keeps working
-    without the optional backend packages installed. Names are matched across the whole method
-    resolution order, so a subclass dispatches like its base.
-
-    Validation belongs to the backend: this only requests the guarantee, and
-    :class:`~isaaclab_newton.physics.NewtonManager` rejects a solver that cannot provide it when
-    the solver is initialized.
-
-    Args:
-        physics_cfg: Concrete physics config, as resolved by :func:`~isaaclab.app.scan`.
-    """
-    physics_names = _base_class_names(physics_cfg)
-    if not physics_names.isdisjoint(("PhysxCfg", "OvPhysxCfg")):
-        physics_cfg.enable_enhanced_determinism = True
-        return
-    if "NewtonCfg" not in physics_names:
-        return
-
-    solver_cfg = getattr(physics_cfg, "solver_cfg", None)
-    # MuJoCo on the CPU is already reproducible and Warp's deterministic mode does not reach it,
-    # so requesting the mode here would only trip Newton's validation.
-    if getattr(solver_cfg, "use_mujoco_cpu", False):
-        return
-    if "MJWarpSolverCfg" in _base_class_names(solver_cfg):
-        # MJWarp on the GPU cannot honour the guarantee while its internal sensor kernels run.
-        solver_cfg.disable_sensors = True
-    # Only fill in the default. A config that already requests a guarantee -- e.g. the stronger
-    # "gpu_to_gpu" set through a Hydra override -- is the more specific instruction and wins.
-    if physics_cfg.deterministic_mode == "not_guaranteed":
-        physics_cfg.deterministic_mode = "run_to_run"
-
-
 def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_device: bool = True) -> None:
     """Apply common environment overrides from command-line arguments.
 
@@ -538,12 +491,12 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
         env_cfg.sim.device = device if device is not None else env_cfg.sim.device
 
     # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own.
-    # The physics backend is configured here, where scan() has resolved it to a concrete
-    # config but create_isaaclab_env() has not yet constructed the solver.
+    # Record the request on the resolved physics config; each backend translates and validates
+    # it when the simulation starts.
     if getattr(args_cli, "deterministic", False):
         physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
         if physics_cfg is not None:
-            _apply_deterministic_physics(physics_cfg)
+            physics_cfg.deterministic = True
 
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:

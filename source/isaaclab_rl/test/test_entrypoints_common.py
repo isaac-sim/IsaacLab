@@ -383,28 +383,27 @@ def test_run_summary_reports_concrete_backends(
 
 
 def _fake_physics_cfg(class_name: str, **attrs: Any) -> Any:
-    """Build a physics-config stand-in whose type name drives backend dispatch."""
-    return type(class_name, (), attrs)()
+    """Build a physics-config stand-in carrying the backend-agnostic determinism field."""
+    return type(class_name, (), {"deterministic": False, **attrs})()
 
 
-def test_apply_env_overrides_wires_deterministic_into_newton_physics(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``--deterministic`` reaches the Newton solver, which the AppLauncher flag never did."""
+def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--deterministic`` reaches the physics config, which the AppLauncher flag never did."""
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
     env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
-    physics = env_cfg.sim.physics
-    # Guard the premise: the shipped defaults provide no determinism guarantee.
-    assert physics.deterministic_mode == "not_guaranteed"
-    assert physics.solver_cfg.disable_sensors is False
+    # Guard the premise: the shipped defaults request no guarantee.
+    assert env_cfg.sim.physics.deterministic is False
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
-    assert physics.deterministic_mode == "run_to_run"
-    # MJWarp cannot honour the guarantee while its internal sensor kernels run.
-    assert physics.solver_cfg.disable_sensors is True
+    assert env_cfg.sim.physics.deterministic is True
+    # Translation belongs to the backend, so nothing backend-specific is touched here.
+    assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
+    assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
 
 
 def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -418,88 +417,26 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
-    assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
-    assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
+    assert env_cfg.sim.physics.deterministic is False
 
 
-@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg"])
-def test_apply_env_overrides_enables_enhanced_determinism_on_physx(class_name: str) -> None:
-    """PhysX backends carry their own determinism switch, also unreachable from the flag."""
-    physics = _fake_physics_cfg(class_name, enable_enhanced_determinism=False)
+@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg", "NewtonCfg", "SomeFutureBackendCfg"])
+def test_apply_env_overrides_records_the_request_for_every_backend(class_name: str) -> None:
+    """The request is backend-agnostic, so the entrypoint needs no per-backend knowledge."""
+    physics = _fake_physics_cfg(class_name)
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
-    assert physics.enable_enhanced_determinism is True
+    assert physics.deterministic is True
 
 
-def test_apply_env_overrides_defers_solver_validation_to_the_backend() -> None:
-    """The requested mode is set even for an unsupported solver; NewtonManager owns the rejection."""
-    solver = _fake_physics_cfg("KaminoPADMMSolverCfg")
-    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="not_guaranteed", solver_cfg=solver)
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
+    """A config that never resolved a physics backend is left alone rather than failing."""
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
-    assert physics.deterministic_mode == "run_to_run"
-
-
-def test_apply_env_overrides_leaves_the_mujoco_cpu_backend_untouched() -> None:
-    """MuJoCo on the CPU is already reproducible, so the flag must not alter its config."""
-    solver = _fake_physics_cfg("MJWarpSolverCfg", use_mujoco_cpu=True, disable_sensors=False)
-    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="not_guaranteed", solver_cfg=solver)
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert physics.deterministic_mode == "not_guaranteed"
-    assert solver.disable_sensors is False
-
-
-def test_apply_env_overrides_keeps_an_explicitly_requested_determinism_mode() -> None:
-    """An explicit mode is the more specific instruction and survives the flag."""
-    solver = _fake_physics_cfg("MJWarpSolverCfg", use_mujoco_cpu=False, disable_sensors=False)
-    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="gpu_to_gpu", solver_cfg=solver)
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert physics.deterministic_mode == "gpu_to_gpu"
-    # The MJWarp prerequisite still applies -- that mode cannot run with sensors enabled.
-    assert solver.disable_sensors is True
-
-
-def _fake_physics_cfg_subclass(class_name: str, **attrs: Any) -> Any:
-    """Build a stand-in that inherits the dispatch name, as a downstream config would."""
-    return type(f"Custom{class_name}", (type(class_name, (), {}),), attrs)()
-
-
-@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg"])
-def test_apply_env_overrides_enables_enhanced_determinism_on_physx_subclass(class_name: str) -> None:
-    """A subclassed PhysX config still resolves to the PhysX backend."""
-    physics = _fake_physics_cfg_subclass(class_name, enable_enhanced_determinism=False)
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert physics.enable_enhanced_determinism is True
-
-
-@pytest.mark.parametrize("solver_name", ["FeatherstoneSolverCfg", "MJWarpSolverCfg", "XPBDSolverCfg"])
-def test_apply_env_overrides_accepts_supported_solver_subclasses(solver_name: str) -> None:
-    """A subclassed solver config still dispatches like its base."""
-    solver = _fake_physics_cfg_subclass(solver_name, use_mujoco_cpu=False, disable_sensors=False)
-    physics = _fake_physics_cfg_subclass("NewtonCfg", deterministic_mode="not_guaranteed", solver_cfg=solver)
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert physics.deterministic_mode == "run_to_run"
-    # The MJWarp prerequisite follows the base class, not the concrete type name.
-    assert solver.disable_sensors is (solver_name == "MJWarpSolverCfg")
+    assert env_cfg.sim.physics is None

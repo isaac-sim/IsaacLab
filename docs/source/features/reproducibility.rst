@@ -38,13 +38,14 @@ on the workload: **physics-only** simulation does not render at all; **RTX** ren
 mode) needs it for reproducible imagery; **Newton** rendering is already deterministic.
 
 **Physics determinism** comes from the same flag in the Isaac Lab RL training entrypoints, which
-configure the backend after preset resolution. There it requests
-:attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` ``"run_to_run"`` on Newton backends,
-applying the MJWarp prerequisite that setting documents, and enables
-:attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism` on PhysX backends. Each backend
-validates its own solver, so an unsupported solver is rejected when the solver is initialized rather
-than by the flag. Reproducibility on OvPhysX is best-effort and is not verified end to end. Other
-scripts that take ``--deterministic`` from ``AppLauncher`` configure Torch and rendering only.
+set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the backend resolved by presets. That
+field is the backend-agnostic request: each physics manager translates it into its own settings
+when the simulation starts, and raises when its configuration cannot provide the guarantee. Newton
+selects ``deterministic_mode="run_to_run"`` and applies the MJWarp prerequisite; PhysX and OvPhysX
+enable enhanced determinism, which is best-effort on OvPhysX and not verified end to end. Set
+:attr:`~isaaclab.physics.PhysicsCfg.deterministic` directly to get the same behavior from a script
+that does not use the RL entrypoints; ``--deterministic`` alone configures Torch and rendering
+only.
 
 .. tab-set::
 
@@ -75,18 +76,21 @@ memory use and reduce simulation performance. MJWarp on the GPU with
 XPBD, and Featherstone are supported; selecting an unsupported solver raises
 an error. MuJoCo on the CPU
 (:attr:`isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu`) is already
-reproducible and is left unchanged by ``--deterministic``. Set this attribute
-directly to request the stronger ``"gpu_to_gpu"`` guarantee, which
-``--deterministic`` preserves. The flag cannot be opted out of by setting
-``"not_guaranteed"``, which is indistinguishable from the default; drop the flag
-instead.
+reproducible and is left unchanged. Set this attribute directly to request the
+stronger ``"gpu_to_gpu"`` guarantee, which takes precedence over
+:attr:`isaaclab.physics.PhysicsCfg.deterministic`. Setting it to
+``"not_guaranteed"`` does not opt out, because that is indistinguishable from
+the default; clear :attr:`isaaclab.physics.PhysicsCfg.deterministic` instead.
 
 .. note::
 
    ``disable_sensors`` turns off MuJoCo Warp's internal sensor computation,
-   including its ``rne_postconstraint`` stage. Integrations that read native
-   MJWarp sensor outputs, or the Newton ``body_qdd`` and ``body_parent_f`` state
-   that stage fills, are affected while a determinism guarantee is requested.
+   including its ``rne_postconstraint`` stage, which fills the Newton
+   ``body_qdd`` and ``body_parent_f`` state. The IMU, PVA, and joint-wrench
+   sensors read that state, so Newton raises rather than let them report stale
+   values: remove those sensors, or drop the determinism request. Integrations
+   that consume native MJWarp sensor outputs directly are affected too, and are
+   not detected.
 
 .. warning::
 
