@@ -39,15 +39,15 @@ def cubes_stacked(
     """Whether the cubes are stacked, released, and at rest.
 
     Args:
-        max_lin_vel: Speed, in m/s, below which a cube counts as at rest. The position checks below
+        max_lin_vel: Speed [m/s] below which a cube counts as at rest. The position checks below
             describe an instantaneous configuration, and a cube dropped above its target passes
             through that configuration on the way down -- without this, the drop is scored as a
             successful stack. Pass None to skip the check.
 
             The default leaves room for the contact solver's residual jitter, which keeps a settled
             cube from ever reading exactly zero: over a sample of 91 sound generated demos, cubes
-            resting on the stack read a median 0.013 m/s and peaked at 0.034 m/s, while a cube
-            caught mid-fall read a median 0.10 m/s.
+            resting on the stack read a median 0.013 [m/s] and peaked at 0.034 [m/s], while a cube
+            caught mid-fall read a median 0.10 [m/s].
     """
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
