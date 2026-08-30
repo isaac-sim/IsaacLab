@@ -24,9 +24,11 @@ on:
       - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/**/test/**/test_*.py"
       - ".github/workflows/test-multi-gpu-pytest.yaml"
+      - ".github/actions/multi-gpu/**"
       - ".github/actions/run-package-tests/**"
       - ".github/actions/run-tests/**"
       - ".github/actions/ecr-build-push-pull/**"
+      - ".github/actions/upload-omni-github-test-results/**"
   workflow_dispatch:
 
 concurrency:
@@ -186,3 +188,57 @@ jobs:
         env:
           RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
         run: python3 .github/actions/multi-gpu/aggregate_test_summary.py
+
+      - name: Combine per-shard JUnit XML reports
+        # Merges all per-file, per-shard test-reports-*.xml files produced by
+        # tools/conftest.py into a single test-results-multi-gpu.xml so the
+        # upload steps below have one file to work with.
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import glob, sys, xml.etree.ElementTree as ET
+
+          xmls = sorted(glob.glob("tests/test-reports-*.xml"))
+          if not xmls:
+              print("No test-reports-*.xml files found; skipping combine step.")
+              sys.exit(0)
+
+          root = ET.Element("testsuites")
+          for path in xmls:
+              try:
+                  file_root = ET.parse(path).getroot()
+              except ET.ParseError as exc:
+                  print(f"::warning::Could not parse {path}: {exc}")
+                  continue
+              if file_root.tag == "testsuites":
+                  for child in file_root:
+                      root.append(child)
+              else:
+                  root.append(file_root)
+
+          ET.ElementTree(root).write(
+              "tests/test-results-multi-gpu.xml",
+              xml_declaration=True,
+              encoding="utf-8",
+          )
+          print(f"Combined {len(xmls)} report(s) into tests/test-results-multi-gpu.xml")
+          EOF
+
+      - name: Upload JUnit XML report
+        if: always()
+        id: upload-junit-report
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-multi-gpu-pytest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: tests/test-results-multi-gpu.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload omni-github test results
+        if: always()
+        uses: ./.github/actions/upload-omni-github-test-results
+        with:
+          junit-file: tests/test-results-multi-gpu.xml
+          junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
+          artifact-prefix: pytest-results-multi-gpu-pytest
+          test-type: pytest
