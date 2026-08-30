@@ -47,6 +47,7 @@ def normalize_camera_image(
     data_type: str,
     out: torch.Tensor | None = None,
     channel_dim: int = -1,
+    output_channel_dim: int | None = None,
 ) -> torch.Tensor:
     """Normalize a camera-observation tensor according to its ``data_type``.
 
@@ -55,8 +56,8 @@ def normalize_camera_image(
     - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` (``uint8``) and contiguous
       4D: routes to the
       fused Warp kernel via :func:`~isaaclab.utils.warp.ops.normalize_image_uint8`. ``out`` and
-      ``channel_dim`` are forwarded so callers can reuse a pre-allocated float32 buffer and
-      select the image layout.
+      ``channel_dim`` and ``output_channel_dim`` are forwarded so callers can reuse a
+      pre-allocated float32 buffer and select the input and output image layouts.
     - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` and any other dtype/shape:
       pure-PyTorch ``(x.float() / 255.0) - mean``
       with the same math. ``out`` is ignored on this branch; ``channel_dim`` selects the spatial
@@ -76,6 +77,8 @@ def normalize_camera_image(
         channel_dim: Position of the channel axis for the RGB-like and colorized semantic-
             segmentation branches. ``-1`` (BHWC, default) or ``-3`` / ``1`` (BCHW). Ignored on
             other branches.
+        output_channel_dim: Desired position of the channel axis. If omitted, preserves the input
+            layout. Supports the same values as ``channel_dim``. Defaults to None.
 
     Returns:
         The normalized tensor. For RGB-like and colorized semantic-segmentation input this is a
@@ -85,19 +88,30 @@ def normalize_camera_image(
     """
     if is_rgb_like(data_type) or (data_type == "semantic_segmentation" and images.dtype == torch.uint8):
         if images.dtype == torch.uint8 and images.ndim == 4 and images.is_contiguous():
-            return normalize_image_uint8(images, channel_dim=channel_dim, out=out)
+            return normalize_image_uint8(
+                images, channel_dim=channel_dim, output_channel_dim=output_channel_dim, out=out
+            )
         # PyTorch fallback for callers that pre-floated or pass a strided view.
         resolved_channel_dim = channel_dim + images.ndim if channel_dim < 0 else channel_dim
         spatial_dims = tuple(d for d in range(1, images.ndim) if d != resolved_channel_dim)
         images = images.float() / 255.0
         images -= torch.mean(images, dim=spatial_dims, keepdim=True)
-        return images
-    if is_depth_like(data_type):
+        normalized = images
+    elif is_depth_like(data_type):
         images[images == float("inf")] = 0
-        return images
-    if is_normals_like(data_type):
-        return (images + 1.0) * 0.5
-    return images
+        normalized = images
+    elif is_normals_like(data_type):
+        normalized = (images + 1.0) * 0.5
+    else:
+        normalized = images
+
+    if output_channel_dim is None:
+        return normalized
+    resolved_channel_dim = channel_dim + normalized.ndim if channel_dim < 0 else channel_dim
+    resolved_output_channel_dim = output_channel_dim + normalized.ndim if output_channel_dim < 0 else output_channel_dim
+    if resolved_channel_dim == resolved_output_channel_dim:
+        return normalized
+    return normalized.movedim(resolved_channel_dim, resolved_output_channel_dim).contiguous()
 
 
 def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) -> torch.Tensor:

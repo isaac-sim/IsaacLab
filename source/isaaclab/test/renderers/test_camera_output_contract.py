@@ -13,7 +13,7 @@ import warp as wp
 
 pytest.importorskip("isaaclab_physx")
 
-from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
+from isaaclab.sensors.camera import Camera, CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 
@@ -25,6 +25,18 @@ _SPAWN = PinholeCameraCfg(
     horizontal_aperture=20.955,
     clipping_range=(0.1, 1.0e5),
 )
+
+
+def test_camera_zero_update_period_does_not_copy_env_mask_to_host():
+    """A camera updated every step does not need to inspect its device mask."""
+
+    class DeviceMask:
+        def numpy(self):
+            raise AssertionError("The device mask should not be copied to the host.")
+
+    camera = SimpleNamespace(cfg=SimpleNamespace(update_period=0.0))
+
+    assert Camera._should_update_buffers(camera, DeviceMask())
 
 
 @pytest.mark.parametrize(

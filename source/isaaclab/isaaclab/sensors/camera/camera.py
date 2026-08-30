@@ -603,7 +603,7 @@ class Camera(SensorBase):
         self._create_buffers()
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        if not self._env_mask_has_any(env_mask):
+        if not self._should_update_buffers(env_mask):
             return
         # Increment frame count
         if self.cfg.update_latest_camera_pose:
@@ -915,6 +915,14 @@ class Camera(SensorBase):
         else:
             env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         return wp.array(env_ids, dtype=wp.int32, device=self._device)
+
+    def _should_update_buffers(self, env_mask: wp.array) -> bool:
+        """Return whether camera buffers should be updated."""
+        # Every environment is outdated when the sensor updates every simulation step. Avoid
+        # copying the mask to the host and synchronizing the device in this common case.
+        if self.cfg.update_period <= 0.0:
+            return True
+        return self._env_mask_has_any(env_mask)
 
     @staticmethod
     def _env_mask_has_any(env_mask: wp.array) -> bool:

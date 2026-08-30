@@ -199,15 +199,30 @@ class ObservationsCfg:
 
         front_camera = ObsTerm(
             func=base_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb", "normalize": False},
+            params={
+                "sensor_cfg": SceneEntityCfg("front_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
         )
         left_wrist_camera = ObsTerm(
             func=base_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "data_type": "rgb", "normalize": False},
+            params={
+                "sensor_cfg": SceneEntityCfg("left_wrist_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
         )
         right_wrist_camera = ObsTerm(
             func=base_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "data_type": "rgb", "normalize": False},
+            params={
+                "sensor_cfg": SceneEntityCfg("right_wrist_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
         )
 
         def __post_init__(self):

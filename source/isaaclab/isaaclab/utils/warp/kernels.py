@@ -721,7 +721,8 @@ def normalize_image_uint8(
     src: wp.array4d(dtype=wp.uint8),
     mean: wp.array2d(dtype=wp.float32),
     out: wp.array4d(dtype=wp.float32),
-    channel_dim: wp.int32,
+    src_channel_dim: wp.int32,
+    out_channel_dim: wp.int32,
 ):
     """Compute ``out = src / 255.0 - mean`` per element, with ``mean`` broadcast over the spatial dims.
 
@@ -735,16 +736,25 @@ def normalize_image_uint8(
         src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
         mean: Per-(batch, channel) mean of ``src / 255.0``. Shape is ``(B, C)``.
         out: Output float32 tensor. Same shape as ``src``.
-        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
-            ``3`` (BHWC). Constant across all threads; the wrapper validates the value
-            and resolves negatives before launch.
+        src_channel_dim: Resolved position of the source channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC).
+        out_channel_dim: Resolved position of the output channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC).
     """
     b, d1, d2, d3 = wp.tid()
-    if channel_dim == 1:
+    if src_channel_dim == 1:
         c = d1
+        h = d2
+        w = d3
     else:
         c = d3
-    out[b, d1, d2, d3] = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
+        h = d1
+        w = d2
+    value = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
+    if out_channel_dim == 1:
+        out[b, c, h, w] = value
+    else:
+        out[b, h, w, c] = value
 
 
 @wp.kernel(enable_backward=False)

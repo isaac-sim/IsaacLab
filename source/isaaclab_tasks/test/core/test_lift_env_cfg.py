@@ -38,15 +38,6 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
-def test_camera_normalization_is_stationary() -> None:
-    """RGB and depth normalization must not depend on per-frame statistics."""
-    rgb = torch.tensor([0.0, 127.5, 255.0])
-    depth = torch.tensor([0.0, 2.0])
-
-    assert torch.allclose(mdp.vision_camera._rgb_norm(None, rgb), torch.tensor([-0.5, 0.0, 0.5]))
-    assert torch.allclose(mdp.vision_camera._depth_norm(None, depth), torch.tanh(depth / 2) - 0.5)
-
-
 def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every lift pose, goal, and success marker should retain its environment ownership."""
     num_envs = 3

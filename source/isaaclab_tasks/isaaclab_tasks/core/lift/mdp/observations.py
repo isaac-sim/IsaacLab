@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
-    from isaaclab.sensors import Camera
 
 
 def object_quat_b(
@@ -210,60 +209,6 @@ def fingers_contact_force_b(
     root_link_quat_w = robot.data.root_link_quat_w.torch
     forces_b = quat_apply_inverse(root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
     return forces_b.view(env.num_envs, -1)
-
-
-class vision_camera(ManagerTermBase):
-    def __init__(self, cfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
-        self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
-        self.sensor_type = self.sensor.cfg.data_types[0]
-        self.norm_fn = (
-            self._depth_norm
-            if self.sensor_type == "distance_to_image_plane" or self.sensor_type == "depth"
-            else self._rgb_norm
-        )
-
-    def __call__(
-        self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
-    ) -> torch.Tensor:  # obtain the input image
-        images = self.sensor.data.output[self.sensor_type]
-        torch.nan_to_num_(images, nan=1e6)
-        if normalize:
-            images = self.norm_fn(images)
-            images = images.permute(0, 3, 1, 2).contiguous()
-        return images
-
-    def _rgb_norm(self, images: torch.Tensor) -> torch.Tensor:
-        return images.float() / 255.0 - 0.5
-
-    def _depth_norm(self, images: torch.Tensor) -> torch.Tensor:
-        # same [-0.5, 0.5) span as the RGB normalization: a wider depth range doubles the
-        # encoder's effective input scale and halves the stable learning-rate budget
-        return torch.tanh(images / 2) - 0.5
-
-    def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
-        import matplotlib
-        import numpy as np
-        from PIL import Image
-
-        a = images.detach().cpu().numpy()
-        n, h, w, c = a.shape
-        s = int(np.ceil(np.sqrt(n)))
-        canvas = np.full((s * h, s * w, 3), 255, np.uint8)
-        turbo = matplotlib.colormaps["turbo"]
-        for i in range(n):
-            r, col = divmod(i, s)
-            img = a[i]
-            if c == 1:
-                d = img[..., 0]
-                d = (d - d.min()) / (np.ptp(d) + 1e-8)
-                rgb = (turbo(d)[..., :3] * 255).astype(np.uint8)
-            else:
-                x = img if img.max() > 1 else img * 255
-                rgb = np.clip(x, 0, 255).astype(np.uint8)
-            canvas[r * h : (r + 1) * h, col * w : (col + 1) * w] = rgb
-        Image.fromarray(canvas).save(save_path)
 
 
 def deformable_com_in_robot_root_frame(

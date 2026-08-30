@@ -429,6 +429,8 @@ class ObservationManager(ManagerBase):
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
+            if len(group_obs) == 1 and self._group_obs_term_cfgs[group_name][0].history_length == 0:
+                return next(iter(group_obs.values()))
             # set the concatenate dimension, account for the batch dimension if positive dimension is given
             return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
